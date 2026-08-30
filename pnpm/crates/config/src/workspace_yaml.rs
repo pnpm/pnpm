@@ -1,9 +1,14 @@
 use crate::{
-    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
+    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
+    VirtualStoreType,
     api::EnvVar,
+    config_types::is_config_file_key,
+    known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
+    naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
     proxy_keys::{ProxyKeys, ProxyValue},
+    refused_keys::{is_refused_by_a_project_manifest, where_refused_key_belongs},
     resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
@@ -16,7 +21,7 @@ use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
 use registries::RegistryEntry;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, de::IgnoredAny};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
@@ -110,6 +115,13 @@ pub enum AllowBuild {
     Undecided(String),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum PnpmfileSetting {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
 impl AllowBuild {
     /// The policy this entry resolves to, or `None` while it is still an
     /// unedited placeholder.
@@ -129,6 +141,134 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
     allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
+/// Organization-owned dependency build artifacts eligible for this workspace.
+///
+/// `org` and `packages` default to empty because one section is
+/// assembled from several sources: the repository names the eligible
+/// organization and packages while the machine supplies the trust root. The
+/// feature applies only once both halves are present.
+///
+/// Only `org` and `packages` may come from a repository. Every other
+/// field describes the act of signing and travels with the machine: loading a
+/// `pnpm-workspace.yaml` that sets one fails with
+/// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
+/// global config yaml and the environment.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RemoteSideEffectsCacheSettings {
+    /// `org` is what pnpr calls this namespace in its own configuration and
+    /// what its endpoints are built from.
+    pub org: String,
+    /// The alternative spelling of [`Self::org`]. A non-empty [`Self::org`]
+    /// wins over this field.
+    ///
+    /// A separate field rather than a serde alias: an alias makes a file
+    /// carrying both keys a duplicate-field parse error, where every other
+    /// pair of spellings here resolves to the canonical one.
+    pub organization: String,
+    pub packages: Vec<String>,
+    /// Publish the lifecycle-script diff of every eligible package that is built.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
+    /// Identifies which of the consumer's trusted keys signed a published artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builder_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture_baseline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_env: Option<BTreeMap<String, String>>,
+    /// Base64-encoded P-256 `SubjectPublicKeyInfo` DER, keyed by key id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_keys: Option<BTreeMap<String, String>>,
+    /// Base64-encoded PKCS#8 P-256 private key used to sign published artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+}
+
+/// `sideEffectsCache` as written: either a bare boolean, or the declaration
+/// carrying all three parts.
+#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SideEffectsCacheSetting {
+    Enabled(bool),
+    /// Boxed because the shorthand is one byte and this is not, and an
+    /// `Option<SideEffectsCacheSetting>` sits in a struct built for every
+    /// workspace file read.
+    Settings(Box<SideEffectsCacheSettings>),
+}
+
+/// Where a dependency's build output may be reused from: this machine, and —
+/// through [`Self::remote`] — other machines in the same organization.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SideEffectsCacheSettings {
+    /// Restore a package's build from the cache when one is present.
+    pub read: Option<bool>,
+    /// Save a package's build output to the cache.
+    pub write: Option<bool>,
+    pub remote: Option<RemoteSideEffectsCacheSettings>,
+}
+
+impl RemoteSideEffectsCacheSettings {
+    /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
+    ///
+    /// A workspace declares eligibility while the machine holds the signing
+    /// trust root, so the two sources contribute different fields of one
+    /// section and the later one must not drop what the earlier one set.
+    pub(crate) fn overlay(&mut self, other: Self) {
+        let Self {
+            org,
+            organization,
+            packages,
+            publish,
+            key_id,
+            builder_id,
+            image_digest,
+            architecture_baseline,
+            build_env,
+            trusted_keys,
+            private_key,
+        } = other;
+        // Resolved as the section is layered rather than at each read, so
+        // that `.org` is the only spelling anything downstream has to know.
+        let org = if org.is_empty() { organization } else { org };
+        if !org.is_empty() {
+            self.org = org;
+        }
+        if !packages.is_empty() {
+            self.packages = packages;
+        }
+        if publish.is_some() {
+            self.publish = publish;
+        }
+        if key_id.is_some() {
+            self.key_id = key_id;
+        }
+        if builder_id.is_some() {
+            self.builder_id = builder_id;
+        }
+        if image_digest.is_some() {
+            self.image_digest = image_digest;
+        }
+        if architecture_baseline.is_some() {
+            self.architecture_baseline = architecture_baseline;
+        }
+        if build_env.is_some() {
+            self.build_env = build_env;
+        }
+        if trusted_keys.is_some() {
+            self.trusted_keys = trusted_keys;
+        }
+        if private_key.is_some() {
+            self.private_key = private_key;
+        }
+    }
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -142,9 +282,10 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 /// (or the hard-coded default).
 ///
 /// See <https://pnpm.io/settings> for the canonical key list.
-/// Non-config keys in a real pnpm-workspace.yaml (`packages`, `catalog`,
-/// `catalogs`, `onlyBuiltDependencies`, `allowBuilds`, ...) are silently
-/// ignored — serde drops them since the struct doesn't use
+/// Workspace-structural keys (`packages`, `catalog`, `catalogs`, the build
+/// allowlists) are carried only for `pnpm config get` / `list` — see
+/// [`Self::packages`]. Anything else that is not a field is silently
+/// ignored — serde drops it since the struct doesn't use
 /// `deny_unknown_fields`.
 ///
 /// pnpm v11 also reads `patchedDependencies` (and the other install
@@ -154,7 +295,26 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
+    pub bail: Option<bool>,
     pub ci: Option<bool>,
+    pub update_notifier: Option<bool>,
+    pub color: Option<crate::ColorMode>,
+    pub embed_readme: Option<bool>,
+    pub ignore_workspace_root_check: Option<bool>,
+    pub optional: Option<bool>,
+    pub package_lock: Option<bool>,
+    pub pending: Option<bool>,
+    pub recursive_install: Option<bool>,
+    pub reverse: Option<bool>,
+    pub stream: Option<bool>,
+    pub aggregate_output: Option<bool>,
+    pub reporter_hide_prefix: Option<bool>,
+    pub use_stderr: Option<bool>,
+    pub ignore_workspace: Option<bool>,
+    pub shell_emulator: Option<bool>,
+    pub skip_manifest_obfuscation: Option<bool>,
+    pub sort: Option<bool>,
+    pub use_beta_cli: Option<bool>,
     pub hoist: Option<bool>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
@@ -167,14 +327,20 @@ pub struct WorkspaceSettings {
     pub public_hoist_pattern: Option<Option<Vec<String>>>,
     pub shamefully_hoist: Option<bool>,
     pub store_dir: Option<String>,
+    pub state_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
     pub node_experimental_package_map: Option<bool>,
     pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
-    /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. See
+    /// `virtualStoreType` from `pnpm-workspace.yaml`. See
+    /// [`crate::VirtualStoreType`], and
     /// [`Config::enable_global_virtual_store`] for the default.
+    pub virtual_store_type: Option<VirtualStoreType>,
+    /// `enableGlobalVirtualStore`, the boolean spelling of
+    /// [`Self::virtual_store_type`]. A file may carry either or both; the
+    /// canonical key wins.
     pub enable_global_virtual_store: Option<bool>,
     /// `virtualStoreOnly` from `pnpm-workspace.yaml`. See
     /// [`Config::virtual_store_only`].
@@ -196,6 +362,10 @@ pub struct WorkspaceSettings {
     pub virtual_store_dir_max_length: Option<u64>,
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
+    /// `lockfileDir` from `pnpm-workspace.yaml` or the global
+    /// `config.yaml`. Resolved against the workspace dir like the other
+    /// path-valued fields. See [`Config::lockfile_dir`].
+    pub lockfile_dir: Option<String>,
     pub prefer_frozen_lockfile: Option<bool>,
 
     /// `frozenLockfile` from `pnpm-workspace.yaml`. Unset by default:
@@ -204,6 +374,9 @@ pub struct WorkspaceSettings {
     pub deploy_all_files: Option<bool>,
     pub force_legacy_deploy: Option<bool>,
     pub shared_workspace_lockfile: Option<bool>,
+    pub git_branch_lockfile: Option<bool>,
+    pub merge_git_branch_lockfiles: Option<bool>,
+    pub merge_git_branch_lockfiles_branch_pattern: Option<Vec<String>>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
@@ -214,6 +387,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -250,6 +424,9 @@ pub struct WorkspaceSettings {
     /// `extendNodePath` from `pnpm-workspace.yaml`. See
     /// [`Config::extend_node_path`].
     pub extend_node_path: Option<bool>,
+    /// `preferSymlinkedExecutables` from `pnpm-workspace.yaml`. Unset by
+    /// default: see [`Config::prefer_symlinked_executables`].
+    pub prefer_symlinked_executables: Option<bool>,
     /// `linkWorkspacePackages` from `pnpm-workspace.yaml`. Tri-state
     /// (`true | false | "deep"`) — see [`LinkWorkspacePackages`].
     pub link_workspace_packages: Option<LinkWorkspacePackages>,
@@ -281,13 +458,20 @@ pub struct WorkspaceSettings {
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
+    pub strict_store_pkg_content_check: Option<bool>,
+    pub include_workspace_root: Option<bool>,
+    pub ignore_workspace_cycles: Option<bool>,
+    pub disallow_workspace_cycles: Option<bool>,
     /// `frozenStore` from `pnpm-workspace.yaml`. Opens the store
     /// read-only and suppresses every store write — see
     /// [`Config::frozen_store`]. Default `false`.
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
-    pub side_effects_cache: Option<bool>,
+    /// `sideEffectsCache`: whether a build is restored, whether one is saved,
+    /// and where from. A bare boolean sets reading and writing together.
+    pub side_effects_cache: Option<SideEffectsCacheSetting>,
+    /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -297,7 +481,19 @@ pub struct WorkspaceSettings {
     /// `maxSockets` — per-origin concurrent-connection cap. See
     /// [`Config::max_sockets`]. Default unset (no per-origin cap).
     pub max_sockets: Option<usize>,
+    /// `maxsockets` — npm's spelling of [`Self::max_sockets`], which pnpm
+    /// reads too. A field of its own rather than a serde alias, because a
+    /// file carrying both spellings is a duplicate field to serde and
+    /// would fail the whole parse; pnpm takes it and lets the canonical
+    /// spelling win.
+    pub maxsockets: Option<usize>,
     pub fetch_timeout: Option<u64>,
+    /// The `fetchWarnTimeoutMs` YAML value in milliseconds. [`None`] leaves
+    /// [`Config::fetch_warn_timeout_ms`] unchanged.
+    pub fetch_warn_timeout_ms: Option<u64>,
+    /// The `fetchMinSpeedKiBps` YAML value in KiB/s. [`None`] leaves
+    /// [`Config::fetch_min_speed_ki_bps`] unchanged.
+    pub fetch_min_speed_ki_bps: Option<u64>,
     pub user_agent: Option<String>,
     /// `npmrcAuthFile` is read only from the global `config.yaml`
     /// (consumed by [`crate::Config::current`] to choose the user-level
@@ -328,6 +524,13 @@ pub struct WorkspaceSettings {
 
     pub patches_dir: Option<String>,
 
+    pub pnpmfile: Option<PnpmfileSetting>,
+
+    /// `globalPnpmfile`. Unlike [`Self::pnpmfile`] this survives
+    /// [`Self::clear_workspace_only_fields`]: pnpm lists `global-pnpmfile`
+    /// among the keys its global `config.yaml` accepts.
+    pub global_pnpmfile: Option<String>,
+
     /// `allowUnusedPatches` from `pnpm-workspace.yaml`. Default `false`.
     pub allow_unused_patches: Option<bool>,
 
@@ -350,6 +553,23 @@ pub struct WorkspaceSettings {
     /// `pnpm-workspace.yaml` alongside other install settings.
     pub allow_builds: Option<HashMap<String, AllowBuild>>,
 
+    /// The workspace-structural keys of `pnpm-workspace.yaml`, carried so
+    /// `pnpm config get` / `pnpm config list` can show them. Installs read
+    /// them from the workspace-manifest layer, not from [`Config`], so
+    /// [`Self::apply_to`] leaves them alone and the global `config.yaml`
+    /// refuses them.
+    pub packages: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub catalog: Option<IndexMap<String, String>>,
+    /// See [`Self::packages`].
+    pub catalogs: Option<IndexMap<String, IndexMap<String, String>>>,
+    /// See [`Self::packages`].
+    pub only_built_dependencies: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub never_built_dependencies: Option<Vec<String>>,
+    /// See [`Self::packages`].
+    pub ignored_built_dependencies: Option<Vec<String>>,
+
     /// Bypass the [`allow_builds`] gate entirely — every package may
     /// run lifecycle scripts. Same `pnpm-workspace.yaml` migration
     /// as `allowBuilds`. Default `false`.
@@ -367,6 +587,13 @@ pub struct WorkspaceSettings {
     /// collected. See [`Config::ignore_scripts`]. The `--ignore-scripts`
     /// CLI flag ORs on top of this. Default `false`.
     pub ignore_scripts: Option<bool>,
+
+    /// `ignorePnpmfile` from `pnpm-workspace.yaml`. When `true`, no pnpmfile
+    /// hooks run. See [`Config::ignore_pnpmfile`]. The `--ignore-pnpmfile` CLI
+    /// flag ORs on top of this. Cleared by
+    /// [`Self::clear_workspace_only_fields`], so the global `config.yaml`
+    /// cannot set it. Default `false`.
+    pub ignore_pnpmfile: Option<bool>,
 
     /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
     /// skips its git working-tree checks. See [`Config::git_checks`]. The
@@ -448,6 +675,12 @@ pub struct WorkspaceSettings {
     /// `changedFilesIgnorePattern` from `pnpm-workspace.yaml` — see
     /// [`Config::changed_files_ignore_pattern`].
     pub changed_files_ignore_pattern: Option<Vec<String>>,
+
+    /// `legacyDirFiltering` from `pnpm-workspace.yaml` — see
+    /// [`Config::legacy_dir_filtering`].
+    ///
+    /// [`Config::legacy_dir_filtering`]: crate::Config::legacy_dir_filtering
+    pub legacy_dir_filtering: Option<bool>,
 
     /// `syncInjectedDepsAfterScripts` from `pnpm-workspace.yaml` — see
     /// [`Config::sync_injected_deps_after_scripts`].
@@ -534,6 +767,47 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
+
+    /// `initPackageManager` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See
+    /// [`Config::init_package_manager`].
+    ///
+    /// [`Config::init_package_manager`]: crate::Config::init_package_manager
+    pub init_package_manager: Option<bool>,
+
+    /// `initType` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`InitType`].
+    pub init_type: Option<InitType>,
+
+    /// `initAuthorName` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_name`].
+    ///
+    /// [`Config::init_author_name`]: crate::Config::init_author_name
+    pub init_author_name: Option<String>,
+
+    /// `initAuthorEmail` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_email`].
+    ///
+    /// [`Config::init_author_email`]: crate::Config::init_author_email
+    pub init_author_email: Option<String>,
+
+    /// `initAuthorUrl` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_author_url`].
+    ///
+    /// [`Config::init_author_url`]: crate::Config::init_author_url
+    pub init_author_url: Option<String>,
+
+    /// `initLicense` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_license`].
+    ///
+    /// [`Config::init_license`]: crate::Config::init_license
+    pub init_license: Option<String>,
+
+    /// `initVersion` from `pnpm-workspace.yaml` /
+    /// `~/.config/pnpm/config.yaml`. See [`Config::init_version`].
+    ///
+    /// [`Config::init_version`]: crate::Config::init_version
+    pub init_version: Option<String>,
 
     /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
     pub pm_on_fail: Option<PmOnFail>,
@@ -649,6 +923,35 @@ pub struct WorkspaceSettings {
     /// `peerDependencyRules` from `pnpm-workspace.yaml`. See
     /// [`PeerDependencyRules`].
     pub peer_dependency_rules: Option<PeerDependencyRules>,
+
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, keyed by task (script) name. See [`TaskSettings`].
+    pub tasks: Option<IndexMap<String, TaskSettings>>,
+
+    /// The problem keys [`Self::collect_key_issues`] found in the file this
+    /// was parsed from. Not a setting: carried here so the CLI can report
+    /// them at the point where it knows how severe they are (see the
+    /// warnings/error in `pnpm-cli`'s `config_warnings`).
+    #[serde(skip)]
+    pub key_issues: WorkspaceKeyIssues,
+}
+
+/// The keys of a project's `pnpm-workspace.yaml` that set nothing, bucketed
+/// by why: refused values a project may not contribute, keys naming no
+/// setting any supported pnpm reads, and kebab-case spellings of keys pnpm
+/// only reads in camelCase.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct WorkspaceKeyIssues {
+    pub refused: Vec<String>,
+    pub unrecognized: Vec<String>,
+    pub non_camel_case: Vec<String>,
+}
+
+impl WorkspaceKeyIssues {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.refused.is_empty() && self.unrecognized.is_empty() && self.non_camel_case.is_empty()
+    }
 }
 
 /// `audit` entry: settings that tune `pnpm audit`. Supersedes the
@@ -665,6 +968,13 @@ pub struct AuditSettings {
     /// [`AuditConfig::ignore_ghsas`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore: Option<Vec<String>>,
+
+    /// When `true`, `pnpm audit --fix` removes entries from the ignore
+    /// list that no longer appear in the audit report, so a re-introduced
+    /// vulnerability under the same GHSA ID gets re-evaluated instead of
+    /// staying silently suppressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_prune: Option<bool>,
 }
 
 /// `update` entry: settings that tune `pnpm update` (and `pnpm
@@ -699,6 +1009,59 @@ pub struct UpdateSettings {
     /// falling back to <https://github.com>.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions_server: Option<String>,
+}
+
+/// One task's entry in the `tasks` section. A task name is a script name:
+/// `pnpm -r run <name>` runs the task named `<name>` in every selected
+/// project.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TaskSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<i64>,
+
+    #[serde(skip)]
+    invalid_concurrency: Option<serde_json::Value>,
+
+    /// The tasks that must complete before this one may start. A `^name`
+    /// entry names the task in each of the project's workspace
+    /// dependencies; a bare `name` entry names the task in the same
+    /// project.
+    ///
+    /// A task with no declaration behaves as `dependsOn: ['^<its own
+    /// name>']`. An entry with `dependsOn` omitted declares an empty
+    /// dependency list — the task depends on nothing and may start
+    /// immediately.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_on: Option<Vec<String>>,
+
+    /// Fields this version of pnpm does not read, kept so validation can
+    /// reject a typo instead of silently ignoring it.
+    #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
+    pub unknown: IndexMap<String, serde_json::Value>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct RawTaskSettings {
+    concurrency: Option<serde_json::Value>,
+    depends_on: Option<Vec<String>>,
+    #[serde(flatten)]
+    unknown: IndexMap<String, serde_json::Value>,
+}
+
+impl<'de> Deserialize<'de> for TaskSettings {
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let raw = RawTaskSettings::deserialize(deserializer)?;
+        let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
+        let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
+        Ok(Self {
+            concurrency,
+            invalid_concurrency,
+            depends_on: raw.depends_on,
+            unknown: raw.unknown,
+        })
+    }
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -864,6 +1227,22 @@ pub enum LoadWorkspaceYamlError {
     #[display("The prefix {prefix:?} is declared by two registries")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     PrefixDeclaredTwice { prefix: String },
+    #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A task declares "concurrency" and "dependsOn"."#)
+    )]
+    UnknownTaskSettingField { task: String, field: String },
+    #[display(
+        "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidTaskConcurrency { task: String, concurrency: String },
+    #[display(
+        "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    EmptyTaskDependsOnEntry { task: String, entry: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -881,6 +1260,25 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperInProjectConfig { key: String },
+    /// An `_auth` credential did not decode as base64. Its whole point is
+    /// to carry `<username>:<password>` base64-encoded, so a value that
+    /// cannot be decoded would otherwise reach the registry as a header
+    /// no server can read — a silent 401 instead of a fixable error.
+    #[display("Failed to decode {key} as base64")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_INVALID_BASE64),
+        help("{key} must hold the base64 encoding of <username>:<password>.")
+    )]
+    AuthInvalidBase64 { key: &'static str },
+    /// A decoded `_auth` credential held no `:`, so it names no password.
+    #[display("No separator found in the decoded form of _auth")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_MISSING_SEPARATOR),
+        help(
+            "_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator"
+        )
+    )]
+    AuthMissingSeparator,
     /// A honored `tokenHelper` value contained a character pnpm reserves
     /// for future quoting / interpolation support.
     #[display("Unexpected character {character:?} in tokenHelper")]
@@ -906,6 +1304,19 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
+
+    /// The signing trust root for remote side-effects artifacts appeared in a
+    /// committed file. Only the global config yaml and the environment may
+    /// carry it — see [`RemoteSideEffectsCacheSettings`].
+    #[display("{prefix}.{field} cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -928,9 +1339,11 @@ impl WorkspaceSettings {
         };
         let mut settings: WorkspaceSettings = serde_saphyr::from_str(&text)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
         settings.clear_workspace_only_fields();
+        settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
     }
 
@@ -944,6 +1357,128 @@ impl WorkspaceSettings {
     fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
+    /// which reads it without further checks — a malformed entry has to be
+    /// rejected here rather than surface as a scheduling bug far from the
+    /// setting that produced it.
+    fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(tasks) = self.tasks.as_ref() else { return Ok(()) };
+        for (task, settings) in tasks {
+            if let Some(field) = settings.unknown.keys().next() {
+                return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
+                    task: task.clone(),
+                    field: field.clone(),
+                });
+            }
+            if let Some(concurrency) = settings.concurrency
+                && concurrency < 1
+            {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency: concurrency.to_string(),
+                });
+            }
+            if let Some(concurrency) = settings.invalid_concurrency.as_ref() {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency: concurrency.to_string(),
+                });
+            }
+            for entry in settings.depends_on.iter().flatten() {
+                if entry.is_empty() || entry == "^" {
+                    return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
+                        task: task.clone(),
+                        entry: entry.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Warn about the keys of the global `config.yaml` that never reach the
+    /// settings, in the three messages pnpm emits for that file.
+    ///
+    /// What survived is read back off `self` rather than off a second list of
+    /// key names, which would drift from the struct: a key serde did not
+    /// recognize is absent from the serialized settings, and one
+    /// [`Self::clear_workspace_only_fields`] zeroed is null there.
+    ///
+    /// A dropped camelCase key pnpm's `isConfigFileKey` accepts stays silent:
+    /// pnpm honors it in this file, so the fix is to honor it too, and until
+    /// then a warning would diverge from pnpm's output on the same file.
+    fn warn_about_dropped_keys(&self, text: &str, path: &Path) {
+        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
+        else {
+            return;
+        };
+        let Ok(serde_json::Value::Object(kept)) = serde_json::to_value(self) else {
+            return;
+        };
+
+        let mut movable = Vec::new();
+        let mut unrecognized = Vec::new();
+        let mut nowhere = Vec::new();
+        let mut kebab_case = Vec::new();
+        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+            if key == SCHEMA_DIRECTIVE_KEY {
+                continue;
+            }
+            if matches!(kept.get(key), Some(value) if !value.is_null()) {
+                continue;
+            }
+            // The key comes from a file the machine's user controls, but the
+            // same rendering serves the project file, so it is sanitized here
+            // too rather than only where it must be.
+            let key = redact_and_sanitize(key);
+            let key = key.as_str();
+            if !is_config_file_key(&to_kebab_case(key)) {
+                if is_refused_by_a_project_manifest(key) {
+                    nowhere.push(format!(
+                        r#""{key}" ({})"#,
+                        where_refused_key_belongs(&to_camel_case(key)),
+                    ));
+                } else if is_known_setting_key(key) {
+                    movable.push(format!(r#""{key}""#));
+                } else {
+                    unrecognized.push(annotate_unknown_setting(key));
+                }
+            } else if !is_camel_case(key) {
+                kebab_case.push(format!(r#""{key}" (use "{}")"#, to_camel_case(key)));
+            }
+        }
+
+        let path = path.display();
+        if !movable.is_empty() {
+            let movable = movable.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {movable}. Move them to a project-level pnpm-workspace.yaml. To share these settings across projects, use config dependencies: https://pnpm.io/11.x/config-dependencies"#,
+            );
+        }
+        if !unrecognized.is_empty() {
+            let unrecognized = unrecognized.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") are not recognized by this version of pnpm and were ignored: {unrecognized}."#,
+            );
+        }
+        if !nowhere.is_empty() {
+            let nowhere = nowhere.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings cannot be set in the global config file ("{path}") and were ignored: {nowhere}."#,
+            );
+        }
+        if !kebab_case.is_empty() {
+            let kebab_case = kebab_case.join(", ");
+            tracing::warn!(
+                target: "pacquet::config",
+                r#"The following settings in the global config file ("{path}") were ignored because they are not written in camelCase: {kebab_case}."#,
+            );
+        }
     }
 
     /// Zero out the release-age and trust policies for `self-update`.
@@ -992,7 +1527,28 @@ impl WorkspaceSettings {
             }
         }
         self.versioning = None;
+        self.packages = None;
+        self.catalog = None;
+        // Task declarations describe the workspace's own scripts; pnpm's
+        // config-file key filter drops them from the global file too.
+        self.tasks = None;
+        // A pnpmfile belongs to the project that ships it, and pnpm reads
+        // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
+        // not from here. Honoring it globally would silently drop a
+        // repository's hooks on one machine and resolve a different graph.
+        self.ignore_pnpmfile = None;
+        self.catalogs = None;
+        self.only_built_dependencies = None;
+        self.never_built_dependencies = None;
+        self.ignored_built_dependencies = None;
         self.hoist = None;
+        self.embed_readme = None;
+        self.ignore_workspace_root_check = None;
+        self.pending = None;
+        self.recursive_install = None;
+        self.reverse = None;
+        self.skip_manifest_obfuscation = None;
+        self.sort = None;
         self.hoist_pattern = None;
         self.public_hoist_pattern = None;
         self.shamefully_hoist = None;
@@ -1004,6 +1560,9 @@ impl WorkspaceSettings {
         self.deploy_all_files = None;
         self.force_legacy_deploy = None;
         self.shared_workspace_lockfile = None;
+        self.git_branch_lockfile = None;
+        self.merge_git_branch_lockfiles = None;
+        self.merge_git_branch_lockfiles_branch_pattern = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
@@ -1025,6 +1584,7 @@ impl WorkspaceSettings {
         self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
+        self.pnpmfile = None;
         self.config_dependencies = None;
         self.allow_builds = None;
         self.supported_architectures = None;
@@ -1033,6 +1593,7 @@ impl WorkspaceSettings {
         self.package_extensions = None;
         self.test_pattern = None;
         self.changed_files_ignore_pattern = None;
+        self.legacy_dir_filtering = None;
         self.sync_injected_deps_after_scripts = None;
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
@@ -1051,12 +1612,148 @@ impl WorkspaceSettings {
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(source) => return Err(LoadWorkspaceYamlError::ReadFile { path, source }),
         };
-        let settings: WorkspaceSettings = text
+        let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
+        settings.reject_repo_controlled_trust_material(&path)?;
+        settings.collect_key_issues(&text);
         Ok(Some(settings))
+    }
+
+    /// Reject every remote side-effects field a committed file may not set.
+    ///
+    /// A workspace declares which organization and packages are eligible and
+    /// nothing else: the rest describes the act of signing — which key signs,
+    /// what provenance the signature attests, and whether to publish at all —
+    /// so it belongs to the machine holding the key. Letting a repository set
+    /// `publish` would turn a key the machine holds for its own builds into a
+    /// signing oracle any clone could aim at a registry of its choosing.
+    ///
+    /// Checked after parsing rather than through `deny_unknown_fields` because
+    /// the same struct also parses the global config yaml, where every field is
+    /// legitimate.
+    fn reject_repo_controlled_trust_material(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let canonical = match self.side_effects_cache.as_ref() {
+            Some(SideEffectsCacheSetting::Settings(settings)) => settings.remote.as_ref(),
+            _ => None,
+        };
+        // The message names the spelling the file actually used, since telling
+        // someone to move `remoteSideEffectsCache.privateKey` out of a file
+        // that says `sideEffectsCache.remote.privateKey` sends them looking
+        // for a key that is not there.
+        for (setting, prefix) in [
+            (canonical, "sideEffectsCache.remote"),
+            (self.remote_side_effects_cache.as_ref(), "remoteSideEffectsCache"),
+        ] {
+            let Some(settings) = setting else { continue };
+            Self::reject_machine_only_fields(settings, prefix, path)?;
+        }
+        Ok(())
+    }
+
+    fn reject_machine_only_fields(
+        settings: &RemoteSideEffectsCacheSettings,
+        prefix: &'static str,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let machine_only = [
+            ("publish", settings.publish.is_some()),
+            ("keyId", settings.key_id.is_some()),
+            ("builderId", settings.builder_id.is_some()),
+            ("imageDigest", settings.image_digest.is_some()),
+            ("architectureBaseline", settings.architecture_baseline.is_some()),
+            ("buildEnv", settings.build_env.is_some()),
+            ("trustedKeys", settings.trusted_keys.is_some()),
+            ("privateKey", settings.private_key.is_some()),
+        ];
+        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
+            path: path.to_path_buf(),
+            prefix,
+            field,
+        })
+    }
+
+    /// Bucket the file's keys that set nothing into [`Self::key_issues`],
+    /// under the project-file rules: refused values, keys naming no setting
+    /// any supported pnpm reads, and kebab-case spellings of known settings.
+    /// Reporting is the caller's job — how severe an unrecognized key is
+    /// depends on whether the running pnpm is the project's pinned version,
+    /// which only the CLI layer knows.
+    pub fn collect_key_issues(&mut self, text: &str) {
+        if !Self::may_have_key_issues(text) {
+            return;
+        }
+        let Ok(document) = serde_saphyr::from_str::<IndexMap<String, Option<IgnoredAny>>>(text)
+        else {
+            return;
+        };
+        let mut issues = WorkspaceKeyIssues::default();
+        for key in document.iter().filter(|(_, value)| value.is_some()).map(|(key, _)| key) {
+            if key == SCHEMA_DIRECTIVE_KEY {
+                continue;
+            }
+            if is_refused_by_a_project_manifest(key) {
+                issues.refused.push(key.clone());
+            } else if !is_known_setting_key(key) {
+                issues.unrecognized.push(key.clone());
+            } else if !is_camel_case(key) {
+                issues.non_camel_case.push(key.clone());
+            }
+        }
+        self.key_issues = issues;
+    }
+
+    /// Whether `text` may carry a key [`WorkspaceSettings::collect_key_issues`]
+    /// would report, answered without parsing the file a second time.
+    ///
+    /// Serde keeps no record of the keys it dropped, so collecting them means
+    /// re-reading the document — which costs as much as the parse that
+    /// produced the settings, on every command, to find nothing in the
+    /// overwhelmingly common case of a file that is simply correct.
+    ///
+    /// The top-level keys are the least indented lines of the document, since
+    /// everything a key nests under it is indented further; the root mapping
+    /// may itself be indented, so what marks a top-level key is the smallest
+    /// indentation the file uses rather than column zero. A line this cannot
+    /// measure or classify counts as one to look at, so the answer errs only
+    /// towards re-reading, never towards missing a key.
+    fn may_have_key_issues(text: &str) -> bool {
+        let content_lines = text.lines().filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        });
+        let mut root_indent = usize::MAX;
+        for line in content_lines.clone() {
+            let indent = line.len() - line.trim_start().len();
+            // YAML forbids a tab as indentation, so a file that uses one is
+            // not worth measuring against.
+            if line[..indent].bytes().any(|byte| byte != b' ') {
+                return true;
+            }
+            root_indent = root_indent.min(indent);
+        }
+        if root_indent == usize::MAX {
+            return false;
+        }
+        content_lines.filter(|line| line.len() - line.trim_start().len() == root_indent).any(
+            |line| {
+                let Some((key, _)) = line.trim_start().split_once(':') else { return true };
+                let key = key.trim_end();
+                key != SCHEMA_DIRECTIVE_KEY
+                    && (!is_camel_case(key)
+                        || !is_known_setting_key(key)
+                        || is_refused_by_a_project_manifest(key))
+            },
+        )
     }
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
@@ -1134,11 +1831,13 @@ impl WorkspaceSettings {
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
+        substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.lockfile_dir);
         substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
@@ -1165,6 +1864,26 @@ impl WorkspaceSettings {
             config.catalog_prune = v;
         }
 
+        // Tri-state on `Config`: `exec` treats "never asked" differently
+        // from an explicit `false`, so the macro's "apply when set" shape
+        // would collapse the distinction.
+        if let Some(v) = self.reporter_hide_prefix {
+            config.reporter_hide_prefix = Some(v);
+        }
+
+        // pnpm spells the setting `gitBranchLockfile` and exposes the
+        // resolved answer as `useGitBranchLockfile`; the macro below can
+        // only apply fields the two structs name identically.
+        if let Some(v) = self.git_branch_lockfile {
+            config.use_git_branch_lockfile = v;
+        }
+
+        // `virtualStoreType` is the canonical spelling of the boolean
+        // `enableGlobalVirtualStore`, which the macro below applies. Both
+        // land in the same field, so applying this after the macro is what
+        // makes the canonical key win when a file carries both.
+        let virtual_store_type = self.virtual_store_type;
+
         macro_rules! apply {
             ($($field:ident),* $(,)?) => {$(
                 if let Some(v) = self.$field {
@@ -1174,46 +1893,61 @@ impl WorkspaceSettings {
         }
 
         apply! {
-            ci, hoist, shamefully_hoist,
+            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            optional, package_lock, pending, recursive_install, reverse,
+            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
+            skip_manifest_obfuscation, sort, use_beta_cli,
+            hoist, shamefully_hoist,
             node_linker, node_experimental_package_map, node_package_map_type,
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
             lockfile, prefer_frozen_lockfile,
             deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
             offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
             exclude_links_from_lockfile,
             optimistic_repeat_install,
+            init_package_manager,
+            init_type,
             hoist_workspace_packages,
             extend_node_path,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers,
             dedupe_direct_deps, dedupe_injected_deps,
             strict_peer_dependencies, ignore_compatibility_db,
-            resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
+            resolve_peers_from_workspace_root, verify_store_integrity,
+            strict_store_pkg_content_check, frozen_store,
+            include_workspace_root,
+            ignore_workspace_cycles, disallow_workspace_cycles,
             verify_deps_before_run,
             block_exotic_subdeps,
             link_workspace_packages,
             save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
-            side_effects_cache, side_effects_cache_readonly,
+            side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
-            network_concurrency, fetch_timeout, user_agent,
+            network_concurrency, fetch_timeout,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
             enable_global_virtual_store,
             virtual_store_only, enable_modules_dir,
             git_shallow_hosts,
-            test_pattern, changed_files_ignore_pattern,
+            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
             sync_injected_deps_after_scripts,
             resolution_mode, catalog_mode, catalog_prune,
             minimum_release_age_exclude_prune, save_peer, save_exact,
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches,
+            allow_unused_patches, tasks,
+        }
+
+        if let Some(virtual_store_type) = virtual_store_type {
+            config.enable_global_virtual_store = virtual_store_type.is_global();
         }
 
         // `globalShims` merges key-wise instead of replacing,
@@ -1245,8 +1979,26 @@ impl WorkspaceSettings {
         if let Some(frozen_lockfile) = self.frozen_lockfile {
             config.frozen_lockfile = Some(frozen_lockfile);
         }
+        if let Some(prefer_symlinked_executables) = self.prefer_symlinked_executables {
+            config.prefer_symlinked_executables = Some(prefer_symlinked_executables);
+        }
         if let Some(save_catalog_name) = self.save_catalog_name {
             config.save_catalog_name = Some(save_catalog_name);
+        }
+        if let Some(init_author_name) = self.init_author_name {
+            config.init_author_name = Some(init_author_name);
+        }
+        if let Some(init_author_email) = self.init_author_email {
+            config.init_author_email = Some(init_author_email);
+        }
+        if let Some(init_author_url) = self.init_author_url {
+            config.init_author_url = Some(init_author_url);
+        }
+        if let Some(init_license) = self.init_license {
+            config.init_license = Some(init_license);
+        }
+        if let Some(init_version) = self.init_version {
+            config.init_version = Some(init_version);
         }
         if let Some(save_prefix) = self.save_prefix {
             config.save_prefix = Some(save_prefix);
@@ -1275,6 +2027,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
         }
+        // Last of the path-valued settings: pinning the lockfile dir
+        // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
+        // must see whatever this layer just set.
+        if let Some(v) = self.lockfile_dir {
+            config.pin_lockfile_dir(&resolve(base_dir, &v));
+        }
         if let Some(v) = self.store_dir {
             config.store_dir = StoreDir::from(resolve(base_dir, &v));
         }
@@ -1297,6 +2055,31 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.remote_side_effects_cache {
+            config.remote_side_effects_cache.get_or_insert_default().overlay(v);
+        }
+        // The canonical declaration is applied after the alias so that it wins
+        // where both are set, and its `remote` half overlays rather than
+        // replaces: a repository names the organization while the machine
+        // supplies the signing key, and neither may drop the other's fields.
+        match self.side_effects_cache {
+            Some(SideEffectsCacheSetting::Enabled(enabled)) => {
+                config.side_effects_cache = enabled;
+                // A later layer saying `sideEffectsCache: false` has to beat an
+                // earlier layer's object, and the helpers prefer these when set,
+                // so the shorthand must clear what the object left behind.
+                config.side_effects_cache_read_setting = None;
+                config.side_effects_cache_write_setting = None;
+            }
+            Some(SideEffectsCacheSetting::Settings(settings)) => {
+                config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));
+                config.side_effects_cache_write_setting = Some(settings.write.unwrap_or(true));
+                if let Some(remote) = settings.remote {
+                    config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
+                }
+            }
+            None => {}
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {
@@ -1321,6 +2104,21 @@ impl WorkspaceSettings {
         if let Some(v) = self.patches_dir {
             config.patches_dir = Some(v);
         }
+        if let Some(path) = self.global_pnpmfile {
+            config.global_pnpmfile = Some(pnpm_fs::lexical_normalize(&base_dir.join(path)));
+        }
+        if let Some(pnpmfile) = self.pnpmfile {
+            let paths = match pnpmfile {
+                PnpmfileSetting::Single(path) => vec![path],
+                PnpmfileSetting::Multiple(paths) => paths,
+            };
+            config.pnpmfile = Some(
+                paths
+                    .into_iter()
+                    .map(|path| pnpm_fs::lexical_normalize(&base_dir.join(path)))
+                    .collect(),
+            );
+        }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);
         }
@@ -1336,6 +2134,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignore_scripts {
             config.ignore_scripts = v;
         }
+        if let Some(v) = self.ignore_pnpmfile {
+            config.ignore_pnpmfile = v;
+        }
         if let Some(v) = self.git_checks {
             config.git_checks = v;
         }
@@ -1350,6 +2151,11 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.node_download_mirrors {
             config.node_download_mirrors = v;
+        }
+        // npm's spelling first, so the canonical one wins when a single
+        // file carries both.
+        if let Some(v) = self.maxsockets {
+            config.max_sockets = Some(v);
         }
         if let Some(v) = self.max_sockets {
             config.max_sockets = Some(v);
@@ -1443,6 +2249,9 @@ impl WorkspaceSettings {
                     );
                 }
                 config.audit_config.ignore_ghsas = ignore;
+            }
+            if let Some(prune) = audit.ignore_prune {
+                config.audit_ignore_prune = Some(prune);
             }
         }
         if let Some(v) = self.versioning {

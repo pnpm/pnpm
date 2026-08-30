@@ -1,5 +1,5 @@
 use super::DirLock;
-use std::{fs, thread::sleep, time::Duration};
+use std::{fs, io, thread::sleep, time::Duration};
 use tempfile::tempdir;
 
 /// How long the tests age a lock before declaring it abandoned, and the
@@ -81,6 +81,8 @@ fn a_stale_holder_does_not_release_its_successors_lock() {
         .expect("acquire")
         .expect("an abandoned lock is taken over");
 
+    assert!(!stale.is_owner().expect("inspect stale owner"));
+    assert!(successor.is_owner().expect("inspect successor owner"));
     drop(stale);
     assert!(path.is_dir(), "the successor still holds the lock");
 
@@ -100,4 +102,16 @@ fn claiming_a_directory_that_cannot_hold_the_record_fails() {
     let error = super::claim(path.clone()).expect_err("an unrecordable lock is not taken");
 
     assert!(!path.exists(), "the lock directory is given back: {error}");
+}
+
+#[test]
+fn transient_release_error_classifier_is_windows_specific() {
+    for kind in [io::ErrorKind::PermissionDenied, io::ErrorKind::ResourceBusy] {
+        let error = io::Error::from(kind);
+        assert_eq!(super::is_transient_release_error(&error), cfg!(windows), "{kind:?}");
+    }
+
+    for kind in [io::ErrorKind::NotFound, io::ErrorKind::InvalidInput, io::ErrorKind::Other] {
+        assert!(!super::is_transient_release_error(&io::Error::from(kind)), "{kind:?}");
+    }
 }

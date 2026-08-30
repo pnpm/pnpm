@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.context",
-  "version": "1100.1.2",
+  "version": "1101.0.2",
   "description": "Gets context information about a project",
   "keywords": [
     "pnpm",
@@ -38,11 +38,13 @@
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/installing.read-projects-context": "workspace:*",
     "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.pruner": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/types": "workspace:*",
     "path-absolute": "catalog:",
-    "ramda": "catalog:"
+    "ramda": "catalog:",
+    "realpath-missing": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

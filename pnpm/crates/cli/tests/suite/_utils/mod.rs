@@ -31,6 +31,29 @@ pub fn pacquet_in(workspace: &Path) -> Command {
         .without_ambient_pnpm_config()
 }
 
+/// Make the spawned `pnpm` style its output.
+///
+/// Whether a run carries ANSI styles is otherwise decided by the
+/// inherited `FORCE_COLOR` / `CLICOLOR_FORCE` / `NO_COLOR`, so a
+/// contributor's shell or a CI runner can flip it under a test that
+/// asserts on the styling. [`without_colors`] is the counterpart.
+#[must_use]
+pub fn with_colors(mut command: Command) -> Command {
+    command.env_remove("NO_COLOR");
+    command.env("FORCE_COLOR", "1");
+    command
+}
+
+/// Make the spawned `pnpm` leave its output unstyled. See
+/// [`with_colors`] for why a test pins this.
+#[must_use]
+pub fn without_colors(mut command: Command) -> Command {
+    command.env_remove("FORCE_COLOR");
+    command.env_remove("CLICOLOR_FORCE");
+    command.env("NO_COLOR", "1");
+    command
+}
+
 /// Strip whitespace and box-drawing glyphs out of a miette report so a
 /// substring assertion can't be broken by where the renderer chose to
 /// hard-wrap the message.
@@ -96,6 +119,41 @@ pub fn append_workspace_yaml_key(workspace: &Path, key: &str, value: impl std::f
         yaml.push('\n');
     }
     writeln!(yaml, "{key}: {value}").unwrap();
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// The sorted `packages:` keys of the lockfile in `dir` — what the
+/// upstream tests read as `lockfile.packages['<name>@<version>']`.
+#[must_use]
+pub fn lockfile_package_keys(dir: &Path) -> Vec<String> {
+    let mut keys = read_lockfile(&dir.join("pnpm-lock.yaml"))
+        .packages
+        .into_iter()
+        .flatten()
+        .map(|(key, _)| key.to_string())
+        .collect::<Vec<_>>();
+    keys.sort();
+    keys
+}
+
+/// Append an `updateConfig.ignoreDependencies` block to the
+/// `pnpm-workspace.yaml` the harness already wrote.
+pub fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `updateConfig` —
+    // appending a second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("updateConfig:"),
+        "pnpm-workspace.yaml already has an `updateConfig:` key — update this helper",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
+    for name in names {
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
+    }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 

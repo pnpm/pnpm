@@ -1,5 +1,7 @@
 //! Running one package's build scripts.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use super::{
     AllowBuildPolicy, BTreeSet, BuildModulesError, HashMap, LogEvent, LogLevel, Mutex,
     NEEDS_BUILD_MARKER, PackageImportMethod, PackageKey, Path, PathBuf, RebuildOptions, Reporter,
@@ -11,8 +13,8 @@ use super::{
     slot_carries_overlay, store_index_key_for_resolution,
 };
 
-/// Per-snapshot build work, called once per chunk member by the
-/// bounded-parallelism `par_iter().try_for_each(...)` dispatch in
+/// Per-snapshot build work, called once per ready node by the
+/// bounded-parallelism scheduler in
 /// [`crate::build_modules::BuildModules::run`].
 #[expect(
     clippy::too_many_arguments,
@@ -29,6 +31,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     engine_name: Option<&str>,
     side_effects_cache: bool,
     side_effects_cache_write: bool,
+    shared_side_effects_publisher: Option<&crate::shared_side_effects::SharedSideEffectsPublisher>,
     store_dir: Option<&pnpm_store_dir::StoreDir>,
     store_index_writer: Option<&std::sync::Arc<pnpm_store_dir::StoreIndexWriter>>,
     dep_graph: Option<&HashMap<PackageKey, pnpm_graph_hasher::DepsGraphNode<PackageKey>>>,
@@ -43,11 +46,17 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     user_agent: &str,
     scripts_prepend_node_path: ScriptsPrependNodePath,
     script_shell: Option<&Path>,
+    shell_emulator: bool,
     unsafe_perm: bool,
     frozen_store: bool,
     ignore_scripts: bool,
     import_method: PackageImportMethod,
     logged_methods: &std::sync::atomic::AtomicU8,
+    // Raised before any write that can change a linked slot's contents
+    // (side-effects overlay, patch, lifecycle script) — set
+    // pre-attempt, so a half-applied write still counts. See
+    // `BuildModulesOutput::mutated_slots`.
+    slot_mutations: &AtomicBool,
     rebuild: Option<&RebuildOptions>,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
@@ -140,7 +149,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // `None` when the cache gate can't fire (no engine, no graph,
     // etc.); both downstream consumers short-circuit on `None`.
     //
-    // The `deps_state_cache` is shared across all chunk members via
+    // The `deps_state_cache` is shared across all scheduled nodes via
     // `Mutex` because `calc_dep_state` is recursive and memoizes —
     // a per-task cache would defeat the memoization for
     // diamond-shaped subgraphs.
@@ -244,6 +253,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             // The overlay carries the patched / built contents, so it
             // has to reach every hoisted copy for the same reason patch
             // application does.
+            slot_mutations.store(true, Ordering::Relaxed);
             let mut satisfied = true;
             for pkg_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
                 // No slot to materialize into (skipped / never linked) —
@@ -372,6 +382,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
         // linker a version conflict nests further copies under their
         // consumers; leaving those unpatched would silently run the very
         // code the patch replaces.
+        slot_mutations.store(true, Ordering::Relaxed);
         for patched_dir in pkg_roots_for_key(layout, pkg_roots_by_key, snapshot_key) {
             if !patched_dir.exists() {
                 continue;
@@ -386,6 +397,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     };
 
     let has_side_effects = if should_run_scripts {
+        slot_mutations.store(true, Ordering::Relaxed);
         let result = run_postinstall_hooks::<Reporter>(&RunPostinstallHooks {
             dep_path: &snapshot_key.to_string(),
             pkg_root: &pkg_dir,
@@ -401,6 +413,7 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
             node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
             scripts_prepend_node_path,
             script_shell,
+            shell_emulator,
             optional,
         });
 
@@ -469,20 +482,54 @@ pub(crate) fn build_one_snapshot<Reporter: self::Reporter>(
     // upload doesn't fail the install: the next install re-runs the
     // build.
     if (is_patched || has_side_effects)
-        && side_effects_cache_write
         && !frozen_store
         && let Some(writer) = store_index_writer
         && let Some(store) = store_dir
         && let Some(cache_key) = cache_key.as_deref()
         && let Some(packages) = packages
         && let Some(metadata) = packages.get(&metadata_key)
+        && (side_effects_cache_write
+            || (has_side_effects
+                && shared_side_effects_publisher
+                    .is_some_and(|publisher| publisher.can_publish(&metadata_key, metadata))))
         && let Some(files_index_file) = store_index_key_for_resolution(
             &metadata.resolution,
             &metadata_key.pkg_id(),
             !ignore_scripts,
         )
-        && let Err(err) =
-            pnpm_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
+        && let Err(err) = (|| {
+            if let Some(publisher) = shared_side_effects_publisher {
+                let diff = pnpm_store_dir::upload_with_diff(
+                    store,
+                    &pkg_dir,
+                    &files_index_file,
+                    cache_key,
+                    writer,
+                )?;
+                if has_side_effects
+                    && let Some(diff) = diff
+                    && let Some(graph) = dep_graph
+                    && let Err(error) = publisher.publish(
+                        snapshot_key,
+                        metadata,
+                        graph,
+                        patch.map(|patch| patch.hash.as_str()),
+                        diff,
+                        store,
+                    )
+                {
+                    tracing::warn!(
+                        target: "pacquet::build",
+                        dep_path = %snapshot_key,
+                        %error,
+                        "remote side-effects publication failed; build proceeds",
+                    );
+                }
+                Ok(())
+            } else {
+                pnpm_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
+            }
+        })()
     {
         tracing::warn!(
             target: "pacquet::build",

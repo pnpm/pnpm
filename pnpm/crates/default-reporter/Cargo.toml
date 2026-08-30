@@ -11,10 +11,11 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-config   = { workspace = true }
 pnpm-reporter = { workspace = true }
 
 chrono      = { workspace = true }
-libc        = { workspace = true }
+console     = { workspace = true }
 node-semver = { workspace = true }
 owo-colors  = { workspace = true }
 serde_json  = { workspace = true }

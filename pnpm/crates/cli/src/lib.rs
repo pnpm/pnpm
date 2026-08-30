@@ -6,14 +6,17 @@ mod engine_pm;
 mod executable_link;
 mod flag_relocation;
 mod github_actions;
+mod install_as_add;
 mod job_control;
 mod leading_separator;
 mod parse_boundary;
 mod path_env;
+mod pm_prefix;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
 mod state;
+mod virtual_terminal;
 mod with_current;
 
 use boolean_negations::with_boolean_negations;
@@ -27,6 +30,9 @@ use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
 pub fn main() -> ExitCode {
+    // Runs before anything can print, so the first styled byte already
+    // reaches a console that understands it; see `virtual_terminal`.
+    virtual_terminal::enable();
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
@@ -49,7 +55,14 @@ pub fn main() -> ExitCode {
 }
 
 fn is_reported_error(error: &miette::Report) -> bool {
-    error.code().is_some_and(|code| code.to_string() == "ERR_PNPM_DEDUPE_CHECK_ISSUES")
+    error.code().is_some_and(|code| {
+        matches!(
+            code.to_string().as_str(),
+            "ERR_PNPM_DEDUPE_CHECK_ISSUES"
+                | "ERR_PNPM_PEER_DEP_ISSUES"
+                | cli_args::recursive::NO_MATCHING_PROJECTS_CODE,
+        )
+    })
 }
 
 /// Build the CLI, parse argv, take any early-return fast path, then execute
@@ -73,6 +86,11 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    // `pnpm pm <cmd>` is stripped before every other pass, so they all see
+    // the command line the prefix stands for; the child argv above keeps
+    // it, since a dispatched pnpm has to force the built-in too. See
+    // `pm_prefix`.
+    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
     // the packageManager / devEngines check disabled; rewrite argv before
@@ -98,6 +116,10 @@ fn run_cli() -> miette::Result<()> {
     // options written before the subcommand to after it so clap agrees.
     // See `flag_relocation`.
     let argv = relocate_pre_subcommand_flags(&command, argv);
+    // `pnpm install <pkg>` is pnpm's spelling of `pnpm add <pkg>`; clap's
+    // `install` takes no package name, so rename the subcommand token.
+    // See `install_as_add`.
+    let argv = install_as_add::rewrite(&command, argv);
     // A command whose arguments begin at a `--` would otherwise lose it to
     // clap's escape handling. See `leading_separator`.
     let argv = leading_separator::preserve_leading_separator(argv);
@@ -158,7 +180,7 @@ fn run_cli() -> miette::Result<()> {
     // default to 8 MiB, so the limit trips on Windows first). Run it on a
     // thread with a generous, platform-uniform stack instead of the OS
     // default main-thread stack.
-    block_on_runtime("pacquet-main", args.run(&config_overrides))
+    block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over

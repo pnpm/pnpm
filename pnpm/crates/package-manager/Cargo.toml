@@ -20,6 +20,7 @@ pnpm-cmd-shim                          = { workspace = true }
 pnpm-crypto-hash                       = { workspace = true }
 pnpm-deps-path                         = { workspace = true }
 pnpm-deps-restorer                     = { workspace = true }
+pnpm-workspace-projects-graph          = { workspace = true }
 pnpm-directory-fetcher                 = { workspace = true }
 pnpm-engine-pm-yarn-resolver           = { workspace = true }
 pnpm-engine-runtime-bun-resolver       = { workspace = true }
@@ -35,6 +36,7 @@ pnpm-modules-yaml                      = { workspace = true }
 pnpm-network                           = { workspace = true }
 pnpm-config                            = { workspace = true }
 pnpm-config-parse-overrides            = { workspace = true }
+pnpm-deps-inspection-peers             = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-package-manifest                  = { workspace = true }
@@ -58,12 +60,14 @@ pnpm-workspace-manifest-writer         = { workspace = true }
 pnpm-workspace-range-resolver          = { workspace = true }
 pnpm-workspace-spec                    = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
+pnpm-workspace-task-scheduler          = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono          = { workspace = true }
 dashmap         = { workspace = true }
 derive_more     = { workspace = true }
 dialoguer       = { workspace = true }
+dunce           = { workspace = true }
 futures-util    = { workspace = true }
 httpdate        = { workspace = true }
 indexmap        = { workspace = true }
@@ -71,7 +75,6 @@ is_ci           = { workspace = true }
 node-semver     = { workspace = true }
 pathdiff        = { workspace = true }
 pipe-trait      = { workspace = true }
-rayon           = { workspace = true }
 reflink-copy    = { workspace = true }
 serde           = { workspace = true }
 serde_json      = { workspace = true }
@@ -85,7 +88,6 @@ miette          = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 
 async-trait       = { workspace = true }
-dunce             = { workspace = true }
 flate2            = { workspace = true }
 insta             = { workspace = true }
 mockito           = { workspace = true }

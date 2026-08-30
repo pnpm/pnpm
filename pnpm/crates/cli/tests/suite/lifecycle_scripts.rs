@@ -753,7 +753,14 @@ mod dependency_build_scripts {
 
         // The dependency was still added and materialized; only its
         // blocked scripts did not run. Mirrors pnpm, which writes the
-        // artifacts before failing.
+        // manifest and the artifacts before failing.
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap())
+                .expect("parse package.json");
+        assert_eq!(
+            manifest["dependencies"],
+            serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        );
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
@@ -1081,7 +1088,7 @@ mod dependency_build_scripts {
 /// `--ignore-scripts` deferred, which `pacquet rebuild --pending`
 /// later drains.
 mod pending_builds {
-    use super::workspace_yaml::allow_builds;
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
     use pnpm_modules_yaml::{Host, read_modules_manifest};
@@ -1241,10 +1248,11 @@ mod pending_builds {
             [".", "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0"],
         );
         assert!(!marker.exists(), "--ignore-scripts must defer the project's own script");
+        append_workspace_yaml_key(&workspace, "pending", true);
 
         let CommandTempCwd { pacquet: rebuild, root: rebuild_root, .. } =
             CommandTempCwd::init().add_mocked_registry();
-        rebuild.with_current_dir(&workspace).with_args(["rebuild", "--pending"]).assert().success();
+        rebuild.with_current_dir(&workspace).arg("rebuild").assert().success();
 
         assert!(marker.exists(), "the deferred project script must run");
         assert!(
@@ -2186,6 +2194,17 @@ mod project_scripts_in_a_workspace {
         drop((root, anchor));
     }
 
+    #[test]
+    fn filtered_bare_update_runs_the_selected_member_and_workspace_root() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["--filter", "a", "update"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
     /// Run at the workspace root, an update mutates the root alone: the
     /// members are materialized from the lockfile but run no scripts.
     #[test]
@@ -2353,6 +2372,79 @@ mod script_shell {
             scripts.iter().any(|script| script.contains("generated-by-preinstall")),
             "a dependency's build scripts should run under the configured shell, got {scripts:?}",
         );
+
+        drop((root, mock_instance));
+    }
+}
+
+/// `shellEmulator` extends to every lifecycle script an install runs,
+/// not only to `pnpm run`. Each test points `scriptShell` at a path that
+/// could never be spawned, so an install that still succeeds proves the
+/// built-in shell took over.
+mod shell_emulator {
+    use super::workspace_yaml::{allow_builds, append_workspace_yaml_key};
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+    use std::{fs, path::Path};
+
+    fn emulate_instead_of(workspace: &Path) {
+        append_workspace_yaml_key(
+            workspace,
+            "scriptShell",
+            workspace.join("no-such-shell").display(),
+        );
+        append_workspace_yaml_key(workspace, "shellEmulator", true);
+    }
+
+    #[test]
+    fn runs_the_projects_own_scripts_and_dev_preinstall() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "name": "project-under-the-shell-emulator",
+            "version": "1.0.0",
+            "scripts": {
+                "pnpm:devPreinstall": "echo ran > dev-preinstall.txt",
+                "postinstall": "echo ran > postinstall.txt",
+            },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        emulate_instead_of(&workspace);
+
+        pacquet.with_arg("install").assert().success();
+
+        assert!(workspace.join("dev-preinstall.txt").exists(), "pnpm:devPreinstall must run");
+        assert!(workspace.join("postinstall.txt").exists(), "the postinstall must run");
+
+        drop((root, mock_instance));
+    }
+
+    #[test]
+    fn runs_dependency_build_scripts() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        let package_json = serde_json::json!({
+            "dependencies": { "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" },
+        });
+        fs::write(workspace.join("package.json"), package_json.to_string())
+            .expect("write package.json");
+        allow_builds(&workspace, &[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]);
+        emulate_instead_of(&workspace);
+
+        pacquet.with_arg("install").assert().success();
+
+        let pkg_dir = workspace.join(
+            "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+             /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        assert!(pkg_dir.join("generated-by-preinstall.js").exists());
+        assert!(pkg_dir.join("generated-by-postinstall.js").exists());
 
         drop((root, mock_instance));
     }

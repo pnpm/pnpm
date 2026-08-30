@@ -232,7 +232,7 @@ jobs:
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
 
@@ -253,7 +253,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@82cd3e7658a6f96c86c0234aeeda1748937cb0a1 # v2.85.13
+        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
         with:
           tool: just
 
@@ -757,7 +757,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: bencherdev/bencher@4c83b25441d145ee273adaf74be30f2382e6ba85 # v0.6.11
+        uses: bencherdev/bencher@8d75325c3bc59403a2186a056b472c4f49d42838 # v0.6.12
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the

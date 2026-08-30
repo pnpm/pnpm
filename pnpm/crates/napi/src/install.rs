@@ -24,8 +24,8 @@ use std::{
 use indexmap::IndexMap;
 use napi_derive::napi;
 use pnpm_hooks::PnpmfileHooks;
-use pnpm_lockfile::{LazyLockfile, Lockfile, MaybeLazyLockfile};
-use pnpm_network::{NetworkSettings, NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
+use pnpm_lockfile::{LazyLockfile, MaybeLazyLockfile};
+use pnpm_network::{NoProxySetting, ProxyConfig, ThrottledClient, TlsConfig};
 use pnpm_package_manager::{
     DepsRequiringBuildSink, Install, ProjectMutation, RebuildOptions, ResolvedPackages,
     UpdateSeedPolicy,
@@ -38,6 +38,7 @@ use crate::{
     config::{ConfigOverlay, resolve_config},
     error::{invalid_manifest_error, to_napi_error, unsupported_option_error},
     hooks::{BatchHookSink, HookSink, JsBatchedReadPackageHook, JsReadPackageHook},
+    native_reporter::{NativeRenderer, OutputSink, ReporterOptions},
     reporter_bridge::{EngineCallGuard, LogSink, NodeBridgeReporter, begin_stats, take_stats},
 };
 
@@ -112,6 +113,9 @@ pub struct InstallOptions {
     pub inject_workspace_packages: Option<bool>,
     pub hoist_workspace_packages: Option<bool>,
     pub enable_modules_dir: Option<bool>,
+    /// Install from the lockfile alone, ignoring the project manifests —
+    /// pnpm's `pnpm fetch` semantics: the frozen path, no post-import
+    /// linking, and no project lifecycle scripts.
     pub ignore_package_manifest: Option<bool>,
     pub node_version: Option<String>,
     pub engine_strict: Option<bool>,
@@ -131,6 +135,12 @@ pub struct InstallOptions {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. When set, this takes
+    /// precedence over the same field in `networkConfig`.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. When set, this takes precedence
+    /// over the same field in `networkConfig`.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
     /// Fail the install with `ERR_PNPM_IGNORED_BUILDS` when a dependency build
     /// script is blocked. Defaults to `false` — the install instead reports the
@@ -156,7 +166,34 @@ pub struct InstallOptions {
     /// engine pins to the `registry` / `registries.default` passed alongside
     /// it, never to a registry the project's own `.npmrc` names.
     pub auth_header_by_uri: Option<HashMap<String, String>>,
+    /// The pnpm home directory the default store location is resolved under
+    /// when no `storeDir` is configured (`<pnpmHomeDir>/store`, with pnpm's
+    /// same-volume fallback).
     pub pnpm_home_dir: Option<String>,
+    /// Render pnpm's own terminal output for this call. Omitted, the call
+    /// prints nothing and the embedder renders the `onLog` event stream
+    /// itself (or not at all).
+    pub reporter: Option<ReporterOptions>,
+}
+
+/// Options for [`get_peer_dependency_issues`]. Mirrors the TypeScript
+/// declaration in `index.d.ts`.
+#[napi(object)]
+pub struct PeerIssuesOptions {
+    pub dir: String,
+    pub projects: Vec<NodeApiProject>,
+    pub store_dir: Option<String>,
+    pub cache_dir: Option<String>,
+    pub registries: Option<HashMap<String, String>>,
+    pub auth_header_by_uri: Option<HashMap<String, String>>,
+    pub proxy_config: Option<ProxyConfigInput>,
+    pub network_config: Option<NetworkConfigInput>,
+    pub overrides: Option<IndexMap<String, String>>,
+    // napi narrows JavaScript numbers to `u32` without rejecting overflow, so
+    // these enter as numbers and are checked before conversion.
+    pub peers_suffix_max_length: Option<f64>,
+    pub virtual_store_dir_max_length: Option<f64>,
+    pub auto_install_peers: Option<bool>,
 }
 
 #[napi(object)]
@@ -181,6 +218,12 @@ pub struct NetworkConfigInput {
     pub fetch_retry_mintimeout: Option<u32>,
     pub fetch_retry_maxtimeout: Option<u32>,
     pub fetch_timeout: Option<u32>,
+    /// Slow metadata-request threshold in milliseconds. Used when the
+    /// corresponding top-level install option is omitted.
+    pub fetch_warn_timeout_ms: Option<u32>,
+    /// Minimum average tarball speed in KiB/s. Used when the corresponding
+    /// top-level install option is omitted.
+    pub fetch_min_speed_ki_bps: Option<u32>,
     pub user_agent: Option<String>,
 }
 
@@ -225,6 +268,16 @@ pub struct InstallResult {
     pub store_dir: String,
 }
 
+/// The renderer for one call, built on the caller's thread: a
+/// `ThreadsafeFunction` must be constructed while the napi environment is
+/// live, before the work moves to the dedicated engine thread.
+fn build_renderer(
+    options: &InstallOptions,
+    on_output: Option<OutputSink>,
+) -> Option<NativeRenderer> {
+    options.reporter.as_ref().map(|reporter| NativeRenderer::new(reporter, &options.dir, on_output))
+}
+
 /// Serializes every engine call that touches the process-global log sink /
 /// stats accumulator (`install`, `rebuild`, `pack`) so their reporter state
 /// never overlaps. Held across the whole call; different install dirs still run
@@ -241,8 +294,10 @@ pub async fn install(
     on_log: Option<LogSink>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<InstallResult> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-install".to_string())
@@ -253,6 +308,7 @@ pub async fn install(
             let _ = tx.send(run_install_blocking(
                 &options,
                 on_log,
+                renderer,
                 read_package_hook,
                 read_package_batch_hook,
             ));
@@ -266,12 +322,14 @@ pub async fn install(
 fn run_install_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     read_package_hook: Option<HookSink>,
     read_package_batch_hook: Option<BatchHookSink>,
 ) -> napi::Result<InstallResult> {
-    // Restores the previous sink and clears stats on drop — including on a
-    // panic in `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer and clears stats on drop —
+    // including on a panic in `run_install_inner`, which unwinds this
+    // dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // The batch sink (synthesized by the `@pnpm/napi` wrapper) wins over the
     // per-manifest sink: one threadsafe call serves a whole batch, where
     // per-manifest dispatch pays roughly one event-loop tick per call. The
@@ -374,8 +432,21 @@ fn run_install_inner(
         })?;
     let workspace_projects_override = build_workspace_projects_override(&options.projects);
 
+    // `ignorePackageManifest` is pnpm's "install from the lockfile, ignore the
+    // project manifests" mode — the shape the `pnpm fetch` handler passes in
+    // both stacks. The install takes the frozen path against the lockfile
+    // alone (the manifest ↔ lockfile freshness gate is skipped via
+    // `ignore_manifest_check`), and `virtualStoreOnly` — forced in
+    // `build_overlay` — suppresses all post-import linking: importer symlinks,
+    // `.bin` entries, hoisting, and project lifecycle scripts. Confined to the
+    // install path: a rebuild runs against an already-materialized
+    // `node_modules` and must keep its own frozen shape even when the caller
+    // reuses install options that carry the flag.
+    let ignore_package_manifest =
+        matches!(mode, EngineMode::Install(_)) && options.ignore_package_manifest == Some(true);
+
     reject_unsupported_install_options(options)?;
-    let overlay = build_overlay(options)?;
+    let overlay = build_overlay(options, ignore_package_manifest)?;
     let config = resolve_config(&dir, &overlay).map_err(|error| to_napi_error(&error))?;
 
     let manifest = PackageManifest::from_value(dir.join("package.json"), root_manifest_value);
@@ -384,23 +455,20 @@ fn run_install_inner(
             &config.proxy,
             &config.tls,
             &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
+            &config.network_settings(),
         )
         .map_err(|error| to_napi_error(&error))?
         .with_max_sockets_per_host(config.max_sockets),
     );
     let lazy_lockfile = if config.lockfile {
-        LazyLockfile::deferred(dir.clone())
+        LazyLockfile::deferred(dir.clone(), config.wanted_lockfile_selection())
     } else {
         LazyLockfile::disabled()
     };
     let resolved_packages = ResolvedPackages::new();
     let tarball_mem_cache = Arc::new(MemCache::new());
-    let lockfile_path = manifest.path().parent().map(|parent| parent.join(Lockfile::FILE_NAME));
+    let lockfile_path =
+        manifest.path().parent().map(|parent| parent.join(config.wanted_lockfile_name()));
 
     let mut groups = vec![DependencyGroup::Prod, DependencyGroup::Dev];
     if options.include_optional_deps != Some(false) {
@@ -415,16 +483,13 @@ fn run_install_inner(
     // API compatibility only. Mirrors `pnpm_package_manager::Update`, which
     // forces `prefer_frozen_lockfile: false` and a non-frozen path so the
     // re-resolution is not short-circuited by the auto-frozen / repeat-install
-    // fast paths.
-    let update_requested = matches!(mode, EngineMode::Install(_)) && options.update == Some(true);
+    // fast paths. `ignorePackageManifest` contradicts an update — it installs
+    // exactly what the lockfile records — and wins, matching pnpm, where it
+    // forces the headless path.
+    let update_requested = matches!(mode, EngineMode::Install(_))
+        && options.update == Some(true)
+        && !ignore_package_manifest;
 
-    // `ignorePackageManifest` maps to pacquet's `ignore_manifest_check`: the
-    // per-importer `package.json` ↔ `pnpm-lock.yaml` freshness gate is skipped,
-    // so the install proceeds from the lockfile even when the in-memory
-    // manifest disagrees with it. pnpm additionally skips the project-level
-    // linking phase (its `pnpm fetch` semantics); pacquet still links direct
-    // dependencies. The difference is immaterial to the programmatic consumers
-    // that pass this option — a fuller native port is tracked in NAPI.md.
     let ignore_manifest_check = options.ignore_package_manifest == Some(true);
 
     // `enableModulesDir: false` ("do not create a `node_modules` directory") is
@@ -434,14 +499,22 @@ fn run_install_inner(
     // already-materialized `node_modules`, so it must never take the
     // lockfile-only short-circuit (which would make it silently do nothing) even
     // when the caller reuses install options that disable the modules dir.
+    // `ignorePackageManifest` overrides both: it materializes the virtual
+    // store from the lockfile, which the lockfile-only short-circuit would
+    // skip entirely (the TS fetch handler forces `enableModulesDir: true` for
+    // the same reason).
     let lockfile_only = matches!(mode, EngineMode::Install(_))
+        && !ignore_package_manifest
         && (options.lockfile_only.unwrap_or(false) || options.enable_modules_dir == Some(false));
 
     // A rebuild takes the frozen path against the already-materialized
     // `node_modules`, and re-runs dependency build scripts rather than the
     // root project's own lifecycle scripts.
     let frozen_lockfile = match &mode {
-        EngineMode::Install(_) => !update_requested && options.frozen_lockfile.unwrap_or(false),
+        EngineMode::Install(_) => {
+            ignore_package_manifest
+                || (!update_requested && options.frozen_lockfile.unwrap_or(false))
+        }
         EngineMode::Rebuild(_) => true,
         // Peer issues need a full fresh resolve — never frozen.
         EngineMode::PeerIssues(_) => false,
@@ -453,7 +526,10 @@ fn run_install_inner(
     };
     let update_seed_policy =
         if update_requested { UpdateSeedPolicy::drop_all() } else { UpdateSeedPolicy::KeepAll };
-    let mutation = if matches!(mode, EngineMode::Install(_)) {
+    // An `ignorePackageManifest` install materializes what the lockfile
+    // records without installing any project's manifest — `NoInstall`, the
+    // mutation both stacks' fetch handlers use.
+    let mutation = if matches!(mode, EngineMode::Install(_)) && !ignore_package_manifest {
         ProjectMutation::InstallWorkspace
     } else {
         ProjectMutation::NoInstall
@@ -560,11 +636,18 @@ fn build_workspace_projects_override(
     )
 }
 
-fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
+/// Map the install options onto the config overlay. `fetch_shaped` is the
+/// resolved `ignorePackageManifest` decision (see [`run_install_inner`]):
+/// it forces `virtualStoreOnly` on and the modules dir back on, the same
+/// two settings the `pnpm fetch` handlers pin in both stacks.
+fn build_overlay(options: &InstallOptions, fetch_shaped: bool) -> napi::Result<ConfigOverlay> {
     let network_config = options.network_config.as_ref();
     Ok(ConfigOverlay {
         store_dir: options.store_dir.as_ref().map(PathBuf::from),
         cache_dir: options.cache_dir.as_ref().map(PathBuf::from),
+        pnpm_home_dir: options.pnpm_home_dir.as_ref().map(PathBuf::from),
+        virtual_store_only: fetch_shaped.then_some(true),
+        enable_modules_dir: fetch_shaped.then_some(true),
         registry: None,
         registries: options.registries.as_ref().map(|map| map.clone().into_iter().collect()),
         proxy: options.proxy_config.as_ref().map(build_proxy_config).transpose()?,
@@ -628,12 +711,15 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         inject_workspace_packages: options.inject_workspace_packages,
         prefer_offline: options.prefer_offline,
         offline: options.offline,
+        // Both of these installs are defined in terms of the lockfile, so an
+        // ambient `lockfile: false` must not disable it underneath them.
         // `enableModulesDir: false` writes the lockfile while skipping
         // `node_modules`, so it runs through the lockfile-only path — which
-        // requires the lockfile to be enabled. Force it on for that case so an
-        // ambient `lockfile: false` can't turn the install into an opaque
-        // `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`.
-        lockfile: (options.enable_modules_dir == Some(false)).then_some(true),
+        // requires the lockfile to be enabled, or the install fails with an
+        // opaque `ERR_PNPM_CONFIG_CONFLICT_LOCKFILE_ONLY_WITH_NO_LOCKFILE`. A
+        // fetch-shaped install reads the lockfile as its only input, and
+        // would fail with `ERR_PNPM_NO_LOCKFILE`.
+        lockfile: (fetch_shaped || options.enable_modules_dir == Some(false)).then_some(true),
         prefer_frozen_lockfile: options.prefer_frozen_lockfile,
         dedupe_peer_dependents: options.dedupe_peer_dependents,
         dedupe_peers: options.dedupe_peers,
@@ -665,6 +751,14 @@ fn build_overlay(options: &InstallOptions) -> napi::Result<ConfigOverlay> {
         fetch_timeout: options
             .fetch_timeout
             .or_else(|| network_config.and_then(|config| config.fetch_timeout))
+            .map(u64::from),
+        fetch_warn_timeout_ms: options
+            .fetch_warn_timeout_ms
+            .or_else(|| network_config.and_then(|config| config.fetch_warn_timeout_ms))
+            .map(u64::from),
+        fetch_min_speed_ki_bps: options
+            .fetch_min_speed_ki_bps
+            .or_else(|| network_config.and_then(|config| config.fetch_min_speed_ki_bps))
             .map(u64::from),
         user_agent: options
             .user_agent
@@ -835,14 +929,16 @@ pub async fn rebuild(
     options: InstallOptions,
     on_log: Option<LogSink>,
     selected_names: Option<Vec<String>>,
+    on_output: Option<OutputSink>,
 ) -> napi::Result<()> {
     let _guard = engine_call_lock().lock().await;
+    let renderer = build_renderer(&options, on_output);
     let (tx, rx) = tokio::sync::oneshot::channel();
     std::thread::Builder::new()
         .name("pnpm-napi-rebuild".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_rebuild_blocking(&options, on_log, selected_names));
+            let _ = tx.send(run_rebuild_blocking(&options, on_log, renderer, selected_names));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn rebuild thread: {error}"))
@@ -853,11 +949,12 @@ pub async fn rebuild(
 fn run_rebuild_blocking(
     options: &InstallOptions,
     on_log: Option<LogSink>,
+    renderer: Option<NativeRenderer>,
     selected_names: Option<Vec<String>>,
 ) -> napi::Result<()> {
-    // Restores the previous sink on drop — including on a panic in
-    // `run_install_inner`, which unwinds this dedicated thread.
-    let _sink_guard = EngineCallGuard::new(on_log);
+    // Restores the previous sink and renderer on drop — including on a
+    // panic in `run_install_inner`, which unwinds this dedicated thread.
+    let _sink_guard = EngineCallGuard::with_renderer(on_log, renderer);
     // `None` (or an empty list) rebuilds every build-needing package; a
     // non-empty list restricts the rebuild to the matching names / build keys.
     let rebuild_options = RebuildOptions {
@@ -874,7 +971,7 @@ fn run_rebuild_blocking(
 
 #[napi(js_name = "getPeerDependencyIssues")]
 pub async fn get_peer_dependency_issues(
-    options: serde_json::Value,
+    options: PeerIssuesOptions,
 ) -> napi::Result<serde_json::Value> {
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -882,7 +979,7 @@ pub async fn get_peer_dependency_issues(
         .name("pnpm-napi-peer-issues".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_peer_issues_blocking(&options));
+            let _ = tx.send(run_peer_issues_blocking(options));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn peer-issues thread: {error}"))
@@ -890,84 +987,14 @@ pub async fn get_peer_dependency_issues(
     rx.await.map_err(|_| napi::Error::from_reason("peer-issues worker thread panicked"))?
 }
 
-/// Map the `PeerIssuesOptions` JSON (a subset of [`InstallOptions`] — see
-/// `index.d.ts`) onto the install options struct, run a sink-driven
-/// `dry_run` resolve, and serialize the per-importer issues into the
-/// `PeerDependencyIssuesByProjects` wire shape, including the
+/// Run a sink-driven `dry_run` resolve and serialize the per-importer issues
+/// into the `PeerDependencyIssuesByProjects` wire shape, including the
 /// `conflicts` / `intersections` derivation v11's `mergePeers` does.
-fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_json::Value> {
+fn run_peer_issues_blocking(options: PeerIssuesOptions) -> napi::Result<serde_json::Value> {
     // No log sink for this query — engine events would interleave with
     // the caller's own reporting for what is a silent resolution.
     let _sink_guard = EngineCallGuard::new(None);
-    let obj = options.as_object().ok_or_else(|| {
-        napi::Error::from_reason("getPeerDependencyIssues: options must be an object")
-    })?;
-    let str_field =
-        |key: &str| obj.get(key).and_then(serde_json::Value::as_str).map(ToString::to_string);
-    // Generic over the target map so `overrides` can collect into the
-    // order-preserving `IndexMap` its field requires (serde_json's
-    // `preserve_order` feature keeps the JS object's key order here).
-    fn string_map<Map: FromIterator<(String, String)>>(
-        obj: &serde_json::Map<String, serde_json::Value>,
-        key: &str,
-    ) -> Option<Map> {
-        obj.get(key).and_then(serde_json::Value::as_object).map(|map| {
-            map.iter()
-                .filter_map(|(key, value)| {
-                    value.as_str().map(|value| (key.clone(), value.to_string()))
-                })
-                .collect()
-        })
-    }
-    let dir = str_field("dir")
-        .ok_or_else(|| napi::Error::from_reason("getPeerDependencyIssues: `dir` is required"))?;
-    let projects: Vec<NodeApiProject> = obj
-        .get("projects")
-        .and_then(serde_json::Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| {
-                    let entry = entry.as_object()?;
-                    Some(NodeApiProject {
-                        root_dir: entry.get("rootDir")?.as_str()?.to_string(),
-                        manifest: entry
-                            .get("manifest")
-                            .cloned()
-                            .unwrap_or_else(|| serde_json::json!({})),
-                        dependency_manifest: entry.get("dependencyManifest").cloned(),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let install_options = InstallOptions {
-        dir,
-        projects,
-        store_dir: str_field("storeDir"),
-        cache_dir: str_field("cacheDir"),
-        registries: string_map(obj, "registries"),
-        auth_header_by_uri: string_map(obj, "authHeaderByUri"),
-        overrides: string_map(obj, "overrides"),
-        // Report every missing peer: with pnpm's default
-        // `autoInstallPeers: true` the resolver satisfies the peer
-        // itself and the issue never surfaces, but this query's whole
-        // point is the report (Bit derives the `intersections` it
-        // auto-adds from it). Callers can still opt back in.
-        auto_install_peers: Some(
-            obj.get("autoInstallPeers").and_then(serde_json::Value::as_bool).unwrap_or(false),
-        ),
-        peers_suffix_max_length: obj
-            .get("peersSuffixMaxLength")
-            .and_then(serde_json::Value::as_u64)
-            .map(|value| value as u32),
-        virtual_store_dir_max_length: obj
-            .get("virtualStoreDirMaxLength")
-            .and_then(serde_json::Value::as_u64)
-            .map(|value| value as u32),
-        ..InstallOptions::default()
-    };
+    let install_options = peer_issues_install_options(options)?;
 
     let sink: pnpm_package_manager::PeerIssuesSink = Arc::default();
     run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
@@ -979,6 +1006,49 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         result.insert(importer_id, peer_issues_to_json(&issues));
     }
     Ok(serde_json::Value::Object(result))
+}
+
+fn peer_issues_install_options(options: PeerIssuesOptions) -> napi::Result<InstallOptions> {
+    Ok(InstallOptions {
+        dir: options.dir,
+        projects: options.projects,
+        store_dir: options.store_dir,
+        cache_dir: options.cache_dir,
+        registries: options.registries,
+        auth_header_by_uri: options.auth_header_by_uri,
+        proxy_config: options.proxy_config,
+        network_config: options.network_config,
+        overrides: options.overrides,
+        peers_suffix_max_length: checked_u32_option(
+            options.peers_suffix_max_length,
+            "peersSuffixMaxLength",
+        )?,
+        virtual_store_dir_max_length: checked_u32_option(
+            options.virtual_store_dir_max_length,
+            "virtualStoreDirMaxLength",
+        )?,
+        // Unlike install, this query must expose missing peers by default.
+        auto_install_peers: Some(options.auto_install_peers.unwrap_or(false)),
+        ..InstallOptions::default()
+    })
+}
+
+fn checked_u32_option(value: Option<f64>, name: &str) -> napi::Result<Option<u32>> {
+    value
+        .map(|value| {
+            if value.is_finite()
+                && value.fract() == 0.0
+                && (0.0..=f64::from(u32::MAX)).contains(&value)
+            {
+                Ok(value as u32)
+            } else {
+                Err(napi::Error::from_reason(format!(
+                    "getPeerDependencyIssues: `{name}` must be an integer from 0 through {}",
+                    u32::MAX,
+                )))
+            }
+        })
+        .transpose()
 }
 
 /// Serialize one importer's issues into v11's `PeerDependencyIssues`

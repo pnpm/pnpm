@@ -1,8 +1,8 @@
 use crate::{
     State,
     cli_args::{
-        install::resolve_bool_override, pipelines::InstallFamilySelection,
-        supported_architectures::SupportedArchitecturesArgs,
+        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
     },
     config_deps,
     engine_pm::{
@@ -152,11 +152,8 @@ pub struct AddArgs {
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
-    /// The directory with links to the store (default is `node_modules/.pnpm`).
-    /// All direct and indirect dependencies of the project are linked into this directory
-    #[clap(long = "virtual-store-dir", default_value = "node_modules/.pnpm")]
-    pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
-
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
     /// Install the package globally, linking its bins into the global bin directory.
     #[clap(short = 'g', long)]
     pub global: bool,
@@ -166,6 +163,25 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Permit adding dependencies to a multi-package workspace root without `-w`.
+    #[clap(
+        long = "ignore-workspace-root-check",
+        overrides_with = "no_ignore_workspace_root_check"
+    )]
+    pub ignore_workspace_root_check: bool,
+    /// Keep the workspace-root safety check enabled.
+    #[clap(
+        long = "no-ignore-workspace-root-check",
+        hide = true,
+        overrides_with = "ignore_workspace_root_check"
+    )]
+    pub no_ignore_workspace_root_check: bool,
+    /// Include optionalDependencies while materializing the updated project.
+    #[clap(long, overrides_with = "no_optional")]
+    pub optional: bool,
+    /// Exclude optionalDependencies while materializing the updated project.
+    #[clap(long = "no-optional", overrides_with = "optional")]
+    pub no_optional: bool,
     /// Disable pnpm hooks defined in `.pnpmfile.cjs`, including the
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
@@ -179,12 +195,39 @@ pub struct AddArgs {
 }
 
 impl AddArgs {
+    pub(crate) fn check_workspace_root(&self, config: &Config, dir: &Path) -> miette::Result<()> {
+        if config.recursive
+            || config.workspace_root
+            || resolve_bool_override(
+                self.ignore_workspace_root_check,
+                self.no_ignore_workspace_root_check,
+                config.ignore_workspace_root_check,
+            )
+            || config.workspace_dir.as_deref() != Some(dir)
+        {
+            return Ok(());
+        }
+        let patterns = pnpm_workspace::read_workspace_manifest(dir)
+            .into_diagnostic()?
+            .map(|manifest| pnpm_workspace::workspace_package_patterns(&manifest));
+        if patterns.as_ref().is_some_and(|patterns| patterns.len() > 1) {
+            return Err(AddError::AddingToRoot.into());
+        }
+        Ok(())
+    }
+
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_scripts = resolve_bool_override(
             self.ignore_scripts,
             self.no_ignore_scripts,
             config.ignore_scripts,
         );
+        config.ignore_workspace_root_check = resolve_bool_override(
+            self.ignore_workspace_root_check,
+            self.no_ignore_workspace_root_check,
+            config.ignore_workspace_root_check,
+        );
+        config.optional = resolve_bool_override(self.optional, self.no_optional, config.optional);
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         config.force = self.force || config.force;
     }
@@ -324,9 +367,10 @@ impl AddArgs {
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         } = selection;
         let lockfile_path = state.lockfile_path();
@@ -353,9 +397,10 @@ impl AddArgs {
         }
         .run_selected::<Reporter>(
             &mut projects,
-            &ordered_groups,
+            &project_dependencies,
             &ordered_dirs,
             selected_dirs.as_ref(),
+            install_dirs.as_ref(),
             active_manifest_is_standin,
         )
         .await
@@ -441,6 +486,12 @@ pub(crate) fn apply_allow_build(
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum AddError {
+    #[display(
+        "Running this command will add the dependency to the workspace root, which might not be what you want - if you really meant it, make it explicit by running this command again with the -w flag (or --workspace-root). If you don't want to see this warning anymore, you may set the ignore-workspace-root-check setting to true."
+    )]
+    #[diagnostic(code(ERR_PNPM_ADDING_TO_ROOT))]
+    AddingToRoot,
+
     #[display(
         "Cannot declare {request} as the package manager of a filtered selection of projects"
     )]

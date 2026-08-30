@@ -170,6 +170,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
                     resolution: LockfileResolution::Tarball(TarballResolution {
                         tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
                         integrity: None,
+                        revision: None,
                         git_hosted: None,
                         path: None,
                     }),
@@ -204,6 +205,7 @@ fn graph_resolver(shape: Shape, size: Size) -> GraphResolver {
                 resolution: LockfileResolution::Tarball(TarballResolution {
                     tarball: format!("https://registry.example/{name}-1.0.0.tgz"),
                     integrity: None,
+                    revision: None,
                     git_hosted: None,
                     path: None,
                 }),
@@ -287,6 +289,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         pick_lowest_direct: false,
         time_based: false,
         wanted_lockfile: None,
+        reuse_lockfile_subtrees: true,
         update_reuse_scope: UpdateReuseScope::All,
         update_reuse_scopes_by_importer: BTreeMap::new(),
         update_depth: UpdateDepth::UNLIMITED,

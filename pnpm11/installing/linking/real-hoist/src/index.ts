@@ -1,5 +1,6 @@
 import * as dp from '@pnpm/deps.path'
 import { LockfileMissingDependencyError } from '@pnpm/error'
+import type { PackageSnapshot } from '@pnpm/lockfile.types'
 import {
   type LockfileObject,
   nameVerFromPkgSnapshot,
@@ -22,6 +23,45 @@ import { hoist as _hoist, HoisterDependencyKind, type HoisterResult, type Hoiste
 export type HoistingLimits = 'none' | 'workspaces' | 'dependencies'
 
 export type { HoisterResult }
+
+/**
+ * The identity every peer variant of one package version collapses
+ * onto.
+ *
+ * `toTree` maps the id to the first depPath it sees for it and stamps
+ * that depPath on every variant as their shared `reference`, so only
+ * that one depPath survives into the result. Anything indexing the
+ * hoist result by package therefore has to key *and* look up by this
+ * id rather than by the depPath an edge declares — otherwise every
+ * edge on a collapsed variant finds nothing and drops out of the
+ * layout.
+ *
+ * One id can still cover several directories: nodes are interned per
+ * `(alias, depPath)`, so an alias exposing a package under a second
+ * name gets a node, and a directory, of its own. An index over the
+ * result holds the list and resolves an edge to its first entry.
+ *
+ * An injected directory dependency (a `directory` resolution) keeps
+ * its peer suffix: every variant of it is a separate on-disk copy of
+ * the local package, materialized with its own peer-resolved
+ * dependency set, so collapsing the variants would rewire every
+ * dependent of the losing one onto the survivor's children (Bit's
+ * root components pin conflicting peers across such copies on
+ * purpose). The registry collapse exists to stop peer-variant
+ * explosion on large lockfiles; directory snapshots are one per
+ * injected workspace package and cannot explode that way.
+ */
+export function getHoisterPkgId (depPath: string, pkgSnapshot: PackageSnapshot): string {
+  // `resolution` is typed as required, but the lockfile is parsed from
+  // untyped YAML — guard so a malformed snapshot degrades to the
+  // collapsed identity instead of a TypeError here.
+  const resolution = pkgSnapshot.resolution as PackageSnapshot['resolution'] | undefined
+  if (resolution != null && 'directory' in resolution && resolution.directory != null) {
+    return depPath
+  }
+  const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+  return `${name}@${version}`
+}
 
 /**
  * Translate the user-facing {@link HoistingLimits} mode into the
@@ -165,8 +205,8 @@ function toTree (
       if (!pkgSnapshot) {
         throw new LockfileMissingDependencyError(depPath)
       }
-      const { name: pkgName, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
-      const id = `${pkgName}@${version}`
+      const { name: pkgName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+      const id = getHoisterPkgId(depPath, pkgSnapshot)
       if (!depPathByPkgId.has(id)) {
         depPathByPkgId.set(id, depPath)
       }

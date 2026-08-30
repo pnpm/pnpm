@@ -1,0 +1,101 @@
+name: Rust release target
+
+description: Prepare a runner to cross-build one Rust release target
+
+inputs:
+  target:
+    description: Rust target triple to cross-build for
+    required: true
+  version:
+    description: Version the release tag names, asserted against the committed sources
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - name: Install cross
+      uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+      with:
+        tool: cross
+
+    - name: Install clang-cl for Windows ARM64
+      if: ${{ inputs.target == 'aarch64-pc-windows-msvc' }}
+      shell: pwsh
+      # The values exported below are read off the Visual Studio installation
+      # this step just made and out of `vcvarsall`; nothing here is
+      # attacker-reachable. zizmor flags the writes because a composite action
+      # cannot see who calls it, and the only caller is a release job that runs
+      # on a maintainer-signed tag.
+      run: | # zizmor: ignore[github-env]
+        $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+        $installPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($installPath)) { throw "vswhere found no Visual Studio installation (exit $LASTEXITCODE)" }
+        # `--wait` is not an option here: it is accepted by the bootstrapper
+        # only, and the installer rejects the whole command line when it is
+        # passed. Nor would it help — `setup.exe` is a GUI-subsystem process,
+        # so PowerShell returns before the install starts and $LASTEXITCODE
+        # would still describe the launch. The poll below is what confirms
+        # the components landed.
+        # Snapshot first: an installer already running for some other reason
+        # would otherwise pass for the one launched below.
+        $installerPidsBefore = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Id
+        & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath "$installPath" --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart
+        $llvmDir = Join-Path $installPath 'VC\Tools\Llvm'
+        $deadline = (Get-Date).AddMinutes(5)
+        $installerRunning = $true
+        $installerSeen = $false
+        $clangCl = $null
+        # The launch above is asynchronous and the installer spawns work in
+        # processes it does not always account for, so poll for a quiet
+        # installer and a real clang-cl before trusting the toolchain.
+        do {
+          $installerPids = @(Get-Process -Name 'vs_installer', 'vs_setup', 'setup' -ErrorAction SilentlyContinue).Id
+          $installerRunning = $installerPids.Count -gt 0
+          $installerSeen = $installerSeen -or @($installerPids | Where-Object { $installerPidsBefore -notcontains $_ }).Count -gt 0
+          $clangCl = Join-Path $llvmDir 'x64\bin\clang-cl.exe'
+          if (-not (Test-Path -LiteralPath $clangCl)) { $clangCl = $null }
+          if ($installerRunning -or $null -eq $clangCl) { Start-Sleep -Seconds 5 }
+        } while (($installerRunning -or $null -eq $clangCl) -and (Get-Date) -lt $deadline)
+        if ($installerRunning) { throw 'Visual Studio installer did not finish within five minutes' }
+        # Never having seen the installer run separates a rejected command line
+        # from an install that ran and left the component out.
+        if ($null -eq $clangCl -and -not $installerSeen) { throw "no install ever started; the installer rejected the modify command line above, and clang-cl is absent from $llvmDir" }
+        if ($null -eq $clangCl) { throw "clang-cl was not installed under $llvmDir" }
+        & $clangCl --version
+        $clangDir = Split-Path -Parent $clangCl
+        $clang = Join-Path $clangDir 'clang.exe'
+        if (-not (Test-Path -LiteralPath $clang)) { throw "clang was not installed under $clangDir" }
+        & $clang --version
+        "CC_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
+        "CXX_aarch64_pc_windows_msvc=$clangCl" >> $env:GITHUB_ENV
+        $clangDir >> $env:GITHUB_PATH
+        $vcvarsall = Join-Path $installPath 'VC\Auxiliary\Build\vcvarsall.bat'
+        $targetEnvironment = cmd.exe /c "`"$vcvarsall`" amd64_arm64 > nul && set"
+        if ($LASTEXITCODE -ne 0) { throw "vcvarsall exited with $LASTEXITCODE" }
+        if (-not ($targetEnvironment -match '(?i)^LIB=.*\\arm64')) { throw 'vcvarsall did not configure ARM64 libraries' }
+        foreach ($line in $targetEnvironment) {
+          if ($line -match '^(INCLUDE|LIB|LIBPATH|PATH)=(.*)$') {
+            "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV
+          }
+        }
+
+    # No build cache: GitHub Actions caches are writable by any workflow on
+    # the default branch, so restoring one here would let a poisoned cache
+    # entry inject code into the published, attested release binaries.
+    - name: Add Rust Target
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: rustup target add "$TARGET"
+
+    - name: Verify the committed version
+      # `pacquet --version` and the default User-Agent read the PNPM_VERSION
+      # constant, which `pnpm bump` keeps in sync with the npm wrapper's
+      # version. Verify instead of patching so the binaries are reproducible
+      # from the tagged sources.
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        grep -F "PNPM_VERSION: &str = \"$VERSION\"" pnpm/crates/config/src/defaults.rs

@@ -7,6 +7,7 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { FILTERING } from '@pnpm/cli.common-cli-options-help'
 import { readProjectManifest } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getDefaultWorkspaceConcurrency, getWorkspaceConcurrency, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
 import { packlist } from '@pnpm/fs.packlist'
 import type { Hooks } from '@pnpm/hooks.pnpmfile'
@@ -14,9 +15,9 @@ import { logger } from '@pnpm/logger'
 import { createExportableManifest, type ExportedManifest, readReadmeFile } from '@pnpm/releasing.exportable-manifest'
 import { changelogStorage, readPendingChangelog, renderChangelog } from '@pnpm/releasing.versioning'
 import type { DependencyManifest, Project, ProjectManifest, ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import chalk from 'chalk'
-import pLimit from 'p-limit'
 import { pick } from 'ramda'
 import { realpathMissing } from 'realpath-missing'
 import { renderHelp } from 'render-help'
@@ -147,6 +148,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
   engineStrict?: boolean
   packDestination?: string
   out?: string
+  packDestinationLocker?: PackDestinationLocker
   json?: boolean
   unicode?: boolean
 }
@@ -178,14 +180,13 @@ export async function handler (opts: PackOptions): Promise<string> {
       })
     }
 
-    const chunks = sortFilteredProjects({
+    const projectDependencies = filteredProjectsDependencies({
       selectedProjectsGraph,
       allProjectsGraph: opts.allProjectsGraph,
       prodAllProjectsGraph: opts.prodAllProjectsGraph,
       prodOnlySelectedProjectDirs: opts.prodOnlySelectedProjectDirs,
     })
 
-    const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }
     if (opts.out) {
       resolvedOpts.out = path.resolve(opts.dir, opts.out)
@@ -194,19 +195,39 @@ export async function handler (opts: PackOptions): Promise<string> {
     } else {
       resolvedOpts.packDestination = path.resolve(opts.dir)
     }
-    for (const chunk of chunks) {
-      // eslint-disable-next-line no-await-in-loop
-      await Promise.all(chunk.map(pkgDir =>
-        limitPack(async () => {
-          if (!packedPkgDirs.has(pkgDir)) return
+    const packOrder = serializeSharedPackDestinations({
+      opts: resolvedOpts,
+      packedPkgDirs,
+      projectDependencies,
+      projectsGraph: selectedProjectsGraph,
+    })
+    resolvedOpts.packDestinationLocker = createPackDestinationLocker()
+    let firstError: unknown
+    const packedByDir = new Map<ProjectRootDir, PackResultJson>()
+    await scheduleGraph(projectDependencies, {
+      bail: true,
+      concurrency: getWorkspaceConcurrency(opts.workspaceConcurrency),
+      runNode: async (pkgDir): Promise<TaskCompletion> => {
+        try {
+          if (!packedPkgDirs.has(pkgDir)) return 'passed'
           const pkg = selectedProjectsGraph[pkgDir].package
           const packResult = await api({
             ...resolvedOpts,
             dir: pkg.rootDir,
           })
-          packedPackages.push(toPackResultJson(packResult))
-        })
-      ))
+          packedByDir.set(pkgDir, toPackResultJson(packResult))
+          return 'passed'
+        } catch (error: unknown) {
+          firstError ??= error
+          return 'aborted'
+        }
+      },
+      onNodeSkipped: () => {},
+    })
+    if (firstError != null) throw firstError
+    for (const pkgDir of packOrder) {
+      const result = packedByDir.get(pkgDir)
+      if (result != null) packedPackages.push(result)
     }
   } else {
     const packResult = await api(opts)
@@ -224,6 +245,103 @@ ${files.map(({ path }) => path).join('\n')}
 ${chalk.blueBright('Tarball Details')}
 ${filename}`
   ).join('\n\n')
+}
+
+function serializeSharedPackDestinations (
+  params: {
+    opts: PackOptions
+    packedPkgDirs: Set<ProjectRootDir>
+    projectDependencies: Map<ProjectRootDir, ProjectRootDir[]>
+    projectsGraph: ProjectsGraph
+  }
+): ProjectRootDir[] {
+  const { opts, packedPkgDirs, projectDependencies, projectsGraph } = params
+  const order = graphSequencer(projectDependencies).order
+  const outputCanChangeWhilePacking = opts.hooks?.beforePacking != null || order.some((pkgDir) => {
+    const manifest = projectsGraph[pkgDir].package.manifest
+    return manifest.publishConfig?.directory != null || (!opts.ignoreScripts &&
+      ['prepack', 'prepare'].some((script) => Boolean(manifest.scripts?.[script])))
+  })
+  const outputIsLiteral = opts.out != null && !opts.out.includes('%s') && !opts.out.includes('%v')
+  if (outputCanChangeWhilePacking && !outputIsLiteral) return order
+  const previousByOutput = new Map<string, ProjectRootDir>()
+  for (const pkgDir of order) {
+    if (!packedPkgDirs.has(pkgDir)) continue
+    const pkg = projectsGraph[pkgDir].package
+    const output = packOutputPath(opts, pkg)
+    const predecessor = output == null ? undefined : previousByOutput.get(output)
+    if (output != null) previousByOutput.set(output, pkgDir)
+    if (predecessor != null && !projectDependencies.get(pkgDir)!.includes(predecessor)) {
+      projectDependencies.get(pkgDir)!.push(predecessor)
+    }
+  }
+  return order
+}
+
+type PackDestinationLocker = (destination: string, write: () => Promise<void>) => Promise<void>
+
+function createPackDestinationLocker (): PackDestinationLocker {
+  const pending = new Map<string, Promise<void>>()
+  return async (destination, write) => {
+    const previous = pending.get(destination)
+    let release!: () => void
+    const current = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    pending.set(destination, current)
+    await previous
+    try {
+      await write()
+    } finally {
+      release()
+      if (pending.get(destination) === current) pending.delete(destination)
+    }
+  }
+}
+
+function packOutputPath (opts: PackOptions, pkg: Project): string | undefined {
+  const publishedName = pkg.manifest.publishConfig?.name ?? pkg.manifest.name
+  const publishedVersion = pkg.manifest.version
+  if (publishedName == null || publishedVersion == null) return undefined
+  return resolvePackOutput({
+    dir: pkg.rootDir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion,
+  }).outputPath
+}
+
+export function resolvePackOutput (
+  params: {
+    dir: string
+    out?: string
+    packDestination?: string
+    publishedName: string
+    publishedVersion: string
+  }
+): { destDir: string, outputPath: string, tarballName: string } {
+  const { dir, out, packDestination, publishedName } = params
+  const normalizedName = normalizePackageName(publishedName)
+  const publishedVersion = stripBuildMetadata(params.publishedVersion)
+  let tarballName: string
+  let destination: string | undefined
+  if (out) {
+    if (packDestination) {
+      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
+    }
+    const preparedOut = out.replaceAll('%s', normalizedName).replaceAll('%v', publishedVersion)
+    const parsedOut = path.parse(preparedOut)
+    destination = parsedOut.dir || packDestination
+    tarballName = parsedOut.base
+  } else {
+    destination = packDestination
+    tarballName = `${normalizedName}-${publishedVersion}.tgz`
+  }
+  const destDir = destination
+    ? (path.isAbsolute(destination) ? destination : path.join(dir, destination))
+    : dir
+  return { destDir, outputPath: path.join(destDir, tarballName), tarballName }
 }
 
 export async function api (opts: PackOptions): Promise<PackResult> {
@@ -276,8 +394,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   // in the tarball's package.json and cause the registry to reject the publish with a 422 when
   // verifying the sigstore provenance bundle. See https://github.com/pnpm/pnpm/issues/11518.
   publishManifest.version = stripBuildMetadata(publishManifest.version!)
-  let tarballName: string
-  let packDestination: string | undefined
   // Read back off the publish manifest so a `publishConfig.name` rename reaches
   // the filename too — the tarball name, the packed manifest, and the registry
   // metadata all name one artifact. The rename never went through the check on
@@ -288,26 +404,20 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   if (!validateNpmPackageName(publishedName).validForOldPackages) {
     throw new PnpmError('INVALID_PACKAGE_NAME', `Invalid package name "${publishedName}".`)
   }
-  const normalizedName = normalizePackageName(publishedName)
-  if (opts.out) {
-    if (opts.packDestination) {
-      throw new PnpmError('INVALID_OPTION', 'Cannot use --pack-destination and --out together')
-    }
-    const preparedOut = opts.out.replaceAll('%s', normalizedName).replaceAll('%v', publishManifest.version)
-    const parsedOut = path.parse(preparedOut)
-    packDestination = parsedOut.dir ? parsedOut.dir : opts.packDestination
-    tarballName = parsedOut.base
-  } else {
-    tarballName = `${normalizedName}-${publishManifest.version}.tgz`
-    packDestination = opts.packDestination
-  }
+  const { destDir, outputPath, tarballName } = resolvePackOutput({
+    dir,
+    out: opts.out,
+    packDestination: opts.packDestination,
+    publishedName,
+    publishedVersion: publishManifest.version,
+  })
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
     workspaceDir: opts.workspaceDir,
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line
-  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /LICEN[CS]E(?:\..+)?/i.test(file))) {
+  if (opts.workspaceDir != null && dir !== opts.workspaceDir && !files.some((file) => /^LICEN[CS]E(?:\..+)?$/i.test(path.basename(file)))) {
     const { workspaceDir } = opts
     const licenses = await glob([LICENSE_GLOB], { cwd: workspaceDir, expandDirectories: false })
     await Promise.all(licenses.map(async (license) => {
@@ -331,9 +441,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     delete filesMap['package/CHANGELOG.md']
     injectedEntries['package/CHANGELOG.md'] = composedChangelog
   }
-  const destDir = packDestination
-    ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
-    : dir
   if (!opts.dryRun) {
     await fs.promises.mkdir(destDir, { recursive: true })
   }
@@ -362,21 +469,29 @@ export async function api (opts: PackOptions): Promise<PackResult> {
     ...Object.keys(injectedEntries).map((name) => name.replace(/^package\//, '')),
   ])).sort((a, b) => a.localeCompare(b, 'en'))
   if (!opts.dryRun) {
-    await packPkg({
-      destFile: path.join(destDir, tarballName),
-      filesMap,
-      injectedEntries,
-      modulesDir: path.join(opts.dir, 'node_modules'),
-      packGzipLevel: opts.packGzipLevel,
-      manifest: publishManifest,
-      bins: [
-        ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
-        ...(manifest.publishConfig?.executableFiles ?? [])
-          .map((executableFile) => path.join(dir, executableFile)),
-      ],
-    })
-    if (!opts.ignoreScripts) {
-      await _runScriptsIfPresent(['postpack'], entryManifest)
+    const packAndRunPostpack = async (): Promise<void> => {
+      await packPkg({
+        destFile: outputPath,
+        filesMap,
+        injectedEntries,
+        modulesDir: path.join(opts.dir, 'node_modules'),
+        packGzipLevel: opts.packGzipLevel,
+        manifest: publishManifest,
+        bins: [
+          ...(await getBinsFromPackageManifest(publishManifest as DependencyManifest, dir)).map(({ path }) => path),
+          ...(manifest.publishConfig?.executableFiles ?? [])
+            .map((executableFile) => path.join(dir, executableFile)),
+        ],
+      })
+      if (!opts.ignoreScripts) {
+        await _runScriptsIfPresent(['postpack'], entryManifest)
+      }
+    }
+    const destination = path.resolve(outputPath)
+    if (opts.packDestinationLocker == null) {
+      await packAndRunPostpack()
+    } else {
+      await opts.packDestinationLocker(destination, packAndRunPostpack)
     }
   }
   let packedTarballPath

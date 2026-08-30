@@ -7,9 +7,9 @@ fn registry_context(registries: HashMap<String, String>) -> pnpm_lockfile::Regis
 }
 
 use pnpm_lockfile::{
-    ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution, LockfileVersion,
-    PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot, RegistryResolution,
-    ResolvedDependencySpec, TarballResolution,
+    BundledDependencies, ComVer, GitResolution, ImporterDepVersion, Lockfile, LockfileResolution,
+    LockfileVersion, PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, ProjectSnapshot,
+    RegistryResolution, ResolvedDependencySpec, StringOrList, TarballResolution, TarballRevision,
 };
 
 use super::{reusable_importer_dep, synthesize_reused_result};
@@ -49,6 +49,7 @@ fn empty_lockfile() -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 
@@ -58,6 +59,7 @@ fn registry_metadata() -> PackageMetadata {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -178,12 +180,55 @@ fn synthesized_manifest_carries_deprecated_metadata() {
 }
 
 #[test]
+fn synthesized_manifest_carries_bundled_dependencies() {
+    let key: PkgNameVerPeer = "pkg-with-bundled-deps@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Names(vec!["napi-wasm".to_string()]));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-bundled-deps")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::json!(["napi-wasm"])));
+}
+
+#[test]
+fn synthesized_manifest_carries_the_boolean_bundled_dependencies_form() {
+    let key: PkgNameVerPeer = "pkg-bundling-everything@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.bundled_dependencies = Some(BundledDependencies::Boolean(true));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-bundling-everything")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("bundledDependencies"), Some(&serde_json::Value::Bool(true)));
+}
+
+#[test]
+fn synthesized_manifest_keeps_the_scalar_libc_form() {
+    let key: PkgNameVerPeer = "pkg-with-scalar-libc@1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    metadata.libc = Some(StringOrList::String("musl".to_string()));
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+
+    let result = synthesize_reused_result(&lockfile, &key, "pkg-with-scalar-libc")
+        .expect("registry dep is reusable");
+    let manifest = result.manifest.expect("synthesized manifest");
+    assert_eq!(manifest.get("libc"), Some(&serde_json::Value::String("musl".to_string())));
+}
+
+#[test]
 fn does_not_reuse_directory_resolutions() {
     let key: PkgNameVerPeer = "pkg-from-tarball@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -280,12 +325,45 @@ fn current_pkg_routes_a_scoped_package_to_its_scope_registry() {
 }
 
 #[test]
+fn current_pkg_materializes_a_revision_from_the_registry_prefix_declaration() {
+    let key: PkgNameVerPeer = "pkg@work:1.0.0".parse().expect("parse key");
+    let mut metadata = registry_metadata();
+    let LockfileResolution::Registry(registry_resolution) = &mut metadata.resolution else {
+        unreachable!("registry_metadata returns a registry resolution");
+    };
+    registry_resolution.integrity =
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+            .parse()
+            .expect("parse integrity");
+    registry_resolution.revision = Some(TarballRevision::try_from(7).unwrap());
+    let mut lockfile = empty_lockfile();
+    lockfile.packages = Some(HashMap::from([(key.clone(), metadata)]));
+    let mut context = registry_context(default_registry());
+    context
+        .registries_by_prefix
+        .insert("work".to_string(), "https://registry.example.test/work/npm/".to_string());
+
+    let current_pkg = super::current_pkg_from_lockfile(&lockfile, &key, &context)
+        .expect("declared prefix makes the revision reusable");
+
+    let LockfileResolution::Tarball(tarball) = current_pkg.resolution else {
+        panic!("registry resolution must materialize as a tarball");
+    };
+    assert_eq!(
+        tarball.tarball,
+        format!("https://registry.example.test/work/npm/-/tarballs/sha512/{}", "A".repeat(86)),
+    );
+    assert_eq!(tarball.revision, Some(TarballRevision::try_from(7).unwrap()));
+}
+
+#[test]
 fn current_pkg_passes_a_recorded_tarball_resolution_through() {
     let key: PkgNameVerPeer = "pkg@1.0.0".parse().expect("parse key");
     let mut metadata = registry_metadata();
     metadata.resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://example.test/pkg-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });

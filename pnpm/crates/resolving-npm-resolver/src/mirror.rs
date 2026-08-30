@@ -555,6 +555,7 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
         meta.etag = headers.etag;
         meta.modified = meta.modified.or(headers.modified);
+        meta.drop_incomplete_publish_times();
         return Some(meta);
     };
     // Bound each declared length, then require the whole header +
@@ -637,7 +638,7 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         }
     };
 
-    Some(Package {
+    let mut meta = Package {
         name: index.name,
         dist_tags: index.dist_tags,
         versions,
@@ -646,9 +647,10 @@ fn load_meta_with_hold_cap(pkg_mirror: &Path, hold_cap: usize) -> Option<Package
         etag: headers.etag,
         homepage: index.homepage,
         mutex: Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
-    })
+    };
+    meta.drop_incomplete_publish_times();
+    Some(meta)
 }
 
 /// How many mirror files [`load_meta`] may keep open at once. Sized

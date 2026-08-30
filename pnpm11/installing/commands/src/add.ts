@@ -4,9 +4,8 @@ import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
-import { handleGlobalAdd } from '@pnpm/global.commands'
+import { handleGlobalAdd, selectsPnpmCli } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
-import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -259,12 +258,7 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
-    // Normalize each selector to its package name first, so versioned
-    // forms like `pnpm@9` or `@pnpm/exe@1` can't bypass the guard.
-    if (params.some((param) => {
-      const { alias } = parseWantedDependency(param)
-      return alias === 'pnpm' || alias === '@pnpm/exe'
-    })) {
+    if (selectsPnpmCli(params)) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
     return handleGlobalAdd({
@@ -293,7 +287,7 @@ export async function handler (
         })
       }
     }
-    const allowBuilds: Record<string, boolean> = {}
+    const allowBuilds = { ...opts.allowBuilds }
     for (const pkg of opts.allowBuild) {
       allowBuilds[pkg] = true
     }
@@ -307,14 +301,9 @@ export async function handler (
         },
       })
     }
-    // Pass the allowed packages to allowBuilds so they can build during this install
-    const mergedAllowBuilds = { ...opts.allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      mergedAllowBuilds[pkg] = true
-    }
     await installDeps({
       ...opts,
-      allowBuilds: mergedAllowBuilds,
+      allowBuilds,
       rebuildHandler: commands?.rebuild,
       include,
       includeDirect: include,

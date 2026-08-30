@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process'
 import console from 'node:console'
 import fs from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const PNPM_ROOT = path.resolve(fileURLToPath(import.meta.url), '../..')
@@ -52,7 +53,17 @@ function deployNodeGyp () {
     '--prod',
     'deploy',
     DEPLOY_DIR,
-  ], { cwd: REPO_ROOT, stdio: 'inherit' })
+  ], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    // The hoisted node linker turns preferSymlinkedExecutables on, which makes
+    // node_modules/.bin a directory of symlinks — and a symlink cannot travel
+    // inside an npm tarball, so every bin would silently disappear from the
+    // published dist/node_modules/.bin. Shell shims survive packing. Passed
+    // through the environment rather than as `--config.` because the release-
+    // pinned pnpm ignores that flag for this setting.
+    env: { ...process.env, pnpm_config_prefer_symlinked_executables: 'false' },
+  })
 
   const nmPrune = path.join(PNPM_ROOT, 'node_modules', '.bin', 'nm-prune')
   execFileSync(nmPrune, ['--force'], { cwd: DEPLOY_DIR, stdio: 'inherit' })
@@ -108,6 +119,22 @@ function verifyPayload () {
       `The dist/ payload is incomplete; missing:\n${missing.map((file) => `  ${file}`).join('\n')}`
     )
   }
+  // A symlink never reaches a consumer: `pnpm pack` drops it from the tarball
+  // without a warning, so it would leave the same hole as a missing file.
+  const symlinks = findSymlinks(DIST_DIR)
+  if (symlinks.length > 0) {
+    throw new Error(
+      `The dist/ payload contains symlinks, which npm tarballs cannot carry:\n${symlinks.map((file) => `  ${file}`).join('\n')}`
+    )
+  }
+}
+
+function findSymlinks (dir) {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isSymbolicLink()) return [fullPath]
+    return entry.isDirectory() ? findSymlinks(fullPath) : []
+  })
 }
 
 deployNodeGyp()

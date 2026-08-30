@@ -4,7 +4,7 @@ use node_semver::Version;
 use pretty_assertions::assert_eq;
 
 use super::{AuthHeaders, DerivedPackuments, Package, PackageVersion, ThrottledClient};
-use crate::{RangeSpecStyle, package_distribution::PackageDistribution};
+use crate::package_distribution::PackageDistribution;
 
 #[test]
 pub fn package_version_should_include_peers() {
@@ -34,50 +34,6 @@ pub fn package_version_should_include_peers() {
     assert!(!dependencies(true).contains_key("hello-world"));
 }
 
-#[test]
-pub fn serialized_according_to_params() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version { major: 3, minor: 2, patch: 1, build: vec![], pre_release: vec![] },
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(RangeSpecStyle::Patch), "3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Minor), "~3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Major), "^3.2.1");
-    assert_eq!(version.serialize(RangeSpecStyle::None), "^3.2.1");
-}
-
-#[test]
-pub fn serialize_keeps_prerelease_version_without_prefix() {
-    let version = PackageVersion {
-        name: String::new(),
-        version: Version::parse("2.1.0-rc.1").unwrap(),
-        dist: PackageDistribution::default(),
-        dependencies: None,
-        dev_dependencies: None,
-        peer_dependencies: None,
-        optional_dependencies: None,
-        peer_dependencies_meta: None,
-        other: HashMap::default(),
-        npm_user: None,
-        deprecated: None,
-    };
-
-    assert_eq!(version.serialize(RangeSpecStyle::Major), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Minor), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::Patch), "2.1.0-rc.1");
-    assert_eq!(version.serialize(RangeSpecStyle::None), "2.1.0-rc.1");
-}
-
 #[tokio::test]
 async fn fetch_from_registry_attaches_authorization_header() {
     let mut server = mockito::Server::new_async().await;
@@ -103,6 +59,33 @@ async fn fetch_from_registry_attaches_authorization_header() {
         .await
         .expect("server should accept the request once the bearer header is attached");
     assert_eq!(pkg.name, "acme");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_from_registry_reports_the_status_of_an_unknown_package() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(404)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"error":"Not found"}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let error = Package::fetch_from_registry(
+        "acme",
+        &ThrottledClient::default(),
+        &registry,
+        &AuthHeaders::default(),
+    )
+    .await
+    .expect_err("a 404 packument is not a package");
+
+    let message = error.to_string();
+    assert!(message.contains("404"), "{message}");
     mock.assert_async().await;
 }
 
@@ -139,7 +122,6 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -469,4 +451,47 @@ fn published_at_skips_reserved_unpublished_object() {
     let pkg: Package = serde_json::from_str(body).expect("deserialize");
     assert_eq!(pkg.published_at("1.0.0"), Some("2025-01-10T08:30:00.000Z"));
     assert_eq!(pkg.published_at("unpublished"), None, "object value isn't a string");
+}
+
+/// npmmirror answers abbreviated requests with a `time` map covering only
+/// the versions it has synced since it started recording publish times. Such
+/// a map can't decide maturity, and leaving it in place makes the
+/// `minimumReleaseAge` filter read every absent timestamp as "not mature".
+#[test]
+fn drop_incomplete_publish_times_discards_a_partial_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([(
+        "1.1.0".to_string(),
+        serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string()),
+    )]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None, "a map missing 1.0.0 cannot decide maturity");
+}
+
+#[test]
+fn drop_incomplete_publish_times_keeps_a_complete_map() {
+    let mut pkg = package_with_versions("acme", &["1.0.0", "1.1.0"], "1.1.0");
+    pkg.time = Some(HashMap::from([
+        ("1.0.0".to_string(), serde_json::Value::String("2025-01-01T08:30:00.000Z".to_string())),
+        ("1.1.0".to_string(), serde_json::Value::String("2025-01-10T08:30:00.000Z".to_string())),
+        ("created".to_string(), serde_json::Value::String("2024-12-01T00:00:00.000Z".to_string())),
+    ]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert!(pkg.time.is_some(), "reserved keys alongside every version are still complete");
+}
+
+/// An empty timestamp is as unusable as an absent one.
+#[test]
+fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
+    let mut pkg = package_with_versions("acme", &["1.0.0"], "1.0.0");
+    pkg.time =
+        Some(HashMap::from([("1.0.0".to_string(), serde_json::Value::String(String::new()))]));
+
+    pkg.drop_incomplete_publish_times();
+
+    assert_eq!(pkg.time, None);
 }

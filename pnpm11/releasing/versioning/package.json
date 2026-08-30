@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.versioning",
-  "version": "1100.2.5",
+  "version": "1100.2.7",
   "description": "Native workspace release management: change intents, release-plan assembly, and changelog writing",
   "keywords": [
     "pnpm",

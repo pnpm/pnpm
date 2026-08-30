@@ -64,6 +64,21 @@ struct Args {
     /// loaded config.
     #[arg(long)]
     disable_resolver: bool,
+
+    /// Disable the signed shared-artifact surface. Overrides
+    /// `artifacts.enabled` from the loaded config.
+    #[arg(long)]
+    disable_artifacts: bool,
+}
+
+impl Args {
+    fn feature_overrides(&self) -> pnpr::FeatureOverrides {
+        pnpr::FeatureOverrides {
+            disable_registry: self.disable_registry,
+            disable_resolver: self.disable_resolver,
+            disable_artifacts: self.disable_artifacts,
+        }
+    }
 }
 
 #[tokio::main]
@@ -73,10 +88,7 @@ async fn main() -> miette::Result<()> {
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
     // not just its routes — applying them after `resolve` would be too late.
-    let overrides = pnpr::FeatureOverrides {
-        disable_registry: args.disable_registry,
-        disable_resolver: args.disable_resolver,
-    };
+    let overrides = args.feature_overrides();
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),

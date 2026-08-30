@@ -1,6 +1,6 @@
 use crate::{
     ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
-    build_sequence::build_sequence,
+    build_graph::build_graph,
     import_indexed_dir, store_index_key_for_resolution,
     version_policy::{VersionPolicyError, expand_package_version_specs},
 };
@@ -32,7 +32,7 @@ use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
 };
-use rayon::prelude::*;
+use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use std::{
     borrow::Cow,
     collections::{BTreeSet, HashMap, HashSet},
@@ -62,11 +62,9 @@ pub enum BuildModulesError {
     )]
     PatchFilePathMissing { dep_path: String },
 
-    /// `ThreadPoolBuilder::build()` failed — most likely the OS
-    /// refused to spawn the requested number of worker threads
-    /// (`EAGAIN` / `RLIMIT_NPROC`). Surfaced as a structured error
-    /// rather than a panic so the install path can return cleanly.
-    #[display("Failed to build the per-install rayon thread pool: {source}")]
+    /// The OS refused to spawn a scheduler worker, typically because the
+    /// process or system thread limit was reached.
+    #[display("Failed to build the per-install build scheduler: {source}")]
     #[diagnostic(
         code(ERR_PNPM_BUILD_THREAD_POOL),
         help(
@@ -75,7 +73,7 @@ pub enum BuildModulesError {
     )]
     ThreadPoolBuild {
         #[error(source)]
-        source: rayon::ThreadPoolBuildError,
+        source: std::io::Error,
     },
 
     /// Under the global virtual store a package's directory lives
@@ -165,10 +163,8 @@ impl RebuildOptions {
 
 /// Run lifecycle scripts for all packages that require a build.
 ///
-/// Packages are visited in topological order (children before parents) via
-/// [`build_sequence`]. Chunks run sequentially. Members within a chunk
-/// run in parallel under a per-install rayon thread pool bounded to
-/// [`BuildModules::child_concurrency`] threads.
+/// Packages are dispatched as soon as their dependencies finish, bounded by
+/// [`BuildModules::child_concurrency`].
 pub struct BuildModules<'a> {
     /// Install-scoped slot-directory mapping (GVS-aware). The layout
     /// knows the per-snapshot subdirectory shape (legacy flat-name vs
@@ -205,6 +201,8 @@ pub struct BuildModules<'a> {
     /// directory and a queued mutation of the matching
     /// `PackageFilesIndex.sideEffects` row.
     pub side_effects_cache_write: bool,
+    pub shared_side_effects_publisher:
+        Option<&'a crate::shared_side_effects::SharedSideEffectsPublisher>,
     /// Store-dir handle for the WRITE path's `add_files_from_dir`
     /// call. `None` short-circuits the upload site entirely — used
     /// by unit tests that don't set up a CAFS.
@@ -238,6 +236,10 @@ pub struct BuildModules<'a> {
     /// configures a shell gets it for build scripts too, not only for
     /// `pnpm run`. `None` selects the platform default.
     pub script_shell: Option<&'a Path>,
+    /// Mirrors `config.shell_emulator`. Threaded through to
+    /// [`RunPostinstallHooks::shell_emulator`], so build scripts run
+    /// under the built-in shell wherever `pnpm run` would.
+    pub shell_emulator: bool,
     pub extra_env: &'a HashMap<String, String>,
     /// Mirrors `config.user_agent`, stamped into each build script's
     /// `npm_config_user_agent`.
@@ -247,15 +249,12 @@ pub struct BuildModules<'a> {
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
     /// inherited value. Default `true`.
     pub unsafe_perm: bool,
-    /// Mirrors `config.child_concurrency`. Per-chunk parallelism
-    /// for build-script spawns. Chunks remain sequential to preserve
-    /// topological ordering; members within a chunk run in parallel
-    /// up to this many at a time. Floored to `1` to guarantee forward
-    /// progress on resource-constrained hosts.
+    /// Mirrors `config.child_concurrency`. Maximum concurrent build-script
+    /// spawns. Floored to `1` to guarantee forward progress.
     pub child_concurrency: u32,
     /// Snapshots the installability pass marked optional+incompatible.
     /// Excluded from both `requires_build` computation and the
-    /// `build_sequence` input — pacquet does not run scripts (or
+    /// build graph. Pacquet does not run scripts (or
     /// even check `binding.gyp`) for slots that don't exist on
     /// disk. Skipped snapshots never enter the build graph.
     pub skipped: &'a SkippedSnapshots,
@@ -347,6 +346,15 @@ pub struct BuildModulesOutput {
     /// Peers are kept here — unlike `ignored_builds`, whose keys are an
     /// `allowBuilds` lookup, these address a materialized slot.
     pub deferred_builds: Vec<String>,
+
+    /// Whether any linked slot's contents may have changed during the
+    /// build phase — a side-effects overlay was applied, a patch ran,
+    /// or a lifecycle script was attempted. `false` on the common warm
+    /// install where every candidate was ignored, deferred, or already
+    /// built, which lets the post-build importer bin relink skip
+    /// importers whose manifests provably match what the link phase
+    /// already shimmed.
+    pub mutated_slots: bool,
 }
 
 impl BuildModules<'_> {
@@ -366,11 +374,13 @@ impl BuildModules<'_> {
             engine_name,
             side_effects_cache,
             side_effects_cache_write,
+            shared_side_effects_publisher,
             store_dir,
             store_index_writer,
             patches,
             scripts_prepend_node_path,
             script_shell,
+            shell_emulator,
             extra_env,
             user_agent,
             unsafe_perm,
@@ -421,8 +431,7 @@ impl BuildModules<'_> {
         // The graph is bounded to the *forward closure of
         // `requires_build` snapshots* via `build_deps_subgraph`.
         // The upload-site and gate-check loops only ever compute
-        // cache keys for `requires_build` snapshots (the
-        // `continue` at the top of the chunk loop), and
+        // cache keys for `requires_build` snapshots, and
         // `calc_dep_state` only recurses into a snapshot's own
         // children, so the closure-bounded graph produces the
         // exact same cache keys as the full graph for every
@@ -438,7 +447,8 @@ impl BuildModules<'_> {
         let read_gate_active = side_effects_cache
             && engine_name.is_some()
             && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
-        let write_gate_active = side_effects_cache_write
+        let write_gate_active = (side_effects_cache_write
+            || shared_side_effects_publisher.is_some())
             && !frozen_store
             && engine_name.is_some()
             && store_index_writer.is_some()
@@ -457,16 +467,16 @@ impl BuildModules<'_> {
         });
         // `deps_state_cache` memoizes per-snapshot hashes across the
         // recursive walk in `calc_dep_state`. Shared across all
-        // chunks so diamond-shaped subgraphs hit the memo from
-        // earlier chunks too. Wrapped in `Mutex` because chunks now
-        // dispatch their members concurrently — `calc_dep_state`
-        // mutates the cache through `&mut`, and rayon would
+        // scheduled nodes so diamond-shaped subgraphs hit the memo from
+        // earlier builds too. Wrapped in `Mutex` because the scheduler
+        // dispatches ready nodes concurrently. `calc_dep_state`
+        // mutates the cache through `&mut`, and worker threads would
         // otherwise need each task to own a private cache, defeating
         // the point of memoization.
         let deps_state_cache: Mutex<pnpm_graph_hasher::DepsStateCache<PackageKey>> =
             Mutex::new(pnpm_graph_hasher::DepsStateCache::new());
-        // Prime it in lockfile key order before any chunk runs. The
-        // chunk members race for the mutex, and a snapshot inside a
+        // Prime it in lockfile key order before any build runs. The
+        // ready nodes race for the mutex, and a snapshot inside a
         // dependency cycle takes the digest of whichever walk reached
         // it first — so an unprimed cache would hand the same install
         // a different side-effects-cache key on every run, and every
@@ -481,75 +491,79 @@ impl BuildModules<'_> {
             );
         }
 
-        let chunks = build_sequence(&requires_build_map, patches, snapshots, importers, skipped);
+        let build_graph = build_graph(&requires_build_map, patches, snapshots, importers, skipped);
 
         // Collect peer-stripped keys so the final list is unique and
         // sorted lexicographically — matches `dedupePackageNamesFromIgnoredBuilds`.
         // `Mutex` for the same parallelism reason as `deps_state_cache` above.
         let ignored_builds: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 
-        // Per-install rayon pool. Bounded by `child_concurrency`, the
-        // largest chunk, and the package-manager safety cap so a
-        // repository cannot request an excessive number of native
-        // threads. One pool is reused across all sequential chunks.
-        //
-        // `ThreadPoolBuilder::build()` is fallible — the OS may
-        // refuse the spawn (`EAGAIN` / RLIMIT_NPROC) on a host
-        // already near its process-thread limit. Surface that as
-        // [`BuildModulesError::ThreadPoolBuild`] so the install
-        // returns cleanly with a remediation hint instead of
-        // panicking inside the binary.
-        let max_chunk_size = chunks.iter().map(Vec::len).max().unwrap_or(0);
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(crate::script_thread_count(child_concurrency, max_chunk_size))
-            .build()
-            .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
-
-        for chunk in chunks {
-            // The closure runs once per chunk; `try_for_each`
-            // short-circuits on the first error. The only mutable
-            // state shared across tasks is the two `Mutex`-wrapped
-            // collections above and `deps_state_cache`.
-            pool.install(|| -> Result<(), BuildModulesError> {
-                chunk.par_iter().try_for_each(|snapshot_key| {
-                    build_one_snapshot::<Reporter>(
-                        snapshot_key,
-                        snapshots,
-                        packages,
-                        patches,
-                        &requires_build_map,
-                        allow_build_policy,
-                        side_effects_maps_by_snapshot,
-                        engine_name,
-                        side_effects_cache,
-                        side_effects_cache_write,
-                        store_dir,
-                        store_index_writer,
-                        dep_graph.as_ref(),
-                        &deps_state_cache,
-                        &ignored_builds,
-                        layout,
-                        pkg_roots_by_key,
-                        gather_ancestor_bin_paths,
-                        modules_dir,
-                        lockfile_dir,
-                        extra_env,
-                        user_agent,
-                        scripts_prepend_node_path,
-                        script_shell,
-                        unsafe_perm,
-                        frozen_store,
-                        ignore_scripts,
-                        import_method,
-                        logged_methods,
-                        rebuild,
-                    )
-                })
-            })?;
+        let first_error: Mutex<Option<BuildModulesError>> = Mutex::new(None);
+        let on_node_skipped: fn(&PackageKey) = |_| {};
+        let slot_mutations = std::sync::atomic::AtomicBool::new(false);
+        let run_node = |snapshot_key: PackageKey| match build_one_snapshot::<Reporter>(
+            &snapshot_key,
+            snapshots,
+            packages,
+            patches,
+            &requires_build_map,
+            allow_build_policy,
+            side_effects_maps_by_snapshot,
+            engine_name,
+            side_effects_cache,
+            side_effects_cache_write,
+            shared_side_effects_publisher,
+            store_dir,
+            store_index_writer,
+            dep_graph.as_ref(),
+            &deps_state_cache,
+            &ignored_builds,
+            layout,
+            pkg_roots_by_key,
+            gather_ancestor_bin_paths,
+            modules_dir,
+            lockfile_dir,
+            extra_env,
+            user_agent,
+            scripts_prepend_node_path,
+            script_shell,
+            shell_emulator,
+            unsafe_perm,
+            frozen_store,
+            ignore_scripts,
+            import_method,
+            logged_methods,
+            &slot_mutations,
+            rebuild,
+        ) {
+            Ok(()) => TaskCompletion::Passed,
+            Err(error) => {
+                first_error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_or_insert(error);
+                TaskCompletion::Failed
+            }
+        };
+        schedule_graph(
+            &build_graph,
+            &ScheduleGraphOptions {
+                concurrency: crate::script_thread_count(child_concurrency, build_graph.len()),
+                bail: true,
+                continue_on_failure: false,
+                run_node: &run_node,
+                on_node_skipped: &on_node_skipped,
+            },
+        )
+        .map_err(|source| BuildModulesError::ThreadPoolBuild { source })?;
+        if let Some(error) =
+            first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner)
+        {
+            return Err(error);
         }
 
-        // If a chunk worker panicked while holding the
-        // `ignored_builds` lock, rayon's `try_for_each` will have
+        // If a scheduler worker panicked while holding the
+        // `ignored_builds` lock, the scheduler will have
         // already propagated the panic (or returned an Err) — so a
         // poisoned mutex here can only mean the protected state is
         // mid-insertion. A `BTreeSet::insert` is one atomic
@@ -559,7 +573,8 @@ impl BuildModules<'_> {
             ignored_builds.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner);
         Ok(BuildModulesOutput {
             ignored_builds: ignored_builds.into_iter().collect(),
-            deferred_builds: deferred_builds(&requires_build_map, ignore_scripts),
+            deferred_builds: deferred_builds(requires_build_map.iter(), ignore_scripts),
+            mutated_slots: slot_mutations.into_inner(),
         })
     }
 }
@@ -567,18 +582,18 @@ impl BuildModules<'_> {
 /// The snapshots `--ignore-scripts` kept from building, sorted for a
 /// stable `.modules.yaml`.
 ///
-/// Every `requires_build` snapshot qualifies, not just the ones this
-/// install newly materialized: a build stays owed until something
-/// actually runs it, and only `pnpm rebuild` clears the record.
-fn deferred_builds(
-    requires_build_map: &HashMap<PackageKey, bool>,
+/// The caller supplies the snapshots in scope. Normal build-module runs
+/// pass every snapshot they inspected; the `ignoreScripts`
+/// fast path passes only entries newly materialized by this install.
+pub(crate) fn deferred_builds<'a>(
+    requires_build: impl IntoIterator<Item = (&'a PackageKey, &'a bool)>,
     ignore_scripts: bool,
 ) -> Vec<String> {
     if !ignore_scripts {
         return Vec::new();
     }
-    let mut deferred: Vec<String> = requires_build_map
-        .iter()
+    let mut deferred: Vec<String> = requires_build
+        .into_iter()
         .filter(|&(_, &requires_build)| requires_build)
         .map(|(key, _)| key.to_string())
         .collect();

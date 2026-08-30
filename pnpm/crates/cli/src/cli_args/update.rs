@@ -1,9 +1,11 @@
 use crate::{
     State,
     cli_args::{
-        pipelines::InstallFamilySelection, recursive,
+        lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+        recursive,
         supported_architectures::SupportedArchitecturesArgs,
-        update_interactive::InteractiveUpdateOptions,
+        update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
     },
     github_actions,
 };
@@ -11,7 +13,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic};
 use pnpm_config::Config;
-use pnpm_package_manager::{Update, build_workspace_packages_map};
+use pnpm_package_manager::{Update, build_workspace_packages_map, included_direct_groups};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
@@ -22,13 +24,16 @@ use std::{collections::HashSet, path::Path};
 #[derive(Debug, Clone, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
-    #[clap(short = 'P', long)]
+    #[clap(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Update packages only in "devDependencies".
     #[clap(short = 'D', long)]
     dev: bool,
+    /// Update packages only in "optionalDependencies".
+    #[clap(long, overrides_with = "no_optional")]
+    optional: bool,
     /// Don't update packages in "optionalDependencies".
-    #[clap(long)]
+    #[clap(long, overrides_with = "optional")]
     no_optional: bool,
 }
 
@@ -36,14 +41,17 @@ impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
     /// match. Returns the groups for which the corresponding inclusion bit
     /// is set.
+    ///
+    /// This narrows what the update *matches*, not what the install that
+    /// follows it materializes: pnpm leaves the `included` set recorded in
+    /// `.modules.yaml` untouched for an update, so these flags never reach
+    /// [`Config::optional`] and friends.
     fn include_direct(&self) -> Vec<DependencyGroup> {
         // `Some(true)` only when the flag was explicitly passed: the raw
         // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // There is no positive `--optional` flag for update; `--no-optional`
-        // sets it to `false`, otherwise it stays unset.
-        let optional = self.no_optional.then_some(false);
+        let optional = self.optional.then_some(true).or_else(|| self.no_optional.then_some(false));
 
         let ne_true = |flag: Option<bool>| flag != Some(true);
         let dependencies = production == Some(true) || (ne_true(dev) && ne_true(optional));
@@ -82,6 +90,10 @@ pub struct UpdateArgs {
     #[clap(short = 'L', long)]
     pub latest: bool,
 
+    /// Refresh registry revisions without changing package versions.
+    #[clap(long)]
+    pub patches: bool,
+
     /// Write the resolved version without a range operator when
     /// rewriting the manifest under `--latest`.
     #[clap(short = 'E', long = "save-exact")]
@@ -100,6 +112,9 @@ pub struct UpdateArgs {
     /// Dependencies are not downloaded; only `pnpm-lock.yaml` is updated.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+
+    #[clap(flatten)]
+    pub lockfile_dir: LockfileDirArg,
 
     /// Show outdated dependencies and select which ones to update.
     #[clap(short = 'i', long)]
@@ -132,6 +147,13 @@ pub struct UpdateArgs {
     /// pnpmfiles of config dependencies.
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
+
+    /// URL of a pnpr server to offload revision refresh resolution to.
+    #[clap(long = "pnpr-server")]
+    pub pnpr_server: Option<String>,
+
+    #[clap(skip)]
+    pub(crate) prompt: UpdatePrompt,
 }
 
 /// The option combinations `--workspace` rejects, checked before any
@@ -148,19 +170,44 @@ enum WorkspaceUpdateError {
     OutsideWorkspace,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display(
+    "--patches cannot be combined with package selectors, --latest, --interactive, or --global"
+)]
+#[diagnostic(code(ERR_PNPM_PATCHES_WITH_SELECTOR))]
+struct PatchesWithSelectorError;
+
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
+        if let Some(pnpr_server) = self.pnpr_server.clone() {
+            config.pnpr_server = Some(pnpr_server);
+        }
     }
 
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
     ) -> miette::Result<()> {
-        let workspace_packages = self
-            .check_workspace_option(state.config.workspace_dir.as_deref())?
+        self.check_patches_options()?;
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
+        let include_direct = self.dependency_options.include_direct();
+        let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        if self.can_delegate_patch_refresh(update_actions, &include_direct)
+            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        {
+            let lockfile_path = state.lockfile_path();
+            return super::install::install_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                self.pnpr_patch_link(&state, &lockfile_path),
+            )
+            .await;
+        }
+        let workspace_packages = workspace_root
             .map(|workspace_root| {
-                recursive::discover_workspace_projects(workspace_root)
+                recursive::discover_workspace_projects(workspace_root, state.config)
                     .map(|(projects, _)| build_workspace_packages_map(Some(&projects)))
             })
             .transpose()?
@@ -168,8 +215,6 @@ impl UpdateArgs {
 
         let actions_root =
             state.config.workspace_dir.clone().unwrap_or_else(|| manifest_root(&state.manifest));
-        let include_direct = self.dependency_options.include_direct();
-        let update_actions = self.should_update_github_actions(state.config, &include_direct);
         let action_matcher =
             if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
@@ -208,6 +253,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -242,6 +288,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -272,13 +319,27 @@ impl UpdateArgs {
         mut state: State,
         selection: InstallFamilySelection,
     ) -> miette::Result<()> {
-        let workspace_packages = self
-            .check_workspace_option(state.config.workspace_dir.as_deref())?
-            .and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
-
-        let actions_root = selection.workspace_root.clone();
+        self.check_patches_options()?;
+        state.http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        let workspace_root = self.check_workspace_option(state.config.workspace_dir.as_deref())?;
         let include_direct = self.dependency_options.include_direct();
         let update_actions = self.should_update_github_actions(state.config, &include_direct);
+        if self.can_delegate_patch_refresh(update_actions, &include_direct)
+            && let Some(pnpr_server) = state.config.pnpr_server.as_deref()
+        {
+            let lockfile_path = state.lockfile_path();
+            return super::install::install_selected_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                &selection,
+                self.pnpr_patch_link(&state, &lockfile_path),
+            )
+            .await;
+        }
+        let workspace_packages =
+            workspace_root.and_then(|_| build_workspace_packages_map(Some(&selection.projects)));
+
+        let actions_root = selection.workspace_root.clone();
         let action_matcher =
             if update_actions { github_actions::selector_matcher(&self.packages) } else { None };
         let package_selectors = filter_package_selectors(&self.packages, update_actions);
@@ -313,6 +374,7 @@ impl UpdateArgs {
                     latest: self.latest,
                     include_direct: &include_direct,
                     include_github_actions: update_actions,
+                    prompt: self.prompt,
                 },
             )
             .await?
@@ -333,9 +395,10 @@ impl UpdateArgs {
         let InstallFamilySelection {
             workspace_root: _,
             mut projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         } = selection;
 
@@ -351,6 +414,7 @@ impl UpdateArgs {
                 lockfile_path: Some(&lockfile_path),
                 packages: &package_selectors,
                 latest: self.latest,
+                patches: self.patches,
                 save_exact: self.save_exact || config.save_exact,
                 save: !self.no_save,
                 include_direct,
@@ -362,9 +426,10 @@ impl UpdateArgs {
             }
             .run_selected::<Reporter>(
                 &mut projects,
-                &ordered_groups,
+                &project_dependencies,
                 &ordered_dirs,
                 selected_dirs.as_ref(),
+                install_dirs.as_ref(),
                 active_manifest_is_standin,
             )
             .await
@@ -389,12 +454,17 @@ impl UpdateArgs {
         self,
         config: &'static Config,
     ) -> miette::Result<()> {
+        self.check_patches_options()?;
         self.check_workspace_option(None)?;
+        if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
+            return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
+        }
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
             match crate::cli_args::update_interactive::select_global_package_groups(
                 config,
                 &self.packages,
                 self.latest,
+                self.prompt,
             )
             .await?
             {
@@ -437,6 +507,52 @@ impl UpdateArgs {
             return Err(WorkspaceUpdateError::LatestWithWorkspace.into());
         }
         workspace_root.ok_or_else(|| WorkspaceUpdateError::OutsideWorkspace.into()).map(Some)
+    }
+
+    fn check_patches_options(&self) -> miette::Result<()> {
+        if self.patches
+            && (!self.packages.is_empty() || self.latest || self.interactive || self.global)
+        {
+            return Err(PatchesWithSelectorError.into());
+        }
+        Ok(())
+    }
+
+    fn can_delegate_patch_refresh(
+        &self,
+        update_actions: bool,
+        include_direct: &[DependencyGroup],
+    ) -> bool {
+        let all_dependency_groups =
+            [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        self.patches
+            && self.depth.is_none()
+            && !update_actions
+            && all_dependency_groups.iter().all(|group| include_direct.contains(group))
+    }
+
+    fn pnpr_patch_link<'path>(
+        &self,
+        state: &State,
+        lockfile_path: &'path Path,
+    ) -> super::install::PnprLink<'path> {
+        super::install::PnprLink {
+            dependency_groups: included_direct_groups(state.config.optional).collect(),
+            supported_architectures: self
+                .supported_architectures
+                .apply_to(state.config.supported_architectures.clone()),
+            node_linker: state.config.node_linker,
+            skip_runtimes: state.config.skip_runtimes,
+            frozen_lockfile: false,
+            prefer_frozen_lockfile: false,
+            update_patches: true,
+            fix_lockfile: false,
+            lockfile_only: self.lockfile_only,
+            ignore_manifest_check: false,
+            trust_lockfile: state.config.trust_lockfile,
+            lockfile_path: Some(lockfile_path),
+            use_state_lockfile: true,
+        }
     }
 
     fn should_update_github_actions(

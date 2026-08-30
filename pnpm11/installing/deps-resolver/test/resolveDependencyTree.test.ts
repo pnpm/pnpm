@@ -1,3 +1,5 @@
+import { Buffer } from 'node:buffer'
+
 import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
@@ -242,6 +244,95 @@ test('a targeted update keeps down-chain preferred-version propagation, so it de
   }
 })
 
+test('a revision refresh pins direct and transitive versions while preserving an explicit revision selector', async () => {
+  const requests: Array<{ alias?: string, bareSpecifier?: string, updatePatches?: boolean }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    requests.push({
+      alias: wantedDependency.alias,
+      bareSpecifier: wantedDependency.bareSpecifier,
+      updatePatches: options.updatePatches,
+    })
+    const version = wantedDependency.alias === 'revision-root' ? '1.0.0' : '2.0.0'
+    return createPackageResponse(`${wantedDependency.alias}@${version}`)
+  })
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { 'revision-root': '^1.0.0' },
+        dependencies: { 'revision-root': '1.0.0' },
+      },
+    },
+    packages: {
+      ['revision-root@1.0.0' as DepPath]: {
+        id: 'revision-root@1.0.0',
+        name: 'revision-root',
+        version: '1.0.0',
+        resolution: {
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+          revision: 1,
+        },
+        dependencies: { 'revision-child': '2.0.0' },
+      },
+      ['revision-child@2.0.0' as DepPath]: {
+        id: 'revision-child@2.0.0',
+        name: 'revision-child',
+        version: '2.0.0',
+        resolution: {
+          integrity: `sha512-${Buffer.alloc(64, 2).toString('base64')}`,
+          revision: 1,
+        },
+      },
+    },
+  }
+
+  await resolveDependencyTree([{
+    id: '.' as ProjectId,
+    manifest: {
+      name: 'root',
+      version: '0.0.0',
+      dependencies: { 'revision-root': '^1.0.0' },
+    },
+    modulesDir: '/project/node_modules',
+    rootDir: '/project' as ProjectRootDir,
+    updatePackageManifest: false,
+    updatePatches: true,
+    wantedDependencies: [{
+      alias: 'revision-root',
+      bareSpecifier: '^1.0.0',
+      dev: false,
+      optional: false,
+      updateDepth: Number.POSITIVE_INFINITY,
+    }],
+  } satisfies ImporterToResolveGeneric<object>], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: true,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registriesByScope: { default: 'https://registry.npmjs.org/' },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  expect(requests).toEqual([
+    { alias: 'revision-root', bareSpecifier: '1.0.0', updatePatches: true },
+    { alias: 'revision-child', bareSpecifier: '2.0.0+r1', updatePatches: true },
+  ])
+})
+
 test('updateRequested matches an npm-alias dependency without a lockfile reference by its real package name', async () => {
   // An edge with no lockfile reference (fresh dep, or a specifier changed
   // right before resolution — e.g. `pnpm audit --fix` widening a vulnerable
@@ -445,12 +536,23 @@ function createStoreController (
     importPackage: async () => ({ isBuilt: false, importMethod: undefined }),
     close: async () => undefined,
     prune: async () => undefined,
-    upload: async () => undefined,
+    upload: async () => ({ filesMap: new Map() }),
     clearResolutionCache: () => undefined,
   }
 }
 
 const manifests: Record<string, PackageManifest> = {
+  'revision-root@1.0.0': {
+    name: 'revision-root',
+    version: '1.0.0',
+    dependencies: {
+      'revision-child': '2.0.0+r1',
+    },
+  },
+  'revision-child@2.0.0': {
+    name: 'revision-child',
+    version: '2.0.0',
+  },
   'a@1.0.0': {
     name: 'a',
     version: '1.0.0',

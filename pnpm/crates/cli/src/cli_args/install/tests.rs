@@ -8,49 +8,99 @@ use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
 
+/// The full flag matrix, mirroring the TypeScript CLI's prod/dev/optional
+/// resolution in `config/reader/src/index.ts`.
 #[test]
 fn dependency_options_to_dependency_groups() {
     use DependencyGroup::{Dev, Optional, Prod};
-    let create_list = |opts: InstallDependencyOptions| opts.dependency_groups().collect::<Vec<_>>();
+    let create_list =
+        |opts: InstallDependencyOptions| opts.dependency_groups(true).collect::<Vec<_>>();
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Dev, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: false }),
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: false,
+        }),
         [Prod, Optional],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: false }),
-        [Dev, Optional],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: false, no_optional: true }),
-        [Prod, Dev],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: false, no_optional: true }),
-        [Prod],
-    );
-
-    assert_eq!(
-        create_list(InstallDependencyOptions { prod: false, dev: true, no_optional: true }),
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
         [Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: false }),
-        [Prod, Dev, Optional],
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod, Dev],
     );
 
     assert_eq!(
-        create_list(InstallDependencyOptions { prod: true, dev: true, no_optional: true }),
-        [Prod, Dev],
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: false,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: false,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
+        [Dev],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: false,
+        }),
+        [Prod, Optional],
+    );
+
+    assert_eq!(
+        create_list(InstallDependencyOptions {
+            prod: true,
+            dev: true,
+            optional: false,
+            no_optional: true,
+        }),
+        [Prod],
+    );
+
+    assert_eq!(
+        InstallDependencyOptions { prod: false, dev: false, optional: true, no_optional: false }
+            .dependency_groups(false)
+            .collect::<Vec<_>>(),
+        [Prod, Dev, Optional],
     );
 }
 
@@ -131,6 +181,16 @@ fn dry_run_flag_parses() {
     assert!(parsed.args.dry_run, "flag present → true");
 }
 
+#[test]
+fn fix_lockfile_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.fix_lockfile, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--fix-lockfile"])
+        .expect("parses --fix-lockfile");
+    assert!(parsed.args.fix_lockfile, "flag present → true");
+}
+
 /// `--frozen-store` parses to `true`. Absent → `false`. The flag is
 /// folded into `config.frozen_store` at the dispatch in `cli_args.rs`
 /// (any `--frozen-store` upgrades a yaml `false` to `true`), so the
@@ -143,6 +203,21 @@ fn frozen_store_flag_parses() {
     let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--frozen-store"])
         .expect("parses --frozen-store");
     assert!(parsed.args.frozen_store, "flag present → true");
+}
+
+#[test]
+fn slow_fetch_warning_flags_parse() {
+    let parsed = InstallArgsHarness::try_parse_from([
+        "pacquet-test",
+        "--fetch-warn-timeout-ms",
+        "2500",
+        "--fetch-min-speed-ki-bps",
+        "125",
+    ])
+    .expect("slow-fetch warning flags parse");
+
+    assert_eq!(parsed.args.fetch_warn_timeout_ms, Some(2_500));
+    assert_eq!(parsed.args.fetch_min_speed_ki_bps, Some(125));
 }
 
 /// `NodeLinkerArg::into_config` maps every variant 1:1 to the
@@ -217,6 +292,7 @@ fn registry_rewrite_updates_explicit_tarball_resolution_urls() {
     let mut resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "http://server-registry.test/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });

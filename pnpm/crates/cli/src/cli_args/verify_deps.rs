@@ -17,6 +17,8 @@ use pnpm_config::{Config, VerifyDepsBeforeRun};
 use pnpm_default_reporter::colors::Colors;
 use pnpm_package_manager::{RunDepsStatus, check_deps_status_before_run_at};
 
+use super::reporter::ReporterType;
+
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {
     #[display("{issue}")]
@@ -40,7 +42,7 @@ enum VerifyDepsError {
 pub(crate) fn verify_deps_before_run(
     dir: &Path,
     config: &Config,
-    silent: bool,
+    reporter: ReporterType,
 ) -> miette::Result<()> {
     if !config.verify_deps_before_run.is_enabled() {
         return Ok(());
@@ -51,13 +53,16 @@ pub(crate) fn verify_deps_before_run(
     let (issue, install_args) = match status {
         RunDepsStatus::UpToDate => return Ok(()),
         RunDepsStatus::SkippedPnp => {
-            warn(silent, "verify-deps-before-run does not work with node-linker=pnp");
+            warn(
+                matches!(reporter, ReporterType::Silent),
+                "verify-deps-before-run does not work with node-linker=pnp",
+            );
             return Ok(());
         }
         RunDepsStatus::Outdated { issue, install_args } => (issue, install_args),
     };
     match config.verify_deps_before_run {
-        VerifyDepsBeforeRun::Install => spawn_install(dir, &install_args, silent),
+        VerifyDepsBeforeRun::Install => spawn_install(dir, &install_args, reporter),
         VerifyDepsBeforeRun::Prompt => {
             if !std::io::stdin().is_terminal() {
                 return Err(VerifyDepsError::CannotPrompt { issue }.into());
@@ -70,7 +75,7 @@ pub(crate) fn verify_deps_before_run(
                 "Your \"node_modules\" directory is out of sync with the \"pnpm-lock.yaml\" file. This can lead to issues during scripts execution.\n\nWould you like to run \"pnpm {command}\" to update your \"node_modules\"?",
             );
             match Confirm::new().with_prompt(message).default(true).interact() {
-                Ok(true) => spawn_install(dir, &install_args, silent),
+                Ok(true) => spawn_install(dir, &install_args, reporter),
                 Ok(false) => Ok(()),
                 // The prompt was interrupted (Esc / Ctrl-C); exit like
                 // pnpm's ExitPromptError handler.
@@ -79,7 +84,10 @@ pub(crate) fn verify_deps_before_run(
         }
         VerifyDepsBeforeRun::Error => Err(VerifyDepsError::OutOfSync { issue }.into()),
         VerifyDepsBeforeRun::Warn => {
-            warn(silent, &format!("Your node_modules are out of sync with your lockfile. {issue}"));
+            warn(
+                matches!(reporter, ReporterType::Silent),
+                &format!("Your node_modules are out of sync with your lockfile. {issue}"),
+            );
             Ok(())
         }
         // `true` runs the check without acting on the verdict; `false`
@@ -90,20 +98,34 @@ pub(crate) fn verify_deps_before_run(
 
 /// Re-run the kind of install the workspace state recorded, in-place
 /// and with inherited stdio, the way pnpm's `runDepsStatusCheck` spawns
-/// `pnpm install` through `runPnpmCli`. The spawned install never
-/// re-enters this gate: only `run` / `exec` consult it. Its up-to-date
-/// shortcuts are bypassed because the pre-run check has already decided
-/// that an install is required.
+/// `pnpm install` through `runPnpmCli`. Reporter output goes to stderr so
+/// the command being run owns stdout, in the format selected by the parent.
+/// The spawned install never re-enters this gate: only `run` / `exec` consult
+/// it. Its up-to-date shortcuts are bypassed because the pre-run check has
+/// already decided that an install is required.
 #[expect(clippy::exit, reason = "a failed spawned install must preserve the child exit code")]
-fn spawn_install(dir: &Path, install_args: &[String], silent: bool) -> miette::Result<()> {
+fn spawn_install(
+    dir: &Path,
+    install_args: &[String],
+    reporter: ReporterType,
+) -> miette::Result<()> {
     let exe = std::env::current_exe().into_diagnostic()?;
     let mut command = Command::new(exe);
     command
-        .args(["install", "--verify-deps-before-run-install"])
+        .args(["install", "--verify-deps-before-run-install", "--use-stderr"])
         .args(install_args)
         .current_dir(dir);
-    if silent {
-        command.arg("--reporter=silent");
+    match reporter {
+        ReporterType::Default => {}
+        ReporterType::AppendOnly => {
+            command.arg("--reporter=append-only");
+        }
+        ReporterType::Ndjson => {
+            command.arg("--reporter=ndjson");
+        }
+        ReporterType::Silent => {
+            command.arg("--reporter=silent");
+        }
     }
     let status = command.status().into_diagnostic()?;
     if !status.success() {
@@ -122,8 +144,7 @@ fn warn(silent: bool, message: &str) {
     if silent {
         return;
     }
-    let colors = Colors {
-        enabled: std::io::stderr().is_terminal() && std::env::var_os("NO_COLOR").is_none(),
-    };
+    let colors =
+        Colors { enabled: pnpm_default_reporter::colors_enabled(std::io::stderr().is_terminal()) };
     eprintln!("{} {message}", colors.warn_label());
 }

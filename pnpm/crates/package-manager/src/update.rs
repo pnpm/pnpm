@@ -3,18 +3,20 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest,
+    decide_catalog, defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
-    resolution_policy::PickPolicy,
+    resolution_policy::{PickPolicy, create_configured_npm_resolver},
     selected_project_indices,
 };
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
+use pipe_trait::Pipe;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -37,10 +39,10 @@ use pnpm_reporter::{
     LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, PnpmLog, Reporter,
 };
 use pnpm_resolving_default_resolver::DefaultResolver;
-use pnpm_resolving_deps_resolver::UpdateDepth;
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, VersionLine, real_package_name_of};
 use pnpm_resolving_npm_resolver::{
-    DeclaredSpecifiers, InMemoryPackageMetaCache, NpmResolver, calc_specifier_for_workspace_dep,
-    merge_named_registries, shared_packument_fetch_locker, shared_picked_manifest_cache,
+    DeclaredSpecifiers, calc_specifier_for_workspace_dep, calc_version_range,
+    infer_range_spec_style,
 };
 use pnpm_resolving_resolver_base::{
     PreferredVersions, ResolveOptions, Resolver, UpdateBehavior, VersionSelectorType,
@@ -49,7 +51,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_tarball::MemCache;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -105,6 +107,9 @@ pub struct Update<'a> {
     /// direct dependencies to their `latest` dist-tag, rewriting
     /// `package.json`.
     pub latest: bool,
+    /// `--patches`: refresh registry revisions while retaining every locked
+    /// package version and leaving manifest specifiers unchanged.
+    pub patches: bool,
     /// `--save-exact` / `-E`: write the resolved version without a range
     /// operator when rewriting the manifest under `--latest`. Only applies
     /// to dependencies whose current specifier has no recoverable pin; an
@@ -152,6 +157,11 @@ pub struct Update<'a> {
 /// Error type of [`Update`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum UpdateError {
+    /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
+    /// same code and message from `requireHooks`.
+    #[display("{_0}")]
+    #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
+    MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// `--latest` was combined with a versioned selector (`foo@2`).
     #[display("Specs are not allowed to be used with --latest ({_0})")]
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
@@ -162,6 +172,16 @@ pub enum UpdateError {
     #[display("None of the specified packages were found in the dependencies.")]
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
+
+    /// A versioned selector named a package no selected project declares
+    /// directly, so there is nowhere to record the requested version.
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_UPDATE_VERSION_ON_INDIRECT_DEP), help("{hint}"))]
+    UpdateVersionOnIndirectDep {
+        #[error(not(source))]
+        message: String,
+        hint: String,
+    },
 
     /// A `--workspace` selector named a dependency that no workspace
     /// project publishes.
@@ -175,6 +195,17 @@ pub enum UpdateError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_LATEST))]
     ResolveLatest {
         name: String,
+        #[error(source)]
+        error: pnpm_resolving_resolver_base::ResolveError,
+    },
+
+    /// A resolver failed while resolving the dist tag an explicit
+    /// `<name>@<tag>` update selector named.
+    #[display("Failed to resolve {name}@{tag}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UPDATE_RESOLVE_TAG))]
+    ResolveTag {
+        name: String,
+        tag: String,
         #[error(source)]
         error: pnpm_resolving_resolver_base::ResolveError,
     },
@@ -274,6 +305,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -283,10 +315,37 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
 
+        let manifest_dir =
+            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+        let workspace_root = crate::install::lockfile_root_dir(config, &manifest_dir)
+            .map_err(UpdateError::FindWorkspaceDir)?;
+        let read_package_hook = (!save && !config.ignore_pnpmfile)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
+            .flatten();
+        let mut read_package_hooked_manifest_paths = HashSet::new();
+        if let Some((hook, log)) = read_package_hook.as_ref() {
+            apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf());
+        }
+        let lockfile_specifier_project_manifests =
+            (!save).then(|| vec![(manifest_dir.clone(), manifest.clone())]);
+        if !latest && depth > 0 {
+            let selectors =
+                packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+            reject_versions_of_indirect_update_specs::<Reporter>(
+                &selectors,
+                &[manifest],
+                &include_direct,
+                &package_manifest_prefix(manifest),
+            )?;
+        }
         let mut latest_chain = None;
         let Some(prepared) = prepare_manifest::<Reporter>(
             manifest,
@@ -331,13 +390,8 @@ impl Update<'_> {
             bump_targets,
             ..
         } = prepared;
-        let manifest_dir =
-            manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
-        let importer_id = pnpm_workspace::importer_id_from_root_dir(
-            &crate::install::lockfile_root_dir(config, &manifest_dir)
-                .map_err(UpdateError::FindWorkspaceDir)?,
-            &manifest_dir,
-        );
+        let seed_policy = if patches { UpdateSeedPolicy::RefreshRevisions } else { seed_policy };
+        let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
             range_spec_style: RangeSpecStyle::from_save_options(save_exact, None),
@@ -355,7 +409,7 @@ impl Update<'_> {
             // `include` is always all-true for updates: the materialized
             // `node_modules` layout must not change just because the
             // update scope was narrowed.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // `update` always re-resolves against the registry, so the
             // auto-frozen / repeat-install fast paths must not fire.
@@ -363,7 +417,7 @@ impl Update<'_> {
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -380,13 +434,24 @@ impl Update<'_> {
             deps_requiring_build_sink: None,
             catalogs_override,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
-        match bumps.as_ref() {
-            Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
-            None => install.run::<Reporter>().await,
+        let ignored_builds = match lockfile_specifier_project_manifests {
+            Some(manifests) => {
+                install
+                    .run_with_lockfile_specifier_project_manifests::<Reporter>(
+                        manifests,
+                        read_package_hooked_manifest_paths,
+                    )
+                    .await
+            }
+            None => match bumps.as_ref() {
+                Some(bumps) => install.run_with_manifest_spec_bumps::<Reporter>(bumps).await,
+                None => install.run::<Reporter>().await,
+            },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -412,23 +477,23 @@ impl Update<'_> {
         }
 
         if save {
-            prune_minimum_release_age_excludes(
-                config,
-                workspace_dir_for_catalogs.as_deref(),
-                manifest,
-            )
-            .map_err(UpdateError::WriteWorkspaceManifest)?;
+            post_install_prune(config, workspace_dir_for_catalogs.as_deref(), manifest)
+                .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<PathBuf>],
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
+        install_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), UpdateError> {
         let Update {
@@ -442,6 +507,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -451,6 +517,8 @@ impl Update<'_> {
             lockfile_only,
             resolution_observer,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
 
         crate::minimum_release_age::ensure_strict_minimum_release_age_can_save(config, save)
             .map_err(UpdateError::MinimumReleaseAge)?;
@@ -459,15 +527,38 @@ impl Update<'_> {
         if selected_indices.is_empty() {
             return Ok(());
         }
-        let workspace_root = &crate::install::lockfile_root_dir(
+        let workspace_root = crate::install::lockfile_root_dir(
             config,
             manifest.path().parent().expect("manifest path always has a parent dir"),
         )
         .map_err(UpdateError::FindWorkspaceDir)?;
+        let read_package_hook = (!save && !config.ignore_pnpmfile)
+            .then(|| update_read_package_hook::<Reporter>(&workspace_root, config))
+            .transpose()?
+            .flatten();
+        let mut read_package_hooked_manifest_paths = HashSet::new();
+        if let Some((hook, log)) = read_package_hook.as_ref() {
+            for project in projects.iter_mut() {
+                if read_package_hooked_manifest_paths.insert(project.manifest.path().to_path_buf())
+                {
+                    apply_read_package_hook_to_update_manifest(&mut project.manifest, hook, log)
+                        .await?;
+                }
+            }
+            if read_package_hooked_manifest_paths.insert(manifest.path().to_path_buf()) {
+                apply_read_package_hook_to_update_manifest(manifest, hook, log).await?;
+            }
+        }
+        let lockfile_specifier_project_manifests = (!save).then(|| {
+            selected_indices
+                .iter()
+                .map(|&index| (projects[index].root_dir.clone(), projects[index].manifest.clone()))
+                .collect::<Vec<_>>()
+        });
         let mut prepared = prepare_selected_manifests::<Reporter>(
             projects,
             &selected_indices,
-            workspace_root,
+            &workspace_root,
             &http_client_arc,
             config,
             lockfile,
@@ -487,7 +578,7 @@ impl Update<'_> {
         }
         if save {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             write_workspace_catalogs_selected(
                 config,
                 workspace_dir,
@@ -511,13 +602,13 @@ impl Update<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -526,9 +617,13 @@ impl Update<'_> {
             lockfile_only,
             dry_run: false,
             persist_policy_excludes: save,
-            update_seed_policy: UpdateSeedPolicy::ByImporter {
-                policies: prepared.seed_policies,
-                max_depth: UpdateDepth::new(depth),
+            update_seed_policy: if patches {
+                UpdateSeedPolicy::RefreshRevisions
+            } else {
+                UpdateSeedPolicy::ByImporter {
+                    policies: prepared.seed_policies,
+                    max_depth: UpdateDepth::new(depth),
+                }
             },
             preferred_versions_override: Some(prepared.preferred_versions_override),
             auth_override: None,
@@ -537,22 +632,37 @@ impl Update<'_> {
             deps_requiring_build_sink: None,
             catalogs_override: prepared.catalogs_override,
             disable_optimistic_repeat_install: false,
-            pnpmfile_hook_override: None,
+            pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
         let selection = WorkspaceInstallSelection {
             all_projects: projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         };
-        match bumps.as_ref() {
-            Some(bumps) => {
-                install.run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps).await
+        let ignored_builds = match lockfile_specifier_project_manifests {
+            Some(manifests) => {
+                install
+                    .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
+                        selection,
+                        manifests,
+                        read_package_hooked_manifest_paths,
+                    )
+                    .await
             }
-            None => install.run_selected::<Reporter>(selection).await,
+            None => match bumps.as_ref() {
+                Some(bumps) => {
+                    install
+                        .run_selected_with_manifest_spec_bumps::<Reporter>(selection, bumps)
+                        .await
+                }
+                None => install.run_selected::<Reporter>(selection).await,
+            },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -560,7 +670,7 @@ impl Update<'_> {
         if let Some(applied) = applied.as_ref() {
             for (index, project) in projects.iter_mut().enumerate() {
                 let importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(workspace_root, &project.root_dir);
+                    pnpm_workspace::importer_id_from_root_dir(&workspace_root, &project.root_dir);
                 let Some(bumped) = applied.manifests.get(&importer_id) else { continue };
                 let already_persisting = persist_indices.contains(&index);
                 if apply_bumped_manifest_specs::<Reporter>(
@@ -578,16 +688,19 @@ impl Update<'_> {
             && let Some(applied) = applied.as_ref().filter(|applied| !applied.catalogs.is_empty())
         {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
             write_workspace_catalogs_selected(config, workspace_dir, &applied.catalogs, projects)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
         if save {
             let workspace_dir =
-                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(workspace_root);
-            prune_minimum_release_age_excludes(config, Some(workspace_dir), manifest)
+                prepared.workspace_dir_for_catalogs.as_deref().unwrap_or(&workspace_root);
+            post_install_prune(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
+        }
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
         }
         Ok(())
     }
@@ -598,8 +711,9 @@ struct UpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
     /// Direct dependencies whose declared range the install may move onto
-    /// the version it resolves. See [`crate::ManifestSpecBumps`].
-    bump_targets: HashSet<String>,
+    /// the version it resolves, each mapped to the group and specifier the
+    /// manifest declares for it. See [`crate::ManifestSpecBumps`].
+    bump_targets: HashMap<String, (DependencyGroup, String)>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -610,11 +724,53 @@ struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    bump_targets: BTreeMap<String, HashSet<String>>,
+    bump_targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
     any_work: bool,
+}
+
+/// A loaded `readPackage` hook paired with the log sink its `context.log`
+/// calls are forwarded to.
+type ReadPackageHook = (Arc<dyn pnpm_hooks::PnpmfileHooks>, pnpm_hooks::LogFn);
+
+fn update_read_package_hook<Reporter: self::Reporter>(
+    workspace_root: &Path,
+    config: &Config,
+) -> Result<Option<ReadPackageHook>, UpdateError> {
+    let Some(hook) =
+        pnpm_hooks::finder::load_pnpmfiles(workspace_root, crate::pnpmfile_selection(config))
+            .map_err(UpdateError::MissingPnpmfile)?
+    else {
+        return Ok(None);
+    };
+    let log = hook.source_path().map_or_else(
+        || Arc::new(|_| {}) as pnpm_hooks::LogFn,
+        |from| {
+            crate::install_with_fresh_lockfile::hook_log_fn::<Reporter>(
+                workspace_root,
+                from,
+                "readPackage",
+            )
+        },
+    );
+    Ok(Some((hook, log)))
+}
+
+async fn apply_read_package_hook_to_update_manifest(
+    manifest: &mut PackageManifest,
+    hook: &Arc<dyn pnpm_hooks::PnpmfileHooks>,
+    log: &pnpm_hooks::LogFn,
+) -> Result<(), UpdateError> {
+    let ctx = pnpm_hooks::HookContext { log: Arc::clone(log), dir: None };
+    let value = hook
+        .read_package(manifest.value().clone(), ctx)
+        .await
+        .map_err(InstallError::ReadPackageHook)
+        .map_err(UpdateError::Install)?;
+    *manifest.value_mut() = (*value).clone();
+    Ok(())
 }
 
 #[expect(
@@ -672,12 +828,12 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     let mut catalog_ctx = catalogs_seed
         .map(|catalogs| read_catalog_ctx_with_catalogs(manifest, catalogs.clone()))
         .transpose()?;
-    let mut drop_names = HashSet::new();
+    let mut drop_targets = UpdateTargets::default();
     let mut rewrites = Vec::new();
     // A compatible bump cannot name its version before the resolve, so the
     // matched names are collected here and the install reports back what it
     // settled on.
-    let mut bump_targets = HashSet::new();
+    let mut bump_targets = HashMap::new();
     let max_depth = UpdateDepth::new(depth);
     // Bare-name selectors with depth update matching names at any depth.
     let use_name_matcher = !selectors.is_empty()
@@ -714,10 +870,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 config.save_workspace_protocol,
                 range_spec_style,
             );
-            drop_names.insert(target.name.clone());
+            drop_targets.insert(target.name.clone(), None);
             rewrites.push((target.name, target.group, specifier));
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else if selectors.is_empty() {
         // `updateConfig.ignoreDependencies` applies only when no selector was
         // supplied and remains scoped by the included direct groups.
@@ -742,37 +898,37 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 rewrites.push((name.clone(), *group, specifier));
             }
             if save && !latest {
-                bump_targets.insert(name.clone());
+                bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
             }
-            drop_names.insert(name.clone());
+            drop_targets.insert(name.clone(), None);
         }
         if updates_all_groups && ignore_patterns.is_empty() {
             // A bare, ungated update re-resolves the whole graph.
             UpdateSeedPolicy::DropAll { max_depth }
         } else {
             if updates_all_groups
-                && !(latest && drop_names.is_empty())
+                && !(latest && drop_targets.is_empty())
                 && let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref())
             {
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
                     if !is_ignored(&name) {
-                        drop_names.insert(name);
+                        drop_targets.insert(name, None);
                     }
                 }
             }
-            UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+            UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
         }
     } else if use_name_matcher {
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
-        for (name, _, _) in &direct {
+        for (name, group, previous) in &direct {
             if matcher.matches(name) {
                 if save {
-                    bump_targets.insert(name.clone());
+                    bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
                 }
-                drop_names.insert(name.clone());
+                drop_targets.insert(name.clone(), None);
             }
         }
         // Lockfile names keep transitive-only matches in the update scope.
@@ -780,15 +936,16 @@ async fn prepare_manifest<Reporter: self::Reporter>(
             for key in snapshots.keys() {
                 let name = key.name.to_string();
                 if matcher.matches(&name) {
-                    drop_names.insert(name);
+                    drop_targets.insert(name, None);
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     } else {
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
+        let expanded = expand_update_selectors(&selectors);
         let matched_direct =
             direct.iter().filter(|(name, _, _)| matcher.matches(name)).cloned().collect::<Vec<_>>();
         if matched_direct.is_empty() {
@@ -802,24 +959,15 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 return Ok(None);
             }
             if let Some(snapshots) = lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()) {
+                let target_matcher = create_matcher(
+                    &expanded.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>(),
+                );
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
-                    if matcher.matches(&name) {
-                        drop_names.insert(name);
+                    if target_matcher.matches(&name) {
+                        insert_update_target(&mut drop_targets, &expanded, &name);
                     }
                 }
-            }
-            for selector in &selectors {
-                let Some(version) = selector.version.as_deref() else { continue };
-                tracing::warn!(
-                    target: "pnpm_package_manager::update",
-                    pattern = selector.pattern,
-                    version,
-                    r#""{}" is not a direct dependency, so the requested version "{version}" is ignored — "{}" is updated to what a fresh install would resolve. To force a version of a transitive dependency, add an override scoped to the range its dependents declare to pnpm-workspace.yaml, e.g.: overrides: {{ "{}@<declared range>": "{version}" }}"#,
-                    selector.pattern,
-                    selector.pattern,
-                    selector.pattern,
-                );
             }
         } else {
             if latest && !save {
@@ -848,8 +996,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         .iter()
                         .find(|selector| matcher_one(&selector.pattern).matches(name))
                         .and_then(|selector| selector.version.clone());
-                    // A cataloged dependency writes `catalog:` to the manifest, so a version
-                    // named on the command line only reaches the lockfile as a preference.
+                    // Seeded whatever the manifest ends up recording, so the
+                    // install locks the version that was asked for. A selector
+                    // naming a range or a tag is not a version and seeds
+                    // nothing.
                     if let Some(version) = requested.as_deref() {
                         crate::install_with_fresh_lockfile::prefer_requested_version(
                             &mut preferred_versions_override,
@@ -885,20 +1035,65 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                                 None
                             }
                         }
+                    } else if save
+                        && let Some(tag) = requested.as_deref().filter(|specifier| {
+                            get_version_selector_type(specifier) == Some(VersionSelectorType::Tag)
+                        })
+                    {
+                        // A dist tag names no version until it is resolved, so
+                        // an entry pinning a version or a range records what the
+                        // tag resolved to, keeping the operator it already pins.
+                        // An entry that already tracks a tag keeps tracking one.
+                        // Anything else — a `catalog:` reference, a `workspace:`
+                        // or `npm:` alias, a path or git dependency — declares
+                        // something no version round-trips, so it stands and the
+                        // selector reaches the install as a preference only.
+                        let rewritten = match get_version_selector_type(previous) {
+                            Some(VersionSelectorType::Version | VersionSelectorType::Range) => {
+                                match tag_version(&rewrite_ctx, latest_chain, name, tag).await? {
+                                    Some(version) => {
+                                        crate::install_with_fresh_lockfile::prefer_requested_version(
+                                            &mut preferred_versions_override,
+                                            name,
+                                            &version.to_string(),
+                                        );
+                                        Some(calc_version_range(
+                                            &version,
+                                            infer_range_spec_style(previous),
+                                            None,
+                                            range_spec_style,
+                                        ))
+                                    }
+                                    None => requested,
+                                }
+                            }
+                            Some(VersionSelectorType::Tag) => requested,
+                            None => None,
+                        };
+                        // A declaration that already says what the selector
+                        // settles on is not a rewrite; recording it would mark
+                        // the manifest dirty and persist it for nothing.
+                        rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
-                            bump_targets.insert(name.clone());
+                            bump_targets
+                                .entry(name.clone())
+                                .or_insert_with(|| (*group, previous.clone()));
                         }
                         requested
                     }
                 };
-                drop_names.insert(name.clone());
+                insert_update_target(
+                    &mut drop_targets,
+                    &expanded,
+                    &update_target_name(&selectors, name),
+                );
                 if let Some(specifier) = rewrite {
                     rewrites.push((name.clone(), *group, specifier));
                 }
             }
         }
-        UpdateSeedPolicy::DropOnly { names: drop_names, max_depth }
+        UpdateSeedPolicy::DropOnly { targets: drop_targets, max_depth }
     };
 
     // Reconcile only manifest rewrites. Existing `catalog:` references retain
@@ -1018,6 +1213,23 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
     let mut workspace_dir_for_catalogs = None;
     let mut any_work = false;
 
+    // Once per command, across every selected project: a selector that is a
+    // direct dependency of one project is legitimately versioned even where a
+    // sibling only reaches it transitively. `--depth 0` reports
+    // `NoPackageInDependencies` instead, and `--latest` rejects versioned
+    // selectors outright.
+    if !latest && depth > 0 {
+        let selectors = packages.iter().map(|input| parse_update_param(input)).collect::<Vec<_>>();
+        let manifests =
+            selected_indices.iter().map(|&index| &projects[index].manifest).collect::<Vec<_>>();
+        reject_versions_of_indirect_update_specs::<Reporter>(
+            &selectors,
+            &manifests,
+            include_direct,
+            &workspace_root.to_string_lossy(),
+        )?;
+    }
+
     for &index in selected_indices {
         let Some(prepared) = prepare_manifest::<Reporter>(
             &mut projects[index].manifest,
@@ -1051,14 +1263,16 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::KeepAllResolveAll => {
-                unreachable!("update never uses the dedupe seed policy")
+            UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::FixLockfile
+            | UpdateSeedPolicy::RefreshRevisions => {
+                unreachable!("manifest preparation never uses a whole-graph seed policy")
             }
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);
             }
-            UpdateSeedPolicy::DropOnly { names, .. } => {
-                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            UpdateSeedPolicy::DropOnly { targets, .. } => {
+                seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(targets));
             }
             UpdateSeedPolicy::ByImporter { .. } => {
                 unreachable!("per-manifest preparation never produces importer policies")
@@ -1076,7 +1290,10 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
     }
 
-    if depth == 0 && !packages.is_empty() && !latest && !any_work {
+    // A recursive `--latest` that matches nothing is an error, unlike the
+    // single-project one that quietly returns: with no project left to
+    // mutate there is nothing for the run to have meant.
+    if depth == 0 && !packages.is_empty() && !any_work {
         return Err(UpdateError::NoPackageInDependencies);
     }
 
@@ -1312,6 +1529,155 @@ fn judge_against_kept_range(requested: &str, kept: &str) -> KeptRangeVerdict {
     if requested.satisfies(&kept) { KeptRangeVerdict::Admitted } else { KeptRangeVerdict::Excluded }
 }
 
+/// The selectors an update selector stands for. An `npm:` selector
+/// contributes a second one for the aliased package, because that -- not
+/// the alias -- is the name the resolver resolves the edge under; it
+/// carries the aliased spec's own version so the expansion scopes the same
+/// version line the user asked for.
+fn expand_update_selectors(selectors: &[ParsedSelector]) -> Vec<ParsedSelector> {
+    let mut expanded = Vec::with_capacity(selectors.len());
+    for selector in selectors {
+        expanded.push(ParsedSelector {
+            pattern: selector.pattern.clone(),
+            version: selector.version.clone(),
+        });
+        let Some(aliased) =
+            selector.version.as_deref().and_then(|version| version.strip_prefix("npm:"))
+        else {
+            continue;
+        };
+        let alias = parse_update_param(aliased);
+        let pattern = if selector.pattern.starts_with('!') {
+            format!("!{}", alias.pattern)
+        } else {
+            alias.pattern
+        };
+        expanded.push(ParsedSelector { pattern, version: alias.version });
+    }
+    expanded
+}
+
+/// Record `name` as an update target once per selector that claims it: a
+/// selector pinning an exact version scopes the target to that version's
+/// line, while a bare or ranged one widens it to every version. Negated
+/// selectors exclude names, never versions, so they claim nothing here --
+/// the matcher that found `name` has already applied them.
+fn insert_update_target(targets: &mut UpdateTargets, selectors: &[ParsedSelector], name: &str) {
+    let mut claimed = false;
+    for selector in selectors.iter().filter(|selector| !selector.pattern.starts_with('!')) {
+        if !matcher_one(&selector.pattern).matches(name) {
+            continue;
+        }
+        claimed = true;
+        targets.insert(name.to_string(), selector.version.as_deref().and_then(VersionLine::parse));
+    }
+    if !claimed {
+        targets.insert(name.to_string(), None);
+    }
+}
+
+/// Whether any of `manifests` declares a dependency `selector` names, so the
+/// update has a manifest entry to write the requested version into.
+fn selector_matches_a_direct_dependency(
+    selector: &ParsedSelector,
+    manifests: &[&PackageManifest],
+    include_direct: &[DependencyGroup],
+) -> bool {
+    let matcher = matcher_one(&selector.pattern);
+    manifests.iter().any(|manifest| {
+        manifest.dependencies(include_direct.iter().copied()).any(|(name, _)| matcher.matches(name))
+    })
+}
+
+/// `pacquet update <dep>@<version>` where `<dep>` matches no direct dependency
+/// has nowhere to record the version. An update resolves such a target the way
+/// a fresh install would -- which a command-line version cannot influence -- so
+/// honoring the request would mean writing a lockfile entry no manifest backs,
+/// and the next fresh resolve would undo it. Neither npm nor Yarn accepts a
+/// version here either. Fail rather than resolve to something else and leave
+/// the caller a zero exit status to read.
+///
+/// A range or a tag names no single version to record, so updating within the
+/// dependents' ranges is a reasonable reading of it: those only warn. A
+/// negated selector excludes names rather than requesting one, so it is not
+/// judged here at all.
+///
+/// The override the hint recommends is scoped to the dependents' declared
+/// range so it cannot violate any consumer's range; that range lives in the
+/// dependents' manifests, which this layer does not read, hence the
+/// placeholder.
+fn reject_versions_of_indirect_update_specs<Reporter: self::Reporter>(
+    selectors: &[ParsedSelector],
+    manifests: &[&PackageManifest],
+    include_direct: &[DependencyGroup],
+    prefix: &str,
+) -> Result<(), UpdateError> {
+    let mut pinned = Vec::new();
+    for selector in selectors {
+        let Some(version) = selector.version.as_deref() else { continue };
+        // A negated selector excludes names; a version on one asks for nothing.
+        if selector.pattern.starts_with('!')
+            || selector_matches_a_direct_dependency(selector, manifests, include_direct)
+        {
+            continue;
+        }
+        let pattern = &selector.pattern;
+        if node_semver::Version::parse(version).is_err() {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message: format!(
+                    r#""{pattern}" is not a direct dependency, so the requested "{version}" is ignored — "{pattern}" is updated to what a fresh install would resolve."#,
+                ),
+                prefix: prefix.to_string(),
+            }));
+            continue;
+        }
+        pinned.push((pattern.clone(), version.to_string()));
+    }
+    if pinned.is_empty() {
+        return Ok(());
+    }
+    let subjects = pinned
+        .iter()
+        .map(|(pattern, version)| format!(r#""{pattern}" (requested "{version}")"#))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let tail = if pinned.len() == 1 {
+        "is not a direct dependency, so the requested version cannot"
+    } else {
+        "are not direct dependencies, so the requested versions cannot"
+    };
+    let overrides = pinned
+        .iter()
+        .map(|(pattern, version)| format!("    {pattern}@<declared range>: {version}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let names = pinned.iter().map(|(pattern, _)| pattern.as_str()).collect::<Vec<_>>().join(" ");
+    Err(UpdateError::UpdateVersionOnIndirectDep {
+        message: format!("{subjects} {tail} be recorded."),
+        hint: format!(
+            "An update resolves a transitive dependency the way a fresh install would, so a version on the command line has no effect on it. To pin one, add an override scoped to the range its dependents declare to pnpm-workspace.yaml:\n\n  overrides:\n{overrides}\n\nTo update it within the range its dependents already declare, drop the version: pnpm update {names}",
+        ),
+    })
+}
+
+/// The name an update target for `matched` is keyed by. A manifest keys a
+/// dependency by its alias, but the resolver matches update targets — and
+/// [`UpdateSeedPolicy::DropOnly`] keys them — by the package name the edge
+/// resolves under, which an `npm:` or `jsr:` selector states separately from
+/// the alias. Falls back to the alias, which is the name for every other
+/// selector shape.
+fn update_target_name(selectors: &[ParsedSelector], matched: &str) -> String {
+    selectors
+        .iter()
+        .filter(|selector| matcher_one(&selector.pattern).matches(matched))
+        .filter_map(|selector| {
+            real_package_name_of(Some(matched), Some(selector.version.as_deref()?))
+        })
+        .find(|name| name.as_ref() != matched)
+        .map_or_else(|| matched.to_string(), std::borrow::Cow::into_owned)
+}
+
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
@@ -1480,6 +1846,42 @@ async fn latest_specifier(
         .filter(|specifier| *specifier != effective))
 }
 
+/// The version dist tag `tag` names for `name`, or `None` when no resolver
+/// in the chain claims the dependency.
+///
+/// An explicit `<name>@<tag>` selector asks for the version behind exactly
+/// that tag, so — unlike [`latest_specifier`], which reaches for whichever
+/// of the declared range and the `latest` tag is higher — the tag is the
+/// whole specifier resolved here.
+async fn tag_version(
+    ctx: &LatestRewriteCtx<'_, '_>,
+    chain: &mut Option<LatestResolverChain>,
+    name: &str,
+    tag: &str,
+) -> Result<Option<Version>, UpdateError> {
+    let chain = ensure_latest_resolver_chain(chain, ctx)?;
+    let wanted = WantedDependency {
+        alias: Some(name.to_string()),
+        bare_specifier: Some(tag.to_string()),
+        ..WantedDependency::default()
+    };
+    let manifest_dir =
+        ctx.manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
+    let opts = ResolveOptions {
+        project_dir: manifest_dir.clone(),
+        lockfile_dir: manifest_dir,
+        default_tag: Some(tag.to_string()),
+        published_by: chain.published_by,
+        published_by_exclude: chain.published_by_exclude.clone(),
+        dry_run: ctx.lockfile_only,
+        ..ResolveOptions::default()
+    };
+    let resolved = Resolver::resolve(&chain.resolver, &wanted, &opts).await.map_err(|error| {
+        UpdateError::ResolveTag { name: name.to_string(), tag: tag.to_string(), error }
+    })?;
+    Ok(resolved.and_then(|result| result.name_ver).map(|name_ver| name_ver.suffix))
+}
+
 /// The resolvers that can answer "what is the latest for this dependency",
 /// built on first use so an update whose deps are all local opens no
 /// client. Deliberately excludes the git, tarball and local-path
@@ -1503,25 +1905,10 @@ fn ensure_latest_resolver_chain<'chain>(
         let policy =
             PickPolicy::from_config_with_extra_excludes(ctx.config, extra_excludes.as_deref())
                 .map_err(UpdateError::MinimumReleaseAgeExclude)?;
-        let registries_by_prefix =
-            merge_named_registries(&ctx.config.registries_by_prefix.clone().into_iter().collect())
-                .map_err(UpdateError::InvalidNamedRegistry)?;
-        let npm_resolver: Arc<dyn Resolver> = Arc::new(NpmResolver {
-            registries: ctx.config.resolved_registries().into_iter().collect(),
-            registries_by_prefix,
-            http_client: Arc::clone(ctx.http_client_arc),
-            auth_headers: Arc::clone(&ctx.config.auth_headers),
-            meta_cache: Arc::<InMemoryPackageMetaCache>::default(),
-            fetch_locker: shared_packument_fetch_locker(),
-            picked_manifest_cache: shared_picked_manifest_cache(),
-            cache_dir: Some(ctx.config.cache_dir.clone()),
-            offline: ctx.config.offline,
-            prefer_offline: ctx.config.prefer_offline,
-            ignore_missing_time_field: ctx.config.minimum_release_age_ignore_missing_time,
-            full_metadata: policy.full_metadata,
-            filter_metadata: policy.full_metadata,
-            retry_opts: crate::retry_config::retry_opts_from_config(ctx.config),
-        });
+        let npm_resolver: Arc<dyn Resolver> = Arc::new(
+            create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
+                .map_err(UpdateError::InvalidNamedRegistry)?,
+        );
         let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;

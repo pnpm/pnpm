@@ -45,6 +45,8 @@ impl ImportArgs {
                     skip_runtimes: config.skip_runtimes,
                     frozen_lockfile: false,
                     prefer_frozen_lockfile: false,
+                    update_patches: false,
+                    fix_lockfile: false,
                     lockfile_only: true,
                     ignore_manifest_check: false,
                     trust_lockfile: false,

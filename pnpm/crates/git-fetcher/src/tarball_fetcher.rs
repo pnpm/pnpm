@@ -173,9 +173,11 @@ impl GitHostedTarballFetcher<'_> {
                     PackageFilesIndex {
                         manifest: None,
                         requires_build: Some(false),
+                        requires_prepare: Some(false),
                         algo: "sha512".to_string(),
                         files: files_index,
                         side_effects: None,
+                        remote_side_effects_quarantine: None,
                     },
                 );
             }
@@ -207,9 +209,11 @@ impl GitHostedTarballFetcher<'_> {
                 PackageFilesIndex {
                     manifest: None,
                     requires_build: Some(should_be_built),
+                    requires_prepare: Some(should_be_built),
                     algo: "sha512".to_string(),
                     files: files_index,
                     side_effects: None,
+                    remote_side_effects_quarantine: None,
                 },
             );
         }

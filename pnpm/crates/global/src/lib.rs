@@ -26,8 +26,9 @@ pub use global_package_dir::{create_install_dir, get_hash_link, resolve_install_
 pub use list::{ListReportAs, find_global_install_dirs, list_global_packages};
 pub use scan::{
     GlobalPackageInfo, InstalledGlobalPackage, clean_orphaned_install_dirs, find_global_package,
-    get_global_package_details, get_installed_bin_names, read_direct_dependencies,
-    read_direct_dependency_aliases, read_installed_packages, scan_global_packages,
+    get_global_package_details, get_installed_bin_names, installed_versions,
+    read_direct_dependencies, read_direct_dependency_aliases, read_installed_packages,
+    scan_global_packages,
 };
 
 /// Read and parse a `package.json` from `dir`, returning `None` on any

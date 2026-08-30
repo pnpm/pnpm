@@ -6,6 +6,10 @@ fn type_membership() {
     assert!(is_type_key("store-dir"));
     assert!(is_type_key("registry"));
     assert!(is_type_key("virtual-store-dir"));
+    // Both spellings of the virtual store's type are introspectable, or
+    // `pnpm config get` would answer one of them with null.
+    assert!(is_type_key("virtual-store-type"));
+    assert!(is_type_key("enable-global-virtual-store"));
     assert!(!is_type_key("no-such-setting"));
     // prototype-chain names must not be members
     assert!(!is_type_key("constructor"));
@@ -45,6 +49,8 @@ fn config_file_keys() {
     assert!(is_config_file_key("store-dir"));
     assert!(is_config_file_key("fetch-timeout"));
     assert!(is_config_file_key("cache-dir"));
+    assert!(is_config_file_key("virtual-store-type"));
+    assert!(is_config_file_key("enable-global-virtual-store"));
     // npm-compatible, not excluded
     assert!(is_config_file_key("fetch-retries"));
     assert!(is_config_file_key("registry"));

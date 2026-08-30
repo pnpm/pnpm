@@ -21,6 +21,7 @@ jest.unstable_mockModule('@pnpm/fs.graceful-fs', () => {
     __esModule: true,
     default: fsMock,
     ...fsMock,
+    renameFileWithRetry: fsMock.renameSync,
   }
 })
 jest.unstable_mockModule('path-temp', () => ({ fastPathTemp: (file: string) => `${file}_tmp` }))

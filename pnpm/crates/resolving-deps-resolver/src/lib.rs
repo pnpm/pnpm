@@ -69,7 +69,6 @@ mod dedupe_peer_dependents;
 mod dep_path_compatibility;
 mod dependencies_graph;
 mod hoist_peers;
-mod include_prerelease_range;
 mod lockfile_reuse;
 mod node_id;
 mod parent_pkg_aliases;
@@ -94,8 +93,8 @@ pub use pnpm_deps_path::DepPath;
 pub use resolve_dependency_tree::{
     Deprecation, DeprecationLogFn, ManifestHook, ResolveDependencyTreeError,
     ResolveDependencyTreeOptions, SkippedOptionalDependency, SkippedOptionalDependencyParent,
-    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, WorkspaceTreeCtx, extend_tree,
-    resolve_dependency_tree,
+    SkippedOptionalLogFn, TreeCtx, UpdateDepth, UpdateReuseScope, UpdateTargets, VersionLine,
+    WorkspaceTreeCtx, extend_tree, real_package_name_of, resolve_dependency_tree,
 };
 pub use resolve_importer::{
     ResolveImporterError, ResolveImporterOptions, ResolveImporterResult, resolve_importer,

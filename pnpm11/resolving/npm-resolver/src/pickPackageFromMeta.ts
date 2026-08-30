@@ -3,7 +3,11 @@ import util from 'node:util'
 import { PnpmError } from '@pnpm/error'
 import { filterPkgMetadataByPublishDate } from '@pnpm/resolving.registry.pkg-metadata-filter'
 import type { PackageInRegistry, PackageMeta, PackageMetaWithTime } from '@pnpm/resolving.registry.types'
-import type { VersionSelectors } from '@pnpm/resolving.resolver-base'
+import {
+  EXISTING_VERSION_SELECTOR_WEIGHT,
+  type VersionSelectors,
+  type VersionSelectorType,
+} from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy } from '@pnpm/types'
 import semver from 'semver'
 
@@ -211,6 +215,95 @@ export function pickVersionByVersionRange ({ meta, versionRange, preferredVersio
   return maxVersion
 }
 
+/**
+ * Returns the cached version only when lockfile preferences prove that no
+ * version missing from the cached packument could tie or outrank it.
+ */
+export function pickStableCachedRangeVersion ({
+  meta,
+  preferredVersionSelectors,
+  versionRange,
+}: PickVersionByVersionRangeOptions): string | null {
+  const dominantLockfileVersion = getDominantLockfileVersion(versionRange, preferredVersionSelectors)
+  if (dominantLockfileVersion == null || meta.versions[dominantLockfileVersion] == null) return null
+  try {
+    const pickedVersion = pickVersionByVersionRange({ meta, preferredVersionSelectors, versionRange })
+    return pickedVersion === dominantLockfileVersion ? dominantLockfileVersion : null
+  } catch {
+    return null
+  }
+}
+
+export function getDominantLockfileVersion (
+  versionRange: string,
+  preferredVersionSelectors?: VersionSelectors
+): string | null {
+  if (preferredVersionSelectors == null) return null
+  let lockfileVersion: string | undefined
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    if (!Number.isSafeInteger(weight) || weight <= 0) return null
+    if (
+      selectorType === 'version' &&
+      weight >= EXISTING_VERSION_SELECTOR_WEIGHT &&
+      semverSatisfiesLoose(selector, versionRange)
+    ) {
+      if (lockfileVersion != null) return null
+      lockfileVersion = selector
+    }
+  }
+  if (lockfileVersion == null) return null
+
+  let guaranteedLockfileWeight = 0
+  let maximumOtherVersionWeight = 0
+  for (const [selector, value] of Object.entries(preferredVersionSelectors)) {
+    if (selector === versionRange) continue
+    const { selectorType, weight } = preferredSelectorInfo(value)
+    switch (selectorType) {
+      case 'version':
+        if (selector === lockfileVersion) {
+          guaranteedLockfileWeight += weight
+        } else if (
+          weight < EXISTING_VERSION_SELECTOR_WEIGHT &&
+          semverSatisfiesLoose(selector, versionRange)
+        ) {
+          maximumOtherVersionWeight += weight
+        }
+        break
+      case 'range':
+        if (semverSatisfiesLoose(lockfileVersion, selector)) {
+          guaranteedLockfileWeight += weight
+        }
+        // Conservatively assume an unseen version can satisfy every preferred
+        // range, even when proving range intersection would be more precise.
+        maximumOtherVersionWeight += weight
+        break
+      case 'tag':
+        // A registry can move a tag between requests. Do not count its current
+        // target toward the lockfile version, and assume all tags could move to
+        // the same unseen version.
+        maximumOtherVersionWeight += weight
+        break
+    }
+    if (
+      !Number.isSafeInteger(guaranteedLockfileWeight) ||
+      !Number.isSafeInteger(maximumOtherVersionWeight)
+    ) return null
+  }
+  return guaranteedLockfileWeight > maximumOtherVersionWeight
+    ? lockfileVersion
+    : null
+}
+
+function preferredSelectorInfo (
+  value: VersionSelectors[string]
+): { selectorType: VersionSelectorType, weight: number } {
+  return typeof value === 'string'
+    ? { selectorType: value, weight: 1 }
+    : value
+}
+
 function prioritizePreferredVersions (
   meta: PackageMeta,
   versionRange: string,
@@ -228,9 +321,7 @@ function prioritizePreferredVersions (
 
   // Then apply weights from preferred selectors
   for (const [preferredSelector, preferredSelectorType] of preferredVerSelectorsArr) {
-    const { selectorType, weight } = typeof preferredSelectorType === 'string'
-      ? { selectorType: preferredSelectorType, weight: 1 }
-      : preferredSelectorType
+    const { selectorType, weight } = preferredSelectorInfo(preferredSelectorType)
     if (preferredSelector === versionRange) continue
     switch (selectorType) {
       case 'tag': {

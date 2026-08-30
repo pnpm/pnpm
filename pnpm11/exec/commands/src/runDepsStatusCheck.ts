@@ -13,7 +13,7 @@ export interface RunDepsStatusCheckOptions extends CheckDepsStatusOptions {
 
 export async function runDepsStatusCheck (opts: RunDepsStatusCheckOptions): Promise<void> {
   // the following flags are always the default values during `pnpm run` and `pnpm exec`,
-  // so they may not match the workspace state after `pnpm install --production|--no-optional`
+  // so they may not match the workspace state after `pnpm install --prod|--no-optional`
   const ignoredWorkspaceStateSettings = ['dev', 'optional', 'production'] satisfies Array<keyof WorkspaceStateSettings>
   opts.ignoredWorkspaceStateSettings = ignoredWorkspaceStateSettings
 
@@ -70,7 +70,7 @@ export function createInstallArgs (opts: Pick<WorkspaceStateSettings, 'dev' | 'o
   if (!opts) return args
   const { dev, optional, production } = opts
   if (production && !dev) {
-    args.push('--production')
+    args.push('--prod')
   } else if (dev && !production) {
     args.push('--dev')
   }

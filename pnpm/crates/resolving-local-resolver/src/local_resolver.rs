@@ -257,6 +257,7 @@ async fn resolve_spec(
             resolution: LockfileResolution::Tarball(TarballResolution {
                 tarball: spec.id.as_str().to_string(),
                 integrity: Some(integrity),
+                revision: None,
                 git_hosted: None,
                 path: None,
             }),

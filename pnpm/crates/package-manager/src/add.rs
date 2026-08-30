@@ -3,10 +3,11 @@ use crate::{
     ImporterUpdateSeedPolicy, Install, InstallError, ProjectMutation, ResolvedPackages,
     UpdateSeedPolicy, WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog_outcome, emit_initial_package_manifest, package_manifest_prefix,
+    decide_catalog_outcome, defer_ignored_builds, emit_initial_package_manifest,
+    included_direct_groups, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
     selected_project_indices,
@@ -14,6 +15,7 @@ use crate::{
 use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
+use pipe_trait::Pipe;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -26,15 +28,15 @@ use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
-use pnpm_resolving_deps_resolver::{UpdateDepth, is_valid_dependency_alias};
+use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, is_valid_dependency_alias};
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
 use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
-    PickPackageOptions, calc_specifier_for_workspace_dep, infer_range_spec_style,
-    parse_bare_specifier, pick_matching_local_version_or_null, pick_package,
-    pick_registry_for_package, shared_packument_fetch_locker,
+    PickPackageOptions, calc_specifier_for_workspace_dep, calc_version_range,
+    infer_range_spec_style, parse_bare_specifier, pick_matching_local_version_or_null,
+    pick_package, pick_registry_for_package, shared_packument_fetch_locker,
 };
 use pnpm_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
 use pnpm_tarball::MemCache;
@@ -42,7 +44,7 @@ use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use std::{
     collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 
@@ -191,6 +193,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let dependency_groups: Option<Vec<DependencyGroup>> =
             dependency_groups.map(|groups| groups.into_iter().collect());
 
@@ -249,10 +253,10 @@ where
                 manifest.path().parent().expect("manifest path always has a parent dir");
             BTreeMap::from([(
                 pnpm_workspace::importer_id_from_root_dir(
-                    importer_id_root(config, manifest_dir),
+                    config.lockfile_dir_for(manifest_dir),
                     manifest_dir,
                 ),
-                ImporterUpdateSeedPolicy::DropOnly(dropped_pins),
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(dropped_pins)),
             )])
         };
         let catalogs_override = (!updated_catalogs.is_empty()).then(|| {
@@ -266,7 +270,7 @@ where
         // reach the resolver.
         let named_a_version = !seed_policies.is_empty();
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -280,7 +284,7 @@ where
             // include filter: like `remove`, the re-resolve walks every
             // dependency group so the other groups' entries stay in the
             // lockfile, the virtual store, and `node_modules`.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // `None` defers to `config.prefer_frozen_lockfile`, which is
             // what lets the fast lockfile update absorb the manifest edit
@@ -326,22 +330,27 @@ where
         }
         .run::<Reporter>()
         .await
+        .pipe(defer_ignored_builds)
         .map_err(AddError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
 
-        prune_minimum_release_age_excludes(config, Some(&catalog_ctx.workspace_dir), manifest)
+        post_install_prune(config, Some(&catalog_ctx.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(AddError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<PathBuf>],
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
+        install_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), AddError> {
         let Add {
@@ -360,6 +369,8 @@ where
             supported_architectures,
             lockfile_only,
         } = self;
+        http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
+        http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let dependency_groups: Option<Vec<DependencyGroup>> =
             dependency_groups.map(|groups| groups.into_iter().collect());
         let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
@@ -390,7 +401,7 @@ where
         // Scoped per importer: a project that wasn't selected keeps its pins, so its
         // resolutions stand even when it declares the same package directly.
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let importer_root = importer_id_root(config, manifest_dir);
+        let importer_root = config.lockfile_dir_for(manifest_dir);
         let mut seed_policies = BTreeMap::new();
         let mut preferred_versions_override = PreferredVersions::new();
         for &index in &selected_indices {
@@ -407,7 +418,10 @@ where
             }
             let importer_id =
                 pnpm_workspace::importer_id_from_root_dir(importer_root, &projects[index].root_dir);
-            seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropOnly(names));
+            seed_policies.insert(
+                importer_id,
+                ImporterUpdateSeedPolicy::DropOnly(unversioned_targets(names)),
+            );
             for (name, selectors) in preferred {
                 preferred_versions_override.entry(name).or_default().extend(selectors);
             }
@@ -417,7 +431,7 @@ where
         // reach the resolver.
         let named_a_version = !seed_policies.is_empty();
 
-        Box::pin(
+        let ignored_builds = Box::pin(
             Install {
                 tarball_mem_cache,
                 http_client,
@@ -430,7 +444,7 @@ where
                 // See the `dependency_groups` comment in [`Self::run`]:
                 // the save target must not narrow the install's include
                 // set.
-                dependency_groups: DIRECT_GROUPS,
+                dependency_groups: included_direct_groups(config.optional),
                 frozen_lockfile: false,
                 // See the `prefer_frozen_lockfile` comment in [`Self::run`].
                 prefer_frozen_lockfile: named_a_version.then_some(false),
@@ -467,32 +481,25 @@ where
             }
             .run_selected::<Reporter>(WorkspaceInstallSelection {
                 all_projects: projects,
-                ordered_groups,
+                project_dependencies,
                 ordered_dirs,
                 selected_dirs,
+                install_dirs,
                 active_manifest_is_standin,
             }),
         )
         .await
+        .pipe(defer_ignored_builds)
         .map_err(AddError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
 
-        prune_minimum_release_age_excludes(config, Some(&prepared.workspace_dir), manifest)
+        post_install_prune(config, Some(&prepared.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(AddError::Install(ignored_builds));
+        }
         Ok(())
-    }
-}
-
-/// The directory importer ids are relative to: the lockfile's own directory,
-/// which is the workspace root only while one lockfile is shared. A seed
-/// policy keyed against anything else names no importer and silently does
-/// nothing. Mirrors the root [`Install`] resolves against.
-fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path {
-    if config.shared_workspace_lockfile {
-        config.workspace_dir.as_deref().unwrap_or(manifest_dir)
-    } else {
-        manifest_dir
     }
 }
 
@@ -506,6 +513,12 @@ fn importer_id_root<'a>(config: &'a Config, manifest_dir: &'a Path) -> &'a Path 
 /// dependency that isn't cataloged, a catalog entry that already resolves to
 /// the wanted version, one the wanted version falls outside of — is left
 /// alone, so an add that needs no resolution still skips it.
+/// Update targets that no selector scoped to a version line: a `catalog:`
+/// re-resolution moves whatever version the catalog entry now names.
+fn unversioned_targets(names: HashSet<String>) -> UpdateTargets {
+    names.into_iter().map(|name| (name, None)).collect()
+}
+
 fn catalog_version_requests(
     package_selectors: &[String],
     manifest: &PackageManifest,
@@ -928,7 +941,7 @@ async fn resolve_added_dependency<'a>(
                         name: package_name.to_string(),
                         error,
                     })?;
-                latest.serialize(range_spec_style)
+                calc_version_range(&latest.version, None, None, range_spec_style)
             }
         }
     };
@@ -1097,6 +1110,7 @@ async fn resolve_explicit_registry_spec(
         dry_run: false,
         optional: false,
         update_checksums: false,
+        trust_policy: Some(config.trust_policy),
         blocked_versions: None,
     };
 
@@ -1116,8 +1130,12 @@ async fn resolve_explicit_registry_spec(
     let prev_pin = prev_specifier
         .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
         .and_then(infer_range_spec_style);
-    let pin = prev_pin.or_else(|| infer_range_spec_style(spec)).unwrap_or(range_spec_style);
-    Ok(Some(picked.serialize(pin)))
+    Ok(Some(calc_version_range(
+        &picked.version,
+        prev_pin,
+        infer_range_spec_style(spec),
+        range_spec_style,
+    )))
 }
 
 /// Whether `specifier` is a plain registry range/tag/version for

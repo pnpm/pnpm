@@ -10,7 +10,7 @@ import type {
 } from '@pnpm/deps.graph-builder'
 import * as dp from '@pnpm/deps.path'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
-import { hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
+import { getHoisterPkgId, hoist, type HoisterResult, type HoistingLimits } from '@pnpm/installing.linking.real-hoist'
 import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type {
   LockfileObject,
@@ -105,7 +105,7 @@ async function _lockfileToHoistedDepGraph (
     ...opts,
     lockfile,
     graph,
-    pkgLocationsByDepPath: {} as Record<string, string[]>,
+    pkgLocationsByPkgId: {} as Record<string, string[]>,
     injectionTargetsByDepPath: new Map<string, string[]>(),
     hoistedLocations: {} as Record<string, string[]>,
   }
@@ -175,7 +175,16 @@ async function fetchDeps (
   opts: {
     graph: DependenciesGraph
     lockfile: LockfileObject
-    pkgLocationsByDepPath: Record<string, string[]>
+    /**
+     * Every directory a package landed in, in visit order; the first
+     * entry wins for parent → child wiring. Keyed by
+     * {@link getHoisterPkgId}, not depPath: the hoister collapses
+     * every peer variant of one version onto one node, so only the
+     * first variant's depPath reaches this walk. Sharing the
+     * hoister's own identity function is what lets an edge declared
+     * against another variant still find the copy that survived.
+     */
+    pkgLocationsByPkgId: Record<string, string[]>
     injectionTargetsByDepPath: Map<string, string[]>
     hoistedLocations: Record<string, string[]>
   } & LockfileToHoistedDepGraphOptions,
@@ -288,10 +297,11 @@ async function fetchDeps (
       patch: getPatchInfo(opts.patchedDependencies, pkgName, pkgVersion),
       resolution: pkgSnapshot.resolution,
     }
-    if (!opts.pkgLocationsByDepPath[depPath]) {
-      opts.pkgLocationsByDepPath[depPath] = []
+    const pkgId = getHoisterPkgId(depPath, pkgSnapshot)
+    if (!opts.pkgLocationsByPkgId[pkgId]) {
+      opts.pkgLocationsByPkgId[pkgId] = []
     }
-    opts.pkgLocationsByDepPath[depPath].push(dir)
+    opts.pkgLocationsByPkgId[pkgId].push(dir)
     // Track directory deps for injected workspace packages
     if ('directory' in pkgSnapshot.resolution && pkgSnapshot.resolution.directory != null) {
       const locations = opts.injectionTargetsByDepPath.get(depPath)
@@ -306,7 +316,7 @@ async function fetchDeps (
       opts.hoistedLocations[depPath] = []
     }
     opts.hoistedLocations[depPath].push(depLocation)
-    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByDepPath, opts)
+    opts.graph[dir].children = getChildren(pkgSnapshot, opts.pkgLocationsByPkgId, opts)
   }))
   return depHierarchy
 }
@@ -326,8 +336,8 @@ async function dirHasPackageJsonWithVersion (dir: string, expectedVersion?: stri
 
 function getChildren (
   pkgSnapshot: PackageSnapshot,
-  pkgLocationsByDepPath: Record<string, string[]>,
-  opts: { include: IncludedDependencies }
+  pkgLocationsByPkgId: Record<string, string[]>,
+  opts: { include: IncludedDependencies, lockfile: LockfileObject }
 ): Record<string, string> {
   const allDeps = {
     ...pkgSnapshot.dependencies,
@@ -336,8 +346,12 @@ function getChildren (
   const children: Record<string, string> = {}
   for (const [childName, childRef] of Object.entries(allDeps)) {
     const childDepPath = dp.refToRelative(childRef, childName)
-    if (childDepPath && pkgLocationsByDepPath[childDepPath]) {
-      children[childName] = pkgLocationsByDepPath[childDepPath][0]
+    if (!childDepPath) continue
+    const childSnapshot = opts.lockfile.packages?.[childDepPath]
+    if (!childSnapshot) continue
+    const locations = pkgLocationsByPkgId[getHoisterPkgId(childDepPath, childSnapshot)]
+    if (locations) {
+      children[childName] = locations[0]
     }
   }
   return children

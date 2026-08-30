@@ -23,8 +23,7 @@ use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
 use pnpm_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize,
-    send_with_retry,
+    RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize, send_with_retry,
 };
 use serde::Deserialize;
 use std::{collections::BTreeMap, time::Duration};
@@ -702,11 +701,7 @@ fn build_client(config: &Config) -> Result<ThrottledClient, SelfUpdateError> {
         &bootstrap.proxy,
         &bootstrap.tls,
         &bootstrap.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
     )
     .map_err(|error| SelfUpdateError::EngineIdentityUnverifiable {
         message: format!("could not build the network client to verify the pnpm release: {error}"),

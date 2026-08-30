@@ -1,6 +1,4 @@
-use super::{
-    dispatch::RunCtx, recursive::discover_workspace_projects, reporter::ReporterType, run::RunArgs,
-};
+use super::{dispatch::RunCtx, recursive::discover_workspace_projects, run::RunArgs};
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
@@ -13,7 +11,8 @@ use std::path::{Path, PathBuf};
 /// directories of the current project (or every project in the workspace)
 /// without following NTFS junctions into their targets. A `clean` /
 /// `purge` script in `package.json` overrides the built-in command,
-/// mirroring pnpm's `overridableByScript` flag.
+/// mirroring pnpm's `overridableByScript` flag; `pnpm pm clean` /
+/// `pnpm pm purge` runs the built-in regardless.
 #[derive(Debug, clap::Args)]
 pub struct CleanArgs {
     /// Also remove `pnpm-lock.yaml` files.
@@ -47,6 +46,9 @@ const PNPM_HIDDEN_ENTRIES: &[&str] =
 impl CleanArgs {
     pub fn run(self, ctx: &RunCtx<'_>, command_name: &str) -> miette::Result<()> {
         let config = (ctx.config)()?;
+        if ctx.builtin_command_forced {
+            return clean_builtin(ctx, config, self.lockfile);
+        }
         // A `<command_name>` script in the current project's `package.json`
         // replaces the built-in command.
         if let Some(script) = script_of(read_project_manifest_only(ctx.dir).ok(), command_name)
@@ -59,10 +61,13 @@ impl CleanArgs {
                 report_summary: false,
                 no_bail: false,
                 sort: true,
+                reverse: false,
                 parallel: false,
                 sequential: false,
+                dry_run: false,
+                json: false,
             }
-            .run(ctx.dir, config, matches!(ctx.reporter, ReporterType::Silent));
+            .run(ctx.dir, config, ctx.reporter);
         }
         // Inside a workspace subdirectory, a `<command_name>` script at the
         // workspace root must be run from the root rather than shadowed by
@@ -104,13 +109,20 @@ fn clean_builtin(ctx: &RunCtx<'_>, config: &Config, remove_lockfile: bool) -> mi
     // Windows the raw `current_dir()` can differ (casing, 8.3 short names,
     // junctions) and defeat the relative-path computation.
     let cwd = std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_default();
-    // `pnpm clean` resolves the modules dir relative to each project
-    // directory, not against a single absolute prefix, so strip the
-    // config anchor back to the leaf and rejoin per project.
-    let modules_leaf = config.modules_dir.strip_prefix(ctx.dir).unwrap_or(&config.modules_dir);
+    // `pnpm clean` resolves `modulesDir` against every project directory it
+    // cleans. `config.modules_dir` is already anchored — at the workspace
+    // root, or at a configured `lockfileDir` — so rejoining it per project
+    // would send every project back to that one directory. Take the
+    // configured leaf instead; an absolute setting survives `join`, as it
+    // does pnpm's `pathAbsolute`.
+    let modules_leaf = config
+        .explicit_settings
+        .get("modulesDir")
+        .and_then(Value::as_str)
+        .map_or_else(|| Path::new("node_modules"), Path::new);
     let root_dir = config.workspace_dir.as_deref().unwrap_or(ctx.dir);
     let dirs: Vec<PathBuf> = if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-        let (projects, _patterns) = discover_workspace_projects(workspace_dir)?;
+        let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
         projects.into_iter().map(|project| project.root_dir).collect()
     } else {
         vec![ctx.dir.to_path_buf()]

@@ -1,3 +1,5 @@
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
 import path from 'node:path'
 
 import { afterAll, expect, test } from '@jest/globals'
@@ -11,10 +13,10 @@ import { loadJsonFileSync } from 'load-json-file'
 
 const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-function createOpts () {
+function createOpts (registryUrl: string = registry) {
   const { storeController, storeDir } = createTempStore()
   return {
-    registriesByScope: { default: registry },
+    registriesByScope: { default: registryUrl },
     rootDir: process.cwd(),
     cacheDir: path.resolve('cache'),
     userConfig: {},
@@ -195,6 +197,99 @@ test('handles old format config deps via migration path', async () => {
   const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
   expect(manifest.name).toBe('@pnpm.e2e/foo')
   expect(manifest.version).toBe('100.0.0')
+})
+
+test('takes the tarball of an old-format config dep from the packument', async () => {
+  prepareEmpty()
+  const integrity = getIntegrity('@pnpm.e2e/foo', '100.0.0')
+
+  let advertisedTarball = ''
+  await withNonDerivableTarballRegistry(async (registryUrl) => {
+    advertisedTarball = `${registryUrl}tarballs/@pnpm.e2e/foo/-/foo-100.0.0.tgz`
+    await resolveAndInstallConfigDeps({
+      '@pnpm.e2e/foo': `100.0.0+${integrity}`,
+    }, createOpts(registryUrl))
+  })
+
+  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foo/package.json')
+  expect(manifest.name).toBe('@pnpm.e2e/foo')
+  expect(manifest.version).toBe('100.0.0')
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.packages['@pnpm.e2e/foo@100.0.0'].resolution).toStrictEqual({
+    integrity,
+    tarball: advertisedTarball,
+  })
+})
+
+// Stands up a registry that serves its tarballs from a path pnpm cannot derive
+// from the package name, version, and registry URL — the shape of GitLab's npm
+// registry. Packuments are proxied from pnpr with their `dist.tarball` pointed
+// at a `/tarballs/` prefix, and the derivable URL is answered with a 404.
+async function withNonDerivableTarballRegistry (run: (registryUrl: string) => Promise<void>): Promise<void> {
+  const upstreamBase = `http://localhost:${REGISTRY_MOCK_PORT}`
+  let proxyBase = ''
+  const server = http.createServer((req, res) => {
+    void (async () => {
+      const tarballPath = req.url!.startsWith('/tarballs/') ? req.url!.slice('/tarballs'.length) : undefined
+      if (tarballPath == null && req.url!.endsWith('.tgz')) {
+        res.writeHead(404)
+        res.end('Not Found')
+        return
+      }
+      const upstream = await fetch(`${upstreamBase}${tarballPath ?? req.url!}`, {
+        headers: { accept: req.headers.accept ?? '*/*' },
+      })
+      const contentType = upstream.headers.get('content-type') ?? ''
+      if (contentType.includes('json')) {
+        const body = (await upstream.text()).split(upstreamBase).join(`${proxyBase}/tarballs`)
+        res.writeHead(upstream.status, { 'content-type': 'application/json' })
+        res.end(body)
+      } else {
+        res.writeHead(upstream.status, { 'content-type': contentType })
+        res.end(Buffer.from(await upstream.arrayBuffer()))
+      }
+    })().catch((err: unknown) => {
+      res.writeHead(500)
+      res.end(String(err))
+    })
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, resolve)
+  })
+  proxyBase = `http://localhost:${(server.address() as AddressInfo).port}`
+  try {
+    await run(`${proxyBase}/`)
+  } finally {
+    server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err == null) {
+          resolve()
+        } else {
+          reject(err)
+        }
+      })
+    })
+  }
+}
+
+test('keeps optional subdeps of a pinned config dep out of the lockfile', async () => {
+  prepareEmpty()
+  const opts = createOpts()
+
+  // @pnpm.e2e/foobar declares `@pnpm.e2e/bar: "^100.0.0"` as an
+  // optionalDependency — a range, which a clean specifier forbids.
+  const integrity = getIntegrity('@pnpm.e2e/foobar', '100.0.0')
+  await resolveAndInstallConfigDeps({
+    '@pnpm.e2e/foobar': `100.0.0+${integrity}`,
+  }, opts)
+
+  const manifest = loadJsonFileSync<{ name: string, version: string }>('node_modules/.pnpm-config/@pnpm.e2e/foobar/package.json')
+  expect(manifest.version).toBe('100.0.0')
+
+  const envLockfile = await readEnvLockfile(process.cwd())
+  expect(envLockfile!.snapshots['@pnpm.e2e/foobar@100.0.0']).toStrictEqual({})
 })
 
 test('handles mixed old-format and new-format config deps together', async () => {

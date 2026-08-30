@@ -232,7 +232,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         link_bins_of_packages::<pnpm_cmd_shim::Host>(
             &packages,
             &parent_modules_dir.join(".bin"),
-            &[],
+            &pnpm_cmd_shim::LinkBinsOptions::default(),
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }
@@ -260,7 +260,7 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         link_bins::<pnpm_cmd_shim::Host>(
             &project_modules_dir,
             &project_modules_dir.join(".bin"),
-            &[],
+            &pnpm_cmd_shim::LinkBinsOptions::default(),
         )
         .map_err(SyncInjectedDepsError::LinkBins)?;
     }

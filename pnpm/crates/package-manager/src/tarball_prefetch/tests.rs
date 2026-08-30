@@ -1,6 +1,11 @@
-use super::{PendingPrefetch, without_store_hits};
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndex, store_index_key};
-use std::collections::HashMap;
+use super::{PendingPrefetch, TarballDownload, run_tarball_download, without_store_hits};
+use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_store_dir::{
+    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    store_index_key,
+};
+use pnpm_tarball::{MemCache, RetryOpts, TarballError};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tempfile::tempdir;
 
 fn sample_index() -> PackageFilesIndex {
@@ -17,9 +22,11 @@ fn sample_index() -> PackageFilesIndex {
     PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 
@@ -29,6 +36,7 @@ fn pending(package_id: &str, integrity: &str) -> PendingPrefetch {
         package_id: package_id.to_string(),
         package_url: format!("https://registry.example.com/{package_id}.tgz"),
         integrity: integrity.to_string(),
+        revision_addressed: false,
     }
 }
 
@@ -61,4 +69,85 @@ async fn without_store_hits_keeps_everything_when_no_index_is_readable() {
     let remaining = without_store_hits(None, vec![warm, cold]).await;
 
     assert_eq!(remaining.len(), 2);
+}
+
+fn revision_download(
+    store_dir: &'static StoreDir,
+    package_url: String,
+    integrity: ssri::Integrity,
+) -> TarballDownload {
+    TarballDownload {
+        http_client: Arc::new(ThrottledClient::default()),
+        mem_cache: Arc::new(MemCache::new()),
+        store_dir,
+        store_index: None,
+        store_index_writer: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        auth_headers: Arc::new(AuthHeaders::default()),
+        retry_opts: RetryOpts {
+            retries: 2,
+            factor: 1,
+            min_timeout: Duration::ZERO,
+            max_timeout: Duration::ZERO,
+        },
+        requester: Arc::from(""),
+        offline: false,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        package_id: "revision-pkg@1.0.0".to_string(),
+        package_url,
+        integrity,
+        package_unpacked_size: None,
+        package_file_count: None,
+        revision_addressed: true,
+    }
+}
+
+#[tokio::test]
+async fn revision_prefetch_does_not_follow_redirects() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/revision.tgz")
+        .with_status(302)
+        .with_header("location", "/redirected.tgz")
+        .expect(1)
+        .create_async()
+        .await;
+    let redirected = server.mock("GET", "/redirected.tgz").expect(0).create_async().await;
+    let store = tempdir().unwrap();
+    let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
+    let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
+
+    let err = run_tarball_download(revision_download(
+        store_dir,
+        format!("{}/revision.tgz", server.url()),
+        integrity,
+    ))
+    .await
+    .expect_err("revision prefetch must reject the redirect");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    redirect.assert_async().await;
+    redirected.assert_async().await;
+}
+
+#[tokio::test]
+async fn revision_prefetch_does_not_retry_a_transient_failure() {
+    let mut server = mockito::Server::new_async().await;
+    let failure =
+        server.mock("GET", "/revision.tgz").with_status(503).expect(1).create_async().await;
+    let store = tempdir().unwrap();
+    let store_dir = Box::leak(Box::new(StoreDir::new(store.path())));
+    let integrity = format!("sha512-{}==", "A".repeat(86)).parse().unwrap();
+
+    let err = run_tarball_download(revision_download(
+        store_dir,
+        format!("{}/revision.tgz", server.url()),
+        integrity,
+    ))
+    .await
+    .expect_err("revision prefetch must not retry the transient failure");
+
+    assert!(matches!(err, TarballError::HttpStatus(_)), "got {err:?}");
+    failure.assert_async().await;
 }

@@ -1,17 +1,19 @@
 //! Tarball decompression and entry extraction into the CAS.
 
 use super::{
-    Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
-    ParallelIterator, PathBuf, TarballError, UNIX_EPOCH, cas_write_pool,
+    Cow, Cursor, HashMap, IgnoreEntryFilter, IntoParallelRefIterator, MAX_UNTRUSTED_PREALLOC_BYTES,
+    ParallelIterator, PathBuf, Read, TarballError, UNIX_EPOCH, cas_write_pool,
 };
 use pnpm_fs::file_mode;
 use pnpm_package_manifest::{
     files_include_install_scripts, manifest_requires_build, parse_manifest_bytes,
 };
-use pnpm_store_dir::{CafsFileInfo, PackageFilesIndex, StoreDir};
+use pnpm_store_dir::{
+    CafsFileInfo, FileHash, PackageFilesIndex, StoreDir, WriteCasFileFromReaderError,
+};
 use tar::Archive;
 use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions};
+use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
 
 /// Build the buffer the tarball body streams into, pre-sized from the
 /// response's `Content-Length` where possible.
@@ -38,19 +40,41 @@ pub(crate) fn allocate_tarball_buffer(
     Ok(buf)
 }
 
-/// Bound a registry-supplied `dist.unpackedSize` before it reaches
-/// zune-inflate, which reserves the hint as an infallible zero-filled
-/// `vec![0; hint]` and aborts the process if that allocation fails.
+/// Bound an untrusted unpacked-size claim — the registry's
+/// `dist.unpackedSize` or the archive's own gzip trailer — before it
+/// reaches zune-inflate, which reserves the hint as an infallible
+/// zero-filled `vec![0; hint]` and aborts the process if that
+/// allocation fails.
 pub(crate) fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
     unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
 }
 
+/// Decompress a whole gzipped archive into one contiguous buffer,
+/// refusing to inflate past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+///
+/// The ceiling is the same one [`should_stream_extract`] pivots on, so
+/// the two agree on how large an archive the eager path may hold — the
+/// difference being that this one measures the archive instead of
+/// trusting a hint about it. Both signals [`should_stream_extract`] has
+/// can be wrong: `dist.unpackedSize` is attacker-controlled, and the
+/// compressed length says nothing about the ratio. Integrity
+/// verification is no help either, since a gzip bomb is a legitimately
+/// published package whose hash matches. Without the ceiling the only
+/// bound is `zune-inflate`'s own 1 GiB default, which every
+/// concurrently extracting task may claim (see
+/// [`crate::post_download_semaphore`]).
+///
+/// Exceeding it is not a refusal: callers answer
+/// [`is_eager_decode_limit_exceeded`] by re-running the archive through
+/// a streaming decoder, which decodes it in full.
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
 pub(crate) fn decompress_gzip(
     gz_data: &[u8],
     unpacked_size: Option<usize>,
 ) -> Result<Vec<u8>, TarballError> {
-    let mut options = DeflateOptions::default().set_confirm_checksum(false);
+    let mut options = DeflateOptions::default()
+        .set_confirm_checksum(false)
+        .set_limit(MAX_UNTRUSTED_PREALLOC_BYTES);
 
     if let Some(size) = bounded_gzip_size_hint(unpacked_size) {
         options = options.set_size_hint(size);
@@ -59,6 +83,222 @@ pub(crate) fn decompress_gzip(
     DeflateDecoder::new_with_options(gz_data, options)
         .decode_gzip()
         .map_err(TarballError::DecodeGzip)
+}
+
+/// Whether `error` is [`decompress_gzip`] reporting that the archive
+/// inflated past its ceiling, the one decode failure that says nothing
+/// about the archive being malformed.
+pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
+    matches!(
+        error,
+        TarballError::DecodeGzip(decode) if matches!(decode.error, DecodeErrorStatus::OutputLimitExceeded(..)),
+    )
+}
+
+/// Extract a fully buffered gzipped tarball into the CAFS through
+/// whichever of the two extractors suits its size.
+///
+/// Eager extraction buys zero-copy payload slices and one big parallel
+/// write phase, and holds the whole decompressed archive to do it —
+/// multiplied across every extraction running concurrently. It is
+/// therefore taken only while the archive is small:
+/// [`should_stream_extract`] routes on the size signals available
+/// before decoding, and [`decompress_gzip`]'s ceiling catches an
+/// archive that only turns out to be large once it inflates.
+///
+/// No archive is refused for its size. Both outcomes route to
+/// [`stream_extract_gzipped_tarball`], which decodes the same bytes
+/// with the same results in bounded memory.
+pub(crate) fn extract_gzipped_tarball(
+    gz_data: &[u8],
+    unpacked_size: Option<usize>,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    // Route on the larger of the two claims about the unpacked size.
+    // Neither is trustworthy, and taking the larger is the conservative
+    // reading: a registry hint that under-reports cannot hide a trailer
+    // that does not, or the other way round.
+    let unpacked_size = unpacked_size.max(gzip_isize_hint(gz_data));
+    if should_stream_extract(gz_data.len(), unpacked_size) {
+        return stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern);
+    }
+    match decompress_gzip(gz_data, unpacked_size) {
+        Ok(tar_data) => extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern),
+        Err(error) if is_eager_decode_limit_exceeded(&error) => {
+            tracing::debug!(
+                target: "pacquet::download",
+                gz_data_len = gz_data.len(),
+                "archive inflated past the eager decode ceiling; extracting it as a stream",
+            );
+            stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// The uncompressed size a gzip stream records in its own trailer.
+///
+/// The last four bytes of a gzip member are ISIZE: what it decodes to,
+/// modulo 2^32. It is the archive's own claim and no more trustworthy
+/// than the registry's `dist.unpackedSize` — but it is available where
+/// that one often is not (a lockfile records no unpacked size, so a
+/// frozen install has nothing else), and routing on it means an honest
+/// archive that inflates past the eager ceiling is streamed on the
+/// first pass instead of being decoded twice. A dishonest one is still
+/// caught by [`decompress_gzip`]'s ceiling.
+///
+/// `None` unless the buffer opens with a deflate member header — the
+/// same three bytes the decoder itself checks first. A body that will
+/// fail at the decoder anyway keeps taking the path whose diagnostic
+/// says so, rather than being routed by four bytes of whatever it
+/// happens to end with.
+pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
+    if !gz_data.starts_with(&GZIP_MAGIC) || gz_data.get(GZIP_MAGIC.len()) != Some(&GZIP_CM_DEFLATE)
+    {
+        return None;
+    }
+    let trailer: [u8; 4] = gz_data.get(gz_data.len().checked_sub(4)?..)?.try_into().ok()?;
+    usize::try_from(u32::from_le_bytes(trailer)).ok()
+}
+
+/// The decode error a body whose first bytes are not gzip will produce,
+/// raised from those bytes alone so a response that cannot be an
+/// archive is never buffered in full. `decode_gzip` rejects on the
+/// magic number, so the verdict does not depend on how much of the body
+/// has arrived.
+pub(crate) fn non_gzip_body_error(prefix_len: usize) -> TarballError {
+    let status = if prefix_len < GZIP_MAGIC.len() {
+        DecodeErrorStatus::InsufficientData
+    } else {
+        DecodeErrorStatus::CorruptData
+    };
+    TarballError::DecodeGzip(zune_inflate::errors::InflateDecodeErrors::new_with_error(status))
+}
+
+/// First bytes of every gzip member, and all a reader needs to tell an
+/// archive from whatever else a server might answer with.
+pub(crate) const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+
+/// Compression method byte following [`GZIP_MAGIC`]. Deflate is the
+/// only method npm archives use and the only one the decoder accepts.
+const GZIP_CM_DEFLATE: u8 = 8;
+
+/// Compressed-size pivot for [`should_stream_extract`]. The compressed
+/// length is the one exact size we hold in hand; npm tarballs
+/// typically inflate ~3-5×, so 16 MiB compressed puts the eager path's
+/// whole-archive buffer well past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
+
+/// Whether a downloaded tarball should be extracted through the
+/// streaming path ([`stream_extract_gzipped_tarball`]) instead of the
+/// eager whole-archive decompression
+/// ([`decompress_gzip`] + [`extract_tarball_entries`]).
+///
+/// The eager path materializes the entire decompressed archive as one
+/// contiguous buffer, which for a large package multiplies across every
+/// concurrently extracting task. Stream once either signal says the
+/// archive is large: the exact compressed length, or an unpacked-size
+/// claim ([`crate::extract_gzipped_tarball`] takes the larger of the
+/// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
+/// attacker-controlled, but here it only picks between two correct
+/// extraction paths — a lying value costs at most the wrong path's
+/// performance profile, and [`decompress_gzip`]'s ceiling keeps even
+/// that path's memory bounded.
+pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option<usize>) -> bool {
+    compressed_len >= STREAM_EXTRACT_COMPRESSED_THRESHOLD
+        || unpacked_size.is_some_and(|size| size >= MAX_UNTRUSTED_PREALLOC_BYTES)
+}
+
+/// Minimum known compressed size for extracting a registry tarball while its
+/// body is still arriving. This reserves long-lived blocking tasks for archives
+/// whose post-download extraction is likely to extend the install tail.
+pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024;
+
+/// Body chunks in flight between the download loop and the extractor.
+///
+/// The queue is what keeps the two decoupled — the extractor is
+/// normally far faster than the network, and a few chunks of slack stop
+/// a momentary stall on either side from costing throughput. It is
+/// bounded because the alternative is a queue that grows to whatever a
+/// server sends faster than the extractor can consume it, which would
+/// hand back the unbounded buffer this path exists to avoid. Reaching
+/// the bound applies backpressure to the download rather than failing
+/// it.
+pub(crate) const STREAM_CHANNEL_CHUNKS: usize = 64;
+
+/// Sender half of the queue [`ChannelBytesReader`] drains.
+///
+/// `Ok` items are payload. An `Err` item is the download loop reporting
+/// that the body failed mid-stream; it surfaces as the reader's error
+/// so the extractor unwinds instead of mistaking a truncated body for a
+/// complete archive.
+pub(crate) type BodyChunkSender = tokio::sync::mpsc::Sender<std::io::Result<bytes::Bytes>>;
+
+/// Receiver half of [`BodyChunkSender`].
+pub(crate) type BodyChunkReceiver = tokio::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>;
+
+/// Allocate the bounded queue joining an async download loop to a
+/// blocking extractor.
+pub(crate) fn body_chunk_channel() -> (BodyChunkSender, BodyChunkReceiver) {
+    tokio::sync::mpsc::channel(STREAM_CHANNEL_CHUNKS)
+}
+
+/// Blocking [`Read`] over a channel of downloaded body chunks: the
+/// bridge that lets [`extract_tarball_entries_streaming`] run on a
+/// blocking thread while the async download loop keeps feeding it.
+///
+/// A closed channel (sender dropped after the last chunk) is
+/// end-of-stream.
+pub(crate) struct ChannelBytesReader {
+    rx: BodyChunkReceiver,
+    current: bytes::Bytes,
+    offset: usize,
+}
+
+impl ChannelBytesReader {
+    pub(crate) fn new(rx: BodyChunkReceiver) -> Self {
+        Self { rx, current: bytes::Bytes::new(), offset: 0 }
+    }
+}
+
+impl Read for ChannelBytesReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+        while self.offset >= self.current.len() {
+            // Only ever reached from the blocking thread the extractor
+            // runs on, which is where `blocking_recv` belongs; it
+            // panics inside an async context.
+            match self.rx.blocking_recv() {
+                Some(Ok(chunk)) => {
+                    self.current = chunk;
+                    self.offset = 0;
+                }
+                Some(Err(error)) => return Err(error),
+                None => return Ok(0),
+            }
+        }
+        let take = (self.current.len() - self.offset).min(buf.len());
+        buf[..take].copy_from_slice(&self.current[self.offset..self.offset + take]);
+        self.offset += take;
+        Ok(take)
+    }
+}
+
+/// Gunzips and CAS-writes a download delivered in chunks through `rx`.
+/// This runs on a blocking thread for the lifetime of the download.
+pub(crate) fn stream_extract_gzipped_channel(
+    rx: BodyChunkReceiver,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    extract_tarball_entries_streaming(
+        flate2::read::GzDecoder::new(ChannelBytesReader::new(rx)),
+        store_dir,
+        ignore_file_pattern,
+    )
 }
 
 /// Pick the `package.json` fields downstream code actually reads — bin
@@ -144,13 +384,14 @@ pub(crate) fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<se
 }
 
 /// One regular-file tar entry whose path has been validated and
-/// cleaned, paired with a borrow of its payload inside the decompressed
-/// archive buffer. Collected serially while walking the tar stream, then
-/// hashed and written to the CAFS — serially or across the rayon pool —
-/// in [`write_cas_entry`].
+/// cleaned, paired with its payload — a borrow into the decompressed
+/// archive buffer on the eager path, an owned copy on the streaming
+/// path. Collected serially while walking the tar stream, then hashed
+/// and written to the CAFS — serially or across the rayon pool — in
+/// [`write_cas_entry`].
 pub(crate) struct PendingFile<'a> {
     cleaned_path: String,
-    data: &'a [u8],
+    data: Cow<'a, [u8]>,
     executable: bool,
     mode: u32,
     size: u64,
@@ -164,21 +405,21 @@ pub(crate) fn write_cas_entry(
     store_dir: &StoreDir,
     file: &PendingFile<'_>,
 ) -> Result<(String, PathBuf, CafsFileInfo), TarballError> {
-    let (file_path, file_hash) =
-        store_dir.write_cas_file(file.data, file.executable).map_err(TarballError::WriteCasFile)?;
+    let (file_path, file_hash) = store_dir
+        .write_cas_file(&file.data, file.executable)
+        .map_err(TarballError::WriteCasFile)?;
+    Ok((file.cleaned_path.clone(), file_path, cafs_file_info(&file_hash, file.mode, file.size)))
+}
+
+/// Build the [`CafsFileInfo`] index row for a freshly written CAS file.
+pub(crate) fn cafs_file_info(file_hash: &FileHash, mode: u32, size: u64) -> CafsFileInfo {
     // `as_millis()` returns `u128`; narrow to `u64` to match the store
     // index schema (see `CafsFileInfo::checked_at`). Drop the timestamp
     // if the clock reports something unrepresentable — `checkedAt` is
     // optional and pnpm tolerates `None`.
     let checked_at =
         UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
-    let info = CafsFileInfo {
-        digest: format!("{file_hash:x}"),
-        mode: file.mode,
-        size: file.size,
-        checked_at,
-    };
-    Ok((file.cleaned_path.clone(), file_path, info))
+    CafsFileInfo { digest: format!("{file_hash:x}"), mode, size, checked_at }
 }
 
 /// Fold a synthesized `package.json` (pnpm's `appendManifest`) into a
@@ -327,33 +568,7 @@ pub(crate) fn extract_tarball_entries(
         let entry_data = tar_entry_payload(tar_data, &entry)?;
 
         let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
-        // Rejected rather than normalized so a tampered tarball is
-        // visible instead of silently landing outside the store.
-        //
-        // Joined by hand rather than with `PathBuf`, whose native
-        // separator would desynchronize these keys from pnpm's
-        // always-forward-slashed path layer and the `index.db` both
-        // implementations share. `to_string_lossy` coerces non-UTF-8
-        // bytes to U+FFFD per component.
-        let Some(mut parts) = archive_entry_segments(&entry_path.to_string_lossy()) else {
-            return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "tar entry path rejected (non-normal component, possible directory traversal): {entry_path:?}",
-                ),
-            )));
-        };
-        // Drop the top-level package directory (`package/`).
-        parts.remove(0);
-        if parts.is_empty() {
-            return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "tar entry path has no payload after dropping the top-level component: {entry_path:?}",
-                ),
-            )));
-        }
-        let cleaned_entry_path = parts.join("/");
+        let cleaned_entry_path = clean_archive_entry_path(&entry_path.to_string_lossy())?;
         // Drop ignored entries before the CAS write. Paths are matched
         // *after* the top-level prefix strip, so the callback sees the
         // cleaned relative path. Bypassing the CAS write here also
@@ -367,77 +582,61 @@ pub(crate) fn extract_tarball_entries(
         if files_include_install_scripts([cleaned_entry_path.as_str()]) {
             file_build_hooks = true;
         }
-        // Capture the parsed manifest whenever we see `package.json`.
-        // The narrowed manifest is stashed in `pkgFilesIndex.manifest`
-        // so install-side consumers (notably bin linking) can avoid
-        // re-reading the file from disk — the same place pnpm keeps it,
-        // so the shared `index.db` row carries it for both tools. The
-        // [`normalize_bundled_manifest`] pick drops fields downstream
-        // code doesn't use, keeping `index.db` rows tight.
-        //
-        // **Last-entry wins.** A duplicate `package.json` entry
-        // overwrites any earlier one, so the final entry is canonical
-        // — same shape as the `files` map, which already overwrites
-        // duplicates. Real npm tarballs never publish multiple
-        // `package.json` entries, but the consistency with the `files`
-        // map is what matters: `manifest` and `files` must describe the
-        // same file. Failed JSON parses degrade the field to `None` (the
-        // manifest is best-effort; a corrupt `package.json` is the
-        // publisher's fault and downstream code can fall back to
-        // disk reads).
         if cleaned_entry_path == "package.json" {
-            match parse_manifest_bytes(entry_data) {
-                Ok(parsed) => {
-                    manifest_build_scripts = manifest_requires_build(&parsed);
-                    manifest = normalize_bundled_manifest(&parsed);
-                }
-                Err(error) => {
-                    tracing::debug!(
-                        ?error,
-                        "package.json in tarball failed to parse as JSON; bundled manifest cleared",
-                    );
-                    manifest_build_scripts = false;
-                    manifest = None;
-                }
-            }
+            (manifest_build_scripts, manifest) = capture_bundled_manifest(entry_data);
         }
 
         pending.push(PendingFile {
             cleaned_path: cleaned_entry_path,
-            data: entry_data,
+            data: Cow::Borrowed(entry_data),
             executable: file_is_executable,
             mode: file_mode,
             size: file_size,
         });
     }
 
-    // Phase 2: hash and write every file into the content-addressed
-    // store. Extracting a package with thousands of files (e.g.
-    // `core-js`) on a single blocking thread pins one core while the
-    // rest sit idle — most costly at the makespan tail, when it's the
-    // last extraction still running. `write_cas_entry` is safe to run
-    // concurrently, so large tarballs fan out across the dedicated
-    // [`cas_write_pool`]; small ones stay serial to skip rayon's per-job
-    // dispatch cost when there's nothing to gain. The dedicated pool
-    // keeps this off the global pool the linker uses, so an extraction
-    // burst can't stall node_modules linking running concurrently.
-    const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
-    let written: Vec<(String, PathBuf, CafsFileInfo)> =
-        if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
-            let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
-                pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
-            };
-            match cas_write_pool() {
-                Some(pool) => pool.install(write_all),
-                None => write_all(),
-            }?
-        } else {
-            pending.iter().map(|file| write_cas_entry(store_dir, file)).collect::<Result<_, _>>()?
-        };
+    let written = write_pending_files(store_dir, &pending)?;
+    Ok(assemble_extract_output(written, manifest, manifest_build_scripts || file_build_hooks))
+}
 
-    // Phase 3 (serial): assemble the output maps. `written` preserves
-    // `pending` order, so a tarball with duplicate paths keeps the last
-    // entry — matching pnpm's last-wins `filesIndex.set`.
+/// Hash and write a slice of pending files into the content-addressed
+/// store, preserving input order in the returned rows.
+///
+/// Extracting a package with thousands of files (e.g. `core-js`) on a
+/// single blocking thread pins one core while the rest sit idle — most
+/// costly at the makespan tail, when it's the last extraction still
+/// running. [`write_cas_entry`] is safe to run concurrently, so large
+/// slices fan out across the dedicated [`cas_write_pool`]; small ones
+/// stay serial to skip rayon's per-job dispatch cost when there's
+/// nothing to gain. The dedicated pool keeps this off the global pool
+/// the linker uses, so an extraction burst can't stall `node_modules`
+/// linking running concurrently.
+fn write_pending_files(
+    store_dir: &StoreDir,
+    pending: &[PendingFile<'_>],
+) -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
+    const PARALLEL_EXTRACT_THRESHOLD: usize = 32;
+    if pending.len() >= PARALLEL_EXTRACT_THRESHOLD {
+        let write_all = || -> Result<Vec<(String, PathBuf, CafsFileInfo)>, TarballError> {
+            pending.par_iter().map(|file| write_cas_entry(store_dir, file)).collect()
+        };
+        match cas_write_pool() {
+            Some(pool) => pool.install(write_all),
+            None => write_all(),
+        }
+    } else {
+        pending.iter().map(|file| write_cas_entry(store_dir, file)).collect()
+    }
+}
+
+/// Assemble the extraction outputs from written CAS rows. `written`
+/// preserves entry order, so a tarball with duplicate paths keeps the
+/// last entry — matching pnpm's last-wins `filesIndex.set`.
+fn assemble_extract_output(
+    written: Vec<(String, PathBuf, CafsFileInfo)>,
+    manifest: Option<serde_json::Value>,
+    requires_build: bool,
+) -> (HashMap<String, PathBuf>, PackageFilesIndex) {
     let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
     let mut files = HashMap::with_capacity(written.len());
     for (path, file_path, info) in written {
@@ -451,12 +650,268 @@ pub(crate) fn extract_tarball_entries(
 
     let pkg_files_idx = PackageFilesIndex {
         manifest,
-        requires_build: Some(manifest_build_scripts || file_build_hooks),
+        requires_build: Some(requires_build),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
-    Ok((cas_paths, pkg_files_idx))
+    (cas_paths, pkg_files_idx)
+}
+
+/// Parse a tarball's bundled `package.json`, returning its
+/// requires-build flag and the narrowed manifest for the store-index
+/// row.
+///
+/// The narrowed manifest is stashed in `pkgFilesIndex.manifest` so
+/// install-side consumers (notably bin linking) can avoid re-reading
+/// the file from disk — the same place pnpm keeps it, so the shared
+/// `index.db` row carries it for both tools. The
+/// [`normalize_bundled_manifest`] pick drops fields downstream code
+/// doesn't use, keeping `index.db` rows tight.
+///
+/// Callers apply this to every `package.json` entry they see, so a
+/// duplicate entry overwrites any earlier one and the final entry is
+/// canonical — same shape as the `files` map, which already overwrites
+/// duplicates. Real npm tarballs never publish multiple `package.json`
+/// entries, but the consistency with the `files` map is what matters:
+/// `manifest` and `files` must describe the same file.
+///
+/// Failed JSON parses degrade to `(false, None)` — the manifest is
+/// best-effort; a corrupt `package.json` is the publisher's fault and
+/// downstream code can fall back to disk reads.
+fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Value>) {
+    match parse_manifest_bytes(entry_data) {
+        Ok(parsed) => (manifest_requires_build(&parsed), normalize_bundled_manifest(&parsed)),
+        Err(error) => {
+            tracing::debug!(
+                ?error,
+                "package.json in tarball failed to parse as JSON; bundled manifest cleared",
+            );
+            (false, None)
+        }
+    }
+}
+
+/// Validate and clean one archive entry path: reject traversal, drop
+/// the top-level package directory (`package/`), and join the remaining
+/// segments with forward slashes.
+///
+/// Rejected rather than normalized so a tampered tarball is visible
+/// instead of silently landing outside the store.
+///
+/// Joined by hand rather than with `PathBuf`, whose native separator
+/// would desynchronize these keys from pnpm's always-forward-slashed
+/// path layer and the `index.db` both implementations share. Callers
+/// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
+/// to U+FFFD per component.
+fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
+    let Some(mut parts) = archive_entry_segments(raw) else {
+        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "tar entry path rejected (non-normal component, possible directory traversal): {raw:?}",
+            ),
+        )));
+    };
+    parts.remove(0);
+    if parts.is_empty() {
+        return Err(TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "tar entry path has no payload after dropping the top-level component: {raw:?}",
+            ),
+        )));
+    }
+    Ok(parts.join("/"))
+}
+
+/// Ceiling for buffering one tar entry in memory on the streaming
+/// extraction path. Entries at or below this go through the batched
+/// [`write_pending_files`] fan-out; larger ones stream straight into
+/// the store via [`StoreDir::write_cas_file_from_reader`] without ever
+/// being held in memory. `package.json` is the exception — the bundled
+/// manifest must be parsed from bytes (build-script detection depends
+/// on it), so it is buffered up to [`MAX_UNTRUSTED_PREALLOC_BYTES`],
+/// beyond which the archive is rejected as hostile.
+pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
+
+/// Reject a `package.json` entry that claims more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+///
+/// A manifest has to reach memory to be parsed — the bundled manifest
+/// and its build-script detection both come from its bytes — so a
+/// reader that otherwise holds only a bounded window has to draw the
+/// line somewhere, and silently skipping the parse would record wrong
+/// build metadata instead. Real manifests are a few KB; one past the
+/// cap exists only in a hostile archive, so failing loudly is the
+/// honest outcome.
+pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
+    TarballError::ReadTarballEntries(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!(
+            "tar entry package.json is {file_size} bytes, which exceeds the \
+             {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
+        ),
+    ))
+}
+
+/// Byte budget for one batch of buffered entries on the streaming
+/// extraction path. A batch flushes to [`write_pending_files`] once it
+/// holds this much payload, so peak memory stays bounded by the budget
+/// (plus one in-flight entry) instead of the archive's unpacked size,
+/// while typical batches are still large enough for the parallel
+/// CAS-write fan-out to pay off.
+const STREAM_BATCH_BUDGET_BYTES: usize = 32 * 1024 * 1024;
+
+/// Decompress and extract a gzipped tarball without materializing the
+/// decompressed archive: [`extract_tarball_entries_streaming`] over a
+/// streaming gzip decoder.
+///
+/// The eager [`decompress_gzip`] + [`extract_tarball_entries`] pair
+/// stays the default for small tarballs, where the whole-archive
+/// buffer is cheap and buys zero-copy payload slices plus one big
+/// parallel write phase; [`should_stream_extract`] decides which path
+/// a download takes.
+pub(crate) fn stream_extract_gzipped_tarball(
+    gz_data: &[u8],
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    extract_tarball_entries_streaming(
+        flate2::read::GzDecoder::new(gz_data),
+        store_dir,
+        ignore_file_pattern,
+    )
+}
+
+/// Walk a tar stream, writing each regular-file entry into the CAFS
+/// and returning the same outputs as [`extract_tarball_entries`],
+/// while holding only a bounded window of the archive in memory.
+///
+/// Small entries are buffered and flushed in bounded batches through
+/// the same parallel write phase as the eager path; entries above
+/// [`STREAM_ENTRY_BUFFER_MAX`] stream straight into the store with an
+/// incremental hash. A batch always flushes before a streamed entry is
+/// written, so the output rows keep archive order and the last-wins
+/// duplicate semantics of [`assemble_extract_output`] hold.
+///
+/// Decoder failures (e.g. a corrupt gzip stream) surface through the
+/// reader as [`TarballError::ReadTarballEntries`]; the retry
+/// classifier treats them the same as an eager-path decode error.
+pub(crate) fn extract_tarball_entries_streaming(
+    reader: impl Read,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let truncated = || {
+        TarballError::ReadTarballEntries(std::io::Error::new(
+            std::io::ErrorKind::UnexpectedEof,
+            "tar entry payload extends beyond archive",
+        ))
+    };
+
+    let mut archive = Archive::new(reader);
+    let mut written: Vec<(String, PathBuf, CafsFileInfo)> = Vec::new();
+    let mut batch: Vec<PendingFile<'static>> = Vec::new();
+    let mut batch_bytes: usize = 0;
+    let mut manifest = None;
+    let mut manifest_build_scripts = false;
+    let mut file_build_hooks = false;
+
+    for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
+        let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+
+        let file_mode = entry.header().mode().map_err(TarballError::ReadTarballEntries)?;
+        let file_is_executable = file_mode::is_executable(file_mode);
+        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        let cleaned_entry_path = {
+            let entry_path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+            clean_archive_entry_path(&entry_path.to_string_lossy())?
+        };
+        // Same drop-before-the-CAS-write semantics as the eager loop:
+        // an ignored entry never surfaces in `files` or `manifest`.
+        if let Some(filter) = ignore_file_pattern
+            && filter(&cleaned_entry_path)
+        {
+            continue;
+        }
+        if files_include_install_scripts([cleaned_entry_path.as_str()]) {
+            file_build_hooks = true;
+        }
+
+        // A tar entry's payload can never exceed its header size, so
+        // the pre-read check is sufficient.
+        if cleaned_entry_path == "package.json" && file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
+            return Err(oversized_manifest_error(file_size));
+        }
+        let buffer_entry =
+            file_size <= STREAM_ENTRY_BUFFER_MAX || cleaned_entry_path == "package.json";
+        if buffer_entry {
+            let mut data = Vec::with_capacity(file_size as usize);
+            entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
+            if data.len() as u64 != file_size {
+                return Err(truncated());
+            }
+            if cleaned_entry_path == "package.json" {
+                (manifest_build_scripts, manifest) = capture_bundled_manifest(&data);
+            }
+            batch_bytes += data.len();
+            batch.push(PendingFile {
+                cleaned_path: cleaned_entry_path,
+                data: Cow::Owned(data),
+                executable: file_is_executable,
+                mode: file_mode,
+                size: file_size,
+            });
+            if batch_bytes >= STREAM_BATCH_BUDGET_BYTES {
+                flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
+            }
+        } else {
+            flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
+            // `Some(file_size)` makes the store writer reject a short
+            // stream before anything is committed to a
+            // content-addressed path, so a truncated archive leaves no
+            // orphan blob behind.
+            let (file_path, file_hash, streamed_size) = store_dir
+                .write_cas_file_from_reader(&mut entry, file_is_executable, Some(file_size))
+                .map_err(|error| match error {
+                    WriteCasFileFromReaderError::Read(error) => {
+                        TarballError::ReadTarballEntries(error)
+                    }
+                    WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
+                })?;
+            written.push((
+                cleaned_entry_path,
+                file_path,
+                cafs_file_info(&file_hash, file_mode, streamed_size),
+            ));
+        }
+    }
+    flush_pending_batch(store_dir, &mut batch, &mut batch_bytes, &mut written)?;
+
+    Ok(assemble_extract_output(written, manifest, manifest_build_scripts || file_build_hooks))
+}
+
+/// Hash and write the buffered batch into the CAFS, appending its rows
+/// to `written` in order and resetting the batch accumulator.
+fn flush_pending_batch(
+    store_dir: &StoreDir,
+    batch: &mut Vec<PendingFile<'_>>,
+    batch_bytes: &mut usize,
+    written: &mut Vec<(String, PathBuf, CafsFileInfo)>,
+) -> Result<(), TarballError> {
+    if batch.is_empty() {
+        return Ok(());
+    }
+    written.extend(write_pending_files(store_dir, batch)?);
+    batch.clear();
+    *batch_bytes = 0;
+    Ok(())
 }
 
 /// Borrow one tar entry's payload out of the decompressed archive.
@@ -505,6 +960,9 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 /// both implementations share to a reader that *does* treat them as
 /// separators.
 ///
+/// A leading `.` is preserved because npm's `tar` counts it as the
+/// component removed by `strip: 1`. Other `.` components are ignored.
+///
 /// `None` for an absolute path or one climbing past the root.
 pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
     let normalized = raw.replace('\\', "/");
@@ -512,9 +970,11 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
         return None;
     }
     let mut segments = Vec::new();
-    for segment in normalized.split('/') {
+    for (index, segment) in normalized.split('/').enumerate() {
         match segment {
-            "" | "." => {}
+            "" => {}
+            "." if index == 0 => segments.push(segment.to_string()),
+            "." => {}
             ".." => return None,
             other => segments.push(other.to_string()),
         }

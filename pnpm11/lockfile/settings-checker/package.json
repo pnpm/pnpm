@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/lockfile.settings-checker",
-  "version": "1100.2.1",
+  "version": "1100.2.4",
   "description": "Utilities to check if lockfile settings are out-of-date",
   "keywords": [
     "pnpm",
@@ -39,7 +39,6 @@
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.verification": "workspace:*",
-    "p-map-values": "catalog:",
     "ramda": "catalog:"
   },
   "devDependencies": {

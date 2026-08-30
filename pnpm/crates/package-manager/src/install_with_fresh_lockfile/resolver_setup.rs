@@ -8,7 +8,7 @@
 
 use super::InstallWithFreshLockfileError;
 use crate::{PrefetchContext, PrefetchingResolver};
-use pnpm_config::Config;
+use pnpm_config::{Config, NeedsFullMetadataFor};
 use pnpm_engine_pm_yarn_resolver::YarnResolver;
 use pnpm_engine_runtime_bun_resolver::BunResolver;
 use pnpm_engine_runtime_deno_resolver::DenoResolver;
@@ -146,6 +146,9 @@ pub(super) struct ResolverChainInputs<'a> {
     /// resolution or the `no-downgrade` trust policy needs the
     /// per-version `time` field.
     pub full_metadata: bool,
+    /// See `NpmResolver::needs_full_metadata_for` — the same question asked
+    /// of one registry.
+    pub needs_full_metadata_for: NeedsFullMetadataFor,
     pub wanted_lockfile: Option<&'a Lockfile>,
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: &'a Arc<StoreIndexWriter>,
@@ -170,7 +173,7 @@ pub(super) struct ResolverChain {
     pub fetch_locker: pnpm_resolving_npm_resolver::PackumentFetchLocker,
     pub picked_manifest_cache: pnpm_resolving_npm_resolver::PickedManifestCache,
     pub custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>>,
-    pub custom_fetcher_picker: Option<Arc<pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker>>,
+    pub custom_fetcher_session: Option<Arc<pnpm_deps_restorer::CustomFetcherSession>>,
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
 }
 
@@ -205,6 +208,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         registries,
         registries_by_prefix,
         full_metadata,
+        needs_full_metadata_for,
         wanted_lockfile,
         store_index,
         store_index_writer,
@@ -245,7 +249,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         // abbreviated form). When `false`, [`pick_package`] still
         // upgrades per-call where `published_by` / `optional` demand it.
         full_metadata,
-        filter_metadata: full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     });
     // A git dep's specifier names a repo, not a package, so its name —
@@ -317,13 +322,17 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
         // Same rationale as `NpmResolver.full_metadata` above.
         full_metadata,
-        filter_metadata: full_metadata,
+        needs_full_metadata_for: Some(Arc::clone(&needs_full_metadata_for)),
+        filter_metadata: config.requires_filtered_full_metadata(),
         retry_opts: crate::retry_config::retry_opts_from_config(config),
     };
 
-    let pnpmfile_hook = pnpmfile_hook_override.or_else(|| {
-        (!config.ignore_pnpmfile).then(|| pnpm_hooks::finder::load_pnpmfile(lockfile_dir)).flatten()
-    });
+    let pnpmfile_hook = match pnpmfile_hook_override {
+        Some(hook) => Some(hook),
+        None if config.ignore_pnpmfile => None,
+        None => pnpm_hooks::finder::load_pnpmfiles(lockfile_dir, crate::pnpmfile_selection(config))
+            .map_err(InstallWithFreshLockfileError::MissingPnpmfile)?,
+    };
     let custom_resolvers: Vec<Arc<dyn pnpm_hooks::CustomResolver>> =
         if let Some(ref hook) = pnpmfile_hook {
             hook.get_custom_resolvers().await.map_err(|err| {
@@ -340,7 +349,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     // rule) and consumed by `CreateVirtualStore` — a custom resolver
     // typically writes the custom-typed resolutions its sibling fetcher
     // materializes.
-    let custom_fetcher_picker = if let Some(ref hook) = pnpmfile_hook {
+    let custom_fetcher_session = if let Some(ref hook) = pnpmfile_hook {
         let fetchers = hook.get_custom_fetchers().await.map_err(|err| {
             tracing::error!(
                 target: "pacquet::install",
@@ -348,9 +357,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
             );
             InstallWithFreshLockfileError::CustomFetcherHook(err)
         })?;
-        (!fetchers.is_empty()).then(|| {
-            Arc::new(pnpm_hooks::custom_fetcher_adapter::CustomFetcherPicker::new(fetchers))
-        })
+        (!fetchers.is_empty())
+            .then(|| Arc::new(pnpm_deps_restorer::CustomFetcherSession::new(fetchers)))
     } else {
         None
     };
@@ -395,7 +403,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
             requester,
             supported_architectures,
             progress_reported,
-            prefetch_downloads,
+            prefetch_downloads: prefetch_downloads && custom_fetcher_session.is_none(),
+            custom_fetcher_session: custom_fetcher_session.as_ref(),
         },
     ));
 
@@ -413,7 +422,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         fetch_locker,
         picked_manifest_cache,
         custom_resolvers,
-        custom_fetcher_picker,
+        custom_fetcher_session,
         pnpmfile_hook,
     })
 }

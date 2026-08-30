@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    str::FromStr,
-};
+use std::{collections::HashMap, str::FromStr};
 
 use pnpm_lockfile::{PackageKey, PkgName, SnapshotEntry};
 use pnpm_package_manifest::PackageManifest;
@@ -127,12 +124,10 @@ fn excluded_lockfile_pins_keep_preferences_from_every_manifest() {
     let (_sibling_tmp, sibling) = fake_manifest(serde_json::json!({
         "dependencies": { "foo": "1.0.0" },
     }));
-    let excluded = HashSet::from([PkgName::from_str("foo").unwrap()]);
-
     let preferred = get_preferred_versions_from_lockfile_and_manifests_excluding(
         Some(&snapshots),
         &[&selected, &sibling],
-        &excluded,
+        &|key| key.name == PkgName::from_str("foo").unwrap(),
     );
 
     let foo = preferred.get("foo").expect("foo manifest preferences");
@@ -142,6 +137,24 @@ fn excluded_lockfile_pins_keep_preferences_from_every_manifest() {
         weight_of(preferred.get("bar").unwrap().get("2.0.0").unwrap()),
         EXISTING_VERSION_SELECTOR_WEIGHT,
     );
+}
+
+#[test]
+fn withholding_one_version_line_keeps_the_other_lines_pinned() {
+    let mut snapshots = HashMap::new();
+    snapshots.insert(PackageKey::from_str("foo@1.2.0").unwrap(), SnapshotEntry::default());
+    snapshots.insert(PackageKey::from_str("foo@2.0.0").unwrap(), SnapshotEntry::default());
+    let (_tmp, empty) = fake_manifest(serde_json::json!({ "name": "root", "version": "0.0.0" }));
+
+    let preferred = get_preferred_versions_from_lockfile_and_manifests_excluding(
+        Some(&snapshots),
+        &[&empty],
+        &|key| key.suffix.version_semver().is_some_and(|version| version.major == 1),
+    );
+
+    let foo = preferred.get("foo").expect("foo lockfile preferences");
+    assert!(foo.get("1.2.0").is_none());
+    assert_eq!(weight_of(foo.get("2.0.0").unwrap()), EXISTING_VERSION_SELECTOR_WEIGHT);
 }
 
 #[test]

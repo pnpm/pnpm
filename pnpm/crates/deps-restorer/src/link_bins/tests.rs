@@ -2,11 +2,11 @@ use super::{
     LinkVirtualStoreBins, LinkVirtualStoreBinsError, build_has_bin_set, link_direct_dep_bins,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_cmd_shim::is_shim_pointing_at;
+use pnpm_cmd_shim::{LinkBinsOptions, is_shim_pointing_at};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
     PackageKey, PackageMetadata, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
-    VariationsResolution,
+    SnapshotEntry, VariationsResolution,
 };
 use serde_json::json;
 use std::{
@@ -53,10 +53,11 @@ fn writes_child_bins_into_slot_own_package_node_modules() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -106,10 +107,11 @@ fn skips_slot_own_package_when_walking_children() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -135,10 +137,11 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .expect("missing dir is Ok");
@@ -177,10 +180,11 @@ fn link_virtual_store_bins_handles_scoped_slot_name() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -231,10 +235,11 @@ fn link_virtual_store_bins_handles_peer_resolved_slot_name() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -285,10 +290,11 @@ fn link_virtual_store_bins_handles_unscoped_name_with_plus() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -314,10 +320,11 @@ fn link_virtual_store_bins_skips_slot_without_node_modules() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .unwrap();
@@ -345,13 +352,82 @@ fn link_virtual_store_bins_skips_slot_without_own_package_dir() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run()
     .expect("missing own-package dir is skipped silently");
+}
+
+#[test]
+fn lockfile_driven_linking_only_visits_selected_snapshots() {
+    let tmp = tempdir().unwrap();
+    let virtual_dir = tmp.path().join(".pacquet");
+    let layout = VirtualStoreLayout::legacy(
+        virtual_dir,
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let selected: PackageKey = "selected@1.0.0".parse().expect("parse selected key");
+    let unchanged: PackageKey = "unchanged@1.0.0".parse().expect("parse unchanged key");
+    let snapshots = HashMap::from([
+        (selected.clone(), SnapshotEntry::default()),
+        (unchanged.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (
+            selected.clone(),
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution { directory: "selected".into() }),
+                Some(true),
+            ),
+        ),
+        (
+            unchanged.clone(),
+            metadata_with_resolution(
+                LockfileResolution::Directory(DirectoryResolution {
+                    directory: "unchanged".into(),
+                }),
+                Some(true),
+            ),
+        ),
+    ]);
+    for key in [&selected, &unchanged] {
+        let package_dir = layout.slot_dir(key).join("node_modules").join(key.name.to_string());
+        create_dir_all(&package_dir).unwrap();
+        write_file(
+            package_dir.join("package.json"),
+            json!({ "name": key.name.to_string(), "bin": "cli.js" }).to_string(),
+        )
+        .unwrap();
+        write_file(package_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    }
+    let selected_snapshots = [selected.clone()];
+
+    LinkVirtualStoreBins {
+        layout: &layout,
+        snapshots: Some(&snapshots),
+        selected_snapshots: Some(&selected_snapshots),
+        packages: Some(&packages),
+        package_manifests: &HashMap::default(),
+        skipped: &SkippedSnapshots::default(),
+        link_options: &LinkBinsOptions::default(),
+    }
+    .run()
+    .unwrap();
+
+    let bin_path = |key: &PackageKey| {
+        layout
+            .slot_dir(key)
+            .join("node_modules")
+            .join(key.name.to_string())
+            .join("node_modules/.bin")
+            .join(key.name.bare.as_str())
+    };
+    assert!(bin_path(&selected).exists());
+    assert!(!bin_path(&unchanged).exists());
 }
 
 /// [`link_direct_dep_bins`] walks the project's `node_modules/<dep>`
@@ -367,7 +443,7 @@ fn link_direct_dep_bins_writes_shims_for_each_dep() {
         .unwrap();
     write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
 
     let shim = modules.join(".bin/foo");
     assert!(shim.exists(), "shim should be created at {shim:?}");
@@ -383,7 +459,7 @@ fn link_direct_dep_bins_no_op_for_empty_dep_list() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
-    link_direct_dep_bins(&modules, &[], &[]).unwrap();
+    link_direct_dep_bins(&modules, &[], &LinkBinsOptions::default()).unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
@@ -412,7 +488,7 @@ fn link_direct_dep_bins_follows_symlink_to_real_package() {
     let symlink = modules.join("foo");
     pnpm_fs::symlink_dir(&real_pkg, &symlink).unwrap();
 
-    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
 
     assert!(modules.join(".bin/foo").exists(), "symlinked dep must produce a shim");
 }
@@ -426,7 +502,7 @@ fn link_direct_dep_bins_skips_dep_with_missing_manifest() {
     let modules = tmp.path().join("node_modules");
     create_dir_all(&modules).unwrap();
     // No `<modules>/foo` directory at all.
-    link_direct_dep_bins(&modules, &["foo".to_string()], &[]).unwrap();
+    link_direct_dep_bins(&modules, &["foo".to_string()], &LinkBinsOptions::default()).unwrap();
     assert!(!modules.join(".bin").exists());
 }
 
@@ -500,10 +576,11 @@ fn link_virtual_store_bins_propagates_read_error_via_di() {
             pnpm_config::default_virtual_store_dir_max_length() as usize,
         ),
         snapshots: None,
+        selected_snapshots: None,
         packages: None,
         package_manifests: &HashMap::default(),
         skipped: &SkippedSnapshots::default(),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run_with::<DenyVirtualStore>()
     .expect_err("read_dir error must propagate");
@@ -566,6 +643,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
         metadata_with_resolution(
             LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().expect("parse integrity"),
+                revision: None,
             }),
             Some(true),
         ),
@@ -575,6 +653,7 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
         metadata_with_resolution(
             LockfileResolution::Registry(RegistryResolution {
                 integrity: "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==".parse().expect("parse integrity"),
+                revision: None,
             }),
             None,
         ),

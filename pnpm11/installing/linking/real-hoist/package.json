@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.linking.real-hoist",
-  "version": "1100.1.13",
+  "version": "1100.1.16",
   "description": "Hoists dependencies in a node_modules created by pnpm",
   "keywords": [
     "pnpm",
@@ -34,6 +34,7 @@
   "dependencies": {
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/lockfile.utils": "workspace:*",
     "@yarnpkg/nm": "catalog:"
   },

@@ -2,11 +2,13 @@ import path from 'node:path'
 
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { createResolver } from '@pnpm/installing.client'
 import { logger } from '@pnpm/logger'
 import type { ResolveFunction } from '@pnpm/resolving.resolver-base'
 import type { ProjectRootDir, RegistriesByScope } from '@pnpm/types'
-import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
+import { filteredProjectsDependencies } from '@pnpm/workspace.projects-sorter'
+import { scheduleGraph, type TaskCompletion } from '@pnpm/workspace.task-scheduler'
 import pFilter from 'p-filter'
 import { pick } from 'ramda'
 import { writeJsonFile } from 'write-json-file'
@@ -48,7 +50,6 @@ Partial<Pick<Config,
 | 'localAddress'
 | 'lockfileDir'
 | 'noProxy'
-| 'npmPath'
 | 'offline'
 | 'strictSsl'
 | 'unsafePerm'
@@ -118,58 +119,67 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortFilteredProjects(opts)
+    const projectDependencies = filteredProjectsDependencies(opts)
     const tag = opts.tag ?? 'latest'
     if (opts.batch) {
-      const sortedPkgs = chunks
-        .flat()
+      const sortedPkgs = graphSequencer(projectDependencies).order
         .filter((pkgDir) => publishedPkgDirs.has(pkgDir))
         .map((pkgDir) => opts.selectedProjectsGraph[pkgDir].package)
       publishedPackages.push(...await batchPublishPackages(sortedPkgs, { ...opts, tag }))
     } else {
       const commandArgs = opts.stage ? ['stage', 'publish'] : ['publish']
-      for (const chunk of chunks) {
-        // We can't run publish concurrently due to the npm CLI asking for OTP.
-        // NOTE: If we solve the OTP issue, we still need to limit packages concurrency.
-        // Otherwise, publishing will consume too much resources.
-        // See related issue: https://github.com/pnpm/pnpm/issues/6968
-        for (const pkgDir of chunk) {
-          if (!publishedPkgDirs.has(pkgDir)) continue
-          const pkg = opts.selectedProjectsGraph[pkgDir].package
-          // The registry is picked by scope, so a `publishConfig.name` that
-          // moves the package to another scope has to route by the new one.
-          const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registriesByScope, publishedName(pkg.manifest)!)
-          // eslint-disable-next-line no-await-in-loop
-          const publishResult = await publish({
-            ...opts,
-            dir: pkg.rootDir,
-            argv: {
-              original: [
-                ...commandArgs,
-                '--tag',
-                tag,
-                '--registry',
-                registry,
-                ...appendedArgs,
-              ],
-            },
-            gitChecks: false,
-            recursive: false,
-          }, [pkg.rootDir])
-          if (publishResult?.publishSummary != null) {
-            publishedPackages.push(publishResult.publishSummary)
-          } else {
+      let firstError: unknown
+      let exitCode = 0
+      await scheduleGraph(projectDependencies, {
+        bail: true,
+        concurrency: 1,
+        runNode: async (pkgDir): Promise<TaskCompletion> => {
+          try {
+            if (!publishedPkgDirs.has(pkgDir)) return 'passed'
+            const pkg = opts.selectedProjectsGraph[pkgDir].package
+            // The registry is picked by scope, so a `publishConfig.name` that
+            // moves the package to another scope has to route by the new one.
+            const registry = pkg.manifest.publishConfig?.registry ?? pickRegistryForPackage(opts.registriesByScope, publishedName(pkg.manifest)!)
+
+            const publishResult = await publish({
+              ...opts,
+              dir: pkg.rootDir,
+              argv: {
+                original: [
+                  ...commandArgs,
+                  '--tag',
+                  tag,
+                  '--registry',
+                  registry,
+                  ...appendedArgs,
+                ],
+              },
+              gitChecks: false,
+              recursive: false,
+            }, [pkg.rootDir])
+            if (publishResult?.publishSummary != null) {
+              publishedPackages.push(publishResult.publishSummary)
+            } else {
             // Fallback for paths that don't produce a full PublishSummary (e.g. dry run via the
             // legacy npm-CLI bridge, or future call sites that bypass publishPackedPkg).
-            const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
-            if (publishedManifest != null) {
-              publishedPackages.push(pick(['name', 'version'], publishedManifest))
-            } else if (publishResult?.exitCode) {
-              return { exitCode: publishResult.exitCode, publishedPackages }
+              const publishedManifest = publishResult?.publishedManifest ?? publishResult?.manifest
+              if (publishedManifest != null) {
+                publishedPackages.push(pick(['name', 'version'], publishedManifest))
+              } else if (publishResult?.exitCode) {
+                exitCode = publishResult.exitCode
+                return 'aborted'
+              }
             }
+            return 'passed'
+          } catch (error: unknown) {
+            firstError ??= error
+            return 'aborted'
           }
-        }
-      }
+        },
+        onNodeSkipped: () => {},
+      })
+      if (firstError != null) throw firstError
+      if (exitCode !== 0) return { exitCode, publishedPackages }
     }
   }
   if (opts.reportSummary) {

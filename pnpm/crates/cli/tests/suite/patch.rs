@@ -8,6 +8,7 @@ use pnpm_store_dir::{StoreDir, StoreIndex};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
+    git_repo::GitRepoFixture,
 };
 use serde_json::Value;
 use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
@@ -438,6 +439,62 @@ fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
         "is-positive@1.0.0.patch",
         "allowBuilds: {}\n",
     );
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14273>.
+#[test]
+fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, store_dir, cache_dir, .. } = npmrc_info;
+    let repo = GitRepoFixture::init(root.path(), "patched-git-dependency");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "main": "index.js",
+        })
+        .to_string(),
+    );
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("initial package");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": repo.git_url_at(&commit),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive@3.1.0.patch"), MARKER_PATCH)
+        .expect("write patch file");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "\n  is-positive@3.1.0: patches/is-positive@3.1.0.patch",
+    );
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    let marker = workspace.join("node_modules/is-positive/patched-marker.txt");
+    assert_eq!(fs::read_to_string(&marker).expect("read fresh marker"), "patched\n");
+    let patch_hash = patch_file_hash(&workspace, "is-positive@3.1.0.patch");
+    let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
+    assert!(
+        snapshots.iter().any(|key| key.contains(&format!("(patch_hash={patch_hash})"))),
+        "snapshots: {snapshots:?}",
+    );
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    remove_dir_if_exists(&store_dir);
+    remove_dir_if_exists(&cache_dir);
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read frozen marker"), "patched\n");
+
+    drop((root, mock_instance));
 }
 
 /// TS: `the patched package is updated if the patch is modified`
@@ -1493,6 +1550,51 @@ fn setup_configured_patch_with_allow_unused(
     (root, workspace, npmrc_info)
 }
 
+fn setup_filtered_patch_workspace() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
+        .expect("write root package.json");
+    let project = workspace.join("packages").join("pkg-a");
+    fs::create_dir_all(&project).expect("create pkg-a dir");
+    fs::write(
+        project.join("package.json"),
+        serde_json::json!({
+            "name": "pkg-a",
+            "dependencies": {
+                "is-positive": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write pkg-a package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
+        .expect("write patch file");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str(concat!(
+        "packages:\n",
+        "  - 'packages/*'\n",
+        "patchedDependencies:\n",
+        "  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    ));
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    (root, workspace, npmrc_info)
+}
+
+fn append_unused_filtered_patch(workspace: &Path) {
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    workspace_yaml.push_str("  is-negative@1.0.0: patches/is-positive@1.0.0.patch\n");
+    fs::write(workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+}
+
 #[test]
 fn unused_patch_fails_with_err_pnpm_unused_patch() {
     let (root, workspace, npmrc_info) = setup_configured_patch_with_allow_unused(
@@ -1555,45 +1657,12 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
     drop((root, mock_instance));
 }
 
-/// pnpm only verifies patch usage when every workspace importer was part
-/// of the resolution, so a filtered install must not fail on an unused
-/// patch.
+/// pnpm skips patch usage validation when a first filtered install's
+/// previous wanted lockfile does not cover every resolved importer.
 #[test]
 fn unused_patch_is_not_checked_on_a_filtered_install() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    fs::write(workspace.join("package.json"), serde_json::json!({}).to_string())
-        .expect("write root package.json");
-    let project = workspace.join("packages").join("pkg-a");
-    fs::create_dir_all(&project).expect("create pkg-a dir");
-    fs::write(
-        project.join("package.json"),
-        serde_json::json!({
-            "name": "pkg-a",
-            "dependencies": {
-                "is-positive": "1.0.0",
-            },
-        })
-        .to_string(),
-    )
-    .expect("write pkg-a package.json");
-    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
-    fs::write(workspace.join("patches").join("is-positive@1.0.0.patch"), IS_POSITIVE_PATCH)
-        .expect("write patch file");
-    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut workspace_yaml =
-        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
-    if !workspace_yaml.ends_with('\n') {
-        workspace_yaml.push('\n');
-    }
-    workspace_yaml.push_str(concat!(
-        "packages:\n",
-        "  - 'packages/*'\n",
-        "patchedDependencies:\n",
-        "  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
-        "  is-negative@1.0.0: patches/is-positive@1.0.0.patch\n",
-    ));
-    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+    let (root, workspace, npmrc_info) = setup_filtered_patch_workspace();
+    append_unused_filtered_patch(&workspace);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     let output =
@@ -1604,6 +1673,29 @@ fn unused_patch_is_not_checked_on_a_filtered_install() {
     assert!(
         !stderr.contains("ERR_PNPM_UNUSED_PATCH"),
         "filtered install should not run the unused-patch check: {stderr}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A filtered selection augmented with the workspace root covers every
+/// importer once the previous wanted lockfile does too, so pnpm validates
+/// unused patches.
+#[test]
+fn unused_patch_is_checked_for_a_complete_root_augmented_filtered_install() {
+    let (root, workspace, npmrc_info) = setup_filtered_patch_workspace();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    pacquet(&workspace, ["install"]).assert().success();
+    append_unused_filtered_patch(&workspace);
+
+    let output =
+        pacquet(&workspace, ["install", "--filter", "pkg-a"]).output().expect("run install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "complete filtered install should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_UNUSED_PATCH"),
+        "complete filtered install should run the unused-patch check: {stderr}",
     );
 
     drop((root, mock_instance));

@@ -13,7 +13,7 @@ import type { IncludedDependencies } from '@pnpm/installing.modules-yaml'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import type { PreferredVersions, ResolutionPolicyViolation, ResolutionVerifier, WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ReadPackageHook, RegistryConfig, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import type { AllowedDeprecatedVersions, PackageExtension, PackageVulnerabilityAudit, PeerDependencyRules, ProjectRootDir, ReadPackageHook, RegistryConfig, RegistryContext, RemoteSideEffectsCacheSettings, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
 
 import { pnpmPkgJson } from '../pnpmPkgJson.js'
 import type { ReporterFunction } from '../types.js'
@@ -147,6 +147,7 @@ export interface StrictInstallOptions extends RegistryContext {
   patchedDependencies?: Record<string, string>
 
   allProjects: ProjectOptions[]
+  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   resolveSymlinksInInjectedDirs: boolean
   dedupeDirectDeps: boolean
   dedupeInjectedDeps: boolean
@@ -271,6 +272,7 @@ export interface StrictInstallOptions extends RegistryContext {
    * only the files missing from the client's store.
    */
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
 }
 
 export type InstallOptions =

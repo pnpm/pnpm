@@ -4,10 +4,7 @@ use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    NetworkError, PackageTag, RangeSpecStyle, RegistryError,
-    package_distribution::PackageDistribution,
-};
+use crate::{NetworkError, PackageTag, RegistryError, package_distribution::PackageDistribution};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -269,6 +266,9 @@ impl PackageVersion {
             .send()
             .await
             .map_err(network_error)?
+            // See the same guard in `Package::fetch_from_registry`.
+            .error_for_status()
+            .map_err(network_error)?
             .json::<PackageVersion>()
             .await
             .map_err(network_error)?
@@ -295,14 +295,6 @@ impl PackageVersion {
         dependencies
             .chain(peer_dependencies)
             .map(|(name, version)| (name.as_str(), version.as_str()))
-    }
-
-    #[must_use]
-    pub fn serialize(&self, range_spec_style: RangeSpecStyle) -> String {
-        if !self.version.pre_release.is_empty() {
-            return self.version.to_string();
-        }
-        format!("{0}{1}", range_spec_style.range_prefix(), self.version)
     }
 }
 

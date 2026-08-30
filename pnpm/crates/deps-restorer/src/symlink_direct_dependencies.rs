@@ -1,7 +1,7 @@
 use crate::{SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, symlink_package};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::LinkBinsError;
+use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::Config;
 use pnpm_lockfile::{
     ImporterDepVersion, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
@@ -107,9 +107,9 @@ where
     /// the strict malformed-lockfile rejection.
     pub trusted_importer_ids: Option<&'a HashSet<String>>,
 
-    /// [`crate::shim_extra_node_paths`] output — threaded into the
+    /// [`crate::shim_link_options`] output — threaded into the
     /// per-importer `.bin` shim pass.
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -168,7 +168,7 @@ where
             link_only,
             public_hoist_targets,
             trusted_importer_ids,
-            extra_node_paths,
+            link_options,
         } = self;
 
         // Collect once so the same group order can drive every importer.
@@ -189,9 +189,11 @@ where
         let modules_dir_name: &OsStr =
             config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
 
-        // Sorted iteration so `pnpm:root` event order stays
-        // deterministic. The wire shape doesn't require this, but a
-        // deterministic order makes assertions in tests tractable.
+        // Sorted so the fallible upfront validation below rejects a
+        // hostile lockfile on a deterministic importer. `pnpm:root`
+        // event order is not pinned — the per-importer work runs on
+        // rayon, matching pnpm's `Promise.all` over importers — so
+        // consumers key events off their `prefix`, never their order.
         let mut keys: Vec<&str> = importers.keys().map(String::as_str).collect();
         keys.sort_unstable();
 
@@ -226,50 +228,100 @@ where
             targets
         });
 
-        for importer_id in keys {
-            // Reject importer keys that would escape the workspace
-            // root. A malformed (or hostile) lockfile could otherwise
-            // make `Path::join` create `node_modules` outside the
-            // workspace — `Path::join` discards the base when the
-            // RHS is absolute, and `..` components are otherwise
-            // permitted. Importer ids the caller declared as projects
-            // (see [`Self::trusted_importer_ids`]) skip the check —
-            // an explicitly-configured project may live outside the
-            // lockfile dir.
-            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(importer_id)) {
+        // Reject importer keys that would escape the workspace
+        // root. A malformed (or hostile) lockfile could otherwise
+        // make `Path::join` create `node_modules` outside the
+        // workspace — `Path::join` discards the base when the
+        // RHS is absolute, and `..` components are otherwise
+        // permitted. Importer ids the caller declared as projects
+        // (see [`Self::trusted_importer_ids`]) skip the check —
+        // an explicitly-configured project may live outside the
+        // lockfile dir. Validated before any importer links, so a
+        // rejected lockfile writes nothing.
+        for importer_id in &keys {
+            if !trusted_importer_ids.is_some_and(|trusted| trusted.contains(*importer_id)) {
                 validate_importer_id(importer_id)?;
             }
-            // Safe: we just iterated `importers.keys()`.
-            let project_snapshot = &importers[importer_id];
-            let project_dir = importer_root_dir(workspace_root, importer_id);
-            let modules_dir = project_dir.join(modules_dir_name);
-
-            // Only non-root importers get deduped against root: the
-            // root project is linked unfiltered, then each sibling's
-            // list is trimmed against what root just linked.
-            let dedupe_against = match (&root_targets, importer_id) {
-                (Some(targets), id) if id != "." => Some(targets),
-                _ => None,
-            };
-
-            link_one_importer::<Reporter>(
-                importer_id,
-                layout,
-                project_snapshot,
-                packages,
-                &project_dir,
-                &modules_dir,
-                dependency_groups.iter().copied(),
-                skipped,
-                link_only,
-                dedupe_against,
-                config.symlink,
-                extra_node_paths,
-            )?;
         }
 
-        Ok(())
+        // One rayon task per importer, mirroring pnpm's `Promise.all`
+        // over `linkDirectDeps`' projects: each importer's symlink and
+        // bin work is independent (dedupe compares against the *plan*
+        // in `root_targets`, not the root importer's on-disk state), and
+        // a serial walk would insert a fork-join barrier per importer
+        // between the filesystem batches.
+        //
+        let task_groups = importer_task_groups(workspace_root, keys);
+        task_groups.par_iter().try_for_each(|group| {
+            group.iter().try_for_each(|importer_id| {
+                // Safe: the groups were built from `importers.keys()`.
+                let project_snapshot = &importers[*importer_id];
+                let project_dir = importer_root_dir(workspace_root, importer_id);
+                let modules_dir = project_dir.join(modules_dir_name);
+
+                // Only non-root importers get deduped against root: the
+                // root project is linked unfiltered, then each sibling's
+                // list is trimmed against what root links.
+                let dedupe_against = match (&root_targets, *importer_id) {
+                    (Some(targets), id) if id != "." => Some(targets),
+                    _ => None,
+                };
+
+                link_one_importer::<Reporter>(
+                    importer_id,
+                    layout,
+                    project_snapshot,
+                    packages,
+                    &project_dir,
+                    &modules_dir,
+                    dependency_groups.iter().copied(),
+                    skipped,
+                    link_only,
+                    dedupe_against,
+                    config.symlink,
+                    link_options,
+                )
+            })
+        })
     }
+}
+
+/// Partition validated importer keys into the concurrency-safe task
+/// groups the parallel link pass runs.
+///
+/// Distinct keys may alias one directory through the filesystem's own
+/// name folding — case-insensitivity, Unicode normalization (APFS),
+/// Windows short names and trailing dots — and a real pnpm lockfile
+/// can't produce them (project discovery would have collapsed the
+/// directories), but a hostile lockfile can, and two tasks mutating
+/// one `node_modules` would race. Rather than enumerate the folding
+/// rules, ask the filesystem: importers whose project dirs
+/// canonicalize to one path share a group, in the caller's (sorted)
+/// order, keeping the serial pass's deterministic last-writer outcome,
+/// while distinct projects pay one read-only `canonicalize` each. A
+/// project dir that doesn't exist yet has nothing on disk to
+/// canonicalize against — and no string transform can decide which
+/// not-yet-created names the filesystem will later fold together — so
+/// every canonicalization failure lands in one shared serial group.
+/// That costs nothing real: a genuine project's directory always
+/// exists by this point (its manifest was read during project
+/// discovery), so the shared group only ever collects the phantom
+/// importers of a malformed lockfile.
+fn importer_task_groups<'a>(workspace_root: &Path, keys: Vec<&'a str>) -> Vec<Vec<&'a str>> {
+    let mut task_groups: BTreeMap<PathBuf, Vec<&'a str>> = BTreeMap::new();
+    let mut unresolved: Vec<&'a str> = Vec::new();
+    for importer_id in keys {
+        let project_dir = importer_root_dir(workspace_root, importer_id);
+        match std::fs::canonicalize(&project_dir) {
+            Ok(canonical) => task_groups.entry(canonical).or_default().push(importer_id),
+            Err(_) => unresolved.push(importer_id),
+        }
+    }
+    let mut task_groups: Vec<Vec<&'a str>> = task_groups.into_values().collect();
+    if !unresolved.is_empty() {
+        task_groups.push(unresolved);
+    }
+    task_groups
 }
 
 /// Reject importer keys that would resolve outside the workspace root.
@@ -318,11 +370,15 @@ pub fn validate_importer_id(importer_id: &str) -> Result<(), SymlinkDirectDepend
     if importer_id.contains('\\') {
         return Err(unsafe_path());
     }
-    // Any `..` segment. Mirrors `path::Component::ParentDir` rejection
-    // without paying for full component iteration since importer keys
-    // are tiny.
+    // Any `..` segment (mirrors `path::Component::ParentDir` rejection),
+    // plus the non-canonical forms `.` and the empty segment (`a//b`,
+    // a trailing `/`). Pnpm only ever writes canonical relative keys,
+    // and a non-canonical key is not just malformed: two distinct keys
+    // like `packages/a` and `packages/./a` resolve to one directory,
+    // and the importers now link concurrently — aliased keys would
+    // race their symlink and `.bin` writes against each other.
     for segment in importer_id.split('/') {
-        if segment == ".." {
+        if segment == ".." || segment == "." || segment.is_empty() {
             return Err(unsafe_path());
         }
     }
@@ -413,7 +469,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     link_only: bool,
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
     symlink: bool,
-    extra_node_paths: &[String],
+    link_options: &LinkBinsOptions,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
@@ -544,11 +600,11 @@ fn link_one_importer<Reporter: self::Reporter>(
     if symlink {
         let deps: Vec<(String, PathBuf)> =
             entries.iter().map(|entry| (entry.name_str.clone(), entry.target.clone())).collect();
-        crate::link_direct_dep_bins_resolved(modules_dir, &deps, extra_node_paths)
+        crate::link_direct_dep_bins_resolved(modules_dir, &deps, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
         let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();
-        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, extra_node_paths)
+        crate::link_direct_dep_bins_from_locations(modules_dir, &locations, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     }
 

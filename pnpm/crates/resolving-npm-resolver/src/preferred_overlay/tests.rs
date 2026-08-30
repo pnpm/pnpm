@@ -57,7 +57,6 @@ fn make_package() -> Package {
         etag: None,
         homepage: None,
         mutex: std::sync::Arc::default(),
-        release_age_upgrade_checked: false,
         derived: DerivedPackuments::default(),
     }
 }
@@ -67,6 +66,7 @@ fn range_spec() -> RegistryPackageSpec {
         name: "foo".to_string(),
         fetch_spec: ">=2.1.3 <3.0.0-0".to_string(),
         spec_type: RegistryPackageSpecType::Range,
+        revision: None,
         normalized_bare_specifier: None,
     }
 }

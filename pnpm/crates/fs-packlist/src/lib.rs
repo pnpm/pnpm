@@ -21,9 +21,8 @@
 //!    anything outside that set (except the always-included files
 //!    handled in pass 3).
 //! 3. **Always-include** the standard files: `package.json`,
-//!    `README*` / `LICEN[SC]E*` / `CHANGES*` / `CHANGELOG*` /
-//!    `HISTORY*` / `NOTICE*` at the root, plus the paths declared in
-//!    `main` / `bin`. These survive `.npmignore` rejection and the
+//!    `README*` / `LICEN[SC]E*` at the root, plus the paths declared
+//!    in `main` / `bin`. These survive `.npmignore` rejection and the
 //!    `files`-field filter.
 //! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
@@ -85,8 +84,7 @@ const MAX_BUNDLE_DEPTH: u32 = 32;
 /// Case-insensitive prefix matches for files always-included at the
 /// package root regardless of `.npmignore` / `files`. Mirrors
 /// `npm-packlist`'s `alwaysIncluded` set.
-const ALWAYS_INCLUDED_PREFIXES: &[&str] =
-    &["readme", "license", "licence", "changes", "changelog", "history", "notice"];
+const ALWAYS_INCLUDED_PREFIXES: &[&str] = &["readme", "license", "licence"];
 
 /// Version-control directory names that exclude every file under
 /// them at any depth. Drops VCS state from a published package
@@ -501,10 +499,11 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut added = 0;
     for entry in entries {
         let Some(raw) = entry.as_str() else { continue };
-        let pattern = normalize_field_path(raw);
-        if pattern.is_empty() {
+        let normalized = normalize_field_path(raw);
+        if normalized.is_empty() {
             continue;
         }
+        let pattern = anchor_files_entry(&normalized);
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
@@ -530,6 +529,17 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
             None
         }
     }
+}
+
+/// Anchor a [`normalize_field_path`]-ed `files` entry at the package
+/// root — the matcher is rooted there, so the leading slash is what
+/// binds the pattern to it. An exclusion is left unanchored, matching
+/// how npm-packlist hands a negated entry to `ignore-walk`.
+fn anchor_files_entry(pattern: &str) -> String {
+    if pattern.starts_with('!') {
+        return pattern.to_string();
+    }
+    format!("/{pattern}")
 }
 
 /// `true` when `rel` matches the `files`-field allowlist. The matcher

@@ -11,13 +11,17 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pnpm-crypto-hash = { workspace = true }
-pnpm-fs          = { workspace = true }
+pnpm-crypto-hash                       = { workspace = true }
+pnpm-deps-path                         = { workspace = true }
+pnpm-fs                                = { workspace = true }
+pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-shared-artifact-protocol          = { workspace = true }
 
 dashmap       = { workspace = true }
 derive_more   = { workspace = true }
 dunce         = { workspace = true }
 miette        = { workspace = true }
+node-semver   = { workspace = true }
 rmp-serde     = { workspace = true }
 rusqlite      = { workspace = true }
 serde         = { workspace = true }

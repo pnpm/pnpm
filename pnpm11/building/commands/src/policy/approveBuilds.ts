@@ -1,20 +1,25 @@
+import fs from 'node:fs'
+
 import { checkbox, confirm } from '@inquirer/prompts'
 import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
+import { scanGlobalPackages } from '@pnpm/global.packages'
 import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
 import { globalInfo } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
+import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
+import { isSubdir } from 'is-subdir'
 import { renderHelp } from 'render-help'
 
 import { rebuild, type RebuildCommandOpts } from '../build/index.js'
 import { getAutomaticallyIgnoredBuilds } from './getAutomaticallyIgnoredBuilds.js'
 
-export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
+export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allowBuilds' | 'enableGlobalVirtualStore' | 'globalPkgDir'> & Pick<ConfigContext, 'rootProjectManifest' | 'rootProjectManifestDir'> & {
   all?: boolean
   global?: boolean
   /**
@@ -27,6 +32,9 @@ export type ApproveBuildsCommandOpts = Pick<Config, 'modulesDir' | 'dir' | 'allo
 }
 
 export const commandNames = ['approve-builds']
+
+// pnpm-workspace.yaml settings that allowBuilds replaced in pnpm 11.
+const LEGACY_BUILD_SETTINGS = ['onlyBuiltDependencies', 'onlyBuiltDependenciesFile', 'neverBuiltDependencies', 'ignoredBuiltDependencies']
 
 export const recursiveByDefault = true
 
@@ -46,6 +54,11 @@ export function help (): string {
             description: 'Approve all pending dependencies without interactive prompts',
             name: '--all',
           },
+          {
+            description: 'Approve builds for globally installed packages',
+            name: '--global',
+            shortAlias: '-g',
+          },
         ],
       },
     ],
@@ -64,28 +77,15 @@ export function rcOptionsTypes (): Record<string, unknown> {
 }
 
 export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOpts, params: string[] = [], commands?: CommandHandlerMap): Promise<void> {
-  if (opts.global) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL',
-      '"approve-builds" is not supported with global packages',
-      {
-        hint: 'Use --allow-build when installing globally, e.g. "pnpm add -g --allow-build=<pkg> <pkg>". ' +
-          'pnpm will also prompt to allow builds interactively during global install.',
-      }
-    )
-  }
   if (opts.all && params.length) {
     throw new PnpmError(
       'APPROVE_BUILDS_ALL_WITH_ARGS',
       'Cannot use --all with positional arguments'
     )
   }
-  const {
-    automaticallyIgnoredBuilds,
-    modulesDir,
-    modulesManifest,
-  } = await getAutomaticallyIgnoredBuilds(opts)
-  if (!automaticallyIgnoredBuilds?.length) {
+  const targets = await getApprovalTargets(opts)
+  const automaticallyIgnoredBuilds = sortUniqueStrings(targets.flatMap((target) => target.automaticallyIgnoredBuilds ?? []))
+  if (!automaticallyIgnoredBuilds.length) {
     globalInfo('There are no packages awaiting approval')
     return
   }
@@ -148,7 +148,10 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       throw err
     }
   }
-  const allowBuilds: Record<string, boolean | string> = { ...opts.allowBuilds }
+  const existingAllowBuilds = opts.global
+    ? (await readWorkspaceManifest(opts.globalPkgDir))?.allowBuilds
+    : opts.allowBuilds
+  const allowBuilds: Record<string, boolean | string> = { ...existingAllowBuilds }
   if (params.length) {
     for (const pkg of approved) {
       allowBuilds[pkg] = true
@@ -188,41 +191,75 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   }
   await writeSettings({
     ...opts,
-    workspaceDir: opts.settingsDir ?? opts.workspaceDir ?? opts.rootProjectManifestDir,
+    workspaceDir: opts.settingsDir ?? (opts.global ? opts.globalPkgDir : opts.workspaceDir ?? opts.rootProjectManifestDir),
     updatedSettings: { allowBuilds },
+    deletedLegacyKeys: LEGACY_BUILD_SETTINGS,
   })
-  if (modulesManifest?.ignoredBuilds) {
-    if (params.length) {
-      const decided = new Set([...approved, ...denied])
-      for (const depPath of Array.from(modulesManifest.ignoredBuilds)) {
-        const name = allowBuildKeyFromIgnoredBuild(depPath)
-        if (decided.has(name)) {
+  const decided = new Set([...approved, ...denied])
+  await Promise.all(targets.map(async ({ modulesDir, modulesManifest }) => {
+    if (!modulesManifest?.ignoredBuilds) return
+    if (!params.length) {
+      delete modulesManifest.ignoredBuilds
+    } else {
+      for (const depPath of modulesManifest.ignoredBuilds) {
+        if (decided.has(allowBuildKeyFromIgnoredBuild(depPath))) {
           modulesManifest.ignoredBuilds.delete(depPath)
         }
       }
-      if (!modulesManifest.ignoredBuilds.size) {
-        delete modulesManifest.ignoredBuilds
-      }
-    } else {
-      delete modulesManifest.ignoredBuilds
+      if (!modulesManifest.ignoredBuilds.size) delete modulesManifest.ignoredBuilds
     }
     await writeModulesManifest(modulesDir, modulesManifest as Modules)
-  }
-  if (buildPackages.length) {
-    if (opts.enableGlobalVirtualStore) {
+  }))
+  await Promise.all(targets.map(async (target) => {
+    const targetBuildPackages = buildPackages.filter((name) => target.automaticallyIgnoredBuilds?.includes(name))
+    if (!targetBuildPackages.length) return
+    if (target.opts.enableGlobalVirtualStore) {
       await install.handler({
-        ...opts,
+        ...target.opts,
         allowBuilds,
         frozenLockfile: true,
         optimisticRepeatInstall: false,
       } as any, [], commands) // eslint-disable-line @typescript-eslint/no-explicit-any
       return
     }
-    return rebuild.handler({
-      ...opts,
+    await rebuild.handler({
+      ...target.opts,
       allowBuilds,
-    }, buildPackages)
+    }, targetBuildPackages)
+  }))
+}
+
+interface ApprovalTarget {
+  automaticallyIgnoredBuilds: string[] | null
+  modulesDir: string
+  modulesManifest: Modules | null
+  opts: ApproveBuildsCommandOpts & RebuildCommandOpts
+}
+
+async function getApprovalTargets (opts: ApproveBuildsCommandOpts & RebuildCommandOpts): Promise<ApprovalTarget[]> {
+  if (!opts.global) {
+    return [{ ...await getAutomaticallyIgnoredBuilds(opts), opts }]
   }
+  const scannedGroups = scanGlobalPackages(opts.globalPkgDir)
+  if (!scannedGroups.length) return []
+  const globalPkgDir = fs.realpathSync(opts.globalPkgDir)
+  const groups = scannedGroups.filter(({ installDir }) => isSubdir(globalPkgDir, installDir))
+  return Promise.all(groups.map(async ({ installDir }) => {
+    const groupOpts = {
+      ...opts,
+      allProjects: undefined,
+      dir: installDir,
+      global: false,
+      lockfileDir: installDir,
+      modulesDir: undefined,
+      rootProjectManifest: undefined,
+      rootProjectManifestDir: installDir,
+      selectedProjectsGraph: undefined,
+      workspaceDir: undefined,
+      workspacePackagePatterns: undefined,
+    } as ApproveBuildsCommandOpts & RebuildCommandOpts
+    return { ...await getAutomaticallyIgnoredBuilds(groupOpts), opts: groupOpts }
+  }))
 }
 
 function sortUniqueStrings (array: string[]): string[] {

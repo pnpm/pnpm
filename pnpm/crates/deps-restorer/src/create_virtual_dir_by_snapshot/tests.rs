@@ -106,7 +106,10 @@ impl Drop for LinkConcurrencyGuard<'_> {
 /// A future change to pacquet's `PackageImportMethod` set must
 /// either extend this match or fail this test.
 #[test]
-fn optimistic_wire_method_collapses_auto_and_clone_or_copy_to_clone() {
+fn optimistic_wire_method_reports_each_platforms_ladder_head() {
+    #[cfg(target_os = "linux")]
+    assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Hardlink);
+    #[cfg(not(target_os = "linux"))]
     assert_eq!(optimistic_wire_method(PackageImportMethod::Auto), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::CloneOrCopy), WireImportMethod::Clone);
     assert_eq!(optimistic_wire_method(PackageImportMethod::Clone), WireImportMethod::Clone);
@@ -159,11 +162,13 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
         package_key: &package_key,
         snapshot: &snapshot,
         source_is_mutable: false,
+        force_import: false,
         include_optional_dependencies: true,
         symlink: true,
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<RecordingReporter>()
@@ -226,11 +231,13 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
         package_key: &package_key,
         snapshot: &snapshot,
         source_is_mutable: false,
+        force_import: false,
         include_optional_dependencies: true,
         symlink: true,
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: Some(&marker_source),
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>()
@@ -239,6 +246,54 @@ fn run_imports_needs_build_marker_with_a_fresh_package() {
     let package_dir = layout.slot_dir(&package_key).join("node_modules/react");
     assert!(package_dir.join("package.json").exists());
     assert!(package_dir.join(crate::NEEDS_BUILD_MARKER).is_file());
+}
+
+#[test]
+fn force_import_replaces_an_existing_package_at_the_same_snapshot_key() {
+    let dir = tempdir().expect("tempdir");
+    let cas_dir = dir.path().join("cas");
+    std::fs::create_dir_all(&cas_dir).expect("create cas dir");
+    let source = cas_dir.join("index.js");
+    std::fs::write(&source, "module.exports = 'new'\n").expect("write CAS source");
+
+    let package_key: PackageKey = "revision-pkg@1.0.0".parse().expect("package key");
+    let layout = crate::VirtualStoreLayout::legacy(
+        dir.path().join("virtual-store"),
+        pnpm_config::default_virtual_store_dir_max_length() as usize,
+    );
+    let package_dir = layout.slot_dir(&package_key).join("node_modules/revision-pkg");
+    std::fs::create_dir_all(&package_dir).expect("create existing package");
+    std::fs::write(package_dir.join("index.js"), "module.exports = 'old'\n")
+        .expect("write old package");
+    std::fs::write(package_dir.join("removed.js"), "old only\n").expect("write removed file");
+
+    CreateVirtualDirBySnapshot {
+        layout: &layout,
+        cas_paths: &HashMap::from([("index.js".to_string(), source)]),
+        import_method: PackageImportMethod::Copy,
+        logged_methods: &AtomicU8::new(0),
+        requester: "/proj",
+        package_id: "revision-pkg@1.0.0",
+        package_key: &package_key,
+        snapshot: &SnapshotEntry::default(),
+        source_is_mutable: false,
+        force_import: true,
+        include_optional_dependencies: true,
+        symlink: true,
+        skipped: &crate::SkippedSnapshots::default(),
+        removed_aliases: &[],
+        needs_build_marker_source: None,
+        dir_clone_cache: None,
+        link_concurrency_probe: None,
+    }
+    .run::<pnpm_reporter::SilentReporter>()
+    .expect("replace package contents");
+
+    assert_eq!(
+        std::fs::read_to_string(package_dir.join("index.js")).expect("read replaced package"),
+        "module.exports = 'new'\n",
+    );
+    assert!(!package_dir.join("removed.js").exists());
 }
 
 /// A snapshot key whose package name is a path traversal would become
@@ -269,11 +324,13 @@ fn run_rejects_traversal_package_name() {
         package_key: &package_key,
         snapshot: &snapshot,
         source_is_mutable: false,
+        force_import: false,
         include_optional_dependencies: true,
         symlink: true,
         skipped: &skipped,
         removed_aliases: &[],
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<pnpm_reporter::SilentReporter>();
@@ -322,11 +379,13 @@ async fn run_removes_obsolete_child_links() {
         package_key: &package_key,
         snapshot: &snapshot,
         source_is_mutable: false,
+        force_import: false,
         include_optional_dependencies: true,
         symlink: true,
         skipped: &skipped,
         removed_aliases: &removed_aliases,
         needs_build_marker_source: None,
+        dir_clone_cache: None,
         link_concurrency_probe: None,
     }
     .run::<SilentReporter>()

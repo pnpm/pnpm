@@ -1,14 +1,16 @@
 use crate::{
-    DIRECT_GROUPS, Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
+    Install, InstallError, ProjectMutation, ResolvedPackages, UpdateSeedPolicy,
     WorkspaceInstallSelection,
     catalog_cleanup::{
-        WriteWorkspaceCatalogsError, prune_minimum_release_age_excludes, write_workspace_catalogs,
+        WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    emit_initial_package_manifest, package_manifest_prefix, selected_project_indices,
+    defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
+    package_manifest_prefix, selected_project_indices,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pipe_trait::Pipe;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
@@ -102,7 +104,7 @@ impl Remove<'_> {
         validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
         prepare_manifest::<Reporter>(manifest, package_names, save_type);
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -114,7 +116,7 @@ impl Remove<'_> {
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the
             // re-resolve walks all three.
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             // The manifest was just edited, but the drift is exactly the
             // deleted importer edges, which the removal handler of the
@@ -154,6 +156,7 @@ impl Remove<'_> {
         }
         .run::<Reporter>()
         .await
+        .pipe(defer_ignored_builds)
         .map_err(RemoveError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
@@ -161,18 +164,21 @@ impl Remove<'_> {
         write_workspace_catalogs(config, None, &Catalogs::new(), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        prune_minimum_release_age_excludes(config, None, manifest)
-            .map_err(RemoveError::WriteWorkspaceManifest)?;
+        post_install_prune(config, None, manifest).map_err(RemoveError::WriteWorkspaceManifest)?;
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<std::path::PathBuf>],
+        project_dependencies: &indexmap::IndexMap<std::path::PathBuf, Vec<std::path::PathBuf>>,
         ordered_dirs: &[std::path::PathBuf],
         selected_dirs: &HashSet<std::path::PathBuf>,
+        install_dirs: &HashSet<std::path::PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), RemoveError> {
         let Remove {
@@ -205,7 +211,7 @@ impl Remove<'_> {
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf()
         });
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -214,7 +220,7 @@ impl Remove<'_> {
             emit_initial_manifest: false,
             lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
-            dependency_groups: DIRECT_GROUPS,
+            dependency_groups: included_direct_groups(config.optional),
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
@@ -242,12 +248,14 @@ impl Remove<'_> {
         }
         .run_selected::<Reporter>(WorkspaceInstallSelection {
             all_projects: projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         })
         .await
+        .pipe(defer_ignored_builds)
         .map_err(RemoveError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
@@ -255,8 +263,11 @@ impl Remove<'_> {
         write_workspace_catalogs_selected(config, &workspace_root, &Catalogs::new(), projects)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
 
-        prune_minimum_release_age_excludes(config, Some(&workspace_root), manifest)
+        post_install_prune(config, Some(&workspace_root), manifest)
             .map_err(RemoveError::WriteWorkspaceManifest)?;
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(RemoveError::Install(ignored_builds));
+        }
         Ok(())
     }
 }

@@ -14,6 +14,7 @@ use crate::{
 use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook,
 };
+use pnpm_network::redact_and_sanitize;
 use pnpm_package_manifest::safe_read_package_json_from_dir;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use serde_json::Value;
@@ -103,22 +104,10 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
-    // `allowBuild` check before any spawn. A dep path that isn't
-    // allowed throws ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
-    // from the fetched artifact itself, so its version only feeds the
-    // error message; the synthesized dep path is the gated identity.
-    // Resolution ids of git and tarball artifacts are never
-    // semver-shaped, so the policy derives an untrusted package
-    // identity from it and name-only rules can't approve the build.
+    assert_package_build_allowed(opts.allow_build.as_ref(), opts.pkg_resolution_id, &manifest)?;
+
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
-    if !(opts.allow_build)(&format!("{name}@{}", opts.pkg_resolution_id)) {
-        return Err(PreparePackageError::NotAllowed {
-            name: name.to_string(),
-            version: version.to_string(),
-        });
-    }
-
     let wanted_pm = detect_wanted_pm(git_root_dir, Some(&manifest));
     let pm = wanted_pm.pm;
     let dep_path = format!("{name}@{version}");
@@ -146,6 +135,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: opts.scripts_prepend_node_path,
         script_shell: opts.script_shell,
+        shell_emulator: false,
         optional: false,
     };
 
@@ -328,6 +318,24 @@ fn probe_host(wanted: &WantedPm) -> bool {
                 .map(str::trim)
                 .and_then(|version| node_semver::Version::parse(version).ok())
                 .is_some_and(|version| version.satisfies(wanted_range))
+    })
+}
+
+pub fn assert_package_build_allowed(
+    allow_build: AllowBuildRef<'_>,
+    pkg_resolution_id: &str,
+    manifest: &Value,
+) -> Result<(), PreparePackageError> {
+    let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
+    let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
+    let allow_build_dep_path = format!("{name}@{pkg_resolution_id}");
+    if allow_build(&allow_build_dep_path) {
+        return Ok(());
+    }
+    Err(PreparePackageError::NotAllowed {
+        name: name.to_string(),
+        version: version.to_string(),
+        dep_path: redact_and_sanitize(&allow_build_dep_path),
     })
 }
 

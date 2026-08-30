@@ -13,6 +13,7 @@ repository.workspace = true
 [dependencies]
 pnpm-diagnostics                       = { workspace = true }
 pnpm-executor                          = { workspace = true }
+pnpm-git-utils                         = { workspace = true }
 pnpm-network                           = { workspace = true }
 pnpm-network-web-auth                  = { workspace = true }
 pnpm-pack                              = { workspace = true }

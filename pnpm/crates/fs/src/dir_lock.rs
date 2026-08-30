@@ -16,12 +16,16 @@ use std::{
     path::{Path, PathBuf},
     sync::atomic::{AtomicU64, Ordering},
     thread::sleep,
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 /// How often the lock directory is retried while another process holds
 /// it.
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+
+/// How long a Windows lock-directory release may keep a competing
+/// `create_dir` in the delete-pending state.
+const RELEASE_RETRY_BUDGET: Duration = Duration::from_secs(1);
 
 /// Names the file inside the lock directory that records who took it.
 const OWNER_FILE: &str = "owner";
@@ -58,13 +62,22 @@ impl DirLock {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let deadline = SystemTime::now() + wait;
+        let deadline = Instant::now() + wait;
+        let mut release_retry_started = None;
         loop {
             match fs::create_dir(&path) {
                 Ok(()) => return claim(path).map(Some),
+                Err(error) if is_transient_release_error(&error) => {
+                    let started = release_retry_started.get_or_insert_with(Instant::now);
+                    if Instant::now() >= deadline || started.elapsed() >= RELEASE_RETRY_BUDGET {
+                        return Err(error);
+                    }
+                    sleep(POLL_INTERVAL);
+                    continue;
+                }
                 Err(error) if error.kind() != io::ErrorKind::AlreadyExists => return Err(error),
                 // Held by someone else: fall through to the wait below.
-                Err(_) => {}
+                Err(_) => release_retry_started = None,
             }
             if is_abandoned(&path, abandoned_after) {
                 // Best-effort: whoever removes it first wins the next
@@ -73,11 +86,34 @@ impl DirLock {
                 let _ = fs::remove_dir_all(&path);
                 continue;
             }
-            if SystemTime::now() >= deadline {
+            if Instant::now() >= deadline {
                 return Ok(None);
             }
             sleep(POLL_INTERVAL);
         }
+    }
+
+    /// Reports whether this acquisition still owns the lock after a possible takeover.
+    pub fn is_owner(&self) -> io::Result<bool> {
+        match fs::read_to_string(self.path.join(OWNER_FILE)) {
+            Ok(owner) => Ok(owner == self.token),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+fn is_transient_release_error(
+    #[cfg_attr(not(windows), allow(unused, reason = "only inspected on Windows"))]
+    error: &io::Error,
+) -> bool {
+    #[cfg(windows)]
+    {
+        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
+    }
+    #[cfg(not(windows))]
+    {
+        false
     }
 }
 

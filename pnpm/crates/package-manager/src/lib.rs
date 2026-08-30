@@ -25,7 +25,9 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod patch;
+mod peer_dependency_issues;
 mod prefetching_resolver;
+mod prune_merged_branch_lockfile;
 mod prune_virtual_store;
 mod remove;
 mod resolution_observer;
@@ -36,6 +38,7 @@ mod update;
 mod update_project_manifest;
 mod update_project_manifest_object;
 mod warn_on_stale_convergence_overrides;
+mod workspace_cycles;
 
 pub use add::*;
 pub use build_resolution_verifiers::*;
@@ -59,11 +62,16 @@ pub use pnpm_patching::{
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;
+pub use resolution_policy::{PickPolicy, create_configured_npm_resolver};
 pub use resolve_latest::ResolveLatestError;
 pub use tarball_prefetch::*;
 pub use update::*;
 pub use update_project_manifest::*;
 pub use update_project_manifest_object::*;
+pub use workspace_cycles::{
+    CyclicWorkspaceDependenciesError, install_scope_cycles, report_workspace_cycles,
+    workspace_cycles,
+};
 
 /// The dependency groups a project installs directly — `dependencies`,
 /// `devDependencies`, `optionalDependencies` — in the order pnpm's
@@ -77,6 +85,14 @@ pub(crate) const DIRECT_GROUPS: [pnpm_package_manifest::DependencyGroup; 3] = [
     pnpm_package_manifest::DependencyGroup::Dev,
     pnpm_package_manifest::DependencyGroup::Optional,
 ];
+
+pub fn included_direct_groups(
+    include_optional: bool,
+) -> impl Iterator<Item = pnpm_package_manifest::DependencyGroup> {
+    DIRECT_GROUPS.into_iter().filter(move |group| {
+        include_optional || *group != pnpm_package_manifest::DependencyGroup::Optional
+    })
+}
 
 pub(crate) fn package_manifest_prefix(manifest: &pnpm_package_manifest::PackageManifest) -> String {
     manifest.path().parent().unwrap_or_else(|| manifest.path()).to_string_lossy().into_owned()
@@ -96,3 +112,15 @@ pub(crate) fn emit_initial_package_manifest<Reporter: pnpm_reporter::Reporter>(
 
 #[cfg(test)]
 mod tests;
+
+/// The pnpmfiles an install runs, as configured. Every entry point that loads
+/// hooks or asks whether any exist reads the same pair of settings.
+#[must_use]
+pub fn pnpmfile_selection(
+    config: &pnpm_config::Config,
+) -> pnpm_hooks::finder::PnpmfileSelection<'_> {
+    pnpm_hooks::finder::PnpmfileSelection {
+        configured: config.pnpmfile.as_deref(),
+        global: config.global_pnpmfile.as_deref(),
+    }
+}

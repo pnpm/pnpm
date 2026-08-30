@@ -32,6 +32,17 @@ test('resolves named catalog', () => {
     .toEqual({ type: 'found', resolution: { catalogName: 'foo', specifier: '1.0.0' } })
 })
 
+test('resolves workspace protocol from catalog', () => {
+  const catalogs = {
+    foo: {
+      bar: 'workspace:*',
+    },
+  }
+
+  expect(resolveFromCatalog(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
+    .toEqual({ type: 'found', resolution: { catalogName: 'foo', specifier: 'workspace:*' } })
+})
+
 test('returns unused for specifier not using catalog protocol', () => {
   const catalogs = {
     foo: {
@@ -75,17 +86,6 @@ describe('misconfiguration', () => {
 
     expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
       .toThrow("Found invalid catalog entry using the catalog protocol recursively. The entry for 'bar' in catalog 'foo' is invalid.")
-  })
-
-  test('returns error for workspace protocol in catalog', () => {
-    const catalogs = {
-      foo: {
-        bar: 'workspace:*',
-      },
-    }
-
-    expect(() => resolveFromCatalogOrThrow(catalogs, { alias: 'bar', bareSpecifier: 'catalog:foo' }))
-      .toThrow("The workspace protocol cannot be used as a catalog value. The entry for 'bar' in catalog 'foo' is invalid.")
   })
 
   test('returns error for file protocol in catalog', () => {

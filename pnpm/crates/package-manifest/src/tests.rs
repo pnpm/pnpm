@@ -6,10 +6,10 @@ use pretty_assertions::assert_eq;
 use tempfile::{NamedTempFile, tempdir};
 
 use super::{
-    BundleDependencies, PackageManifest, PackageManifestError, apply_runtime_on_fail_override,
-    convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
-    extract_license, node_version_from_engines_runtime, parse_manifest_bytes,
-    safe_read_package_json_from_dir,
+    BundleDependencies, InitAuthor, InitOptions, PackageManifest, PackageManifestError,
+    apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
+    convert_engines_runtime_to_dependencies, extract_license, node_version_from_engines_runtime,
+    parse_manifest_bytes, safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -62,26 +62,73 @@ fn save_preserves_the_existing_package_json_permissions() {
 
 #[test]
 fn test_init_package_json_content() {
-    let manifest = PackageManifest::create_init_package_json("test");
+    let manifest = PackageManifest::create_init_package_json("test", InitOptions::default());
     assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
+}
+
+#[test]
+fn init_package_json_content_with_every_init_option() {
+    let manifest = PackageManifest::create_init_package_json(
+        "test",
+        InitOptions {
+            es_module: true,
+            pinned_pnpm_version: Some("11.22.0"),
+            author: InitAuthor {
+                name: Some("pnpm"),
+                email: Some("xxxxxx@pnpm.com"),
+                url: Some("https://www.github.com/pnpm"),
+            },
+            license: Some("MIT"),
+            version: Some("2.0.0"),
+        },
+    );
+    assert_snapshot!(serde_json::to_string_pretty(&manifest).unwrap());
+}
+
+#[test]
+fn an_author_renders_every_part_it_was_given() {
+    let author = |name, email, url| InitAuthor { name, email, url }.to_string();
+    assert_eq!(
+        author(Some("pnpm"), Some("xxxxxx@pnpm.com"), Some("https://www.github.com/pnpm")),
+        "pnpm <xxxxxx@pnpm.com> (https://www.github.com/pnpm)",
+    );
+    assert_eq!(author(Some("pnpm"), None, None), "pnpm");
+    assert_eq!(author(None, Some("xxxxxx@pnpm.com"), None), " <xxxxxx@pnpm.com>");
+    assert_eq!(author(None, None, None), "");
+    // A part set to the empty string is a part that was not given.
+    assert_eq!(author(Some("pnpm"), Some(""), Some("")), "pnpm");
+    assert_eq!(author(Some(""), Some(""), Some("")), "");
 }
 
 #[test]
 fn init_should_throw_if_exists() {
     let tmp = NamedTempFile::new().unwrap();
     write!(tmp.as_file(), "hello world").unwrap();
-    PackageManifest::init(tmp.path()).expect_err("package.json already exist");
+    PackageManifest::init(tmp.path(), InitOptions::default())
+        .expect_err("package.json already exist");
 }
 
 #[test]
 fn init_should_create_package_json_if_not_exist() {
     let dir = tempdir().unwrap();
     let tmp = dir.path().join("package.json");
-    PackageManifest::init(&tmp).unwrap();
+    PackageManifest::init(&tmp, InitOptions::default()).unwrap();
     eprintln!("tmp={tmp:?} exists={} is_file={}", tmp.exists(), tmp.is_file());
     assert!(tmp.exists());
     assert!(tmp.is_file());
     assert_eq!(PackageManifest::from_path(tmp.clone()).unwrap().path, tmp);
+}
+
+/// The scaffold `pnpm add` writes when there is no manifest yet carries no
+/// pin — only `pnpm init` pins the project to a pnpm version.
+#[test]
+fn create_if_needed_does_not_pin_a_package_manager() {
+    let dir = tempdir().unwrap();
+    let tmp = dir.path().join("package.json");
+    PackageManifest::create_if_needed(tmp.clone()).unwrap();
+    let contents = read_to_string(tmp).unwrap();
+    assert!(!contents.contains("packageManager"), "{contents}");
+    assert!(!contents.contains("devEngines"), "{contents}");
 }
 
 #[test]

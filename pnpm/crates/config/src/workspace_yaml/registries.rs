@@ -60,15 +60,18 @@ pub enum RegistryEntry {
 #[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryDeclaration {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<RegistryServerType>,
+    /// See [`RegistryOptions::supports_time_field`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_time_field: Option<bool>,
     /// The scopes routed here, `@`-prefixed. A bare `@` is the scope-less
     /// default registry, the one the `registry` setting names.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scopes: Option<Vec<String>>,
     /// The bare-specifier prefix this registry answers to, as in
     /// `"foo": "work:^1.0.0"`.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
     #[serde(flatten)]
     pub unknown: BTreeMap<String, serde_json::Value>,
@@ -117,6 +120,30 @@ pub struct RegistryLookups {
     /// verifies against.
     pub registries_by_prefix: BTreeMap<String, String>,
     pub registry_options_by_url: BTreeMap<String, RegistryOptions>,
+}
+
+/// The scopes `entries` routes, `@`-prefixed, with the bare `@` among them
+/// when one names the default registry.
+///
+/// Read without consuming the map, unlike [`into_lookups`], so that a later
+/// layer can tell a route a config file declared from one inferred from a
+/// credential. Both spellings of the default reach it: the `scopes` list of a
+/// declaration, and the older `default:` key that [`into_lookups`] reads as
+/// the same thing.
+#[must_use]
+pub fn routed_scopes(entries: &BTreeMap<String, RegistryEntry>) -> BTreeSet<String> {
+    entries
+        .iter()
+        .flat_map(|(key, entry)| match entry {
+            RegistryEntry::ScopeRoute(_) if key == "default" => {
+                vec![DEFAULT_REGISTRY_SCOPE.to_owned()]
+            }
+            RegistryEntry::ScopeRoute(_) => vec![key.clone()],
+            RegistryEntry::Declaration(declaration) => {
+                declaration.scopes.clone().unwrap_or_default()
+            }
+        })
+        .collect()
 }
 
 /// Reject a `registries` map pnpm would otherwise read as something other
@@ -255,10 +282,14 @@ fn extend_lookups_with_declarations(
 ) {
     for (registry, declaration) in entries {
         let normalized = normalize_registry_url(&registry);
-        if let Some(server_type) = declaration.server_type {
-            lookups
-                .registry_options_by_url
-                .insert(normalized.clone(), RegistryOptions { server_type: Some(server_type) });
+        if declaration.server_type.is_some() || declaration.supports_time_field.is_some() {
+            lookups.registry_options_by_url.insert(
+                normalized.clone(),
+                RegistryOptions {
+                    server_type: declaration.server_type,
+                    supports_time_field: declaration.supports_time_field,
+                },
+            );
         }
         for scope in declaration.scopes.into_iter().flatten() {
             if scope == DEFAULT_REGISTRY_SCOPE {
@@ -301,7 +332,28 @@ pub fn to_declarations(lookups: &RegistryLookups) -> BTreeMap<String, RegistryDe
         declarations.entry(registry.clone()).or_default().prefix = Some(prefix.clone());
     }
     for (registry, options) in &lookups.registry_options_by_url {
-        declarations.entry(registry.clone()).or_default().server_type = options.server_type;
+        let declaration = declarations.entry(registry.clone()).or_default();
+        declaration.server_type = options.server_type;
+        declaration.supports_time_field = options.supports_time_field;
+    }
+    declarations
+}
+
+/// [`to_declarations`] plus the default registry declared as the bare `@`
+/// scope — the resolved view `pnpm config get registries` prints, where
+/// nothing travels separately.
+#[must_use]
+pub fn to_resolved_declarations(
+    lookups: &RegistryLookups,
+) -> BTreeMap<String, RegistryDeclaration> {
+    let mut declarations = to_declarations(lookups);
+    if let Some(default_registry) = &lookups.default_registry {
+        declarations
+            .entry(default_registry.clone())
+            .or_default()
+            .scopes
+            .get_or_insert_with(Vec::new)
+            .insert(0, DEFAULT_REGISTRY_SCOPE.to_string());
     }
     declarations
 }

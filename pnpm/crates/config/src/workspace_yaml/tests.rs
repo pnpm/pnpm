@@ -1,9 +1,10 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    AllowBuild, LoadWorkspaceYamlError, SideEffectsCacheSetting, WORKSPACE_MANIFEST_FILENAME,
+    WorkspaceSettings,
     registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
-    AuditLevel, CatalogMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
+    AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
     ShimPolicy, TrustPolicy, api::EnvVar,
 };
@@ -39,6 +40,89 @@ packages:
     assert!(matches!(settings.node_linker, Some(NodeLinker::Hoisted)));
     assert_eq!(settings.node_experimental_package_map, Some(true));
     assert_eq!(settings.node_package_map_type, Some(NodePackageMapType::Loose));
+}
+
+#[test]
+fn parity_settings_parse_and_apply() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.bail);
+    assert_eq!(config.color, ColorMode::Never);
+    assert!(config.embed_readme);
+    assert!(config.ignore_workspace_root_check);
+    assert!(!config.optional);
+    assert!(!config.package_lock);
+    assert!(config.pending);
+    assert!(!config.recursive_install);
+    assert!(config.reverse);
+    assert!(config.shell_emulator);
+    assert!(config.skip_manifest_obfuscation);
+    assert!(!config.sort);
+    assert!(config.use_beta_cli);
+}
+
+#[test]
+fn color_accepts_boolean_compatibility_values() {
+    let always: WorkspaceSettings = serde_saphyr::from_str("color: true\n").unwrap();
+    let never: WorkspaceSettings = serde_saphyr::from_str("color: false\n").unwrap();
+    assert_eq!(always.color, Some(ColorMode::Always));
+    assert_eq!(never.color, Some(ColorMode::Never));
+}
+
+#[test]
+fn parity_settings_follow_global_config_key_routing() {
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+bail: false
+color: never
+embedReadme: true
+ignoreWorkspaceRootCheck: true
+optional: false
+packageLock: false
+pending: true
+recursiveInstall: false
+reverse: true
+shellEmulator: true
+skipManifestObfuscation: true
+sort: false
+useBetaCli: true
+",
+    )
+    .unwrap();
+    settings.clear_workspace_only_fields();
+
+    assert_eq!(settings.bail, Some(false));
+    assert_eq!(settings.color, Some(ColorMode::Never));
+    assert_eq!(settings.optional, Some(false));
+    assert_eq!(settings.package_lock, Some(false));
+    assert_eq!(settings.shell_emulator, Some(true));
+    assert_eq!(settings.use_beta_cli, Some(true));
+    assert_eq!(settings.embed_readme, None);
+    assert_eq!(settings.ignore_workspace_root_check, None);
+    assert_eq!(settings.pending, None);
+    assert_eq!(settings.recursive_install, None);
+    assert_eq!(settings.reverse, None);
+    assert_eq!(settings.skip_manifest_obfuscation, None);
+    assert_eq!(settings.sort, None);
 }
 
 #[test]
@@ -131,6 +215,48 @@ packages:
 }
 
 #[test]
+fn load_at_buckets_the_problem_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "$schema: https://json.schemastore.org/pnpm-workspace.json\n",
+            "configDir: /elsewhere\n",
+            "minimumReleaseAg: 100\n",
+            "store-dir: /some-store\n",
+            "nodeLinker: hoisted\n",
+            "globalShims:\n  node: true\n",
+            "packages:\n  - apps/*\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.refused, ["configDir"]);
+    assert_eq!(settings.key_issues.unrecognized, ["minimumReleaseAg"]);
+    assert_eq!(settings.key_issues.non_camel_case, ["store-dir"]);
+}
+
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "nodeLinker: hoisted\npackages:\n  - apps/*\ncatalog:\n  react: ^18\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+#[test]
 fn apply_overrides_npmrc_defaults() {
     let yaml = r"
 storeDir: /absolute/store
@@ -172,20 +298,72 @@ fn scope_survives_workspace_only_field_clearing() {
     assert_eq!(settings.scope.as_deref(), Some("@from-global"));
 }
 
+/// The workspace-structural keys are parsed so `pnpm config get` / `list`
+/// can show them, but only from the workspace yaml: the global `config.yaml`
+/// refuses them.
+#[test]
+fn structural_keys_are_parsed_and_are_workspace_only() {
+    let yaml = "
+packages: ['.']
+catalog:
+  react: ^19.0.0
+catalogs:
+  react17:
+    react: ^17.0.0
+onlyBuiltDependencies: [esbuild]
+neverBuiltDependencies: [fsevents]
+ignoredBuiltDependencies: [core-js]
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.packages.as_deref(), Some(&[".".to_owned()][..]));
+    assert_eq!(
+        settings.catalog.as_ref().and_then(|c| c.get("react")).map(String::as_str),
+        Some("^19.0.0"),
+    );
+    assert_eq!(
+        settings
+            .catalogs
+            .as_ref()
+            .and_then(|c| c.get("react17"))
+            .and_then(|c| c.get("react"))
+            .map(String::as_str),
+        Some("^17.0.0"),
+    );
+    assert_eq!(settings.only_built_dependencies.as_deref(), Some(&["esbuild".to_owned()][..]));
+    assert_eq!(settings.never_built_dependencies.as_deref(), Some(&["fsevents".to_owned()][..]));
+    assert_eq!(settings.ignored_built_dependencies.as_deref(), Some(&["core-js".to_owned()][..]));
+
+    settings.clear_workspace_only_fields();
+    assert_eq!(settings, WorkspaceSettings::default());
+}
+
+/// An empty `scope` is a value like any other — it would clear a scope the
+/// global `config.yaml` set — so it is refused like a non-empty one, while a
+/// file that names no scope reports nothing.
+#[test]
+fn an_empty_scope_is_refused_and_a_missing_one_is_not_reported() {
+    let mut empty = WorkspaceSettings::default();
+    empty.collect_key_issues("scope: ''\n");
+    assert_eq!(empty.key_issues.refused, vec!["scope".to_owned()]);
+
+    let mut absent = WorkspaceSettings::default();
+    absent.collect_key_issues("registry: https://reg.example/\n");
+    assert!(absent.key_issues.is_empty());
+}
+
 #[test]
 fn apply_scope_overrides_an_earlier_layer() {
-    // The workspace yaml is applied over the global `config.yaml`, so the
-    // project's scope wins — mirroring `registry`.
-    let settings: WorkspaceSettings = serde_saphyr::from_str("scope: '@from-yaml'\n").unwrap();
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("scope: '@from-later-layer'\n").unwrap();
     let mut config = Config::new();
     config.scope = Some("@from-global-config".to_owned());
     settings.apply_to(&mut config, Path::new("/irrelevant"));
-    assert_eq!(config.scope.as_deref(), Some("@from-yaml"));
+    assert_eq!(config.scope.as_deref(), Some("@from-later-layer"));
 }
 
 #[test]
 fn apply_resolves_relative_paths_against_base_dir() {
-    let yaml = "storeDir: ../shared-store\n";
+    let yaml = "storeDir: ../shared-store\npnpmfile: hooks/../custom.cjs\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     let mut config = Config::new();
     let base = Path::new("/workspace/root");
@@ -196,6 +374,12 @@ fn apply_resolves_relative_paths_against_base_dir() {
     // under test uses so the component separator matches on every
     // platform (Windows uses `\` between joined components).
     assert_eq!(config.store_dir, StoreDir::from(base.join("../shared-store")));
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs")]));
+
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("pnpmfile: [hooks/../custom.cjs, custom.cjs]\n").unwrap();
+    settings.apply_to(&mut config, base);
+    assert_eq!(config.pnpmfile, Some(vec![base.join("custom.cjs"), base.join("custom.cjs")]));
 }
 
 /// pnpm reads `fetchRetries` / `fetchRetryFactor` /
@@ -256,25 +440,28 @@ fn parses_git_checks_from_yaml_and_applies() {
     assert!(!config.git_checks);
 }
 
-/// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
-/// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
-/// onto the `Config`, matching pnpm.
 #[test]
 fn parses_network_settings_from_yaml_and_applies() {
     let yaml = r"
 networkConcurrency: 8
 fetchTimeout: 120000
+fetchWarnTimeoutMs: 20000
+fetchMinSpeedKiBps: 100
 userAgent: my-agent/2.0
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     assert_eq!(settings.network_concurrency, Some(8));
     assert_eq!(settings.fetch_timeout, Some(120_000));
+    assert_eq!(settings.fetch_warn_timeout_ms, Some(20_000));
+    assert_eq!(settings.fetch_min_speed_ki_bps, Some(100));
     assert_eq!(settings.user_agent.as_deref(), Some("my-agent/2.0"));
 
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.network_concurrency, 8);
     assert_eq!(config.fetch_timeout, 120_000);
+    assert_eq!(config.fetch_warn_timeout_ms, 20_000);
+    assert_eq!(config.fetch_min_speed_ki_bps, 100);
     assert_eq!(config.user_agent, "my-agent/2.0");
 }
 
@@ -480,6 +667,54 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
     assert!(!config.verify_store_integrity, "yaml override wins");
 }
 
+/// `strictStorePkgContentCheck` decides whether a store row that holds
+/// another package fails the install. Same camelCase rename +
+/// `apply_to` wiring as `verifyStoreIntegrity`, and the same
+/// default-true polarity.
+#[test]
+fn parses_strict_store_pkg_content_check_from_yaml_and_applies() {
+    let yaml = "strictStorePkgContentCheck: false\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.strict_store_pkg_content_check, Some(false));
+
+    let mut config = Config::new();
+    assert!(config.strict_store_pkg_content_check, "the default is `true` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.strict_store_pkg_content_check, "yaml override wins");
+}
+
+/// `includeWorkspaceRoot` keeps the workspace root in a recursive
+/// selection. Default `false`, so the yaml has to flip it on.
+#[test]
+fn parses_include_workspace_root_from_yaml_and_applies() {
+    let yaml = "includeWorkspaceRoot: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.include_workspace_root, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.include_workspace_root, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.include_workspace_root, "yaml override wins");
+}
+
+/// The two workspace-cycle knobs are independent keys — one silences the
+/// report, the other promotes it to an error — so a file setting both is
+/// applied to both fields.
+#[test]
+fn parses_the_workspace_cycle_settings_from_yaml_and_applies() {
+    let yaml = "ignoreWorkspaceCycles: true\ndisallowWorkspaceCycles: true\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.ignore_workspace_cycles, Some(true));
+    assert_eq!(settings.disallow_workspace_cycles, Some(true));
+
+    let mut config = Config::new();
+    assert!(!config.ignore_workspace_cycles, "the default is `false` to match pnpm");
+    assert!(!config.disallow_workspace_cycles, "the default is `false` to match pnpm");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(config.ignore_workspace_cycles, "yaml override wins");
+    assert!(config.disallow_workspace_cycles, "yaml override wins");
+}
+
 /// `sideEffectsCache` is the side-effects cache READ-path knob from
 /// pnpm-workspace.yaml. Same shape as `verifyStoreIntegrity`:
 /// camelCase rename + `apply_to` wiring. Parsing a yaml that flips
@@ -489,7 +724,7 @@ fn parses_verify_store_integrity_from_yaml_and_applies() {
 fn parses_side_effects_cache_from_yaml_and_applies() {
     let yaml = "sideEffectsCache: false\n";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.side_effects_cache, Some(false));
+    assert_eq!(settings.side_effects_cache, Some(SideEffectsCacheSetting::Enabled(false)));
 
     let mut config = Config::new();
     assert!(config.side_effects_cache, "the default is `true` to match pnpm");
@@ -745,6 +980,550 @@ allowBuilds:
     assert!(config.allow_builds.is_empty(), "default is empty");
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.allow_builds.get("esbuild").copied(), Some(true));
+}
+
+#[test]
+fn parses_remote_side_effects_cache_from_yaml_and_applies() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+remoteSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// A boolean says whether to read and write. It says nothing about the remote
+/// tier, so one an earlier layer declared has to survive it — otherwise
+/// `sideEffectsCache: false` in a project silently discards the org and
+/// eligibility list the machine's global config set.
+#[test]
+fn a_later_shorthand_keeps_the_remote_tier() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// Retaining a remote tier across a boolean must not change what the boolean
+/// and `sideEffectsCacheReadonly` mean together: the read-only pair reads,
+/// whether or not a remote tier was declared earlier.
+#[test]
+fn a_retained_remote_tier_does_not_change_the_read_only_pair() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: acme
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache: false
+sideEffectsCacheReadonly: true
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read(), "the read-only pair still reads");
+    assert!(!config.side_effects_cache_write());
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
+}
+
+/// A file may carry both spellings of the field; `org` wins, and neither is a
+/// parse error the way a serde alias would have made them.
+#[test]
+fn the_canonical_org_wins_over_the_alternative_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    org: canonical
+    organization: alternative
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "canonical");
+}
+
+/// Layers apply in order, so a shorthand in a later one has to beat an object
+/// in an earlier one rather than being masked by what the object left behind.
+#[test]
+fn a_later_shorthand_overrides_an_earlier_object() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: true
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/global"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
+/// `organization` shipped in pacquet 12.0.0, so a file written for it keeps
+/// working; `org` is what pnpr calls the same namespace.
+#[test]
+fn accepts_the_older_organization_spelling() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+}
+
+#[test]
+fn parses_the_canonical_side_effects_cache_declaration() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: false
+  remote:
+    organization: acme
+    packages:
+      - native-addon
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+}
+
+/// Naming the remote tier says nothing about the local one, which was on by
+/// default before this setting grew an object form.
+#[test]
+fn declaring_only_the_remote_tier_leaves_the_local_one_on() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+}
+
+#[test]
+fn the_boolean_shorthand_still_reads_and_writes() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("sideEffectsCache: false").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+}
+
+/// The two spellings of the remote tier compose rather than replace, so a
+/// repository may name the packages under one and the organization under the
+/// other without either dropping the other's fields.
+#[test]
+fn the_canonical_declaration_wins_over_the_older_spellings() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCacheReadonly: true
+remoteSideEffectsCache:
+  packages:
+    - from-the-old-key
+sideEffectsCache:
+  read: false
+  write: true
+  remote:
+    organization: acme
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(config.side_effects_cache_write());
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["from-the-old-key"]);
+}
+
+/// The trust boundary follows the fields rather than the spelling, so the
+/// canonical form must refuse everything the older one does — and the message
+/// has to name the key the file actually wrote.
+#[test]
+fn rejects_workspace_controlled_trust_material_under_the_canonical_spelling() {
+    for (trust_material, field) in [
+        ("trustedKeys:\n      acme-2026: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+        ("publish: true", "publish"),
+        ("keyId: acme-2026", "keyId"),
+        ("builderId: ci/main/42", "builderId"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n      CC: clang", "buildEnv"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!("sideEffectsCache:\n  remote:\n    org: acme\n    {trust_material}\n"),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err().to_string();
+        assert!(error.contains(&format!("sideEffectsCache.remote.{field}")), "{error}");
+    }
+}
+
+/// A repository that could set `publish` would turn a key the machine holds for
+/// its own builds into a signing oracle, so every field but the two that
+/// declare eligibility is refused.
+#[test]
+fn rejects_workspace_controlled_shared_side_effects_trust_material() {
+    for (trust_material, field) in [
+        ("trustedKeys:\n    acme-2026: repository-controlled-key", "trustedKeys"),
+        ("privateKey: repository-controlled-key", "privateKey"),
+        ("publish: true", "publish"),
+        ("keyId: acme-2026", "keyId"),
+        ("builderId: ci/main/42", "builderId"),
+        ("imageDigest: sha256:abc", "imageDigest"),
+        ("architectureBaseline: x64", "architectureBaseline"),
+        ("buildEnv:\n    CC: clang", "buildEnv"),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+            format!(
+                "remoteSideEffectsCache:\n  organization: acme\n  packages:\n    - native-addon\n  {trust_material}\n",
+            ),
+        )
+        .unwrap();
+
+        let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+        assert!(error.to_string().contains(field), "{error}");
+    }
+}
+
+/// The machine keeps the publication switch a repository may not touch.
+#[test]
+fn a_workspace_declaring_eligibility_keeps_the_machines_publication_settings() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "remoteSideEffectsCache:\n  organization: acme\n  packages:\n    - native-addon\n",
+    )
+    .unwrap();
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+remoteSideEffectsCache:
+  publish: true
+  keyId: acme-2026
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::load_at(dir.path()).unwrap().unwrap().apply_to(&mut config, dir.path());
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.publish, Some(true));
+    assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
+}
+
+/// The variables are named for the setting they configure, and the names that
+/// matched the older spelling keep working — a machine set up before the rename
+/// is not something a `pnpm install` should start ignoring.
+///
+/// Every suffix is covered because they do not share a parsing path: `PUBLISH`
+/// is a boolean, `BUILD_ENV` and `TRUSTED_KEYS` are JSON, the rest are strings.
+#[test]
+fn the_remote_tier_reads_both_environment_spellings() {
+    const CANONICAL: &str = "PNPM_SIDE_EFFECTS_CACHE_REMOTE_";
+    const OLDER: &str = "PNPM_REMOTE_SIDE_EFFECTS_CACHE_";
+
+    fn read(prefixes: &[&'static str], suffix: &'static str, value: &'static str) -> Config {
+        // A thread-local rather than a generic per case: `EnvVar` is a trait
+        // with an associated function, so the case has to reach it somehow.
+        CASE.with(|case| *case.borrow_mut() = Some((prefixes.to_vec(), suffix, value)));
+        struct Env;
+        impl crate::EnvVar for Env {
+            fn var(key: &str) -> Option<String> {
+                CASE.with(|case| {
+                    let borrowed = case.borrow();
+                    let (prefixes, suffix, value) = borrowed.as_ref()?;
+                    prefixes
+                        .iter()
+                        .any(|prefix| key == format!("{prefix}{suffix}"))
+                        .then(|| (*value).to_string())
+                })
+            }
+        }
+        let mut config = Config::new();
+        config.apply_remote_side_effects_cache_env::<Env>();
+        config
+    }
+
+    for suffix in ["KEY_ID", "BUILDER_ID", "IMAGE_DIGEST", "ARCHITECTURE_BASELINE", "PRIVATE_KEY"] {
+        for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
+            let config = read(&prefixes, suffix, "value");
+            let shared = config.remote_side_effects_cache.expect("shared cache config");
+            let read_back = match suffix {
+                "KEY_ID" => shared.key_id,
+                "BUILDER_ID" => shared.builder_id,
+                "IMAGE_DIGEST" => shared.image_digest,
+                "ARCHITECTURE_BASELINE" => shared.architecture_baseline,
+                _ => shared.private_key,
+            };
+            assert_eq!(read_back.as_deref(), Some("value"), "{suffix} under {prefixes:?}");
+        }
+    }
+
+    for prefixes in [vec![CANONICAL], vec![OLDER], vec![CANONICAL, OLDER]] {
+        let config = read(&prefixes, "PUBLISH", "true");
+        assert_eq!(
+            config.remote_side_effects_cache.expect("shared cache config").publish,
+            Some(true),
+            "PUBLISH under {prefixes:?}",
+        );
+
+        let config = read(&prefixes, "BUILD_ENV", r#"{"CC":"clang"}"#);
+        let shared = config.remote_side_effects_cache.expect("shared cache config");
+        assert_eq!(
+            shared.build_env.expect("build env").get("CC").map(String::as_str),
+            Some("clang"),
+            "BUILD_ENV under {prefixes:?}",
+        );
+
+        let config = read(&prefixes, "TRUSTED_KEYS", r#"{"acme-2026":"AA=="}"#);
+        let shared = config.remote_side_effects_cache.expect("shared cache config");
+        assert_eq!(
+            shared.trusted_keys.expect("trusted keys").get("acme-2026").map(String::as_str),
+            Some("AA=="),
+            "TRUSTED_KEYS under {prefixes:?}",
+        );
+    }
+}
+
+/// A malformed JSON variable is reported by name, so it has to be the name the
+/// reader actually set — pointing at the spelling they did not use sends them
+/// looking for a variable that is not in their environment.
+#[test]
+fn malformed_json_names_the_environment_variable_that_was_set() {
+    struct Older;
+    impl crate::EnvVar for Older {
+        fn var(key: &str) -> Option<String> {
+            (key == "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS").then(|| "not json".to_string())
+        }
+    }
+
+    let warnings = crate::tests::capture_warnings(|| {
+        let mut config = Config::new();
+        config.apply_remote_side_effects_cache_env::<Older>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS"),
+        "expected the variable that was set, got {warning}",
+    );
+}
+
+/// Precedence is by presence, not by validity: a malformed value under the name
+/// matching the setting is not quietly replaced by a valid one under the older
+/// name, because that would use a variable the reader did not reach for and
+/// leave the broken one unreported.
+#[test]
+fn a_malformed_canonical_value_is_not_replaced_by_a_valid_older_one() {
+    struct Both;
+    impl crate::EnvVar for Both {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS" => Some("not json".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS" => {
+                    Some(r#"{"acme-2026":"AA=="}"#.to_string())
+                }
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    let warnings = crate::tests::capture_warnings(|| {
+        config.apply_remote_side_effects_cache_env::<Both>();
+    });
+
+    let warning = warnings
+        .iter()
+        .find(|warning| warning.contains("not a string-valued JSON object"))
+        .expect("a warning about the malformed variable");
+    assert!(
+        warning.contains("PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS"),
+        "expected the variable that was selected, got {warning}",
+    );
+    assert!(
+        config.remote_side_effects_cache.is_none_or(|shared| shared.trusted_keys.is_none()),
+        "the older variable's value must not stand in for the malformed one",
+    );
+}
+
+/// When both spellings are set, the one matching the setting decides.
+#[test]
+fn the_canonical_environment_spelling_wins() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID" => Some("canonical".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID" => Some("older".to_string()),
+                _ => None,
+            }
+        }
+    }
+
+    let mut config = Config::new();
+    config.apply_remote_side_effects_cache_env::<Env>();
+    assert_eq!(
+        config.remote_side_effects_cache.expect("shared cache config").key_id.as_deref(),
+        Some("canonical"),
+    );
+}
+
+thread_local! {
+    static CASE: std::cell::RefCell<Option<(Vec<&'static str>, &'static str, &'static str)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// The environment holds the signing material a CI runner must not commit, so
+/// it is the last word on the section.
+#[test]
+fn remote_side_effects_cache_environment_overrides_the_files() {
+    struct Env;
+    impl crate::EnvVar for Env {
+        fn var(key: &str) -> Option<String> {
+            match key {
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_PUBLISH" => Some("true".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID" => Some("acme-2026".to_string()),
+                "PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS" => {
+                    Some(r#"{"acme-2026":"AA=="}"#.to_string())
+                }
+                _ => None,
+            }
+        }
+    }
+
+    let settings: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+remoteSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+  keyId: from-the-file
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    config.apply_remote_side_effects_cache_env::<Env>();
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.publish, Some(true));
+    assert_eq!(shared.key_id.as_deref(), Some("acme-2026"));
+    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
+}
+
+/// Each source contributes the half it owns, and the later one keeps what the
+/// earlier one set.
+#[test]
+fn remote_side_effects_cache_sources_overlay_rather_than_replace() {
+    let global: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+remoteSideEffectsCache:
+  trustedKeys:
+    acme-2026: AA==
+  privateKey: BB==
+",
+    )
+    .unwrap();
+    let workspace: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+remoteSideEffectsCache:
+  organization: acme
+  packages:
+    - native-addon
+",
+    )
+    .unwrap();
+    let mut config = Config::new();
+    global.apply_to(&mut config, Path::new("/workspace"));
+    workspace.apply_to(&mut config, Path::new("/workspace"));
+
+    let shared = config.remote_side_effects_cache.expect("shared cache config");
+    assert_eq!(shared.org, "acme");
+    assert_eq!(shared.packages, ["native-addon"]);
+    assert_eq!(shared.trusted_keys.expect("trusted keys").get("acme-2026").unwrap(), "AA==");
+    assert_eq!(shared.private_key.as_deref(), Some("BB=="));
 }
 
 /// pnpm scaffolds `allowBuilds` entries with a placeholder string for the
@@ -2236,7 +3015,10 @@ fn rebuilds_the_declarations_from_the_lookups() {
         BTreeMap::from([("work".to_owned(), "https://npm.corp.example/".to_owned())]);
     config.registry_options_by_url = BTreeMap::from([(
         "https://npm.corp.example/".to_owned(),
-        RegistryOptions { server_type: Some(RegistryServerType::Artifactory) },
+        RegistryOptions {
+            server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
+        },
     )]);
 
     let declarations = config.registry_declarations();
@@ -2246,6 +3028,7 @@ fn rebuilds_the_declarations_from_the_lookups() {
             scopes: Some(vec!["@acme".to_owned(), "@acme-internal".to_owned()]),
             prefix: Some("work".to_owned()),
             server_type: Some(RegistryServerType::Artifactory),
+            supports_time_field: None,
             unknown: BTreeMap::new(),
         }),
     );
@@ -2258,6 +3041,52 @@ fn rebuilds_the_declarations_from_the_lookups() {
     );
     // The default registry travels as the request's own `registry` field.
     assert!(!declarations.contains_key("https://registry.npmjs.org/"), "{declarations:?}");
+}
+
+/// The resolved view declares every route: the default registry appears as
+/// the bare `@` scope — first in the scope list it shares with real scopes —
+/// and the built-in `@jsr` scope and `gh` / `npmjs` prefixes are declared
+/// unless the user pointed them elsewhere.
+#[test]
+fn resolved_declarations_declare_every_route() {
+    let mut config = Config::new();
+    config.registry = "https://npm.corp.example/".to_owned();
+    config.registries_by_scope =
+        BTreeMap::from([("@acme".to_owned(), "https://npm.corp.example/".to_owned())]);
+    config.registries_by_prefix =
+        BTreeMap::from([("gh".to_owned(), "https://github.corp.example/".to_owned())]);
+
+    let declarations = config.resolved_registry_declarations();
+    assert_eq!(
+        declarations.get("https://npm.corp.example/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@".to_owned(), "@acme".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(
+        declarations.get("https://npm.jsr.io/"),
+        Some(&RegistryDeclaration {
+            scopes: Some(vec!["@jsr".to_owned()]),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    // The user's `gh` route wins over the built-in of the same name.
+    assert_eq!(
+        declarations.get("https://github.corp.example/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("gh".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
+    assert_eq!(declarations.get("https://npm.pkg.github.com/"), None);
+    assert_eq!(
+        declarations.get("https://registry.npmjs.org/"),
+        Some(&RegistryDeclaration {
+            prefix: Some("npmjs".to_owned()),
+            ..RegistryDeclaration::default()
+        }),
+    );
 }
 
 /// A declaration map survives the round trip through the lookups it is split
@@ -2287,4 +3116,308 @@ registries:
         })
         .collect();
     assert_eq!(rebuilt, original);
+}
+
+/// The public registry omits `time` from its abbreviated metadata, so a
+/// time-based resolution reads the full document from it. A registry that
+/// declares otherwise answers for itself, and paying for the full document at
+/// every registry because one of them needs it is the cost this removes.
+#[test]
+fn a_registry_declaring_the_time_field_needs_no_full_metadata() {
+    let yaml = r"
+resolutionMode: time-based
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com/"));
+    assert!(config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    // However either side spelled the trailing slash.
+    assert!(!config.requires_full_metadata_for_registry("https://time.example.com"));
+}
+
+/// A reason that holds whatever the registry serves is not undone by one.
+#[test]
+fn a_declared_time_field_does_not_waive_the_trust_policy() {
+    let yaml = r"
+resolutionMode: time-based
+trustPolicy: no-downgrade
+registries:
+  https://time.example.com/: {supportsTimeField: true}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(config.requires_full_metadata_for_registry("https://time.example.com/"));
+}
+
+/// The setting is the answer for every registry that does not describe itself.
+#[test]
+fn the_time_field_setting_answers_for_an_undeclared_registry() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_registry("https://registry.npmjs.org/"));
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+}
+
+/// The filtered mirror is chosen once for the whole resolver, so it has to
+/// cover the registry that asks for the most: one the setting exempts but a
+/// declaration does not.
+#[test]
+fn the_filtered_mirror_covers_a_registry_the_setting_exempts() {
+    let yaml = r"
+resolutionMode: time-based
+registrySupportsTimeField: true
+registries:
+  https://old.example.com/: {supportsTimeField: false}
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+
+    assert!(!config.requires_full_metadata_for_resolution());
+    assert!(config.requires_full_metadata_for_registry("https://old.example.com/"));
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// Nothing is filtered when no registry can need full metadata.
+#[test]
+fn no_filtered_mirror_without_a_reason_for_full_metadata() {
+    let mut config = Config::new();
+    assert!(!config.requires_filtered_full_metadata());
+    config.resolution_mode = ResolutionMode::TimeBased;
+    assert!(config.requires_filtered_full_metadata());
+}
+
+/// The scan that decides whether the file is worth re-reading must never
+/// answer "nothing here" for a key there is something to say about, so a
+/// top-level key written in a shape it cannot classify still gets collected.
+#[test]
+fn load_at_collects_issues_from_a_key_it_cannot_scan() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "{zzzNotASettingZzz: 1}\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A `$schema` line is what an editor adds to an otherwise correct file, so
+/// it must not be what makes every command re-read it.
+#[test]
+fn load_at_collects_no_issues_from_a_clean_file_carrying_a_schema_line() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "$schema: https://json.schemastore.org/pnpm-workspace.json\nnodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+/// A root mapping may itself be indented, and the whole file is then more
+/// indented than column zero without a single key being nested.
+#[test]
+fn load_at_collects_issues_from_an_indented_root_mapping() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "  zzzNotASettingZzz: 1\n  nodeLinker: hoisted\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// Indentation is not measurable where a tab stands in for it, so such a file
+/// is read rather than judged by its shape.
+#[test]
+fn load_at_collects_issues_from_a_tab_indented_file() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(dir.path().join(WORKSPACE_MANIFEST_FILENAME), "\tzzzNotASettingZzz: 1\n").unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert_eq!(settings.key_issues.unrecognized, ["zzzNotASettingZzz"]);
+}
+
+/// A nested key is not a setting of this file, so a catalog naming a package
+/// after nothing pnpm knows is not something to report.
+#[test]
+fn load_at_ignores_keys_nested_under_a_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "catalog:\n  zzzNotASettingZzz: ^1\noverrides:\n  alsoNotASetting: 2\n",
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+
+    assert!(settings.key_issues.is_empty(), "unexpected issues: {:?}", settings.key_issues);
+}
+
+#[test]
+fn parses_a_valid_tasks_section_and_applies_it() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        concat!(
+            "packages:\n  - packages/*\n",
+            "tasks:\n",
+            "  build:\n    concurrency: 2\n    dependsOn: ['^build']\n",
+            "  test:\n    dependsOn: ['build']\n",
+            "  lint: {}\n",
+        ),
+    )
+    .unwrap();
+
+    let settings = WorkspaceSettings::load_at(dir.path())
+        .expect("load pnpm-workspace.yaml")
+        .expect("pnpm-workspace.yaml is present");
+    assert!(settings.key_issues.is_empty());
+
+    let mut config = Config::default();
+    settings.apply_to(&mut config, dir.path());
+    assert_eq!(
+        config.tasks.get("build").unwrap().depends_on.as_deref(),
+        Some(&["^build".to_string()][..]),
+    );
+    assert_eq!(config.tasks.get("build").unwrap().concurrency, Some(2));
+    assert_eq!(
+        config.tasks.get("test").unwrap().depends_on.as_deref(),
+        Some(&["build".to_string()][..]),
+    );
+    // `lint: {}` declares an explicitly empty dependency list — a different
+    // statement from omitting the entry.
+    assert_eq!(config.tasks.get("lint").unwrap().depends_on, None);
+}
+
+#[test]
+fn rejects_an_unknown_task_setting_field() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    dependson: ['^build']\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::UnknownTaskSettingField { ref task, ref field }
+            if task == "build" && field == "dependson"
+    ));
+}
+
+#[test]
+fn rejects_a_depends_on_entry_with_no_task_name() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    dependsOn: ['^']\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::EmptyTaskDependsOnEntry { ref task, ref entry }
+            if task == "build" && entry == "^"
+    ));
+}
+
+#[test]
+fn rejects_zero_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: 0\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "0"
+    ));
+}
+
+#[test]
+fn rejects_negative_task_concurrency() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: -1\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "-1"
+    ));
+}
+
+#[test]
+fn rejects_fractional_task_concurrency_as_an_invalid_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: 1.5\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == "1.5"
+    ));
+}
+
+#[test]
+fn rejects_string_task_concurrency_as_an_invalid_setting() {
+    let dir = tempfile::tempdir().unwrap();
+    fs::write(
+        dir.path().join(WORKSPACE_MANIFEST_FILENAME),
+        "packages:\n  - packages/*\ntasks:\n  build:\n    concurrency: '2'\n",
+    )
+    .unwrap();
+
+    let error = WorkspaceSettings::load_at(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
+            if task == "build" && concurrency == r#""2""#
+    ));
 }

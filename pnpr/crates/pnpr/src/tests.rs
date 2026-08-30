@@ -1,4 +1,16 @@
-use super::{RegistryError, redacted_report};
+use super::{Args, RegistryError, redacted_report};
+use clap::Parser as _;
+
+#[test]
+fn disable_artifacts_sets_the_config_override() {
+    let args = Args::try_parse_from(["pnpr", "--disable-artifacts"]).unwrap();
+
+    let overrides = args.feature_overrides();
+
+    assert!(overrides.disable_artifacts);
+    assert!(!overrides.disable_registry);
+    assert!(!overrides.disable_resolver);
+}
 
 #[test]
 fn startup_error_report_redacts_dsn_credentials() {

@@ -1,5 +1,6 @@
 use super::{SymlinkDirectDependencies, SymlinkDirectDependenciesError, validate_importer_id};
 use crate::SkippedSnapshots;
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 use pnpm_package_manifest::DependencyGroup;
@@ -25,6 +26,64 @@ fn validate_importer_id_rejects_escaping_keys() {
     for id in
         ["", "..", "../foo", "packages/../../etc", "/abs/path", r"packages\foo", "C:/x", "C:x"]
     {
+        assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
+    }
+}
+
+#[test]
+fn importer_task_groups_fold_filesystem_name_aliases() {
+    let dir = tempdir().expect("tempdir");
+    fs::create_dir_all(dir.path().join("packages/app")).expect("create project dir");
+    let groups = super::importer_task_groups(dir.path(), vec![".", "packages/App", "packages/app"]);
+    // Self-conditioning on the host filesystem: where names fold (the
+    // alias resolves), the aliased keys must share one group; where
+    // they don't, the keys are genuinely distinct directories.
+    if fs::canonicalize(dir.path().join("packages/App")).is_ok() {
+        assert!(
+            groups.contains(&vec!["packages/App", "packages/app"]),
+            "case-aliased keys must share a task on a folding filesystem: {groups:?}",
+        );
+    } else {
+        assert_eq!(groups.len(), 3, "distinct directories keep their own tasks: {groups:?}");
+    }
+}
+
+#[test]
+fn importer_task_groups_serialize_all_missing_dirs_together() {
+    // None of these directories exist, so there is no filesystem
+    // answer to ask for — and no string transform can predict which
+    // not-yet-created names (case variants, NFC/NFD normalization
+    // pairs) the filesystem will later fold together. Every
+    // canonicalization failure shares one serial group, on every
+    // platform.
+    let dir = tempdir().expect("tempdir");
+    let nfc = "packages/caf\u{e9}";
+    let nfd = "packages/cafe\u{301}";
+    let groups =
+        super::importer_task_groups(dir.path(), vec!["packages/Ghost", nfc, nfd, "packages/ghost"]);
+    assert_eq!(groups, vec![vec!["packages/Ghost", nfc, nfd, "packages/ghost"]]);
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn importer_task_groups_fold_unicode_normalization_aliases() {
+    // APFS resolves composed and decomposed forms to one directory;
+    // no string transform groups these — only the filesystem's answer.
+    let dir = tempdir().expect("tempdir");
+    let nfc = "packages/caf\u{e9}";
+    let nfd = "packages/cafe\u{301}";
+    fs::create_dir_all(dir.path().join(nfc)).expect("create project dir");
+    let groups = super::importer_task_groups(dir.path(), vec![nfc, nfd]);
+    assert_eq!(groups, vec![vec![nfc, nfd]], "normalization aliases must share a task");
+}
+
+#[test]
+fn validate_importer_id_rejects_non_canonical_aliases() {
+    // Two distinct keys that resolve to the same directory would link
+    // the same `node_modules` from two concurrent importer tasks; pnpm
+    // only writes canonical relative keys, so every non-canonical form
+    // is rejected outright.
+    for id in ["./", "./foo", "packages/./app", "packages//app", "packages/app/", "foo/."] {
         assert!(validate_importer_id(id).is_err(), "expected {id:?} to be rejected");
     }
 }
@@ -111,7 +170,7 @@ fn emits_pnpm_root_added_per_direct_dependency() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -242,7 +301,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -327,7 +386,7 @@ fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .expect("symlink should succeed");
@@ -391,7 +450,7 @@ fn empty_importers_is_a_no_op() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>();
 
@@ -457,7 +516,7 @@ fn reused_symlinks_do_not_emit_pnpm_root_added() {
             link_only: false,
             public_hoist_targets: None,
             trusted_importer_ids: None,
-            extra_node_paths: &[],
+            link_options: &LinkBinsOptions::default(),
         }
         .run::<RecordingReporter>()
         .expect("symlink should succeed");
@@ -558,7 +617,7 @@ fn per_importer_prefix_in_pnpm_root_events() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<RecordingReporter>()
     .unwrap();
@@ -630,7 +689,7 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
             link_only: false,
             public_hoist_targets: None,
             trusted_importer_ids: None,
-            extra_node_paths: &[],
+            link_options: &LinkBinsOptions::default(),
         }
         .run::<SilentReporter>();
 
@@ -711,7 +770,7 @@ fn custom_modules_dir_propagates_to_each_importer() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: None,
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>()
     .expect("symlink should succeed");
@@ -764,7 +823,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: Some(&trusted),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>()
     .expect("a declared project at `..` must be allowed");
@@ -784,7 +843,7 @@ fn trusted_importer_id_outside_workspace_root_is_linked() {
         link_only: false,
         public_hoist_targets: None,
         trusted_importer_ids: Some(&std::collections::HashSet::new()),
-        extra_node_paths: &[],
+        link_options: &LinkBinsOptions::default(),
     }
     .run::<SilentReporter>();
     assert!(

@@ -725,8 +725,14 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
 /// 4 lines. Standard alphabet, with padding.
 #[must_use]
 pub fn base64_encode(input: &str) -> String {
+    base64_encode_bytes(input.as_bytes())
+}
+
+/// [`base64_encode`] for credentials that are not required to be UTF-8,
+/// so a re-encoded `.npmrc` credential reproduces its bytes exactly.
+#[must_use]
+pub fn base64_encode_bytes(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = input.as_bytes();
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let mut chunks = bytes.chunks_exact(3);
     for chunk in &mut chunks {
@@ -818,8 +824,30 @@ pub fn redact_url_credentials(text: &str) -> String {
 /// output.
 #[must_use]
 pub fn redact_and_sanitize(text: &str) -> String {
-    let sanitized: String = text.chars().filter(|character| !character.is_control()).collect();
+    let sanitized = sanitize_control_characters(text);
     redact_url_credentials(&sanitized)
+}
+
+/// Make a URL safe for user-visible output without exposing credentials,
+/// query parameters, fragments, or terminal control characters.
+/// Malformed URLs are replaced entirely because their authority cannot be
+/// redacted reliably.
+#[must_use]
+pub fn redact_url_for_display(url: &str) -> String {
+    let sanitized = sanitize_control_characters(url);
+    let Ok(mut display) = reqwest::Url::parse(&sanitized) else {
+        return "[hidden]".to_string();
+    };
+    if display.set_username("").is_err() || display.set_password(None).is_err() {
+        return "[hidden]".to_string();
+    }
+    display.set_query(None);
+    display.set_fragment(None);
+    display.to_string()
+}
+
+fn sanitize_control_characters(text: &str) -> String {
+    text.chars().filter(|character| !character.is_control()).collect()
 }
 
 /// [`redact_and_sanitize`] for text whose line breaks are worth keeping, such

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.commands",
-  "version": "1100.4.9",
+  "version": "1101.1.0",
   "description": "Commands for running scripts",
   "keywords": [
     "pnpm",
@@ -62,6 +62,7 @@
     "@pnpm/workspace.injected-deps-syncer": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "didyoumean2": "catalog:",
     "execa": "catalog:",
@@ -71,6 +72,7 @@
     "render-help": "catalog:",
     "symlink-dir": "catalog:",
     "which": "catalog:",
+    "write-file-atomic": "catalog:",
     "write-json-file": "catalog:"
   },
   "peerDependencies": {
@@ -88,6 +90,7 @@
     "@types/is-windows": "catalog:",
     "@types/ramda": "catalog:",
     "@types/which": "catalog:",
+    "@types/write-file-atomic": "catalog:",
     "is-windows": "catalog:",
     "write-yaml-file": "catalog:"
   },

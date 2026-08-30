@@ -1050,6 +1050,78 @@ test('pack: recursive pack and display in json format', async () => {
   }
 })
 
+test('pack: recursive projects that share an output path do not pack concurrently', async () => {
+  const dir = tempDir()
+  const eventsFile = path.join(dir, 'pack-events.txt')
+  const pkgs = ['project-1', 'project-2'].map((name) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      prepack: `node -e "const fs=require('fs');const [p,name]=process.argv.slice(1);fs.appendFileSync(p,name+':start\\n');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,200);fs.appendFileSync(p,name+':end\\n')" ${JSON.stringify(eventsFile)} ${name}`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages(pkgs, { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    out: 'artifact.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const events = fs.readFileSync(eventsFile, 'utf8').trim().split('\n')
+  expect(events).toHaveLength(4)
+  for (let index = 0; index < events.length; index += 2) {
+    const project = events[index].replace(/:start$/, '')
+    expect(events[index + 1]).toBe(`${project}:end`)
+  }
+  expect(fs.existsSync(path.join(dir, 'artifact.tgz'))).toBeTruthy()
+})
+
+test('pack: recursive results stay in dependency order when projects finish out of order', async () => {
+  const dir = tempDir()
+  const pkgs = [
+    { name: 'project-1', delay: 250 },
+    { name: 'project-2', delay: 10 },
+  ].map(({ name, delay }) => ({
+    name,
+    version: '1.0.0',
+    scripts: {
+      prepack: `node -e "Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,${delay})"`,
+    },
+  }))
+  prepare({ private: true }, { tempDir: dir })
+  preparePackages(pkgs, { tempDir: path.join(dir, 'packages') })
+  writeYamlFileSync(path.join(dir, 'pnpm-workspace.yaml'), { packages: ['project-*'] })
+  const { selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(dir, [])
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir,
+    extraBinPaths: [],
+    ignoreScripts: false,
+    json: true,
+    out: '%s.tgz',
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 2,
+  })
+
+  const names = (JSON.parse(output) as PackResultJson[])
+    .map(({ name }) => name)
+    .filter((name) => name.startsWith('project-'))
+  expect(names).toStrictEqual(['project-1', 'project-2'])
+})
+
 test('pack: recursive pack with filter', async () => {
   const dir = tempDir()
 

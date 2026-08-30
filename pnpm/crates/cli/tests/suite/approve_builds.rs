@@ -358,6 +358,29 @@ fn install_two_with_ignored_builds() -> (CommandTempCwd<AddMockedRegistry>, std:
     (harness, workspace)
 }
 
+#[test]
+fn approve_builds_works_after_removing_an_unrelated_dependency() {
+    let (harness, workspace) = install_two_with_ignored_builds();
+
+    pacquet(&workspace).with_args(["remove", INSTALL]).assert().success();
+
+    let output = stdout_of(pacquet(&workspace).with_arg("ignored-builds").assert());
+    assert!(output.contains(PREPOST), "the remaining package stays pending: {output}");
+    assert!(!output.contains(INSTALL), "the removed package must not stay pending: {output}");
+
+    pacquet(&workspace).with_args(["approve-builds", "--all"]).assert().success();
+
+    assert!(workspace.join(PREPOST_MARKER).exists(), "remaining package built under --all");
+    assert!(!workspace.join(INSTALL_MARKER).exists(), "removed package was not rebuilt");
+    assert_eq!(
+        allow_builds(&workspace).get(PREPOST),
+        Some(&true),
+        "remaining package approval persisted",
+    );
+
+    drop(harness);
+}
+
 /// The `allowBuilds` map recorded in the workspace manifest.
 /// The *decided* `allowBuilds` entries. An install scaffolds an
 /// undecided placeholder for every build it blocked, which is a prompt to
@@ -478,6 +501,36 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
 }
 
 #[test]
+fn approve_builds_clears_legacy_build_settings() {
+    let (harness, workspace) = install_two_with_ignored_builds();
+
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    yaml.push_str(concat!(
+        "onlyBuiltDependencies:\n  - esbuild\n",
+        "onlyBuiltDependenciesFile: allowed.json\n",
+        "neverBuiltDependencies:\n  - fsevents\n",
+        "ignoredBuiltDependencies:\n  - nan\n",
+    ));
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    pacquet(&workspace).with_args(["approve-builds", PREPOST]).assert().success();
+
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    for key in [
+        "onlyBuiltDependencies",
+        "onlyBuiltDependenciesFile",
+        "neverBuiltDependencies",
+        "ignoredBuiltDependencies",
+    ] {
+        assert!(!yaml.contains(key), "legacy setting {key} must be cleared: {yaml}");
+    }
+    assert_eq!(allow_builds(&workspace).get(PREPOST), Some(&true), "approved package recorded");
+
+    drop(harness);
+}
+
+#[test]
 fn approve_builds_all_with_args_is_rejected() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
     fs::write(workspace.join("package.json"), "{}").expect("write package.json");
@@ -489,29 +542,49 @@ fn approve_builds_all_with_args_is_rejected() {
 
     drop(root);
 }
-
-/// Both spellings reach the same rejection. `-g` used to stop in the
-/// argument parser instead (pnpm/pnpm#13310), which the long form alone
-/// could not have caught.
+/// `--ignore-workspace` disowns the workspace manifest, so the install
+/// must not write the `allowBuilds` scaffold into one.
 #[test]
-fn approve_builds_global_is_rejected() {
-    for global in ["--global", "-g"] {
-        let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
-        fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+fn ignore_workspace_skips_the_allow_builds_scaffold() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/install-script-example": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let before = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
 
-        let assert = pacquet(&workspace).with_args(["approve-builds", global]).assert().failure();
-        let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
-        // Code and message both: the code alone would not catch the two
-        // spellings drifting to different user-facing text.
-        assert!(
-            stderr.contains("ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL"),
-            "{global} stderr: {stderr}",
-        );
-        assert!(
-            stderr.contains(r#""approve-builds" is not supported with global packages"#),
-            "{global} stderr: {stderr}",
-        );
+    pacquet(&workspace)
+        .with_arg("--ignore-workspace")
+        // The run reads no workspace manifest, so the settings the
+        // harness put there — the test store and cache, and the relaxed
+        // build policy that keeps a blocked build from failing the
+        // install — have to come from the environment instead.
+        .with_env("PNPM_CONFIG_STRICT_DEP_BUILDS", "false")
+        .with_env("PNPM_CONFIG_STORE_DIR", &harness.npmrc_info.store_dir)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &harness.npmrc_info.cache_dir)
+        .with_arg("install")
+        .assert()
+        .success();
 
-        drop(root);
-    }
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/install-script-example").exists(),
+        "the dependency must actually have been installed",
+    );
+    assert!(
+        !workspace.join(INSTALL_MARKER).exists(),
+        "the build must still be ignored on the initial install",
+    );
+    assert_eq!(
+        fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),
+        before,
+        "--ignore-workspace must not scaffold allowBuilds into the workspace manifest",
+    );
+
+    drop(harness);
 }

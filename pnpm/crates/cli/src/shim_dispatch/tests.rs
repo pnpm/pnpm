@@ -1,7 +1,7 @@
 #[cfg(windows)]
 use super::validate_candidate;
 use super::{
-    Candidate, find_candidate,
+    Candidate, apply_state_dir_setting, find_candidate,
     identity::{
         MAX_HASHED_BIN_SIZE, local_bin_identity, package_dir_of_target, provider_of_target,
         read_shim_target_from_content, small_file_hash,
@@ -24,6 +24,30 @@ fn non_shim_argv_is_not_intercepted() {
     assert!(try_dispatch(&strings(&["pnpm"])).is_none());
     assert!(try_dispatch(&strings(&["pnpm", "install"])).is_none());
     assert!(try_dispatch(&strings(&["pnpm", "add", "--shim"])).is_none());
+}
+
+#[test]
+fn configured_state_dir_resolves_relative_to_the_machine_state_root() {
+    let root = tempfile::tempdir().unwrap();
+    let default_state_dir = root.path().join("state/pnpm");
+    let expected_state_dir = dunce::canonicalize(root.path()).unwrap().join("state/custom-state");
+    let mut state_dir = default_state_dir.clone();
+    apply_state_dir_setting(&mut state_dir, Some("custom-state"), &default_state_dir);
+    assert_eq!(state_dir, expected_state_dir);
+
+    apply_state_dir_setting(&mut state_dir, Some(""), &default_state_dir);
+    assert_eq!(state_dir, expected_state_dir);
+
+    let absolute_state_dir = root.path().join("absolute-state");
+    apply_state_dir_setting(&mut state_dir, absolute_state_dir.to_str(), &default_state_dir);
+    assert_eq!(state_dir, absolute_state_dir);
+
+    apply_state_dir_setting(&mut state_dir, Some("relative"), Path::new(""));
+    assert!(state_dir.as_os_str().is_empty());
+
+    state_dir = default_state_dir.clone();
+    apply_state_dir_setting(&mut state_dir, Some("../outside"), &default_state_dir);
+    assert!(state_dir.as_os_str().is_empty());
 }
 
 #[test]

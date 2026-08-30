@@ -243,10 +243,15 @@ skipOnWindows('runLifecycleHooksConcurrently() should check binding.gyp', async 
     ],
   }), 'utf8')
 
-  await runLifecycleHooksConcurrently(['install'], [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }], 5, {
-    storeController: {} as StoreController,
-    optional: false,
-    unsafePerm: true,
+  await runLifecycleHooksConcurrently({
+    childConcurrency: 5,
+    importers: [{ buildIndex: 0, rootDir: projectDir as ProjectRootDir, modulesDir: '', manifest: {} }],
+    opts: {
+      storeController: {} as StoreController,
+      optional: false,
+      unsafePerm: true,
+    },
+    stages: ['install'],
   })
 
   expect(fs.existsSync(path.join(projectDir, 'foo'))).toBeTruthy()

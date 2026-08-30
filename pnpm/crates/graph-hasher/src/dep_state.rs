@@ -3,6 +3,8 @@ use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
+pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+
 /// Per-node identifier carrying everything [`calc_dep_state`] needs to
 /// hash a snapshot.
 ///
@@ -10,9 +12,9 @@ use std::collections::{HashMap, HashSet};
 /// recursive hash — `<pkgIdWithPatchHash>:<integrity>` for packages with
 /// an integrity (`registry` resolution), or
 /// `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
-/// without one (e.g. git refs). Pacquet's caller composes this
-/// before passing it in; the hasher itself is opaque to how it was
-/// computed.
+/// without one (e.g. git refs). A variations resolution uses the integrity of
+/// the selected platform variant. Pacquet's caller composes this before
+/// passing it in; the hasher itself is opaque to how it was computed.
 ///
 /// `children` maps alias → dep-graph key for the snapshot's
 /// children. Pacquet's natural input shape is the lockfile's
@@ -77,6 +79,43 @@ where
         result.push_str(&deps_hash);
     }
     if let Some(patch) = opts.patch_file_hash {
+        result.push_str(";patch=");
+        result.push_str(patch);
+    }
+    result
+}
+
+/// Compute the machine-independent lookup key for a remotely shareable
+/// dependency build.
+///
+/// Unlike [`calc_dep_state`], this key deliberately excludes the engine name.
+/// The signed artifact advertises platform compatibility separately, allowing
+/// one compatible artifact to serve more than one exact host identity.
+///
+/// `graph` must contain `dep_path`; a missing root is a caller error and
+/// panics rather than producing the same key for every missing dependency.
+/// The walk uses a private per-call cache, so the result is independent of
+/// earlier roots and platform-selected graphs. `graph` is not mutated.
+///
+/// The returned key starts with [`DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX`],
+/// followed by the recursive dependency-graph hash and, when supplied, the
+/// patch-file hash. The selected variation's source integrity is included in
+/// the graph hash through [`DepsGraphNode::full_pkg_id`].
+pub fn calc_dep_state_input_key<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    dep_path: &Key,
+    patch_file_hash: Option<&str>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
+    assert!(
+        graph.contains_key(dep_path),
+        "dependency side-effects input-key root is not present in the graph",
+    );
+    let deps_hash = calc_dep_graph_hash(graph, &mut HashMap::new(), &mut HashSet::new(), dep_path);
+    let mut result = format!("{DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps={deps_hash}");
+    if let Some(patch) = patch_file_hash {
         result.push_str(";patch=");
         result.push_str(patch);
     }

@@ -5,12 +5,14 @@ use std::{
 };
 
 use pnpm_network::NoProxySetting;
+use pnpm_store_dir::STORE_VERSION;
 use pnpm_testing_utils::registry::TestRegistry;
 
 use super::{
     DepsRequiringBuildSink, EngineMode, InstallOptions, NetworkConfigInput, NodeApiProject,
-    ProxyConfigInput, build_overlay, reject_non_object_manifests,
-    reject_unsupported_install_options, run_install_inner, take_deps_requiring_build,
+    PeerIssuesOptions, ProxyConfigInput, build_overlay, peer_issues_install_options,
+    reject_non_object_manifests, reject_unsupported_install_options, run_install_inner,
+    take_deps_requiring_build,
 };
 use crate::{
     config::{ConfigOverlay, resolve_config},
@@ -67,6 +69,8 @@ fn build_overlay_maps_supported_install_options() {
         fetch_retry_mintimeout: Some(10),
         fetch_retry_maxtimeout: Some(20),
         fetch_timeout: Some(30),
+        fetch_warn_timeout_ms: Some(40),
+        fetch_min_speed_ki_bps: Some(50),
         user_agent: Some("pnpm-test".to_string()),
     });
     options.proxy_config = Some(ProxyConfigInput {
@@ -75,7 +79,7 @@ fn build_overlay_maps_supported_install_options() {
         no_proxy: Some(serde_json::json!("localhost,127.0.0.1")),
     });
 
-    let overlay = build_overlay(&options).expect("overlay");
+    let overlay = build_overlay(&options, false).expect("overlay");
     assert_eq!(overlay.external_dependencies.unwrap().len(), 1);
     assert_eq!(overlay.exclude_links_from_lockfile, Some(true));
     assert_eq!(overlay.inject_workspace_packages, Some(true));
@@ -93,6 +97,8 @@ fn build_overlay_maps_supported_install_options() {
     assert_eq!(overlay.fetch_retry_mintimeout, Some(10));
     assert_eq!(overlay.fetch_retry_maxtimeout, Some(20));
     assert_eq!(overlay.fetch_timeout, Some(30));
+    assert_eq!(overlay.fetch_warn_timeout_ms, Some(40));
+    assert_eq!(overlay.fetch_min_speed_ki_bps, Some(50));
     assert_eq!(overlay.user_agent, Some("pnpm-test".to_string()));
     let proxy = overlay.proxy.expect("proxy");
     assert_eq!(proxy.http_proxy, Some("http://proxy.test".to_string()));
@@ -110,13 +116,29 @@ fn build_overlay_maps_supported_install_options() {
 }
 
 #[test]
+fn top_level_fetch_warning_options_override_network_config() {
+    let mut options = install_options();
+    options.fetch_warn_timeout_ms = Some(1_234);
+    options.fetch_min_speed_ki_bps = Some(12);
+    options.network_config = Some(NetworkConfigInput {
+        fetch_warn_timeout_ms: Some(5_678),
+        fetch_min_speed_ki_bps: Some(56),
+        ..network_config()
+    });
+
+    let overlay = build_overlay(&options, false).expect("overlay");
+    assert_eq!(overlay.fetch_warn_timeout_ms, Some(1_234));
+    assert_eq!(overlay.fetch_min_speed_ki_bps, Some(12));
+}
+
+#[test]
 fn resolved_config_applies_trust_lockfile() {
     let dir = tempfile::tempdir().expect("tempdir");
 
     for (trust_lockfile, expected) in [(Some(false), false), (Some(true), true), (None, false)] {
         let mut options = install_options();
         options.trust_lockfile = trust_lockfile;
-        let overlay = build_overlay(&options).expect("overlay");
+        let overlay = build_overlay(&options, false).expect("overlay");
         assert_eq!(resolve_config(dir.path(), &overlay).expect("config").trust_lockfile, expected);
     }
 }
@@ -130,7 +152,7 @@ fn resolved_config_applies_allow_unused_patches() {
     {
         let mut options = install_options();
         options.allow_unused_patches = allow_unused_patches;
-        let overlay = build_overlay(&options).expect("overlay");
+        let overlay = build_overlay(&options, false).expect("overlay");
         assert_eq!(
             resolve_config(dir.path(), &overlay).expect("config").allow_unused_patches,
             expected,
@@ -145,25 +167,25 @@ fn build_overlay_parses_link_workspace_packages() {
     let mut options = install_options();
     options.link_workspace_packages = Some(serde_json::json!("deep"));
     assert_eq!(
-        build_overlay(&options).expect("overlay").link_workspace_packages,
+        build_overlay(&options, false).expect("overlay").link_workspace_packages,
         Some(LinkWorkspacePackages::Deep),
     );
 
     options.link_workspace_packages = Some(serde_json::json!(true));
     assert_eq!(
-        build_overlay(&options).expect("overlay").link_workspace_packages,
+        build_overlay(&options, false).expect("overlay").link_workspace_packages,
         Some(LinkWorkspacePackages::DirectOnly),
     );
 
     options.link_workspace_packages = Some(serde_json::json!(false));
     assert_eq!(
-        build_overlay(&options).expect("overlay").link_workspace_packages,
+        build_overlay(&options, false).expect("overlay").link_workspace_packages,
         Some(LinkWorkspacePackages::Off),
     );
 
     // Anything other than a boolean or "deep" is rejected.
     options.link_workspace_packages = Some(serde_json::json!("shallow"));
-    assert!(build_overlay(&options).is_err());
+    assert!(build_overlay(&options, false).is_err());
 }
 
 #[test]
@@ -214,7 +236,320 @@ fn newly_supported_install_options_are_accepted() {
     options.pnpm_home_dir = Some("/home/user/.local/share/pnpm".to_string());
     options.network_config = Some(NetworkConfigInput { max_sockets: Some(20), ..network_config() });
     assert!(reject_unsupported_install_options(&options).is_ok());
-    assert_eq!(build_overlay(&options).expect("overlay").max_sockets, Some(20));
+    assert_eq!(build_overlay(&options, false).expect("overlay").max_sockets, Some(20));
+}
+
+#[test]
+fn peer_issues_options_preserve_shared_engine_options() {
+    let install_options = peer_issues_install_options(PeerIssuesOptions {
+        dir: "/project".to_string(),
+        projects: vec![NodeApiProject {
+            root_dir: "/project".to_string(),
+            manifest: serde_json::json!({ "name": "project" }),
+            dependency_manifest: None,
+        }],
+        store_dir: Some("/store".to_string()),
+        cache_dir: Some("/cache".to_string()),
+        registries: Some(
+            [("default".to_string(), "https://registry.example.com".to_string())].into(),
+        ),
+        auth_header_by_uri: Some(
+            [("//registry.example.com/".to_string(), "Bearer token".to_string())].into(),
+        ),
+        proxy_config: Some(ProxyConfigInput {
+            http_proxy: Some("http://proxy.example.com".to_string()),
+            https_proxy: Some("https://proxy.example.com".to_string()),
+            no_proxy: Some(serde_json::json!(true)),
+        }),
+        network_config: Some(NetworkConfigInput {
+            ca: Some(serde_json::json!("certificate")),
+            strict_ssl: Some(false),
+            network_concurrency: Some(12),
+            ..network_config()
+        }),
+        overrides: Some([("foo".to_string(), "1.0.0".to_string())].into()),
+        peers_suffix_max_length: Some(1_000.0),
+        virtual_store_dir_max_length: Some(120.0),
+        auto_install_peers: Some(true),
+    })
+    .expect("valid peer issues options");
+
+    assert_eq!(install_options.dir, "/project");
+    assert_eq!(install_options.projects.len(), 1);
+    assert_eq!(install_options.store_dir.as_deref(), Some("/store"));
+    assert_eq!(install_options.cache_dir.as_deref(), Some("/cache"));
+    assert_eq!(
+        install_options.registries.as_ref().unwrap()["default"],
+        "https://registry.example.com",
+    );
+    assert_eq!(
+        install_options.auth_header_by_uri.as_ref().unwrap()["//registry.example.com/"],
+        "Bearer token",
+    );
+    assert_eq!(install_options.overrides.as_ref().unwrap()["foo"], "1.0.0");
+    assert_eq!(install_options.peers_suffix_max_length, Some(1_000));
+    assert_eq!(install_options.virtual_store_dir_max_length, Some(120));
+    assert_eq!(install_options.auto_install_peers, Some(true));
+
+    let overlay = build_overlay(&install_options, false).expect("overlay");
+    assert_eq!(overlay.network_concurrency, Some(12));
+    assert_eq!(overlay.proxy.unwrap().no_proxy, Some(NoProxySetting::Bypass));
+    let tls = overlay.tls.expect("tls");
+    assert_eq!(tls.ca, vec!["certificate".to_string()]);
+    assert_eq!(tls.strict_ssl, Some(false));
+}
+
+#[test]
+fn peer_issues_options_disable_auto_install_peers_by_default() {
+    assert_eq!(
+        peer_issues_install_options(peer_issues_options())
+            .expect("valid peer issues options")
+            .auto_install_peers,
+        Some(false),
+    );
+}
+
+#[test]
+fn peer_issues_options_reject_invalid_u32_values() {
+    for value in [-1.0, 1.5, f64::from(u32::MAX) + 1.0, f64::INFINITY, f64::NAN] {
+        let mut options = peer_issues_options();
+        options.peers_suffix_max_length = Some(value);
+        assert!(
+            peer_issues_install_options(options).is_err(),
+            "peersSuffixMaxLength accepted {value:?}",
+        );
+
+        let mut options = peer_issues_options();
+        options.virtual_store_dir_max_length = Some(value);
+        assert!(
+            peer_issues_install_options(options).is_err(),
+            "virtualStoreDirMaxLength accepted {value:?}",
+        );
+    }
+}
+
+/// `ignorePackageManifest` carries pnpm's `pnpm fetch` shape into the
+/// overlay: post-import linking off, and the modules dir forced back on so
+/// an ambient `enableModulesDir: false` cannot leave the virtual store with
+/// nowhere to go.
+#[test]
+fn ignore_package_manifest_pins_the_fetch_shaped_config() {
+    let mut options = install_options();
+    options.ignore_package_manifest = Some(true);
+    options.enable_modules_dir = Some(false);
+
+    let overlay = build_overlay(&options, true).expect("overlay");
+
+    assert_eq!(overlay.virtual_store_only, Some(true));
+    assert_eq!(overlay.enable_modules_dir, Some(true));
+}
+
+/// `pnpmHomeDir` resolves the default store under that home, and an
+/// explicit `storeDir` still wins.
+#[test]
+fn pnpm_home_dir_places_the_default_store_under_that_home() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let home_dir = temp_dir.path().join("pnpm-home");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir_all(&home_dir).expect("create home dir");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+
+    let mut options = install_options();
+    options.pnpm_home_dir = Some(home_dir.to_string_lossy().into_owned());
+    let overlay = build_overlay(&options, false).expect("overlay");
+    let config = resolve_config(&project_dir, &overlay).expect("config");
+    assert_eq!(config.store_dir.root(), home_dir.join("store").join(STORE_VERSION));
+
+    let store_dir = temp_dir.path().join("explicit-store");
+    options.store_dir = Some(store_dir.to_string_lossy().into_owned());
+    let overlay = build_overlay(&options, false).expect("overlay");
+    let config = resolve_config(&project_dir, &overlay).expect("config");
+    assert_eq!(config.store_dir.root(), store_dir.join(STORE_VERSION));
+}
+
+/// A `storeDir` a config source set explicitly outranks `pnpmHomeDir`,
+/// which only supplies the *default* store location.
+#[test]
+fn a_configured_store_dir_outranks_pnpm_home_dir() {
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let home_dir = temp_dir.path().join("pnpm-home");
+    let configured_store = temp_dir.path().join("configured-store");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir_all(&home_dir).expect("create home dir");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::write(
+        project_dir.join("pnpm-workspace.yaml"),
+        format!("storeDir: {}\n", configured_store.display()),
+    )
+    .expect("write workspace yaml");
+
+    let mut options = install_options();
+    options.pnpm_home_dir = Some(home_dir.to_string_lossy().into_owned());
+    let overlay = build_overlay(&options, false).expect("overlay");
+    let config = resolve_config(&project_dir, &overlay).expect("config");
+
+    assert_eq!(config.store_dir.root(), configured_store.join(STORE_VERSION));
+}
+
+/// The `pnpm fetch` shape: every importer the lockfile records is imported
+/// into the virtual store, and nothing is linked out of it — no importer
+/// symlink for a direct dependency, and no top-level `.bin` entry. The
+/// in-memory manifests are ignored entirely, so an empty one still fetches
+/// the whole recorded graph.
+#[test]
+fn ignore_package_manifest_populates_the_virtual_store_without_linking() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    // Seed the lockfile with an ordinary install, then throw the linked
+    // `node_modules` away so the fetch-shaped run starts from the lockfile
+    // alone.
+    options.lockfile_only = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
+    assert!(project_dir.join("pnpm-lock.yaml").exists(), "the seed run must write a lockfile");
+    options.lockfile_only = None;
+
+    // An empty manifest proves the run reads the lockfile, not the manifest.
+    options.projects[0].manifest = serde_json::json!({});
+    options.ignore_package_manifest = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("fetch-shaped install");
+
+    let modules_dir = project_dir.join("node_modules");
+    let virtual_store = modules_dir.join(".pnpm");
+    let fetched: Vec<String> = std::fs::read_dir(&virtual_store)
+        .expect("read the virtual store")
+        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
+        .collect();
+    dbg!(&fetched);
+    assert_eq!(fetched.len(), 1, "the recorded dependency must be imported into the virtual store");
+
+    assert!(
+        !modules_dir.join("@pnpm.e2e/hello-world-js-bin").exists(),
+        "a fetch-shaped install links no importer symlinks",
+    );
+    assert!(!modules_dir.join(".bin").exists(), "a fetch-shaped install links no top-level bins");
+}
+
+/// A fetch-shaped install reads the lockfile by definition, so an ambient
+/// `lockfile: false` must not disable it — that would leave the mode with
+/// nothing to materialize from and fail with `ERR_PNPM_NO_LOCKFILE`.
+#[test]
+fn ignore_package_manifest_survives_an_ambient_lockfile_false() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let project_dir = temp_dir.path().join("project");
+    std::fs::create_dir_all(&project_dir).expect("create project dir");
+    std::fs::write(project_dir.join("package.json"), "{}\n").expect("write package.json");
+
+    let project_dir_string = project_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = project_dir_string.clone();
+    options.projects = vec![NodeApiProject {
+        root_dir: project_dir_string,
+        manifest: serde_json::json!({
+            "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" }
+        }),
+        dependency_manifest: None,
+    }];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    options.lockfile_only = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
+    options.lockfile_only = None;
+
+    std::fs::write(project_dir.join("pnpm-workspace.yaml"), "lockfile: false\n")
+        .expect("write workspace yaml");
+
+    options.ignore_package_manifest = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None))
+        .expect("a fetch-shaped install must read the lockfile despite `lockfile: false`");
+
+    let fetched: Vec<String> = std::fs::read_dir(project_dir.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
+        .collect();
+    dbg!(&fetched);
+    assert_eq!(fetched.len(), 1, "the recorded dependency must still be imported");
+}
+
+/// The fetch shape covers every importer the lockfile records, not just the
+/// ones the caller named — pnpm's `initialImporterIds` under
+/// `ignorePackageManifest`. Here the caller passes only the workspace root
+/// while the dependency belongs to a member project.
+#[test]
+fn ignore_package_manifest_fetches_importers_the_caller_did_not_pass() {
+    let registry = TestRegistry::start();
+    let temp_dir = tempfile::tempdir().expect("tempdir");
+    let root_dir = temp_dir.path().join("workspace");
+    let member_dir = root_dir.join("packages/member");
+    std::fs::create_dir_all(&member_dir).expect("create member dir");
+    std::fs::write(root_dir.join("package.json"), "{}\n").expect("write root package.json");
+    std::fs::write(member_dir.join("package.json"), "{}\n").expect("write member package.json");
+    std::fs::write(root_dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace yaml");
+
+    let root_dir_string = root_dir.to_string_lossy().into_owned();
+    let member_dir_string = member_dir.to_string_lossy().into_owned();
+    let mut options = install_options();
+    options.dir = root_dir_string.clone();
+    options.projects = vec![
+        NodeApiProject {
+            root_dir: root_dir_string,
+            manifest: serde_json::json!({ "name": "root" }),
+            dependency_manifest: None,
+        },
+        NodeApiProject {
+            root_dir: member_dir_string,
+            manifest: serde_json::json!({
+                "name": "member",
+                "dependencies": { "@pnpm.e2e/hello-world-js-bin": "1.0.0" }
+            }),
+            dependency_manifest: None,
+        },
+    ];
+    options.store_dir = Some(temp_dir.path().join("store").to_string_lossy().into_owned());
+    options.registries = Some(HashMap::from([("default".to_string(), registry.url())]));
+
+    options.lockfile_only = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("seed the lockfile");
+    options.lockfile_only = None;
+
+    // Drop the member importer from the call entirely: its dependency must
+    // still be fetched, because the lockfile records it.
+    options.projects.truncate(1);
+    options.ignore_package_manifest = Some(true);
+    run_install_inner(&options, None, EngineMode::Install(None)).expect("fetch-shaped install");
+
+    let fetched: Vec<String> = std::fs::read_dir(root_dir.join("node_modules/.pnpm"))
+        .expect("read the virtual store")
+        .map(|entry| entry.expect("virtual store entry").file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with("@pnpm.e2e+hello-world-js-bin"))
+        .collect();
+    dbg!(&fetched);
+    assert_eq!(fetched.len(), 1, "the unnamed importer's dependency must still be fetched");
+    assert!(
+        !member_dir.join("node_modules/@pnpm.e2e/hello-world-js-bin").exists(),
+        "a fetch-shaped install links no importer symlinks",
+    );
 }
 
 #[test]
@@ -628,6 +963,8 @@ fn install_options() -> InstallOptions {
         fetch_retry_mintimeout: None,
         fetch_retry_maxtimeout: None,
         fetch_timeout: None,
+        fetch_warn_timeout_ms: None,
+        fetch_min_speed_ki_bps: None,
         user_agent: None,
         strict_dep_builds: None,
         return_list_of_deps_requiring_build: None,
@@ -636,6 +973,24 @@ fn install_options() -> InstallOptions {
         peer_dependency_rules: None,
         auth_header_by_uri: None,
         pnpm_home_dir: None,
+        reporter: None,
+    }
+}
+
+fn peer_issues_options() -> PeerIssuesOptions {
+    PeerIssuesOptions {
+        dir: String::new(),
+        projects: Vec::new(),
+        store_dir: None,
+        cache_dir: None,
+        registries: None,
+        auth_header_by_uri: None,
+        proxy_config: None,
+        network_config: None,
+        overrides: None,
+        peers_suffix_max_length: None,
+        virtual_store_dir_max_length: None,
+        auto_install_peers: None,
     }
 }
 
@@ -653,6 +1008,8 @@ fn network_config() -> NetworkConfigInput {
         fetch_retry_mintimeout: None,
         fetch_retry_maxtimeout: None,
         fetch_timeout: None,
+        fetch_warn_timeout_ms: None,
+        fetch_min_speed_ki_bps: None,
         user_agent: None,
     }
 }

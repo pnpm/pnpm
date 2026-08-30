@@ -75,6 +75,7 @@ export const pnpmConfigFileKeys = [
   'verify-store-integrity',
   'virtual-store-dir',
   'virtual-store-dir-max-length',
+  'virtual-store-type',
 ] as const satisfies readonly PnpmKey[]
 export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 
@@ -85,6 +86,7 @@ export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 export const structuredConfigFileKeys = [
   'named-registries',
   'registries',
+  'remote-side-effects-cache',
 ] as const
 export type StructuredConfigFileKey = typeof structuredConfigFileKeys[number]
 

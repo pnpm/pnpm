@@ -116,7 +116,7 @@ impl UpdateChangesetContext {
         let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
         let workspace_dir = config.workspace_dir.as_deref().unwrap_or(project_dir).to_path_buf();
         let root_dirs = if config.workspace_dir.is_some() {
-            let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+            let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
             let dirs = projects.into_iter().map(|project| project.root_dir).collect::<Vec<_>>();
             if dirs.is_empty() { vec![project_dir.to_path_buf()] } else { dirs }
         } else {

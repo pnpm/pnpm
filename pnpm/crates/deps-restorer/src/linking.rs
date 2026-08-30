@@ -19,6 +19,7 @@ use crate::{
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{Lockfile, PackageKey, PackageMetadata, ProjectSnapshot, SnapshotEntry};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
@@ -83,17 +84,18 @@ impl From<HoistedLinkerError> for LinkPhaseError {
 
 /// Everything the link phase reads.
 ///
-/// Both install paths supply this, and the fields that differ between
-/// them are inputs rather than branches: [`Self::symlink_root`],
-/// [`Self::trusted_importer_ids`], [`Self::root_component_importers`]
-/// and [`Self::sidecar_lockfile`] each carry a per-path value whose
-/// reason is documented on the field.
+/// Both install paths supply this. What differs between them is carried
+/// as a field value rather than a branch inside the phase; each such
+/// field documents its per-path value.
 pub struct LinkPhaseInputs<'a> {
     pub config: &'static Config,
     pub layout: &'a VirtualStoreLayout,
     pub lockfile: &'a Lockfile,
     pub current_lockfile: Option<&'a Lockfile>,
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    /// Restricts per-slot bin linking to this install's materialized
+    /// snapshots. `None` keeps rebuild's all-slot behavior.
+    pub materialized_snapshots: Option<&'a [PackageKey]>,
     pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub importers: &'a HashMap<String, ProjectSnapshot>,
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
@@ -101,7 +103,7 @@ pub struct LinkPhaseInputs<'a> {
     pub dependency_groups: &'a [DependencyGroup],
     pub package_manifests: &'a PackageManifests,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
-    pub extra_node_paths: &'a [String],
+    pub link_options: &'a LinkBinsOptions,
     /// Anchor for each importer's `node_modules`. The frozen path uses
     /// `workspace_root`; the fresh path uses `modules_dir.parent()`,
     /// because its tests relocate `modules_dir` away from the manifest.
@@ -109,8 +111,7 @@ pub struct LinkPhaseInputs<'a> {
     /// Lockfile dir, for the sidecars and the hoisted walker.
     pub workspace_root: &'a Path,
     /// Importer ids allowed to live outside the lockfile dir (Bit's
-    /// capsule installs). Derived differently per path, so it is an
-    /// input rather than something this module recomputes.
+    /// capsule installs).
     pub trusted_importer_ids: &'a std::collections::HashSet<String>,
     /// Importers declaring `installConfig.hoistingLimits: "workspaces"`.
     pub root_component_importers: &'a std::collections::HashSet<String>,
@@ -134,7 +135,44 @@ pub struct LinkPhaseOutput {
     pub hoisted_dependencies: crate::HoistedDependencies,
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     pub hoisted_pkg_roots_by_key: Option<HashMap<PackageKey, Vec<PathBuf>>>,
+    /// Publicly-hoisted aliases carrying bins. Public hoist promotes a
+    /// transitive dep to `<root>/node_modules/<alias>`, whose bin then
+    /// competes for the same `<root>/node_modules/.bin` slot as a root
+    /// direct dep's; per pnpm/pacquet#342 the direct dep must win. The
+    /// post-`BuildModules` top-level bin link takes both candidate lists
+    /// so `pick_winner`'s [`BinOrigin`] tier settles it in one call.
+    ///
+    /// [`BinOrigin`]: pnpm_cmd_shim::BinOrigin
     pub publicly_hoisted_for_post_build: Vec<String>,
+}
+
+impl LinkPhaseOutput {
+    /// The result of a run that materialized nothing.
+    fn empty() -> Self {
+        LinkPhaseOutput {
+            hoisted_dependencies: crate::HoistedDependencies::new(),
+            hoisted_locations: BTreeMap::new(),
+            hoisted_pkg_roots_by_key: None,
+            publicly_hoisted_for_post_build: Vec::new(),
+        }
+    }
+}
+
+/// What [`write_hoist_links`] put on disk.
+struct HoistLinks {
+    hoisted_dependencies: crate::HoistedDependencies,
+    /// See [`LinkPhaseOutput::publicly_hoisted_for_post_build`].
+    publicly_hoisted_with_bins: Vec<String>,
+}
+
+impl HoistLinks {
+    /// The result of a run with no hoist plan to write.
+    fn none() -> Self {
+        HoistLinks {
+            hoisted_dependencies: crate::HoistedDependencies::new(),
+            publicly_hoisted_with_bins: Vec::new(),
+        }
+    }
 }
 
 /// Reconcile what the previous install left behind, then materialize
@@ -149,9 +187,9 @@ pub struct LinkPhaseOutput {
 /// `.modules.yaml` observe the same skip set this phase acted on.
 ///
 /// Returns what the build phase and the caller's `.modules.yaml` writer
-/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` nothing
-/// below the reconciliation runs and every output is empty: that mode
-/// populates the store without touching the project.
+/// need — see [`LinkPhaseOutput`]. Under `virtual_store_only` only the
+/// per-slot bin pass runs and every output is empty: that mode
+/// populates the virtual store without touching the project.
 pub fn run_link_phase<Reporter: self::Reporter>(
     inputs: LinkPhaseInputs<'_>,
     skipped: &mut SkippedSnapshots,
@@ -166,6 +204,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         lockfile,
         current_lockfile,
         snapshots,
+        materialized_snapshots,
         packages,
         importers,
         project_manifests,
@@ -173,7 +212,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         dependency_groups,
         package_manifests,
         cas_paths_by_pkg_id,
-        extra_node_paths,
+        link_options,
         workspace_root,
         requester,
         node_linker,
@@ -185,19 +224,16 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         logged_methods,
     } = inputs;
 
-    // Pre-compute the hoist plan so the dedupe pass inside
-    // `SymlinkDirectDependencies` can fold publicly-hoisted aliases
-    // into root's target map — pacquet runs hoist *after*
-    // `SymlinkDirectDependencies`, so without this the dedupe map
-    // only sees root's direct deps and a non-root importer's
-    // direct dep that would land at root via public-hoist stays
-    // un-deduped. The full `HoistResult` is also threaded to the
-    // on-disk hoist pass below so the traversal isn't run twice.
-    // `hoist-workspace-packages`: named non-root projects become
-    // hoist candidates whose links point at the project dirs.
+    // `hoistWorkspacePackages`: named non-root projects become hoist
+    // candidates whose links point at the project dirs.
     let hoisted_workspace_packages = config
         .hoist_workspace_packages
         .then(|| workspace_packages_for_hoist(workspace_root, project_manifests));
+    // Planned before the links are written, not with them: an importer's
+    // dep that public-hoist lands at root has to be in
+    // `SymlinkDirectDependencies`'s dedupe map, and `write_hoist_links`
+    // reuses the plan rather than walking a second time.
+    let phase_start = std::time::Instant::now();
     let pre_hoist = compute_hoist_plan(
         config,
         snapshots,
@@ -211,32 +247,19 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     let public_hoist_targets: Option<BTreeMap<String, PathBuf>> = pre_hoist
         .as_ref()
         .map(|plan| collect_public_hoist_targets(&plan.result, &plan.graph, layout, &plan.skipped));
+    tracing::info!(target: "pacquet::install::phase", phase = "link.hoist_plan", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
-    // Reconcile before linking: stale direct-dep links and
-    // orphaned hoist links must vacate their slots so the relink +
-    // rehoist below can claim them. The hoisted linker is excluded
-    // — its previous-graph diff removes orphans and emits the
-    // `pnpm:stats` `removed` event itself (see
-    // [`crate::link_hoisted_modules()`]); on the isolated linker
-    // the event fires here, so every install carries exactly one,
-    // pairing the `added` emitted in `CreateVirtualStore`.
-    // Nothing below this point runs under `virtual_store_only`: it
-    // creates no importer or hoist links, so it has neither anything to
-    // reconcile nor anything to link. Returning here rather than gating
-    // each pass keeps that a single decision — and keeps the hoist pass,
-    // which writes into `config.modules_dir`, from touching a project
-    // this mode is meant to leave alone.
-    if config.virtual_store_only {
-        return Ok(LinkPhaseOutput {
-            hoisted_dependencies: crate::HoistedDependencies::new(),
-            hoisted_locations: BTreeMap::new(),
-            hoisted_pkg_roots_by_key: None,
-            publicly_hoisted_for_post_build: Vec::new(),
-        });
-    }
+    // `nodeLinker: hoisted` writes no virtual store — `CreateVirtualStore`
+    // skipped the slots — so there is nothing to link into or out of.
+    let has_virtual_store = !is_hoisted;
+    let links_importer_tree = has_virtual_store && !config.virtual_store_only;
 
-    //
-    if !is_hoisted {
+    // Reconcile first, so stale direct-dep and orphaned hoist links
+    // vacate the slots the relink + rehoist below claim. The hoisted
+    // linker reconciles and emits this `removed` event itself (see
+    // [`crate::link_hoisted_modules()`]), keeping it one per install —
+    // the pair of the `added` emitted in `CreateVirtualStore`.
+    if links_importer_tree {
         let removed_count = match current_lockfile {
             Some(current) => crate::PruneStaleModules {
                 config,
@@ -255,9 +278,8 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             level: LogLevel::Debug,
             message: StatsMessage::Removed { prefix: requester.to_owned(), removed: removed_count },
         }));
-    }
 
-    if !is_hoisted {
+        let phase_start = std::time::Instant::now();
         SymlinkDirectDependencies {
             config,
             layout,
@@ -269,83 +291,51 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             link_only: false,
             public_hoist_targets: public_hoist_targets.as_ref(),
             trusted_importer_ids: Some(trusted_importer_ids),
-            extra_node_paths,
+            link_options,
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::SymlinkDirectDependencies)?;
+        tracing::info!(target: "pacquet::install::phase", phase = "link.symlink_direct_deps", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
-        // Bit "root components": make each root's injected members
-        // mutually reachable. Gated on
-        // `installConfig.hoistingLimits: "workspaces"`, so it is a
-        // no-op for every non-Bit install. See
-        // [`link_root_component_members`]. `project_manifests` keys
-        // are project directories; map each back to its lockfile
-        // importer id so the set lines up with `importers`.
+        // Bit "root components" — a no-op unless an importer declared
+        // `installConfig.hoistingLimits: "workspaces"`.
         link_root_component_members(
             layout,
             importers,
+            snapshots,
             root_component_importers,
             dependency_groups,
             skipped,
         )
         .map_err(LinkPhaseError::LinkRootComponentMembers)?;
+    }
 
-        // Link the bins of each virtual-store slot's children into the
-        // slot's own `node_modules/.bin`.
-        // Done before `importing_done` so reporters see the import phase
-        // close only after every link (including per-slot bins) is in
-        // place. The manifest map threaded from `CreateVirtualStore`
-        // lets the linker hit `pkgFilesIndex.manifest` directly instead
-        // of re-reading every child's `package.json` from disk.
-        //
-        // Both passes are gated by `!is_hoisted`: under
-        // `nodeLinker: hoisted` there is no virtual store
-        // (`CreateVirtualStore` skipped slot writes), and the
-        // bin links go into `<parent>/node_modules/.bin` for
-        // every hoist location instead. The hoisted linker
-        // ([`crate::link_hoisted_modules()`], called below) does
-        // its own per-`node_modules` bin pass while walking the
-        // hierarchy, routing both link phases through the hoisted
-        // linker.
+    if has_virtual_store {
+        // Unlike every other pass here this one also runs under
+        // `virtual_store_only`: the links it writes live inside the
+        // virtual store, and the build phase — which `pnpm fetch` still
+        // runs — resolves a dependency's sibling bin through them.
+        let phase_start = std::time::Instant::now();
         LinkVirtualStoreBins {
             layout,
             snapshots,
+            selected_snapshots: materialized_snapshots,
             packages,
             package_manifests,
             skipped,
-            extra_node_paths,
+            link_options,
         }
         .run()
         .map_err(LinkPhaseError::LinkVirtualStoreBins)?;
+        tracing::info!(target: "pacquet::install::phase", phase = "link.virtual_store_bins", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
     }
 
-    // Hoisted-linker materialization. Replaces the isolated
-    // [`crate::SymlinkDirectDependencies`] +
-    // [`crate::LinkVirtualStoreBins`] pair when
-    // `nodeLinker: hoisted` is in effect: the dep-graph walker
-    // computes per-package directories (with conflict-aware
-    // nesting), and the linker imports CAS files into those
-    // directories from
-    // [`CreateVirtualStoreOutput::cas_paths_by_pkg_id`] which
-    // was populated above with `node_linker = Hoisted`.
-    //
-    // `hoisted_locations` is the per-depPath list of
-    // lockfile-relative directories the walker emits. Threaded
-    // through [`InstallFrozenLockfileOutput`] so
-    // [`crate::Install::run`] can persist it into
-    // `.modules.yaml.hoisted_locations` (rebuild reads it back
-    // and surfaces `MISSING_HOISTED_LOCATIONS` if it's gone).
-    //
-    // `pkg_roots_by_key` is a per-snapshot override for
-    // `BuildModules`'s `pkgRoot` lookup. Populated from the
-    // walker's [`crate::DependenciesGraphNode::dir`] values so
-    // the build phase can `cd` into the on-disk hoisted
-    // directory instead of computing a virtual-store slot path
-    // that doesn't exist under hoisted. `None` (and an empty
-    // `hoisted_locations`) for the isolated linker. See
-    // [`crate::BuildModules::pkg_roots_by_key`] for why a snapshot
-    // can map to more than one directory and which writes have to
-    // reach all of them.
+    // Everything below writes into the project that `virtual_store_only`
+    // exists to leave alone.
+    if config.virtual_store_only {
+        return Ok(LinkPhaseOutput::empty());
+    }
+
     let HoistedLinkerOutput { hoisted_locations, hoisted_pkg_roots_by_key } = if is_hoisted {
         run_hoisted_linker::<Reporter>(
             HoistedLinkerInputs {
@@ -372,84 +362,32 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         HoistedLinkerOutput::default()
     };
 
-    // Hoist transitive deps into `<virtual_store>/node_modules`
-    // (private hoist) and/or `<root>/node_modules` (public hoist).
-    //
-    // The guard is `hoistPattern != null || publicHoistPattern != null`
-    // — `Some(empty)` is a valid disabled state for one side but
-    // not the other, so the guard checks `is_some()` on the field
-    // (not `Vec` length). With pacquet's defaults both sides are
-    // `Some(non-empty)`, so the pass runs by default.
-    // Stashed across the hoist pass for the post-`BuildModules`
-    // top-level bin link. Isolated-linker public-hoist promotes
-    // a transitive dep alias to `<root>/node_modules/<alias>`
-    // where it competes for the same `<root>/node_modules/.bin`
-    // slot as the root importer's direct deps. Per
-    // pnpm/pacquet#342 the direct dep's bin must win. The post-build pass below
-    // takes both direct + hoisted candidate lists so
-    // `pnpm_cmd_shim::pick_winner` (private)'s [`BinOrigin`] tier
-    // resolves the conflict in one call. Empty means there's
-    // no public-hoist (no patterns set, hoisted linker, or
-    // `Some(empty)`-vs-`None` short-circuit).
-    let mut publicly_hoisted_for_post_build: Vec<String> = Vec::new();
-    // Isolated-linker hoist pass: shamefully-hoist + private
-    // hoist into the virtual store. Skipped under hoisted —
-    // the hoisted linker materialized the project tree above
-    // and there's no virtual store to point hoist symlinks at,
-    // so no new isolated-hoist results are produced when no
-    // `hoistPattern` / `publicHoistPattern` is configured.
-    //
-    // The traversal itself ran upthread (`pre_hoist`) so the dedupe
-    // pass in `SymlinkDirectDependencies` could see public-hoist
-    // targets; here we consume the same plan to write the
-    // symlinks on disk and emit the per-side bin shims.
-    let hoisted_dependencies = if let Some(plan) = pre_hoist {
-        let HoistPlan { graph, result, skipped: hoist_skipped, .. } = plan;
-        // Public-hoist target is the project's root
-        // `node_modules` (= `config.modules_dir`).
-        // Private-hoist target is the project-local
-        // `<root>/node_modules/.pnpm/node_modules` —
-        // pacquet's `config.virtual_store_dir` always
-        // resolves there even with GVS enabled: pacquet keeps
-        // `virtual_store_dir` project-local and
-        // routes the GVS-shared root through
-        // `global_virtual_store_dir` instead — see
-        // [`Config::apply_global_virtual_store_derivation`].
-        // The symlink *target* (under the slot dir)
-        // does need to be GVS-aware, which the
-        // `VirtualStoreLayout` handle below provides.
-        let private_dir = config.virtual_store_dir.join("node_modules");
-        let public_dir = config.modules_dir.clone();
-        symlink_hoisted_dependencies(
-            &result.hoisted_dependencies_by_node_id,
-            &result.hoisted_workspace_aliases,
-            &graph,
-            layout,
-            &private_dir,
-            &public_dir,
-            &hoist_skipped,
-        )
-        .map_err(LinkPhaseError::HoistSymlink)?;
-        // Private-side bins → `<vs>/node_modules/.bin`.
-        // Reuses the rayon-parallel `link_direct_dep_bins`
-        // shape (read each location's `package.json`, fan out
-        // to `link_bins_of_packages`).
-        link_direct_dep_bins_resolved(
-            &private_dir,
-            &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
-            extra_node_paths,
-        )
-        .map_err(LinkPhaseError::HoistLinkBins)?;
-        // Stash the public-hoist alias list for the
-        // post-`BuildModules` top-level bin link, which re-links
-        // with the [`BinOrigin`] tier so a direct dep's bin wins
-        // outright over a publicly-hoisted bin with a lexically
-        // smaller name. The re-link runs after `buildModules`.
-        publicly_hoisted_for_post_build = result.publicly_hoisted_aliases_with_bins;
-        result.hoisted_dependencies
-    } else {
-        crate::HoistedDependencies::new()
+    // Publicly hoisted *workspace* packages are the one source of root
+    // bins nothing else shims: every importer's direct-dep bins were
+    // written by `SymlinkDirectDependencies`, and publicly hoisted
+    // regular packages go through the post-build top-level pass
+    // (`publicly_hoisted_for_post_build`) — but that pass resolves bins
+    // out of virtual-store slots, which a workspace project doesn't
+    // have. Collected before `write_hoist_links` consumes the plan;
+    // shimmed after the hoist symlinks land.
+    let public_workspace_bin_deps: Vec<(String, PathBuf)> = pre_hoist
+        .as_ref()
+        .map(|plan| {
+            plan.result
+                .hoisted_workspace_aliases
+                .iter()
+                .filter(|(_, kind, _)| matches!(kind, pnpm_modules_yaml::HoistKind::Public))
+                .map(|(alias, _, project_dir)| (alias.clone(), project_dir.clone()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let phase_start = std::time::Instant::now();
+    let HoistLinks { hoisted_dependencies, publicly_hoisted_with_bins } = match pre_hoist {
+        Some(plan) => write_hoist_links(plan, config, layout, link_options)?,
+        None => HoistLinks::none(),
     };
+    tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
     if crate::should_write_package_map(config, node_linker) {
         crate::package_map::write_package_map(
@@ -468,34 +406,60 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
             .map_err(LinkPhaseError::WritePnpFile)?;
     }
-    // `SymlinkDirectDependencies` already linked direct-dep bins, but
-    // hoisting runs after it. Re-walking each importer's `node_modules`
-    // is what shims a publicly-hoisted *workspace package*'s bin: those
-    // are recorded in the hoist result's `hoisted_workspace_aliases`,
-    // which the post-build top-level link never sees.
-    {
-        let modules_basename = config.modules_dir.file_name().map_or_else(
-            || std::ffi::OsString::from("node_modules"),
-            std::ffi::OsStr::to_os_string,
-        );
-        for importer_id in trusted_importer_ids {
-            let modules_dir =
-                crate::symlink_direct_dependencies::importer_root_dir(symlink_root, importer_id)
-                    .join(&modules_basename);
-            let bins_dir = modules_dir.join(".bin");
-            pnpm_cmd_shim::link_bins::<pnpm_cmd_shim::Host>(
-                &modules_dir,
-                &bins_dir,
-                extra_node_paths,
-            )
-            .map_err(LinkPhaseError::LinkBins)?;
-        }
+    if !public_workspace_bin_deps.is_empty() {
+        link_direct_dep_bins_resolved(
+            &config.modules_dir,
+            &public_workspace_bin_deps,
+            link_options,
+        )
+        .map_err(LinkPhaseError::LinkBins)?;
     }
 
     Ok(LinkPhaseOutput {
         hoisted_dependencies,
         hoisted_locations,
         hoisted_pkg_roots_by_key,
-        publicly_hoisted_for_post_build,
+        publicly_hoisted_for_post_build: publicly_hoisted_with_bins,
+    })
+}
+
+/// Symlink the hoist plan's aliases into the private
+/// (`<virtual_store>/node_modules`) and public (`<root>/node_modules`)
+/// targets, then shim the private side's bins.
+///
+/// Enabling the global virtual store does not move the private target:
+/// pacquet leaves `virtual_store_dir` at its project-local (or
+/// yaml-pinned) value and routes the shared root through
+/// `global_virtual_store_dir` instead — see
+/// [`Config::apply_global_virtual_store_derivation`]. Only the symlink
+/// *target* under the slot dir is GVS-aware, which `layout` resolves.
+fn write_hoist_links(
+    plan: HoistPlan,
+    config: &Config,
+    layout: &VirtualStoreLayout,
+    link_options: &LinkBinsOptions,
+) -> Result<HoistLinks, LinkPhaseError> {
+    let HoistPlan { graph, result, skipped, .. } = plan;
+    let private_hoist_dir = config.virtual_store_dir.join("node_modules");
+    let public_hoist_dir = config.modules_dir.clone();
+    symlink_hoisted_dependencies(
+        &result.hoisted_dependencies_by_node_id,
+        &result.hoisted_workspace_aliases,
+        &graph,
+        layout,
+        &private_hoist_dir,
+        &public_hoist_dir,
+        &skipped,
+    )
+    .map_err(LinkPhaseError::HoistSymlink)?;
+    link_direct_dep_bins_resolved(
+        &private_hoist_dir,
+        &crate::resolve_hoisted_bin_deps(layout, &result.hoisted_aliases_with_bins),
+        link_options,
+    )
+    .map_err(LinkPhaseError::HoistLinkBins)?;
+    Ok(HoistLinks {
+        hoisted_dependencies: result.hoisted_dependencies,
+        publicly_hoisted_with_bins: result.publicly_hoisted_aliases_with_bins,
     })
 }

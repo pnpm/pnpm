@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.commands",
-  "version": "1100.1.22",
+  "version": "1101.2.0",
   "description": "Commands for rebuilding and managing dependency builds",
   "keywords": [
     "pnpm",
@@ -42,6 +42,7 @@
     "@pnpm/config.writer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",
     "@pnpm/prepare-temp-dir": "workspace:*",
@@ -49,8 +50,10 @@
     "@pnpm/text.ordinal-comparator": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "chalk": "catalog:",
-    "p-limit": "catalog:",
+    "is-subdir": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:"
   },

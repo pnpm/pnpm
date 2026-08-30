@@ -21,6 +21,7 @@ use std::{
     sync::Arc,
 };
 
+use pnpm_config::NeedsFullMetadataFor;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
@@ -31,7 +32,7 @@ use crate::{
     npm_resolver::{
         BuildResolveResult, PickFromRegistryOptions, RegistryPick, build_resolve_result,
         calc_specifier_from, no_matching_version, pick_from_registry_with_guard,
-        swallowed_as_no_latest,
+        revision_specifier, swallowed_as_no_latest, validate_revision_selector,
     },
     parse_bare_specifier::{
         NamedRegistryPackageSpec, parse_named_registry_specifier_to_registry_package_spec,
@@ -85,6 +86,9 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     /// Install-wide bias toward full metadata. Threaded through to
     /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
+    /// Per-registry answer to the same question. A prefix-addressed registry
+    /// is declared like any other, so it is exempted like any other.
+    pub needs_full_metadata_for: Option<NeedsFullMetadataFor>,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
     pub filter_metadata: bool,
@@ -133,6 +137,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         let Some(NamedRegistryPackageSpec { spec, registry_name }) = parsed else {
             return Ok(None);
         };
+        validate_revision_selector(&spec)?;
 
         // Defensive: should never trigger because the parser checks
         // the alias set first, but kept as a belt-and-braces guard.
@@ -161,18 +166,28 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             picked_manifest_cache: &self.picked_manifest_cache,
             // The entry stays a named-registry dependency, so it
             // round-trips under the `<alias>:` protocol prefix.
-            calculated_specifier: calc_specifier_from(wanted_dependency, opts, &spec).map(
-                |(bare_specifier, default_pin)| {
-                    crate::calc_prefixed_specifier(
-                        &format!("{registry_name}:"),
-                        &spec.name,
-                        bare_specifier,
-                        wanted_dependency.alias.as_deref(),
-                        &picked.version,
-                        default_pin,
-                    )
-                },
-            ),
+            calculated_specifier: revision_specifier(
+                wanted_dependency,
+                opts,
+                &spec,
+                Some(&format!("{registry_name}:")),
+                &spec.name,
+                &picked.version.version,
+            )
+            .or_else(|| {
+                calc_specifier_from(wanted_dependency, opts, &spec).map(
+                    |(bare_specifier, default_pin)| {
+                        crate::calc_prefixed_specifier(
+                            &format!("{registry_name}:"),
+                            &spec.name,
+                            bare_specifier,
+                            wanted_dependency.alias.as_deref(),
+                            &picked.version,
+                            default_pin,
+                        )
+                    },
+                )
+            }),
         })?;
 
         Ok(Some(result))
@@ -232,6 +247,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
             prefer_offline: self.prefer_offline,
             ignore_missing_time_field: self.ignore_missing_time_field,
             full_metadata: self.full_metadata,
+            needs_full_metadata_for: self.needs_full_metadata_for.as_deref(),
             filter_metadata: self.filter_metadata,
             retry_opts: self.retry_opts,
         };
@@ -248,7 +264,8 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
                 include_latest_tag: opts.update == UpdateBehavior::Latest,
                 dry_run: opts.dry_run,
                 optional,
-                update_checksums: opts.update_checksums,
+                update_checksums: opts.update_checksums || opts.update == UpdateBehavior::Patches,
+                trust_policy: opts.trust_policy,
                 package_version_guard: opts.package_version_guard.as_ref(),
             },
         )

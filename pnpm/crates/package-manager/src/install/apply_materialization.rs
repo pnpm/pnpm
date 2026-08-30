@@ -1,13 +1,17 @@
 use super::{
-    BTreeMap, BTreeSet, Catalogs, Config, HashSet, HoistedDependencies, Host, IncludedDependencies,
-    InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent, LogLevel, Modules, NodeLinker,
-    PackageManifest, Path, PathBuf, ProjectMutation, ProjectScriptsInputs, RebuildOptions,
-    Reporter, SummaryLog, SystemTime, WorkspaceInstallSelection, build_modules_manifest,
-    build_workspace_state, drain_settled_projects, merge_filtered_modules_metadata,
-    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    BTreeMap, BTreeSet, Catalogs, Config, GlobalLog, HashSet, HoistedDependencies, Host,
+    IncludedDependencies, InstallError, InstallWithFreshLockfileError, Lockfile, LogEvent,
+    LogLevel, Modules, NodeLinker, PackageManifest, Path, PathBuf, ProjectMutation,
+    ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
+    WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
+    current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
+    merge_pending_builds, project_lifecycle_graph, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
+use crate::peer_dependency_issues::report_peer_dependency_issues;
+use pnpm_store_dir::VerifiedFileIntegrity;
+use std::time::Duration;
 
 struct ResolveOnlyCompletionInputs<'a> {
     resolve_only: bool,
@@ -16,6 +20,9 @@ struct ResolveOnlyCompletionInputs<'a> {
     existing_wanted_lockfile: Option<&'a Lockfile>,
     fresh_lockfile: Option<&'a Lockfile>,
     prefix: &'a str,
+    config: &'static Config,
+    workspace_root: &'a Path,
+    installed_importer_ids: &'a HashSet<String>,
 }
 
 fn complete_resolve_only<Reporter: self::Reporter>(
@@ -37,6 +44,16 @@ fn complete_resolve_only<Reporter: self::Reporter>(
         let mut stdout = std::io::stdout();
         let _ = writeln!(stdout, "{report}");
         let _ = stdout.flush();
+    }
+    // A programmatic peer-issue query asks for the issues; it must not
+    // also be told about them, nor fail over them.
+    if inputs.peer_issues_sink_is_none {
+        report_peer_dependency_issues::<Reporter>(
+            inputs.fresh_lockfile,
+            inputs.installed_importer_ids,
+            inputs.workspace_root,
+            inputs.config,
+        )?;
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
         level: LogLevel::Debug,
@@ -224,7 +241,7 @@ async fn link_materialized_projects<Reporter: self::Reporter + 'static>(
             // Honor a `modulesDir` override the same way the
             // lockfile-driven symlink pass does.
             config.modules_dir.file_name().unwrap_or_else(|| std::ffi::OsStr::new("node_modules")),
-            &crate::shim_extra_node_paths(config, node_linker),
+            &crate::shim_link_options(config, node_linker),
         )
         .map_err(InstallError::LinkManifestLinkDeps)?;
     }
@@ -373,14 +390,18 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // selected, approved dependency always runs (force-rebuild
     // bypasses the side-effects cache gate), so policy approval is a
     // faithful stand-in for "was rebuilt".
-    let rebuild_build_policy =
-        rebuild.as_ref().and_then(|_| crate::AllowBuildPolicy::from_config(config).ok());
+    let allow_build_policy = (rebuild.is_some()
+        || (prior_modules.is_some() && materialized_current_lockfile.is_some()))
+    .then(|| crate::AllowBuildPolicy::from_config(config))
+    .transpose()
+    .map_err(InstallWithFreshLockfileError::AllowBuildsPolicy)
+    .map_err(InstallError::WithFreshLockfile)?;
     let pending_builds = merge_pending_builds(
         previous_pending_builds,
         deferred_projects.into_iter().flatten().chain(deferred_builds),
         materialized_current_lockfile,
         rebuild,
-        rebuild_build_policy.as_ref(),
+        allow_build_policy.as_ref(),
     );
 
     // Rebuild reads hoisted locations from `.modules.yaml` and reports
@@ -397,6 +418,11 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
         pending_builds,
         pruned_at,
     );
+    if let (Some(previous), Some(current), Some(policy)) =
+        (prior_modules, materialized_current_lockfile, allow_build_policy.as_ref())
+    {
+        retain_current_ignored_builds(&mut next_modules, previous, current, policy);
+    }
     if filtered_install
         && !matches!(node_linker, NodeLinker::Hoisted)
         && !is_inconsistent
@@ -445,17 +471,35 @@ fn commit_modules_state(inputs: CommitModulesStateInputs<'_>) -> Result<(), Inst
     // `.modules.yaml` was wiped or inconsistent and the frozen install
     // had to relink.
     if take_frozen_path
-        && (lockfile_synthesized_from_current || lockfile_was_fast_updated)
+        && (lockfile_synthesized_from_current
+            || lockfile_was_fast_updated
+            || config.merge_git_branch_lockfiles)
         && config.lockfile
         && save_lockfile
         && let Some(updated) = loaded_wanted_lockfile
     {
         updated
-            .save_to_path(&workspace_root.join(Lockfile::FILE_NAME))
+            .save_to_path(&workspace_root.join(config.wanted_lockfile_name()))
             .map_err(InstallError::SaveWantedLockfile)?;
     }
 
     Ok(())
+}
+
+fn retain_current_ignored_builds(
+    next: &mut Modules,
+    previous: &pnpm_modules_yaml::ModulesLayout,
+    current: &Lockfile,
+    allow_build_policy: &crate::AllowBuildPolicy,
+) {
+    let Some(previous_ignored) = previous.ignored_builds.as_ref() else { return };
+    for dep_path in previous_ignored {
+        if current_contains_dep_path(current, dep_path.as_str())
+            && allow_build_policy.check(dep_path.as_str()).is_none()
+        {
+            next.ignored_builds.get_or_insert_default().insert(dep_path.clone());
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -517,15 +561,15 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
             })
         };
     if !projects_to_run.is_empty() {
-        let project_groups = order_project_lifecycle_groups(
+        let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            selection.map(|selection| selection.ordered_groups),
+            selection.map(|selection| selection.project_dependencies),
             workspace_root,
             materialized_current_lockfile,
         )?;
-        if !project_groups.is_empty() {
+        if !project_graph.dependencies.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
-                &project_groups,
+                &project_graph,
                 config,
                 node_linker,
                 workspace_root,
@@ -545,6 +589,12 @@ struct ReportInstallCompletionInputs<'a> {
     workspace_manifest_dir: &'a Path,
     prefix: String,
     ignored_builds: Vec<String>,
+    verified_file_integrity_baseline: VerifiedFileIntegrity,
+    /// The lockfile this install resolved, or `None` when it skipped
+    /// resolution — which is what decides whether peer-dependency
+    /// issues are reported at all.
+    resolved_lockfile: Option<&'a Lockfile>,
+    installed_importer_ids: &'a HashSet<String>,
 }
 
 fn report_install_completion<Reporter: self::Reporter>(
@@ -556,11 +606,27 @@ fn report_install_completion<Reporter: self::Reporter>(
         workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
+        resolved_lockfile,
+        installed_importer_ids,
     } = inputs;
+    // Reported before the summary and before the ignored-builds
+    // failure below, matching where pnpm places the verdict: last in
+    // the install, first among the ways it can still fail.
+    report_peer_dependency_issues::<Reporter>(
+        resolved_lockfile,
+        installed_importer_ids,
+        workspace_root,
+        config,
+    )?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
     // come after `importing_done`.
     Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+    report_verified_file_integrity::<Reporter>(
+        VerifiedFileIntegrity::snapshot().since(verified_file_integrity_baseline),
+    );
 
     // A global install is exempt from the scaffold below: its root is a
     // throwaway per-group directory, and the approval prompt that
@@ -574,7 +640,9 @@ fn report_install_completion<Reporter: self::Reporter>(
     // build this install blocked, so approving one is an edit rather
     // than recalling the `allowBuilds` shape. Written before the strict
     // failure below, which is the very run whose message it answers.
-    if !ignored_builds.is_empty() && !is_global_install {
+    // `--ignore-workspace` opts out: the run disowned the workspace
+    // manifest, so it must not write to one either.
+    if !ignored_builds.is_empty() && !is_global_install && !config.ignore_workspace {
         let allow_build_keys: BTreeSet<String> = ignored_builds
             .iter()
             .map(|dep_path| crate::allow_build_key_from_ignored_build(dep_path))
@@ -596,6 +664,48 @@ fn report_install_completion<Reporter: self::Reporter>(
     }
 
     Ok(())
+}
+
+/// Spending this long re-hashing store files is well past what a
+/// healthy store needs, so the install owns up to the time.
+const VERIFIED_FILE_INTEGRITY_SLOW: Duration = Duration::from_secs(1);
+
+/// Re-hashing this many files says something keeps invalidating the
+/// store even when the hashing itself was quick — worth telling the
+/// user about before the store grows and the same churn does cost them
+/// time.
+const VERIFIED_FILE_INTEGRITY_MANY: u64 = 1000;
+
+/// Tell the user when store verification re-hashed files: how much time
+/// it cost, or failing that, that it happened at all on a scale a
+/// healthy store never reaches. The two are separate claims, so they
+/// are separate messages, and the timed one wins when both hold — it
+/// carries the file count anyway.
+///
+/// `verified` covers this install alone, and its `duration` is summed
+/// across the threads that did the hashing — see
+/// [`pnpm_store_dir::VerifiedFileIntegrity`].
+///
+/// The seconds are rounded to tenths in integer arithmetic rather than
+/// by float formatting: pnpm renders the same messages from the same
+/// figures and the two have to agree character for character, but
+/// Rust's `{:.1}` rounds a tie to even where JavaScript's `toFixed`
+/// rounds it up.
+pub(super) fn report_verified_file_integrity<Reporter: self::Reporter>(
+    verified: VerifiedFileIntegrity,
+) {
+    let files = verified.files;
+    let message = if verified.duration > VERIFIED_FILE_INTEGRITY_SLOW {
+        let tenths = (verified.duration.as_millis() + 50) / 100;
+        format!("The integrity of {files} files was checked in {}.{}s.", tenths / 10, tenths % 10)
+    } else if files > VERIFIED_FILE_INTEGRITY_MANY {
+        format!(
+            "The integrity of {files} files was checked, because their timestamps changed since the store recorded them. A backup tool, an antivirus scan, or a copied store can cause this.",
+        )
+    } else {
+        return;
+    };
+    Reporter::emit(&LogEvent::Global(GlobalLog { level: LogLevel::Info, message }));
 }
 
 pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
@@ -635,6 +745,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
+    pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
 pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'static>(
@@ -677,8 +788,14 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         selection,
         supported_architectures,
         catalogs,
+        verified_file_integrity_baseline,
     } = inputs;
     let modules_manifest = modules_manifest.as_ref();
+    // What this run installed: a `--filter`ed install acts only on its
+    // selection, every other one on the whole workspace. The lockfile
+    // can hold more — importers a filtered run left alone, or ones
+    // `pruneLockfileImporters` has yet to drop.
+    let installed_importer_ids = requested_importer_ids.as_ref().unwrap_or(&real_importer_ids);
     tracing::info!(target: "pacquet::install", "Complete all");
 
     if complete_resolve_only::<Reporter>(&ResolveOnlyCompletionInputs {
@@ -688,6 +805,9 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         existing_wanted_lockfile,
         fresh_lockfile: fresh_lockfile.as_ref(),
         prefix: &prefix,
+        config,
+        workspace_root: &workspace_root,
+        installed_importer_ids,
     })? {
         return Ok(());
     }
@@ -770,7 +890,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     // install.
     update_workspace_state(
         &workspace_root,
-        &build_workspace_state(
+        &build_workspace_state::<Host>(
             &workspace_root,
             config,
             node_linker,
@@ -789,5 +909,8 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         workspace_manifest_dir: &workspace_manifest_dir,
         prefix,
         ignored_builds,
+        verified_file_integrity_baseline,
+        resolved_lockfile: fresh_lockfile.as_ref(),
+        installed_importer_ids,
     })
 }

@@ -99,6 +99,7 @@ const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 fn make_registry_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution {
         integrity: Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity"),
+        revision: None,
     })
 }
 
@@ -868,6 +869,7 @@ fn git_hosted_node(alias: &str) -> (DepPath, DependenciesGraphNode) {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: GIT_TARBALL_URL.to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -2523,7 +2525,9 @@ fn injected_workspace_dep_flips_to_file_when_update_targets_it() {
         registries_by_prefix: &EMPTY_NAMED_REGISTRIES,
         registry_options_by_url: &EMPTY_REGISTRY_OPTIONS,
         previous_importers: Some(&previous),
-        update_reuse_scope: UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
+        update_reuse_scope: UpdateReuseScope::Except(
+            std::iter::once(("n".to_string(), None)).collect(),
+        ),
         ..single_importer_opts(&manifest, &graph, direct, false, false, None, None)
     });
 
@@ -2582,7 +2586,7 @@ fn injected_workspace_dep_flips_to_file_when_recursive_update_targets_it_per_imp
     // package lives in the per-importer scope for the root importer (".").
     let scopes_by_importer = BTreeMap::from([(
         ".".to_string(),
-        UpdateReuseScope::Except(HashSet::from_iter(["n".to_string()])),
+        UpdateReuseScope::Except(std::iter::once(("n".to_string(), None)).collect()),
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -2620,7 +2624,7 @@ fn injected_workspace_dep_keeps_link_when_recursive_update_targets_other_pkg() {
     let previous = previous_importers_with_link("n", "workspace:*", "../n");
     let scopes_by_importer = BTreeMap::from([(
         ".".to_string(),
-        UpdateReuseScope::Except(HashSet::from_iter(["some-other-pkg".to_string()])),
+        UpdateReuseScope::Except(std::iter::once(("some-other-pkg".to_string(), None)).collect()),
     )]);
 
     let lockfile = dependencies_graph_to_lockfile(GraphToLockfileOptions {
@@ -2710,6 +2714,7 @@ fn make_named_registry_node(
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: tarball_url.to_string(),
             integrity: Some(Integrity::from_str(FAKE_INTEGRITY).expect("parse fake integrity")),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -2904,6 +2909,7 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
             "sha512-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB==",
         )
         .expect("parse fake integrity"),
+        revision: None,
     });
     let previous = std::collections::HashMap::from([(
         "react@17.0.2".parse::<PackageKey>().unwrap(),

@@ -1,5 +1,7 @@
+use crate::_utils::{with_colors, without_colors};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{ffi::OsStr, fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -150,8 +152,13 @@ fn why_depth_limits_output() {
     assert!(depth1_stdout.contains(PKG), "depth=1 output shows direct parent: {depth1_stdout}");
 }
 
+/// `why` is recursive by default inside a workspace, so from a member it
+/// reports the whole workspace — including a dependency only a sibling
+/// declares. `recursiveInstall: false` is what narrows it to the current
+/// project and its dependencies (pnpm's `{.}...` filter); both halves are
+/// checked against `pnpm why` in pnpm 11.
 #[test]
-fn why_from_workspace_member_stays_within_forward_workspace_link_closure() {
+fn why_from_a_workspace_member_covers_the_workspace_until_recursive_install_is_off() {
     let (_root, workspace, _anchor) = setup();
     fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
         .expect("write workspace manifest");
@@ -188,8 +195,8 @@ fn why_from_workspace_member_stays_within_forward_workspace_link_closure() {
     assert!(sibling_output.status.success(), "why should succeed: {sibling_output:?}");
     let sibling_stdout = String::from_utf8_lossy(&sibling_output.stdout);
     assert!(
-        sibling_stdout.is_empty(),
-        "a dependency reachable only from a sibling must not be reported: {sibling_stdout}",
+        sibling_stdout.contains("sibling@1.0.0"),
+        "a recursive why reports the sibling's own dependency: {sibling_stdout}",
     );
 
     let linked_output = pacquet(&app, ["why", PKG]).output().expect("query linked dependency");
@@ -199,6 +206,30 @@ fn why_from_workspace_member_stays_within_forward_workspace_link_closure() {
     assert!(
         linked_stdout.contains("linked@1.0.0"),
         "the forward workspace-link closure should be retained: {linked_stdout}",
+    );
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nrecursiveInstall: false\n",
+    )
+    .expect("rewrite workspace manifest");
+
+    let scoped_sibling =
+        pacquet(&app, ["why", HELLO]).output().expect("query sibling dependency when scoped");
+    assert!(scoped_sibling.status.success(), "why should succeed: {scoped_sibling:?}");
+    let scoped_sibling_stdout = String::from_utf8_lossy(&scoped_sibling.stdout);
+    assert!(
+        scoped_sibling_stdout.is_empty(),
+        "a scoped why leaves the sibling out: {scoped_sibling_stdout}",
+    );
+
+    let scoped_linked =
+        pacquet(&app, ["why", PKG]).output().expect("query linked dependency when scoped");
+    assert!(scoped_linked.status.success(), "why should succeed: {scoped_linked:?}");
+    let scoped_linked_stdout = String::from_utf8_lossy(&scoped_linked.stdout);
+    assert!(
+        scoped_linked_stdout.contains("linked@1.0.0"),
+        "a scoped why keeps the forward workspace-link closure: {scoped_linked_stdout}",
     );
 }
 
@@ -521,6 +552,46 @@ fn why_marks_importer_dep_field_and_prints_summary() {
             "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
         ),
     );
+}
+
+#[test]
+fn why_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let plain =
+        without_colors(pacquet(&workspace, ["why", PKG])).output().expect("run pacquet why");
+    assert!(plain.status.success(), "why should succeed: {plain:?}");
+    let colored = with_colors(pacquet(&workspace, ["why", PKG]))
+        .output()
+        .expect("run pacquet why with colors");
+    assert!(colored.status.success(), "colored why should succeed: {colored:?}");
+
+    let plain_stdout = String::from_utf8_lossy(&plain.stdout);
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    eprintln!("PLAIN:\n{plain_stdout}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
+}
+
+#[test]
+fn color_modes_override_terminal_environment_hints() {
+    let (_root, workspace, _anchor) = setup();
+    write_manifest(&workspace, &format!(r#"{{ "{PKG}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let always = without_colors(pacquet(&workspace, ["--color=always", "why", PKG]))
+        .output()
+        .expect("run color=always");
+    assert!(always.status.success(), "color=always should succeed: {always:?}");
+    assert!(String::from_utf8_lossy(&always.stdout).contains('\u{1b}'));
+
+    let never = with_colors(pacquet(&workspace, ["--color=never", "why", PKG]))
+        .output()
+        .expect("run color=never");
+    assert!(never.status.success(), "color=never should succeed: {never:?}");
+    assert!(!String::from_utf8_lossy(&never.stdout).contains('\u{1b}'));
 }
 
 fn write_finder_pnpmfile(workspace: &Path, message_expr: &str) {

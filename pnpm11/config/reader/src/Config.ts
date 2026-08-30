@@ -10,8 +10,11 @@ import type {
   RegistriesByScope,
   RegistryConfig,
   RegistryOptions,
+  RemoteSideEffectsCacheSettings,
+  SideEffectsCacheSettings,
   TrustPolicy,
   VersioningSettings,
+  VirtualStoreType,
 } from '@pnpm/types'
 
 import type { OptionsFromRootManifest } from './getOptionsFromRootManifest.js'
@@ -137,6 +140,7 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'
@@ -144,8 +148,14 @@ export interface Config extends OptionsFromRootManifest {
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
   preferOffline?: boolean
-  sideEffectsCache?: boolean // for backward compatibility
-  sideEffectsCacheReadonly?: boolean // for backward compatibility
+  /**
+   * As declared. Resolved into {@link Config.sideEffectsCacheRead},
+   * {@link Config.sideEffectsCacheWrite} and
+   * {@link Config.remoteSideEffectsCache} before any consumer sees it.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /** The boolean spelling of `sideEffectsCache: { read: true, write: false }`. */
+  sideEffectsCacheReadonly?: boolean
   sideEffectsCacheRead?: boolean
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
@@ -187,6 +197,12 @@ export interface Config extends OptionsFromRootManifest {
   virtualStoreDir?: string
   virtualStoreOnly?: boolean
   enableGlobalVirtualStore?: boolean
+  /**
+   * The canonical spelling of {@link Config.enableGlobalVirtualStore}, derived
+   * from it so `pnpm config get` answers either name. Nothing installs off
+   * this field.
+   */
+  virtualStoreType?: VirtualStoreType
   verifyStoreIntegrity?: boolean
   frozenStore?: boolean
   maxSockets?: number
@@ -250,6 +266,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
 
   registriesByScope: RegistriesByScope
   packageManagerRegistries?: RegistriesByScope
@@ -304,6 +321,11 @@ export interface Config extends OptionsFromRootManifest {
   syncInjectedDepsAfterScripts?: string[]
   initPackageManager: boolean
   initType: 'commonjs' | 'module'
+  initAuthorName?: string
+  initAuthorEmail?: string
+  initAuthorUrl?: string
+  initLicense?: string
+  initVersion?: string
   dangerouslyAllowAllBuilds: boolean
   ci: boolean
   preserveAbsolutePaths?: boolean

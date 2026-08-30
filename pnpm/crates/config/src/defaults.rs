@@ -1,9 +1,12 @@
 use crate::api::{EnvVar, GetCurrentDir, GetHomeDir};
 use pnpm_store_dir::StoreDir;
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 #[cfg(windows)]
-use std::path::{Component, Path};
+use std::path::Component;
 
 pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
@@ -181,6 +184,36 @@ where
     )
 }
 
+/// Resolve a configured `stateDir` without making its meaning depend on the
+/// current project. Relative values replace the default directory's `pnpm`
+/// leaf under the machine state root. Existing symlinks are resolved before
+/// containment is checked and the resolved path is returned. Values that
+/// escape that root, or cannot be resolved from a stable absolute root,
+/// produce an empty path so trust and runtime consumers fail closed.
+#[must_use]
+pub fn resolve_configured_state_dir(default_state_dir: &Path, configured: &str) -> PathBuf {
+    let configured = Path::new(configured);
+    if configured.is_absolute() {
+        return configured.to_path_buf();
+    }
+    let Some(state_root) = default_state_dir.parent().filter(|state_root| state_root.is_absolute())
+    else {
+        return PathBuf::new();
+    };
+    let state_root = pnpm_fs::lexical_normalize(state_root);
+    let resolved = pnpm_fs::lexical_normalize(&state_root.join(configured));
+    if !resolved.starts_with(&state_root) {
+        return PathBuf::new();
+    }
+    let Ok(state_root) = pnpm_fs::realpath_missing(&state_root) else {
+        return PathBuf::new();
+    };
+    let Ok(resolved) = pnpm_fs::realpath_missing(&resolved) else {
+        return PathBuf::new();
+    };
+    if resolved.starts_with(&state_root) { resolved } else { PathBuf::new() }
+}
+
 /// Resolve the default packument-cache directory.
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
@@ -212,29 +245,42 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`: `true` — one virtual store,
-/// shared by every project on the machine.
+/// Default for `enableGlobalVirtualStore`: `false` — every project keeps
+/// its own virtual store at `<project>/node_modules/.pnpm`.
 ///
-/// This is a pnpm 12 default, and one the TypeScript CLI does not share:
-/// pnpm 11 defaults the setting off and reaches for the shared store only
-/// under `pnpm install --global`. The divergence is deliberate, so a
-/// parity check that flags it is looking at a major-version boundary
-/// rather than at a gap.
-///
-/// The default does not vary by environment. A CI machine gets the same
-/// layout a developer's machine does — under a shared store, package
-/// directories sit outside the project and scripts run with `NODE_PATH`
-/// and the ESM loader set, so a CI-only fallback to the project-local
-/// layout would run every build in a resolution environment nobody
-/// develops against.
+/// The TypeScript CLI defaults it off too, so the shared store stays an
+/// opt-in on both stacks. The flows that always want it — the engine's
+/// own package-manager installs and the runtime shims — turn it on
+/// explicitly rather than relying on the default.
 pub fn default_enable_global_virtual_store() -> bool {
-    true
+    false
 }
 
 #[must_use]
 pub fn default_registry() -> String {
     "https://registry.npmjs.org/".to_string()
 }
+
+/// The registry the built-in `@jsr` scope routes to when the user has not
+/// pointed it elsewhere.
+pub const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
+
+/// Built-in named-registry aliases the resolver recognizes
+/// out of the box.
+///
+/// `npmjs` is here so a dependency can be pinned to the public
+/// registry even when `registry` points somewhere else, such as an
+/// internal proxy. The `npm` prefix cannot serve that purpose: it is
+/// reserved for the alias protocol (`npm:<name>@<range>`), which
+/// resolves through the default registry.
+///
+/// These URLs are also the prefixes the npm verifier's
+/// `named_registry_tarball_prefixes` matches a recorded tarball URL
+/// against, so an org that proxies
+/// npmjs should point `npmjs` at their proxy to keep verification
+/// going there rather than to the public host.
+pub const BUILTIN_REGISTRIES_BY_PREFIX: &[(&str, &str)] =
+    &[("gh", "https://npm.pkg.github.com/"), ("npmjs", "https://registry.npmjs.org/")];
 
 pub fn default_modules_cache_max_age() -> u64 {
     10080
@@ -281,10 +327,44 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.0.0-rc.6";
+pub const PNPM_VERSION: &str = "12.1.0";
+
+/// The command that installs pnpm with the standalone script, as documented
+/// at <https://pnpm.io/installation>: the PowerShell form on Windows, the
+/// `curl`-into-`sh` form everywhere else. Both the update notification and
+/// `self-update` name it, so it is defined once here.
+#[must_use]
+pub fn standalone_install_command() -> &'static str {
+    install_command_for(cfg!(windows))
+}
+
+/// [`standalone_install_command`] with the host check as an argument, so both
+/// commands are reachable from a test on either platform.
+#[must_use]
+pub fn install_command_for(windows: bool) -> &'static str {
+    if windows {
+        "Invoke-WebRequest https://get.pnpm.io/install.ps1 -UseBasicParsing | Invoke-Expression"
+    } else {
+        "curl -fsSL https://get.pnpm.io/install.sh | sh -"
+    }
+}
 
 pub fn default_fetch_timeout() -> u64 {
     pnpm_network::DEFAULT_FETCH_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchWarnTimeoutMs` default in milliseconds.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS`].
+pub fn default_fetch_warn_timeout_ms() -> u64 {
+    pnpm_network::DEFAULT_FETCH_WARN_TIMEOUT_MS
+}
+
+/// Returns the shared `fetchMinSpeedKiBps` default in KiB/s.
+///
+/// See [`pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS`].
+pub fn default_fetch_min_speed_ki_bps() -> u64 {
+    pnpm_network::DEFAULT_FETCH_MIN_SPEED_KI_BPS
 }
 
 /// Default `User-Agent`, in the format

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.npm-resolver",
-  "version": "1103.2.1",
+  "version": "1104.1.0",
   "description": "Resolver for npm-hosted packages",
   "keywords": [
     "pnpm",
@@ -48,6 +48,7 @@
     "@pnpm/resolving.registry.pkg-metadata-filter": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/resolving.tarball-url": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",

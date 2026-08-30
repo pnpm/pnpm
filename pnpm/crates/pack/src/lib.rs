@@ -36,6 +36,7 @@ use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,
 };
+use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
 use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
@@ -110,6 +111,24 @@ pub struct PackOptions {
     /// storage; the caller (which has registry access) fetches the previous
     /// version's changelog and renders the new section onto it.
     pub injected_files: Vec<(String, Vec<u8>)>,
+    /// Per-invocation destination locks shared by recursive pack tasks.
+    pub output_locks: Option<Arc<PackOutputLocks>>,
+}
+
+/// Locks recursive pack destinations for the lifetime of their write phase.
+#[derive(Default)]
+pub struct PackOutputLocks {
+    by_path: tokio::sync::Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+impl PackOutputLocks {
+    async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = {
+            let mut by_path = self.by_path.lock().await;
+            Arc::clone(by_path.entry(lexical_normalize(path)).or_default())
+        };
+        lock.lock_owned().await
+    }
 }
 
 /// Result of packing one project.
@@ -338,7 +357,7 @@ where
     )
     .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&dir, &files);
-    inject_workspace_license(opts, &dir, &files, &mut files_map);
+    inject_workspace_license(opts, &dir, &mut files_map);
     // A composed entry supersedes any same-named on-disk file (e.g. a stale
     // committed CHANGELOG.md), so drop it from the file map before packing.
     for (name, _) in &opts.injected_files {
@@ -368,6 +387,10 @@ where
     if !opts.dry_run {
         let bins = executable_sources(&publish_manifest, &manifest, &dir);
         let dest_file = dest_dir.join(&tarball_name);
+        let _output_guard = match &opts.output_locks {
+            Some(locks) => Some(locks.lock(&dest_file).await),
+            None => None,
+        };
         Sys::atomic_write(&dest_file, &mut |writer| {
             tarball::build_tarball::<Sys>(
                 writer,
@@ -617,6 +640,7 @@ fn run_scripts_if_present<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
+        shell_emulator: false,
         optional: false,
     };
     let parent_env: HashMap<String, String> = std::env::vars().collect();
@@ -649,10 +673,27 @@ fn resolve_output(
     normalized_name: &str,
     version: &str,
 ) -> Result<(String, Option<String>), PackError> {
-    let Some(out) = &opts.out else {
-        return Ok((format!("{normalized_name}-{version}.tgz"), opts.pack_destination.clone()));
+    resolve_output_values(
+        opts.out.as_deref(),
+        opts.pack_destination.as_deref(),
+        normalized_name,
+        version,
+    )
+}
+
+fn resolve_output_values(
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+    normalized_name: &str,
+    version: &str,
+) -> Result<(String, Option<String>), PackError> {
+    let Some(out) = out else {
+        return Ok((
+            format!("{normalized_name}-{version}.tgz"),
+            pack_destination.map(str::to_owned),
+        ));
     };
-    if opts.pack_destination.is_some() {
+    if pack_destination.is_some() {
         return Err(PackError::OutAndPackDestination);
     }
     let prepared = out.replace("%s", normalized_name).replace("%v", version);
@@ -663,13 +704,30 @@ fn resolve_output(
     let Some(tarball_name) =
         prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
     else {
-        return Err(PackError::InvalidOut { out: out.clone() });
+        return Err(PackError::InvalidOut { out: out.to_owned() });
     };
     let parent =
         prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
     let pack_destination =
-        if parent.is_empty() { opts.pack_destination.clone() } else { Some(parent) };
+        if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };
     Ok((tarball_name, pack_destination))
+}
+
+/// Resolve the path a pack will write from the manifest identity and output
+/// options. Recursive callers use this before dispatch to keep projects that
+/// share a destination from packing concurrently.
+pub fn pack_output_path(
+    project_dir: &Path,
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+    published_name: &str,
+    published_version: &str,
+) -> Result<PathBuf, PackError> {
+    let normalized_name = normalize_tarball_name(published_name);
+    let version = strip_build_metadata(published_version);
+    let (tarball_name, destination) =
+        resolve_output_values(out, pack_destination, &normalized_name, version)?;
+    Ok(lexical_normalize(&resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name)))
 }
 
 /// Map each packed path to `package/<path>` → absolute source, in
@@ -730,11 +788,10 @@ fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) ->
 fn inject_workspace_license(
     opts: &PackOptions,
     dir: &Path,
-    files: &[String],
     files_map: &mut indexmap::IndexMap<String, PathBuf>,
 ) {
     let Some(workspace_dir) = &opts.workspace_dir else { return };
-    if dir == workspace_dir || files.iter().any(|file| contains_license(file)) {
+    if dir == workspace_dir || files_map.values().any(|file| contains_license(file)) {
         return;
     }
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
@@ -847,10 +904,12 @@ fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
 }
 
 /// Whether a packed path looks like a license file, matching upstream's
-/// unanchored `/LICEN[CS]E(?:\..+)?/i` presence test.
-fn contains_license(path: &str) -> bool {
-    let lower = path.to_ascii_lowercase();
-    lower.contains("license") || lower.contains("licence")
+/// anchored `/(?:^|[\\/])LICEN[CS]E(?:\..+)?$/i` presence test.
+fn contains_license(path: &Path) -> bool {
+    if let Some(file_name) = path.file_name() {
+        return is_license_filename(&file_name.to_string_lossy());
+    }
+    false
 }
 
 /// Whether a root filename matches the `LICEN{S,C}E{,.*}` glob pnpm

@@ -1,0 +1,40 @@
+[package]
+name                  = "pnpm-deps-inspection"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pnpm-config           = { workspace = true }
+pnpm-crypto-hash      = { workspace = true }
+pnpm-deps-restorer    = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-lockfile         = { workspace = true }
+pnpm-modules-yaml     = { workspace = true }
+pnpm-package-manifest = { workspace = true }
+pnpm-store-dir        = { workspace = true }
+pnpm-text-sanitize    = { workspace = true }
+pnpm-workspace        = { workspace = true }
+
+dunce       = { workspace = true }
+miette      = { workspace = true }
+node-semver = { workspace = true }
+owo-colors  = { workspace = true }
+pathdiff    = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+
+[dev-dependencies]
+pnpm-testing-utils = { workspace = true }
+
+pretty_assertions = { workspace = true }
+tempfile          = { workspace = true }
+
+[lints]
+workspace = true

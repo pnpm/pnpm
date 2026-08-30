@@ -1,11 +1,12 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
     full_resolution_required, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, update_reuse_scopes,
+    is_partial_workspace_selection, update_reuse_scopes, verify_merged_repair,
 };
-use crate::tests::project_local_config;
 use pnpm_config::{Config, PackageExtension};
+use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 
 fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
@@ -20,7 +21,7 @@ fn config_with_extensions(entries: &[(&str, &[(&str, &str)])]) -> Box<Config> {
             PackageExtension { dependencies: Some(dependencies), ..Default::default() },
         );
     }
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.package_extensions = Some(extensions);
     Box::new(config)
 }
@@ -44,6 +45,24 @@ fn partial_installs_keep_transitive_optional_dependencies() {
     assert!(include_transitive_optional_dependencies(false, &prod_only));
     assert!(!include_transitive_optional_dependencies(true, &prod_only));
     assert!(include_transitive_optional_dependencies(true, &with_optional));
+}
+
+#[tokio::test]
+async fn filtered_repair_verifies_the_merged_lockfile() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'\nimporters:\n  unselected:\n    dependencies:\n      '../../../escape':\n        specifier: 1.0.0\n        version: 1.0.0\n",
+    )
+    .expect("parse lockfile");
+
+    let error = verify_merged_repair::<SilentReporter>(&lockfile, &[])
+        .await
+        .expect_err("the merged lockfile must pass structural verification");
+    assert!(matches!(
+        error,
+        super::InstallWithFreshLockfileError::LockfileVerification(
+            pnpm_lockfile_verification::VerifyError::InvalidDependencyAlias { .. }
+        )
+    ));
 }
 
 /// Ports `installing/.../packageExtensions.ts:103-153`
@@ -77,7 +96,7 @@ fn compute_checksum_is_order_invariant_across_outer_keys() {
 /// fields and the drift gate would fire on no-op installs.
 #[test]
 fn compute_checksum_is_none_when_extensions_absent() {
-    let config = project_local_config();
+    let config = Config::new();
     assert_eq!(compute_package_extensions_checksum(&config), None);
 }
 
@@ -89,7 +108,7 @@ fn compute_checksum_is_none_when_extensions_absent() {
 /// field, causing spurious drift on cross-tool installs.
 #[test]
 fn compute_checksum_is_none_for_explicit_empty_map() {
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.package_extensions = Some(indexmap::IndexMap::new());
     assert_eq!(compute_package_extensions_checksum(&config), None);
 }
@@ -122,7 +141,7 @@ fn importer_scoped_update_custom_refresh_widens_every_importer() {
 
     let scoped = std::collections::BTreeMap::from([(
         "selected".to_string(),
-        UpdateReuseScope::Except(std::iter::once("pkg".to_string()).collect()),
+        UpdateReuseScope::Except(std::iter::once(("pkg".to_string(), None)).collect()),
     )]);
     assert!(full_resolution_required(
         true,

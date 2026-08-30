@@ -105,6 +105,7 @@ pub(super) fn resolve_result(name: &str, version: &str) -> ResolveResult {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),

@@ -1,5 +1,6 @@
 //! `login` tests for `--scope` handling on the web-login path: the token is
-//! keyed to the scope and a scope-to-registry mapping is recorded.
+//! keyed to the scope under `_auth`, and the scope is routed to the registry
+//! under `registries`.
 
 use std::{
     cell::RefCell,
@@ -8,14 +9,13 @@ use std::{
     sync::Mutex,
 };
 
-use pnpm_network::nerf_dart;
 use pnpm_network_web_auth_testing::{ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use super::{
     login,
-    support::{PromptScript, ReadScript, client, login_fake, opts, written_settings},
+    support::{PromptScript, ReadScript, client, login_fake, opts, written_document},
 };
 
 #[tokio::test]
@@ -43,11 +43,17 @@ async fn should_persist_a_scoped_auth_token_and_scope_registry_mapping() {
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
-    let settings = written_settings(&writes);
-    let config_key = nerf_dart(&format!("{registry}/"));
-    assert_eq!(settings.get(&format!("{config_key}:@my-org:_authToken")), Some("scoped-token"));
-    assert_eq!(settings.get("@my-org:registry"), Some(format!("{registry}/").as_str()));
-    assert_eq!(settings.get(&format!("{config_key}:_authToken")), None);
+    // The credential and the route that reaches it are one fact: a failure
+    // between two writes would persist a token the command reports it failed
+    // to record.
+    assert_eq!(writes.len(), 1, "the token and its route must land in one write: {writes:?}");
+    let document = written_document(&writes);
+    let normalized = format!("{registry}/");
+    assert_eq!(
+        document["_auth"][&normalized],
+        json!({ "@my-org": { "authToken": "scoped-token" } }),
+    );
+    assert_eq!(document["registries"][&normalized], json!({ "scopes": ["@my-org"] }));
 }
 
 #[tokio::test]
@@ -74,12 +80,12 @@ async fn should_persist_scoped_auth_tokens_under_path_registries() {
         login::<FakeHost, RecordingReporter>(&client(), options).await.expect("path-scoped login");
 
     assert_eq!(result, format!("Logged in on {registry}"));
-    let writes = login_writes();
-    let settings = written_settings(&writes);
-    let config_key = nerf_dart(&registry);
-    assert_eq!(settings.get(&format!("{config_key}:@team:_authToken")), Some("path-scoped-token"));
-    assert_eq!(settings.get("@team:registry"), Some(registry.as_str()));
-    assert_eq!(settings.get(&format!("{config_key}:_authToken")), None);
+    let document = written_document(&login_writes());
+    assert_eq!(
+        document["_auth"][&registry],
+        json!({ "@team": { "authToken": "path-scoped-token" } }),
+    );
+    assert_eq!(document["registries"][&registry], json!({ "scopes": ["@team"] }));
 }
 
 #[tokio::test]
@@ -104,12 +110,10 @@ async fn should_accept_scope_with_a_leading_at_and_not_double_prefix() {
     options.scope = Some("@my-org");
     login::<FakeHost, RecordingReporter>(&client(), options).await.expect("scoped login");
 
-    let writes = login_writes();
-    let settings = written_settings(&writes);
-    let config_key = nerf_dart(&format!("{registry}/"));
-    assert_eq!(settings.get(&format!("{config_key}:@my-org:_authToken")), Some("tok"));
-    assert_eq!(settings.get("@my-org:registry"), Some(format!("{registry}/").as_str()));
-    assert_eq!(settings.get("@@my-org:registry"), None);
+    let document = written_document(&login_writes());
+    let normalized = format!("{registry}/");
+    assert_eq!(document["_auth"][&normalized], json!({ "@my-org": { "authToken": "tok" } }));
+    assert_eq!(document["registries"][&normalized], json!({ "scopes": ["@my-org"] }));
 }
 
 #[tokio::test]
@@ -134,15 +138,13 @@ async fn should_not_write_a_scope_mapping_when_scope_is_omitted() {
         .await
         .expect("login");
 
-    let writes = login_writes();
-    let (_, text) = writes.first().expect("auth.ini was written");
-    for line in text.lines() {
-        assert!(!line.starts_with('@'), "no scope key expected, got line {line:?}");
-    }
+    let document = written_document(&login_writes());
+    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
+    assert_eq!(document.get("registries"), None);
 }
 
 /// A `--scope` of a bare `@` is treated as "no scope": the token is stored
-/// under the registry key with no scope-to-registry mapping, exercising
+/// under the registry's own scope key with no route recorded, exercising
 /// `normalize_scope`'s empty-scope guard.
 #[tokio::test]
 async fn should_treat_a_bare_at_scope_as_no_scope() {
@@ -166,13 +168,7 @@ async fn should_treat_a_bare_at_scope_as_no_scope() {
     options.scope = Some("@");
     login::<FakeHost, RecordingReporter>(&client(), options).await.expect("login");
 
-    let writes = login_writes();
-    let settings = written_settings(&writes);
-    let config_key = nerf_dart(&format!("{registry}/"));
-    assert_eq!(settings.get(&format!("{config_key}:_authToken")), Some("tok"));
-    for (_, text) in &writes {
-        for line in text.lines() {
-            assert!(!line.starts_with('@'), "no scope mapping expected, got line {line:?}");
-        }
-    }
+    let document = written_document(&login_writes());
+    assert_eq!(document["_auth"][format!("{registry}/")], json!({ "@": { "authToken": "tok" } }));
+    assert_eq!(document.get("registries"), None);
 }

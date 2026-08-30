@@ -115,8 +115,10 @@ fn parse_identifier(source: &str) -> Option<(Token, &str)> {
     }
     let mut end = first.len_utf8();
     for (i, c) in chars {
-        // `\w` in JS = [A-Za-z0-9_]
-        if c.is_ascii_alphanumeric() || c == '_' {
+        // Mirrors the TypeScript tokenizer's `[\w-]`. Hyphens are in because
+        // package names are full of them and `npm pkg` reads
+        // `dependencies.foo-bar`.
+        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
             end = i + c.len_utf8();
         } else {
             break;

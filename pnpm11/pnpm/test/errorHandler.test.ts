@@ -23,7 +23,7 @@ test('should print json format error when publish --json failed', async () => {
     version: undefined,
   })
 
-  const { status, stdout } = execPnpmSync(['publish', '--dry-run', '--json'])
+  const { status, stdout } = execPnpmSync(['publish', '--dry-run', '--json', '--no-git-checks'])
 
   expect(status).toBe(1)
   const { error } = JSON.parse(stdout.toString())
@@ -113,27 +113,35 @@ test('should clean up the process trees of running commands when a recursive exe
   const cwdBefore = process.cwd()
   process.chdir(execErrorExit)
   try {
-    // Remove the wmic and powershell directories from PATH to emulate a
-    // Windows installation where enumerating descendant processes is not
-    // possible (wmic is removed on modern Windows, and the PowerShell
-    // fallback regularly exceeds its 500 ms budget on real machines - the
-    // scenario of https://github.com/pnpm/pnpm/issues/12406). The cleanup
-    // then has to go through the tracked child PIDs instead. taskkill lives
-    // in System32 itself and stays reachable.
-    const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
-    const pathWithoutProcessEnumerators = (process.env[pathKey] ?? '')
-      .split(path.delimiter)
-      .filter((dir) => !/wbem|windowspowershell/i.test(dir))
-      .join(path.delimiter)
     const { status, stdout } = execPnpmSync(['--recursive', 'exec', 'node', 'script.js'], {
       stdio: 'pipe',
       env: {
         FOO_PORT: fooPort.toString(),
-        ...(isWindows() ? { [pathKey]: pathWithoutProcessEnumerators } : {}),
+        ...getWindowsCleanupTestEnv(),
       },
     })
     expect(status).toBe(1)
     expect(stdout.toString()).toContain('ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL')
+    expect(await isPortInUse(fooPort)).toBe(false)
+  } finally {
+    process.chdir(cwdBefore)
+  }
+})
+
+test('should clean up the process trees of running scripts when a recursive run fails', async () => {
+  const fooPort = await getPort()
+  const cwdBefore = process.cwd()
+  process.chdir(execErrorExit)
+  try {
+    const { status, stdout } = execPnpmSync(['--recursive', 'run', 'start'], {
+      stdio: 'pipe',
+      env: {
+        FOO_PORT: fooPort.toString(),
+        ...getWindowsCleanupTestEnv(),
+      },
+    })
+    expect(status).toBe(1)
+    expect(stdout.toString()).toContain('ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL')
     expect(await isPortInUse(fooPort)).toBe(false)
   } finally {
     process.chdir(cwdBefore)
@@ -188,3 +196,18 @@ test('should print error summary when some packages fail with --no-bail', async 
   expect(output).toContain('Summary: 1 fails, 2 passes')
   expect(output).toContain('[ERROR] project-2@1.0.0 build: `exit 1`')
 })
+
+function getWindowsCleanupTestEnv (): NodeJS.ProcessEnv {
+  if (!isWindows()) return {}
+  // Modern Windows may lack wmic, while the PowerShell fallback can exceed
+  // the error handler's budget. Removing both verifies cleanup by tracked PID.
+  const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
+  const pathWithoutProcessEnumerators = (process.env[pathKey] ?? '')
+    .split(path.delimiter)
+    .filter((dir) => {
+      const lowerDir = dir.toLowerCase()
+      return !lowerDir.includes('wbem') && !lowerDir.includes('windowspowershell')
+    })
+    .join(path.delimiter)
+  return { [pathKey]: pathWithoutProcessEnumerators }
+}

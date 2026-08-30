@@ -9,7 +9,6 @@ use std::{
 };
 
 use pipe_trait::Pipe;
-use pnpm_network::nerf_dart;
 use pnpm_network_web_auth_testing::{InputResponse, ok_token, web_auth_fake};
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -17,7 +16,8 @@ use serde_json::json;
 use super::{
     LoginError, login,
     support::{
-        PromptScript, ReadScript, client, credential_prompts, login_fake, opts, written_settings,
+        PromptScript, ReadScript, client, credential_prompts, login_fake, opts,
+        written_registry_token,
     },
 };
 
@@ -55,10 +55,12 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_404() {
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let (path, _) = writes.first().expect("auth.ini was written");
-    assert_eq!(path, &config_dir.join("auth.ini"));
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("classic-token-456"));
+    let (path, _) = writes.first().expect("config.yaml was written");
+    assert_eq!(path, &config_dir.join("config.yaml"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("classic-token-456".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as john"]);
 }
 
@@ -96,8 +98,10 @@ async fn should_fall_back_to_classic_login_on_a_subpath_registry_without_a_trail
     assert_eq!(result, format!("Logged in on {registry}/"));
 
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("subpath-classic-token"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("subpath-classic-token".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as john"]);
 }
 
@@ -132,8 +136,10 @@ async fn should_fall_back_to_classic_login_when_web_login_returns_405() {
 
     assert_eq!(result, format!("Logged in on {registry}/"));
     let writes = login_writes();
-    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
-    assert_eq!(written_settings(&writes).get(&token_key), Some("token-405"));
+    assert_eq!(
+        written_registry_token(&writes, &format!("{registry}/")),
+        Some("token-405".to_owned()),
+    );
     assert_eq!(infos(), ["Logged in as jane"]);
 }
 

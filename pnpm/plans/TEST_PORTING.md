@@ -308,6 +308,39 @@ Rust port notes:
 - [x] `TypeScript repo: pnpm/test/recursive/run.ts:8` `pnpm recursive run finds bins from the root of the workspace` — the run-related assertions are ported as `recursive_run_finds_workspace_root_bin_on_path` and `recursive_run_prefers_project_bin_over_workspace_root_bin` (`crates/cli/tests/run_recursive.rs`) plus `run_finds_workspace_root_bin_on_path` for the member-dir `pnpm run` step (`crates/cli/tests/run.rs`). The upstream test's `-r install` postinstall and `recursive rebuild` steps are install/rebuild coverage, tracked with those features.
 - [x] `TypeScript repo: config/reader/test/index.ts:2421` `extraBinPaths` — ported as `extra_bin_paths_lists_workspace_root_bin_only_inside_a_workspace` (`crates/config/src/tests.rs`).
 
+## Recursive Script Output (`--stream`, `--aggregate-output`, `--reporter-hide-prefix`, `--use-stderr`)
+
+Reporter unit tests (`crates/default-reporter/tests/render.rs`):
+
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:362` `groups lifecycle output when streamLifecycleOutput is used` — ported as `stream_lifecycle_output_streams_without_append_only`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:475` `groups lifecycle output when append-only and aggregate-output are used with mixed stages` — ported as `aggregate_output_withholds_each_script_until_it_exits`.
+- [x] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:540` `groups lifecycle output when append-only and reporter-hide-prefix are used` — ported as `hide_lifecycle_prefix_only_drops_it_from_output_lines`.
+- [ ] `TypeScript repo: cli/default-reporter/test/reportingLifecycleScripts.ts:248` `groups lifecycle output when append-only and aggregate-output are used` — the single-stage case the mixed-stage port above subsumes.
+
+End-to-end:
+
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1694` `run --stream should prefix with dir name` — ported as `run_recursive::stream_prefixes_recursive_script_output_with_the_project`.
+- [x] `TypeScript repo: pnpm/test/monorepo/index.ts:1776` `run --reporter-hide-prefix should hide prefix` — ported as `run_recursive::reporter_hide_prefix_drops_the_prefix_from_streamed_script_output`.
+- [x] `TypeScript repo: pnpm/test/run.ts:239` `--reporter-hide-prefix should hide workspace prefix` — covered by the same port plus `run_recursive::parallel_implies_stream` for the `--parallel` spelling upstream uses.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:27` `pnpm exec --recursive --no-reporter-hide-prefix prints prefixes` — ported as `exec_recursive::no_reporter_hide_prefix_labels_each_project`.
+- [x] `TypeScript repo: exec/commands/test/exec.logs.ts:90` `pnpm exec --recursive --reporter-hide-prefix does not print prefixes` and `exec/commands/test/exec.logs.ts:127` `pnpm exec --recursive does not print prefixes by default` — ported together as `exec_recursive::recursive_exec_inherits_stdio_by_default`.
+
+Pacquet-only coverage: `run_recursive::recursive_run_inherits_stdio_without_stream`,
+`run_recursive::aggregate_output_keeps_each_project_in_one_block`, and
+`run_recursive::use_stderr_diverts_reporter_output`.
+
+## Standalone Runs (`--ignore-workspace`, `--workspace-packages`)
+
+Upstream has no end-to-end test for either flag; the pacquet coverage in
+`crates/cli/tests/ignore_workspace.rs` and
+`approve_builds::ignore_workspace_skips_the_allow_builds_scaffold` is
+written against `config/reader/src/index.ts` (`getWorkspaceDir`,
+`workspacePackagePatterns`) and `installing/commands/src/handleIgnoredBuilds.ts`.
+
+- [x] `--ignore-workspace` stops the workspace search — `ignore_workspace::ignore_workspace_drops_the_workspace_manifest_settings`.
+- [x] `--ignore-workspace` suppresses the `allowBuilds` scaffold — `approve_builds::ignore_workspace_skips_the_allow_builds_scaffold`.
+- [x] `--workspace-packages` replaces the manifest's patterns — `ignore_workspace::workspace_packages_overrides_the_manifest_patterns`.
+
 ## Workspace Project Filtering (`--filter`)
 
 Ported into the new `pnpm-workspace-projects-filter` and
@@ -472,6 +505,11 @@ Supporting tests:
 - [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:79` `installing a package with bundleDependencies set to false` — ported as `bundle_dependencies_false_is_not_recorded`.
 - [x] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:89` `installing a package with bundleDependencies set to true` — ported as `bundle_dependencies_true_is_recorded_as_true`, extended with the lockfile round trip the boolean form needs. Pacquet also keeps `bundled_bins_are_linked_under_the_hoisted_linker` for the `nodeLinker: hoisted` counterpart, which upstream reaches only through `linkAllBins`.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/bundledDependencies.ts:29` `local tarball with bundledDependencies` and `:46` `local tarball with bundledDependencies true` (covering <https://github.com/pnpm/pnpm/issues/7411>) — need `.tgz` fixtures on the Rust side.
+- [x] `TypeScript repo: bins/linker/test/index.ts:435` `linkBinsOfPackages() resolves conflicts. Prefer the latest version` — ported as `same_package_bin_conflict_prefers_latest_version` in `crates/cmd-shim/src/link_bins/tests.rs`, using the aliased TypeScript versions from pnpm/pnpm#14249.
+- [x] `TypeScript repo: bins/linker/test/index.ts:617` `enable prefer-symlinked-executables` (`linkBins()` and the dangling-target case) — ported as `prefer_symlinked_executables_links_bins_as_relative_symlinks`, `prefer_symlinked_executables_replaces_shims_and_vice_versa`, and `prefer_symlinked_executables_links_a_bin_whose_target_is_missing` in `crates/cmd-shim/src/link_bins/tests.rs`; the pacquet linker keeps a dangling symlink and reports it at `tracing::warn!` level, pnpm's warn-and-continue.
+- [x] `TypeScript repo: pnpm/test/run.ts:161` `pnpm run with preferSymlinkedExecutables true` and `:177` `pnpm run with preferSymlinkedExecutables and custom virtualStoreDir` — ported as `run_exports_node_path_when_prefer_symlinked_executables` and `run_exports_node_path_from_a_custom_virtual_store_dir` in `crates/cli/tests/suite/run.rs`.
+- [x] `TypeScript repo: config/reader/test/index.ts` `preferSymlinkedExecutables should be true when nodeLinker is hoisted` and `NODE_PATH points to the virtual store of the workspace root when pnpm runs from a workspace package` (the pnpm/pnpm#13912 regression) — ported as `hoisted_node_linker_defaults_prefer_symlinked_executables_on` and `prefer_symlinked_executables_node_path_anchors_at_the_workspace_root` (plus the explicit-`virtualStoreDir` and plain-export cases) in `crates/config/src/tests.rs`.
+- [x] `TypeScript repo: installing/deps-installer/test/install/misc.ts:865` (bin created as a symlink under `prefer-symlinked-executables`) — covered as `prefer_symlinked_executables_symlinks_workspace_bins` in `crates/cli/tests/suite/workspace_install.rs` and `hoisted_linker_symlinks_bins_by_default` in `crates/cli/tests/suite/hoisted_node_linker.rs`.
 
 Rust port notes:
 
@@ -1060,9 +1098,23 @@ Tree-builder ports (`crates/cli/src/cli_args/deps_tree/{get_tree,search,pkg_info
 - [ ] `TypeScript repo: deps/inspection/tree-builder/test/buildDependentsTree.test.ts` `nameFormatter` group (3 tests) — not ported: no pnpm command passes a `nameFormatter`, so pacquet's `build_dependents_tree` has no formatter parameter; the `displayName` rendering it feeds is covered by the renderDependentsTree ports.
 - [ ] `TypeScript repo: deps/inspection/list/test/manyDeps.ts` `list all deps in a project with many dependencies without failing with an OOM error` — the guard it exercises is the materialization dedup cache, pinned directly by the cross-call dedup ports.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:14` `recursive update` — ported as `recursive_update_only_reaches_projects_that_have_the_dependency` in `crates/cli/tests/update_recursive.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:57` `recursive update prod dependencies only` — ported as `recursive_update_prod_dependencies_only`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:122` `recursive update with pattern` — ported as `recursive_update_with_pattern`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:172` `recursive update with pattern and name in project` — ported as `recursive_update_with_pattern_and_name_in_project`.
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:260` `recursive update --latest foo should only update projects that have foo` — ported as `recursive_update_latest_only_reaches_the_named_packages` (`@pnpm.e2e/multi-version-b` stands in for upstream's `@zkochan/async-regex-replace`, which the fixture registry does not carry).
+- [x] `TypeScript repo: installing/commands/test/update/recursive.ts:323` `recursive update --latest foo should only update packages that have foo` — ported as `recursive_update_latest_with_dedicated_lockfiles_only_touches_the_declaring_project`.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:384` `recursive update in workspace should not add new dependencies` — ported as `recursive_update_does_not_add_a_dependency_no_project_declares`.
 - [x] `TypeScript repo: installing/commands/test/update/recursive.ts:416` `recursive update with aliased workspace dependency (#7975)` — ported as `recursive_update_keeps_an_aliased_workspace_dependency`.
-- [ ] `TypeScript repo: installing/commands/test/update/recursive.ts` — the remaining five cases move `latest` mid-test with `addDistTag`. The fixture registry derives `dist-tags.latest` from the highest published version and has no per-run override, so they stay unported. See pnpm/pnpm#12101.
 - [x] `TypeScript repo: installing/commands/test/update/jsr.ts:25` `jsr without alias` — ported as `install_records_a_plain_jsr_dependency` and `update_latest_bumps_a_jsr_dependency` in `crates/cli/tests/update_jsr.rs`.
 - [x] `TypeScript repo: installing/commands/test/update/jsr.ts:91` `jsr with alias` — ported as `install_records_an_aliased_jsr_dependency` and `update_latest_bumps_an_aliased_jsr_dependency` in `crates/cli/tests/update_jsr.rs`.
-- [ ] `TypeScript repo: installing/commands/test/update/interactive.ts` and `issue-7415.ts` — both drive the prompt programmatically by mocking `@inquirer/prompts`. pacquet prompts through `dialoguer`, which wants a TTY and has no injection seam, so these need that seam first.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:13` `update with "*" pattern` — ported as `update_latest_with_glob_selector_is_scoped` in `crates/cli/tests/update.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:44` `update to latest should not touch the automatically installed peer dependencies` — ported as `update_latest_leaves_auto_installed_peers_alone`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:397` `update should work normal when set empty string version` — ported as `update_latest_star_selector_updates_an_empty_specifier`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:479` `not ignore packages if these are specified in parameter even if these are listed in ... ignoreDependencies` — ported as `update_selectors_override_ignore_dependencies`.
+- [x] `TypeScript repo: installing/commands/test/update/update.ts:548` `should not update tag version when --latest not set` — ported as `update_keeps_every_dist_tag_specifier_without_latest`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:65` `global interactive update handles an empty global directory` — ported as `global_interactive_update_handles_an_empty_global_directory` in `crates/cli/src/cli_args/update_interactive/tests.rs`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:239` `interactively update` — ported as `interactively_update`.
+- [x] `TypeScript repo: installing/commands/test/update/interactive.ts:441` `interactively update should ignore dependencies from the ignoreDependencies field` — ported as `interactively_update_skips_ignored_dependencies`.
+- [x] `TypeScript repo: installing/commands/test/update/issue-7415.ts:63` `interactive recursive should not error on git specifier override` — ported as `choices_walk_past_a_dependency_overridden_to_a_git_specifier`, at the level the seam reaches: the outdated collector walks past a resolution that names no version, which is what the upstream run exercises.
+- [ ] `TypeScript repo: installing/commands/test/update/interactive.ts` — the five remaining `global interactive update` cases and `interactive update of dev dependencies only`. pacquet answers its prompt through `UpdatePrompt::Scripted`, a crate-internal seam, so its ports run the command in-process against a `Config` built by hand; a global-install and a workspace-install fixture at that level are what these still need.
+- [x] `TypeScript repo: deps/inspection/commands/test/outdated/index.ts:380` `ignore packages in package.json > pnpm.updateConfig.ignoreDependencies in outdated command` — ported as `outdated_leaves_out_ignored_dependencies` in `crates/cli/tests/outdated.rs`.

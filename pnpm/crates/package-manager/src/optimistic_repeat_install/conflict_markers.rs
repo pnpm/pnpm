@@ -1,8 +1,8 @@
 //! Refusing an optimistic install when a lockfile still carries merge-conflict markers.
 
 use super::{
-    ErrorKind, Lockfile, OptimisticRepeatInstallCheck, Path, PathBuf, Read,
-    file_mtime_from_metadata, fs, lockfile_modified_since,
+    ErrorKind, OptimisticRepeatInstallCheck, Path, PathBuf, Read, file_mtime_from_metadata, fs,
+    lockfile_modified_since,
 };
 
 #[derive(Clone, Copy)]
@@ -15,17 +15,17 @@ pub(crate) fn first_lockfile_requiring_conflict_safe_install(
     check: &OptimisticRepeatInstallCheck<'_>,
     last_validated_timestamp: i64,
 ) -> Option<(PathBuf, LockfileConflictCheckFailure)> {
-    let shared_lockfile = check.workspace_root.join(Lockfile::FILE_NAME);
+    let shared_lockfile = check.workspace_root.join(check.config.wanted_lockfile_name());
     if let Some(failure) =
         lockfile_conflict_check_failure(&shared_lockfile, last_validated_timestamp)
     {
         return Some((shared_lockfile, failure));
     }
-    if check.config.shared_workspace_lockfile {
+    if check.config.shares_one_lockfile() {
         return None;
     }
     for (root_dir, _) in check.project_manifests {
-        let lockfile_path = root_dir.join(Lockfile::FILE_NAME);
+        let lockfile_path = root_dir.join(check.config.wanted_lockfile_name());
         if lockfile_path != shared_lockfile
             && let Some(failure) =
                 lockfile_conflict_check_failure(&lockfile_path, last_validated_timestamp)

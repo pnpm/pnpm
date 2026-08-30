@@ -6,14 +6,15 @@ import {
   packageManifestLogger,
 } from '@pnpm/core-loggers'
 import { findRuntimeNodeVersion, iterateHashedGraphNodes } from '@pnpm/deps.graph-hasher'
-import { isRuntimeDepPath } from '@pnpm/deps.path'
+import { isRuntimeDepPath, parse as parseDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { safeJoinModulesDir } from '@pnpm/fs.symlink-dependency'
 import type {
   LockfileObject,
   ProjectSnapshot,
 } from '@pnpm/lockfile.types'
-import { verifyPatches } from '@pnpm/patching.config'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { getPatchInfo, type PatchGroupRecord, verifyPatches } from '@pnpm/patching.config'
 import { safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import {
   getAllDependenciesFromManifest,
@@ -100,6 +101,12 @@ export interface ImporterToResolve extends Importer<{
   binsDir: string
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  /**
+   * Tells a declared range the update owns from one an override governs, so
+   * `updateProjectManifest` leaves the latter where the project wrote it.
+   * Built per project by `@pnpm/hooks.read-package-hook`.
+   */
+  isOverriddenDependency?: (alias: string, bareSpecifier: string) => boolean
   update?: boolean
   updateMatching?: UpdateMatchingFunction
   updatePackageManifest: boolean
@@ -175,7 +182,6 @@ export async function resolveDependencies (
     resolvedImporters,
     resolvedPkgsById,
     wantedToBeSkippedPackageIds,
-    appliedPatches,
     time,
     allPeerDepNames,
     resolutionPolicyViolations,
@@ -209,19 +215,6 @@ export async function resolveDependencies (
   }
 
   opts.storeController.clearResolutionCache()
-
-  // We only check whether patches were applied in cases when the whole lockfile was reanalyzed.
-  if (
-    opts.patchedDependencies &&
-    (opts.forceFullResolution || !Object.keys(opts.wantedLockfile.packages ?? {})?.length) &&
-    Object.keys(opts.wantedLockfile.importers).length === importers.length
-  ) {
-    verifyPatches({
-      patchedDependencies: opts.patchedDependencies,
-      appliedPatches,
-      allowUnusedPatches: opts.allowUnusedPatches,
-    })
-  }
 
   const projectsToLink = await Promise.all<ProjectToLink>(projectsToResolve.map(async (project) => {
     const resolvedImporter = resolvedImporters[project.id]
@@ -463,6 +456,17 @@ export async function resolveDependencies (
     Object.values(resolvedImporters).flatMap(({ directDependencies }) => directDependencies),
     updatedCatalogs)
 
+  if (
+    opts.patchedDependencies &&
+    Object.keys(opts.wantedLockfile.importers).length === importers.length
+  ) {
+    verifyPatches({
+      patchedDependencies: opts.patchedDependencies,
+      appliedPatches: getAppliedPatchKeys(newLockfile, opts.patchedDependencies),
+      allowUnusedPatches: opts.allowUnusedPatches,
+    })
+  }
+
   // waiting till package requests are finished
   async function waitTillAllFetchingsFinish (): Promise<void> {
     await Promise.all(Object.values(resolvedPkgsById).map(async ({ fetching }) => {
@@ -491,6 +495,23 @@ function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedP
     if (node.lockedPeerContext != null) return true
   }
   return false
+}
+
+function getAppliedPatchKeys (
+  lockfile: LockfileObject,
+  patchedDependencies: PatchGroupRecord
+): Set<string> {
+  const appliedPatchKeys = new Set<string>()
+  for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages ?? {})) {
+    if (!depPath.includes('(patch_hash=')) continue
+    const { patchHash } = parseDepPath(depPath)
+    if (patchHash == null) continue
+    const { name, version } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
+    if (version == null) continue
+    const patch = getPatchInfo(patchedDependencies, name, version)
+    if (patch != null && patchHash === `(patch_hash=${patch.hash})`) appliedPatchKeys.add(patch.key)
+  }
+  return appliedPatchKeys
 }
 
 function addDirectDependenciesToLockfile (

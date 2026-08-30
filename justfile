@@ -13,6 +13,9 @@ alias t := test
 # or install via `cargo install cargo-binstall`
 init:
   cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
+  # `cargo-fixit` has no prebuilt binaries, so install it from source
+  # with `cargo install` (pinned) instead of `cargo binstall`.
+  cargo install cargo-fixit@0.1.15 --locked
 
 # When ready, run the same CI commands
 ready:
@@ -69,11 +72,14 @@ sweep-test-temp:
 # Run pacquet package tests only.
 test-pacquet:
   # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
-  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
-  cargo nextest run -p pnpr -p pnpr-fixtures
+  # Every `pnpr-*` crate, selected together so cargo's feature unification
+  # gives them the same backend features `pnpr` itself defaults to — selecting
+  # one alone would build it bare and silently skip its backend tests.
+  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-package-name -p pnpr-policy -p pnpr-registry -p pnpr-route -p pnpr-osv -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
 
 # List expected-failing test ports
 [unix]
@@ -86,6 +92,15 @@ known-failures:
 # Lint the whole project
 lint:
   cargo clippy --locked --workspace --all-targets -- --deny warnings
+
+# Apply clippy's autofix suggestions across the workspace.
+# Uses `cargo fixit --clippy` (installed by `just init`, pinned to
+# `cargo-fixit@0.1.15`) instead of `cargo clippy --fix`. `cargo fixit`
+# is faster than `cargo clippy --fix` on repeated runs because it skips
+# the full re-check compile between fix rounds, so iterating on a lint
+# cleanup doesn't rebuild the workspace each pass.
+fix:
+  cargo fixit --clippy --workspace --all-targets --allow-dirty --allow-staged
 
 # Run perfectionist dylint rules. Requires `cargo-dylint` and `dylint-link`
 # (install from source with `cargo install cargo-dylint dylint-link`; the

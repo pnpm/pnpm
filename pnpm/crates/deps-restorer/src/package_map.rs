@@ -234,7 +234,7 @@ pub fn dependencies_graph_to_package_map(
     let is_loose = opts.package_map_type == NodePackageMapType::Loose;
     let mut packages = BTreeMap::new();
     let mut package_ids_by_graph_key = BTreeMap::new();
-    let mut package_ids_by_dep_path = BTreeMap::new();
+    let mut package_ids_by_pkg_id = BTreeMap::new();
     let mut package_dirs = is_loose.then(BTreeMap::new);
     let mut loose_index = is_loose.then(PhysicalPackageIndex::default);
     let importer_names = importer_names(opts.lockfile_dir, opts.project_manifests);
@@ -242,9 +242,16 @@ pub fn dependencies_graph_to_package_map(
     for (graph_key, node) in &graph.graph {
         let id = graph_package_id(&node.dir, opts.modules_dir);
         package_ids_by_graph_key.insert(graph_key.clone(), id.clone());
-        package_ids_by_dep_path
-            .entry(node.dep_path.as_str().to_string())
-            .or_insert_with(|| id.clone());
+        // Keyed by [`pnpm_real_hoist::pkg_id`]: the hoister collapses
+        // every peer variant of one package version onto a single
+        // node, so an importer that declared another variant still has
+        // to find this one (see [`crate::hoisted_dep_graph`]'s
+        // `pkg_locations_by_pkg_id`).
+        if let Ok(key) = node.dep_path.as_str().parse::<PackageKey>() {
+            package_ids_by_pkg_id
+                .entry(pnpm_real_hoist::pkg_id(&key))
+                .or_insert_with(|| id.clone());
+        }
         if let Some(loose_index) = loose_index.as_mut()
             && let Some(modules_dir) = get_node_modules_path(&node.dir)
         {
@@ -262,17 +269,17 @@ pub fn dependencies_graph_to_package_map(
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.optional_dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         add_hoisted_importer_dependencies(
             &mut dependencies,
             importer.dev_dependencies.as_ref(),
-            &package_ids_by_dep_path,
+            &package_ids_by_pkg_id,
         );
         let importer_modules_dir = is_loose.then(|| importer_dir.join("node_modules"));
         add_hoisted_linked_dependencies(
@@ -369,6 +376,17 @@ pub fn make_node_package_map_option(package_map_path: &Path, node_options: Optio
         quote_path_if_needed(&package_map_path.to_string_lossy()),
     ));
     parts.join(" ")
+}
+
+pub fn make_node_require_option(module_path: &Path, node_options: Option<&str>) -> String {
+    let node_options =
+        node_options.map(str::to_string).or_else(|| std::env::var("NODE_OPTIONS").ok());
+    let quoted_path = quote_path_if_needed(&module_path.to_string_lossy());
+    let require_option = format!("--require={quoted_path}");
+    match node_options.as_deref().map(str::trim).filter(|options| !options.is_empty()) {
+        Some(node_options) => format!("{node_options} {require_option}"),
+        None => require_option,
+    }
 }
 
 pub fn package_map_path_for_execution(config: &Config, dir: &Path) -> Option<PathBuf> {
@@ -499,7 +517,7 @@ fn add_physical_snapshot_dependencies(
 fn add_hoisted_importer_dependencies(
     dependencies: &mut BTreeMap<String, String>,
     deps: Option<&pnpm_lockfile::ResolvedDependencyMap>,
-    package_ids_by_dep_path: &BTreeMap<String, String>,
+    package_ids_by_pkg_id: &BTreeMap<String, String>,
 ) {
     let Some(deps) = deps else { return };
     for (alias, spec) in deps {
@@ -507,7 +525,7 @@ fn add_hoisted_importer_dependencies(
             continue;
         }
         if let Some(key) = spec.version.resolved_key(alias)
-            && let Some(id) = package_ids_by_dep_path.get(&key.to_string())
+            && let Some(id) = package_ids_by_pkg_id.get(&pnpm_real_hoist::pkg_id(&key))
         {
             dependencies.insert(alias.to_string(), id.clone());
         }

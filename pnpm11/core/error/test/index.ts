@@ -1,5 +1,12 @@
 import { expect, test } from '@jest/globals'
-import { FetchError, PnpmError, redactAndSanitize, redactAndSanitizeMultiline, redactUrlCredentials } from '@pnpm/error'
+import {
+  FetchError,
+  PnpmError,
+  redactAndSanitize,
+  redactAndSanitizeMultiline,
+  redactUrlCredentials,
+  redactUrlForDisplay,
+} from '@pnpm/error'
 
 test('PnpmError exposes cause when provided', () => {
   const cause = new Error('original failure')
@@ -90,6 +97,15 @@ test('redactAndSanitize', () => {
   // A control character inside the userinfo must not break the redaction:
   // controls are stripped first, then credentials are redacted.
   expect(redactAndSanitize('https://user:pass\r@host/x')).toBe('https://host/x')
+})
+
+test('redactUrlForDisplay strips URL secrets and control characters', () => {
+  expect(redactUrlForDisplay('https://user:pass@host/pkg?token=secret#fragment\u001b'))
+    .toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://host/pkg#secret')).toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://host/pkg')).toBe('https://host/pkg')
+  expect(redactUrlForDisplay('https://user:pa?ss@host/pkg')).toBe('[hidden]')
+  expect(redactUrlForDisplay('https://user:pa#ss@host/pkg')).toBe('[hidden]')
 })
 
 test('redactAndSanitizeMultiline', () => {

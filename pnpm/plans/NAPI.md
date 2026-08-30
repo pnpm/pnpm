@@ -7,13 +7,14 @@ programmatic consumers of pnpm — Bit being the reference consumer — can run 
 resolution, rebuilds, peer-dependency checks, and pack through the Rust implementation
 instead of the TypeScript `@pnpm/*` packages published from `pnpm11/`.
 
-The binding replaces only the **engine** surface. Pure data utilities that operate on
-in-memory objects (`@pnpm/types`, `@pnpm/lockfile.types`, `@pnpm/lockfile.fs` object
-transforms, `@pnpm/deps.path`, `@pnpm/installing.modules-yaml`,
-`@pnpm/deps.inspection.*`, `@pnpm/config.reader`, `@pnpm/cli.default-reporter`,
-`@pnpm/logger`) remain valid JS packages: both stacks keep the same on-disk contract
-(lockfile v9 byte-stability, `.modules.yaml`, store layout v11), so JS-side reads and
-in-memory transforms stay correct while Rust owns all engine I/O.
+The binding covers the **engine** surface plus the two things a consumer cannot
+reasonably reimplement over it — pnpm's terminal output and its reverse dependency
+tree (`pnpm why`). Pure data utilities that operate on in-memory objects
+(`@pnpm/types`, `@pnpm/lockfile.types`, `@pnpm/lockfile.fs` object transforms,
+`@pnpm/deps.path`, `@pnpm/installing.modules-yaml`, `@pnpm/config.reader`) remain
+valid JS packages: both stacks keep the same on-disk contract (lockfile v9
+byte-stability, `.modules.yaml`, store layout v11), so JS-side reads and in-memory
+transforms stay correct while Rust owns all engine I/O.
 
 ## Deliverables
 
@@ -113,8 +114,8 @@ Implementation notes:
   `(id, manifest)` pairs instead of on-disk workspace discovery. This is the one real
   pacquet-side feature addition; it mirrors what the TS `mutateModules` has always
   accepted (`allProjects` with in-memory manifests).
-- Build ordering: Rust's `graph_sequencer`/`build_sequence` handles lifecycle ordering;
-  callers do not pass `buildIndex` (Bit's `groupPkgs`/`sortProjects` dance is dropped).
+- Build ordering: Rust's `graph_sequencer`/`build_graph` handles lifecycle ordering;
+  callers pass project dependencies instead of a `buildIndex`.
 - `readPackageHook` maps onto the existing `PnpmfileHooks` seam via a `ThreadsafeFunction`
   that serializes the manifest to JSON and deserializes the synchronous JS result. The JS
   side receives `(manifest)` for dependency manifests. Importer-manifest transforms that
@@ -157,6 +158,64 @@ async. Returns `{ publishedManifest, contents, tarballPath, unpackedSize }`.
 Pure validation/parse helper replacing `@pnpm/resolving.npm-resolver`'s
 `parseBareSpecifier` usage.
 
+### Reporter (`options.reporter` + `onOutput`)
+
+`install` / `rebuild` render pnpm's own terminal output when `options.reporter`
+is set, through `pnpm-default-reporter` — the reporter the CLI itself uses. The
+binding owns a per-call `NativeRenderer` (folded `ReporterState` + frame differ +
+throttle) rather than the reporter crate's process-global sink, so consecutive
+calls in one process do not inherit each other's counters or options and the
+CLI's own startup-time configuration is untouched.
+
+Rendered chunks go to stdout unless the caller passes `onOutput`, a
+`ThreadsafeFunction` sink that hands each chunk back to JS. That is not a
+convenience: a host that has redirected its output at the JavaScript level (Bit
+monkey-patches `process.stdout.write` to mirror to a tty, and its CLI server
+swaps in a stream forwarding to connected editors) would have a write from Rust
+bypass the redirection entirely.
+
+Three reporting options were added to `pnpm-default-reporter` for this:
+`hide_lifecycle_output`, `ignored_builds_instruction_text` (pnpm's
+`approveBuildsInstructionText`), and `hide_linked_pkgs_diff` — the declarative
+stand-in for the TypeScript reporter's `filterPkgsDiff` callback, which cannot
+cross the addon boundary because `Reporter::emit` is synchronous.
+
+### Lockfile (`readLockfile` / `writeLockfile` / `filterLockfileByImporters`)
+
+The engine's own reader and emitter, so a consumer does not carry a second
+implementation of a file both stacks own. The JSON crossing the boundary is the
+file's own shape (`LockfileFile` in `@pnpm/lockfile.types` terms) — the Rust
+`Lockfile` is already that shape, so there is no object-vs-file conversion.
+
+`Lockfile` gained a `#[serde(flatten)]` `extra` map, closing the passthrough
+item below: top-level keys pnpm does not define now round-trip instead of being
+dropped, which is what makes a consumer's read-edit-write of its own block
+(Bit's `bit:`) lossless. An install still builds a fresh lockfile rather than
+rewriting the previous one, so the consumer re-asserts its block afterwards —
+it is writing that block's fresh contents anyway.
+
+`filterLockfileByImporters` is `@pnpm/lockfile.filtering` in
+`pnpm_lockfile::Lockfile::filter_by_importers`, mirroring the TypeScript
+`filterLockfileByImporters` + `@pnpm/lockfile.walker` traversal.
+`readModulesManifest` exposes the `.modules.yaml` reader alongside it.
+
+### Dependents (`getDependents` / `renderDependents`)
+
+The reverse dependency tree behind `pnpm why`. `crates/cli/src/cli_args/deps_tree`
+was extracted into `crates/deps-inspection` (Rust counterpart of
+`@pnpm/deps.inspection.tree-builder` + `.list`) so both the CLI and the binding
+build on it; `--find-by` finders, which run JavaScript from a `.pnpmfile.cjs`,
+stay in the CLI.
+
+The two exports mirror the two npm packages: `getDependents` returns the trees as
+plain JSON, `renderDependents` returns them rendered as a string (it prints
+nothing itself). That split is also what replaces the
+TypeScript API's `nameFormatter` callback — the walk is synchronous Rust and
+cannot call into JS — so a consumer asks for the manifest fields it renames by
+(`manifestFields`), writes `displayName` onto the returned trees, and hands them
+back to be rendered. Bit uses this to show component ids instead of package
+names.
+
 ### Reporter bridge (`onLog`)
 
 `crates/reporter`'s `Reporter` trait is static-dispatch (`fn emit(event: &LogEvent)`,
@@ -164,11 +223,11 @@ no `&self`), so the addon defines `NodeBridgeReporter` whose `emit` forwards
 `serde_json::to_value(event)` through a process-global
 `OnceLock<ThreadsafeFunction<serde_json::Value>>` (non-blocking enqueue; events may
 fire from rayon and tokio threads — same constraint documented on the trait). pacquet's
-`LogEvent` stream is wire-compatible with `@pnpm/core-loggers`, so a JS host can pipe
-events straight into `@pnpm/logger`'s `streamParser` and keep rendering with
-`@pnpm/cli.default-reporter` — which is exactly what Bit does (custom
-`filterPkgsDiff`, `approveBuildsInstructionText` keep working untouched). One global
-sink matches the JS reality (pnpm's logger is process-global there too).
+`LogEvent` stream is wire-compatible with `@pnpm/core-loggers`, so a JS host that
+wants to render the events itself can pipe them straight into `@pnpm/logger`'s
+`streamParser`. A host that just wants pnpm's output sets `options.reporter`
+instead and needs no JS reporter at all. One global sink matches the JS reality
+(pnpm's logger is process-global there too).
 
 ### Error mapping
 
@@ -182,19 +241,18 @@ surface as generic `Error`s rather than aborting the host.
 
 | Kept JS package | Why |
 |---|---|
-| `@pnpm/logger`, `@pnpm/cli.default-reporter` | render the LogEvent stream (UI only) |
-| `@pnpm/lockfile.fs` / `.types` / `.filtering` | lockfile v9 is byte-stable across stacks; reads and in-memory transforms are engine-independent |
-| `@pnpm/deps.path` | pure dep-path string parsing |
-| `@pnpm/installing.modules-yaml` | reads `.modules.yaml` (same format both stacks) |
-| `@pnpm/deps.inspection.*` | dependents tree = pure lockfile analysis |
+| `@pnpm/lockfile.types`, `@pnpm/types`, `@pnpm/error` | type-only |
+| `@pnpm/deps.path` | pure dep-path string parsing, called once per graph edge — millions of times per large workspace. Exactly the shape that does not belong behind an FFI call. |
 | `@pnpm/config.reader` (+ nerf-dart, parse-overrides, ca-file) | host-side config/auth introspection; engine gets explicit options |
-| `@pnpm/types`, `@pnpm/error` | type-only |
 | `@pnpm/node-fetch`, `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/registry-mock`, `@pnpm/plugin-trusted-deps` | unrelated to the engine |
 
 Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.client`,
 `@pnpm/store.connection-manager`, `@pnpm/store.controller`, `@pnpm/building.commands`,
 `@pnpm/worker`, `@pnpm/workspace.projects-graph`, `@pnpm/workspace.projects-sorter`,
-`@pnpm/releasing.commands`, `@pnpm/resolving.npm-resolver`.
+`@pnpm/releasing.commands`, `@pnpm/resolving.npm-resolver`, `@pnpm/logger`,
+`@pnpm/cli.default-reporter`, `@pnpm/deps.inspection.tree-builder`,
+`@pnpm/deps.inspection.list`, `@pnpm/lockfile.fs`, `@pnpm/lockfile.filtering`,
+`@pnpm/installing.modules-yaml`.
 
 ## Implementation status
 
@@ -279,12 +337,16 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
     the global `networkConcurrency` semaphore stays the outer bound.
   - `enableModulesDir: false` → pacquet's lockfile-only path (resolve + write
     lockfile, materialize no `node_modules`).
-  - `ignorePackageManifest` → pacquet's existing `ignore_manifest_check` (skip
-    the manifest↔lockfile freshness gate). pnpm additionally skips the
-    project-level linking phase (`pnpm fetch` semantics); a fuller native port
-    of that is a follow-up.
-  - `pnpmHomeDir` → accepted and ignored; only global flows consult it and the
-    binding drives project installs.
+  - `ignorePackageManifest` → the full `pnpm fetch` shape: the frozen path
+    against the lockfile alone (`ignore_manifest_check` skips the
+    manifest↔lockfile freshness gate), `virtual_store_only` (no importer
+    symlinks, `.bin` entries, hoisting, or project lifecycle scripts), a
+    forced-on modules dir, and `ProjectMutation::NoInstall` — the same
+    settings both stacks' fetch handlers pin.
+  - `pnpmHomeDir` → the home directory the default store location resolves
+    under when no `storeDir` is configured
+    (`Config::resolve_store_dir_from_home`, pnpm's `getStorePath`
+    semantics). An explicit or cascade-configured `storeDir` wins.
 
 - **`install` remaining work** (additive; core pipeline + hook + multi-importer
   + build approval above are proven):
@@ -320,8 +382,8 @@ Bit's `pnpm11-rust` branch is rewired to `@pnpm/napi` and **`npm run lint`
   `readPackageHook`); `resolveRemoteVersion` → `nodeApi.resolveDependency`;
   the `rebuild` closure → `nodeApi.rebuild`; `getPeerDependencyIssues` calls
   the stubbed export and returns `{}` on `ERR_PNPM_NAPI_UNIMPLEMENTED`.
-  Reporter events bridge via `streamParser.emit('data', event)` into the kept
-  `@pnpm/cli.default-reporter`. `peerDependencyRules`,
+  Output is rendered by the engine (`options.reporter`) and written through
+  the host stream Bit passes as `onOutput`. `peerDependencyRules`,
   `resolvePeersFromWorkspaceRoot`, and `preferFrozenLockfile` are forwarded.
 - `scopes/pkg/pkg/packer.ts` → `nodeApi.pack`; `load-pnpm-pack.cjs` deleted.
 - `parseBareSpecifier` (dependency-resolver runtime), `PeerDependencyIssuesByProjects`
@@ -331,9 +393,10 @@ Bit's `pnpm11-rust` branch is rewired to `@pnpm/napi` and **`npm run lint`
   `installing.client`, `store.connection-manager`, `store.controller`,
   `building.commands`, `worker`, `workspace.projects-graph`,
   `workspace.projects-sorter`, `releasing.commands`, `resolving.npm-resolver`)
-  and adds `@pnpm/napi`. Data/format packages (`lockfile.*`, `deps.path`,
-  `installing.modules-yaml`, `deps.inspection.*`, `config.reader`, `logger`,
-  `cli.default-reporter`, `types`, `error`, …) stay.
+  and adds `@pnpm/napi`. It later drops `logger`, `cli.default-reporter`, and
+  `deps.inspection.*` too, once the binding grew `options.reporter` and
+  `getDependents`. Data/format packages (`lockfile.*`, `deps.path`,
+  `installing.modules-yaml`, `config.reader`, `types`, `error`, …) stay.
 
 ### Auth / private registries — DONE
 
@@ -357,10 +420,10 @@ path Bit's e2e tests use), driving the real Rust engine:
 
 - **`lynx.install`** — a real `is-odd@3.0.1` install: linked into `node_modules`,
   imports and runs, `dependenciesChanged: true`, `pnpm-lock.yaml` written.
-- **Reporter bridge** — with output enabled, `@pnpm/cli.default-reporter`
-  rendered live pnpm-style progress ("resolved 2, downloaded 2, added 2, done",
-  the `+2` summary, and the lockfile supply-chain-policy line) from the engine's
-  events via `streamParser.emit('data', event)`.
+- **Reporter** — with output enabled, the engine rendered live pnpm-style
+  progress ("resolved 2, downloaded 2, added 2, done", the `+2` summary, and
+  the lockfile supply-chain-policy line) and delivered every chunk to the
+  stream Bit passed as `onOutput`.
 - **`rebuild()`** and **`resolveRemoteVersion`** (`is-odd@^3.0.0` → `3.0.1` via
   `npm-registry`) both work through the real Bit code path.
 
@@ -392,10 +455,11 @@ platform packages and cross-compiled artifacts are gitignored.
 
 ## Open items tracked during implementation
 
-- `bit`-namespaced passthrough at the lockfile top level: the Rust `Lockfile` struct
-  must not drop unknown top-level keys it round-trips (consumers persist custom
-  attributes, e.g. Bit's `bit.depsRequiringBuild`). Add a `#[serde(flatten)]`
-  passthrough map preserved by the YAML emitter.
+- ~~`bit`-namespaced passthrough at the lockfile top level~~ — done:
+  `Lockfile::extra` is a `#[serde(flatten)]` map of the top-level keys pnpm does
+  not define, preserved by the YAML emitter. Carrying it from the previous
+  lockfile into a freshly resolved one (so an install preserves it without the
+  consumer re-asserting) is a possible follow-up.
 - `depsRequiringBuild` in `InstallResult`: surface the ignored-builds list the engine
   already computes for `ERR_PNPM_IGNORED_BUILDS` / `pnpm:ignored-scripts`.
 - `modulesCacheMaxAge: Infinity` semantics (consumer prunes the virtual store itself):

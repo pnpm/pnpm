@@ -3,10 +3,11 @@
 
 use crate::read_package_json;
 use pnpm_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pnpm_fs::is_symlink_or_junction;
 use pnpm_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashMap},
     io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -61,12 +62,10 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
     };
     let mut result = Vec::new();
     for entry in entries.flatten() {
-        // Hash entries are symlinks pointing to install dirs.
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
-            continue;
-        }
         let link_path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&link_path) else {
+            continue;
+        };
         let Ok(install_dir) = std::fs::canonicalize(&link_path) else { continue };
         let Some(manifest) = read_package_json(&install_dir) else { continue };
         let dependencies = dependencies_of(&manifest);
@@ -94,8 +93,25 @@ pub fn find_global_package(
 /// dependency of `info`.
 #[must_use]
 pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlobalPackage> {
-    let modules_dir = info.install_dir.join("node_modules");
-    info.dependencies
+    installed_packages(&info.install_dir, &info.dependencies)
+}
+
+/// The installed version of each direct dependency of the group installed at
+/// `install_dir`, by alias.
+#[must_use]
+pub fn installed_versions(install_dir: &Path) -> HashMap<String, String> {
+    installed_packages(install_dir, &read_direct_dependencies(install_dir))
+        .into_iter()
+        .map(|installed| (installed.alias, installed.version))
+        .collect()
+}
+
+fn installed_packages(
+    install_dir: &Path,
+    dependencies: &[(String, String)],
+) -> Vec<InstalledGlobalPackage> {
+    let modules_dir = install_dir.join("node_modules");
+    dependencies
         .iter()
         .filter_map(|(alias, _)| {
             let manifest = read_package_json(&modules_dir.join(alias))?;
@@ -164,11 +180,11 @@ pub fn clean_orphaned_install_dirs(global_dir: &Path) {
 
     let mut referenced = BTreeSet::new();
     for entry in &entries {
-        let Ok(file_type) = entry.file_type() else { continue };
-        if !file_type.is_symlink() {
+        let path = entry.path();
+        let Ok(true) = is_symlink_or_junction(&path) else {
             continue;
-        }
-        if let Ok(real) = std::fs::canonicalize(entry.path()) {
+        };
+        if let Ok(real) = std::fs::canonicalize(path) {
             referenced.insert(real);
         }
     }

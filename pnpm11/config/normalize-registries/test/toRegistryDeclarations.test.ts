@@ -67,3 +67,15 @@ test('toRegistryDeclarations() does not declare a built-in route the user did no
     'https://jsr.corp.example/': { scopes: ['@jsr'] },
   })
 })
+
+test('toRegistryDeclarations() carries every fact a registry declares', () => {
+  expect(toRegistryDeclarations({
+    registryOptionsByUrl: {
+      'https://npm.corp.example/': { serverType: 'artifactory', supportsTimeField: true },
+      'https://time.example/': { supportsTimeField: false },
+    },
+  })).toStrictEqual({
+    'https://npm.corp.example/': { serverType: 'artifactory', supportsTimeField: true },
+    'https://time.example/': { supportsTimeField: false },
+  })
+})

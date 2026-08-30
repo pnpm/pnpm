@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/store.index",
-  "version": "1100.2.4",
+  "version": "1100.3.0",
   "description": "SQLite-backed index for the pnpm content-addressable store",
   "keywords": [
     "pnpm",

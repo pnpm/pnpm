@@ -258,6 +258,29 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   })
 })
 
+// Peer dependency issues are a byproduct of resolution: whatever ran a
+// resolution reports them, and an install that skipped one reports
+// nothing. That is why `pnpm dedupe` — which always re-resolves — can
+// fail a tree `pnpm install` just accepted, and why `pnpm peers check`
+// exists to inspect a lockfile nobody re-resolved. Deliberate, tracked
+// as https://github.com/pnpm/pnpm/issues/14098.
+test('an install on an up-to-date lockfile does not recheck peer dependencies', async () => {
+  prepareEmpty()
+
+  const manifest = {
+    dependencies: {
+      'ajv-keywords': '1.5.0',
+    },
+  }
+  await install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: false }))
+
+  await install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: true }))
+
+  await expect(
+    install(manifest, testDefaults({ autoInstallPeers: false, strictPeerDependencies: true, dedupe: true }))
+  ).rejects.toThrow('Unmet peer dependencies')
+})
+
 test('peer dependency is resolved from the dependencies of the workspace root project', async () => {
   const projects = preparePackages([
     {

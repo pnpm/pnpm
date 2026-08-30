@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/bins.remover",
-  "version": "1100.0.20",
+  "version": "1100.0.22",
   "description": "Remove bins from .bin",
   "keywords": [
     "pnpm",

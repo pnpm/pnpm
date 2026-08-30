@@ -69,6 +69,10 @@ export function createDeployFiles ({
     devDependencies: {},
     optionalDependencies: {},
   }
+  const directDependencyNames = dependencyNames(selectedProjectManifest)
+  const peerOnlyDependencies = new Set(
+    Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+  )
 
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
@@ -106,10 +110,14 @@ export function createDeployFiles ({
   }
 
   for (const field of DEPENDENCIES_FIELD) {
+    // An excluded group's direct dependencies are left out of both the
+    // deployed manifest and the deployed importer, because the graph filter
+    // below drops the packages they would point at.
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
+      if (!include[field] && !peerOnlyDependencies.has(name)) continue
       const version = inputDependencies[name]
       const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
@@ -151,12 +159,12 @@ export function createDeployFiles ({
       },
       packages: deployPackageSnapshots,
     },
-    manifest: {
+    manifest: omitPeersOfExcludedDependencies({
       ...selectedProjectManifest,
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
-    },
+    }, selectedProjectManifest, targetSnapshot),
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -183,6 +191,33 @@ export function createDeployFiles ({
   return result
 }
 
+function omitPeersOfExcludedDependencies (
+  manifest: ProjectManifest,
+  inputManifest: ProjectManifest,
+  targetSnapshot: ProjectSnapshot
+): ProjectManifest {
+  const includedDependencies = dependencyNames(targetSnapshot)
+  const excludedDependencies = new Set(
+    Array.from(dependencyNames(inputManifest)).filter(name => !includedDependencies.has(name))
+  )
+  if (excludedDependencies.size === 0) return manifest
+
+  return {
+    ...manifest,
+    peerDependencies: omitKeys(manifest.peerDependencies, excludedDependencies),
+    peerDependenciesMeta: omitKeys(manifest.peerDependenciesMeta, excludedDependencies),
+  }
+}
+
+function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string> {
+  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
+}
+
+function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+  if (record == null) return undefined
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
+}
+
 /** Takes ownership of `packages`: the retained snapshots are edited in place. */
 function filterDeployPackageSnapshots (
   importer: ProjectSnapshot,
@@ -197,9 +232,9 @@ function filterDeployPackageSnapshots (
     }
   }
 
-  if (include.dependencies) enqueue(importer.dependencies)
-  if (include.devDependencies) enqueue(importer.devDependencies)
-  if (include.optionalDependencies) enqueue(importer.optionalDependencies)
+  enqueue(importer.dependencies)
+  enqueue(importer.devDependencies)
+  enqueue(importer.optionalDependencies)
 
   const reachable = new Set<DepPath>()
   let head = 0

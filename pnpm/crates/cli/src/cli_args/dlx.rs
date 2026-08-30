@@ -1,6 +1,9 @@
 use crate::{
     State,
-    cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
+    cli_args::{
+        add::add_package, catalogs::configured_catalogs,
+        supported_architectures::SupportedArchitecturesArgs,
+    },
     engine_pm::{channel::PackageManager, provision::provision},
     path_env::{BadPathDir, prepend_dirs_to_path, set_command_path},
     shim_dispatch::materialize_runtime,
@@ -8,7 +11,10 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
+use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
+use pnpm_catalogs_resolver::{
+    CatalogResolutionResult, WantedDependency as CatalogWantedDependency, resolve_from_catalog,
+};
 use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest};
 use pnpm_config::Config;
 use pnpm_config_parse_overrides::parse_overrides_iter;
@@ -228,13 +234,19 @@ impl DlxArgs {
         if package.is_empty()
             && let Some((name, version_spec)) = parse_runtime_spec(bin_command)
         {
-            return run_runtime(name, version_spec, bin_command, args, &spawn).await;
+            return run_runtime(&config.state_dir, name, version_spec, bin_command, args, &spawn)
+                .await;
         }
 
         // `pkgs = package ?? [command]`. With `--package`, the command
         // names the bin to run; otherwise the command is also the package.
         let pkgs: Vec<String> =
             if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
+        // Resolved here rather than in the install below so the catalog's
+        // version also feeds the cache key: two callers whose catalogs pin
+        // different versions of the same package must not share a cache
+        // entry.
+        let pkgs = resolve_catalog_specs(&pkgs, config)?;
 
         // Read the config values needed before (and after) the install,
         // because the install path consumes `config` to anchor it at the
@@ -340,19 +352,15 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install inherits the caller project's `overrides` (pnpm's
     // dlx likewise runs its install with the invoking project's
     // already-loaded config), and a `catalog:` value in them resolves
-    // against the caller's catalogs. Those catalogs are only reachable
-    // through `workspace_dir`, which is severed right below — resolve the
-    // references now, or the install would look them up against an empty
-    // catalog set and fail with ERR_PNPM_CATALOG_IN_OVERRIDES.
-    if let (Some(overrides), Some(workspace_dir)) =
-        (config.overrides.as_ref(), config.workspace_dir.as_deref())
+    // against the caller's catalogs. Those catalogs go with `workspace_dir`,
+    // which is severed right below — resolve the references now, or the
+    // install would look them up against an empty catalog set and fail with
+    // ERR_PNPM_CATALOG_IN_OVERRIDES.
+    if let Some(overrides) = config.overrides.as_ref()
+        && config.workspace_dir.is_some()
         && overrides.values().any(|spec| spec.starts_with("catalog:"))
     {
-        let workspace_manifest =
-            pnpm_workspace::read_workspace_manifest(workspace_dir).into_diagnostic()?;
-        let catalogs = get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
-            .into_diagnostic()
-            .wrap_err("reading the caller's catalogs for the dlx install")?;
+        let catalogs = configured_catalogs(config)?;
         let resolved = parse_overrides_iter(overrides.iter(), &catalogs)
             .map_err(miette::Report::new)?
             .into_iter()
@@ -367,6 +375,9 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // rather than `None`, which walks up from the cache dir and can
     // adopt a stray `pnpm-workspace.yaml` above it (pnpm/pnpm#13697).
     config.workspace_dir = Some(prepare_dir.to_path_buf());
+    // Same reasoning for a pinned `lockfileDir`: it names the caller's
+    // lockfile, which the throwaway install must not touch.
+    config.lockfile_dir = None;
     // The caller's patches never apply to the throwaway install (pnpm's
     // dlx installs the package unpatched too). Their paths are relative
     // to the caller's workspace root, which the anchor above replaced, so
@@ -555,6 +566,7 @@ fn parse_runtime_spec(command: &str) -> Option<(&str, &str)> {
 /// Materialize `name` at `version_spec` and run it, the runtime half of
 /// [`run_package_manager`].
 async fn run_runtime(
+    state_dir: &Path,
     name: &str,
     version_spec: &str,
     command: &str,
@@ -562,7 +574,8 @@ async fn run_runtime(
     spawn: &DlxSpawn<'_>,
 ) -> miette::Result<()> {
     let executable =
-        Box::pin(materialize_runtime(name.to_string(), version_spec.to_string())).await?;
+        Box::pin(materialize_runtime(state_dir, name.to_string(), version_spec.to_string()))
+            .await?;
     let bin_dirs: Vec<PathBuf> = executable.parent().map(Path::to_path_buf).into_iter().collect();
     run_bin(DlxProgram::Provisioned { command, executable: &executable }, args, bin_dirs, spawn)
 }
@@ -590,6 +603,41 @@ async fn run_package_manager<Reporter: self::Reporter + 'static>(
         engine.bin_dirs,
         spawn,
     )
+}
+
+/// Replace the `catalog:` specifier of each dlx package spec with the
+/// specifier the caller's catalogs hold. Any other spec passes through
+/// untouched, and the catalogs are only read when at least one spec needs
+/// them. A misconfigured entry is reported as the pnpm error the caller
+/// would get from `pnpm add`.
+fn resolve_catalog_specs(pkgs: &[String], config: &Config) -> miette::Result<Vec<String>> {
+    let uses_catalog = |pkg: &String| {
+        parse_wanted_dependency(pkg)
+            .bare_specifier
+            .is_some_and(|bare_specifier| parse_catalog_protocol(&bare_specifier).is_some())
+    };
+    if !pkgs.iter().any(uses_catalog) {
+        return Ok(pkgs.to_vec());
+    }
+    let catalogs = configured_catalogs(config)?;
+    pkgs.iter()
+        .map(|pkg| {
+            let parsed = parse_wanted_dependency(pkg);
+            let (Some(alias), Some(bare_specifier)) = (parsed.alias, parsed.bare_specifier) else {
+                return Ok(pkg.clone());
+            };
+            let wanted = CatalogWantedDependency { alias: alias.clone(), bare_specifier };
+            match resolve_from_catalog(&catalogs, &wanted) {
+                CatalogResolutionResult::Found(found) => {
+                    Ok(format!("{alias}@{}", found.resolution.specifier))
+                }
+                CatalogResolutionResult::Unused => Ok(pkg.clone()),
+                CatalogResolutionResult::Misconfiguration(misconfiguration) => {
+                    Err(miette::Report::new(misconfiguration.error))
+                }
+            }
+        })
+        .collect()
 }
 
 /// Build the `{ "default": registry, <alias>: url, … }` map fed into the

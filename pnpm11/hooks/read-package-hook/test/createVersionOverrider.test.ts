@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { parseOverrides } from '@pnpm/config.parse-overrides'
 
-import { createDependencyOverrider, createVersionsOverrider } from '../src/createVersionsOverrider.js'
+import { createDependencyOverrider, createOverriddenDependencyMatcher, createVersionsOverrider } from '../src/createVersionsOverrider.js'
 
 test('createVersionsOverrider() matches sub-ranges', () => {
   const overrider = createVersionsOverrider([
@@ -907,6 +907,42 @@ test('createVersionsOverrider() collects declared ranges of convergence-governed
   ]))
 })
 
+test('createVersionsOverrider() does not mutate the original manifest', () => {
+  const overrider = createVersionsOverrider([
+    {
+      targetPkg: {
+        name: 'foo',
+      },
+      newBareSpecifier: '2.12.0',
+    },
+    {
+      targetPkg: {
+        name: 'bar',
+      },
+      newBareSpecifier: '2.0.0',
+    },
+  ], process.cwd())
+  const originalManifest = {
+    dependencies: {
+      foo: '^1.0.0',
+    },
+    peerDependencies: {
+      bar: '^1.0.0',
+    },
+  }
+  const result = overrider(originalManifest)
+  expect(result).toStrictEqual({
+    dependencies: {
+      foo: '2.12.0',
+    },
+    peerDependencies: {
+      bar: '2.0.0',
+    },
+  })
+  expect(originalManifest.dependencies.foo).toBe('^1.0.0')
+  expect(originalManifest.peerDependencies.bar).toBe('^1.0.0')
+})
+
 describe('createDependencyOverrider()', () => {
   test('resolves a generic override for a dependency that has no manifest', () => {
     const overrideDependency = createDependencyOverrider(parseOverrides({
@@ -939,5 +975,48 @@ describe('createDependencyOverrider()', () => {
     }), process.cwd())!
     expect(overrideDependency('react', '^18.0.0')).toBe('18.3.1')
     expect(overrideDependency('react', '^19.0.0')).toBeUndefined()
+  })
+})
+
+describe('createOverriddenDependencyMatcher()', () => {
+  test('claims a dependency an override repeats verbatim, and no other', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ foo: '^1.0.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
+  })
+
+  test('answers per declared range, so a range-scoped override claims only the declaration it matches', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ 'foo@^2.0.0': '2.1.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(false)
+    expect(isOverridden('foo', '^2.0.0')).toBe(true)
+  })
+
+  test('scopes a parent-qualified override to the project it names', () => {
+    const matcherFor = createOverriddenDependencyMatcher(
+      parseOverrides({ 'parent>foo': '1.0.0' }, {}),
+      process.cwd()
+    )!
+    expect(matcherFor({ name: 'parent', version: '1.0.0' })('foo', '^1.0.0')).toBe(true)
+    expect(matcherFor({ name: 'other', version: '1.0.0' })('foo', '^1.0.0')).toBe(false)
+  })
+
+  test('claims a dependency a convergence override can move, and no others', () => {
+    const isOverridden = createOverriddenDependencyMatcher(
+      parseOverrides({ 'foo@': '1.5.0' }, {}),
+      process.cwd()
+    )!({})
+    expect(isOverridden('foo', '^1.0.0')).toBe(true)
+    expect(isOverridden('foo', '^2.0.0')).toBe(false)
+    expect(isOverridden('bar', '^1.0.0')).toBe(false)
+  })
+
+  test('is undefined when no override could claim anything', () => {
+    expect(createOverriddenDependencyMatcher([], process.cwd())).toBeUndefined()
   })
 })

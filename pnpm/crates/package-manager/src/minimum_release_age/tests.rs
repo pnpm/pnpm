@@ -1,6 +1,6 @@
 use std::{fs, sync::Mutex};
 
-use crate::tests::project_local_config;
+use pnpm_config::Config;
 use pnpm_lockfile::{LockfileResolution, RegistryResolution};
 use pnpm_reporter::{LogEvent, PromptAction, Reporter, SilentReporter};
 use pnpm_resolving_resolver_base::ResolutionPolicyViolation;
@@ -20,6 +20,7 @@ fn violation(name: &str, version: &str, code: &'static str) -> ResolutionPolicyV
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
                 .parse::<Integrity>()
                 .expect("valid integrity"),
+            revision: None,
         }),
         code,
         reason: format!("{name}@{version} is too new"),
@@ -94,7 +95,7 @@ macro_rules! recording_reporter {
 
 #[test]
 fn strict_no_save_is_rejected_before_resolution() {
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age = Some(60);
     config.minimum_release_age_strict = Some(true);
 
@@ -114,7 +115,7 @@ fn strict_no_save_is_rejected_before_resolution() {
 #[tokio::test]
 async fn non_interactive_strict_mode_reports_every_immature_pick() {
     let dir = tempdir().expect("temp dir");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
     let mut prompt = FakePrompt::default();
     let violations = vec![
@@ -152,7 +153,7 @@ async fn approval_persists_canonical_excludes_and_brackets_the_prompt() {
         "packages:\n  - packages/*\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n",
     )
     .expect("write workspace manifest");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
     config.minimum_release_age_exclude = Some(vec!["foo@1.0.0".to_string()]);
     let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
@@ -193,7 +194,7 @@ async fn loose_mode_persists_excludes_without_prompting() {
         "packages:\n  - packages/*\nminimumReleaseAgeExclude:\n  - foo@1.0.0\n",
     )
     .expect("write workspace manifest");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age = Some(60);
     config.minimum_release_age_exclude = Some(vec!["foo@1.0.0".to_string()]);
     let mut prompt = FakePrompt::default();
@@ -244,7 +245,7 @@ async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_m
     let path = dir.path().join("pnpm-workspace.yaml");
     fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
     let original = fs::read_to_string(&path).expect("read original");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
     let mut prompt = FakePrompt { answer: true, messages: Vec::new() };
 
@@ -272,7 +273,7 @@ async fn loose_mode_without_persistence_leaves_the_workspace_manifest_unchanged(
     let path = dir.path().join("pnpm-workspace.yaml");
     fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
     let original = fs::read_to_string(&path).expect("read original");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age = Some(60);
     let mut prompt = FakePrompt::default();
 
@@ -300,7 +301,7 @@ async fn denying_approval_leaves_the_workspace_manifest_unchanged() {
     let path = dir.path().join("pnpm-workspace.yaml");
     fs::write(&path, "packages:\n  - packages/*\n").expect("write workspace manifest");
     let original = fs::read_to_string(&path).expect("read original");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
     let mut prompt = FakePrompt::default();
 
@@ -325,7 +326,7 @@ async fn prompt_input_error_releases_the_reporter() {
     recording_reporter!(reset_events, prompt_actions);
     reset_events();
     let dir = tempdir().expect("temp dir");
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.minimum_release_age_strict = Some(true);
 
     let error = handle_minimum_release_age_violations_with::<RecordingReporter, _>(

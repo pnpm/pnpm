@@ -1,4 +1,4 @@
-use super::{parse_getconf, parse_ldd};
+use super::{parse_getconf, parse_glibc_version, parse_ldd};
 use crate::Implementation;
 
 #[test]
@@ -25,6 +25,21 @@ fn getconf_empty() {
 fn getconf_binary_noise() {
     let input = String::from_utf8_lossy(b"glibc\xFF2.42\n").into_owned();
     assert_eq!(parse_getconf(&input), Some(Implementation::Glibc));
+}
+
+#[test]
+fn parses_getconf_glibc_version() {
+    assert_eq!(parse_glibc_version("glibc 2.42\n"), Some((2, 42)));
+}
+
+#[test]
+fn parses_ldd_glibc_version() {
+    assert_eq!(parse_glibc_version("ldd (Ubuntu GLIBC 2.35-0ubuntu3.11) 2.35\n"), Some((2, 35)));
+}
+
+#[test]
+fn rejects_musl_version() {
+    assert_eq!(parse_glibc_version("musl libc 1.2.5\n"), None);
 }
 
 #[test]

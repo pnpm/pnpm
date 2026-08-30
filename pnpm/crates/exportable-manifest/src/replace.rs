@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_workspace_spec::WorkspaceSpec;
 use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed
@@ -125,6 +126,17 @@ pub fn replace_workspace_protocol_peer_dependency(
 ) -> Result<String, ReplaceWorkspaceProtocolError> {
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
+    }
+    if let Some(workspace_spec) = WorkspaceSpec::parse(dep_spec) {
+        if let Some(alias) = workspace_spec.alias.as_deref() {
+            let version = workspace_spec.version.as_str();
+            let version =
+                if version == "^" || version == "~" || version.is_empty() { "*" } else { version };
+            return Ok(format!("npm:{alias}@{version}"));
+        }
+        if workspace_spec.version.starts_with("./") || workspace_spec.version.starts_with("../") {
+            return replace_workspace_protocol(dep_name, dep_spec, dir, modules_dir);
+        }
     }
     // Only the first `workspace:` occurrence is stripped. Rust's
     // `str::replace` is all-occurrence; use `replacen(_, _, 1)` so

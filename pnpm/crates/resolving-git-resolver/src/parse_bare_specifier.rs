@@ -207,14 +207,16 @@ fn from_hosted_git(hosted: HostedGit) -> HostedPackageSpec {
     let https_url = hosted.https(HostedGit::no_committish_no_git_plus());
     // URL-embedded credentials are explicit user content, not
     // transport — and the host's archive endpoint would not carry
-    // them, so the spec stays archive-ineligible.
+    // them, so the spec stays archive-ineligible. `https_url` is the
+    // `ls-remote` target, so it carries no committish.
     if hosted.auth.is_some()
         && let Some(https_url) = &https_url
+        && let Some(https_specifier) = hosted.https(HostedOpts::default())
     {
         return HostedPackageSpec {
             fetch_spec: https_url.clone(),
             hosted: None,
-            normalized_bare_specifier: format!("git+{https_url}"),
+            normalized_bare_specifier: https_specifier,
             git_committish: params.git_committish,
             git_range: params.git_range,
             path: params.path,

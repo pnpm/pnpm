@@ -3,23 +3,23 @@ use super::{
     check_optimistic_repeat_install_ignoring,
     conflict_markers::MAX_LOCKFILE_CONFLICT_SCAN_BYTES,
     current_pnpmfiles,
-    deps_status::{RunDepsStatus, check_deps_status_before_run},
+    deps_status::{RunDepsStatus, check_deps_status_before_run, install_args_from_state},
     manifest_agreement::{LinkedPackagesContext, linked_packages_are_up_to_date},
     settings::{current_settings, current_settings_with_catalogs},
     timestamps::{FileMtime, lockfile_modified_since, modified_at_or_after},
 };
-use crate::tests::project_local_config;
 use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_modules_yaml::IncludedDependencies;
 use pnpm_package_manifest::PackageManifest;
+use pnpm_testing_utils::fs::{backdate_existing_files, set_mtime};
 use pnpm_workspace_state::{
-    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state, now_millis,
+    ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
 };
-use std::{collections::BTreeMap, fs, thread::sleep, time::Duration};
+use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
 fn isolated_included() -> IncludedDependencies {
@@ -117,7 +117,6 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
     let pnpmfile = dir.path().join(".pnpmfile.cjs");
     fs::write(&pnpmfile, "module.exports = {}\n").expect("write pnpmfile");
-    sleep(Duration::from_millis(20));
     let mut projects = BTreeMap::new();
     projects.insert(
         dir.path().to_string_lossy().into_owned(),
@@ -125,12 +124,11 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
     );
     write_state_with_pnpmfiles(
         dir.path(),
-        now_millis(),
+        backdate_existing_files(dir.path()),
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
         projects,
         current_pnpmfiles(dir.path(), config),
     );
-    sleep(Duration::from_millis(20));
     fs::write(&pnpmfile, "module.exports = { hooks: {} }\n").expect("modify pnpmfile");
 
     let decision = check(
@@ -146,10 +144,8 @@ fn returns_skipped_when_a_pnpmfile_is_modified() {
     ));
 }
 
-/// Setup a workspace with a manifest written *before* the recorded
-/// `lastValidatedTimestamp`. The sleep covers filesystem mtime
-/// resolution (1 s on HFS+, 1 µs on APFS / ext4) so the manifest
-/// reliably lands earlier in time than the state's timestamp.
+/// Setup a workspace whose recorded `lastValidatedTimestamp` covers
+/// every file written so far, so the manifest reads as validated.
 fn setup_fresh_install(
     config_kind: pnpm_config::NodeLinker,
     project_name: &str,
@@ -196,13 +192,7 @@ fn setup_fresh_install_with_config(
     // to exercise.
     write_empty_lockfile(workspace_root);
 
-    // Sleep long enough for the filesystem clock to advance past the
-    // manifest's mtime before stamping the workspace state. Without
-    // this, fast filesystems (APFS / tmpfs) leave both timestamps in
-    // the same millisecond bucket and `<=` vs `<` flips the test.
-    sleep(Duration::from_millis(20));
-
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
@@ -216,7 +206,7 @@ fn setup_fresh_install_with_config(
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some(project_name.into()), version: Some(project_version.into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config, manifest)
 }
@@ -236,6 +226,30 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
         &[(dir.path().to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A filtered install refreshes `lastValidatedTimestamp` while leaving
+/// the projects it did not select untouched, so its state cannot prove
+/// the workspace is current: the next install re-validates for real.
+#[test]
+fn returns_skipped_when_the_previous_install_was_filtered() {
+    let (dir, config, manifest) =
+        setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
+    let mut state = load_workspace_state(dir.path()).expect("read state").expect("state on disk");
+    state.filtered_install = true;
+    update_workspace_state(dir.path(), &state).expect("write workspace state");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("previous install was filtered")),
+        "unexpected decision: {decision:?}",
+    );
 }
 
 /// A `file:` dependency must never short-circuit: nothing the fast
@@ -337,7 +351,7 @@ fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -375,7 +389,7 @@ fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -519,7 +533,7 @@ fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded()
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -629,7 +643,7 @@ fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -737,7 +751,7 @@ fn returns_skipped_when_config_disabled() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.optimistic_repeat_install = false;
     let config = config.leak();
@@ -764,7 +778,7 @@ fn returns_skipped_when_no_state_file() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     let config = config.leak();
 
@@ -787,7 +801,6 @@ fn returns_skipped_when_manifest_is_newer_than_validation() {
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
 
     // Touch the manifest after the workspace-state was stamped.
-    sleep(Duration::from_millis(20));
     let manifest_path = dir.path().join("package.json");
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let refreshed_manifest = PackageManifest::from_path(manifest_path).unwrap();
@@ -838,9 +851,9 @@ fn returns_skipped_when_workspace_project_set_changes() {
         dir.path().join("pkg-a").to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    // Re-stamp with future timestamp so the mtime branch wouldn't
-    // fire — we want to prove the project-list branch fires.
-    write_state(dir.path(), now_millis() + 60_000, settings, projects);
+    // Re-stamp so every file reads as validated and the mtime branch
+    // cannot fire. This test is about the project-list branch.
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
@@ -860,7 +873,7 @@ fn returns_skipped_when_overrides_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut overrides = indexmap::IndexMap::new();
@@ -869,7 +882,7 @@ fn returns_skipped_when_overrides_drift() {
     let config = config.leak();
 
     // Cached state has `foo: "1.0.0"` for the same key.
-    let mut stale_overrides_config = project_local_config();
+    let mut stale_overrides_config = Config::new();
     stale_overrides_config.modules_dir = config.modules_dir.clone();
     let mut overrides = indexmap::IndexMap::new();
     overrides.insert("foo".to_string(), "1.0.0".to_string());
@@ -885,7 +898,7 @@ fn returns_skipped_when_overrides_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -910,13 +923,13 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.inject_workspace_packages = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.inject_workspace_packages = false;
     let stale_settings = current_settings(
@@ -930,7 +943,7 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -954,13 +967,13 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.enable_global_virtual_store = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.enable_global_virtual_store = false;
     let stale_settings = current_settings(
@@ -974,7 +987,7 @@ fn returns_skipped_when_enable_global_virtual_store_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1004,7 +1017,7 @@ fn returns_up_to_date_when_recorded_global_virtual_store_is_explicit_off() {
         dir.path().to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis(), settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check(
         dir.path(),
@@ -1028,13 +1041,13 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.exclude_links_from_lockfile = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.exclude_links_from_lockfile = false;
     let stale_settings = current_settings(
@@ -1048,7 +1061,7 @@ fn returns_skipped_when_exclude_links_from_lockfile_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1071,13 +1084,13 @@ fn returns_skipped_when_minimum_release_age_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.minimum_release_age = Some(2880);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age = Some(1440);
     let stale_settings = current_settings(
@@ -1091,7 +1104,7 @@ fn returns_skipped_when_minimum_release_age_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1113,13 +1126,13 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.minimum_release_age_ignore_missing_time = false;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.minimum_release_age_ignore_missing_time = true;
     let stale_settings = current_settings(
@@ -1133,7 +1146,7 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1154,13 +1167,13 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.ignored_optional_dependencies = Some(vec!["new-pattern".to_string()]);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.ignored_optional_dependencies = Some(vec!["old-pattern".to_string()]);
     let stale_settings = current_settings(
@@ -1174,7 +1187,7 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1194,7 +1207,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1202,7 +1215,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
     config.patched_dependencies = Some(patched);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     let mut patched = indexmap::IndexMap::new();
     patched.insert("foo@1.0.0".to_string(), "patches/foo.patch".to_string());
@@ -1218,7 +1231,7 @@ fn returns_skipped_when_patched_dependencies_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1246,7 +1259,7 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
     fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1261,9 +1274,8 @@ fn returns_skipped_when_patch_file_modified_after_validation() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    // Validate "now", then bump the patch's mtime past that timestamp.
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    // Validate everything on disk, then bump the patch past that timestamp.
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
     fs::write(&patch_path, "--- a\n+++ b\n+edited\n").unwrap();
 
     let decision = check(
@@ -1291,7 +1303,7 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     fs::create_dir_all(patch_path.parent().unwrap()).unwrap();
     fs::write(&patch_path, "--- a\n+++ b\n").unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut patched = indexmap::IndexMap::new();
@@ -1307,8 +1319,7 @@ fn returns_up_to_date_when_patch_file_unchanged() {
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
     // Both the manifest and patch were written before this timestamp.
-    sleep(Duration::from_millis(20));
-    write_state(workspace_root, now_millis(), settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1329,13 +1340,13 @@ fn returns_skipped_when_dedupe_peers_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.dedupe_peers = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_peers = false;
     let stale_settings = current_settings(
@@ -1349,7 +1360,7 @@ fn returns_skipped_when_dedupe_peers_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1370,13 +1381,13 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.prefer_workspace_packages = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.prefer_workspace_packages = false;
     let stale_settings = current_settings(
@@ -1390,7 +1401,7 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1410,13 +1421,13 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.peers_suffix_max_length = 100;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.peers_suffix_max_length = 1000;
     let stale_settings = current_settings(
@@ -1430,7 +1441,7 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1454,7 +1465,7 @@ fn returns_skipped_when_package_extensions_drift() {
     deps.insert("dep-a".to_string(), "1.0.0".to_string());
     let extension =
         pnpm_config::PackageExtension { dependencies: Some(deps), ..Default::default() };
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let mut extensions = indexmap::IndexMap::new();
@@ -1463,7 +1474,7 @@ fn returns_skipped_when_package_extensions_drift() {
     let config = config.leak();
 
     // Cached state recorded a different `dep-a` version for `foo`.
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     let mut deps = std::collections::BTreeMap::new();
     deps.insert("dep-a".to_string(), "2.0.0".to_string());
@@ -1484,7 +1495,7 @@ fn returns_skipped_when_package_extensions_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1505,13 +1516,13 @@ fn returns_skipped_when_allow_builds_drift() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.allow_builds.insert("foo".to_string(), true);
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.allow_builds.insert("foo".to_string(), false);
     let stale_settings = current_settings(
@@ -1525,7 +1536,7 @@ fn returns_skipped_when_allow_builds_drift() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1564,13 +1575,13 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
     fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.dedupe_direct_deps = true;
     let config = config.leak();
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = config.modules_dir.clone();
     stale_config.dedupe_direct_deps = false;
     let stale_settings = current_settings(
@@ -1584,7 +1595,7 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1606,7 +1617,7 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut stale_config = project_local_config();
+    let mut stale_config = Config::new();
     stale_config.modules_dir = workspace_root.join("node_modules");
     let stale_settings = current_settings(
         &stale_config,
@@ -1620,9 +1631,9 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, stale_settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), stale_settings, projects);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     config.trust_policy = pnpm_config::TrustPolicy::NoDowngrade;
@@ -1644,7 +1655,7 @@ fn returns_skipped_when_trust_policy_is_newly_configured() {
 /// resolution rule being mirrored.
 #[test]
 fn records_minimum_release_age_strict_like_pnpm_resolves_it() {
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.explicit_settings.insert("minimumReleaseAge".to_string(), serde_json::Value::from(1440));
     let settings =
         current_settings(&config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
@@ -1679,7 +1690,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1699,7 +1710,7 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1719,7 +1730,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1741,7 +1752,7 @@ fn returns_outdated_when_workspace_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -1766,7 +1777,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1788,7 +1799,7 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let current_catalogs = Catalogs::from([(
         "default".to_string(),
@@ -1821,7 +1832,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let manifest = PackageManifest::from_path(manifest_path).unwrap();
     write_empty_lockfile(workspace_root);
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     fs::create_dir_all(&config.modules_dir).unwrap();
     let config = config.leak();
@@ -1837,7 +1848,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     let decision = check(
         workspace_root,
@@ -1872,9 +1883,9 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
     let sibling_manifest = PackageManifest::from_path(sibling_manifest_path).unwrap();
 
     // Re-stamp the workspace state with BOTH projects so the
-    // project-structure check passes; use a future timestamp so the
-    // mtime branch is satisfied. We want the modules-dir branch to
-    // be the deciding factor.
+    // project-structure check passes, and backdate the tree so the mtime
+    // branch reads as validated. We want the modules-dir branch to be the
+    // deciding factor.
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
@@ -1886,7 +1897,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some("1.0.0".into()) },
     );
-    write_state(dir.path(), now_millis() + 60_000, settings, projects);
+    write_state(dir.path(), backdate_existing_files(dir.path()), settings, projects);
 
     let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root: dir.path(),
@@ -1968,7 +1979,6 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
 fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
     fs::write(
         dir.path().join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -1989,7 +1999,6 @@ fn returns_skipped_when_wanted_lockfile_has_merge_conflict_markers() {
 fn run_status_reports_wanted_lockfile_merge_conflicts() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
     fs::write(
         dir.path().join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -2032,7 +2041,6 @@ fn returns_skipped_when_project_lockfile_has_merge_conflict_markers() {
     fs::create_dir_all(&project_root).expect("create project");
     fs::write(project_root.join("package.json"), r#"{"name":"project","version":"1.0.0"}"#)
         .expect("write project manifest");
-    sleep(Duration::from_millis(20));
     fs::write(
         project_root.join(Lockfile::FILE_NAME),
         "<<<<<<< ours\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '10.0'\n>>>>>>> theirs\n",
@@ -2103,7 +2111,6 @@ fn returns_skipped_without_following_a_lockfile_symlink() {
 fn returns_skipped_without_scanning_an_oversized_changed_lockfile() {
     let (dir, config, manifest) =
         setup_fresh_install(pnpm_config::NodeLinker::Isolated, "root", "1.0.0", "");
-    sleep(Duration::from_millis(20));
     let lockfile = fs::OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -2170,14 +2177,13 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
     fs::write(workspace_root.join("package.json"), FOO_MANIFEST).unwrap();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE).unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     fs::create_dir_all(&config.virtual_store_dir).unwrap();
     fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), FOO_LOCKFILE).unwrap();
     let config = config.leak();
 
-    sleep(Duration::from_millis(20));
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
@@ -2185,8 +2191,7 @@ fn setup_content_check_project() -> (tempfile::TempDir, &'static Config) {
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     (dir, config)
 }
@@ -2231,7 +2236,6 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
     let workspace_root = dir.path();
     fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE_WITHOUT_PACKAGES).unwrap();
 
-    sleep(Duration::from_millis(20));
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
@@ -2239,8 +2243,7 @@ fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_import
         workspace_root.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
     let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
@@ -2370,6 +2373,172 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
     assert!(after > before, "expected the state timestamp to advance ({before} -> {after})");
 }
 
+/// The instant every mtime-collision test stamps on the files the
+/// freshness check stats and on the recorded `lastValidatedTimestamp`.
+const COLLIDING_MTIME_SECS: u64 = 1_700_000_000;
+/// [`COLLIDING_MTIME_SECS`] in the milliseconds the state records.
+const COLLIDING_MTIME_MS: i64 = 1_700_000_000_000;
+
+/// Reproduce the mtime-tick collision of
+/// [#13907](https://github.com/pnpm/pnpm/issues/13907): every file the
+/// freshness check stats is stamped `subsec_nanos` into the millisecond
+/// the workspace state records as validated, so the manifest reads as
+/// possibly-modified and the content check runs. A `subsec_nanos` of
+/// zero is the whole-second-mtime filesystem's version of the same
+/// collision.
+fn collide_mtimes_with_recorded_state(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    subsec_nanos: u32,
+) {
+    let modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::new(COLLIDING_MTIME_SECS, subsec_nanos);
+    for path in [
+        workspace_root.join("package.json"),
+        workspace_root.join(Lockfile::FILE_NAME),
+        config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+    ] {
+        set_mtime(&path, modified);
+    }
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(
+        workspace_root,
+        COLLIDING_MTIME_MS,
+        current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None),
+        projects,
+    );
+}
+
+/// Rewrite the wanted lockfile so a content check would report the
+/// project outdated while leaving its mtime untouched, so an up-to-date
+/// verdict after this can only have come from the pure-mtime fast path.
+fn poison_lockfile_content(workspace_root: &std::path::Path) {
+    let path = workspace_root.join(Lockfile::FILE_NAME);
+    let modified = fs::metadata(&path).unwrap().modified().unwrap();
+    fs::write(&path, FOO_LOCKFILE.replace("1.0.0", "1.0.1")).unwrap();
+    set_mtime(&path, modified);
+}
+
+fn recorded_timestamp(workspace_root: &std::path::Path) -> i64 {
+    load_workspace_state(workspace_root)
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written")
+        .last_validated_timestamp
+}
+
+fn assert_content_check_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(content_check_decision(&dir, config, true, &project_manifests), Decision::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn workspace_content_check_converges_after_a_same_millisecond_mtime_collision() {
+    assert_content_check_converges_after_collision(500_000);
+}
+
+#[test]
+fn workspace_content_check_converges_after_a_whole_second_mtime_collision() {
+    assert_content_check_converges_after_collision(0);
+}
+
+/// The refreshed baseline must not post-date the filesystem clock: an
+/// edit made after the content check passed still has to defeat the
+/// mtime fast path on the next run.
+#[test]
+fn workspace_content_check_does_not_bless_a_manifest_edited_after_it_passed() {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, 500_000);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    assert_eq!(
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &manifest)]),
+        Decision::UpToDate,
+    );
+
+    fs::write(
+        dir.path().join("package.json"),
+        r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0","bar":"^1.0.0"}}"#,
+    )
+    .unwrap();
+    let edited = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, true, &[(dir.path().to_path_buf(), &edited)]);
+    assert!(
+        matches!(decision, Decision::Skipped { .. }),
+        "expected the edit to defeat the fast path, got {decision:?}",
+    );
+}
+
+fn workspace_deps_status(
+    dir: &tempfile::TempDir,
+    config: &'static Config,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+) -> RunDepsStatus {
+    let state = load_workspace_state(dir.path())
+        .expect("read the workspace state")
+        .expect("a workspace state to have been written");
+    let lockfile = Lockfile::load_wanted_from_dir(dir.path()).expect("parse pnpm-lock.yaml");
+    check_deps_status_before_run(
+        &OptimisticRepeatInstallCheck {
+            workspace_root: dir.path(),
+            config,
+            node_linker: pnpm_config::NodeLinker::Isolated,
+            included: isolated_included(),
+            supported_architectures: None,
+            project_manifests,
+            is_workspace_install: true,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
+            catalogs: &BTreeMap::default(),
+        },
+        &state,
+    )
+}
+
+fn assert_deps_status_converges_after_collision(subsec_nanos: u32) {
+    let (dir, config) = setup_content_check_project();
+    collide_mtimes_with_recorded_state(dir.path(), config, subsec_nanos);
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+    let project_manifests = [(dir.path().to_path_buf(), &manifest)];
+
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    let refreshed = recorded_timestamp(dir.path());
+    assert!(
+        refreshed > COLLIDING_MTIME_MS,
+        "expected the passing content check to advance the baseline past {COLLIDING_MTIME_MS}, got {refreshed}",
+    );
+
+    poison_lockfile_content(dir.path());
+    assert_eq!(workspace_deps_status(&dir, config, &project_manifests), RunDepsStatus::UpToDate);
+    assert_eq!(recorded_timestamp(dir.path()), refreshed);
+}
+
+#[test]
+fn run_gate_converges_after_a_same_millisecond_mtime_collision() {
+    assert_deps_status_converges_after_collision(500_000);
+}
+
+#[test]
+fn run_gate_converges_after_a_whole_second_mtime_collision() {
+    assert_deps_status_converges_after_collision(0);
+}
+
 /// Workspace lockfile whose root importer links a sibling: the link
 /// stays valid while the sibling's version satisfies the manifest
 /// range, and a bump outside the range falls through to the full
@@ -2429,7 +2598,7 @@ importers:
     )
     .unwrap();
 
-    let mut config = project_local_config();
+    let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
     config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
     config.link_workspace_packages = link_workspace_packages;
@@ -2439,7 +2608,6 @@ importers:
     let root_manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
     let sibling_manifest = PackageManifest::from_path(sibling_dir.join("package.json")).unwrap();
 
-    sleep(Duration::from_millis(20));
     let settings =
         current_settings(config, pnpm_config::NodeLinker::Isolated, isolated_included(), None);
     let mut projects = BTreeMap::new();
@@ -2451,8 +2619,7 @@ importers:
         sibling_dir.to_string_lossy().into_owned(),
         ProjectEntry { name: Some("pkg-a".into()), version: Some(sibling_version.into()) },
     );
-    write_state(workspace_root, now_millis(), settings, projects);
-    sleep(Duration::from_millis(20));
+    write_state(workspace_root, backdate_existing_files(workspace_root), settings, projects);
 
     // Touch the root manifest so the content re-check runs.
     fs::write(
@@ -2586,7 +2753,7 @@ importers:
 ",
     )
     .unwrap();
-    let config = project_local_config();
+    let config = Config::new();
     let project_manifests =
         [(workspace_root.to_path_buf(), &root_manifest), (sibling_dir, &sibling_manifest)];
     let context = LinkedPackagesContext::new(&config, &project_manifests);
@@ -2693,7 +2860,7 @@ fn does_not_regenerate_wanted_lockfile_when_lockfile_writing_disabled() {
     let (dir, config) = setup_content_check_project();
     // `Config` is leaked per test; build a second one with `lockfile`
     // off instead of mutating the shared reference.
-    let mut no_lockfile_config = project_local_config();
+    let mut no_lockfile_config = Config::new();
     no_lockfile_config.modules_dir = config.modules_dir.clone();
     no_lockfile_config.virtual_store_dir = config.virtual_store_dir.clone();
     no_lockfile_config.lockfile = false;
@@ -2769,4 +2936,26 @@ fn lockfile_check_does_not_self_flag_its_own_baseline() {
     assert!(lockfile_modified_since(coarse, ms));
     // A whole second entirely before the baseline is not flagged.
     assert!(!lockfile_modified_since(coarse, ms + 1_000));
+}
+
+/// The reproduction command spells the dependency-group flags the way
+/// the CLI accepts them
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)). The
+/// table mirrors pnpm's `createInstallArgs` test.
+#[test]
+fn install_args_reproduce_the_recorded_dependency_groups() {
+    let args = |dev: Option<bool>, optional: Option<bool>, production: Option<bool>| {
+        let state = WorkspaceState {
+            settings: WorkspaceStateSettings { dev, optional, production, ..Default::default() },
+            ..Default::default()
+        };
+        install_args_from_state(&state)
+    };
+
+    assert_eq!(args(None, Some(true), Some(true)), ["--prod"]);
+    assert_eq!(args(None, Some(false), Some(true)), ["--prod", "--no-optional"]);
+    assert_eq!(args(Some(true), Some(true), None), ["--dev"]);
+    assert_eq!(args(Some(true), Some(false), None), ["--dev", "--no-optional"]);
+    assert_eq!(args(Some(true), Some(true), Some(true)), [] as [&str; 0]);
+    assert_eq!(args(Some(true), Some(false), Some(true)), ["--no-optional"]);
 }

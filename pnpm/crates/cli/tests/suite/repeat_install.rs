@@ -360,3 +360,98 @@ fn a_directory_dependency_is_recopied_when_its_source_changes() {
 
     drop((root, mock_instance));
 }
+
+/// A workspace whose only dependency (`@pnpm.e2e/pkg-with-1-dep`, one
+/// subdep) is declared by the member, installed with
+/// `nodeLinker: hoisted`. Returns the path of a file inside the hoisted
+/// subdep, whose inode tells a repeat install that re-imported the tree
+/// from one that left it alone.
+fn install_hoisted_workspace_member(
+    pacquet: std::process::Command,
+    workspace: &Path,
+) -> std::path::PathBuf {
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\npackages:\n  - member\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "private": true }).to_string(),
+    )
+    .expect("write the root package.json");
+    fs::create_dir_all(workspace.join("member")).expect("mkdir member");
+    fs::write(
+        workspace.join("member/package.json"),
+        serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "dependencies": { "@pnpm.e2e/pkg-with-1-dep": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the member package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    assert!(
+        !workspace.join("member/node_modules").exists(),
+        "hoisted keeps the member's registry deps in the root node_modules",
+    );
+    workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json")
+}
+
+/// pnpm/pnpm#14001: under `nodeLinker: hoisted` every project's
+/// dependencies are installed into the *root* modules directory, so a
+/// member's own `node_modules` is normally absent. The workspace-state
+/// fast path must check the root directory for every project instead of
+/// reading that absence as a project that was never installed.
+#[test]
+fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
+    let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
+
+    let second = pacquet_in(&workspace).with_arg("install").assert().success();
+    let second_output = String::from_utf8_lossy(&second.get_output().stdout).into_owned();
+    assert!(
+        second_output.contains("Already up to date"),
+        "the repeat install must short-circuit: {second_output}",
+    );
+    assert_eq!(
+        fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino(),
+        inode_before,
+        "the second install must re-import nothing",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A hoisted install writes no virtual-store slot, so the pipeline must
+/// not probe one: it reported every package of the tree it had just
+/// written as broken (pnpm/pnpm#14001). Dropping the workspace-state
+/// file gets this install past the repeat-install short-circuit and into
+/// the pipeline.
+#[test]
+fn repeat_hoisted_install_reports_nothing_broken() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let hoisted_manifest = install_hoisted_workspace_member(pacquet, &workspace);
+    fs::remove_file(workspace.join("node_modules/.pnpm-workspace-state-v1.json"))
+        .expect("remove the workspace state");
+
+    let second =
+        pacquet_in(&workspace).with_args(["install", "--reporter=ndjson"]).assert().success();
+    let second_events = String::from_utf8_lossy(&second.get_output().stderr).into_owned();
+    assert!(
+        !second_events.contains("pnpm:_broken_node_modules"),
+        "a hoisted tree has no virtual-store slots to report broken: {second_events}",
+    );
+    assert!(hoisted_manifest.is_file(), "the hoisted dep must still be in place");
+
+    drop((root, mock_instance));
+}

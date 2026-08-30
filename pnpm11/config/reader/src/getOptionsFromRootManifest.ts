@@ -5,6 +5,9 @@ import { PnpmError, redactAndSanitize } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import {
   type AllowedDeprecatedVersions,
+  type AuditConfig,
+  type AuditLevel,
+  type AuditSettings,
   DEFAULT_REGISTRY_SCOPE,
   type PackageExtension,
   type PeerDependencyRules,
@@ -13,6 +16,8 @@ import {
   type RegistryDeclaration,
   type RegistryOptions,
   type SupportedArchitectures,
+  type UpdateSettings,
+  type VirtualStoreType,
 } from '@pnpm/types'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { map as mapValues } from 'ramda'
@@ -34,9 +39,17 @@ export type OptionsFromRootManifest = {
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+  auditIgnorePrune?: boolean
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'tasks' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
+  /**
+   * The settings come from a file the repository does not control (the global
+   * config yaml), so they may carry the fields
+   * {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names. Defaults to `false`, which
+   * treats the source as repo-controlled.
+   */
+  trustedSource?: boolean
   manifest?: ProjectManifest
   expandRequestDestinationEnv?: boolean
 }
@@ -55,6 +68,12 @@ export function getOptionsFromPnpmSettings (
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  if (pnpmSettings.remoteSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false, 'remoteSideEffectsCache')
+  }
+  if (pnpmSettings.sideEffectsCache != null && typeof pnpmSettings.sideEffectsCache !== 'boolean') {
+    assertValidSideEffectsCache(pnpmSettings.sideEffectsCache, opts.trustedSource ?? false)
+  }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
@@ -82,9 +101,119 @@ export function getOptionsFromPnpmSettings (
   translateRegistrySettings(settings)
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
+  translateVirtualStoreType(pnpmSettings, settings)
+  if (settings.tasks != null) {
+    assertValidTasks(settings.tasks)
+  }
 
   return settings
 }
+
+/** The fields a `tasks` entry may carry. Anything else is a typo. */
+const TASK_SETTING_FIELDS = new Set(['concurrency', 'dependsOn'])
+
+// The section feeds the task-graph builder of `pnpm -r run`, which reads it
+// without further checks — a malformed entry has to be rejected here rather
+// than surface as a scheduling bug far from the setting that produced it.
+function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
+  assertObjectSetting(tasks, 'tasks')
+  for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
+    const taskPath = `tasks['${taskName}']`
+    assertObjectSetting(task, taskPath)
+    for (const field of Object.keys(task as Record<string, unknown>)) {
+      if (TASK_SETTING_FIELDS.has(field)) continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.${field}" setting is not a known task setting.`,
+        { hint: `A task declares ${quoteAndJoin([...TASK_SETTING_FIELDS])}.` })
+    }
+    const concurrency = (task as { concurrency?: unknown }).concurrency
+    if (concurrency != null && (!Number.isInteger(concurrency) || (concurrency as number) < 1)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.concurrency" setting should be a positive integer, but got ${JSON.stringify(concurrency)}`)
+    }
+    const dependsOn = (task as { dependsOn?: unknown }).dependsOn
+    if (dependsOn == null) continue
+    assertStringArray(dependsOn, `${taskPath}.dependsOn`)
+    for (const entry of dependsOn) {
+      if (entry !== '' && entry !== '^') continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.dependsOn" setting contains an entry with no task name: ${JSON.stringify(entry)}`)
+    }
+  }
+}
+
+/**
+ * The signing trust root stays outside the repository: a workspace declares
+ * which organization and packages are eligible and nothing else — see
+ * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * turn a key the machine holds for its own builds into a signing oracle any
+ * cloned repository could aim at a registry of its choosing.
+ *
+ * The rest of the section is consumed without further checks by the
+ * install-time lookup, so a malformed shape has to be rejected here rather than
+ * surface as a type error deep inside the hydration path.
+ */
+function assertValidSideEffectsCache (
+  settings: Exclude<NonNullable<PnpmSettings['sideEffectsCache']>, boolean>,
+  trustedSource: boolean
+): void {
+  assertObjectSetting(settings, 'sideEffectsCache')
+  assertOptionalBoolean(settings.read, 'sideEffectsCache.read')
+  assertOptionalBoolean(settings.write, 'sideEffectsCache.write')
+  if (settings.remote != null) {
+    assertValidSharedSideEffectsCache(settings.remote, trustedSource, 'sideEffectsCache.remote')
+  }
+}
+
+function assertValidSharedSideEffectsCache (
+  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
+  trustedSource: boolean,
+  path: string
+): void {
+  assertObjectSetting(settings, path)
+  if (!trustedSource) {
+    const machineField = Object.keys(settings)
+      .find((field) => !WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS.has(field))
+    if (machineField != null) {
+      throw new PnpmError(
+        'WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+        `${path}.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global ${path}.${machineField} ...) or in the environment instead.` }
+      )
+    }
+  }
+  if (settings.org != null) {
+    assertString(settings.org, `${path}.org`)
+  }
+  if (settings.organization != null) {
+    assertString(settings.organization, `${path}.organization`)
+  }
+  if (settings.packages != null) {
+    assertStringArray(settings.packages, `${path}.packages`)
+  }
+  assertOptionalBoolean(settings.publish, `${path}.publish`)
+  for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
+    if (settings[field] == null) continue
+    assertString(settings[field], `${path}.${field}`)
+  }
+  if (settings.buildEnv != null) {
+    assertObjectSetting(settings.buildEnv, `${path}.buildEnv`)
+    for (const [name, value] of Object.entries(settings.buildEnv)) {
+      assertString(value, `${path}.buildEnv.${name}`)
+    }
+  }
+}
+
+/**
+ * The only fields of `remoteSideEffectsCache` a committed file may contribute.
+ *
+ * Everything else describes the act of signing — which key signs, what
+ * provenance the signature attests, and whether to publish at all — so it
+ * belongs to the machine holding the key. Listing what a repository may set,
+ * rather than what it may not, keeps a field added later machine-only until
+ * someone decides otherwise.
+ */
+const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['org', 'organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 
@@ -100,7 +229,7 @@ const SECRET_REGISTRY_KEYS = new Set([
 ])
 
 /** The fields a `registries` entry may carry. Anything else is a typo. */
-const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'scopes', 'prefix'])
+const REGISTRY_DECLARATION_FIELDS = new Set(['serverType', 'supportsTimeField', 'scopes', 'prefix'])
 
 /**
  * Turns the settings that name registries into the three lookups the rest of
@@ -205,13 +334,19 @@ function splitRegistryDeclarations (entries: Array<[string, RegistryDeclaration]
     // resolved from matches its declaration however either one spelled the
     // trailing slash.
     const normalizedRegistry = normalizeRegistryUrl(registry)
-    const { serverType, scopes, prefix } = declaration
-    if (serverType != null) {
-      if (!REGISTRY_SERVER_TYPES.has(serverType)) {
-        throw new PnpmError('INVALID_SETTING',
-          `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    const { serverType, supportsTimeField, scopes, prefix } = declaration
+    if (serverType != null && !REGISTRY_SERVER_TYPES.has(serverType)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${settingPath}.serverType" setting should be one of ${quoteAndJoin([...REGISTRY_SERVER_TYPES])}, but got ${JSON.stringify(serverType)}`)
+    }
+    if (supportsTimeField != null) {
+      assertBoolean(supportsTimeField, `${settingPath}.supportsTimeField`)
+    }
+    if (serverType != null || supportsTimeField != null) {
+      lookups.registryOptionsByUrl[normalizedRegistry] = {
+        ...(serverType != null ? { serverType } : {}),
+        ...(supportsTimeField != null ? { supportsTimeField } : {}),
       }
-      lookups.registryOptionsByUrl[normalizedRegistry] = { serverType }
     }
     if (scopes != null) {
       assertStringArray(scopes, `${settingPath}.scopes`)
@@ -320,6 +455,9 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
  */
 function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { audit?: unknown }).audit
+  // `auditIgnorePrune` is derived from `audit.ignorePrune` below; a raw
+  // top-level key of that name is not a setting in either CLI.
+  delete settings.auditIgnorePrune
   const audit = pnpmSettings.audit
   if (audit == null) return
   assertObjectSetting(audit, 'audit')
@@ -339,12 +477,70 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
     }
     ;(settings as { auditLevel?: string }).auditLevel = audit.level
   }
+  if (audit.ignorePrune != null) {
+    assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
+    settings.auditIgnorePrune = audit.ignorePrune
+  }
+}
+
+/**
+ * The `update` settings the CLI acts on, re-joined from the internal
+ * `updateConfig` shape {@link translateUpdateSettings} splits the section
+ * into — the view `pnpm config get update` prints. `undefined` when nothing
+ * is set.
+ */
+export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateConfig']): UpdateSettings | undefined {
+  if (updateConfig == null) return undefined
+  const update: UpdateSettings = {
+    ...(updateConfig.ignoreDependencies != null ? { ignoreDeps: updateConfig.ignoreDependencies } : {}),
+    ...(updateConfig.changeset != null ? { changeset: updateConfig.changeset } : {}),
+    ...(updateConfig.githubActions != null ? { githubActions: updateConfig.githubActions } : {}),
+    ...(updateConfig.githubActionsServer != null ? { githubActionsServer: updateConfig.githubActionsServer } : {}),
+  }
+  return Object.keys(update).length > 0 ? update : undefined
+}
+
+/**
+ * The `audit` settings the CLI acts on, re-joined from the internal
+ * `auditConfig` / `auditLevel` / `auditIgnorePrune` settings
+ * {@link translateAuditSettings} splits the section into — the view
+ * `pnpm config get audit` prints. An empty ignore list reads as unset.
+ * `undefined` when nothing is set.
+ */
+export function toAuditSettings ({ auditConfig, auditLevel, auditIgnorePrune }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel, auditIgnorePrune?: boolean }): AuditSettings | undefined {
+  const ignore = auditConfig?.ignoreGhsas
+  const audit: AuditSettings = {
+    ...(auditLevel != null ? { level: auditLevel } : {}),
+    ...(ignore != null && ignore.length > 0 ? { ignore } : {}),
+    ...(auditIgnorePrune != null ? { ignorePrune: auditIgnorePrune } : {}),
+  }
+  return Object.keys(audit).length > 0 ? audit : undefined
+}
+
+/**
+ * Translates the user-facing `virtualStoreType` setting into the internal
+ * `enableGlobalVirtualStore` boolean the rest of pnpm reads, and removes the
+ * raw key from the returned options.
+ *
+ * `virtualStoreType` and `enableGlobalVirtualStore` are two spellings of one
+ * setting, and a manifest may carry either or both. The canonical one wins,
+ * silently: spelling a setting two ways is not itself a mistake worth
+ * warning about. Same rule as `catalogPrune` over `cleanupUnusedCatalogs`.
+ */
+function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
+  delete (settings as { virtualStoreType?: unknown }).virtualStoreType
+  const virtualStoreType = pnpmSettings.virtualStoreType
+  if (virtualStoreType == null) return
+  if (!VIRTUAL_STORE_TYPES.has(virtualStoreType)) {
+    throw new PnpmError('INVALID_SETTING', `The "virtualStoreType" setting should be one of ${Array.from(VIRTUAL_STORE_TYPES).join(', ')}, but got ${JSON.stringify(virtualStoreType)}`)
+  }
+  ;(settings as { enableGlobalVirtualStore?: boolean }).enableGlobalVirtualStore = virtualStoreType === 'global'
 }
 
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -401,6 +597,8 @@ function renderReceivedType (value: unknown): string {
 
 const AUDIT_LEVELS = new Set(['info', 'low', 'moderate', 'high', 'critical'])
 
+const VIRTUAL_STORE_TYPES = new Set<VirtualStoreType>(['global', 'project'])
+
 // The `update`, `audit` and `packageExtensions` sections come from repo-controlled
 // pnpm-workspace.yaml, which is parsed untyped — so their fields are validated
 // here (the Rust config reader rejects the same malformed shapes at parse
@@ -411,6 +609,11 @@ function assertStringArray (value: unknown, settingName: string): asserts value 
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
   }
+}
+
+function assertOptionalBoolean (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertBoolean(value, settingName)
 }
 
 function assertBoolean (value: unknown, settingName: string): asserts value is boolean {

@@ -113,7 +113,7 @@ export function help (): string {
             name: '--recursive',
           },
           {
-            description: 'Print the release plan the pending change intents produce without applying it',
+            description: 'Print what the command would do without changing anything',
             name: '--dry-run',
           },
         ],
@@ -168,7 +168,7 @@ export async function handler (
     throw new PnpmError('INVALID_VERSION_BUMP', `Invalid version argument: ${rawBump}. Must be a valid semver version (e.g. 1.2.3) or one of: major, minor, patch, premajor, preminor, prepatch, prerelease, from-git`)
   }
 
-  if (opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
+  if (!opts.dryRun && opts.gitChecks !== false && await isGitRepo({ cwd: gitCwd })) {
     if (!await isWorkingTreeClean({ cwd: gitCwd })) {
       throw new PnpmError('UNCLEAN_WORKING_TREE', 'Working tree is not clean. Commit or stash your changes.')
     }
@@ -200,7 +200,7 @@ export async function handler (
   // In recursive mode, multiple packages can be bumped to different versions
   // in a single run, and there is no obvious single version to tag the commit
   // with. Skip the git commit and tag entirely in that case.
-  if (!opts.recursive && opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
+  if (!opts.dryRun && !opts.recursive && opts.gitTagVersion !== false && await isGitRepo({ cwd: gitCwd })) {
     await commitAndTag(changes, { ...opts, cwd: gitCwd })
   }
 
@@ -210,7 +210,7 @@ export async function handler (
     return JSON.stringify(changes.map(({ manifestPath: _manifestPath, ...change }) => change), null, 2)
   }
 
-  let output = 'Version bumped successfully:\n'
+  let output = opts.dryRun ? 'Version bump plan:\n' : 'Version bumped successfully:\n'
   for (const change of changes) {
     output += `${change.name}: ${change.currentVersion} → ${change.newVersion}\n`
   }
@@ -368,7 +368,9 @@ async function bumpPackageVersion (
   }
 
   manifest.version = newVersion
-  await writeProjectManifest(manifest)
+  if (!opts.dryRun) {
+    await writeProjectManifest(manifest)
+  }
 
   const change = {
     name: manifest.name,
@@ -383,7 +385,7 @@ async function bumpPackageVersion (
 }
 
 async function runVersionLifecycleHook (stage: 'preversion' | 'version' | 'postversion', change: VersionChange, opts: VersionHandlerOptions): Promise<void> {
-  if (opts.ignoreScripts === true) return
+  if (opts.ignoreScripts === true || opts.dryRun) return
 
   const { manifest } = await readProjectManifest(change.path)
   const lifecycleOpts: RunLifecycleHookOptions = {

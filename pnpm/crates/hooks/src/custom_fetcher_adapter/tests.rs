@@ -162,3 +162,93 @@ async fn empty_picker_returns_none() {
     let result = picker.try_fetch("foo@1.0.0", &json!({}), &json!({})).await.unwrap();
     assert!(result.is_none());
 }
+
+/// A `canFetch` answer that is not a resolution object — the reply shape a
+/// worker sends when a fetcher's `canFetch` is gone by the time it is called —
+/// must not blank the resolution for the fetchers behind it, and must leave the
+/// locked integrity restorable.
+#[tokio::test]
+async fn a_non_object_can_fetch_answer_keeps_the_previous_resolution() {
+    struct BlankingFetcher;
+
+    #[async_trait]
+    impl CustomFetcher for BlankingFetcher {
+        async fn can_fetch(&self, _pkg_id: &str, _resolution: Value) -> Result<bool, HookError> {
+            Ok(false)
+        }
+
+        async fn can_fetch_with_resolution(
+            &self,
+            _pkg_id: &str,
+            _resolution: Value,
+        ) -> Result<(bool, Value), HookError> {
+            Ok((false, Value::Null))
+        }
+
+        async fn fetch(
+            &self,
+            _pkg_id: &str,
+            _resolution: Value,
+            _opts: Value,
+        ) -> Result<Value, HookError> {
+            unreachable!("a declining fetcher is never asked to fetch")
+        }
+    }
+
+    let claiming = Arc::new(ScriptedFetcher::answering(fetch_result()));
+    let picker = CustomFetcherPicker::new(vec![
+        Arc::new(BlankingFetcher),
+        Arc::clone(&claiming) as Arc<dyn CustomFetcher>,
+    ]);
+    let resolution =
+        json!({ "tarball": "https://registry.test/pkg.tgz", "integrity": "sha512-abc" });
+
+    let selection = picker.pick_fetcher("pkg@1.0.0", &resolution).await.expect("pick a fetcher");
+
+    assert!(selection.fetcher.is_some(), "the second fetcher claims the package");
+    assert_eq!(selection.resolution, resolution);
+    assert_eq!(claiming.seen_resolutions.lock().unwrap().as_slice(), &[resolution]);
+}
+
+/// A hook that drops the locked integrity while declining gets it restored, so
+/// the built-in fetch still verifies against the digest the lockfile pins.
+#[tokio::test]
+async fn a_declining_rewrite_cannot_drop_the_locked_integrity() {
+    struct StrippingFetcher;
+
+    #[async_trait]
+    impl CustomFetcher for StrippingFetcher {
+        async fn can_fetch(&self, _pkg_id: &str, _resolution: Value) -> Result<bool, HookError> {
+            Ok(false)
+        }
+
+        async fn can_fetch_with_resolution(
+            &self,
+            _pkg_id: &str,
+            _resolution: Value,
+        ) -> Result<(bool, Value), HookError> {
+            Ok((false, json!({ "tarball": "https://mirror.test/pkg.tgz" })))
+        }
+
+        async fn fetch(
+            &self,
+            _pkg_id: &str,
+            _resolution: Value,
+            _opts: Value,
+        ) -> Result<Value, HookError> {
+            unreachable!("a declining fetcher is never asked to fetch")
+        }
+    }
+
+    let picker = CustomFetcherPicker::new(vec![Arc::new(StrippingFetcher)]);
+    let resolution =
+        json!({ "tarball": "https://registry.test/pkg.tgz", "integrity": "sha512-abc" });
+
+    let selection = picker.pick_fetcher("pkg@1.0.0", &resolution).await.expect("pick a fetcher");
+
+    assert!(selection.fetcher.is_none());
+    assert_eq!(
+        selection.resolution,
+        json!({ "tarball": "https://mirror.test/pkg.tgz", "integrity": "sha512-abc" }),
+    );
+}

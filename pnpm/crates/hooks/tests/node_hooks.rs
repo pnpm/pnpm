@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tempfile::TempDir;
 
 use pnpm_hooks::{PnpmfileHooks, finder};
@@ -205,6 +205,8 @@ function filterLog(log) {
 
     let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
 
+    assert!(hooks.has_filter_log().await);
+
     let debug_log = serde_json::json!({
         "level": "debug",
         "message": "test debug"
@@ -228,14 +230,12 @@ function filterLog(log) {
     );
 }
 
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
-)]
 #[tokio::test]
 async fn test_node_js_hooks_read_package_mjs() {
     let tmp = TempDir::new().expect("temp dir");
-    let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
+    let hooks_dir = tmp.path().join("hooks #100%");
+    std::fs::create_dir(&hooks_dir).expect("create hooks dir");
+    let pnpmfile_path = hooks_dir.join(".pnpmfile.mjs");
     std::fs::write(
         &pnpmfile_path,
         r"
@@ -319,7 +319,9 @@ function preResolution(ctx, logger) {
 #[tokio::test]
 async fn test_node_js_hooks_pre_resolution_mjs() {
     let tmp = TempDir::new().expect("temp dir");
-    let pnpmfile_path = tmp.path().join(".pnpmfile.mjs");
+    let hooks_dir = tmp.path().join("hooks #100%");
+    std::fs::create_dir(&hooks_dir).expect("create hooks dir");
+    let pnpmfile_path = hooks_dir.join(".pnpmfile.mjs");
     std::fs::write(
         &pnpmfile_path,
         r"
@@ -331,6 +333,7 @@ function preResolution(ctx, logger) {
   if (ctx.storeDir !== '/test/store') throw new Error('wrong storeDir');
   if (typeof logger.info !== 'function') throw new Error('missing logger.info');
   if (typeof logger.warn !== 'function') throw new Error('missing logger.warn');
+  logger.info('preResolution loaded');
 }
 ",
     )
@@ -348,12 +351,23 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
+    let info_messages = Arc::new(Mutex::new(Vec::new()));
+    let captured_info_messages = Arc::clone(&info_messages);
     hooks
         .pre_resolution(
             ctx,
-            pnpm_hooks::PreResolutionHookLogger { info: Arc::new(|_| {}), warn: Arc::new(|_| {}) },
+            pnpm_hooks::PreResolutionHookLogger {
+                info: Arc::new(move |message| {
+                    captured_info_messages.lock().unwrap().push(message);
+                }),
+                warn: Arc::new(|_| {}),
+            },
         )
         .await;
+
+    let info_messages = info_messages.lock().unwrap();
+    dbg!(&*info_messages);
+    assert_eq!(info_messages.as_slice(), ["preResolution loaded"]);
 }
 
 /// Helper: write `source` to a `.pnpmfile.cjs` in a fresh temp dir and return
@@ -563,26 +577,36 @@ fn calc_pnpmfile_paths_skips_non_plugins_and_missing_dirs() {
 }
 
 #[tokio::test]
-async fn update_config_applies_hook_result() {
-    let tmp = TempDir::new().expect("temp dir");
-    let pnpmfile_path = tmp.path().join("pnpmfile.cjs");
-    std::fs::write(
-        &pnpmfile_path,
-        r"module.exports = { hooks: { updateConfig (config) {
+async fn update_config_applies_cjs_and_mjs_hook_results() {
+    for (file_name, source) in [
+        (
+            "pnpmfile.cjs",
+            r"module.exports = { hooks: { updateConfig (config) {
   config.catalogs = { default: { foo: '1.0.0' } };
   return config;
 } } }",
-    )
-    .expect("write pnpmfile");
+        ),
+        (
+            "pnpmfile.mjs",
+            r"export const hooks = { updateConfig (config) {
+  config.catalogs = { default: { foo: '1.0.0' } };
+  return config;
+} }",
+        ),
+    ] {
+        let tmp = TempDir::new().expect("temp dir");
+        let pnpmfile_path = tmp.path().join(file_name);
+        std::fs::write(&pnpmfile_path, source).expect("write pnpmfile");
 
-    let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
-    let updated = hooks
-        .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
-        .await
-        .expect("updateConfig should succeed");
+        let hooks = pnpm_hooks::node_runtime::NodeJsHooks::new(pnpmfile_path);
+        let updated = hooks
+            .update_config(serde_json::json!({ "registry": "https://r/" }), noop_context())
+            .await
+            .expect("updateConfig should succeed");
 
-    assert_eq!(updated["registry"], "https://r/", "untouched keys are preserved");
-    assert_eq!(updated["catalogs"]["default"]["foo"], "1.0.0", "hook-set key is applied");
+        assert_eq!(updated["registry"], "https://r/", "untouched keys are preserved");
+        assert_eq!(updated["catalogs"]["default"]["foo"], "1.0.0", "hook-set key is applied");
+    }
 }
 
 #[tokio::test]
@@ -595,6 +619,7 @@ async fn update_config_without_hook_returns_config_unchanged() {
     let config = serde_json::json!({ "registry": "https://r/" });
     let updated = hooks.update_config(config.clone(), noop_context()).await.expect("ok");
 
+    assert!(!hooks.has_filter_log().await);
     assert_eq!(updated, config, "a pnpmfile without updateConfig leaves config unchanged");
 }
 
@@ -856,10 +881,6 @@ module.exports = {
     assert!(err.to_string().contains("fetch crashed"), "got: {err}");
 }
 
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "Node.js ESM import() on Windows resolves absolute paths differently"
-)]
 #[tokio::test]
 async fn custom_fetcher_works_with_mjs_pnpmfile() {
     let tmp = TempDir::new().expect("temp dir");

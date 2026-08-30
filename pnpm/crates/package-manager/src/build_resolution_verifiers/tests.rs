@@ -62,6 +62,7 @@ async fn offline_config_threads_to_resolution_verifier() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{registry}acme/-/acme-1.0.0.tgz"),
         integrity: Some(FAKE_INTEGRITY.parse::<Integrity>().expect("parse integrity")),
+        revision: None,
         git_hosted: None,
         path: None,
     });

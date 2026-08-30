@@ -4,9 +4,11 @@ import { URL } from 'node:url'
 import { gunzip } from 'node:zlib'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
+import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
+import { PnpmError } from '@pnpm/error'
 import { convertToLockfileObject } from '@pnpm/lockfile.fs'
 import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
-import type { RegistryDeclaration, TrustPolicy } from '@pnpm/types'
+import type { PackageExtension, RegistryDeclaration, TrustPolicy } from '@pnpm/types'
 
 import type { ResponseMetadata } from './protocol.js'
 
@@ -55,6 +57,12 @@ export interface ResolveViaPnprServerOptions {
   authorization?: string
   /** Overrides */
   overrides?: Record<string, string>
+  /** Patch selectors mapped to SHA-256 hashes; patch files stay client-side. */
+  patchedDependencies?: Record<string, string>
+  /** Manifest extensions applied during server-side resolution. */
+  packageExtensions?: Record<string, PackageExtension>
+  /** Allow configured patches that match no resolved package. */
+  allowUnusedPatches?: boolean
   /**
    * Workspace catalogs (`catalog:` / `catalogs:` from `pnpm-workspace.yaml`),
    * keyed by catalog name with the default catalog under `default`. The
@@ -64,6 +72,21 @@ export interface ResolveViaPnprServerOptions {
   catalogs?: Catalogs
   /** Node.js version for resolution */
   nodeVersion?: string
+  /**
+   * The client's current values for the settings that shape the lockfile the
+   * server resolves. Leaving one out is not the same as sending `false`: the
+   * server then falls back to the input lockfile (on a frozen request) or to
+   * its own default, which is what a client too old to send them gets
+   * ([pnpm/pnpm#13389](https://github.com/pnpm/pnpm/issues/13389)).
+   */
+  autoInstallPeers?: boolean
+  dedupePeers?: boolean
+  excludeLinksFromLockfile?: boolean
+  /**
+   * The client's `resolutionMode`. The server picks versions the way the
+   * client would, instead of falling back to its own default.
+   */
+  resolutionMode?: 'highest' | 'time-based' | 'lowest-direct'
   /**
    * The client's verification policy. The server is the only place these
    * run on the pnpr path — the client skips its own
@@ -93,6 +116,8 @@ export interface ResolveViaPnprServerOptions {
    */
   frozenLockfile?: boolean
   preferFrozenLockfile?: boolean
+  /** Refresh registry artifacts while retaining every locked package version. */
+  updatePatches?: boolean
   /**
    * Existing lockfile for incremental resolution, in the on-disk format
    * the wire protocol carries. The caller reads it with
@@ -147,10 +172,17 @@ export async function resolveViaPnprServer (
     registry: opts.registry,
     registries: opts.registries,
     overrides: opts.overrides,
+    patchedDependencies: opts.patchedDependencies,
+    packageExtensions: opts.packageExtensions,
+    allowUnusedPatches: opts.allowUnusedPatches,
     catalogs: opts.catalogs,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
+    autoInstallPeers: opts.autoInstallPeers,
+    dedupePeers: opts.dedupePeers,
+    excludeLinksFromLockfile: opts.excludeLinksFromLockfile,
     os: process.platform,
     arch: process.arch,
+    resolutionMode: opts.resolutionMode,
     minimumReleaseAge: opts.minimumReleaseAge,
     minimumReleaseAgeExclude: opts.minimumReleaseAgeExclude,
     minimumReleaseAgeIgnoreMissingTime: opts.minimumReleaseAgeIgnoreMissingTime,
@@ -160,6 +192,7 @@ export async function resolveViaPnprServer (
     trustLockfile: opts.trustLockfile,
     frozenLockfile: opts.frozenLockfile,
     preferFrozenLockfile: opts.preferFrozenLockfile,
+    updatePatches: opts.updatePatches,
     // Sent as-is: `opts.lockfile` is already the on-disk format the wire
     // protocol carries (split `packages`/`snapshots`, `{ specifier, version }`
     // importer deps).
@@ -180,12 +213,37 @@ export async function resolveViaPnprServer (
     throw new Error(`pnpr server rejected the lockfile under the verification policy:\n${rendered}`)
   }
 
+  assertTransformMetadata(terminal.lockfile, opts)
+
   return {
     // The server speaks the on-disk lockfile format; convert it to the
     // in-memory `LockfileObject` the rest of pnpm consumes.
     lockfile: convertToLockfileObject(terminal.lockfile),
     stats: terminal.stats,
   }
+}
+
+function assertTransformMetadata (
+  lockfile: LockfileFile,
+  opts: Pick<ResolveViaPnprServerOptions, 'patchedDependencies' | 'packageExtensions'>
+): void {
+  const expectedPatches = opts.patchedDependencies
+  if (expectedPatches != null && Object.keys(expectedPatches).length > 0 && !equalStringRecords(lockfile.patchedDependencies, expectedPatches)) {
+    throw new PnpmError('PNPR_TRANSFORM_METADATA_MISMATCH', 'pnpr server /-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms')
+  }
+
+  const expectedExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
+  if (expectedExtensionsChecksum != null && lockfile.packageExtensionsChecksum !== expectedExtensionsChecksum) {
+    throw new PnpmError('PNPR_TRANSFORM_METADATA_MISMATCH', 'pnpr server /-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms')
+  }
+}
+
+function equalStringRecords (
+  actual: Record<string, string> | undefined,
+  expected: Record<string, string>
+): boolean {
+  if (actual == null || Object.keys(actual).length !== Object.keys(expected).length) return false
+  return Object.entries(expected).every(([key, value]) => actual[key] === value)
 }
 
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>

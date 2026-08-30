@@ -4,7 +4,9 @@ use super::{
     RunPostinstallHooks, link_project_bins, project_requires_lifecycle_scripts,
     run_dev_preinstall_hook, run_project_lifecycle_scripts,
 };
-use rayon::prelude::*;
+use indexmap::IndexMap;
+use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
+use std::sync::Mutex;
 
 /// Walk every workspace project's `package.json`. Returns `Ok(None)`
 /// when no `pnpm-workspace.yaml` exists in (or above) `workspace_root`
@@ -27,30 +29,34 @@ pub(super) fn load_workspace_projects(
     pnpm_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
-pub(super) fn order_project_lifecycle_groups<'a>(
+pub(super) struct ProjectLifecycleGraph<'a> {
+    projects_by_dir: HashMap<PathBuf, (PathBuf, &'a PackageManifest)>,
+    pub(super) dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+}
+
+pub(super) fn project_lifecycle_graph<'a>(
     projects: &[(PathBuf, &'a PackageManifest)],
-    ordered_groups: Option<&[Vec<PathBuf>]>,
+    ordered_dependencies: Option<&IndexMap<PathBuf, Vec<PathBuf>>>,
     workspace_root: &Path,
     lockfile: Option<&Lockfile>,
-) -> Result<Vec<Vec<(PathBuf, &'a PackageManifest)>>, InstallError> {
+) -> Result<ProjectLifecycleGraph<'a>, InstallError> {
     let normalized_project_dirs = projects
         .iter()
         .map(|(project_dir, _)| pnpm_fs::lexical_normalize(project_dir))
         .collect::<Vec<_>>();
-    let grouped_dirs = ordered_groups.map(|groups| {
-        groups
-            .iter()
-            .flatten()
+    let ordered_dirs = ordered_dependencies.map(|dependencies| {
+        dependencies
+            .keys()
             .map(|project_dir| pnpm_fs::lexical_normalize(project_dir))
             .collect::<HashSet<_>>()
     });
-    let explicit_groups_cover_projects = grouped_dirs.as_ref().is_some_and(|grouped_dirs| {
-        normalized_project_dirs.iter().all(|project_dir| grouped_dirs.contains(project_dir))
+    let explicit_order_covers_projects = ordered_dirs.as_ref().is_some_and(|ordered_dirs| {
+        normalized_project_dirs.iter().all(|project_dir| ordered_dirs.contains(project_dir))
     });
-    let lockfile_groups;
-    let fallback_groups;
-    let ordered_groups = if explicit_groups_cover_projects {
-        ordered_groups.expect("checked as present")
+    let lockfile_dependencies;
+    let fallback_dependencies;
+    let dependencies = if explicit_order_covers_projects {
+        ordered_dependencies.expect("checked as present")
     } else if let Some(lockfile) = lockfile {
         let included = normalized_project_dirs.clone();
         let included_set = included.iter().cloned().collect::<HashSet<_>>();
@@ -80,17 +86,17 @@ pub(super) fn order_project_lifecycle_groups<'a>(
                     .collect();
                 (normalized_project_dir.clone(), dependencies)
             })
-            .collect();
-        lockfile_groups = crate::graph_sequencer(&graph, &included).chunks;
-        &lockfile_groups
-    } else if ordered_groups.is_some() {
+            .collect::<IndexMap<_, _>>();
+        lockfile_dependencies = graph;
+        &lockfile_dependencies
+    } else if ordered_dependencies.is_some() {
         return Err(InstallError::ProjectLifecycleOrder {
             projects: normalized_project_dirs
                 .iter()
                 .filter(|project_dir| {
-                    !grouped_dirs
+                    !ordered_dirs
                         .as_ref()
-                        .expect("ordered groups are present")
+                        .expect("ordered dependencies are present")
                         .contains(*project_dir)
                 })
                 .map(|project_dir| project_dir.display().to_string())
@@ -98,53 +104,53 @@ pub(super) fn order_project_lifecycle_groups<'a>(
                 .join(", "),
         });
     } else {
-        fallback_groups = normalized_project_dirs
+        fallback_dependencies = normalized_project_dirs
             .iter()
             .cloned()
-            .map(|project_dir| vec![project_dir])
-            .collect::<Vec<_>>();
-        &fallback_groups
+            .map(|project_dir| (project_dir, Vec::new()))
+            .collect::<IndexMap<_, _>>();
+        &fallback_dependencies
     };
     let projects_by_dir = projects
         .iter()
         .map(|project| (pnpm_fs::lexical_normalize(&project.0), project))
         .collect::<HashMap<_, _>>();
-    let mut included = HashSet::with_capacity(projects.len());
-    let groups = ordered_groups
-        .iter()
-        .filter_map(|dirs| {
-            let group = dirs
-                .iter()
-                .filter_map(|dir| {
-                    projects_by_dir.get(&pnpm_fs::lexical_normalize(dir)).map(|project| {
-                        included.insert(project.0.clone());
-                        (*project).clone()
-                    })
-                })
-                .collect::<Vec<_>>();
-            (!group.is_empty()).then_some(group)
-        })
-        .collect::<Vec<_>>();
+    let included: HashSet<PathBuf> = dependencies
+        .keys()
+        .map(|dir| pnpm_fs::lexical_normalize(dir))
+        .filter(|dir| projects_by_dir.contains_key(dir))
+        .collect();
     let missing_projects = projects
         .iter()
-        .filter(|(project_dir, _)| !included.contains(project_dir))
+        .filter(|(project_dir, _)| !included.contains(&pnpm_fs::lexical_normalize(project_dir)))
         .map(|(project_dir, _)| project_dir.display().to_string())
         .collect::<Vec<_>>();
     if !missing_projects.is_empty() {
         return Err(InstallError::ProjectLifecycleOrder { projects: missing_projects.join(", ") });
     }
-    Ok(groups
-        .into_iter()
-        .filter_map(|group| {
-            let group = group
-                .into_iter()
-                .filter(|(project_dir, manifest)| {
-                    project_requires_lifecycle_scripts(project_dir, manifest)
-                })
-                .collect::<Vec<_>>();
-            (!group.is_empty()).then_some(group)
+    let dependencies = dependencies
+        .iter()
+        .filter_map(|(dir, project_dependencies)| {
+            let dir = pnpm_fs::lexical_normalize(dir);
+            projects_by_dir.contains_key(&dir).then(|| {
+                (
+                    dir,
+                    project_dependencies
+                        .iter()
+                        .map(|dependency| pnpm_fs::lexical_normalize(dependency))
+                        .filter(|dependency| projects_by_dir.contains_key(dependency))
+                        .collect(),
+                )
+            })
         })
-        .collect())
+        .collect();
+    Ok(ProjectLifecycleGraph {
+        projects_by_dir: projects_by_dir
+            .into_iter()
+            .map(|(dir, project)| (dir, project.clone()))
+            .collect(),
+        dependencies,
+    })
 }
 
 pub(super) fn modules_dir_basename(config: &Config) -> &std::ffi::OsStr {
@@ -161,16 +167,26 @@ pub(super) fn exec_scripts_prepend_node_path(config: &Config) -> ExecScriptsPrep
     }
 }
 
-/// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry pointing Node at
-/// `node_modules/.package-map.json` when the user opted into the
-/// experimental package map. pnpm adds it only once it links and builds,
-/// which is why `pnpm:devPreinstall` — running before the file exists —
-/// takes the plain [`Config::extra_env_with_node_options`].
+/// [`Config::extra_env_with_node_options`] plus the `NODE_OPTIONS` entry for
+/// the selected project-level dependency loader. pnpm adds it only once it
+/// links and builds, which is why `pnpm:devPreinstall` — running before the
+/// file exists — takes the plain [`Config::extra_env_with_node_options`].
 pub(super) fn project_lifecycle_extra_env(
     config: &Config,
     node_linker: NodeLinker,
+    workspace_root: &Path,
 ) -> HashMap<String, String> {
     let mut extra_env = config.extra_env_with_node_options();
+    if matches!(node_linker, NodeLinker::Pnp) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_require_option(
+                &workspace_root.join(crate::PNP_FILENAME),
+                node_options,
+            ),
+        );
+    }
     if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
         let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
         let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
@@ -225,28 +241,25 @@ pub(super) fn run_dev_preinstall<Reporter: self::Reporter>(
         node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
         scripts_prepend_node_path: exec_scripts_prepend_node_path(config),
         script_shell: config.script_shell.as_deref().map(Path::new),
+        shell_emulator: config.shell_emulator,
         optional: false,
     })
     .map(drop)
     .map_err(InstallError::ProjectLifecycleScript)
 }
 
-/// Run workspace projects' own lifecycle scripts in topological build
-/// groups. Projects within one group run concurrently; each group settles
-/// before the next starts. Every project re-links its bins immediately
-/// before its scripts, after dependency projects' scripts from earlier
-/// groups have had a chance to create new bin files.
+/// Run workspace projects' own lifecycle scripts as soon as their dependency
+/// projects settle.
 pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
-    project_groups: &[Vec<(PathBuf, &PackageManifest)>],
+    project_graph: &ProjectLifecycleGraph<'_>,
     config: &Config,
     node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let modules_dir_basename = modules_dir_basename(config);
     let scripts_prepend_node_path = exec_scripts_prepend_node_path(config);
-    let extra_env = project_lifecycle_extra_env(config, node_linker);
-    let max_group_size = project_groups.iter().map(Vec::len).max().unwrap_or(0);
-    let extra_node_paths = crate::shim_extra_node_paths(config, node_linker);
+    let extra_env = project_lifecycle_extra_env(config, node_linker, workspace_root);
+    let link_options = crate::shim_link_options(config, node_linker);
     let run_project =
         |(project_dir, manifest): &(PathBuf, &PackageManifest)| -> Result<(), InstallError> {
             let root_modules_dir = project_dir.join(modules_dir_basename);
@@ -261,7 +274,7 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                     direct_dep_names.push(name.to_string());
                 }
             }
-            link_project_bins(&root_modules_dir, &direct_dep_names, &extra_node_paths)
+            link_project_bins(&root_modules_dir, &direct_dep_names, &link_options)
                 .map_err(InstallError::ProjectBinLink)?;
             let dep_path = project_dir.to_string_lossy();
             run_project_lifecycle_scripts::<Reporter>(&RunPostinstallHooks {
@@ -279,25 +292,43 @@ pub(super) fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
                 node_gyp_bin: pnpm_executor::bundled_node_gyp_bin(),
                 scripts_prepend_node_path,
                 script_shell: config.script_shell.as_deref().map(Path::new),
+                shell_emulator: config.shell_emulator,
                 optional: false,
             })
             .map_err(InstallError::ProjectLifecycleScript)?;
             Ok(())
         };
-    if max_group_size <= 1 {
-        for group in project_groups {
-            for project in group {
-                run_project(project)?;
+    let first_error: Mutex<Option<InstallError>> = Mutex::new(None);
+    let on_node_skipped: fn(&PathBuf) = |_| {};
+    let run_node = |project_dir: PathBuf| {
+        let project = &project_graph.projects_by_dir[&project_dir];
+        if !project_requires_lifecycle_scripts(&project.0, project.1) {
+            return TaskCompletion::Passed;
+        }
+        match run_project(project) {
+            Ok(()) => TaskCompletion::Passed,
+            Err(error) => {
+                first_error
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .get_or_insert(error);
+                TaskCompletion::Failed
             }
         }
-        return Ok(());
-    }
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(crate::script_thread_count(config.child_concurrency, max_group_size))
-        .build()
-        .map_err(InstallError::ProjectLifecycleThreadPool)?;
-    for group in project_groups {
-        pool.install(|| group.par_iter().try_for_each(run_project))?;
-    }
-    Ok(())
+    };
+    schedule_graph(
+        &project_graph.dependencies,
+        &ScheduleGraphOptions {
+            concurrency: crate::script_thread_count(
+                config.child_concurrency,
+                project_graph.dependencies.len(),
+            ),
+            bail: true,
+            continue_on_failure: false,
+            run_node: &run_node,
+            on_node_skipped: &on_node_skipped,
+        },
+    )
+    .map_err(InstallError::ProjectLifecycleThreadPool)?;
+    first_error.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner).map_or(Ok(()), Err)
 }

@@ -6,12 +6,9 @@ use std::{
 };
 use tempfile::tempdir;
 
-// The `prefix_probe!` fake below is only used by tests gated on
-// `cfg(unix)` (the cross-volume scenarios construct absolute Unix paths
-// like `/Volumes/src/...`). On Windows, every consumer is excluded, so
-// gate the macro and its imports to keep clippy's `dead_code`/`unused`
-// lints happy under `-D warnings`.
-#[cfg(unix)]
+// `LinkProbe` is shared by the Windows regression test and the Unix-only
+// `prefix_probe!` fake below. Only the fake's allowlist needs `Mutex`, so
+// that import remains Unix-gated.
 use crate::api::LinkProbe;
 #[cfg(unix)]
 use std::sync::Mutex;
@@ -69,6 +66,37 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 
     let resolved = resolve_store_dir::<Host>(home_default.clone(), &pnpm_home, &pkg_root);
     assert_eq!(resolved, home_default);
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "requires Windows path canonicalization")]
+fn resolve_store_dir_cross_volume_uses_project_drive_without_verbatim_prefix() {
+    struct RootProbe;
+    impl LinkProbe for RootProbe {
+        fn can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
+            to_dir == filesystem_root(from_dir)
+        }
+    }
+
+    let tmp = tempdir().expect("create tempdir");
+    let pkg_root = tmp.path().join("project");
+    fs::create_dir_all(&pkg_root).expect("create project dir");
+    let project_drive = filesystem_root(&pkg_root);
+    let pnpm_home = if project_drive.to_string_lossy().eq_ignore_ascii_case(r"C:\") {
+        PathBuf::from(r"D:\pnpm-home")
+    } else {
+        PathBuf::from(r"C:\pnpm-home")
+    };
+    let home_default = pnpm_home.join("store");
+    let expected = project_drive.join(".pnpm-store");
+
+    let resolved = resolve_store_dir::<RootProbe>(home_default, &pnpm_home, &pkg_root);
+    assert_eq!(resolved, expected);
+    let resolved_display = resolved.display().to_string();
+    assert!(
+        !resolved_display.starts_with(r"\\?\"),
+        "resolved store dir has a verbatim prefix: {resolved_display}",
+    );
 }
 
 // Per-test [`LinkProbe`] fake whose `can_link_between_dirs` accepts a `to_dir`

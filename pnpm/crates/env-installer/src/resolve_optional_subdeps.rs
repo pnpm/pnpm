@@ -91,7 +91,8 @@ pub async fn resolve_optional_subdeps(
 
         env_lockfile.packages.insert(
             pkg_key.clone(),
-            package_metadata(subdep_name, &subdep_version, &result, registry, false),
+            package_metadata(subdep_name, &subdep_version, &result, registry, false)
+                .map_err(ConfigDepError::LockfileForm)?,
         );
         env_lockfile
             .snapshots

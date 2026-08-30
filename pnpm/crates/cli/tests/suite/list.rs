@@ -1,5 +1,7 @@
+use crate::_utils::{with_colors, without_colors};
 use assert_cmd::cargo::CommandCargoExt;
 use command_extra::CommandExtra;
+use console::strip_ansi_codes;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, fs, path::Path, process::Command};
@@ -74,6 +76,37 @@ fn recursive_list_depth_minus_one_json_lists_workspace_projects() {
         names,
         BTreeSet::from(["project-1".to_string(), "project-2".to_string(), "root".to_string()]),
     );
+
+    drop(root);
+}
+
+/// `--fail-if-no-match` is a universal flag, not an `sbom` one: any
+/// filtered command ends with exit code 1 when its selectors select no
+/// workspace project. Port of upstream's `no projects matched the
+/// filters` (`pnpm/test/monorepo/index.ts`).
+#[test]
+fn fail_if_no_match_exits_non_zero_when_the_filter_matches_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", json!({ "name": "project-1", "version": "1.0.0" }))],
+    );
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--filter=not-exists")
+        .with_arg("--fail-if-no-match")
+        .output()
+        .expect("spawn pacquet list");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stderr:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("No projects matched the filters in"), "stdout:\n{stdout}");
 
     drop(root);
 }
@@ -432,7 +465,10 @@ fn listing_packages_prints_tree_with_legend_and_summary() {
 
 /// Port of upstream's `listing packages of a project that has an
 /// external pnpm-lock.yaml`
-/// (`deps/inspection/commands/test/listing/index.ts`).
+/// (`deps/inspection/commands/test/listing/index.ts`). Upstream calls
+/// the handler for the one project; going through the CLI from inside a
+/// workspace member makes the run recursive by default, so the summary
+/// counts the projects too — verified against `pnpm ls` in pnpm 11.
 #[test]
 fn listing_packages_of_a_project_with_an_external_lockfile() {
     let (_root, workspace, _registry) = setup_registry();
@@ -462,7 +498,7 @@ fn listing_packages_of_a_project_with_an_external_lockfile() {
     assert_eq!(
         output,
         format!(
-            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
+            "{LEGEND}\n\npkg@1.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package in 2 projects\n"
         ),
     );
 }
@@ -597,6 +633,40 @@ fn listing_specific_package_with_lockfile_only() {
             "{LEGEND}\n\nproject@0.0.0 {dir}\n\u{2502}\n\u{2502}   dependencies:\n\u{2514}\u{2500}\u{2500} {PKG}@100.0.0\n\n1 package\n"
         ),
     );
+}
+
+/// The project header and a searched package are the bolded labels,
+/// hence the search argument.
+#[test]
+fn list_styles_the_tree_without_corrupting_it() {
+    let (_root, workspace, _registry) = setup_registry();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "project",
+            "version": "0.0.0",
+            "private": true,
+            "dependencies": { PKG: "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    run_ok(&workspace, &["install", "--lockfile-only"]);
+
+    let plain = without_colors(pacquet_in(&workspace, ["list", "--lockfile-only", PKG]))
+        .output()
+        .expect("run pacquet list");
+    assert!(plain.status.success(), "list should succeed: {plain:?}");
+    let colored = with_colors(pacquet_in(&workspace, ["list", "--lockfile-only", PKG]))
+        .output()
+        .expect("run pacquet list with colors");
+    assert!(colored.status.success(), "colored list should succeed: {colored:?}");
+
+    let plain_stdout = String::from_utf8_lossy(&plain.stdout);
+    let colored_stdout = String::from_utf8_lossy(&colored.stdout);
+    eprintln!("PLAIN:\n{plain_stdout}\nCOLORED:\n{colored_stdout}\n");
+    assert!(colored_stdout.contains('\u{1b}'), "colors should be on");
+    assert_eq!(strip_ansi_codes(&colored_stdout), plain_stdout);
 }
 
 /// Port of upstream's `correctly report the value of the private field
@@ -746,6 +816,25 @@ function hasPeerA (context) {
         !output.contains(&format!("{HELLO}@1.0.0")),
         "packages the finder rejected must be pruned: {output}",
     );
+
+    fs::write(
+        workspace.join("duplicate.cjs"),
+        "module.exports = { finders: { hasPeerA: () => false } }",
+    )
+    .expect("write duplicate finder");
+    let mut yaml =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace yaml");
+    yaml.push_str("pnpmfile:\n  - .pnpmfile.cjs\n  - duplicate.cjs\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), yaml).expect("configure pnpmfiles");
+
+    let output =
+        pacquet_in(&workspace, ["list", "--find-by=hasPeerA"]).output().expect("run pacquet list");
+    assert!(!output.status.success(), "duplicate finder should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_DUPLICATE_FINDER"), "stderr: {stderr}");
+    assert!(stderr.contains(r#"Finder "hasPeerA" defined in both"#), "stderr: {stderr}");
+    assert!(stderr.contains(".pnpmfile.cjs"), "stderr: {stderr}");
+    assert!(stderr.contains("duplicate.cjs"), "stderr: {stderr}");
 }
 
 /// An unknown `--find-by` name fails with the same error code as the
@@ -906,4 +995,36 @@ fn list_in_long_format_appends_manifest_details() {
     // `ll` is `list --long`.
     let ll_output = run_ok(&workspace, &["ll"]);
     assert_eq!(ll_output, output);
+}
+
+/// The exact flags electron-builder's node-module collector passes to
+/// `pnpm list`; the CLI rejecting `--loglevel` breaks Electron packaging
+/// ([pnpm/pnpm#14024](https://github.com/pnpm/pnpm/issues/14024)).
+#[test]
+fn list_accepts_the_global_loglevel_flag() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_arg("list")
+        .with_arg("--prod")
+        .with_arg("--json")
+        .with_arg("--depth")
+        .with_arg("Infinity")
+        .with_arg("--loglevel")
+        .with_arg("error")
+        .output()
+        .expect("spawn pacquet list");
+
+    assert!(
+        output.status.success(),
+        "list with --loglevel should succeed:\n{}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    drop(root);
 }

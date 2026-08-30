@@ -29,19 +29,42 @@ use std::{
     ffi::OsString,
 };
 
+/// Where [`scan_for_positional`] stopped: at a positional token, or at
+/// the `--` terminator.
+pub(crate) enum PositionalScan {
+    Positional(usize),
+    Separator(usize),
+}
+
 /// The index of the next positional token at or after `index`, stepping
 /// over option tokens (and the values they consume, per the arity tables).
 /// `None` when argv ends or a `--` terminator is reached first.
 pub(crate) fn find_positional(
     argv: &[OsString],
-    mut index: usize,
+    index: usize,
     top_level: &ArgTable,
     subcommand_union: &ArgTable,
 ) -> Option<usize> {
+    match scan_for_positional(argv, index, top_level, subcommand_union)? {
+        PositionalScan::Positional(index) => Some(index),
+        PositionalScan::Separator(_) => None,
+    }
+}
+
+/// [`find_positional`]'s scan with the stop reason kept: a caller that
+/// mirrors nopt — which strips the `--` terminator and treats what
+/// follows as positionals — needs to tell the terminator apart from
+/// running out of argv (`None`).
+pub(crate) fn scan_for_positional(
+    argv: &[OsString],
+    mut index: usize,
+    top_level: &ArgTable,
+    subcommand_union: &ArgTable,
+) -> Option<PositionalScan> {
     loop {
         let token = argv.get(index).and_then(|token| token.to_str())?;
         if token == "--" {
-            return None;
+            return Some(PositionalScan::Separator(index));
         }
         if let Some(rest) = token.strip_prefix("--") {
             let (name, has_inline_value) =
@@ -62,7 +85,7 @@ pub(crate) fn find_positional(
                 index += token_width(consumes_value && is_bare_short, false);
             }
         } else {
-            return Some(index);
+            return Some(PositionalScan::Positional(index));
         }
     }
 }

@@ -106,10 +106,10 @@ type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 
 /// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
-/// `(child_alias, child_range, child_optional)` triples extracted from
+/// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
 /// a resolved package's manifest's `dependencies` plus
 /// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool);
+pub(super) type ChildSpec = (String, String, bool, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ChildrenOwner {
@@ -287,6 +287,14 @@ pub struct WorkspaceTreeCtx {
     ///
     /// [`resolve_node`]: super::walk::resolve_node
     pub(super) wanted_lockfile: Option<Arc<pnpm_lockfile::Lockfile>>,
+    /// Whether the walk may reuse whole already-resolved subtrees from
+    /// [`Self::wanted_lockfile`]; `false` keeps it as a per-edge
+    /// version-pin source only. See
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`] for the
+    /// contract.
+    ///
+    /// [`WorkspaceResolveOptions::reuse_lockfile_subtrees`]: crate::WorkspaceResolveOptions::reuse_lockfile_subtrees
+    pub(super) reuse_lockfile_subtrees: bool,
     /// Lockfile-reuse suppression for `pacquet update`. `update`
     /// re-resolves its target deps to highest-in-range, so a reused
     /// resolution would defeat the bump. See [`UpdateReuseScope`].
@@ -499,6 +507,7 @@ impl Default for WorkspaceTreeCtx {
             manifest_hook: None,
             overrides_hook: None,
             wanted_lockfile: None,
+            reuse_lockfile_subtrees: true,
             update_reuse_scope: UpdateReuseScope::All,
             update_reuse_scopes_by_importer: BTreeMap::new(),
             update_depth: UpdateDepth::UNLIMITED,
@@ -651,6 +660,14 @@ impl WorkspaceTreeCtx {
     /// The prior `pnpm-lock.yaml` to reuse resolutions from, if any.
     pub fn wanted_lockfile(&self) -> Option<&Arc<pnpm_lockfile::Lockfile>> {
         self.wanted_lockfile.as_ref()
+    }
+
+    /// Restrict [`Self::wanted_lockfile`] to per-edge version pinning.
+    /// See the `reuse_lockfile_subtrees` field.
+    #[must_use]
+    pub fn with_reuse_lockfile_subtrees(mut self, reuse_lockfile_subtrees: bool) -> Self {
+        self.reuse_lockfile_subtrees = reuse_lockfile_subtrees;
+        self
     }
 
     /// Snapshot of `pkg id → children-owner importer id`. See the field doc.

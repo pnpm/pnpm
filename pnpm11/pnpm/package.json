@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "version": "11.22.0",
+  "version": "11.25.0",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -122,7 +122,6 @@
     "@pnpm/prepare": "workspace:*",
     "@pnpm/registry-access.commands": "workspace:*",
     "@pnpm/releasing.commands": "workspace:*",
-    "@pnpm/shell.path": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.commands": "workspace:*",
     "@pnpm/store.connection-manager": "workspace:*",

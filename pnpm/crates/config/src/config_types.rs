@@ -141,6 +141,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
     ("global-virtual-store-dir", false),
     ("virtual-store-dir", false),
     ("virtual-store-only", false),
+    ("virtual-store-type", false),
     ("virtual-store-dir-max-length", true),
     ("peers-suffix-max-length", true),
     ("workspace-concurrency", true),
@@ -307,6 +308,7 @@ const PNPM_CONFIG_FILE_KEYS: &[&str] = &[
     "verify-store-integrity",
     "virtual-store-dir",
     "virtual-store-dir-max-length",
+    "virtual-store-type",
 ];
 
 /// Structured YAML settings parsed from `pnpm-workspace.yaml` / global

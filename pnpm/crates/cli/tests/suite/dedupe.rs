@@ -35,6 +35,46 @@ fn dedupe_writes_lockfile() {
 }
 
 #[test]
+fn dedupe_materializes_node_modules_unless_lockfile_only() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["dedupe", "--lockfile-only"]).assert().success();
+
+    assert!(
+        workspace.join("pnpm-lock.yaml").exists(),
+        "dedupe --lockfile-only must write pnpm-lock.yaml",
+    );
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "dedupe --lockfile-only must not create node_modules",
+    );
+
+    let pacquet =
+        Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(&workspace);
+    pacquet.with_arg("dedupe").assert().success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/pkg-with-1-dep").exists(),
+        "dedupe must link the dependency into node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -52,8 +92,7 @@ fn dedupe_check_does_not_materialize_nor_write_lockfile() {
     )
     .expect("write package.json");
 
-    // Create a lockfile first by running dedupe
-    pacquet.with_arg("dedupe").assert().success();
+    pacquet.with_args(["dedupe", "--lockfile-only"]).assert().success();
 
     // Recreate a pacquet command for the --check invocation
     let pacquet_check =
@@ -194,6 +233,85 @@ fn dedupe_warns_about_peer_dependency_issues() {
         .output()
         .expect("run pnpm peers check");
     assert_eq!(peers.status.code(), Some(1), "peers check must confirm the issues: {peers:?}");
+
+    drop((root, mock_instance));
+}
+
+/// `strictPeerDependencies: true` turns the same peer-dependency issues
+/// [`dedupe_warns_about_peer_dependency_issues`] only warns about into a
+/// hard failure, matching the TypeScript CLI's `ERR_PNPM_PEER_DEP_ISSUES`.
+#[test]
+fn dedupe_fails_on_peer_dependency_issues_when_strict() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(workspace.join("pnpm-workspace.yaml"), "strictPeerDependencies: true\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-foo100-peer": "1.0.0",
+                "@pnpm.e2e/foo": "2.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet.with_arg("dedupe").output().expect("run pnpm dedupe");
+    assert!(
+        !output.status.success(),
+        "dedupe must fail when strictPeerDependencies is true: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("ERR_PNPM_PEER_DEP_ISSUES"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Unmet peer dependencies"), "stdout:\n{stdout}");
+    assert!(stdout.contains("@pnpm.e2e/foo"), "stdout:\n{stdout}");
+    assert!(stdout.contains("Wanted:"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
+    assert!(!stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    assert!(lockfile_path.exists(), "dedupe still writes the lockfile before failing");
+
+    drop((root, mock_instance));
+}
+
+/// A peer nothing installed at all also earns the `autoInstallPeers` hint,
+/// which the bad-peer failure above leaves out.
+#[test]
+fn dedupe_strict_failure_hints_at_auto_install_peers_for_a_missing_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "strictPeerDependencies: true\nautoInstallPeers: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/has-foo100-peer": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet.with_arg("dedupe").output().expect("run pnpm dedupe");
+    assert!(
+        !output.status.success(),
+        "dedupe must fail when strictPeerDependencies is true: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains("missing peer"), "stdout:\n{stdout}");
+    assert!(stdout.contains("autoInstallPeers: true"), "stdout:\n{stdout}");
+    assert!(stdout.contains("strictPeerDependencies: false"), "stdout:\n{stdout}");
 
     drop((root, mock_instance));
 }

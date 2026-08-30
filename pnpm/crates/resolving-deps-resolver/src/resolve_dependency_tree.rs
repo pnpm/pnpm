@@ -13,7 +13,10 @@ use pnpm_resolving_resolver_base::{
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use crate::{
     parent_pkg_aliases::ParentPkgAliases,
@@ -30,6 +33,7 @@ mod workspace_ctx;
 #[cfg(test)]
 mod test_support;
 
+pub use reuse::real_package_name_of;
 pub use tree_ctx::TreeCtx;
 pub use workspace_ctx::WorkspaceTreeCtx;
 
@@ -66,9 +70,95 @@ pub enum UpdateReuseScope {
     /// Reuse nothing — the whole graph re-resolves. `pacquet update`
     /// with no selectors.
     None,
-    /// Reuse everything except the named packages (matched at any depth
+    /// Reuse everything except the update's targets (matched at any depth
     /// the update reaches). `pacquet update <pattern>`.
-    Except(HashSet<String>),
+    Except(UpdateTargets),
+}
+
+/// The major and minor of a version, which is how far an exact update
+/// selector reaches. `pacquet update foo@1.2.3` targets only the copies of
+/// `foo` that could resolve to `1.2.3`: the same major, or -- on `0.x`,
+/// where the minor is the compatibility boundary -- the same minor. Copies
+/// on another line keep their locked resolution, so bumping one line of a
+/// package the workspace depends on twice leaves the other alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VersionLine {
+    major: u64,
+    minor: u64,
+}
+
+impl VersionLine {
+    /// The line `version` sits on.
+    #[must_use]
+    pub fn of(version: &node_semver::Version) -> Self {
+        VersionLine { major: version.major, minor: version.minor }
+    }
+
+    /// The line a version selector pins, or `None` when it pins none -- a
+    /// range, a tag and an `npm:` alias spec all name no single version.
+    #[must_use]
+    pub fn parse(version_spec: &str) -> Option<Self> {
+        node_semver::Version::parse(version_spec).ok().as_ref().map(VersionLine::of)
+    }
+
+    /// Whether `version` resolves within this line.
+    #[must_use]
+    fn covers(self, version: &node_semver::Version) -> bool {
+        version.major == self.major && (self.major != 0 || version.minor == self.minor)
+    }
+}
+
+/// The packages a `pacquet update` targets, each mapped to the version
+/// lines its selectors scoped it to -- or to `None` when a selector named
+/// no single version, which targets the package at every version. See
+/// [`VersionLine`].
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct UpdateTargets(BTreeMap<String, Option<BTreeSet<VersionLine>>>);
+
+impl UpdateTargets {
+    /// Add `name` as a target. `line` scopes it to one version line; `None`
+    /// widens the target to every version, and never narrows one already
+    /// recorded.
+    pub fn insert(&mut self, name: String, line: Option<VersionLine>) {
+        let lines = self.0.entry(name).or_insert_with(|| Some(BTreeSet::new()));
+        match line {
+            // pnpm evaluates every selector that matches a dependency, so
+            // one selector targeting every version makes the narrower ones
+            // moot.
+            None => *lines = None,
+            Some(line) => {
+                if let Some(lines) = lines {
+                    lines.insert(line);
+                }
+            }
+        }
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Whether the edge resolved to `version` under `name` is an update
+    /// target. A `None` version -- an edge with no locked resolution to
+    /// judge yet -- matches by name alone, mirroring pnpm's version-less
+    /// `updateMatching` calls.
+    #[must_use]
+    pub fn covers(&self, name: &str, version: Option<&node_semver::Version>) -> bool {
+        let Some(lines) = self.0.get(name) else { return false };
+        let (Some(lines), Some(version)) = (lines.as_ref(), version) else { return true };
+        lines.iter().any(|line| line.covers(version))
+    }
+}
+
+impl FromIterator<(String, Option<VersionLine>)> for UpdateTargets {
+    fn from_iter<Iter: IntoIterator<Item = (String, Option<VersionLine>)>>(iter: Iter) -> Self {
+        let mut targets = UpdateTargets::default();
+        for (name, line) in iter {
+            targets.insert(name, line);
+        }
+        targets
+    }
 }
 
 /// How deep `pacquet update` reaches — the `--depth` ceiling. A node
@@ -223,6 +313,15 @@ pub enum ResolveDependencyTreeError {
     /// The inner error is the boxed type the resolver returned.
     #[display("Failed to resolve dependency: {_0}")]
     Resolve(#[error(not(source))] String),
+
+    #[display("Conflicting registry revisions were requested for \"{name}@{version}\".")]
+    #[diagnostic(
+        code(ERR_PNPM_REVISION_CONFLICT),
+        help(
+            "A single package name and version can resolve to only one registry artifact in an install."
+        )
+    )]
+    RevisionConflict { name: String, version: String },
 
     /// The registry publishes the package but nothing the request accepts,
     /// raised with the `ERR_PNPM_NO_MATCHING_VERSION` code.
@@ -398,22 +497,31 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
 /// whose `injected` flag is `true`. This per-alias `injected` opt-in
 /// flips a workspace dep onto the hard-linked `file:` path even when the
-/// global `injectWorkspacePackages` is off. Only importer-level deps are
-/// consulted; the recursive walker does not inherit this from any
-/// resolved package's own `dependenciesMeta` — the opt-in is
-/// importer-scoped.
+/// global `injectWorkspacePackages` is off.
 pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    let Some(meta) =
-        manifest.value().get("dependenciesMeta").and_then(serde_json::Value::as_object)
-    else {
+    injected_dependency_names(manifest.value())
+}
+
+fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
+    let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
         return HashSet::default();
     };
     meta.iter()
-        .filter(|(_, entry)| {
-            entry.get("injected").and_then(serde_json::Value::as_bool).unwrap_or(false)
-        })
+        .filter(|(_, entry)| dependency_meta_is_injected(entry))
         .map(|(name, _)| name.clone())
         .collect()
+}
+
+fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
+    manifest
+        .get("dependenciesMeta")
+        .and_then(Value::as_object)
+        .and_then(|meta| meta.get(name))
+        .is_some_and(dependency_meta_is_injected)
+}
+
+fn dependency_meta_is_injected(meta: &Value) -> bool {
+    meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// Build the importer's direct-dependency wanted specs: the manifest's

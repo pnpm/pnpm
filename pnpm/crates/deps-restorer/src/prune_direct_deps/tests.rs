@@ -29,6 +29,7 @@ fn lockfile_with_root_importer(snapshot: ProjectSnapshot) -> Lockfile {
         packages: None,
         snapshots: None,
         time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
 }
 

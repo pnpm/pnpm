@@ -466,7 +466,7 @@ test('scoped module from different registry', async () => {
     '@zkochan': `http://localhost:${REGISTRY_MOCK_PORT}`,
     '@foo': `http://localhost:${REGISTRY_MOCK_PORT}`,
   }
-  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registries }, { registries }))
+  await addDependenciesToPackage({}, ['@zkochan/foo', '@foo/has-dep-from-same-scope', 'is-positive'], testDefaults({ registriesByScope: registries }, { registriesByScope: registries }))
 
   project.has('@zkochan/foo')
 

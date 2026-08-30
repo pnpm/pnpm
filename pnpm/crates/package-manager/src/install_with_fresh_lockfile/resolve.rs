@@ -14,7 +14,7 @@ use pnpm_lockfile::Lockfile;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_reporter::LogLevel;
 use pnpm_resolving_deps_resolver::{
-    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions,
+    DependencyOverrider, ManifestHook, ResolveImporterError, ResolveImporterOptions, UpdateTargets,
 };
 use pnpm_resolving_resolver_base::{PreferredVersions, ResolveOptions, Resolver};
 use std::{
@@ -59,10 +59,12 @@ pub(super) fn preferred_versions_seeds(
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
+        | UpdateSeedPolicy::RefreshRevisions
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
         UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
-        UpdateSeedPolicy::DropOnly { names, .. } => {
-            from_lockfile_excluding(snapshots, manifests.as_slice(), &excluded_names(names))
+        UpdateSeedPolicy::DropOnly { targets, .. } => {
+            from_lockfile_excluding(snapshots, manifests.as_slice(), &withheld_pin(targets))
         }
     };
 
@@ -86,22 +88,20 @@ pub(super) fn preferred_versions_seeds(
                         Arc::new(seed)
                     }))
                 }
-                ImporterUpdateSeedPolicy::DropOnly(names) => {
-                    let mut cache_key = names.iter().cloned().collect::<Vec<_>>();
-                    cache_key.sort_unstable();
-                    if let Some(seed) = drop_only_seeds.get(&cache_key) {
+                ImporterUpdateSeedPolicy::DropOnly(targets) => {
+                    if let Some(seed) = drop_only_seeds.get(targets) {
                         Arc::clone(seed)
                     } else {
                         let seed = Arc::new({
                             let mut seed = from_lockfile_excluding(
                                 snapshots,
                                 manifests.as_slice(),
-                                &excluded_names(names),
+                                &withheld_pin(targets),
                             );
                             merge_preferred_versions(&mut seed, overrides);
                             seed
                         });
-                        drop_only_seeds.insert(cache_key, Arc::clone(&seed));
+                        drop_only_seeds.insert(targets.clone(), Arc::clone(&seed));
                         seed
                     }
                 }
@@ -123,10 +123,13 @@ fn merge_preferred_versions(seed: &mut PreferredVersions, overrides: Option<&Pre
     }
 }
 
-fn excluded_names(
-    names: &std::collections::HashSet<String>,
-) -> std::collections::HashSet<pnpm_lockfile::PkgName> {
-    names.iter().filter_map(|name| pnpm_lockfile::PkgName::parse(name.as_str()).ok()).collect()
+/// Which lockfile pins `pacquet update` withholds from the seed, so its
+/// targets re-resolve instead of settling back on their recorded version.
+/// A target scoped to a version line withholds only that line's pins: the
+/// other lines are not part of the update and must keep resolving to what
+/// the lockfile recorded.
+fn withheld_pin(targets: &UpdateTargets) -> impl Fn(&pnpm_lockfile::PackageKey) -> bool + '_ {
+    |key| targets.covers(key.name.to_string().as_str(), key.suffix.version_semver())
 }
 
 /// Call the pnpmfile's `preResolution` hook before resolution starts.
@@ -182,6 +185,7 @@ pub(super) struct SharedResolveOptions<'a> {
     pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     /// See [`super::InstallWithFreshLockfile::update_checksums`].
     pub update_checksums: bool,
+    pub update_behavior: pnpm_resolving_resolver_base::UpdateBehavior,
 }
 
 impl SharedResolveOptions<'_> {
@@ -208,6 +212,7 @@ impl SharedResolveOptions<'_> {
             inject_workspace_packages: self.config.inject_workspace_packages,
             prefer_workspace_packages: self.config.prefer_workspace_packages,
             update_checksums: self.update_checksums,
+            update: self.update_behavior,
             ..ResolveOptions::default()
         }
     }
@@ -294,16 +299,20 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         super::overrides_match(lockfile.overrides.as_ref(), resolved_overrides);
 
     let rewrite_manifest_hook = super::compose_manifest_hooks(manifest_hook, overrides_hook);
-    // An override whose value is a `catalog:` reference is only meaningful
-    // once the catalog rewrite has settled, which the range-only rewrite
-    // refuses to do under one. Neither rewrite composes with that.
-    let can_rewrite = fast_override_eligible && !overrides_use_catalogs;
+    // A catalog move can change the effective value of an override whose
+    // configured value is a `catalog:` reference — an effect no catalog
+    // rewrite can express — so catalog drift under such an override goes to
+    // the resolver. The override rewrite itself is safe under one: it runs
+    // only once the catalogs are settled, and override values are compared
+    // catalog-resolved, so a settled `catalog:` override shows no drift and
+    // only the genuinely changed entries are rewritten.
+    let can_rewrite_catalogs = fast_override_eligible && !overrides_use_catalogs;
 
     let catalog_rewrite = if catalogs_match {
         None
     } else if let Some(seed) = fast_catalog_seed {
         Some(seed)
-    } else if can_rewrite {
+    } else if can_rewrite_catalogs {
         // A catalog entry that now names a version the locked one cannot
         // satisfy left `catalogs_match` false with no seed above. Replacing
         // the package is the same rewrite an exact override performs.
@@ -329,7 +338,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     if override_settings_match {
         return Some(Arc::new(catalog_rewrite.unwrap_or_else(|| lockfile.clone())));
     }
-    if !can_rewrite {
+    if !fast_override_eligible {
         return None;
     }
     let seed = try_fast_update_overrides(FastOverrideOptions {
@@ -412,9 +421,14 @@ pub(super) struct ResolvePassInputs<'a> {
     pub pick_lowest_direct: bool,
     pub time_based: bool,
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
-    /// The prior lockfile the walk may reuse subtrees from — see
-    /// [`lockfile_reuse_seed`].
-    pub lockfile_reuse_seed: Option<Arc<Lockfile>>,
+    /// The prior lockfile the walk resolves against — the granted
+    /// [`lockfile_reuse_seed`], or the raw wanted lockfile when the seed
+    /// was withheld and only per-edge version pinning remains safe.
+    pub resolution_lockfile: Option<Arc<Lockfile>>,
+    /// Whether [`Self::resolution_lockfile`] is a granted reuse seed the
+    /// walk may reuse whole subtrees from. `false` restricts it to
+    /// per-edge version pinning.
+    pub reuse_lockfile_subtrees: bool,
     pub update_reuse_scope: pnpm_resolving_deps_resolver::UpdateReuseScope,
     pub update_reuse_scopes_by_importer:
         BTreeMap<String, pnpm_resolving_deps_resolver::UpdateReuseScope>,
@@ -453,7 +467,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         pick_lowest_direct,
         time_based,
         published_by,
-        lockfile_reuse_seed,
+        resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,
@@ -496,7 +511,8 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
         pick_lowest_direct,
         time_based,
-        wanted_lockfile: lockfile_reuse_seed,
+        wanted_lockfile: resolution_lockfile,
+        reuse_lockfile_subtrees,
         update_reuse_scope,
         update_reuse_scopes_by_importer,
         update_depth,

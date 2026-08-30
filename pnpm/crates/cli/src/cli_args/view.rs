@@ -14,7 +14,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream, Style};
 use pnpm_config::Config;
-use pnpm_network::{NetworkSettings, RetryOpts, ThrottledClient};
+use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, PickPackageFromMetaOptions,
     fetch_full_metadata, parse_bare_specifier, pick_package_from_meta, pick_registry_for_package,
@@ -177,15 +177,10 @@ async fn fetch_package_info(
         &config.proxy,
         &config.tls,
         &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: std::time::Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
+        &config.network_settings(),
     )
     .into_diagnostic()
     .wrap_err("create the network client for view")?;
-
     let outcome = fetch_full_metadata(
         &spec.name,
         &FetchFullMetadataOptions {

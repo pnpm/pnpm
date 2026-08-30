@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/exec.lifecycle",
-  "version": "1100.1.13",
+  "version": "1100.1.15",
   "description": "Package lifecycle hook runner",
   "keywords": [
     "pnpm",
@@ -43,10 +43,10 @@
     "@pnpm/store.cafs-types": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "chalk": "catalog:",
     "is-windows": "catalog:",
     "path-exists": "catalog:",
-    "run-groups": "catalog:",
     "shlex": "catalog:"
   },
   "peerDependencies": {

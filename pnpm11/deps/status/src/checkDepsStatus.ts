@@ -503,7 +503,7 @@ async function _checkDepsStatus (opts: CheckDepsStatusOptions, workspaceState: W
     const workspaceManifest = await readWorkspaceManifest(workspaceRoot)
     if (workspaceManifest ?? workspaceDir) {
       const allProjects = await findWorkspaceProjectsNoCheck(rootProjectManifestDir, {
-        patterns: workspaceManifest?.packages,
+        patterns: workspaceManifest == null ? undefined : workspaceManifest.packages ?? ['.'],
       })
       return checkDepsStatus({
         ...opts,
@@ -736,7 +736,7 @@ async function assertWantedLockfileUpToDate (
  * current install (per `include`) are skipped: their local file dependencies
  * are not installed, so their contents cannot be stale. `catalog:` specs are
  * dereferenced through the catalogs config: the catalog resolver only bans
- * the `workspace:`, `link:`, and `file:` protocols, so a catalog entry can
+ * the `link:` and `file:` protocols, so a catalog entry can
  * still hold a bare local path (`../lib`, `vendor/pkg.tgz`) that resolves to
  * a local file dependency.
  */
@@ -826,8 +826,8 @@ const LOCAL_TARBALL_EXTENSION = /\.(?:tgz|tar\.gz|tar)$/i
  * specs (and anything else carrying a protocol or URL) stay on the fast
  * path. `catalog:` specs also return false here — callers dereference them
  * through the catalogs config first, because a catalog entry may hold a
- * bare local path (the catalog resolver only bans the `workspace:`,
- * `link:`, and `file:` protocols).
+ * bare local path (the catalog resolver only bans the `link:` and `file:`
+ * protocols).
  */
 function isLocalFileSpec (spec: string): boolean {
   if (spec.startsWith('file:')) return true

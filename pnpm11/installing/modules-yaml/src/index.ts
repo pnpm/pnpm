@@ -53,7 +53,13 @@ export async function readModulesManifest (modulesDir: string): Promise<Modules 
   const modulesYamlPath = path.join(modulesDir, MODULES_FILENAME)
   let modulesRaw!: ModulesRaw
   try {
-    modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
+    const rawManifest = await fs.readFile(modulesYamlPath, 'utf8')
+    try {
+      modulesRaw = JSON.parse(rawManifest) as ModulesRaw
+    } catch {
+      // Manifests written by old pnpm versions are YAML.
+      modulesRaw = await readYamlFile<ModulesRaw>(modulesYamlPath)
+    }
     if (!modulesRaw) return modulesRaw
   } catch (err: any) { // eslint-disable-line
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.package-requester",
-  "version": "1102.1.10",
+  "version": "1102.1.12",
   "description": "Concurrent downloader of npm-compatible packages",
   "keywords": [
     "pnpm",
@@ -38,6 +38,7 @@
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/exec.prepare-package": "workspace:*",
     "@pnpm/fetching.fetcher-base": "workspace:*",
     "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.graceful-fs": "workspace:*",

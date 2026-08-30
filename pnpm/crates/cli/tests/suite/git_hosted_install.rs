@@ -473,6 +473,80 @@ fn run_prepare_script_for_git_hosted_dependencies() {
 }
 
 #[test]
+fn prepared_git_package_in_shared_store_still_requires_project_approval() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "shared-prepare");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"shared-prepare","version":"1.0.0","files":["package.json","prepare.txt"],"scripts":{"prepare":"node -e \"require('fs').writeFileSync('prepare.txt', 'prepared')\""}}"#,
+    );
+    let commit = repo.commit("init");
+    let spec = repo.git_url_at(&commit);
+    write_dependencies(&workspace, &[("shared-prepare", &spec)]);
+    allow_builds(&workspace, &[&format!("shared-prepare@{spec}")]);
+
+    pacquet.with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/shared-prepare/prepare.txt").exists());
+
+    let workspace_b = root.path().join("workspace-b");
+    fs::create_dir(&workspace_b).expect("create second workspace");
+    fs::copy(workspace.join(".npmrc"), workspace_b.join(".npmrc"))
+        .expect("copy shared-store npmrc");
+    fs::copy(workspace.join("pnpm-workspace.yaml"), workspace_b.join("pnpm-workspace.yaml"))
+        .expect("copy shared-store workspace config");
+    let workspace_b_yaml = fs::read_to_string(workspace_b.join("pnpm-workspace.yaml"))
+        .expect("read second workspace config");
+    let (workspace_b_yaml, _) = workspace_b_yaml
+        .split_once("allowBuilds:")
+        .expect("the first workspace has an allowBuilds block");
+    fs::write(workspace_b.join("pnpm-workspace.yaml"), workspace_b_yaml)
+        .expect("remove build approval from second workspace");
+    write_dependencies(&workspace_b, &[("shared-prepare", &spec)]);
+
+    let output =
+        pnpm_at(&workspace_b).with_arg("install").output().expect("install from warm store");
+    dbg!(&output);
+    assert!(!output.status.success(), "the unapproved warm-store install unexpectedly succeeded");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
+        "stderr did not report the build-policy failure",
+    );
+    assert!(!workspace_b.join("node_modules/shared-prepare/prepare.txt").exists());
+
+    let store_dir = pnpm_store_dir::StoreDir::from(npmrc_info.store_dir.clone());
+    let store_index_key = pnpm_store_dir::git_hosted_store_index_key(&spec, true);
+    let store_index = pnpm_store_dir::StoreIndex::open_in(&store_dir).expect("open store index");
+    let mut legacy_index = store_index
+        .get(&store_index_key)
+        .expect("read store index")
+        .expect("prepared git package is indexed");
+    assert_eq!(legacy_index.requires_prepare, Some(true));
+    legacy_index.requires_prepare = None;
+    store_index.set(&store_index_key, &legacy_index).expect("write legacy store index row");
+
+    let workspace_c = root.path().join("workspace-c");
+    fs::create_dir(&workspace_c).expect("create third workspace");
+    fs::copy(workspace.join(".npmrc"), workspace_c.join(".npmrc"))
+        .expect("copy shared-store npmrc");
+    fs::write(workspace_c.join("pnpm-workspace.yaml"), workspace_b_yaml)
+        .expect("write workspace config without build approval");
+    write_dependencies(&workspace_c, &[("shared-prepare", &spec)]);
+
+    let output =
+        pnpm_at(&workspace_c).with_arg("install").output().expect("install from legacy store");
+    dbg!(&output);
+    assert!(!output.status.success(), "the unapproved legacy-store install unexpectedly succeeded");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED"),
+        "stderr did not report the build-policy failure",
+    );
+    assert!(!workspace_c.join("node_modules/shared-prepare/prepare.txt").exists());
+
+    drop((root, npmrc_info));
+}
+
+#[test]
 fn type_git_dependency_reuses_side_effects_on_warm_install() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -917,6 +991,31 @@ fn a_git_dependency_is_prepared_with_the_package_manager_it_pins() {
         .flatten()
         .any(|entry| entry.file_name() == "yarn.js");
     assert!(provisioned, "no provisioned yarn under {}", engine_store.display());
+
+    drop((root, npmrc_info));
+}
+
+/// A git dependency is packed by pnpm rather than by its publisher, so
+/// its `files` field is what decides the installed file set.
+#[test]
+fn files_field_of_a_git_dependency_does_not_match_at_depth() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let repo = GitRepoFixture::init(root.path(), "packs-its-own-src");
+    repo.write_file(
+        "package.json",
+        r#"{"name":"packs-its-own-src","version":"1.0.0","main":"src/index.js","files":["src"]}"#,
+    );
+    repo.write_file("src/index.js", "module.exports = true\n");
+    repo.write_file("example/src/App.js", "module.exports = 'example'\n");
+    let commit = repo.commit("init");
+    write_dependencies(&workspace, &[("packs-its-own-src", &repo.git_url_at(&commit))]);
+
+    pacquet.with_args(["install", "--ignore-scripts"]).assert().success();
+
+    let installed = workspace.join("node_modules/packs-its-own-src");
+    assert!(installed.join("src/index.js").is_file(), "the published src ships");
+    assert!(!installed.join("example").exists(), "the repository's example app is not published");
 
     drop((root, npmrc_info));
 }

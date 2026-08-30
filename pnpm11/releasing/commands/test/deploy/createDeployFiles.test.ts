@@ -132,3 +132,141 @@ test('createDeployFiles drops optional edges of retained packages when optional 
   expect(withoutOptional.packages?.[optionalDepPath]).toBeUndefined()
   expect(withoutOptional.packages?.[keptDepPath].optionalDependencies).toBeUndefined()
 })
+
+test('createDeployFiles drops excluded direct dependency groups from the importer and the manifest', () => {
+  const lockfileDir = path.resolve('workspace')
+  const deployDir = path.join(lockfileDir, 'out')
+  const projectId = '.' as ProjectId
+  const prodDepPath = 'prod@1.0.0' as DepPath
+  const devDepPath = 'dev@1.0.0' as DepPath
+  const optionalDepPath = 'opt@1.0.0' as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: '9.0',
+    settings: {
+      autoInstallPeers: false,
+      excludeLinksFromLockfile: false,
+    },
+    importers: {
+      [projectId]: {
+        specifiers: { prod: '1.0.0', dev: '1.0.0', opt: '1.0.0' },
+        dependencies: { prod: '1.0.0' },
+        devDependencies: { dev: '1.0.0' },
+        optionalDependencies: { opt: '1.0.0' },
+      },
+    },
+    packages: {
+      [prodDepPath]: { resolution: { integrity: 'sha512-prod' }, version: '1.0.0' },
+      [devDepPath]: { resolution: { integrity: 'sha512-dev' }, version: '1.0.0' },
+      [optionalDepPath]: { resolution: { integrity: 'sha512-opt' }, version: '1.0.0' },
+    },
+  }
+  const commonOpts = {
+    allProjects: [{
+      rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+      manifest: { name: 'app', version: '1.0.0' },
+    }],
+    deployDir,
+    lockfile,
+    lockfileDir,
+    selectedProjectManifest: {
+      name: 'app',
+      version: '1.0.0',
+      dependencies: { prod: '1.0.0' },
+      devDependencies: { dev: '1.0.0' },
+      optionalDependencies: { opt: '1.0.0' },
+      peerDependencies: { prod: '*', dev: '*', opt: '*', external: '*' },
+      peerDependenciesMeta: {
+        prod: { optional: true },
+        dev: { optional: true },
+        opt: { optional: true },
+        external: { optional: true },
+      },
+    },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  }
+
+  const all = createDeployFiles({
+    ...commonOpts,
+    include: { dependencies: true, devDependencies: true, optionalDependencies: true },
+  })
+  expect(all.lockfile.importers[projectId].devDependencies).toStrictEqual({ dev: '1.0.0' })
+  expect(all.lockfile.importers[projectId].optionalDependencies).toStrictEqual({ opt: '1.0.0' })
+  expect(all.manifest.devDependencies).toStrictEqual({ dev: '1.0.0' })
+  expect(all.manifest.optionalDependencies).toStrictEqual({ opt: '1.0.0' })
+  expect(all.manifest.peerDependencies).toStrictEqual({ prod: '*', dev: '*', opt: '*', external: '*' })
+  expect(all.manifest.peerDependenciesMeta).toStrictEqual({
+    prod: { optional: true },
+    dev: { optional: true },
+    opt: { optional: true },
+    external: { optional: true },
+  })
+
+  const prodOnly = createDeployFiles({
+    ...commonOpts,
+    include: { dependencies: true, devDependencies: false, optionalDependencies: false },
+  })
+  expect(prodOnly.lockfile.importers[projectId].dependencies).toStrictEqual({ prod: '1.0.0' })
+  expect(prodOnly.lockfile.importers[projectId].devDependencies).toStrictEqual({})
+  expect(prodOnly.lockfile.importers[projectId].optionalDependencies).toStrictEqual({})
+  expect(prodOnly.lockfile.importers[projectId].specifiers).toStrictEqual({ prod: '1.0.0' })
+  expect(prodOnly.manifest.devDependencies).toStrictEqual({})
+  expect(prodOnly.manifest.optionalDependencies).toStrictEqual({})
+  expect(prodOnly.manifest.peerDependencies).toStrictEqual({ prod: '*', external: '*' })
+  expect(prodOnly.manifest.peerDependenciesMeta).toStrictEqual({
+    prod: { optional: true },
+    external: { optional: true },
+  })
+  expect(prodOnly.lockfile.packages?.[prodDepPath]).toBeDefined()
+  expect(prodOnly.lockfile.packages?.[devDepPath]).toBeUndefined()
+  expect(prodOnly.lockfile.packages?.[optionalDepPath]).toBeUndefined()
+})
+
+test('createDeployFiles preserves peer-only dependencies auto-installed into an excluded group', () => {
+  const lockfileDir = path.resolve('workspace')
+  const projectId = '.' as ProjectId
+  const externalDepPath = 'external@1.0.0' as DepPath
+  const devDepPath = 'dev@1.0.0' as DepPath
+  const result = createDeployFiles({
+    allProjects: [{
+      rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
+      manifest: { name: 'app', version: '1.0.0' },
+    }],
+    deployDir: path.join(lockfileDir, 'out'),
+    include: { dependencies: false, devDependencies: true, optionalDependencies: false },
+    lockfile: {
+      lockfileVersion: '9.0',
+      settings: {
+        autoInstallPeers: true,
+        excludeLinksFromLockfile: false,
+      },
+      importers: {
+        [projectId]: {
+          specifiers: { external: '1.0.0', dev: '1.0.0' },
+          dependencies: { external: '1.0.0' },
+          devDependencies: { dev: '1.0.0' },
+        },
+      },
+      packages: {
+        [externalDepPath]: { resolution: { integrity: 'sha512-external' }, version: '1.0.0' },
+        [devDepPath]: { resolution: { integrity: 'sha512-dev' }, version: '1.0.0' },
+      },
+    },
+    lockfileDir,
+    selectedProjectManifest: {
+      name: 'app',
+      version: '1.0.0',
+      devDependencies: { dev: '1.0.0' },
+      peerDependencies: { external: '*' },
+      peerDependenciesMeta: { external: { optional: true } },
+    },
+    projectId,
+    rootProjectManifestDir: lockfileDir,
+  })
+
+  expect(result.manifest.dependencies).toStrictEqual({ external: '1.0.0' })
+  expect(result.manifest.devDependencies).toStrictEqual({ dev: '1.0.0' })
+  expect(result.manifest.peerDependencies).toStrictEqual({ external: '*' })
+  expect(result.manifest.peerDependenciesMeta).toStrictEqual({ external: { optional: true } })
+  expect(result.lockfile.packages?.[externalDepPath]).toBeDefined()
+})

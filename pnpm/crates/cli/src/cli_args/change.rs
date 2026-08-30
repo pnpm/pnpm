@@ -76,7 +76,7 @@ impl ChangeArgs {
         let Some(workspace_dir) = config.workspace_dir.clone() else {
             return Err(ChangeError::WorkspaceOnly.into());
         };
-        let (projects, _) = discover_workspace_projects(&workspace_dir)?;
+        let (projects, _) = discover_workspace_projects(&workspace_dir, config)?;
         let engine_projects = to_engine_projects(&projects);
 
         // Only the exact no-option invocation is the status form, so a

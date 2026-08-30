@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/building.after-install",
-  "version": "1102.0.17",
+  "version": "1103.0.2",
   "description": "Rebuild packages that are already installed by running their lifecycle scripts",
   "keywords": [
     "pnpm",
@@ -39,7 +39,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/core-loggers": "workspace:*",
     "@pnpm/deps.graph-hasher": "workspace:*",
-    "@pnpm/deps.graph-sequencer": "workspace:*",
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
@@ -56,9 +55,9 @@
     "@pnpm/store.controller-types": "workspace:*",
     "@pnpm/store.index": "workspace:*",
     "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "load-json-file": "catalog:",
     "p-limit": "catalog:",
-    "run-groups": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

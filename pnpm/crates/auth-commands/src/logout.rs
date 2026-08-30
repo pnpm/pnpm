@@ -1,7 +1,8 @@
 //! `pnpm logout` revokes the registry auth token on the server and
-//! removes it from `auth.ini`. A token that instead lives in `.npmrc`
-//! or an env var is left in place, with a warning, because pnpm only
-//! owns `auth.ini`.
+//! removes it from the global `config.yaml`, and from the `auth.ini`
+//! earlier versions wrote. A token that instead lives in `.npmrc` or an
+//! env var is left in place, with a warning, because pnpm owns only the
+//! files it writes itself.
 //!
 //! Filesystem reads/writes and the token-revocation request are
 //! `Sys`-bound capabilities with no `&self` receiver (production
@@ -13,13 +14,19 @@ use std::{collections::HashMap, future::Future, io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_config::validate_json_auth_registry;
 use pnpm_network::{
     RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
     send_with_retry,
 };
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
-use crate::{ini::IniSettings, registry_url::normalize_registry_url};
+use crate::{
+    config_yaml::{self, GLOBAL_CONFIG_YAML_FILENAME, ParseConfigYamlError},
+    ini::IniSettings,
+    registry_url::normalize_registry_url,
+};
+use pnpm_workspace_manifest_writer::{EditManifestFieldError, ManifestEdit, edit_manifest_field};
 
 /// The registry `pnpm logout` targets when neither `--registry` nor a
 /// configured registry is given.
@@ -31,8 +38,8 @@ pub trait FsReadToString {
 }
 
 /// Write `bytes` to a file, replacing its contents. The production [`Host`]
-/// provider writes atomically and symlink-safely, since `auth.ini` holds
-/// credentials (see [`pnpm_fs::write_atomic`]).
+/// provider writes atomically, symlink-safely, and owner-only, since what is
+/// written holds credentials (see [`pnpm_fs::write_atomic_private`]).
 pub trait FsWrite {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()>;
 }
@@ -73,7 +80,7 @@ impl FsReadToString for Host {
 
 impl FsWrite for Host {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()> {
-        pnpm_fs::write_atomic(path, bytes)
+        pnpm_fs::write_atomic_private(path, bytes)
     }
 }
 
@@ -111,7 +118,8 @@ pub struct LogoutOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
     pub registry: Option<&'a str>,
     pub auth_config: &'a HashMap<String, String>,
-    /// pnpm's `configDir`; `auth.ini` lives at `<config_dir>/auth.ini`.
+    /// pnpm's `configDir`; the global config lives at
+    /// `<config_dir>/config.yaml` and the legacy `auth.ini` beside it.
     pub config_dir: &'a std::path::Path,
     pub retry: RetryOpts,
     /// Reporter prefix for the `global*` log lines (the working directory).
@@ -119,12 +127,12 @@ pub struct LogoutOptions<'a> {
 }
 
 /// Log out of `registry`: revoke the token on the server, then remove it
-/// from `auth.ini`. Returns the `Logged out of <registry>` success line.
+/// from every file pnpm wrote it to. Returns the `Logged out of <registry>`
+/// success line.
 ///
 /// Errors with [`LogoutError::NotLoggedIn`] when no token is configured
 /// for the registry, and [`LogoutError::LogoutFailed`] when the registry
-/// rejected the revocation *and* the token was not in `auth.ini` to
-/// remove locally.
+/// rejected the revocation *and* there was no local copy to remove.
 pub async fn logout<Sys, Reporter>(
     http_client: &ThrottledClient,
     opts: LogoutOptions<'_>,
@@ -134,6 +142,12 @@ where
     Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
+    // Canonicalized the way the reader and `pnpm login` canonicalize, so that
+    // logging out names the same registry logging in did however the URL was
+    // spelled on the command line. An unparsable one keeps its own spelling:
+    // it matches no stored credential either way, and `NotLoggedIn` names it
+    // as the user typed it.
+    let registry = validate_json_auth_registry(&registry).unwrap_or_else(|_| registry.into_owned());
     let registry_config_key = nerf_dart(&registry);
     let token_key = format!("{registry_config_key}:_authToken");
 
@@ -169,28 +183,87 @@ where
         }
     };
 
-    let config_path = opts.config_dir.join("auth.ini");
-    let mut settings = safe_read_ini::<Sys>(&config_path)?;
+    // The two files hold independent copies of the same credential, so
+    // failing to clean one must not leave the other behind: a token pnpm
+    // would still send is worse than a logout that reports trouble.
+    let config_removal = forget_in_config_yaml::<Sys>(opts.config_dir, &registry);
+    let ini_removal = forget_in_auth_ini::<Sys>(opts.config_dir, &token_key);
+    let removed_from_config = config_removal?;
+    let removed_from_ini = ini_removal?;
 
-    if settings.remove(&token_key) {
-        Sys::write(&config_path, settings.serialize().as_bytes())
-            .map_err(|error| LogoutError::WriteAuthIni { path: config_path.clone(), error })?;
-    } else if revoked {
-        global::<Reporter>(
-            opts.prefix,
-            LogLevel::Warn,
-            format!(
-                "The auth token for {registry_display} was not found in {}. \
+    if !removed_from_config && !removed_from_ini {
+        if revoked {
+            global::<Reporter>(
+                opts.prefix,
+                LogLevel::Warn,
+                format!(
+                    "The auth token for {registry_display} was not found in {}. \
                  It may be configured in .npmrc or another config file. \
                  The token was revoked on the registry but must be removed manually from that config file.",
-                config_path.display(),
-            ),
-        );
-    } else {
-        return Err(LogoutError::LogoutFailed { registry: registry_display, config_path });
+                    opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME).display(),
+                ),
+            );
+        } else {
+            return Err(LogoutError::LogoutFailed {
+                registry: registry_display,
+                config_path: opts.config_dir.join(GLOBAL_CONFIG_YAML_FILENAME),
+            });
+        }
     }
 
     Ok(format!("Logged out of {registry_display}"))
+}
+
+/// Drop every credential `registry` holds in the global `config.yaml`,
+/// reporting whether there was one to drop.
+fn forget_in_config_yaml<Sys: FsReadToString + FsWrite>(
+    config_dir: &std::path::Path,
+    registry: &str,
+) -> Result<bool, LogoutError> {
+    let path = config_dir.join(GLOBAL_CONFIG_YAML_FILENAME);
+    let document = match Sys::read_to_string(&path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(LogoutError::ReadConfigYaml { path, error }),
+    };
+
+    let fields = config_yaml::logout_fields(Some(&document), registry)
+        .map_err(LogoutError::ParseConfigYaml)?;
+    let mut removed = false;
+    let mut document = Some(document);
+    for (key, value) in fields {
+        let edit = edit_manifest_field(document.as_deref(), key, &value)
+            .map_err(LogoutError::EditConfigYaml)?;
+        let text = match edit {
+            ManifestEdit::Unchanged => continue,
+            // The credential was the document's only key. Blank the file
+            // rather than remove it: logging out of one registry is not a
+            // reason to take away a config file the user may be editing.
+            ManifestEdit::Remove => String::new(),
+            ManifestEdit::Write(text) => text,
+        };
+        Sys::write(&path, text.as_bytes())
+            .map_err(|error| LogoutError::WriteConfigYaml { path: path.clone(), error })?;
+        document = Some(text);
+        removed = true;
+    }
+    Ok(removed)
+}
+
+/// Drop `token_key` from the `auth.ini` earlier versions wrote, reporting
+/// whether there was one to drop.
+fn forget_in_auth_ini<Sys: FsReadToString + FsWrite>(
+    config_dir: &std::path::Path,
+    token_key: &str,
+) -> Result<bool, LogoutError> {
+    let path = config_dir.join("auth.ini");
+    let mut settings = safe_read_ini::<Sys>(&path)?;
+    if !settings.remove(token_key) {
+        return Ok(false);
+    }
+    Sys::write(&path, settings.serialize().as_bytes())
+        .map_err(|error| LogoutError::WriteAuthIni { path, error })?;
+    Ok(true)
 }
 
 /// Read `auth.ini`, treating a missing file as empty. Any other read
@@ -251,6 +324,30 @@ pub enum LogoutError {
         #[error(source)]
         error: io::Error,
     },
+
+    #[display("Failed to read the global config file at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_READ_CONFIG_YAML))]
+    ReadConfigYaml {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to write the global config file at {}: {error}", path.display())]
+    #[diagnostic(code(ERR_PNPM_AUTH_COMMANDS_WRITE_CONFIG_YAML))]
+    WriteConfigYaml {
+        path: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    ParseConfigYaml(ParseConfigYamlError),
+
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    EditConfigYaml(EditManifestFieldError),
 }
 
 #[cfg(test)]

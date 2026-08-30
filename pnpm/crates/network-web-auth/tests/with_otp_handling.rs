@@ -1,7 +1,11 @@
-use std::{cell::Cell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use pnpm_network_web_auth::{
-    OtpError, OtpErrorBody, SyntheticOtpError, WebAuthFetchOptions, WithOtpError, with_otp_handling,
+    OtpError, OtpErrorBody, OtpSession, SyntheticOtpError, WebAuthFetchOptions, WithOtpError,
+    with_otp_handling,
 };
 use pnpm_network_web_auth_testing::{
     FakeOtpError, InputResponse, SleepBehavior, ok_202, ok_token, ok_truncated, web_auth_body,
@@ -646,5 +650,92 @@ fn from_unknown_body_returns_empty_body_when_no_auth_url_or_done_url() {
     assert_eq!(
         error.as_otp_challenge().expect("a challenge").body,
         Some(OtpErrorBody { auth_url: None, done_url: None }),
+    );
+}
+
+/// The future one call of [`otp_gated_operation`] returns.
+type OtpGatedFuture = std::pin::Pin<Box<dyn Future<Output = Result<String, FakeOtpError>>>>;
+
+/// An operation that succeeds only when it is given `accepted`, recording
+/// every one-time password it was called with.
+fn otp_gated_operation(
+    accepted: &Rc<RefCell<String>>,
+    seen: &Rc<RefCell<Vec<Option<String>>>>,
+) -> impl FnMut(Option<String>) -> OtpGatedFuture {
+    let accepted = Rc::clone(accepted);
+    let seen = Rc::clone(seen);
+    move |otp| {
+        let accepted = Rc::clone(&accepted);
+        let seen = Rc::clone(&seen);
+        Box::pin(async move {
+            seen.borrow_mut().push(otp.clone());
+            if otp.as_deref() == Some(accepted.borrow().as_str()) {
+                Ok("ok".to_owned())
+            } else {
+                Err(FakeOtpError::Otp { body: None })
+            }
+        })
+    }
+}
+
+#[tokio::test]
+async fn session_reuses_the_obtained_otp_across_later_operations() {
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
+    reset();
+    set_input(InputResponse::Value(Some("654321".to_owned())));
+    let accepted = Rc::new(RefCell::new("654321".to_owned()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut session = OtpSession::new(WebAuthFetchOptions::default());
+
+    for _ in 0..2 {
+        let result = session
+            .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+                &accepted, &seen,
+            ))
+            .await
+            .expect("a result");
+        assert_eq!(result, "ok");
+    }
+
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [None, Some("654321".to_owned()), Some("654321".to_owned())],
+    );
+}
+
+#[tokio::test]
+async fn session_obtains_a_new_otp_once_the_registry_stops_accepting_the_held_one() {
+    web_auth_fake!(FakeHost, UnexpectedReporter, set_input);
+    reset();
+    set_input(InputResponse::Value(Some("first-otp".to_owned())));
+    let accepted = Rc::new(RefCell::new("first-otp".to_owned()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let mut session = OtpSession::new(WebAuthFetchOptions::default());
+
+    session
+        .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+            &accepted, &seen,
+        ))
+        .await
+        .expect("a result");
+
+    // The password expires right after the operation it was obtained for.
+    *accepted.borrow_mut() = "second-otp".to_owned();
+    set_input(InputResponse::Value(Some("second-otp".to_owned())));
+    session
+        .run::<FakeHost, UnexpectedReporter, String, FakeOtpError, _, _>(otp_gated_operation(
+            &accepted, &seen,
+        ))
+        .await
+        .expect("a result");
+
+    assert_eq!(
+        seen.borrow().as_slice(),
+        [
+            None,
+            Some("first-otp".to_owned()),
+            Some("first-otp".to_owned()),
+            Some("second-otp".to_owned()),
+        ],
     );
 }

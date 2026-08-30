@@ -1,7 +1,11 @@
 import { expect, test } from '@jest/globals'
 import type { PackageResponse } from '@pnpm/store.controller-types'
 
-import { detectNamedRegistryCollision, type ResolvedPackage } from '../lib/resolveDependencies.js'
+import {
+  detectNamedRegistryCollision,
+  detectRegistryRevisionConflict,
+  type ResolvedPackage,
+} from '../lib/resolveDependencies.js'
 
 function resolved (opts: { resolvedVia: string, integrity: string }): ResolvedPackage {
   return {
@@ -78,4 +82,34 @@ test('an identity that cannot be proven is treated as a collision', () => {
       { body: { resolvedVia: 'npm-registry', resolution: {} } } as unknown as PackageResponse
     )
   }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_NAMED_REGISTRY_PACKAGE_COLLISION' }))
+})
+
+test('different revisions of one package version conflict', () => {
+  expect(() => {
+    detectRegistryRevisionConflict(
+      {
+        name: 'foo',
+        version: '1.0.0',
+        resolution: { integrity: 'sha512-AAAA', revision: 1 },
+      } as unknown as ResolvedPackage,
+      {
+        body: { resolution: { integrity: 'sha512-BBBB', revision: 2 } },
+      } as unknown as PackageResponse
+    )
+  }).toThrow(expect.objectContaining({ code: 'ERR_PNPM_REVISION_CONFLICT' }))
+})
+
+test('the same revision and integrity can be reused', () => {
+  expect(() => {
+    detectRegistryRevisionConflict(
+      {
+        name: 'foo',
+        version: '1.0.0',
+        resolution: { integrity: 'sha512-AAAA', revision: 1 },
+      } as unknown as ResolvedPackage,
+      {
+        body: { resolution: { integrity: 'sha512-AAAA', revision: 1 } },
+      } as unknown as PackageResponse
+    )
+  }).not.toThrow()
 })

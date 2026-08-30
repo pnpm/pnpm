@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/config.reader",
-  "version": "1101.17.0",
+  "version": "1102.1.0",
   "description": "Gets configuration options for pnpm",
   "keywords": [
     "pnpm",
@@ -53,6 +53,7 @@
     "camelcase-keys": "catalog:",
     "can-write-to-dir": "catalog:",
     "ci-info": "catalog:",
+    "didyoumean2": "catalog:",
     "is-subdir": "catalog:",
     "is-windows": "catalog:",
     "lodash.kebabcase": "catalog:",

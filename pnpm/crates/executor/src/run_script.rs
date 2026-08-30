@@ -1,11 +1,15 @@
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
-    lifecycle::push_script_arg,
+    lifecycle::{StreamedScript, push_script_arg},
     make_env::{EnvOptions, build_env, path_value},
-    shell::{ScriptShellError, select_shell},
+    process_tracker::{ProcessTracker, spawn_child},
+    script_exit::ScriptExit,
+    shell::{ScriptShellError, SelectedShell, select_shell},
+    shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_reporter::LogEvent;
 use serde_json::Value;
 use std::{
     collections::HashMap,
@@ -13,7 +17,7 @@ use std::{
     ffi::OsString,
     io::{self, Write},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus},
+    process::{Command, Stdio},
 };
 
 /// Error from running a user script through [`run_script`] — the
@@ -29,8 +33,37 @@ pub enum RunScriptError {
         source: io::Error,
     },
 
+    #[display("Failed waiting for script `{script}`: {source}")]
+    #[diagnostic(code(ERR_PNPM_EXECUTOR_RUN_SCRIPT_WAIT))]
+    Wait {
+        script: String,
+        #[error(source)]
+        source: io::Error,
+    },
+
     #[diagnostic(transparent)]
     ScriptShell(#[error(source)] ScriptShellError),
+
+    #[diagnostic(transparent)]
+    ShellEmulator(#[error(source)] ShellEmulatorError),
+}
+
+/// Where a script's output goes.
+#[derive(Clone, Copy)]
+pub enum ScriptOutput<'a> {
+    /// Inherit the parent's stdio, so the script writes straight to the
+    /// terminal.
+    Inherit,
+    /// Pipe the child and republish its output as `pnpm:lifecycle`
+    /// events, one per line — pnpm's `--stream`. The reporter renders
+    /// each line under the project it came from, which is what makes
+    /// concurrent projects' output readable.
+    Streamed {
+        /// Identifies the script in the emitted events. `pnpm run` names
+        /// the project directory; `pnpm exec` names the package.
+        dep_path: &'a str,
+        emit: fn(&LogEvent),
+    },
 }
 
 /// Inputs for [`run_script`] — the subset of lifecycle-hook options a
@@ -54,6 +87,9 @@ pub struct RunScript<'a> {
     pub extra_bin_paths: &'a [PathBuf],
     /// Custom shell from the `scriptShell` config, if any.
     pub script_shell: Option<&'a Path>,
+    /// The `shellEmulator` config: run the script through pacquet's
+    /// built-in shell rather than the platform's.
+    pub shell_emulator: bool,
     /// The `scriptsPrependNodePath` config.
     pub scripts_prepend_node_path: ScriptsPrependNodePath,
     /// Path to a `node` binary for `npm_node_execpath` / `NODE`.
@@ -66,13 +102,20 @@ pub struct RunScript<'a> {
     pub extra_env: &'a HashMap<String, String>,
     /// When `true`, suppress the `$ <script>` echo to stderr.
     pub silent: bool,
+    /// Where the script's output goes.
+    pub output: ScriptOutput<'a>,
+    /// Tracks this script for cancellation when a recursive command bails.
+    pub process_tracker: Option<&'a ProcessTracker>,
 }
 
-/// Run a single user script in the foreground, inheriting the parent's
-/// stdio so the script's output reaches the terminal directly.
-pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
+/// Run a single user script in the foreground, sending its output where
+/// [`RunScript::output`] says.
+pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
     let command = build_command(opts.script, opts.args);
 
+    // The `scriptShell` value is validated even when the emulator will
+    // run the script, matching pnpm's `runLifecycleHook`, which rejects a
+    // `.bat` / `.cmd` shell before it looks at `shellEmulator`.
     let shell =
         select_shell(opts.script_shell, cfg!(windows)).map_err(RunScriptError::ScriptShell)?;
 
@@ -108,11 +151,45 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     child_env.retain(|key, _| !key.eq_ignore_ascii_case("PATH"));
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
+    if let ScriptOutput::Streamed { dep_path, emit } = opts.output {
+        let wd = opts.pkg_root.to_string_lossy().into_owned();
+        let streamed = StreamedScript { dep_path, stage: opts.stage, wd: &wd, emit };
+        streamed.started(&command);
+        let status = if opts.shell_emulator {
+            let emit_line = |stdio, line| streamed.emit_line(stdio, line);
+            execute_emulated(
+                &command,
+                opts.pkg_root,
+                &child_env,
+                EmulatedOutput::Lines(&emit_line),
+                opts.process_tracker,
+            )
+            .map(ScriptExit::Emulated)
+            .map_err(RunScriptError::ShellEmulator)?
+        } else {
+            run_piped(&shell, &command, opts.pkg_root, &child_env, streamed, opts.process_tracker)?
+        };
+        streamed.finished(status.code().unwrap_or(-1));
+        return Ok(status);
+    }
+
     if !opts.silent {
         // Echo `$ <script>` to stderr for an inherited-stdio run, the
         // same as `pnpm run`. The dim styling is omitted.
         let mut stderr = io::stderr();
         let _ = writeln!(stderr, "$ {command}");
+    }
+
+    if opts.shell_emulator {
+        return execute_emulated(
+            &command,
+            opts.pkg_root,
+            &child_env,
+            EmulatedOutput::Inherit,
+            opts.process_tracker,
+        )
+        .map(ScriptExit::Emulated)
+        .map_err(RunScriptError::ShellEmulator);
     }
 
     // The script is appended through `push_script_arg` (not a chained
@@ -122,14 +199,40 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     let mut cmd = Command::new(&shell.program);
     cmd.args(&shell.args);
     push_script_arg(&mut cmd, &command, shell.windows_verbatim_args);
-    let status = cmd
-        .current_dir(opts.pkg_root)
-        .env_clear()
-        .envs(&child_env)
-        .status()
+    cmd.current_dir(opts.pkg_root).env_clear().envs(&child_env);
+    let mut child = spawn_child(&mut cmd, opts.process_tracker)
         .map_err(|source| RunScriptError::Spawn { script: command.clone(), source })?;
+    let status =
+        child.wait().map_err(|source| RunScriptError::Wait { script: command.clone(), source })?;
 
-    Ok(status)
+    Ok(ScriptExit::Process(status))
+}
+
+/// Spawn `command` under `shell` with both output streams piped, and
+/// republish each line through `streamed`.
+fn run_piped(
+    shell: &SelectedShell,
+    command: &str,
+    pkg_root: &Path,
+    child_env: &HashMap<String, String>,
+    streamed: StreamedScript<'_>,
+    process_tracker: Option<&ProcessTracker>,
+) -> Result<ScriptExit, RunScriptError> {
+    let mut cmd = Command::new(&shell.program);
+    cmd.args(&shell.args);
+    push_script_arg(&mut cmd, command, shell.windows_verbatim_args);
+    cmd.current_dir(pkg_root)
+        .env_clear()
+        .envs(child_env)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = spawn_child(&mut cmd, process_tracker)
+        .map_err(|source| RunScriptError::Spawn { script: command.to_string(), source })?;
+
+    streamed
+        .pump(child.child_mut())
+        .map(ScriptExit::Process)
+        .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
 }
 
 /// Append shell-quoted `args` to `script`: `shlex`-style quoting on

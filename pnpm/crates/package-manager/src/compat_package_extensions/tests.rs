@@ -24,3 +24,19 @@ fn includes_pnpm_specific_compat_entries() {
         Some(&"^3.3.0".to_string()),
     );
 }
+
+/// Compat entries must not inject `estree` — no such npm package exists,
+/// the import that names it is type-only and satisfied by `@types/estree` —
+/// nor a single-instance runtime like `typescript`, `react`, or `eslint`,
+/// where a second copy in the graph breaks the tools that load it.
+#[test]
+fn compat_entries_never_inject_type_only_or_singleton_packages() {
+    for target in ["estree", "typescript", "react", "eslint"] {
+        for (selector, extension) in COMPAT_PACKAGE_EXTENSIONS.iter() {
+            assert!(
+                extension.dependencies.as_ref().is_none_or(|deps| !deps.contains_key(target)),
+                "{selector} must not inject a {target} dependency",
+            );
+        }
+    }
+}

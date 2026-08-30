@@ -89,6 +89,26 @@ struct LocalTarget {
     specified_via_relative_path: bool,
 }
 
+/// Answers whether an override governs a dependency declared as a given
+/// specifier — whether or not it rewrites the text. An override that repeats
+/// the declaration verbatim still governs it, and a range-scoped override
+/// (`foo@^2`) governs one declaration of `foo` and not another, so the
+/// declared specifier is part of the question.
+///
+/// Built by [`VersionsOverrider::dependency_matcher`] for one manifest.
+pub struct OverriddenDependencyMatcher<'a> {
+    overrider: &'a VersionsOverrider,
+    applicable_parent_scoped: Vec<&'a ResolvedOverride>,
+}
+
+impl OverriddenDependencyMatcher<'_> {
+    #[must_use]
+    pub fn matches(&self, dep_name: &str, dep_spec: &str) -> bool {
+        self.overrider.choose_override(&self.applicable_parent_scoped, dep_name, dep_spec).is_some()
+            || self.overrider.converge_applies(dep_name, dep_spec)
+    }
+}
+
 impl VersionsOverrider {
     /// Build the hook from the parsed overrides set produced by
     /// [`pnpm_config_parse_overrides::parse_overrides`].
@@ -397,6 +417,17 @@ impl VersionsOverrider {
         }
         self.converge_applies(dep_name, dep_spec)
             .then(|| self.converge[dep_name].new_bare_specifier.clone())
+    }
+
+    /// An [`OverriddenDependencyMatcher`] bound to `manifest`, so the
+    /// parent-scoped overrides that manifest answers to are selected once
+    /// rather than once per dependency asked about.
+    #[must_use]
+    pub fn dependency_matcher<'a>(&'a self, manifest: &Value) -> OverriddenDependencyMatcher<'a> {
+        OverriddenDependencyMatcher {
+            overrider: self,
+            applicable_parent_scoped: self.applicable_parent_scoped(manifest),
+        }
     }
 
     fn choose_override<'b>(

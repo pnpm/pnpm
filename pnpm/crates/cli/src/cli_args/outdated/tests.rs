@@ -1,12 +1,10 @@
 use super::{
     Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
-    PackumentCache, classify, current_versions_from_importer, fetch_package_cached,
-    render_dependents, render_json, render_latest, render_recursive_json, sort_outdated,
+    classify, current_versions_from_importer, render_dependents, render_json, render_latest,
+    render_recursive_json, sort_outdated,
 };
 use node_semver::Version;
-use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
-use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::DependencyGroup;
 use std::{collections::HashMap, path::PathBuf};
 use text_block_macros::text_block;
@@ -79,29 +77,33 @@ fn classify_detects_each_bump_kind() {
 
 #[test]
 fn include_default_covers_all_three_groups() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: false };
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: false, optional: false };
     assert_eq!(
-        opts.include(),
+        opts.include(true),
         vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
     );
 }
 
 #[test]
 fn include_prod_keeps_dependencies_and_optional() {
-    let opts = OutdatedDependencyOptions { prod: true, dev: false, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
+    let opts =
+        OutdatedDependencyOptions { prod: true, dev: false, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Optional]);
 }
 
 #[test]
 fn include_dev_keeps_only_dev() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: true, no_optional: false };
-    assert_eq!(opts.include(), vec![DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: true, no_optional: false, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Dev]);
 }
 
 #[test]
 fn include_no_optional_drops_optional() {
-    let opts = OutdatedDependencyOptions { prod: false, dev: false, no_optional: true };
-    assert_eq!(opts.include(), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
+    let opts =
+        OutdatedDependencyOptions { prod: false, dev: false, no_optional: true, optional: false };
+    assert_eq!(opts.include(true), vec![DependencyGroup::Prod, DependencyGroup::Dev]);
 }
 
 #[test]
@@ -271,104 +273,4 @@ fn recursive_json_replaces_invalid_utf8_in_locations() {
     let value: serde_json::Value =
         serde_json::from_str(&render_recursive_json(&[entry], false)).expect("valid JSON");
     assert_eq!(value["foo"]["dependentPackages"][0]["location"], "packages/�-app");
-}
-
-#[tokio::test]
-async fn packument_cache_deduplicates_concurrent_fetches() {
-    let mut server = mockito::Server::new_async().await;
-    let package = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-    let first_fetch = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
-    let second_fetch =
-        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers);
-
-    let (first, second) = tokio::join!(first_fetch, second_fetch);
-
-    assert_eq!(first.expect("first fetch").name, "foo");
-    assert_eq!(second.expect("second fetch").name, "foo");
-    package.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_cache_does_not_memoize_failures() {
-    let mut server = mockito::Server::new_async().await;
-    let failed_request = server
-        .mock("GET", "/foo")
-        .with_status(500)
-        .with_body("not package metadata")
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-
-    assert!(
-        fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-            .await
-            .is_err(),
-    );
-    failed_request.assert_async().await;
-    failed_request.remove_async().await;
-
-    let successful_request = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-
-    let package = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-        .await
-        .expect("retry package fetch");
-    assert_eq!(package.name, "foo");
-    successful_request.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_cache_recovers_from_poisoning() {
-    let mut server = mockito::Server::new_async().await;
-    let package = server
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(r#"{ "name": "foo", "dist-tags": {}, "versions": {} }"#)
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let config = Config::new();
-    let client = ThrottledClient::default();
-    let cache = PackumentCache::default();
-
-    std::thread::scope(|scope| {
-        assert!(
-            scope
-                .spawn(|| {
-                    let _guard = cache.lock().expect("lock packument cache");
-                    panic!("poison packument cache");
-                })
-                .join()
-                .is_err(),
-        );
-    });
-
-    let fetched = fetch_package_cached(&cache, "foo", &client, &registry, &config.auth_headers)
-        .await
-        .expect("fetch package after cache poisoning");
-    assert_eq!(fetched.name, "foo");
-    package.assert_async().await;
 }

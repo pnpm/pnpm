@@ -71,7 +71,7 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
         Channel::Registry { package } => {
             provision_from_registry::<Reporter>(config, pm, package, version_spec).await
         }
-        Channel::Binary(binary) => provision_binary(binary, version_spec).await,
+        Channel::Binary(binary) => provision_binary(config, binary, version_spec).await,
     }
 }
 
@@ -79,6 +79,7 @@ pub(crate) async fn provision<Reporter: self::Reporter + 'static>(
 /// managed-runtime installer already materializes: pinned by a publisher
 /// checksum, unpacked into the global virtual store, executed from there.
 async fn provision_binary(
+    config: &Config,
     binary: BinaryChannel,
     version_spec: &str,
 ) -> miette::Result<ProvisionedEngine> {
@@ -86,7 +87,8 @@ async fn provision_binary(
         BinaryChannel::Bun => "bun",
         BinaryChannel::Yarn => "yarn",
     };
-    let program = materialize_runtime(name.to_string(), version_spec.to_string()).await?;
+    let program =
+        materialize_runtime(&config.state_dir, name.to_string(), version_spec.to_string()).await?;
     let bin_dir = program.parent().ok_or_else(|| EngineError::MissingEngineBin {
         name,
         dir: program.display().to_string(),
@@ -109,6 +111,10 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
         &env_root,
         version_spec,
         &resolved.version,
+        // A foreign package manager's closure is recorded in a global env
+        // lockfile under the pnpm home directory, never in the project's
+        // `pnpm-lock.yaml`, so `--frozen-lockfile` has nothing to freeze here.
+        false,
         false,
     ))
     .await?;
@@ -122,7 +128,7 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
     let packages = pm
         .engine_packages(&resolved.version)
         .ok_or_else(|| miette::miette!("{name}@{} is not a registry engine", resolved.version))?;
-    if let Some(node_bin_dir) = node_bin_dir(packages).await? {
+    if let Some(node_bin_dir) = node_bin_dir(config, packages).await? {
         bin_dirs.push(node_bin_dir);
     }
     Ok(ProvisionedEngine { program, bin_dirs })
@@ -135,12 +141,16 @@ async fn provision_from_registry<Reporter: self::Reporter + 'static>(
 /// A machine that only ever installed pnpm has no Node.js at all, and npm
 /// and Yarn cannot start without one, so pnpm installs the runtime it
 /// already knows how to manage rather than failing.
-async fn node_bin_dir(packages: EnginePackages) -> miette::Result<Option<PathBuf>> {
+async fn node_bin_dir(
+    config: &Config,
+    packages: EnginePackages,
+) -> miette::Result<Option<PathBuf>> {
     if packages.links_native_binary || which::which("node").is_ok() {
         return Ok(None);
     }
-    let node = materialize_runtime("node".to_string(), MANAGED_NODE_SPEC.to_string())
-        .await
-        .wrap_err("install a Node.js runtime to run the package manager with")?;
+    let node =
+        materialize_runtime(&config.state_dir, "node".to_string(), MANAGED_NODE_SPEC.to_string())
+            .await
+            .wrap_err("install a Node.js runtime to run the package manager with")?;
     Ok(node.parent().map(Path::to_path_buf))
 }

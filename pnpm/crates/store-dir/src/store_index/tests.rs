@@ -1,5 +1,5 @@
 use super::{
-    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, StoreIndexError,
+    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, SideEffectsDiff, StoreIndex, StoreIndexError,
     git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
@@ -48,9 +48,11 @@ fn sample_index() -> PackageFilesIndex {
     PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 
@@ -88,6 +90,42 @@ fn pick_store_index_key_uses_git_hosted_for_flagged_tarball() {
 
     let key = pick_store_index_key(Some("sha512-abc"), true, "github.com/foo/bar/abc1234", false);
     assert_eq!(key, "github.com/foo/bar/abc1234\tnot-built");
+}
+
+#[tokio::test]
+async fn writer_persists_remote_side_effects_and_bounded_quarantine() {
+    let dir = tempdir().unwrap();
+    let store_dir = StoreDir::new(dir.path());
+    let key = store_index_key("sha512-remote", "native-addon@1.0.0");
+    StoreIndex::open(store_dir.root()).unwrap().set(&key, &sample_index()).unwrap();
+
+    let (writer, task) = super::StoreIndexWriter::spawn(&store_dir);
+    writer.queue_remote_side_effects(
+        key.clone(),
+        "linux".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::new()),
+            deleted: Some(Vec::new()),
+            remote_origin: None,
+        },
+    );
+    for index in 0..70 {
+        writer.queue_remote_side_effects_quarantine(
+            key.clone(),
+            "https://pnpr.example/".to_string(),
+            format!("{index:064}"),
+        );
+    }
+    drop(writer);
+    task.await.unwrap().unwrap();
+
+    let row = StoreIndex::open(store_dir.root()).unwrap().get(&key).unwrap().unwrap();
+    assert!(row.side_effects.unwrap().contains_key("linux"));
+    let quarantine = row.remote_side_effects_quarantine.unwrap();
+    assert_eq!(
+        quarantine["https://pnpr.example/"],
+        (6..70).map(|index| format!("{index:064}")).collect::<Vec<_>>(),
+    );
 }
 
 #[test]

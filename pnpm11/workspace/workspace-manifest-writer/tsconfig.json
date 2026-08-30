@@ -16,6 +16,9 @@
       "path": "../../__utils__/prepare-temp-dir"
     },
     {
+      "path": "../../building/policy"
+    },
+    {
       "path": "../../catalogs/types"
     },
     {

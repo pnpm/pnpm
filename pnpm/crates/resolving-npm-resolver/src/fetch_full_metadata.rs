@@ -19,10 +19,11 @@
 
 use pnpm_network::{
     AuthHeaders, RetryOpts, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
-    retry_async, send_with_retry_at_priority,
+    redact_url_for_display, retry_async, send_with_retry_at_priority,
 };
 use pnpm_registry::Package;
 use reqwest::{Response, StatusCode, header};
+use std::time::{Duration, Instant};
 
 use crate::{FetchMetadataError, mirror::clear_meta, registry_url::to_registry_url};
 
@@ -219,6 +220,7 @@ pub async fn fetch_full_metadata(
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let started_at = Instant::now();
         let (client, response) = send_metadata_request(&MetadataRequestOptions {
             pkg_name,
             url: &url,
@@ -251,20 +253,34 @@ pub async fn fetch_full_metadata(
         // `fetch_full_metadata_cached` for the cold-install numbers).
         drop(client);
         let task_url = url.clone();
-        let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-            let meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
-                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
-            })?;
-            Ok(if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta })
-        })
+        let (meta, elapsed) = tokio::task::spawn_blocking(
+            move || -> Result<(Package, Duration), FetchMetadataError> {
+                let mut meta = serde_json::from_str::<Package>(&raw_body).map_err(|error| {
+                    FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
+                })?;
+                meta.drop_incomplete_publish_times();
+                let elapsed = started_at.elapsed();
+                let meta =
+                    if normalize_to_abbreviated { normalize_abbreviated_meta(meta) } else { meta };
+                Ok((meta, elapsed))
+            },
+        )
         .await
         .map_err(|error| FetchMetadataError::ParseTask {
             url: redact_url_credentials(&url),
             error,
         })??;
+        warn_if_request_is_slow(opts.http_client, elapsed, &url);
         Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await
+}
+
+pub(crate) fn warn_if_request_is_slow(http_client: &ThrottledClient, elapsed: Duration, url: &str) {
+    let elapsed_ms = elapsed.as_millis();
+    if elapsed_ms > http_client.fetch_warn_timeout().as_millis() {
+        http_client.warn(&format!("Request took {elapsed_ms}ms: {}", redact_url_for_display(url)));
+    }
 }
 
 /// Strip a packument served for an **abbreviated** request down to the

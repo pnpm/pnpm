@@ -22,6 +22,36 @@ fn version_flag_prints_the_bare_version() {
 }
 
 #[test]
+fn version_flag_accepts_shamefully_hoist() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+
+    let output = pacquet
+        .with_args(["--shamefully-hoist=true", "--version"])
+        .output()
+        .expect("run pacquet --shamefully-hoist=true --version");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet should accept --shamefully-hoist");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), format!("{}\n", pnpm_config::PNPM_VERSION));
+
+    drop(root);
+}
+
+#[test]
+fn version_flag_rejects_invalid_shamefully_hoist_value() {
+    for flag in ["--shamefully-hoist=yes", "--config.shamefully-hoist=yes"] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+        let output = pacquet
+            .with_args([flag, "--version"])
+            .output()
+            .expect("run pacquet with an invalid shamefully-hoist value");
+        dbg!(&output);
+        assert!(!output.status.success(), "pacquet should reject {flag}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unexpected argument"));
+        drop(root);
+    }
+}
+
+#[test]
 fn short_version_flag_prints_the_bare_version() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
@@ -49,6 +79,49 @@ fn version_flag_switches_to_project_package_manager_version() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet --version should succeed");
     assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn child_pnpm_selects_the_version_for_its_own_directory() {
+    let CommandTempCwd { pacquet, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let project_a = root.path().join("a");
+    let project_b = root.path().join("b");
+    fs::create_dir_all(&project_a).expect("create project a");
+    fs::create_dir_all(&project_b).expect("create project b");
+    fs::write(project_a.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write project a package.json");
+    fs::write(project_b.join("package.json"), r#"{"packageManager":"pnpm@9.1.3"}"#)
+        .expect("write project b package.json");
+
+    let version_script = root.path().join("child-version.cjs");
+    fs::write(
+        &version_script,
+        r"
+        const { spawnSync } = require('node:child_process')
+        const result = spawnSync('pnpm', ['--version'], {
+          cwd: process.argv[2],
+          encoding: 'utf8',
+        })
+        if (result.status !== 0) throw new Error(result.stderr)
+        process.stdout.write(result.stdout)
+    ",
+    )
+    .expect("write child version script");
+    let output = test_command(pacquet, root.path())
+        .current_dir(&project_a)
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["exec", "node"])
+        .arg(&version_script)
+        .arg(&project_b)
+        .output()
+        .expect("run child pnpm in project b");
+    dbg!(&output);
+    assert!(output.status.success(), "child pnpm should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.1.3\n");
 
     drop((root, mock_instance));
 }
@@ -91,6 +164,55 @@ fn version_flag_records_a_pinned_package_manager_it_does_not_need_to_switch_to()
     drop((root, mock_instance));
 }
 
+/// A range pin is resolved once, and the lockfile then names the one pnpm
+/// every contributor on the project runs. A running pnpm that satisfies the
+/// range as well is not automatically that one.
+#[test]
+fn version_flag_switches_to_the_version_a_range_pin_resolved_to() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engine_pin(&workspace, "9.3.0");
+
+    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    write_dev_engine_pin(&workspace, ">=0.0.0");
+
+    let output = version_output(root.path(), &workspace, &mock_instance.url());
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
+fn write_dev_engine_pin(workspace: &Path, version: &str) {
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{version}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write package.json");
+}
+
+fn version_output(root: &Path, workspace: &Path, registry: &str) -> std::process::Output {
+    use assert_cmd::cargo::CommandCargoExt as _;
+    use pnpm_testing_utils::command_env::CommandTestExt as _;
+    let command = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config();
+    test_command(command, root)
+        .env("PNPM_CONFIG_REGISTRY", registry)
+        .arg("--version")
+        .output()
+        .expect("run pacquet --version")
+}
+
 fn test_command(mut command: Command, root: &Path) -> Command {
     command.env("PNPM_HOME", root.join("pnpm-home"));
     command.env("HOME", root);
@@ -116,6 +238,10 @@ fn pacquet_version(workspace: &Path, args: &[&str]) -> std::process::Output {
 
 fn write_manifest(dir: &Path, json: &str) {
     fs::write(dir.join("package.json"), json).expect("write package.json");
+}
+
+fn manifest_text(dir: &Path) -> String {
+    fs::read_to_string(dir.join("package.json")).expect("read manifest")
 }
 
 fn manifest_version(dir: &Path) -> String {
@@ -634,6 +760,72 @@ fn recursive_mode_skips_the_commit_and_tag() {
 
     assert!(output.status.success(), "{}", stderr_of(&output));
     assert_eq!(manifest_version(&pkg_a), "1.0.1");
+    assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
+    assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
+    drop(root);
+}
+
+#[test]
+fn dry_run_reports_the_bump_without_writing_the_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, r#"{"name":"test-pkg","version":"1.0.0"}"#);
+    let manifest_before = manifest_text(&workspace);
+
+    let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Version bump plan:"), "{stdout}");
+    assert!(stdout.contains("1.0.0 → 1.0.1"), "{stdout}");
+    assert_eq!(manifest_text(&workspace), manifest_before);
+    drop(root);
+}
+
+#[test]
+fn dry_run_leaves_every_workspace_manifest_untouched() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let (pkg_a, pkg_b) = write_two_package_workspace(&workspace);
+    let manifests_before = [&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir));
+
+    let output = pacquet_recursive_version(&workspace, &["-r", "version", "patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("pkg-a: 1.0.0 → 1.0.1"), "{stdout}");
+    assert!(stdout.contains("pkg-b: 2.3.0 → 2.3.1"), "{stdout}");
+    assert_eq!([&workspace, &pkg_a, &pkg_b].map(|dir| manifest_text(dir)), manifests_before);
+    drop(root);
+}
+
+#[test]
+fn dry_run_skips_the_git_checks_the_lifecycle_scripts_and_the_commit() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let log_script = concat!(
+        r#"node -e "require('fs').appendFileSync('lifecycle.log',"#,
+        r#" process.env.npm_lifecycle_event + '\n')""#,
+    );
+    write_manifest(
+        &workspace,
+        &serde_json::json!({
+            "name": "test-pkg",
+            "version": "1.0.0",
+            "scripts": {
+                "preversion": log_script,
+                "version": log_script,
+                "postversion": log_script,
+            },
+        })
+        .to_string(),
+    );
+    init_git(&workspace);
+    git_commit_all(&workspace, "init");
+    let commits_before = git_stdout(&workspace, &["rev-list", "--count", "HEAD"]);
+    fs::write(workspace.join("dirty.txt"), "x").expect("dirty the tree");
+
+    let output = pacquet_version(&workspace, &["patch", "--dry-run"]);
+
+    assert!(output.status.success(), "{}", stderr_of(&output));
+    assert!(!workspace.join("lifecycle.log").exists(), "lifecycle scripts must not run");
     assert_eq!(git_stdout(&workspace, &["tag", "--list"]), "");
     assert_eq!(git_stdout(&workspace, &["rev-list", "--count", "HEAD"]), commits_before);
     drop(root);

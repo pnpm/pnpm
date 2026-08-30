@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.commands",
-  "version": "1100.15.0",
+  "version": "1101.1.0",
   "description": "Commands for installation",
   "keywords": [
     "pnpm",
@@ -79,6 +79,7 @@
     "@pnpm/store.connection-manager": "workspace:*",
     "@pnpm/store.controller": "workspace:*",
     "@pnpm/text.ordinal-comparator": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@pnpm/workspace.project-manifest-writer": "workspace:*",
@@ -88,6 +89,7 @@
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.root-finder": "workspace:*",
     "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.task-scheduler": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",
     "@yarnpkg/core": "catalog:",
@@ -102,7 +104,6 @@
     "load-json-file": "catalog:",
     "normalize-path": "catalog:",
     "p-filter": "catalog:",
-    "p-limit": "catalog:",
     "ramda": "catalog:",
     "render-help": "catalog:",
     "string-width": "catalog:",

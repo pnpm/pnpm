@@ -4,6 +4,7 @@ use super::{
     CasPathsByPkgId, LinkHoistedModulesError, LinkHoistedModulesOpts, link_hoisted_modules,
 };
 use crate::{DepHierarchy, DependenciesGraph, DependenciesGraphNode};
+use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
 use pnpm_modules_yaml::DepPath;
@@ -128,6 +129,7 @@ fn import_pass_creates_package_directory() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -171,6 +173,7 @@ fn orphan_directory_is_removed() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -225,6 +228,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -259,6 +263,7 @@ fn missing_cas_for_required_dep_errors() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("required dep needs CAS");
@@ -298,6 +303,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("optional skips silently");
@@ -509,6 +515,7 @@ fn no_prev_graph_still_installs() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds without prev_graph");
@@ -550,6 +557,7 @@ fn orphan_already_removed_is_tolerated() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("phantom orphan tolerated");
@@ -581,6 +589,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     let err = link_hoisted_modules::<SilentReporter>(&opts).expect_err("inconsistency surfaces");

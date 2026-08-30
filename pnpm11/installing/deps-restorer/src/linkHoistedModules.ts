@@ -15,11 +15,12 @@ import type {
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
 import { readModulesDir } from '@pnpm/fs.read-modules-dir'
 import { logger } from '@pnpm/logger'
+import { createRemoteSideEffectsRestorer, type RemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store.controller-types'
-import type { AllowBuild, SupportedArchitectures } from '@pnpm/types'
+import type { AllowBuild, RegistryConfig, RemoteSideEffectsCacheSettings, SupportedArchitectures } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
 import pLimit from 'p-limit'
 import { pathExists } from 'path-exists'
@@ -50,6 +51,9 @@ export async function linkHoistedModules (
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    pnprServer?: string
+    configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
@@ -83,6 +87,20 @@ export async function linkHoistedModules (
   const nodeVersion = findRuntimeNodeVersion(
     Object.values(graph).map((node) => node.depPath)
   )
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: graph,
+    depsStateCache: opts.depsStateCache,
+    ignoreScripts: opts.ignoreScripts,
+    nodeVersion,
+    pnprServer: opts.pnprServer,
+    settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    storeController,
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
   await Promise.all(
     Object.entries(hierarchy)
       .map(([parentDir, depsHierarchy]) => {
@@ -95,6 +113,7 @@ export async function linkHoistedModules (
         return linkAllPkgsInOrder(storeController, graph, depsHierarchy, parentDir, {
           ...opts,
           nodeVersion,
+          restorer,
           warn,
         })
       })
@@ -194,6 +213,7 @@ async function linkAllPkgsInOrder (
     lockfileDir: string
     preferSymlinkedExecutables?: boolean
     sideEffectsCacheRead: boolean
+    restorer?: RemoteSideEffectsRestorer<string>
     supportedArchitectures?: SupportedArchitectures
     /**
      * Resolved `engines.runtime` Node version, computed once by
@@ -219,15 +239,27 @@ async function linkAllPkgsInOrder (
         }
 
         depNode.requiresBuild = filesResponse.requiresBuild
-        let sideEffectsCacheKey: string | undefined
-        if (opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
+        let sideEffectsCacheKey = await opts.restorer?.restore({
+          graphKey: dir,
+          depPath: depNode.depPath,
+          files: filesResponse,
+          filesIndexFile: depNode.filesIndexFile,
+          name: depNode.name,
+          patchFileHash: depNode.patch?.hash,
+          resolution: depNode.resolution,
+          version: depNode.version,
+        })
+        if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && filesResponse.sideEffectsMaps && !isEmpty(filesResponse.sideEffectsMaps)) {
           if (opts.allowBuild?.(depNode.depPath) === true) {
-            sideEffectsCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
-              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+            const localCacheKey = calcDepState(graph, opts.depsStateCache, dir, {
+              includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
               patchFileHash: depNode.patch?.hash,
               supportedArchitectures: opts.supportedArchitectures,
               nodeVersion: opts.nodeVersion,
             })
+            if (filesResponse.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+              sideEffectsCacheKey = localCacheKey
+            }
           }
         }
         // Limiting the concurrency here fixes an out of memory error.

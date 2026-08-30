@@ -15,6 +15,7 @@ pnpm-catalogs-resolver              = { workspace = true }
 pnpm-catalogs-types                 = { workspace = true }
 pnpm-package-manifest               = { workspace = true }
 pnpm-resolving-jsr-specifier-parser = { workspace = true }
+pnpm-workspace-spec                 = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

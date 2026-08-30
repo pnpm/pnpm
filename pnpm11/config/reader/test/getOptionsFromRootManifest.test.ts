@@ -1,7 +1,7 @@
 import util from 'node:util'
 
 import { afterEach, expect, test } from '@jest/globals'
-import type { PackageExtension } from '@pnpm/types'
+import type { PackageExtension, PnpmSettings } from '@pnpm/types'
 
 import { getOptionsFromPnpmSettings } from '../lib/getOptionsFromRootManifest.js'
 
@@ -96,6 +96,116 @@ test('getOptionsFromPnpmSettings() converts allowBuilds', () => {
       qar: 'warn',
     },
   })
+})
+
+test('getOptionsFromPnpmSettings() reads remote side-effects cache settings', () => {
+  const remoteSideEffectsCache = {
+    org: 'acme',
+    packages: ['native-addon'],
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() reads the canonical side-effects cache declaration', () => {
+  const sideEffectsCache = {
+    read: true,
+    write: false,
+    remote: { org: 'acme', packages: ['native-addon'] },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { sideEffectsCache }))
+    .toStrictEqual({ sideEffectsCache })
+})
+
+// The trust boundary follows the fields, not the spelling: a repository may no
+// more sign through the canonical declaration than through the older one, and
+// the message has to name the key the file actually wrote.
+test('getOptionsFromPnpmSettings() rejects workspace-controlled trust material under sideEffectsCache.remote', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: {
+      remote: { org: 'acme', privateKey: 'repository-controlled-key' },
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+    message: expect.stringContaining('sideEffectsCache.remote.privateKey'),
+  }))
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean sideEffectsCache.read', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    sideEffectsCache: { read: 'yes' },
+  } as unknown as PnpmSettings)).toThrow(/sideEffectsCache\.read/)
+})
+
+// A repository that could set `publish` would turn a key the machine holds for
+// its own builds into a signing oracle, so every field but the two that declare
+// eligibility is refused.
+test.each([
+  ['trustedKeys', { 'acme-2026': 'repository-controlled-key' }],
+  ['privateKey', 'repository-controlled-key'],
+  ['publish', true],
+  ['keyId', 'acme-2026'],
+  ['builderId', 'ci/main/42'],
+  ['imageDigest', 'sha256:abc'],
+  ['architectureBaseline', 'x64'],
+  ['buildEnv', { CC: 'clang' }],
+])('getOptionsFromPnpmSettings() rejects a workspace-controlled remote side-effects %s', (field, value) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache: {
+      org: 'acme',
+      packages: ['native-addon'],
+      [field]: value,
+    },
+  } as unknown as PnpmSettings)).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+  }))
+})
+
+test('getOptionsFromPnpmSettings() accepts remote side-effects trust material on its own from a trusted source', () => {
+  const remoteSideEffectsCache = {
+    trustedKeys: { 'acme-2026': 'AA==' },
+    privateKey: 'AA==',
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() reads the remote side-effects builder settings from a trusted source', () => {
+  const remoteSideEffectsCache = {
+    org: 'acme',
+    packages: ['native-addon'],
+    publish: true,
+    keyId: 'acme-2026',
+    builderId: 'ci/main/42',
+    imageDigest: 'sha256:abc',
+    architectureBaseline: 'x64',
+    buildEnv: { CC: 'clang' },
+  }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }, {
+    trustedSource: true,
+  })).toStrictEqual({ remoteSideEffectsCache })
+})
+
+test('getOptionsFromPnpmSettings() lets a workspace declare eligibility', () => {
+  const remoteSideEffectsCache = { organization: 'acme', packages: ['native-addon'] }
+  expect(getOptionsFromPnpmSettings(process.cwd(), { remoteSideEffectsCache }))
+    .toStrictEqual({ remoteSideEffectsCache })
+})
+
+test.each([
+  ['organization', { organization: 42, packages: [] }],
+  ['packages', { organization: 'acme', packages: 'native-addon' }],
+  ['publish', { organization: 'acme', packages: [], publish: 'yes' }],
+  ['buildEnv', { organization: 'acme', packages: [], buildEnv: { CC: 1 } }],
+  ['keyId', { organization: 'acme', packages: [], keyId: 7 }],
+])('getOptionsFromPnpmSettings() rejects a malformed remote side-effects %s', (_field, remoteSideEffectsCache) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    remoteSideEffectsCache,
+  } as unknown as PnpmSettings, { trustedSource: true })).toThrow(expect.objectContaining({
+    code: 'ERR_PNPM_INVALID_SETTING',
+  }))
 })
 
 test('getOptionsFromPnpmSettings() rejects non-string overrides values', () => {
@@ -531,4 +641,104 @@ test('getOptionsFromPnpmSettings() rejects an unknown field in a registry declar
       'https://npm.corp.example/': { scope: '@acme' } as never,
     },
   })).toThrow(/is not a known registry setting/)
+})
+
+test('getOptionsFromPnpmSettings() reads a declared supportsTimeField', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: true },
+      'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+    },
+  })
+  expect(options.registryOptionsByUrl).toStrictEqual({
+    'https://npm.corp.example/': { supportsTimeField: true },
+    'https://artifactory.example/': { serverType: 'artifactory', supportsTimeField: false },
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a non-boolean supportsTimeField', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    registries: {
+      'https://npm.corp.example/': { supportsTimeField: 'yes' as never },
+    },
+  })).toThrow(/supportsTimeField" setting should be a boolean, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() translates virtualStoreType to enableGlobalVirtualStore', () => {
+  for (const [virtualStoreType, expected] of [['global', true], ['project', false]] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), { virtualStoreType }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+    expect(options.virtualStoreType).toBeUndefined()
+  }
+})
+
+test('getOptionsFromPnpmSettings() lets virtualStoreType win over enableGlobalVirtualStore', () => {
+  for (const [virtualStoreType, enableGlobalVirtualStore, expected] of [
+    ['project', true, false],
+    ['global', false, true],
+  ] as const) {
+    const options = getOptionsFromPnpmSettings(process.cwd(), {
+      virtualStoreType,
+      enableGlobalVirtualStore,
+    }) as any // eslint-disable-line
+    expect(options.enableGlobalVirtualStore).toBe(expected)
+  }
+})
+
+test('getOptionsFromPnpmSettings() keeps enableGlobalVirtualStore working on its own', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    enableGlobalVirtualStore: true,
+  }) as any // eslint-disable-line
+  expect(options.enableGlobalVirtualStore).toBe(true)
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown virtualStoreType', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    virtualStoreType: 'shared' as never,
+  })).toThrow(/The "virtualStoreType" setting should be one of global, project, but got "shared"/)
+})
+
+test('getOptionsFromPnpmSettings() passes a valid tasks section through', () => {
+  const options = getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: {
+      build: { concurrency: 2, dependsOn: ['^build'] },
+      test: { dependsOn: ['build'] },
+      lint: {},
+    },
+  })
+  expect(options.tasks).toStrictEqual({
+    build: { concurrency: 2, dependsOn: ['^build'] },
+    test: { dependsOn: ['build'] },
+    lint: {},
+  })
+})
+
+test('getOptionsFromPnpmSettings() rejects a tasks entry that is not an object', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: ['^build'] } as never,
+  })).toThrow(/The "tasks\['build'\]" setting should be an object, but got array/)
+})
+
+test('getOptionsFromPnpmSettings() rejects an unknown task setting field', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependson: ['^build'] } } as never,
+  })).toThrow(/The "tasks\['build'\].dependson" setting is not a known task setting/)
+})
+
+test('getOptionsFromPnpmSettings() rejects a dependsOn that is not an array of strings', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependsOn: '^build' } } as never,
+  })).toThrow(/The "tasks\['build'\].dependsOn" setting should be an array of strings, but got string/)
+})
+
+test('getOptionsFromPnpmSettings() rejects a dependsOn entry with no task name', () => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { dependsOn: ['^'] } },
+  })).toThrow(/The "tasks\['build'\].dependsOn" setting contains an entry with no task name: "\^"/)
+})
+
+test.each([0, -1, 1.5, '2'])('getOptionsFromPnpmSettings() rejects invalid task concurrency %p', (concurrency) => {
+  expect(() => getOptionsFromPnpmSettings(process.cwd(), {
+    tasks: { build: { concurrency } } as never,
+  })).toThrow(/The "tasks\['build'\].concurrency" setting should be a positive integer/)
 })

@@ -1,0 +1,203 @@
+# path to a directory with the authoritative packages — those published
+# to this server and anything served in static mode. This is the source
+# of truth; back it up and keep it on a durable volume.
+storage: ./storage
+# path to the disposable proxy cache: the mirror of upstream registries
+# plus the install-accelerator store. Safe to wipe at any time. Defaults
+# to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
+# ephemeral volume to keep cached upstream content off the durable disk.
+#cache: ./cache
+# Store the hosted (published) packages and enabled shared artifacts in an
+# S3-compatible object store instead of local directories. Works with AWS S3 (omit
+# `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
+# MinIO, Backblaze B2, etc. The proxy cache and install-accelerator stores stay
+# on local disk. Credentials fall back to the
+# standard AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment
+# variables when not set here.
+#s3:
+#  bucket: my-pnpr-packages
+#  region: auto
+#  endpoint: https://<account-id>.r2.cloudflarestorage.com
+#  prefix: packages
+#  accessKeyId: ${PNPR_S3_ACCESS_KEY_ID}
+#  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
+#  forcePathStyle: false
+#  allowHttp: false
+# Back the auth record stores (users + tokens) with one shared SQL
+# database instead of the local htpasswd file + SQLite token db. Lets
+# several stateless pnpr replicas share one consistent set of accounts.
+# Select exactly one backend below. `backend-libsql` is enabled by
+# default; PostgreSQL and MySQL builds need the matching Cargo feature.
+#backend:
+#  libsql:
+#    url: ${PNPR_LIBSQL_URL}
+#    authToken: ${PNPR_LIBSQL_TOKEN}
+#    replicaPath: ./auth-replica.db
+#    syncIntervalSecs: 60
+#  postgres:
+#    url: ${PNPR_POSTGRES_URL}
+#    maxConnections: 16
+#  mysql:
+#    url: ${PNPR_MYSQL_URL}
+#    maxConnections: 16
+# The npm-registry surface (packument/tarball reads, publish, unpublish,
+# dist-tag, search) is served iff at least one registry is declared under
+# `registries:` below; `--disable-registry` turns it off per tier. The install
+# accelerator has its own toggle. Something must be served: registries, or the
+# resolver, or artifacts. (`/-/ping` and the login/token account endpoints are
+# always served.)
+#resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
+#  enabled: true     # and /-/pnpr/v0/verify-lockfile
+#artifacts:          # organization-scoped shared-artifact PoC endpoints
+#  enabled: false
+secret: pnpm-registry-mock-secret-key-32
+
+auth:
+  htpasswd:
+    file: ./htpasswd
+    # Maximum amount of users allowed to register. The safe default is -1
+    # (registration disabled); set a non-negative cap to allow registration.
+    max_users: -1
+
+# Teams — named user sets — are declared per registry (a `teams:` map on a
+# hosted or upstream registry under `registries:` below) and referenced from
+# that registry's access lists as `team:<name>`; a bare token is always a
+# username. e.g.
+#    teams:
+#      platform: [alice, bob]
+#    access: team:platform
+
+plugins: ../node_modules
+
+middlewares:
+  audit:
+    enabled: true
+
+web:
+  enable: false
+
+# Registries: the only routing surface. Every addressable origin is a
+# registry exposed at `/~<name>/`, and provenance is declared, never inferred —
+# every concrete registry declares the package-name patterns it serves (its
+# namespace, enforced on every path to it), a package resolves to exactly one
+# declared concrete origin, and there is no cross-origin fall-through (not on
+# "not found", not on "unavailable"). This is the `@pnpm/registry-mock` shape:
+# the fixture scopes are served from the local hosted store, and everything
+# else proxies the public npm registry.
+registries:
+  # The locally-hosted fixtures (and anything published here). With no `org`,
+  # this registry namespaces onto the flat `storage` root, where the fixtures are
+  # seeded. The `packages:` map is the registry's declared namespace (its key
+  # set) plus the per-package access rules (its values): only these names can
+  # be served from or published to this registry — so a name outside it can
+  # never squat here and later shadow its real origin — and each name is
+  # gated by its most specific matching key, whatever the key order. The
+  # `unpublish: $authenticated` value keeps the `@pnpm/registry-mock`
+  # contract (destructive writes open to any authenticated user), which the
+  # per-registry default (unpublish denied) would otherwise tighten.
+  local:
+    type: hosted
+    access: $all
+    packages:
+      # Scopes seeded from the in-repo fixture sources
+      # (`pnpr/.fixtures/packages/`). Scopes shared with real, active npm
+      # scopes (`@pnpm`, `@zkochan`) are claimed by exact name instead — see
+      # below — so proxied dependency trees can still pull the scope's other
+      # real packages from npm.
+      '@foo/*': &default-rules { unpublish: $authenticated }
+      '@having/*': *default-rules
+      '@jsr/*': *default-rules
+      '@pnpm.e2e/*': *default-rules
+      '@private/*': &authenticated
+        access: $authenticated
+        publish: $authenticated
+        unpublish: $authenticated
+      '@scoped/*': *default-rules
+      'create-touch-file-one-bin': *default-rules
+      # Fully unpublished from npmjs.org, so the fixture copy is the only
+      # source; the rest of its (real) dependency tree still proxies to npm.
+      'preact-particles': *default-rules
+      # The fixture packages in the real `@pnpm` and `@zkochan` scopes, each
+      # claimed by exact name.
+      '@pnpm/plugin-pnpmfile': *default-rules
+      '@pnpm/postinstall-modifies-source': *default-rules
+      '@pnpm/x': *default-rules
+      '@pnpm/xyz': *default-rules
+      '@pnpm/xyz-parent': *default-rules
+      '@pnpm/xyz-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-with-xyz': *default-rules
+      '@pnpm/y': *default-rules
+      '@pnpm/z': *default-rules
+      '@zkochan/test-pnpm-issue219': *default-rules
+      # Names tests publish to the mock and then read back. Exact names only —
+      # an unscoped prefix wildcard would swallow real npm packages that
+      # proxied dependency trees need (`test-*` would capture `test-exclude`).
+      # A test publishing a new unscoped name must add it here; publishing
+      # dynamically-suffixed names belongs in the `@pnpmtest` scope.
+      '@pnpmtest/*': *default-rules
+      'batch-dry-1': *default-rules
+      'batch-dry-2': *default-rules
+      'batch-no-recursive': *default-rules
+      'batch-pkg-2': *default-rules
+      'batch-unsupported-1': *default-rules
+      'project-100': *default-rules
+      'project-200': *default-rules
+      'publish_config_directory_dist_package': *default-rules
+      'test-deprecate-package': *default-rules
+      'test-deprecate-specific': *default-rules
+      'test-dist-tag-add': *default-rules
+      'test-dist-tag-add-default': *default-rules
+      'test-dist-tag-ls': *default-rules
+      'test-dist-tag-ls-default': *default-rules
+      'test-dist-tag-rm': *default-rules
+      'test-dist-tag-rm-latest': *default-rules
+      'test-dist-tag-rm-missing': *default-rules
+      'test-publish-config': *default-rules
+      'test-publish-config-directory': *default-rules
+      'test-publish-config-installation': *default-rules
+      'test-publish-helper-token-basic.json': *default-rules
+      'test-publish-helper-token-bearer.json': *default-rules
+      'test-publish-package-oidc.json': *default-rules
+      'test-publish-package.json': *default-rules
+      'test-publish-package.json5': *default-rules
+      'test-publish-package.yaml': *default-rules
+      'test-publish-scripts': *default-rules
+      'test-publish-skip-manifest-obfuscation': *default-rules
+      'test-publish-skip-manifest-obfuscation-installation': *default-rules
+      'test-publish-tarball': *default-rules
+      'test-publish-with-ignore-scripts': *default-rules
+      'test-publish-with-scripts': *default-rules
+      'test-undeprecate-pkg': *default-rules
+      'test-unpublish-force': *default-rules
+      'test-unpublish-no-force': *default-rules
+      'test-unpublish-no-ver': *default-rules
+      'test-unpublish-version': *default-rules
+      'workspace-package-with-default-catalog': *default-rules
+      'workspace-package-with-named-catalog': *default-rules
+      # Tightened by exact name: wins over the '@pnpm.e2e/*' scope key by
+      # specificity, whatever the key order.
+      '@pnpm.e2e/needs-auth': *authenticated
+  # The public npm registry. No `packages:` map — it serves every name, the
+  # catch-all in any router, so it must be listed last in `sources:` below.
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  # One URL routing each package to the first listed source whose declared
+  # packages claim it. The fixture names are authoritative-local; everything
+  # else is npm. A router refuses to start on an unreachable source, so the
+  # map-less catch-all must stay last.
+  main:
+    type: router
+    sources: [local, npmjs]
+
+# The path-less base URL (`https://<pnpr>/`) aliases this registry.
+defaultRegistry: main
+
+# log settings (verdaccio 6+ shape: a single `log:` object, not a list)
+log:
+  type: stdout
+  format: pretty
+  level: error

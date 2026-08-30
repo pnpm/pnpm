@@ -61,6 +61,21 @@ ignore = [
   # requires ^0.40.1. Revisit when object_store consumes quick-xml 0.41+.
   { id = "RUSTSEC-2026-0194", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
   { id = "RUSTSEC-2026-0195", reason = "Temporary risk acceptance: XML parsed by quick-xml comes only from the operator-configured S3 backend via object_store; no object_store release consumes the patched quick-xml 0.41 yet." },
+  # Unbounded queueing of empty HTTP/2 DATA frames (low-severity DoS). Only the
+  # `h2` 0.3 line is left unpatched here: pnpr's own HTTP/2 server surface runs
+  # on axum 0.8 -> hyper 1.x, which is on the fixed h2 0.4.16. The 0.3 copy is
+  # reached solely through libsql's gRPC client stack, whose `tonic` 0.11 and
+  # `hyper` 0.14 both depend on it directly. pnpr uses that client to talk out
+  # to the operator-configured libsql/sqld backend, so the frames it queues
+  # come from that backend rather than from untrusted registry clients. The fix
+  # ships only in h2 0.4.16 and 0.3.27 is the final 0.3 release, so no upgrade
+  # is reachable while the newest stable libsql (0.9.30) is pinned to tonic
+  # 0.11. Revisit when libsql 0.10 leaves prerelease.
+  #
+  # cargo-deny scopes an ignore to an advisory id, never to a version, so this
+  # entry would also silence the advisory on the 0.4 line. The `h2` bans below
+  # hold that line instead.
+  { id = "RUSTSEC-2026-0258", reason = "Temporary risk acceptance: the unpatched h2 0.3 copy is reached only by libsql's outbound gRPC client to the operator-configured backend; pnpr's own server is on the patched h2 0.4.16, and no stable libsql release moves off tonic 0.11." },
 ]
 
 # --- Licenses ------------------------------------------------------------
@@ -80,13 +95,26 @@ allow = [
 ]
 confidence-threshold = 0.8
 exceptions = [
-  # `pnpr` and `pnpr-fixtures` are first-party crates licensed under
-  # PolyForm Shield (see `pnpr/LICENSE.md`), not the MIT used by the rest
-  # of the workspace. cargo-deny only recognizes the PolyForm-Noncommercial
-  # identifier for this license text, so allow that id for just these two
-  # crates (the clarify entries below pin it by file hash).
+  # The first-party `pnpr*` crates are licensed under PolyForm Shield (see
+  # `pnpr/LICENSE.md`), not the MIT used by the rest of the workspace.
+  # cargo-deny only recognizes the PolyForm-Noncommercial identifier for this
+  # license text, so allow that id for just these crates (the clarify entries
+  # below pin it by file hash). Every new `pnpr-*` crate needs an entry here
+  # and a matching clarify block, or `Cargo Deny` fails it as unlicensed.
   { name = "pnpr", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-shared-artifacts", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-search", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-osv", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-auth", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-config", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-error", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-fixtures", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-package-name", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-policy", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-registry", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-route", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-storage", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-upstream", allow = ["PolyForm-Noncommercial-1.0.0"] },
 ]
 
 [[licenses.clarify]]
@@ -96,6 +124,66 @@ license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
 [[licenses.clarify]]
 name = "pnpr-fixtures"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-auth"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-route"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-osv"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-search"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-shared-artifacts"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-storage"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-upstream"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-config"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-error"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-package-name"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-policy"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-registry"
 expression = "PolyForm-Noncommercial-1.0.0"
 license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
@@ -120,7 +208,16 @@ highlight = "all"
 workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
-deny = []
+deny = [
+  # RUSTSEC-2026-0258 is ignored above, and cargo-deny can only ignore an
+  # advisory for the whole workspace. These two bans keep that ignore from
+  # covering more than the one copy it was accepted for: a vulnerable `h2` on
+  # the 0.4 line is refused outright, and the unpatched 0.3 line stays reachable
+  # only from libsql's gRPC stack, whose `tonic` and `hyper` are its sole direct
+  # dependents. Drop both once libsql moves off tonic 0.11 and the ignore goes.
+  { name = "h2", version = ">=0.4, <0.4.16" },
+  { name = "h2", version = "<0.4", wrappers = ["hyper", "tonic"] },
+]
 skip = []
 skip-tree = []
 

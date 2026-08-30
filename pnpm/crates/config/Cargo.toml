@@ -16,6 +16,7 @@ pnpm-config-dir             = { workspace = true }
 pnpm-detect-libc            = { workspace = true }
 pnpm-env-replace            = { workspace = true }
 pnpm-fs                     = { workspace = true }
+pnpm-git-utils              = { workspace = true }
 pnpm-lockfile               = { workspace = true }
 pnpm-network                = { workspace = true }
 pnpm-package-is-installable = { workspace = true }
@@ -25,7 +26,9 @@ pnpm-store-dir              = { workspace = true }
 pnpm-versioning             = { workspace = true }
 pnpm-workspace-state        = { workspace = true }
 
+base64        = { workspace = true }
 derive_more   = { workspace = true }
+dunce         = { workspace = true }
 home          = { workspace = true }
 indexmap      = { workspace = true }
 is_ci         = { workspace = true }

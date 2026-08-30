@@ -1,4 +1,6 @@
-use super::{BinOrigin, LinkBinsError, PackageBinSource, link_bins, link_bins_of_packages};
+use super::{
+    BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, link_bins, link_bins_of_packages,
+};
 use crate::{
     capabilities::{
         FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead, FsReadToString,
@@ -41,7 +43,7 @@ fn writes_shim_flavors_matching_host_platform() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -88,7 +90,7 @@ fn writes_shim_for_bin_string() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
         &bins_dir,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -132,7 +134,7 @@ fn link_bins_walks_modules_and_scopes() {
     create_dir_all(modules.join("not-a-package")).unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     assert!(bins.join("foo").exists(), "foo shim must exist");
     assert!(bins.join("bar").exists(), "scoped @s/bar shim must use bare name `bar`");
@@ -142,7 +144,7 @@ fn link_bins_walks_modules_and_scopes() {
 fn link_bins_handles_missing_modules_dir() {
     let tmp = tempdir().unwrap();
     let bins_dir = tmp.path().join(".bin");
-    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir, &[])
+    link_bins::<Host>(&tmp.path().join("missing"), &bins_dir, &LinkBinsOptions::default())
         .expect("missing modules dir is Ok");
     assert!(!bins_dir.exists(), "no shims means no bin dir created");
 }
@@ -156,8 +158,12 @@ fn link_bins_of_packages_no_op_when_no_bins() {
     let bins = tmp.path().join(".bin");
     let manifest: Value =
         serde_json::from_slice(&read_file(pkg.join("package.json")).unwrap()).unwrap();
-    link_bins_of_packages::<Host>(&[PackageBinSource::new(pkg, Arc::new(manifest))], &bins, &[])
-        .unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &bins,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
     assert!(!bins.exists(), "bins dir must not be created when nothing to link");
 }
 
@@ -195,7 +201,7 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
             PackageBinSource::new(alpha, Arc::new(manifest_alpha)),
         ],
         &bins,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -207,6 +213,37 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
 }
 
 #[test]
+fn same_package_bin_conflict_prefers_latest_version() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp.path().join("node_modules");
+    let packages = [("@_ts/min", "5.4.5"), ("typescript", "6.0.2"), ("@_ts/max", "6.0.3")].map(
+        |(alias, version)| {
+            let location = modules.join(alias);
+            create_dir_all(location.join("bin")).unwrap();
+            write_file(location.join("bin/tsc"), "#!/usr/bin/env node\n").unwrap();
+            PackageBinSource::new(
+                location,
+                Arc::new(json!({
+                    "name": "typescript",
+                    "version": version,
+                    "bin": { "tsc": "bin/tsc" },
+                })),
+            )
+        },
+    );
+    let expected_target = modules.join("@_ts/max/bin/tsc");
+    let bins = modules.join(".bin");
+
+    link_bins_of_packages::<Host>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+
+    let body = read_to_string(bins.join("tsc")).unwrap();
+    assert!(
+        is_shim_pointing_at(&body, &expected_target),
+        "the highest TypeScript version must provide `tsc`, got body:\n{body}",
+    );
+}
+
+#[test]
 fn link_bins_propagates_parse_manifest_error() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
@@ -214,7 +251,8 @@ fn link_bins_propagates_parse_manifest_error() {
     write_file(modules.join("broken/package.json"), "{ this is not json").unwrap();
 
     let bins = modules.join(".bin");
-    let err = link_bins::<Host>(&modules, &bins, &[]).expect_err("invalid manifest must surface");
+    let err = link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default())
+        .expect_err("invalid manifest must surface");
     assert!(
         matches!(err, LinkBinsError::ParseManifest { .. }),
         "expected ParseManifest, got {err:?}",
@@ -237,7 +275,7 @@ fn link_bins_links_a_package_whose_manifest_starts_with_a_utf8_bom() {
     write_file(modules.join("bom/cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     assert!(bins.join("bom").exists(), "missing shim for the BOM-prefixed package");
 }
@@ -252,14 +290,14 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
     let original = read_to_string(bins.join("foo")).unwrap();
     // Append a sentinel. If the second pass rewrites the shim, the
     // sentinel disappears.
     let sentinel = format!("{original}\n# SENTINEL");
     write_file(bins.join("foo"), &sentinel).unwrap();
 
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
     assert_eq!(read_to_string(bins.join("foo")).unwrap(), sentinel);
 }
 
@@ -285,7 +323,7 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
 
     let bins = modules.join(".bin");
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     // Simulate the partial-write / older-pacquet state: delete the
     // .cmd and .ps1 siblings, leaving only the canonical shim with its
@@ -293,7 +331,7 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     remove_file(bins.join("foo.cmd")).unwrap();
     remove_file(bins.join("foo.ps1")).unwrap();
 
-    link_bins::<Host>(&modules, &bins, &[]).unwrap();
+    link_bins::<Host>(&modules, &bins, &LinkBinsOptions::default()).unwrap();
 
     assert!(bins.join("foo").exists(), "canonical shim must remain");
     assert!(bins.join("foo.cmd").exists(), ".cmd sibling must be re-created on second pass");
@@ -367,7 +405,7 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
     let err = link_bins_of_packages::<FailingCreateDir>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         Path::new("/anything"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect_err("create_dir_all error must propagate");
     assert!(matches!(err, LinkBinsError::CreateBinDir { .. }));
@@ -439,7 +477,7 @@ fn link_bins_propagates_write_shim_error_via_di() {
     let err = link_bins_of_packages::<FailingWrite>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect_err("write error must propagate");
     assert!(matches!(err, LinkBinsError::WriteShim { .. }));
@@ -509,7 +547,7 @@ fn link_bins_propagates_chmod_error_via_di() {
     let err = link_bins_of_packages::<FailingChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect_err("chmod error must propagate");
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
@@ -579,7 +617,7 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     let err = link_bins_of_packages::<FailingTargetChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect_err("non-NotFound target chmod error must propagate as Chmod");
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
@@ -649,7 +687,7 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
     link_bins_of_packages::<NotFoundTargetChmod>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect("NotFound on target chmod must be swallowed silently");
 }
@@ -717,7 +755,7 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
     let err = link_bins_of_packages::<FailingProbe>(
         &[PackageBinSource::new(pkg, Arc::new(manifest))],
         &tmp.path().join(".bin"),
-        &[],
+        &LinkBinsOptions::default(),
     )
     .expect_err("probe error must propagate");
     assert!(matches!(err, LinkBinsError::ProbeShimSource { .. }));
@@ -779,8 +817,12 @@ fn link_bins_propagates_read_manifest_error_via_di() {
         }
     }
 
-    let err = link_bins::<DenyManifestRead>(Path::new("/x"), Path::new("/x/.bin"), &[])
-        .expect_err("read_manifest error must propagate");
+    let err = link_bins::<DenyManifestRead>(
+        Path::new("/x"),
+        Path::new("/x/.bin"),
+        &LinkBinsOptions::default(),
+    )
+    .expect_err("read_manifest error must propagate");
     assert!(matches!(err, LinkBinsError::ReadManifest { .. }));
 }
 
@@ -820,7 +862,7 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
             PackageBinSource::new(aaa_other, Arc::new(manifest_other)),
         ],
         &bins,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -886,8 +928,12 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
         }
     }
 
-    let err = link_bins::<FailingModulesRead>(Path::new("/x"), Path::new("/x/.bin"), &[])
-        .expect_err("read_dir error must propagate");
+    let err = link_bins::<FailingModulesRead>(
+        Path::new("/x"),
+        Path::new("/x/.bin"),
+        &LinkBinsOptions::default(),
+    )
+    .expect_err("read_dir error must propagate");
     eprintln!("link_bins_propagates_modules_dir_read_error err={err:?}");
     assert!(matches!(err, LinkBinsError::ReadModulesDir { .. }));
 }
@@ -926,7 +972,7 @@ fn ownership_breaks_bin_conflicts() {
             PackageBinSource::new(npm.clone(), Arc::new(manifest_npm)),
         ],
         &bins,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -973,7 +1019,7 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
             PackageBinSource::new(direct, Arc::new(manifest_direct)).with_origin(BinOrigin::Direct),
         ],
         &bins,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1022,7 +1068,7 @@ fn hoisted_origin_loses_to_existing_direct() {
                 .with_origin(BinOrigin::Hoisted),
         ],
         &bins,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1053,7 +1099,7 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1101,7 +1147,7 @@ fn link_node_bin_replaces_dangling_symlink() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1150,7 +1196,7 @@ fn link_node_bin_does_not_corrupt_hardlinked_target() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1183,7 +1229,7 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1231,7 +1277,7 @@ fn link_node_bin_skips_relink_when_node_exe_already_correct() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1269,7 +1315,7 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     link_bins_of_packages::<Host>(
         &[PackageBinSource::new(node_dir, Arc::new(manifest))],
         &bin_target,
-        &[],
+        &LinkBinsOptions::default(),
     )
     .unwrap();
 
@@ -1324,4 +1370,196 @@ fn resolved_location_matches_canonicalize_fallback_for_node_path() {
             real_slot_pkg_dir.parent().unwrap().to_string_lossy().into_owned(),
         ],
     );
+}
+
+#[test]
+fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\nconsole.log('hello_world')\n")
+        .unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let options =
+        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &bins_dir,
+        &options,
+    )
+    .unwrap();
+
+    let bin = bins_dir.join("foo");
+    if cfg!(windows) {
+        // The setting is inert on Windows: bins keep their shims.
+        assert!(
+            std::fs::symlink_metadata(&bin).unwrap().file_type().is_file(),
+            "Windows must keep writing shims under preferSymlinkedExecutables",
+        );
+        return;
+    }
+    assert_eq!(
+        std::fs::read_link(&bin).expect("bin must be a symlink"),
+        Path::new("../foo/cli.js"),
+        "the symlink must be relative, like pnpm's symlink-dir",
+    );
+    // The read follows the symlink: the entry resolves to the bin
+    // source itself, not a shim body.
+    assert!(read_to_string(&bin).unwrap().contains("hello_world"));
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
+            0o755,
+            "the target file gets the executable bits, like pnpm's ensureExecutable",
+        );
+    }
+}
+
+/// pnpm's warm-install short-circuit accepts an existing symlink or
+/// shim that already points at the target regardless of
+/// `preferSymlinkedExecutables`, so flipping the setting rewrites no
+/// valid bins — only missing or wrong entries take the new form. The
+/// flag-off relink here is the injected-deps syncer's workspace-wide
+/// pass, which carries no options and must not rewrite symlinked bins
+/// into shims.
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+fn existing_bins_pointing_at_the_target_survive_flag_changes() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let packages = [PackageBinSource::new(pkg_dir, Arc::new(manifest_value))];
+    let symlinked =
+        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    let bin = bins_dir.join("foo");
+
+    // A valid shim survives a flag-on relink.
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_file());
+
+    // A fresh bin under the flag is a symlink, and the same dirent —
+    // pinned by its inode — survives both a warm flag-on relink and a
+    // flag-off relink: the short-circuit skips the rewrite, it does
+    // not recreate the link.
+    std::fs::remove_file(&bin).unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    #[cfg(unix)]
+    let inode = {
+        use std::os::unix::fs::MetadataExt;
+        std::fs::symlink_metadata(&bin).unwrap().ino()
+    };
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &symlinked).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(std::fs::symlink_metadata(&bin).unwrap().file_type().is_symlink());
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        assert_eq!(std::fs::symlink_metadata(&bin).unwrap().ino(), inode);
+    }
+}
+
+#[test]
+#[cfg_attr(target_os = "windows", ignore = "preferSymlinkedExecutables is inert on Windows")]
+fn prefer_symlinked_executables_links_a_bin_whose_target_is_missing() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"}).to_string(),
+    )
+    .unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let options =
+        LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
+        &bins_dir,
+        &options,
+    )
+    .unwrap();
+
+    // A dangling symlink is still created — pnpm warns and keeps it,
+    // so a later step can materialize the target.
+    assert_eq!(
+        std::fs::read_link(bins_dir.join("foo")).expect("dangling bin symlink must exist"),
+        Path::new("../foo/cli.js"),
+    );
+}
+
+/// The pnpm CLI's own package opts out of the PowerShell shim
+/// ([`super::wants_powershell_shim`]), and a `.ps1` an earlier install
+/// wrote — a pre-v12 `@pnpm/exe` wrapper carried the same bin names —
+/// has to be deleted, not merely left unwritten: PowerShell would keep
+/// preferring it over the `.cmd` shim and run the version it points at.
+#[test]
+fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/pnpm");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(
+        pkg_dir.join("package.json"),
+        json!({"name": "pnpm", "version": "1.0.0", "bin": {"pnpm": "cli.js", "pn": "cli.js"}})
+            .to_string(),
+    )
+    .unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    create_dir_all(&bins_dir).unwrap();
+    for bin_name in ["pnpm", "pn"] {
+        write_file(bins_dir.join(format!("{bin_name}.ps1")), "an older install wrote this")
+            .unwrap();
+    }
+
+    let manifest_value: Value =
+        serde_json::from_slice(&read_file(pkg_dir.join("package.json")).unwrap()).unwrap();
+    let packages = [PackageBinSource::new(pkg_dir, Arc::new(manifest_value))];
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+
+    for bin_name in ["pnpm", "pn"] {
+        assert!(bins_dir.join(bin_name).exists(), "{bin_name} must be linked");
+        assert!(
+            !bins_dir.join(format!("{bin_name}.ps1")).exists(),
+            "the stale {bin_name}.ps1 must be deleted, not left to shadow the linked bin",
+        );
+        assert_eq!(
+            bins_dir.join(format!("{bin_name}.cmd")).exists(),
+            cfg!(windows),
+            "{bin_name}.cmd is the Windows entry point and must survive the cleanup",
+        );
+    }
+
+    // The warm-relink short-circuit must not let a `.ps1` planted
+    // after the first link survive.
+    write_file(bins_dir.join("pnpm.ps1"), "planted after the first link").unwrap();
+    link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
+    assert!(!bins_dir.join("pnpm.ps1").exists());
 }

@@ -19,6 +19,21 @@ export function testDefaults<T> (
     minimumReleaseAge?: number
     minimumReleaseAgeStrict?: boolean
     minimumReleaseAgeExclude?: string[]
+    /**
+     * Renamed to `registriesByScope`, and kept here so an options object that
+     * still carries the old key fails to compile: `T` is inferred from the
+     * argument, so an unknown key is otherwise absorbed into it and the test
+     * silently exercises the default registry instead.
+     *
+     * Typed as the replacement's name rather than `never` so the compiler
+     * prints the fix — `not assignable to type '… & "renamed: use
+     * registriesByScope"'`.
+     */
+    registries?: 'renamed: use registriesByScope'
+    /** Renamed to `registriesByPrefix`. See `registries` above. */
+    namedRegistries?: 'renamed: use registriesByPrefix'
+    /** Renamed to `registryOptionsByUrl`. See `registries` above. */
+    registryOptions?: 'renamed: use registryOptionsByUrl'
   },
   resolveOpts?: any, // eslint-disable-line
   fetchOpts?: any, // eslint-disable-line
