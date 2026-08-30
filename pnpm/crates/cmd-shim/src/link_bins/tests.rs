@@ -375,9 +375,6 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
             unreachable!()
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            unreachable!()
-        }
     }
     impl FsSetExecutable for FailingCreateDir {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -452,9 +449,6 @@ fn link_bins_propagates_write_shim_error_via_di() {
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            Err(io::Error::from(io::ErrorKind::PermissionDenied))
-        }
     }
     impl FsSetExecutable for FailingWrite {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -526,9 +520,6 @@ fn link_bins_propagates_chmod_error_via_di() {
             Ok(())
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            Ok(())
-        }
     }
     impl FsSetExecutable for FailingChmod {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -620,9 +611,6 @@ fn link_bins_propagates_target_chmod_error_via_di() {
             Ok(())
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            Ok(())
-        }
     }
     impl FsSetExecutable for FailingTargetChmod {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -694,9 +682,6 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
             Ok(())
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            Ok(())
-        }
     }
     impl FsSetExecutable for NotFoundTargetChmod {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -767,9 +752,6 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
             unreachable!()
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            unreachable!()
-        }
     }
     impl FsSetExecutable for FailingProbe {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -840,9 +822,6 @@ fn link_bins_propagates_read_manifest_error_via_di() {
             unreachable!()
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            unreachable!()
-        }
     }
     impl FsSetExecutable for DenyManifestRead {
         fn set_executable(_: &Path) -> io::Result<()> {
@@ -955,9 +934,6 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
             unreachable!()
         }
 
-        fn atomic_replace_executable(_: &Path, _: &[u8]) -> io::Result<()> {
-            unreachable!()
-        }
     }
     impl FsSetExecutable for FailingModulesRead {
         fn set_executable(_: &Path) -> io::Result<()> {
