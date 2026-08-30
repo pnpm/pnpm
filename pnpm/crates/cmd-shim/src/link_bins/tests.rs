@@ -590,7 +590,14 @@ fn link_bins_swallows_missing_shim_chmod_via_di() {
     let shim = tmp.path().join(".bin/foo");
     create_dir_all(shim.parent().unwrap()).unwrap();
 
-    super::write_shim::<MissingShimChmod>(&target, &shim, &[], super::ShimStyle::Direct)
+    super::write_shim::<MissingShimChmod>(
+        &target,
+        &shim,
+        &[],
+        false,
+        super::ShimStyle::Direct,
+        false,
+    )
         .expect("NotFound on the shared shim chmod must be tolerated");
 }
 
