@@ -106,17 +106,12 @@ pub trait FsCreateDirAll {
 /// exists. Used to write the three shim flavors (`.sh`, `.cmd`,
 /// `.ps1`).
 ///
-/// **Not atomic.** This trait is the moral equivalent of
-/// `std::fs::write`: it opens (or creates and truncates) the file,
-/// writes `bytes`, and closes. No tempfile + rename guard, no
-/// `fsync`. A SIGINT or crash mid-write can leave a truncated file
-/// on disk. Number of syscalls is up to the impl — `std::fs::write`
-/// itself is open/(truncate)/write/close, and a fake might loop.
-/// If a future caller needs atomic write semantics, build it on top
-/// of this trait by writing to a sibling tempfile and then
-/// renaming. Hiding that algorithm inside the capability would
-/// obscure what each callsite inherits; keeping the trait minimal
-/// lets every callsite see exactly what guarantees it gets.
+/// [`FsWrite::write`] is deliberately non-atomic and mirrors `std::fs::write`.
+/// [`FsWrite::atomic_replace`] is the explicit stronger operation used by
+/// POSIX command-shim materialization: the production host writes a secure
+/// sibling tempfile and renames it over the destination, so readers never
+/// observe the unlink/write gap of an in-place replacement. Neither operation
+/// calls `fsync`.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 
