@@ -25,7 +25,7 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 /// `<store_dir>/v11/links` — the root every GVS slot hangs off.
@@ -267,6 +267,84 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
         workspace.join("node_modules/.pnpm/lock.yaml").exists(),
         "the current lockfile must be rewritten",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn concurrent_installs_can_share_global_virtual_store_bins() {
+    const WORKERS: usize = 8;
+    const REPETITIONS: usize = 10;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ ".e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+
+    // Prime the content-addressed store and lockfile once. Each repetition
+    // then deletes only the shared GVS projection, so the concurrent work is
+    // isolated to materializing the same package slot and its dependency bin.
+    pacquet(&workspace).with_arg("install").assert().success();
+    let fixture_files = [".npmrc", "package.json", "pnpm-workspace.yaml", "pnpm-lock.yaml"];
+
+    for repetition in 1..=REPETITIONS {
+        if gvs_root(&store_dir).exists() {
+            fs::remove_dir_all(gvs_root(&store_dir)).expect("reset GVS projection");
+        }
+
+        let mut worker_dirs = Vec::with_capacity(WORKERS);
+        for worker in 1..=WORKERS {
+            let worker_dir = root.path().join(format!("gvs-concurrent-{repetition}-{worker}"));
+            fs::create_dir(&worker_dir).expect("create concurrent workspace");
+            for file in fixture_files {
+                fs::copy(workspace.join(file), worker_dir.join(file))
+                    .unwrap_or_else(|err| panic!("copy {file} into {worker_dir:?}: {err}"));
+            }
+            worker_dirs.push(worker_dir);
+        }
+
+        let mut children = Vec::with_capacity(WORKERS);
+        for worker_dir in &worker_dirs {
+            let mut command = pacquet(worker_dir);
+            command
+                .args(["install", "--frozen-lockfile", "--ignore-scripts"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            children.push(command.spawn().expect("spawn concurrent GVS install"));
+        }
+
+        for (worker, child) in children.into_iter().enumerate() {
+            let output = child.wait_with_output().expect("wait for concurrent GVS install");
+            assert!(
+                output.status.success(),
+                "concurrent GVS install failed at repetition {repetition}, worker {}\nstdout:\n{}\nstderr:\n{}",
+                worker + 1,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
+
+        let parent_slot = sole_hash_dir(&pkg_version_dir(
+            &store_dir,
+            ".e2e/hello-world-js-bin-parent",
+            "1.0.0",
+        ));
+        assert!(
+            pkg_in_slot(&parent_slot, ".e2e/hello-world-js-bin-parent")
+                .join("node_modules/.bin/hello-world-js-bin")
+                .exists(),
+            "the shared GVS dependency shim must exist after repetition {repetition}",
+        );
+
+        for worker_dir in worker_dirs {
+            fs::remove_dir_all(worker_dir).expect("remove concurrent workspace");
+        }
+    }
 
     drop((root, mock_instance));
 }
