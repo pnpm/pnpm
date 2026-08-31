@@ -99,6 +99,9 @@ pub enum UpdateWorkspaceManifestError {
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
+
+    #[diagnostic(transparent)]
+    VersionPolicy(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
 }
 
 /// Whether `value` holds a character YAML treats as a line break: a
@@ -152,12 +155,14 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
     pub prune_minimum_release_age_excludes: bool,
     pub prune_allow_builds: bool,
+    /// Entries to merge into the project-local `minimumReleaseAgeExclude`
+    /// list after its cleanup pass.
+    pub added_minimum_release_age_excludes: &'a [String],
 }
 
-/// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
-/// the `catalogPrune` pass when requested, writing the file back
-/// only when something actually changed (and removing it when the edits
-/// empty the document).
+/// Apply the requested merges and cleanup passes to `dir`'s
+/// `pnpm-workspace.yaml`, writing the file back only when something actually
+/// changed (and removing it when the edits empty the document).
 pub fn update_workspace_manifest(
     dir: &Path,
     opts: &UpdateWorkspaceManifestOptions<'_>,
@@ -185,6 +190,11 @@ pub fn update_workspace_manifest(
             return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
         }
     }
+    if !opts.added_minimum_release_age_excludes.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
 
     let mut changed = match opts.updated_catalogs {
         Some(updated_catalogs) => {
@@ -211,6 +221,23 @@ pub fn update_workspace_manifest(
         if opts.prune_allow_builds {
             changed |= edit::prune_allow_builds(&mut manifest, resolved);
         }
+    }
+    if !opts.added_minimum_release_age_excludes.is_empty() {
+        let merged = pnpm_config::version_policy::merge_package_version_specs(
+            manifest
+                .minimum_release_age_exclude
+                .iter()
+                .flatten()
+                .chain(opts.added_minimum_release_age_excludes),
+        )
+        .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
+        if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path,
+                value: bad.clone(),
+            });
+        }
+        changed |= edit::set_minimum_release_age_excludes(&mut manifest, &merged);
     }
     if !changed {
         return Ok(());
