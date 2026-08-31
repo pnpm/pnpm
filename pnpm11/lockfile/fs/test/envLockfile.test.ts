@@ -41,6 +41,9 @@ test('writeEnvLockfile keeps the main document after the env document it replace
   await writeEnvLockfile(dir, envLockfileWithConfigDep())
 
   const written = fs.readFileSync(lockfilePath, 'utf8')
+  // Pins both document markers this writer emits: `extractMainDocument` only
+  // returns the tail when the separator sits where it did before.
+  expect(written.startsWith('---\n')).toBe(true)
   expect(extractMainDocument(written)).toBe(mainDoc)
   expect(written).toContain('my-config')
   await expect(readEnvLockfile(dir)).resolves.toMatchObject({
