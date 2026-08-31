@@ -65,9 +65,12 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
 
 function runNpm (args, cwd) {
   if (process.platform === 'win32') {
-    const script = path.join(cwd, 'run-npm.ps1')
-    fs.writeFileSync(script, '& npm @args\nexit $LASTEXITCODE\n')
-    execFileSync('pwsh', ['-NoProfile', '-File', script, ...args], { cwd, stdio: 'pipe' })
+    const npmCli = execFileSync('where.exe', ['npm.cmd'], { encoding: 'utf8' })
+      .split(/\r?\n/)
+      .map(launcher => path.join(path.dirname(launcher), 'node_modules', 'npm', 'bin', 'npm-cli.js'))
+      .find(candidate => fs.existsSync(candidate))
+    assert.ok(npmCli, 'Unable to find npm-cli.js next to an npm.cmd on PATH')
+    execFileSync(process.execPath, [npmCli, ...args], { cwd, stdio: 'pipe' })
   } else {
     execFileSync('npm', args, { cwd, stdio: 'pipe' })
   }
