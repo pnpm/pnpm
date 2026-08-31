@@ -1,9 +1,7 @@
-#[cfg(unix)]
-use super::read_lockfile_to_string_no_follow;
 use super::{EnvLockfile, SpecifierAndResolution};
 use crate::{
     Lockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution, SnapshotEntry,
-    extract_env_document,
+    extract_env_document, extract_main_document,
 };
 use tempfile::TempDir;
 
@@ -119,18 +117,41 @@ fn read_symlinked_lockfile() {
 
 #[cfg(unix)]
 #[test]
-fn no_follow_read_rejects_symlinked_lockfile() {
+fn write_accepts_symlinked_lockfile_when_unchanged() {
+    let source = TempDir::new().unwrap();
+    let env = sample_env_lockfile();
+    env.write(source.path()).unwrap();
+    let content = std::fs::read_to_string(source.path().join(Lockfile::FILE_NAME)).unwrap();
+
     let dir = TempDir::new().unwrap();
     let real_lockfile = dir.path().join("real-lockfile.yaml");
-    std::fs::write(&real_lockfile, "target content").unwrap();
+    std::fs::write(&real_lockfile, &content).unwrap();
     let lockfile_path = dir.path().join(Lockfile::FILE_NAME);
     std::os::unix::fs::symlink(&real_lockfile, &lockfile_path).unwrap();
 
-    let error = read_lockfile_to_string_no_follow(&lockfile_path)
-        .expect_err("symlinked lockfile must fail");
+    env.write(dir.path()).expect("an unchanged env document must not need a write");
 
-    assert!(error.to_string().contains("symlinked lockfile"), "unexpected error: {error:?}");
-    assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), "target content");
+    assert!(std::fs::symlink_metadata(&lockfile_path).unwrap().file_type().is_symlink());
+    assert_eq!(std::fs::read_to_string(real_lockfile).unwrap(), content);
+}
+
+#[test]
+fn write_replaces_the_env_document_of_a_lockfile_carrying_a_bom() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let main_doc = "lockfileVersion: '9.0'\n\nimporters:\n\n  .:\n    dependencies:\n      is-odd:\n        specifier: 1.0.0\n        version: 1.0.0\n";
+    let old_env_doc = "lockfileVersion: '9.0'\nimporters:\n  .:\n    configDependencies: {}\npackages: {}\nsnapshots: {}\n";
+    std::fs::write(&path, format!("\u{feff}---\n{old_env_doc}\n---\n{main_doc}")).unwrap();
+
+    sample_env_lockfile().write(dir.path()).unwrap();
+
+    let raw = std::fs::read_to_string(&path).unwrap();
+    assert!(raw.starts_with("---\n"), "the BOM must not survive into the written lockfile");
+    assert_eq!(extract_main_document(&raw), main_doc);
+    assert!(
+        !extract_main_document(&raw).contains("configDependencies: {}"),
+        "the replaced env document must not end up inside the main document"
+    );
 }
 
 #[cfg(unix)]
