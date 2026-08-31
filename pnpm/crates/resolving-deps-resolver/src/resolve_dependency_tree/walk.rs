@@ -123,6 +123,7 @@ pub(super) struct PendingNode {
     alias: String,
     node_id: NodeId,
     is_link: bool,
+    resolves_children_through_catalogs: bool,
     parent_ancestors: Arc<Vec<String>>,
     next_ancestors: Arc<Vec<String>>,
     /// The dependency names this occurrence's own `peerDependencies`
@@ -474,6 +475,7 @@ where
     // id is collapsed to a leaf so every reference to the same workspace
     // path shares one [`NodeId`].
     let is_link = id.starts_with("link:");
+    let resolves_children_through_catalogs = resolves_children_through_catalogs(&result);
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
@@ -504,7 +506,7 @@ where
             extract_peer_dependencies(
                 &result,
                 &peer_shadowed,
-                resolves_children_through_catalogs(&result).then_some(&ctx.catalogs),
+                resolves_children_through_catalogs.then_some(&ctx.catalogs),
             )?
         };
         register_peer_dep_names(ctx, &peer_dependencies);
@@ -538,6 +540,7 @@ where
         alias,
         node_id,
         is_link,
+        resolves_children_through_catalogs,
         parent_ancestors: Arc::clone(ancestor_ids),
         next_ancestors,
         peer_shadowed,
@@ -755,7 +758,7 @@ fn install_owner_peer_dependencies(
     let peer_dependencies = extract_peer_dependencies(
         &pending.result,
         &claim.peer_shadowed,
-        resolves_children_through_catalogs(&pending.result).then_some(&ctx.catalogs),
+        pending.resolves_children_through_catalogs.then_some(&ctx.catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
     let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
@@ -803,7 +806,7 @@ fn settle_seeds(
             insert_walked_node(ctx, &pending, children);
             continue;
         };
-        if !resolves_children_through_catalogs(&pending.result)
+        if !pending.resolves_children_through_catalogs
             && recorded_children_match(ctx, &pending.id, &children_context(ctx, &pending, &claim))
         {
             let children = lazy_children(&pending.parent_ancestors);
@@ -980,7 +983,7 @@ where
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    let child_specs = if resolves_children_through_catalogs(&pending.result) {
+    let child_specs = if pending.resolves_children_through_catalogs {
         child_specs
             .iter()
             .map(|(name, range, optional, injected)| {
