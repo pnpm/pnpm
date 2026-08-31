@@ -1982,10 +1982,9 @@ pub struct Config {
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
     /// `extraEnv` object, wired up in `pnpm_cli`'s
-    /// `run_update_config_hooks`. That hook runs only for the
-    /// install-family commands (install, deploy, dedupe, prune), so this
-    /// is non-empty only under those; other commands' spawn sites read it
-    /// too, but see an empty map until the hook broadens.
+    /// `run_update_config_hooks`. That hook runs for the install family
+    /// and commands that pack packages, making the returned environment
+    /// available to their lifecycle scripts.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
@@ -2373,9 +2372,9 @@ pub struct Config {
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
-    /// them, in which case the install reads catalogs straight from the
+    /// them, in which case consumers read catalogs straight from the
     /// workspace manifest. `Some` carries the complete catalog set the
-    /// hook produced (existing + injected), so the install uses it as-is
+    /// hook produced (existing + injected), so consumers use it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
     pub catalogs: Option<pnpm_catalogs_types::Catalogs>,

@@ -420,7 +420,7 @@ impl EnvInstallerContext {
 /// clobbered. The `catalog:`/`catalogs:` blocks — which pacquet models
 /// outside `WorkspaceSettings` — are seeded into the hook input and, when
 /// a hook changes them, captured into [`Config::catalogs`] for the install
-/// to use.
+/// and packing commands to use.
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order: config-dependency plugin pnpmfiles (lexical
 /// order) first, then the workspace-root `.pnpmfile.{cjs,mjs}`. Shared

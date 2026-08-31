@@ -41,6 +41,41 @@ fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
     drop(root);
 }
 
+#[test]
+fn update_config_hook_catalog_is_used_when_packing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "devDependencies": { "is-odd": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    updateConfig (config) {
+      config.catalogs = { default: { 'is-odd': '3.0.1' } }
+      return config
+    },
+  },
+}
+",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet.with_arg("pack").assert().success();
+
+    let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
+    assert_eq!(manifest["devDependencies"]["is-odd"], "3.0.1");
+
+    drop(root);
+}
+
 /// A `beforePacking` hook that deletes `devDependencies` and stamps a
 /// marker rewrites the manifest packed into the tarball.
 #[test]
