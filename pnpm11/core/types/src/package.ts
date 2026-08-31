@@ -202,6 +202,13 @@ export interface AuditSettings {
    * `auditConfig.ignoreGhsas`.
    */
   ignore?: string[]
+  /**
+   * When `true`, `pnpm audit --fix` removes entries from the ignore list that
+   * no longer appear in the audit report, so a re-introduced vulnerability
+   * under the same GHSA ID gets re-evaluated instead of staying silently
+   * suppressed.
+   */
+  ignorePrune?: boolean
 }
 
 export interface UpdateSettings {
@@ -227,6 +234,29 @@ export interface UpdateSettings {
    * variable is used, falling back to https://github.com.
    */
   githubActionsServer?: string
+}
+
+/**
+ * The task declarations of a workspace, keyed by task name. A task name is a
+ * script name: `pnpm -r run <name>` runs the task named `<name>` in every
+ * selected project.
+ */
+export interface WorkspaceTasks {
+  [taskName: string]: WorkspaceTaskSettings
+}
+
+export interface WorkspaceTaskSettings {
+  concurrency?: number
+  /**
+   * The tasks that must complete before this one may start. A `^name` entry
+   * names the task in each of the project's workspace dependencies; a bare
+   * `name` entry names the task in the same project.
+   *
+   * A task with no declaration behaves as `dependsOn: ['^<its own name>']`.
+   * An entry with `dependsOn` omitted declares an empty dependency list — the
+   * task depends on nothing and may start immediately.
+   */
+  dependsOn?: string[]
 }
 
 export interface PnpmSettings {
@@ -279,6 +309,17 @@ export interface PnpmSettings {
   httpsProxy?: string
   noProxy?: string | boolean
   pnprServer?: string
+  /**
+   * Whether a package's build output is reused, and where from. A boolean
+   * sets `read` and `write` together.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /**
+   * The alternative spelling of {@link SideEffectsCacheSettings.remote}. A
+   * field set under both takes its value from there; a field set under only
+   * one is kept either way.
+   */
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
   versioning?: VersioningSettings
   /**
    * Where the virtual store lives, and therefore who shares it: one store
@@ -292,6 +333,52 @@ export interface PnpmSettings {
    * The boolean spelling of {@link PnpmSettings.virtualStoreType}.
    */
   enableGlobalVirtualStore?: boolean
+  tasks?: WorkspaceTasks
+}
+
+/**
+ * Where a dependency's build output may be reused from: this machine, and —
+ * through `remote` — other machines in the same organization.
+ */
+export interface SideEffectsCacheSettings {
+  /** Restore a package's build from the cache when one is present. */
+  read?: boolean
+  /** Save a package's build output to the cache. */
+  write?: boolean
+  remote?: RemoteSideEffectsCacheSettings
+}
+
+/**
+ * Organization-owned dependency build artifacts eligible for this workspace.
+ *
+ * `trustedKeys` and `privateKey` are the signing trust root and must not come
+ * from a committed file: the config reader accepts them only from the global
+ * config yaml, the environment, and CLI flags, and rejects them in
+ * `pnpm-workspace.yaml`.
+ */
+export interface RemoteSideEffectsCacheSettings {
+  /**
+   * Both halves are optional because one section is assembled from several
+   * sources: the repository names the eligible organization and packages while
+   * the machine supplies the trust root. The feature applies only once both
+   * halves are present.
+   */
+  org?: string
+  /** The alternative spelling of {@link RemoteSideEffectsCacheSettings.org}, which wins when both are set. */
+  organization?: string
+  packages?: string[]
+  /** Publish the lifecycle-script diff of every eligible package that is built. */
+  publish?: boolean
+  /** Identifies which of the consumer's trusted keys signed a published artifact. */
+  keyId?: string
+  builderId?: string
+  imageDigest?: string
+  architectureBaseline?: string
+  buildEnv?: Record<string, string>
+  /** Base64-encoded P-256 SubjectPublicKeyInfo DER, keyed by key id. */
+  trustedKeys?: Record<string, string>
+  /** Base64-encoded PKCS#8 P-256 private key used to sign published artifacts. */
+  privateKey?: string
 }
 
 export type VirtualStoreType = 'global' | 'project'

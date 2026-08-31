@@ -4,10 +4,11 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck,
-    apply_materialization::report_verified_file_integrity, install_already_up_to_date,
-    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, apply_deploy_manifest_hook,
+    apply_deploy_manifest_hook_to_arc, apply_materialization::report_verified_file_integrity,
+    install_already_up_to_date, load_workspace_projects,
+    lockfile_freshness::exclude_linked_dependencies, project_lifecycle_graph,
+    project_requires_lifecycle_scripts,
 };
 use crate::{
     AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
@@ -33,7 +34,11 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use std::{fs, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -53,6 +58,43 @@ fn empty_test_lockfile() -> Lockfile {
         time: None,
         extra: pnpm_lockfile::LockfileExtra::default(),
     }
+}
+
+#[test]
+fn deploy_manifest_hook_preserves_existing_dependency_metadata() {
+    let mut manifest = serde_json::json!({
+        "dependencies": {
+            "existing": "workspace:*",
+            "non-object": "workspace:*",
+            "new": "workspace:*",
+        },
+        "dependenciesMeta": {
+            "existing": { "built": false, "injected": false },
+            "non-object": null,
+        },
+    });
+
+    apply_deploy_manifest_hook(&mut manifest);
+
+    assert_eq!(
+        manifest["dependenciesMeta"],
+        serde_json::json!({
+            "existing": { "built": false, "injected": true },
+            "non-object": { "injected": true },
+            "new": { "injected": true },
+        }),
+    );
+}
+
+#[test]
+fn deploy_manifest_hook_reuses_unchanged_arc() {
+    let manifest = Arc::new(serde_json::json!({
+        "dependencies": { "registry-package": "1.0.0" },
+    }));
+
+    let transformed = apply_deploy_manifest_hook_to_arc(Arc::clone(&manifest));
+
+    assert!(Arc::ptr_eq(&manifest, &transformed));
 }
 
 #[test]
@@ -77,7 +119,7 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
 }
 
 #[test]
-fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups() {
+fn lifecycle_graph_normalizes_paths_and_recovers_from_incomplete_explicit_graph() {
     let temp = tempdir().unwrap();
     let workspace_root = temp.path().join("workspace");
     let dependency_dir = workspace_root.join("packages/holding/../dependency");
@@ -100,36 +142,33 @@ fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups(
         "        version: link:../dependency"
     })
     .unwrap();
-    let incomplete_groups = vec![vec![dependent_dir.clone()]];
+    let incomplete_dependencies = indexmap::IndexMap::from([(dependent_dir.clone(), Vec::new())]);
 
-    let Err(missing_order_error) = order_project_lifecycle_groups(
+    let Err(missing_order_error) = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         None,
     ) else {
-        panic!("incomplete groups without a lockfile must fail");
+        panic!("incomplete graph without a lockfile must fail");
     };
     assert!(matches!(missing_order_error, InstallError::ProjectLifecycleOrder { .. }));
 
-    let groups = order_project_lifecycle_groups(
+    let graph = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         Some(&lockfile),
     )
     .unwrap();
-    let grouped_dirs = groups
-        .into_iter()
-        .map(|group| group.into_iter().map(|(project_dir, _)| project_dir).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
-    assert_eq!(grouped_dirs, vec![vec![dependency_dir], vec![dependent_dir]]);
+    let dependency_dir = pnpm_fs::lexical_normalize(&dependency_dir);
+    assert_eq!(graph.dependencies[&dependent_dir], vec![dependency_dir]);
 }
 
 #[test]

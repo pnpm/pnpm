@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.compliance.commands",
-  "version": "1102.0.0",
+  "version": "1102.1.0",
   "description": "pnpm commands for audit, licenses, and sbom",
   "keywords": [
     "pnpm",
@@ -61,6 +61,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
     "@pnpm/store.path": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.project-manifest-reader": "workspace:*",
     "@zkochan/table": "catalog:",

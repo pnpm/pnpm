@@ -1,7 +1,8 @@
 use super::{
     CalcDepStateOptions, DepsGraphNode, calc_dep_graph_hash, calc_dep_state,
-    transitively_requires_build, warm_deps_state_cache,
+    calc_dep_state_input_key, transitively_requires_build, warm_deps_state_cache,
 };
+use crate::hash_object;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::collections::{HashMap, HashSet};
@@ -177,6 +178,84 @@ fn dep_graph_and_patch_concatenate_in_upstream_order() {
     let deps_pos = result.find(";deps=").expect("deps section present");
     let patch_pos = result.find(";patch=").expect("patch section present");
     assert!(deps_pos < patch_pos, "deps must come before patch in {result:?}");
+}
+
+#[test]
+fn shared_input_key_excludes_engine_and_includes_patch() {
+    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
+    graph.insert(
+        "x@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
+    );
+    let key = calc_dep_state_input_key(&graph, &"x@1.0.0".to_string(), Some("patchhex"));
+    let deps_hash = hash_object(&serde_json::json!({
+        "id": "x@1.0.0:sha512-x",
+        "deps": {},
+    }));
+    assert_eq!(key, format!("dependency-side-effects:v1:deps={deps_hash};patch=patchhex"));
+}
+
+#[test]
+#[should_panic(expected = "input-key root is not present")]
+fn shared_input_key_rejects_a_missing_root() {
+    calc_dep_state_input_key(
+        &HashMap::<String, DepsGraphNode<String>>::new(),
+        &"missing@1.0.0".to_string(),
+        None,
+    );
+}
+
+#[test]
+fn shared_input_keys_isolate_cyclic_roots() {
+    let mut graph = HashMap::new();
+    graph.insert(
+        "a@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "a@1.0.0:sha512-a".to_string(),
+            children: IndexMap::from([("b".to_string(), "b@1.0.0".to_string())]),
+        },
+    );
+    graph.insert(
+        "b@1.0.0".to_string(),
+        DepsGraphNode {
+            full_pkg_id: "b@1.0.0:sha512-b".to_string(),
+            children: IndexMap::from([("a".to_string(), "a@1.0.0".to_string())]),
+        },
+    );
+
+    let truncated_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": {},
+    }));
+    let nested_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": truncated_a },
+    }));
+    let root_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": nested_b },
+    }));
+    let truncated_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": {},
+    }));
+    let nested_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": truncated_b },
+    }));
+    let root_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": nested_a },
+    }));
+
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"a@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_a}"),
+    );
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"b@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_b}"),
+    );
 }
 
 #[test]

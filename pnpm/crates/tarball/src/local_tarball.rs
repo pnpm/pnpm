@@ -4,9 +4,10 @@
 //! local archive without going through the store.
 
 use super::{
-    Component, Cursor, HashMap, Path, PathBuf, TarballError, allocate_tarball_buffer,
-    decompress_gzip, io, normalize_bundled_manifest, post_download_semaphore, tar_entry_payload,
-    verify_tarball_integrity,
+    Component, Cursor, HashMap, MAX_UNTRUSTED_PREALLOC_BYTES, Path, PathBuf, Read, TarballError,
+    allocate_tarball_buffer, decompress_gzip, io, is_eager_decode_limit_exceeded,
+    normalize_bundled_manifest, oversized_manifest_error, post_download_semaphore,
+    tar_entry_payload, verify_tarball_integrity,
 };
 use pnpm_package_manifest::parse_manifest_bytes;
 use ssri::Integrity;
@@ -207,12 +208,30 @@ pub async fn read_local_tarball_metadata(
         .expect("post-download semaphore shouldn't be closed this soon");
     tokio::task::spawn_blocking(move || {
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
-        let tar_data = decompress_gzip(&buffer, None)?;
-        let (manifest, has_manifest_entry) = read_bundled_manifest(&tar_data, &tarball_path)?;
+        let (manifest, has_manifest_entry) =
+            read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
         Ok(LocalTarballMetadata { integrity, manifest, has_manifest_entry })
     })
     .await
     .map_err(TarballError::TaskJoin)?
+}
+
+/// Read the root `package.json` out of a gzipped archive, decoding it
+/// whole while it is small enough for [`decompress_gzip`] and streaming
+/// it past that. See [`crate::extract::extract_gzipped_tarball`] for
+/// why the whole-archive decode has a ceiling and why reaching it is
+/// not a refusal.
+pub(crate) fn read_bundled_manifest_from_archive(
+    gz_data: &[u8],
+    tarball_path: &str,
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+    match decompress_gzip(gz_data, None) {
+        Ok(tar_data) => read_bundled_manifest(&tar_data, tarball_path),
+        Err(error) if is_eager_decode_limit_exceeded(&error) => {
+            read_bundled_manifest_streaming(flate2::read::GzDecoder::new(gz_data), tarball_path)
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// Read the root `package.json` out of a decompressed tar stream,
@@ -242,18 +261,64 @@ pub(crate) fn read_bundled_manifest(
             continue;
         }
         let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
-        let mut components = path.components().skip(1);
-        if components.next() != Some(Component::Normal("package.json".as_ref()))
-            || components.next().is_some()
-        {
+        if !is_root_manifest_entry_path(&path) {
             continue;
         }
-        drop(components);
+        drop(path);
         // Only the surviving entry is parsed, so a malformed duplicate
         // that a later one supersedes can't fail the read.
         payload = Some(tar_entry_payload(tar_data, &entry)?);
     }
     let Some(payload) = payload else { return Ok((None, false)) };
+    finish_bundled_manifest(payload, tarball_path)
+}
+
+/// [`read_bundled_manifest`] over a tar stream that is not held in
+/// memory: only the manifest entry itself is buffered, so the archive's
+/// size no longer bounds this read.
+fn read_bundled_manifest_streaming(
+    reader: impl Read,
+    tarball_path: &str,
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
+    let mut archive = Archive::new(reader);
+    let mut payload: Option<Vec<u8>> = None;
+    for entry in archive.entries().map_err(TarballError::ReadTarballEntries)? {
+        let mut entry = entry.map_err(TarballError::ReadTarballEntries)?;
+        if !entry.header().entry_type().is_file() {
+            continue;
+        }
+        let is_manifest = {
+            let path = entry.path().map_err(TarballError::ReadTarballEntries)?;
+            is_root_manifest_entry_path(&path)
+        };
+        if !is_manifest {
+            continue;
+        }
+        let file_size = entry.header().size().map_err(TarballError::ReadTarballEntries)?;
+        if file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
+            return Err(oversized_manifest_error(file_size));
+        }
+        let mut data = Vec::with_capacity(file_size as usize);
+        entry.read_to_end(&mut data).map_err(TarballError::ReadTarballEntries)?;
+        payload = Some(data);
+    }
+    let Some(payload) = payload else { return Ok((None, false)) };
+    finish_bundled_manifest(&payload, tarball_path)
+}
+
+/// Whether an archive entry is the package's own `package.json` — the
+/// one directly inside the top-level directory every published tarball
+/// wraps its payload in, not a `package.json` shipped in a subdirectory.
+fn is_root_manifest_entry_path(path: &Path) -> bool {
+    let mut components = path.components().skip(1);
+    components.next() == Some(Component::Normal("package.json".as_ref()))
+        && components.next().is_none()
+}
+
+fn finish_bundled_manifest(
+    payload: &[u8],
+    tarball_path: &str,
+) -> Result<(Option<serde_json::Value>, bool), TarballError> {
     let parsed = parse_manifest_bytes(payload).map_err(|source| {
         TarballError::ParseBundledManifest { tarball: tarball_path.to_string(), source }
     })?;

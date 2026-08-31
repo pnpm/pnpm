@@ -4,6 +4,7 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 export interface WriteSettingsOptions {
   updatedSettings?: PnpmSettings
   updatedOverrides?: Record<string, string>
+  updatedAuditIgnoreGhsas?: string[]
   addedMinimumReleaseAgeExcludes?: string[]
   deletedLegacyKeys?: string[]
   rootProjectManifest?: ProjectManifest
@@ -15,6 +16,7 @@ export async function writeSettings (opts: WriteSettingsOptions): Promise<void> 
   await updateWorkspaceManifest(opts.workspaceDir, {
     updatedFields: opts.updatedSettings,
     updatedOverrides: opts.updatedOverrides,
+    updatedAuditIgnoreGhsas: opts.updatedAuditIgnoreGhsas,
     addedMinimumReleaseAgeExcludes: opts.addedMinimumReleaseAgeExcludes,
     deletedLegacyKeys: opts.deletedLegacyKeys,
   })

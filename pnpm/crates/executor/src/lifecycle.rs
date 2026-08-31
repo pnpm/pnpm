@@ -445,7 +445,7 @@ fn run_in_emulator<Reporter: self::Reporter>(
 ) -> Result<ScriptExit, LifecycleScriptError> {
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let emit_line = |stdio, line| target.emit_line(stdio, line);
-    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line))
+    execute_emulated(script, opts.pkg_root, env, EmulatedOutput::Lines(&emit_line), None)
         .map(ScriptExit::Emulated)
         .map_err(LifecycleScriptError::ShellEmulator)
 }

@@ -39,9 +39,17 @@ export type OptionsFromRootManifest = {
   registriesByScope?: Record<string, string>
   registriesByPrefix?: Record<string, string>
   registryOptionsByUrl?: Record<string, RegistryOptions>
-} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'updateConfig'>
+  auditIgnorePrune?: boolean
+} & Pick<PnpmSettings, 'configDependencies' | 'auditConfig' | 'pnprServer' | 'remoteSideEffectsCache' | 'sideEffectsCache' | 'tasks' | 'updateConfig'>
 
 interface GetOptionsFromPnpmSettingsOptions {
+  /**
+   * The settings come from a file the repository does not control (the global
+   * config yaml), so they may carry the fields
+   * {@link SHARED_SIDE_EFFECTS_TRUST_KEYS} names. Defaults to `false`, which
+   * treats the source as repo-controlled.
+   */
+  trustedSource?: boolean
   manifest?: ProjectManifest
   expandRequestDestinationEnv?: boolean
 }
@@ -60,6 +68,12 @@ export function getOptionsFromPnpmSettings (
   const opts = isGetOptionsFromPnpmSettingsOptions(manifestOrOpts)
     ? manifestOrOpts
     : manifestOrOpts == null ? {} : { manifest: manifestOrOpts }
+  if (pnpmSettings.remoteSideEffectsCache != null) {
+    assertValidSharedSideEffectsCache(pnpmSettings.remoteSideEffectsCache, opts.trustedSource ?? false, 'remoteSideEffectsCache')
+  }
+  if (pnpmSettings.sideEffectsCache != null && typeof pnpmSettings.sideEffectsCache !== 'boolean') {
+    assertValidSideEffectsCache(pnpmSettings.sideEffectsCache, opts.trustedSource ?? false)
+  }
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
@@ -88,9 +102,118 @@ export function getOptionsFromPnpmSettings (
   translateUpdateSettings(pnpmSettings, settings)
   translateAuditSettings(pnpmSettings, settings)
   translateVirtualStoreType(pnpmSettings, settings)
+  if (settings.tasks != null) {
+    assertValidTasks(settings.tasks)
+  }
 
   return settings
 }
+
+/** The fields a `tasks` entry may carry. Anything else is a typo. */
+const TASK_SETTING_FIELDS = new Set(['concurrency', 'dependsOn'])
+
+// The section feeds the task-graph builder of `pnpm -r run`, which reads it
+// without further checks — a malformed entry has to be rejected here rather
+// than surface as a scheduling bug far from the setting that produced it.
+function assertValidTasks (tasks: unknown): asserts tasks is NonNullable<PnpmSettings['tasks']> {
+  assertObjectSetting(tasks, 'tasks')
+  for (const [taskName, task] of Object.entries(tasks as Record<string, unknown>)) {
+    const taskPath = `tasks['${taskName}']`
+    assertObjectSetting(task, taskPath)
+    for (const field of Object.keys(task as Record<string, unknown>)) {
+      if (TASK_SETTING_FIELDS.has(field)) continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.${field}" setting is not a known task setting.`,
+        { hint: `A task declares ${quoteAndJoin([...TASK_SETTING_FIELDS])}.` })
+    }
+    const concurrency = (task as { concurrency?: unknown }).concurrency
+    if (concurrency != null && (!Number.isInteger(concurrency) || (concurrency as number) < 1)) {
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.concurrency" setting should be a positive integer, but got ${JSON.stringify(concurrency)}`)
+    }
+    const dependsOn = (task as { dependsOn?: unknown }).dependsOn
+    if (dependsOn == null) continue
+    assertStringArray(dependsOn, `${taskPath}.dependsOn`)
+    for (const entry of dependsOn) {
+      if (entry !== '' && entry !== '^') continue
+      throw new PnpmError('INVALID_SETTING',
+        `The "${taskPath}.dependsOn" setting contains an entry with no task name: ${JSON.stringify(entry)}`)
+    }
+  }
+}
+
+/**
+ * The signing trust root stays outside the repository: a workspace declares
+ * which organization and packages are eligible and nothing else — see
+ * {@link WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS}. Letting it set `publish` would
+ * turn a key the machine holds for its own builds into a signing oracle any
+ * cloned repository could aim at a registry of its choosing.
+ *
+ * The rest of the section is consumed without further checks by the
+ * install-time lookup, so a malformed shape has to be rejected here rather than
+ * surface as a type error deep inside the hydration path.
+ */
+function assertValidSideEffectsCache (
+  settings: Exclude<NonNullable<PnpmSettings['sideEffectsCache']>, boolean>,
+  trustedSource: boolean
+): void {
+  assertObjectSetting(settings, 'sideEffectsCache')
+  assertOptionalBoolean(settings.read, 'sideEffectsCache.read')
+  assertOptionalBoolean(settings.write, 'sideEffectsCache.write')
+  if (settings.remote != null) {
+    assertValidSharedSideEffectsCache(settings.remote, trustedSource, 'sideEffectsCache.remote')
+  }
+}
+
+function assertValidSharedSideEffectsCache (
+  settings: NonNullable<PnpmSettings['remoteSideEffectsCache']>,
+  trustedSource: boolean,
+  path: string
+): void {
+  assertObjectSetting(settings, path)
+  if (!trustedSource) {
+    const machineField = Object.keys(settings)
+      .find((field) => !WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS.has(field))
+    if (machineField != null) {
+      throw new PnpmError(
+        'WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST',
+        `${path}.${machineField} cannot be set by a workspace`,
+        { hint: `Set it in the global config file (pnpm config set --location=global ${path}.${machineField} ...) or in the environment instead.` }
+      )
+    }
+  }
+  if (settings.org != null) {
+    assertString(settings.org, `${path}.org`)
+  }
+  if (settings.organization != null) {
+    assertString(settings.organization, `${path}.organization`)
+  }
+  if (settings.packages != null) {
+    assertStringArray(settings.packages, `${path}.packages`)
+  }
+  assertOptionalBoolean(settings.publish, `${path}.publish`)
+  for (const field of ['keyId', 'builderId', 'imageDigest', 'architectureBaseline', 'privateKey'] as const) {
+    if (settings[field] == null) continue
+    assertString(settings[field], `${path}.${field}`)
+  }
+  if (settings.buildEnv != null) {
+    assertObjectSetting(settings.buildEnv, `${path}.buildEnv`)
+    for (const [name, value] of Object.entries(settings.buildEnv)) {
+      assertString(value, `${path}.buildEnv.${name}`)
+    }
+  }
+}
+
+/**
+ * The only fields of `remoteSideEffectsCache` a committed file may contribute.
+ *
+ * Everything else describes the act of signing — which key signs, what
+ * provenance the signature attests, and whether to publish at all — so it
+ * belongs to the machine holding the key. Listing what a repository may set,
+ * rather than what it may not, keeps a field added later machine-only until
+ * someone decides otherwise.
+ */
+const WORKSPACE_REMOTE_SIDE_EFFECTS_FIELDS: ReadonlySet<string> = new Set(['org', 'organization', 'packages'])
 
 const REGISTRY_SERVER_TYPES = new Set(['npm', 'artifactory'])
 
@@ -332,6 +455,9 @@ function translateUpdateSettings (pnpmSettings: PnpmSettings, settings: OptionsF
  */
 function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFromRootManifest): void {
   delete (settings as { audit?: unknown }).audit
+  // `auditIgnorePrune` is derived from `audit.ignorePrune` below; a raw
+  // top-level key of that name is not a setting in either CLI.
+  delete settings.auditIgnorePrune
   const audit = pnpmSettings.audit
   if (audit == null) return
   assertObjectSetting(audit, 'audit')
@@ -350,6 +476,10 @@ function translateAuditSettings (pnpmSettings: PnpmSettings, settings: OptionsFr
       globalWarn('Both the "audit" and "auditLevel" settings are set. The deprecated "auditLevel" setting is ignored in favor of "audit".')
     }
     ;(settings as { auditLevel?: string }).auditLevel = audit.level
+  }
+  if (audit.ignorePrune != null) {
+    assertBoolean(audit.ignorePrune, 'audit.ignorePrune')
+    settings.auditIgnorePrune = audit.ignorePrune
   }
 }
 
@@ -372,15 +502,17 @@ export function toUpdateSettings (updateConfig: OptionsFromRootManifest['updateC
 
 /**
  * The `audit` settings the CLI acts on, re-joined from the internal
- * `auditConfig` / `auditLevel` pair {@link translateAuditSettings} splits the
- * section into — the view `pnpm config get audit` prints. An empty ignore
- * list reads as unset. `undefined` when nothing is set.
+ * `auditConfig` / `auditLevel` / `auditIgnorePrune` settings
+ * {@link translateAuditSettings} splits the section into — the view
+ * `pnpm config get audit` prints. An empty ignore list reads as unset.
+ * `undefined` when nothing is set.
  */
-export function toAuditSettings ({ auditConfig, auditLevel }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel }): AuditSettings | undefined {
+export function toAuditSettings ({ auditConfig, auditLevel, auditIgnorePrune }: { auditConfig?: AuditConfig, auditLevel?: AuditLevel, auditIgnorePrune?: boolean }): AuditSettings | undefined {
   const ignore = auditConfig?.ignoreGhsas
   const audit: AuditSettings = {
     ...(auditLevel != null ? { level: auditLevel } : {}),
     ...(ignore != null && ignore.length > 0 ? { ignore } : {}),
+    ...(auditIgnorePrune != null ? { ignorePrune: auditIgnorePrune } : {}),
   }
   return Object.keys(audit).length > 0 ? audit : undefined
 }
@@ -408,7 +540,7 @@ function translateVirtualStoreType (pnpmSettings: PnpmSettings, settings: Option
 function isGetOptionsFromPnpmSettingsOptions (
   value: ProjectManifest | GetOptionsFromPnpmSettingsOptions | undefined
 ): value is GetOptionsFromPnpmSettingsOptions {
-  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value)
+  return value != null && ('expandRequestDestinationEnv' in value || 'manifest' in value || 'trustedSource' in value)
 }
 
 function assertValidOverrides (overrides: unknown): asserts overrides is Record<string, string> {
@@ -477,6 +609,11 @@ function assertStringArray (value: unknown, settingName: string): asserts value 
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
     throw new PnpmError('INVALID_SETTING', `The "${settingName}" setting should be an array of strings, but got ${renderReceivedType(value)}`)
   }
+}
+
+function assertOptionalBoolean (value: unknown, settingName: string): void {
+  if (value == null) return
+  assertBoolean(value, settingName)
 }
 
 function assertBoolean (value: unknown, settingName: string): asserts value is boolean {

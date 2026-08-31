@@ -43,7 +43,19 @@ pnpr/
       src/
         lib.rs              -> library API
         main.rs             -> binary entry point (ships the `pnpr` binary)
-    # future sibling crates land here, see "New registry-only crates" below
+    auth/          -> package "pnpr-auth"          (user and token stores)
+    config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
+    error/         -> package "pnpr-error"         (the error type every layer returns)
+    osv/           -> package "pnpr-osv"           (the OSV advisory index)
+    package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
+    registry/      -> package "pnpr-registry"      (the registry routing table)
+    route/         -> package "pnpr-route"         (classifies a fetch route public or private)
+    search/        -> package "pnpr-search"        (the local /-/v1/search index scan)
+    shared-artifacts/ -> package "pnpr-shared-artifacts" (the shared build-artifact store)
+    storage/       -> package "pnpr-storage"       (the hosted store, proxy cache, and publish journal)
+    upstream/      -> package "pnpr-upstream"      (the upstream registry proxy client)
+    policy/        -> package "pnpr-policy"        (access policy for those routes)
+    # further sibling crates land here, see "New registry-only crates" below
 ```
 
 The Rust workspace itself, `rust-toolchain.toml`, `justfile`, and
@@ -80,6 +92,19 @@ the root with the `pnpr-` prefix so other crates can use
 
 Use the `pnpr-` prefix exclusively for registry-only crates.
 Don't reach for `pnpm-` to name something new on the registry side.
+
+**Also add it to `deny.toml`.** The `pnpr*` crates are licensed under
+PolyForm Shield rather than the workspace's MIT, and cargo-deny scores that
+license text below its confidence threshold. A new crate therefore needs both
+an `licenses.exceptions` entry and a `[[licenses.clarify]]` block pinning
+`../../LICENSE.md` by hash — without them `Rust CI / Cargo Deny` fails the
+crate as `unlicensed`. That job is path-filtered on `Cargo.lock` and
+`deny.toml`, so it only runs on PRs that touch one of them; adding a crate
+always does.
+
+Name crates for what they hold, not for where they sit in the graph. The
+workspace has no `core`, `common`, `shared`, or `utils` crate, and shouldn't
+grow one: those names admit anything, so they collect everything.
 
 ## Dependencies
 

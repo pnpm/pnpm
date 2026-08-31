@@ -6,7 +6,7 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog, emit_initial_package_manifest, included_direct_groups,
+    decide_catalog, defer_ignored_builds, emit_initial_package_manifest, included_direct_groups,
     manifest_spec_bumps::ManifestSpecBumps,
     package_manifest_prefix,
     resolution_policy::{PickPolicy, create_configured_npm_resolver},
@@ -16,6 +16,7 @@ use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
+use pipe_trait::Pipe;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -50,7 +51,7 @@ use pnpm_resolving_resolver_base::{
 use pnpm_tarball::MemCache;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -106,6 +107,9 @@ pub struct Update<'a> {
     /// direct dependencies to their `latest` dist-tag, rewriting
     /// `package.json`.
     pub latest: bool,
+    /// `--patches`: refresh registry revisions while retaining every locked
+    /// package version and leaving manifest specifiers unchanged.
+    pub patches: bool,
     /// `--save-exact` / `-E`: write the resolved version without a range
     /// operator when rewriting the manifest under `--latest`. Only applies
     /// to dependencies whose current specifier has no recoverable pin; an
@@ -301,6 +305,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -385,6 +390,7 @@ impl Update<'_> {
             bump_targets,
             ..
         } = prepared;
+        let seed_policy = if patches { UpdateSeedPolicy::RefreshRevisions } else { seed_policy };
         let importer_id = pnpm_workspace::importer_id_from_root_dir(&workspace_root, &manifest_dir);
         let bumps = (!bump_targets.is_empty()).then(|| ManifestSpecBumps {
             targets: BTreeMap::from([(importer_id.clone(), bump_targets)]),
@@ -411,7 +417,7 @@ impl Update<'_> {
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -431,7 +437,7 @@ impl Update<'_> {
             pnpmfile_hook_override: read_package_hook.as_ref().map(|(hook, _)| Arc::clone(hook)),
             workspace_projects_override: None,
         };
-        match lockfile_specifier_project_manifests {
+        let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
                 install
                     .run_with_lockfile_specifier_project_manifests::<Reporter>(
@@ -445,6 +451,7 @@ impl Update<'_> {
                 None => install.run::<Reporter>().await,
             },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -474,15 +481,19 @@ impl Update<'_> {
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<PathBuf>],
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
+        install_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), UpdateError> {
         let Update {
@@ -496,6 +507,7 @@ impl Update<'_> {
             lockfile_path,
             packages,
             latest,
+            patches,
             save_exact,
             save,
             include_direct,
@@ -596,7 +608,7 @@ impl Update<'_> {
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
-            update_checksums: false,
+            update_checksums: patches,
             mutation: update_mutation(packages, latest),
             installs_only: true,
             resolved_packages,
@@ -605,9 +617,13 @@ impl Update<'_> {
             lockfile_only,
             dry_run: false,
             persist_policy_excludes: save,
-            update_seed_policy: UpdateSeedPolicy::ByImporter {
-                policies: prepared.seed_policies,
-                max_depth: UpdateDepth::new(depth),
+            update_seed_policy: if patches {
+                UpdateSeedPolicy::RefreshRevisions
+            } else {
+                UpdateSeedPolicy::ByImporter {
+                    policies: prepared.seed_policies,
+                    max_depth: UpdateDepth::new(depth),
+                }
             },
             preferred_versions_override: Some(prepared.preferred_versions_override),
             auth_override: None,
@@ -621,12 +637,13 @@ impl Update<'_> {
         };
         let selection = WorkspaceInstallSelection {
             all_projects: projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
+            install_dirs,
             active_manifest_is_standin,
         };
-        match lockfile_specifier_project_manifests {
+        let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
                 install
                     .run_selected_with_lockfile_specifier_project_manifests::<Reporter>(
@@ -645,6 +662,7 @@ impl Update<'_> {
                 None => install.run_selected::<Reporter>(selection).await,
             },
         }
+        .pipe(defer_ignored_builds)
         .map_err(UpdateError::Install)?;
 
         let applied = bumps.map(|bumps| bumps.applied.into_inner().expect("never poisoned"));
@@ -681,6 +699,9 @@ impl Update<'_> {
             post_install_prune(config, Some(workspace_dir), manifest)
                 .map_err(UpdateError::WriteWorkspaceManifest)?;
         }
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(UpdateError::Install(ignored_builds));
+        }
         Ok(())
     }
 }
@@ -690,8 +711,9 @@ struct UpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_manifest: bool,
     /// Direct dependencies whose declared range the install may move onto
-    /// the version it resolves. See [`crate::ManifestSpecBumps`].
-    bump_targets: HashSet<String>,
+    /// the version it resolves, each mapped to the group and specifier the
+    /// manifest declares for it. See [`crate::ManifestSpecBumps`].
+    bump_targets: HashMap<String, (DependencyGroup, String)>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -702,7 +724,7 @@ struct SelectedUpdatePreparation {
     preferred_versions_override: PreferredVersions,
     persist_indices: Vec<usize>,
     /// [`UpdatePreparation::bump_targets`] per importer id.
-    bump_targets: BTreeMap<String, HashSet<String>>,
+    bump_targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
     updated_catalogs: Catalogs,
     catalogs_override: Option<Catalogs>,
     workspace_dir_for_catalogs: Option<PathBuf>,
@@ -811,7 +833,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
     // A compatible bump cannot name its version before the resolve, so the
     // matched names are collected here and the install reports back what it
     // settled on.
-    let mut bump_targets = HashSet::new();
+    let mut bump_targets = HashMap::new();
     let max_depth = UpdateDepth::new(depth);
     // Bare-name selectors with depth update matching names at any depth.
     let use_name_matcher = !selectors.is_empty()
@@ -876,7 +898,7 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                 rewrites.push((name.clone(), *group, specifier));
             }
             if save && !latest {
-                bump_targets.insert(name.clone());
+                bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
             }
             drop_targets.insert(name.clone(), None);
         }
@@ -901,10 +923,10 @@ async fn prepare_manifest<Reporter: self::Reporter>(
         let patterns =
             selectors.iter().map(|selector| selector.pattern.clone()).collect::<Vec<_>>();
         let matcher = create_matcher(&patterns);
-        for (name, _, _) in &direct {
+        for (name, group, previous) in &direct {
             if matcher.matches(name) {
                 if save {
-                    bump_targets.insert(name.clone());
+                    bump_targets.entry(name.clone()).or_insert_with(|| (*group, previous.clone()));
                 }
                 drop_targets.insert(name.clone(), None);
             }
@@ -1054,7 +1076,9 @@ async fn prepare_manifest<Reporter: self::Reporter>(
                         rewritten.filter(|specifier| specifier != previous)
                     } else {
                         if save && requested.is_none() {
-                            bump_targets.insert(name.clone());
+                            bump_targets
+                                .entry(name.clone())
+                                .or_insert_with(|| (*group, previous.clone()));
                         }
                         requested
                     }
@@ -1239,8 +1263,10 @@ async fn prepare_selected_manifests<Reporter: self::Reporter>(
         }
         match prepared.seed_policy {
             UpdateSeedPolicy::KeepAll => {}
-            UpdateSeedPolicy::KeepAllResolveAll => {
-                unreachable!("update never uses the dedupe seed policy")
+            UpdateSeedPolicy::KeepAllResolveAll
+            | UpdateSeedPolicy::FixLockfile
+            | UpdateSeedPolicy::RefreshRevisions => {
+                unreachable!("manifest preparation never uses a whole-graph seed policy")
             }
             UpdateSeedPolicy::DropAll { .. } => {
                 seed_policies.insert(importer_id, ImporterUpdateSeedPolicy::DropAll);

@@ -1,11 +1,14 @@
 use miette::IntoDiagnostic;
-use pnpm_config::PmOnFail;
+use pnpm_config::{PNPM_VERSION, PmOnFail};
+use pnpm_env_installer::is_package_manager_resolved;
+use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manifest::{
     package_manager_spec::{
         dev_engines_package_managers, is_version_request, split_spec, version_without_build,
     },
     parse_manifest,
 };
+use pnpm_semver_include_prerelease::IncludePrereleaseRange;
 use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
@@ -54,9 +57,56 @@ pub(crate) fn package_manager_to_sync(
     {
         return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
     }
-    exact_version(wanted_version)
-        .filter(|version| version_satisfies(version, wanted_version))
-        .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version })
+    if let Some(version) =
+        exact_version(wanted_version).filter(|version| version_satisfies(version, wanted_version))
+    {
+        return Some(PackageManagerToSync { specifier: wanted_version.to_string(), version });
+    }
+    // A range pin names no exact version, so the running pnpm's version is
+    // the one the project actually uses.
+    version_satisfies(PNPM_VERSION, wanted_version).then(|| PackageManagerToSync {
+        specifier: wanted_version.to_string(),
+        version: PNPM_VERSION.to_string(),
+    })
+}
+
+/// Whether the pnpm version the manifest at `root_dir` pins still has to be
+/// recorded in the env lockfile there. The install family records it from
+/// its own pipeline, so an install that short-circuits before the pipeline
+/// has to give up its fast path — a plain install would otherwise keep
+/// reporting success while leaving every `--frozen-lockfile` run failing on
+/// the unwritten entry.
+///
+/// `root_manifest` is that manifest when the caller already holds it, so a
+/// fast path does not read the same file twice.
+///
+/// A manifest that cannot be read answers `false`: the full install path
+/// reports that, and a fast path is not where it should surface.
+pub(crate) fn package_manager_needs_recording(
+    root_dir: &Path,
+    on_fail: Option<PmOnFail>,
+    root_manifest: Option<&Value>,
+) -> bool {
+    let read;
+    let manifest = if let Some(manifest) = root_manifest {
+        manifest
+    } else {
+        let Ok(Some(manifest)) = read_manifest_json(&root_dir.join("package.json")) else {
+            return false;
+        };
+        read = manifest;
+        &read
+    };
+    let Some(package_manager) = package_manager_to_sync(manifest, root_dir, on_fail) else {
+        return false;
+    };
+    !EnvLockfile::read(root_dir).ok().flatten().is_some_and(|env_lockfile| {
+        is_package_manager_resolved(
+            &env_lockfile,
+            &package_manager.specifier,
+            &package_manager.version,
+        )
+    })
 }
 
 pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
@@ -149,30 +199,28 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
+/// The one version `version` pins, or `None` when it pins a range, a
+/// dist-tag, or nothing at all.
+///
+/// The `+<algorithm>.<hash>` build corepack records the artifact it
+/// downloaded with is dropped: it names corepack's download, not a pnpm
+/// release, so the registry resolves the version without it and a lockfile
+/// entry that kept it would never match the version recorded beside it.
 pub(crate) fn exact_version(version: &str) -> Option<String> {
     let parsed = node_semver::Version::parse(version).ok()?;
-    (parsed.to_string() == version).then(|| version.to_string())
+    (parsed.to_string() == version).then(|| version_without_build(version).to_string())
 }
 
+/// pnpm's `semver.satisfies(version, wanted_range, { includePrerelease:
+/// true })`, the call every version pin is read with — a package manager's
+/// and a runtime's alike.
+///
+/// A version no parser accepts satisfies nothing, as upstream `satisfies`
+/// answers `false` for one rather than throwing.
 pub(crate) fn version_satisfies(version: &str, wanted_range: &str) -> bool {
-    let Ok(version) = node_semver::Version::parse(version) else {
-        return false;
-    };
-    let Ok(range) = node_semver::Range::parse(wanted_range) else {
-        return false;
-    };
-    if version.satisfies(&range) {
-        return true;
-    }
-    if version.pre_release.is_empty() {
-        return false;
-    }
-    let base = node_semver::Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre_release: Vec::new(),
-        build: version.build,
-    };
-    base.satisfies(&range)
+    node_semver::Version::parse(version)
+        .is_ok_and(|version| IncludePrereleaseRange::parse(wanted_range).satisfies(&version))
 }
+
+#[cfg(test)]
+mod tests;

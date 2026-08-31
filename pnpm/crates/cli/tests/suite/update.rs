@@ -534,6 +534,30 @@ fn update_latest_preserves_workspace_local_path_specifier() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_patches_preserves_an_implicit_workspace_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    add_workspace_package(&workspace, "workspace-only", "1.0.0");
+    append_workspace_yaml_key(&workspace, "linkWorkspacePackages", true);
+    write_manifest(&workspace, r#"{ "workspace-only": "^1.0.0" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--patches"]).assert().success();
+
+    let dependency = workspace.join("node_modules/workspace-only");
+    assert!(dependency.exists(), "workspace dependency should remain linked");
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains(
+            "workspace-only:\n        specifier: ^1.0.0\n        version: link:workspace-only"
+        ),
+        "{lockfile}",
+    );
+
+    drop((root, anchor));
+}
+
 /// A package selector only updates the matched dependency; others keep
 /// their manifest ranges.
 #[test]
@@ -1030,6 +1054,21 @@ fn set_named_catalog(workspace: &Path, catalog: &str, entries: &[(&str, &str)]) 
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
 
+/// Append an `overrides:` block with the given `(name, specifier)` entries
+/// to the harness-written `pnpm-workspace.yaml`.
+fn set_overrides(workspace: &Path, entries: &[(&str, &str)]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("overrides:\n");
+    for (name, spec) in entries {
+        writeln!(yaml, r#"  "{name}": "{spec}""#).unwrap();
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
 fn read_workspace_yaml(workspace: &Path) -> String {
     fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
 }
@@ -1106,6 +1145,70 @@ fn update_catalog_bumps_the_entry_within_its_range() {
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
     let yaml = read_workspace_yaml(&workspace);
     assert!(yaml.contains("^100.1.0"), "catalog entry should be bumped to ^100.1.0: {yaml}");
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// A dependency declared through the catalog and listed in `overrides`
+/// reaches the resolver with the override's specifier, so the version the
+/// run resolves must not be written back over the `catalog:` reference
+/// (pnpm/pnpm#12115).
+#[test]
+fn update_keeps_the_catalog_reference_of_an_overridden_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "^100.0.0")]);
+    set_overrides(&workspace, &[(DEP, "^100.0.0"), (FOO, "100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1", "{FOO}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    // Both declarations are the overrides' input, not their output: neither
+    // the `catalog:` reference nor the declared range may be replaced by the
+    // version the override resolved to.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+    assert_eq!(dep_spec(&workspace, FOO).as_deref(), Some("^100.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// An override claims a dependency even when it repeats the range the project
+/// declares, so the declared range is not the update's to move: the overrides
+/// hook rewrites it back before the resolver reads it, and the lockfile would
+/// then record a specifier the manifest never shows (pnpm/pnpm#14224).
+#[test]
+fn update_keeps_a_declared_range_an_override_repeats() {
+    let (root, workspace, anchor) = setup();
+
+    set_overrides(&workspace, &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
+    pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// `--latest` reaches the manifest through its own pre-install rewrite, so
+/// it needs the `catalog:` reference to survive an override of its own.
+#[test]
+fn update_latest_keeps_the_catalog_reference_of_an_overridden_dependency() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "^100.0.0")]);
+    set_overrides(&workspace, &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
     pacquet(&workspace, ["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, anchor));

@@ -21,7 +21,7 @@ pub use pnpm_config::BUILTIN_REGISTRIES_BY_PREFIX;
 /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL` code.
 ///
 /// Surfaced at resolver construction so a malformed URL in the
-/// user's `pnpm-workspace.yaml#namedRegistries` fails fast instead of
+/// user's `pnpm-workspace.yaml#registries` fails fast instead of
 /// turning into a confusing 404 during resolution.
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
@@ -45,7 +45,7 @@ pub enum MergeNamedRegistriesError {
     )]
     #[diagnostic(
         code(ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME),
-        help("Rename the entry in the namedRegistries setting.")
+        help("Change the prefix on the corresponding registries entry.")
     )]
     ReservedAlias {
         #[error(not(source))]
@@ -56,7 +56,7 @@ pub enum MergeNamedRegistriesError {
     )]
     #[diagnostic(
         code(ERR_PNPM_RESERVED_NAMED_REGISTRY_NAME),
-        help("Rename the entry in the namedRegistries setting.")
+        help("Change the prefix on the corresponding registries entry.")
     )]
     MalformedAlias {
         #[error(not(source))]

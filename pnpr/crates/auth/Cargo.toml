@@ -1,0 +1,38 @@
+[package]
+name                 = "pnpr-auth"
+version              = "0.0.1"
+description          = "pnpr's user and token stores: htpasswd, SQLite, and the networked SQL backends"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[features]
+backend-libsql   = ["dep:libsql", "pnpr-error/backend-libsql"]
+backend-mysql    = ["dep:sqlx", "sqlx/mysql", "pnpr-error/backend-mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres"]
+
+[dependencies]
+pnpr-config = { workspace = true }
+pnpr-error  = { workspace = true }
+async-trait = { workspace = true }
+bcrypt      = { workspace = true }
+getrandom   = { workspace = true }
+libsql      = { workspace = true, optional = true }
+rusqlite    = { workspace = true }
+serde_json  = { workspace = true }
+sha2        = { workspace = true }
+sqlx        = { workspace = true, optional = true }
+tokio       = { workspace = true }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+axum     = { workspace = true }
+tempfile = { workspace = true }
+tokio    = { workspace = true }
+
+[lints]
+workspace = true

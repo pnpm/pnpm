@@ -6,7 +6,7 @@
 
 use super::{
     Arc, Component, Cursor, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant,
-    MAX_UNTRUSTED_PREALLOC_BYTES, NetworkError, PathBuf, PrefetchedCasPaths, Read, TarballError,
+    NetworkError, PathBuf, PrefetchedCasPaths, Read, STREAM_ENTRY_BUFFER_MAX, TarballError,
     UNIX_EPOCH, VerifyChecksumError, allocate_tarball_buffer, apply_append_manifest,
     apply_placeholder_manifest, emit_progress_found_in_store, is_transient_error,
     load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
@@ -18,8 +18,8 @@ use pnpm_reporter::{
     Reporter, RequestRetryLog,
 };
 use pnpm_store_dir::{
-    CafsFileInfo, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
-    StoreIndexWriter, store_index_key,
+    CafsFileInfo, FileHash, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
+    StoreDir, StoreIndexWriter, WriteCasFileFromReaderError, store_index_key,
 };
 use ssri::Integrity;
 
@@ -50,9 +50,11 @@ pub(crate) fn extract_zip_entries(
     let mut pkg_files_idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::with_capacity(entry_count),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
 
     // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
@@ -140,22 +142,6 @@ pub(crate) fn extract_zip_entries(
             continue;
         }
 
-        let prealloc_hint = entry.size().min(MAX_UNTRUSTED_PREALLOC_BYTES as u64) as usize;
-        let mut buffer = Vec::new();
-        buffer.try_reserve(prealloc_hint).map_err(|err| TarballError::ReadZipEntries {
-            url: package_url.to_string(),
-            entry_path: cleaned.clone(),
-            source: std::io::Error::new(
-                std::io::ErrorKind::OutOfMemory,
-                format!("failed to reserve {prealloc_hint} bytes for zip entry: {err}"),
-            ),
-        })?;
-        entry.read_to_end(&mut buffer).map_err(|source| TarballError::ReadZipEntries {
-            url: package_url.to_string(),
-            entry_path: cleaned.clone(),
-            source,
-        })?;
-
         // Central-directory record carries a Unix mode only when
         // the archive was built by a Unix tool; Windows-built
         // archives omit it. Fall back to `0o644` so the executable
@@ -165,12 +151,17 @@ pub(crate) fn extract_zip_entries(
         // `add_files_from_dir.rs` enforces for tar / on-disk imports.
         let file_mode = entry.unix_mode().unwrap_or(0o644) & 0o777;
         let file_is_executable = file_mode::is_executable(file_mode);
+        let declared_size = entry.size();
 
-        let (file_path, file_hash) = store_dir
-            .write_cas_file(&buffer, file_is_executable)
-            .map_err(TarballError::WriteCasFile)?;
+        let (file_path, file_hash, file_size) = write_zip_entry_to_cas(
+            &mut entry,
+            declared_size,
+            package_url,
+            &cleaned,
+            store_dir,
+            file_is_executable,
+        )?;
 
-        let file_size = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
         let checked_at =
             UNIX_EPOCH.elapsed().ok().and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok());
         let file_attrs = CafsFileInfo {
@@ -189,6 +180,77 @@ pub(crate) fn extract_zip_entries(
     }
 
     Ok((cas_paths, pkg_files_idx))
+}
+
+/// Hash one zip entry into the content-addressed store, holding it in
+/// memory only while it is small.
+///
+/// Nothing in a zip archive bounds an entry's decompressed size:
+/// `uncompressed_size` in the central directory is a claim, and the
+/// deflate stream behind it keeps producing bytes for as long as it
+/// likes — a tar entry, by contrast, is raw bytes the header's size
+/// field genuinely delimits. Both branches below therefore read through
+/// a [`Read::take`] of the claim and reject an entry whose payload
+/// outruns it, rather than growing to whatever it decodes to.
+///
+/// Entries above [`STREAM_ENTRY_BUFFER_MAX`] go straight into the store
+/// with an incremental hash, the same shape
+/// [`crate::extract::extract_tarball_entries_streaming`] gives a large
+/// tar entry, so a runtime archive's biggest member never has to fit in
+/// memory.
+///
+/// Returns the CAS path, the content hash, and the entry's size.
+pub(crate) fn write_zip_entry_to_cas(
+    entry: &mut impl Read,
+    declared_size: u64,
+    package_url: &str,
+    entry_path: &str,
+    store_dir: &StoreDir,
+    executable: bool,
+) -> Result<(PathBuf, FileHash, u64), TarballError> {
+    let read_error = |source| TarballError::ReadZipEntries {
+        url: package_url.to_string(),
+        entry_path: entry_path.to_string(),
+        source,
+    };
+    // One byte past the claim is all it takes to tell a truthful entry
+    // from one whose payload keeps going.
+    let mut bounded = entry.take(declared_size.saturating_add(1));
+
+    if declared_size > STREAM_ENTRY_BUFFER_MAX {
+        // `Some(declared_size)` makes the store writer reject a stream
+        // that runs short or long before anything is committed to a
+        // content-addressed path.
+        return store_dir
+            .write_cas_file_from_reader(&mut bounded, executable, Some(declared_size))
+            .map_err(|error| match error {
+                WriteCasFileFromReaderError::Read(error) => read_error(error),
+                WriteCasFileFromReaderError::Write(error) => TarballError::WriteCasFile(error),
+            });
+    }
+
+    let prealloc = declared_size as usize;
+    let mut buffer = Vec::new();
+    buffer.try_reserve(prealloc).map_err(|err| {
+        read_error(std::io::Error::new(
+            std::io::ErrorKind::OutOfMemory,
+            format!("failed to reserve {prealloc} bytes for zip entry: {err}"),
+        ))
+    })?;
+    bounded.read_to_end(&mut buffer).map_err(read_error)?;
+    if buffer.len() as u64 != declared_size {
+        return Err(read_error(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!(
+                "zip entry decompressed to {} bytes where its central-directory record claims {declared_size}",
+                buffer.len(),
+            ),
+        )));
+    }
+
+    let (file_path, file_hash) =
+        store_dir.write_cas_file(&buffer, executable).map_err(TarballError::WriteCasFile)?;
+    Ok((file_path, file_hash, declared_size))
 }
 
 /// Run one full zip-archive fetch attempt: hit the network, drain the

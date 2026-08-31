@@ -13,7 +13,7 @@ use tempfile::TempDir;
 
 use super::{
     CACHE_FILE_NAME, CacheLockfile, CachePrecomputed, CacheRecord, MAX_CACHE_ENTRIES,
-    record_verification, try_lockfile_verification_cache,
+    lockfile_verification_is_cached_by_hash, record_verification, try_lockfile_verification_cache,
 };
 
 /// Trivial verifier that records what policy it advertises and
@@ -97,6 +97,39 @@ fn stat_shortcut_hits_same_path_same_stat() {
         try_lockfile_verification_cache(dir.path(), &lockfile, &verifiers, &mut hash_lockfile);
     assert!(result.hit, "same path + same stat → hit");
     assert_eq!(calls, 0, "stat shortcut skipped the hash call");
+}
+
+#[test]
+fn content_hash_only_lookup_ignores_a_matching_path_record() {
+    let dir = TempDir::new().expect("tempdir");
+    let lockfile = touch_lockfile(&dir.path().join("current"), "old content");
+    let verifiers: Vec<Arc<dyn ResolutionVerifier>> =
+        vec![Stub::new(true) as Arc<dyn ResolutionVerifier>];
+    record_verification(
+        dir.path(),
+        &lockfile,
+        &verifiers,
+        || "old-hash".to_string(),
+        CachePrecomputed::default(),
+    );
+
+    assert!(
+        !lockfile_verification_is_cached_by_hash(dir.path(), "merged-hash", &verifiers),
+        "the current file stat must not cover different in-memory content",
+    );
+
+    let merged = touch_lockfile(&dir.path().join("merged"), "merged content");
+    record_verification(
+        dir.path(),
+        &merged,
+        &verifiers,
+        || "merged-hash".to_string(),
+        CachePrecomputed::default(),
+    );
+    assert!(
+        lockfile_verification_is_cached_by_hash(dir.path(), "merged-hash", &verifiers),
+        "the exact in-memory content hash should reuse its cached verdict",
+    );
 }
 
 #[test]

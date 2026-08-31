@@ -124,16 +124,27 @@ pub enum TlsError {
 /// prefix > recursive no-port retry).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct PerRegistryTls {
-    /// Keys are nerf-darted URIs (`//host[:port]/path/` form). Values
-    /// hold the explicit overrides for that prefix — every field is
-    /// `Option` because pnpm allows partial overrides (e.g. only `ca`
-    /// scoped, with `cert` / `key` falling through to top-level).
-    by_uri: HashMap<String, RegistryTls>,
+    by_uri: PerRegistryMap<RegistryTls>,
+}
+
+/// Routing table from nerf-darted registry URI to the per-registry
+/// state a request needs: the [`RegistryTls`] overrides, or the
+/// clients [`crate::ThrottledClient`] derives from them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PerRegistryMap<Value> {
+    /// Keys are nerf-darted URIs (`//host[:port]/path/` form).
+    by_uri: HashMap<String, Value>,
     /// Cache of `key.split('/').count()` maxed across `by_uri.keys()`.
     /// Bounds the path-prefix walk in [`Self::pick_for_url`] so the
     /// loop stops after the longest user-supplied prefix instead of
     /// down to `//`.
     max_parts: usize,
+}
+
+impl<Value> Default for PerRegistryMap<Value> {
+    fn default() -> Self {
+        Self { by_uri: HashMap::new(), max_parts: 0 }
+    }
 }
 
 /// `(ca, cert, key)` triple for a single registry override. Each field
@@ -178,8 +189,7 @@ impl PerRegistryTls {
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
         let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();
-        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
-        PerRegistryTls { by_uri, max_parts }
+        PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
     /// `true` when there are no per-registry overrides. Lets the
@@ -187,13 +197,6 @@ impl PerRegistryTls {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.by_uri.is_empty()
-    }
-
-    /// Iterate `(nerf_dart_uri, &RegistryTls)` pairs. The network
-    /// layer uses this to pre-build a client per unique override
-    /// combo.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &RegistryTls)> {
-        self.by_uri.iter().map(|(k, v)| (k.as_str(), v))
     }
 
     /// Look up the per-registry override for `url` via the 5-step
@@ -205,24 +208,61 @@ impl PerRegistryTls {
     /// 4. Progressively shorter nerf-darted path prefixes.
     /// 5. Retry recursively without port.
     ///
-    /// Returns the **nerf-darted key** that matched (so the network
-    /// layer can index into its pre-built per-registry client map),
-    /// not the [`RegistryTls`] itself.
+    /// Returns the **nerf-darted key** that matched, not the
+    /// [`RegistryTls`] itself; pass it to [`Self::get`] to borrow the
+    /// override.
     #[must_use]
     pub fn pick_for_url(&self, url: &str) -> Option<&str> {
+        self.by_uri.pick_for_url(url).map(|(key, _)| key)
+    }
+
+    /// Borrow the inner [`RegistryTls`] for a nerf-darted key. Returns
+    /// `None` when the key wasn't registered.
+    #[must_use]
+    pub fn get(&self, key: &str) -> Option<&RegistryTls> {
+        self.by_uri.get(key)
+    }
+
+    /// Derive a routing table that answers [`Self::pick_for_url`]
+    /// identically but carries `map_value`'s output per route.
+    pub(crate) fn try_map<Mapped, MapError>(
+        &self,
+        map_value: impl FnMut(&RegistryTls) -> Result<Mapped, MapError>,
+    ) -> Result<PerRegistryMap<Mapped>, MapError> {
+        self.by_uri.try_map(map_value)
+    }
+}
+
+impl<Value> PerRegistryMap<Value> {
+    fn from_map(by_uri: HashMap<String, Value>) -> Self {
+        let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
+        Self { by_uri, max_parts }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.by_uri.is_empty()
+    }
+
+    pub(crate) fn pick_value_for_url(&self, url: &str) -> Option<&Value> {
+        self.pick_for_url(url).map(|(_, value)| value)
+    }
+
+    /// Step numbers below index the chain documented on
+    /// [`PerRegistryTls::pick_for_url`].
+    fn pick_for_url(&self, url: &str) -> Option<(&str, &Value)> {
         if self.by_uri.is_empty() {
             return None;
         }
         // Step 1: exact URL.
-        if let Some((key, _)) = self.by_uri.get_key_value(url) {
-            return Some(key.as_str());
+        if let Some((key, value)) = self.by_uri.get_key_value(url) {
+            return Some((key.as_str(), value));
         }
         // Step 2: nerf-darted URL.
         let nerf = nerf_dart(url);
         if !nerf.is_empty()
-            && let Some((key, _)) = self.by_uri.get_key_value(nerf.as_str())
+            && let Some((key, value)) = self.by_uri.get_key_value(nerf.as_str())
         {
-            return Some(key.as_str());
+            return Some((key.as_str(), value));
         }
         // Step 4: walk progressively shorter prefixes of the
         // nerf-darted form. `nerf` is `//host[:port]/path/`, splitting
@@ -234,8 +274,8 @@ impl PerRegistryTls {
             let upper = parts.len().min(self.max_parts);
             for i in (3..upper).rev() {
                 let key = format!("{}/", parts[..i].join("/"));
-                if let Some((found, _)) = self.by_uri.get_key_value(key.as_str()) {
-                    return Some(found.as_str());
+                if let Some((found, value)) = self.by_uri.get_key_value(key.as_str()) {
+                    return Some((found.as_str(), value));
                 }
             }
         }
@@ -251,11 +291,20 @@ impl PerRegistryTls {
         None
     }
 
-    /// Borrow the inner [`RegistryTls`] for a nerf-darted key. Returns
-    /// `None` when the key wasn't registered.
-    #[must_use]
-    pub fn get(&self, key: &str) -> Option<&RegistryTls> {
+    fn get(&self, key: &str) -> Option<&Value> {
         self.by_uri.get(key)
+    }
+
+    fn try_map<Mapped, MapError>(
+        &self,
+        mut map_value: impl FnMut(&Value) -> Result<Mapped, MapError>,
+    ) -> Result<PerRegistryMap<Mapped>, MapError> {
+        let by_uri = self
+            .by_uri
+            .iter()
+            .map(|(key, value)| Ok((key.clone(), map_value(value)?)))
+            .collect::<Result<_, MapError>>()?;
+        Ok(PerRegistryMap { by_uri, max_parts: self.max_parts })
     }
 }
 

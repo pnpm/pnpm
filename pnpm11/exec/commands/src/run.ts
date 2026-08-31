@@ -75,6 +75,11 @@ export const REPORTER_HIDE_PREFIX_HELP: DescriptionItem = {
   name: '--reporter-hide-prefix',
 }
 
+export const DRY_RUN_OPTION_HELP: DescriptionItem = {
+  description: 'Print the task graph a recursive run would execute, without running anything. With "--json", prints the tasks and their resolved dependency edges as JSON',
+  name: '--dry-run',
+}
+
 export const shorthands: Record<string, string[]> = {
   parallel: [
     '--workspace-concurrency=Infinity',
@@ -111,6 +116,8 @@ export function cliOptionsTypes (): Record<string, unknown> {
       'scripts-prepend-node-path',
     ], allTypes),
     ...IF_PRESENT_OPTION,
+    'dry-run': Boolean,
+    json: Boolean,
     recursive: Boolean,
     reverse: Boolean,
     'resume-from': String,
@@ -150,6 +157,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             description: 'Continue running the remaining scripts even if one of them fails, instead of aborting on the first failure. The command still exits with a non-zero exit code if any script failed',
             name: '--no-bail',
           },
+          DRY_RUN_OPTION_HELP,
           IF_PRESENT_OPTION_HELP,
           PARALLEL_OPTION_HELP,
           RESUME_FROM_OPTION_HELP,
@@ -214,7 +222,17 @@ export async function handler (
   }
   const [scriptName, ...passedThruArgs] = params
 
-  if (opts.verifyDepsBeforeRun) {
+  // Before the dependency verification: an unsupported flag must fail
+  // before anything can trigger an install or a prompt.
+  if (opts.dryRun && !opts.recursive) {
+    throw new PnpmError('DRY_RUN_NOT_RECURSIVE', 'The --dry-run option is only supported with recursive runs', {
+      hint: 'Use "pnpm -r run --dry-run <script>" to print the task graph of a recursive run.',
+    })
+  }
+
+  // A dry run prints what would execute and runs nothing, so it must not
+  // let the dependency verification trigger an install either.
+  if (opts.verifyDepsBeforeRun && !opts.dryRun) {
     await runDepsStatusCheck(opts)
   }
 
@@ -227,7 +245,7 @@ export async function handler (
 
   if (opts.recursive) {
     if (scriptName || Object.keys(opts.selectedProjectsGraph).length > 1) {
-      return runRecursive(params, opts) as Promise<undefined>
+      return runRecursive(params, opts)
     }
     dir = Object.keys(opts.selectedProjectsGraph)[0]
   } else {
@@ -437,20 +455,16 @@ export async function runScript (opts: {
   runScriptOptions: RunScriptOptions
   passedThruArgs: string[]
 }, scriptName: string): Promise<void> {
-  if (
-    opts.runScriptOptions.enablePrePostScripts &&
-    opts.manifest.scripts?.[`pre${scriptName}`] &&
-    !opts.manifest.scripts[scriptName].includes(`pre${scriptName}`)
-  ) {
-    await runLifecycleHook(`pre${scriptName}`, opts.manifest, opts.lifecycleOpts)
-  }
-  await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
-  if (
-    opts.runScriptOptions.enablePrePostScripts &&
-    opts.manifest.scripts?.[`post${scriptName}`] &&
-    !opts.manifest.scripts[scriptName].includes(`post${scriptName}`)
-  ) {
-    await runLifecycleHook(`post${scriptName}`, opts.manifest, opts.lifecycleOpts)
+  const stages = getRunScriptStages(opts.manifest, scriptName, opts.runScriptOptions.enablePrePostScripts)
+  if (stages.length === 0) {
+    await runLifecycleHook(scriptName, opts.manifest, { ...opts.lifecycleOpts, args: opts.passedThruArgs })
+  } else {
+    await stages.reduce(async (previous, stage) => {
+      await previous
+      await runLifecycleHook(stage.name, opts.manifest, stage.name === scriptName
+        ? { ...opts.lifecycleOpts, args: opts.passedThruArgs }
+        : opts.lifecycleOpts)
+    }, Promise.resolve())
   }
   if (opts.runScriptOptions.syncInjectedDepsAfterScripts?.includes(scriptName)) {
     await syncInjectedDeps({
@@ -461,6 +475,31 @@ export async function runScript (opts: {
       manifestBeforeScripts: opts.manifest as DependencyManifest,
     })
   }
+}
+
+export function getRunScriptCommands (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): string[] {
+  return getRunScriptStages(manifest, scriptName, enablePrePostScripts).map(({ command }) => command)
+}
+
+function getRunScriptStages (
+  manifest: ProjectManifest,
+  scriptName: string,
+  enablePrePostScripts: boolean
+): Array<{ name: string, command: string }> {
+  const scripts = manifest.scripts ?? {}
+  const main = scripts[scriptName]
+  if (main == null) return []
+  const stages = [{ name: scriptName, command: main }]
+  if (!enablePrePostScripts) return stages
+  const pre = `pre${scriptName}`
+  const post = `post${scriptName}`
+  if (scripts[pre] && !main.includes(pre)) stages.unshift({ name: pre, command: scripts[pre] })
+  if (scripts[post] && !main.includes(post)) stages.push({ name: post, command: scripts[post] })
+  return stages
 }
 
 function renderCommands (commands: string[][]): string {

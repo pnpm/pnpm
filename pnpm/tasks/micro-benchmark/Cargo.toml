@@ -15,16 +15,18 @@ name = "micro-benchmark"
 path = "src/main.rs"
 
 [dependencies]
-pnpm-catalogs-types          = { workspace = true }
-pnpm-package-manifest        = { workspace = true }
-pnpm-registry                = { workspace = true }
-pnpm-resolving-deps-resolver = { workspace = true }
-pnpm-resolving-resolver-base = { workspace = true }
-pnpm-network                 = { workspace = true }
-pnpm-reporter                = { workspace = true }
-pnpm-store-dir               = { workspace = true }
-pnpm-tarball                 = { workspace = true }
-pnpm-lockfile                = { workspace = true }
+pnpm-catalogs-types           = { workspace = true }
+pnpm-package-manifest         = { workspace = true }
+pnpm-registry                 = { workspace = true }
+pnpm-resolving-deps-resolver  = { workspace = true }
+pnpm-resolving-resolver-base  = { workspace = true }
+pnpm-network                  = { workspace = true }
+pnpm-reporter                 = { workspace = true }
+pnpm-store-dir                = { workspace = true }
+pnpm-tarball                  = { workspace = true }
+pnpm-lockfile                 = { workspace = true }
+pnpm-workspace-projects-graph = { workspace = true }
+pnpm-workspace-task-scheduler = { workspace = true }
 
 clap         = { workspace = true }
 criterion    = { workspace = true }

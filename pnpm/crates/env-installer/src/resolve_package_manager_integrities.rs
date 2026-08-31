@@ -4,7 +4,7 @@ use crate::{
     options::ConfigDepsInstallOptions,
     prune::prune_env_lockfile,
     resolve_optional_subdeps::resolution_has_integrity,
-    verify_env_lockfile::write_verified_env_lockfile,
+    verify_env_lockfile::{verify_env_lockfile, write_verified_env_lockfile},
 };
 use pnpm_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PkgName, PkgVerPeer, RegistryResolution,
@@ -18,12 +18,18 @@ const PACKAGE_MANAGER_DEPS_PNPM_ONLY: [&str; 1] = ["pnpm"];
 const PNPM_EXE_INTRODUCED: (u64, u64, u64) = (6, 17, 1);
 
 /// Resolve the closure of `package_manager_deps` — the packages a package
-/// manager is installed from — at `version`, and record it in the env
-/// lockfile at `opts.root_dir`.
+/// manager is installed from — at `version`, record it in the env lockfile
+/// at `opts.root_dir`, and return that lockfile.
 ///
 /// `force_resync` skips the recorded-entries fast path, so entries that look
 /// up to date but are invalid (e.g. resolutions carrying tarball URLs
-/// written by an earlier pnpm) are discarded and re-resolved.
+/// written by an earlier pnpm) are discarded and re-resolved. Such entries
+/// already record the version the manifest pins — only pnpm's own reading of
+/// them is at stake — so under `opts.frozen_lockfile` the re-resolution
+/// happens in memory and the lockfile is left untouched, rather than failing
+/// a command the manifest and the lockfile agree on. Entries that do not
+/// record the pinned version are the case `--frozen-lockfile` exists for and
+/// still fail.
 pub async fn resolve_package_manager_integrities(
     package_manager_deps: &[&str],
     wanted_specifier: &str,
@@ -31,7 +37,7 @@ pub async fn resolve_package_manager_integrities(
     resolver: &dyn Resolver,
     opts: &ConfigDepsInstallOptions<'_>,
     force_resync: bool,
-) -> Result<(), ConfigDepError> {
+) -> Result<EnvLockfile, ConfigDepError> {
     let mut env_lockfile = EnvLockfile::read(opts.root_dir)
         .map_err(ConfigDepError::ReadLockfile)?
         .unwrap_or_else(EnvLockfile::create);
@@ -43,9 +49,13 @@ pub async fn resolve_package_manager_integrities(
             package_manager_deps,
         )
     {
-        return Ok(());
+        return Ok(env_lockfile);
     }
-    if opts.frozen_lockfile {
+    let repair_in_memory = force_resync && opts.frozen_lockfile;
+    if opts.frozen_lockfile && !force_resync {
+        if pins_wanted_package_manager(&env_lockfile, version, package_manager_deps) {
+            return Ok(env_lockfile);
+        }
         return Err(ConfigDepError::FrozenLockfileOutdated {
             message: r#"Cannot update packageManagerDependencies with "frozen-lockfile" because the lockfile is not up to date"#.to_string(),
         });
@@ -80,7 +90,8 @@ pub async fn resolve_package_manager_integrities(
         }
         let registry = opts.pick_registry(&package.name);
         let mut metadata =
-            package_metadata(&package.name, &package.version, &package.result, registry, false);
+            package_metadata(&package.name, &package.version, &package.result, registry, false)
+                .map_err(ConfigDepError::LockfileForm)?;
         metadata.resolution = strip_registry_tarball_url(metadata.resolution);
         env_lockfile.packages.insert(package.key.clone(), metadata);
 
@@ -112,7 +123,12 @@ pub async fn resolve_package_manager_integrities(
     }
 
     prune_env_lockfile(&mut env_lockfile);
-    write_verified_env_lockfile(&env_lockfile, opts.root_dir)
+    if repair_in_memory {
+        verify_env_lockfile(&env_lockfile)?;
+    } else {
+        write_verified_env_lockfile(&env_lockfile, opts.root_dir)?;
+    }
+    Ok(env_lockfile)
 }
 
 /// Rewrite a registry tarball resolution to integrity-only form, dropping
@@ -129,10 +145,11 @@ fn strip_registry_tarball_url(resolution: LockfileResolution) -> LockfileResolut
         LockfileResolution::Tarball(TarballResolution {
             tarball,
             integrity: Some(integrity),
+            revision: None,
             git_hosted: None | Some(false),
             path: None,
         }) if !tarball.starts_with("file:") => {
-            LockfileResolution::Registry(RegistryResolution { integrity })
+            LockfileResolution::Registry(RegistryResolution { integrity, revision: None })
         }
         other => other,
     }
@@ -152,27 +169,55 @@ pub fn is_package_manager_resolved(
     )
 }
 
+/// Whether the env lockfile already records what this pnpm would write for
+/// `pnpm_version`: the pinned packages under the specifier they were pinned
+/// from, and nothing besides them.
 fn is_package_manager_resolved_with_deps(
     env_lockfile: &EnvLockfile,
     wanted_specifier: &str,
     pnpm_version: &str,
     package_manager_deps: &[&str],
 ) -> bool {
-    let Some(pm_deps) = env_lockfile
+    recorded_package_manager_deps(env_lockfile).is_some_and(|pm_deps| {
+        pm_deps.len() == package_manager_deps.len()
+            && pm_deps.values().all(|dep| dep.specifier == wanted_specifier)
+    }) && pins_wanted_package_manager(env_lockfile, pnpm_version, package_manager_deps)
+}
+
+/// Whether the env lockfile pins the package manager the manifest asks for,
+/// even when it records more packages than this pnpm installs it from.
+///
+/// A pnpm below 11.20.0 pins `@pnpm/exe` beside `pnpm` for a v12 version,
+/// because that is the set its own major is installed from. Such an entry
+/// pins the wanted version through the same integrity and cannot change
+/// which pnpm runs, so a frozen lockfile accepts it instead of failing a
+/// project whose lockfile a teammate's older pnpm last wrote. An entry
+/// pinning any other version, or one the lockfile carries no package to
+/// install from, is a lockfile that disagrees with the manifest, which is
+/// what the flag is for, and a writable install still rewrites the block to
+/// the packages this pnpm installs from.
+fn pins_wanted_package_manager(
+    env_lockfile: &EnvLockfile,
+    pnpm_version: &str,
+    package_manager_deps: &[&str],
+) -> bool {
+    let Some(pm_deps) = recorded_package_manager_deps(env_lockfile) else {
+        return false;
+    };
+    package_manager_deps.iter().all(|name| pm_deps.contains_key(*name))
+        && pm_deps.iter().all(|(name, dep)| {
+            dep.version == pnpm_version
+                && package_manager_entry_exists(env_lockfile, name, &dep.version)
+        })
+}
+
+fn recorded_package_manager_deps(
+    env_lockfile: &EnvLockfile,
+) -> Option<&std::collections::BTreeMap<String, SpecifierAndResolution>> {
+    env_lockfile
         .importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
         .and_then(|importer| importer.package_manager_dependencies.as_ref())
-    else {
-        return false;
-    };
-    pm_deps.len() == package_manager_deps.len()
-        && package_manager_deps.iter().all(|name| {
-            pm_deps.get(*name).is_some_and(|dep| {
-                dep.specifier == wanted_specifier
-                    && dep.version == pnpm_version
-                    && package_manager_entry_exists(env_lockfile, name, &dep.version)
-            })
-        })
 }
 
 /// The packages the env lockfile pins for `pnpm_version`.

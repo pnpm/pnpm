@@ -45,9 +45,18 @@ const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': 
  */
 const BROKEN_RELEASES: ReadonlySet<string> = new Set(['11.12.0', '11.13.0'])
 
+/**
+ * Whether `version` can be installed at all — false for the
+ * {@link BROKEN_RELEASES}. For callers that pick a version rather than being
+ * handed one, and so can choose another instead of failing.
+ */
+export function isReleaseInstallable (version: string): boolean {
+  return !BROKEN_RELEASES.has(version)
+}
+
 /** Throws when `version` is one of the {@link BROKEN_RELEASES}. */
 export function assertReleaseIsInstallable (version: string): void {
-  if (!BROKEN_RELEASES.has(version)) return
+  if (isReleaseInstallable(version)) return
   throw new PnpmError(
     'BROKEN_PNPM_RELEASE',
     `pnpm v${version} is a broken release and cannot be installed`,
@@ -59,10 +68,9 @@ export function assertReleaseIsInstallable (version: string): void {
 
 /**
  * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
- * `pnpm` is itself the native exe and `@pnpm/exe` is no longer published, so
- * v12+ always converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier
- * majors keep `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the
- * running identity.
+ * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
+ * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
+ * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity.
  */
 export function pnpmPackageNameToInstall (pnpmVersion: string): string {
   const parsed = semver.parse(pnpmVersion, { loose: true })

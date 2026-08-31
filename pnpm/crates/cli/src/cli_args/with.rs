@@ -94,9 +94,9 @@ pub(crate) enum PackageManagerCheck {
     Disabled,
 }
 
-/// Spawn the downloaded `pnpm` with `bin_dirs` prepended to `PATH`,
-/// inheriting stdio. The first entry is the engine's own bin directory;
-/// any that follow are what it needs to run, such as a managed Node.js.
+/// Spawn the downloaded `pnpm`, inheriting stdio. The first entry is the
+/// engine's own bin directory; any that follow are what it needs to run,
+/// such as a managed Node.js.
 pub(crate) fn spawn_pnpm<Args, Arg>(
     bin_dirs: &[PathBuf],
     args: Args,
@@ -107,7 +107,6 @@ where
     Arg: AsRef<std::ffi::OsStr>,
 {
     let bin_dir = bin_dirs.first().expect("an installed engine has a bin directory");
-    let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
     let program = engine_bin(bin_dir, "pnpm").ok_or_else(|| EngineError::MissingEngineBin {
         name: "pnpm",
         dir: bin_dir.display().to_string(),
@@ -115,9 +114,20 @@ where
 
     let mut cmd = Command::new(program);
     cmd.args(args);
-    set_command_path(&mut cmd, &path);
-    disable_package_manager_switching(&mut cmd);
+    configure_pnpm_environment(&mut cmd, bin_dirs, package_manager_check)?;
+
+    cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+}
+
+fn configure_pnpm_environment(
+    cmd: &mut Command,
+    bin_dirs: &[PathBuf],
+    package_manager_check: PackageManagerCheck,
+) -> miette::Result<()> {
     if matches!(package_manager_check, PackageManagerCheck::Disabled) {
+        let path = prepend_dirs_to_path(bin_dirs).map_err(WithError::from)?;
+        set_command_path(cmd, &path);
+        disable_package_manager_switching(cmd);
         // The child pnpm must skip the packageManager / devEngines check so the
         // requested version stays active. `COREPACK_ROOT` is honored by every
         // pnpm release that supports corepack (older versions skip the check
@@ -128,8 +138,7 @@ where
         }
         cmd.env("pnpm_config_pm_on_fail", "ignore");
     }
-
-    cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
+    Ok(())
 }
 
 fn disable_package_manager_switching(cmd: &mut Command) {

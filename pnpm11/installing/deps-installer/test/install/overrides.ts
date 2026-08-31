@@ -669,3 +669,75 @@ test('overrides remove dependencies', async () => {
   const currentLockfile = project.readCurrentLockfile()
   expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/14224
+// An override claims the dependency even when it repeats the range the project
+// declares, so the declared range is not the update's to move: the overrides
+// hook rewrites it back before the resolver reads it, and the lockfile would
+// then record a specifier the manifest never shows.
+test('update keeps the declared range of a dependency an override repeats', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, { ...options, update: true, updatePackageManifest: true })
+
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.0.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo'].specifier).toBe('^100.0.0')
+})
+
+// A range-scoped override claims one declaration of an alias and not another,
+// so ownership is decided per declared range rather than per name. Here the
+// override matches only the `devDependencies` entry; the `dependencies` one
+// the manifest writer reaches is still the update's to move.
+test('update moves a declaration a range-scoped override does not claim', async () => {
+  await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const manifest: ProjectManifest = {
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+    devDependencies: {
+      '@pnpm.e2e/foo': '^1.0.0',
+    },
+  }
+  const options = testDefaults({
+    overrides: {
+      '@pnpm.e2e/foo@^1.0.0': '1.0.0',
+    },
+  })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, options)
+
+  const { updatedProject } = await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, { ...options, update: true, updatePackageManifest: true })
+
+  expect(updatedProject.manifest.dependencies).toStrictEqual({ '@pnpm.e2e/foo': '^100.1.0' })
+  expect(project.readLockfile().importers['.'].dependencies?.['@pnpm.e2e/foo'].specifier).toBe('^100.1.0')
+})

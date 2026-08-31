@@ -1000,6 +1000,21 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect((config as unknown as Record<string, unknown>)['zzzNotASettingZzz']).toBe(true)
   })
 
+  test('confirmModulesPurge is recognized in pnpm-workspace.yaml', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { confirmModulesPurge: false })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect((config as unknown as Record<string, unknown>)['confirmModulesPurge']).toBe(false)
+    expect(warnings).not.toContainEqual(expect.stringContaining('confirmModulesPurge'))
+  })
+
   test('a null-valued key sets nothing, so it is not reported', async () => {
     prepareEmpty()
 
@@ -1744,6 +1759,141 @@ test('pnpm-workspace.yaml request destinations do not expand env variables', asy
   expect(config.httpProxy).toBeUndefined()
   expect(config.noProxy).toBeUndefined()
   expect(JSON.stringify(config)).not.toContain('secret')
+})
+
+// `pnpm login` turns `scope` into a `@scope:registry` route in the global
+// auth.ini, which outranks ~/.npmrc in every project on the machine — so a
+// repo-committed file must not be able to choose it.
+// https://github.com/pnpm/pnpm/issues/13557
+describe('the scope setting is honored from trusted sources only', () => {
+  const anIgnoredScopeWarning = expect.stringContaining('"scope"')
+
+  test('a pnpm-workspace.yaml scope is ignored and warned about', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+    // The warning has to name the route that does set it, or the user is left
+    // with a setting that vanished and nowhere to put it.
+    expect(warnings).toContainEqual(expect.stringContaining('pnpm config set --global scope'))
+  })
+
+  test('a project .npmrc scope reaches no config at all', async () => {
+    prepareEmpty()
+
+    fs.writeFileSync('.npmrc', 'scope=@acme\n', 'utf8')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+  })
+
+  test('--scope overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+  })
+
+  test('a global config.yaml scope survives a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+  })
+
+  test('PNPM_CONFIG_SCOPE overrides a pnpm-workspace.yaml scope', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: { ...env, PNPM_CONFIG_SCOPE: '@from-env' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-env')
+  })
+
+  // An empty scope is a value like any other — it would clear a scope the
+  // global config file set — so the repo must not be able to supply it either.
+  test('an empty pnpm-workspace.yaml scope is ignored too', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '' })
+
+    const { config, warnings } = await getConfigWithGlobalYaml(
+      { scope: '@from-global-config' },
+      { workspaceDir: process.cwd() }
+    )
+
+    expect(config.scope).toBe('@from-global-config')
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+  })
+
+  test('self-update skips the scope alongside its own settings', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { scope: '@acme', minimumReleaseAge: 4320 })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: {},
+      env,
+      forSelfUpdate: true,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBeUndefined()
+    expect(config.minimumReleaseAge).not.toBe(4320)
+    expect(warnings).toContainEqual(anIgnoredScopeWarning)
+  })
+
+  test('a pnpm-workspace.yaml without a scope emits no warning', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { packages: ['.'] })
+
+    const { config, warnings } = await getConfig({
+      cliOptions: { scope: '@from-cli' },
+      env,
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scope).toBe('@from-cli')
+    expect(warnings).not.toContainEqual(anIgnoredScopeWarning)
+  })
 })
 
 test('package manager bootstrap registries ignore project workspace registries', async () => {
@@ -2747,6 +2897,178 @@ test('a malformed global yaml _auth value aborts the load', async () => {
       'https://json-test.example': 123,
     },
   })).rejects.toThrow('object keyed by scope')
+})
+
+test('a registry declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+  // But a stored login is not a statement about where packages come from.
+  expect(config.registry).toBe('https://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('https://project-choice.example/')
+})
+
+test('a registry pinned to the default value still beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // Whether a registry was declared is a question about the key, not its
+  // value: pinning the one a lower layer already resolved to is a declaration.
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://registry.npmjs.org/' })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://registry.npmjs.org/')
+})
+
+test('a legacy registries default key beats the global _auth file', async () => {
+  prepareEmpty()
+
+  // The older `<scope>: <url>` shape spells the default as `default:`.
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { default: 'https://legacy-declared.example/' },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registry).toBe('https://legacy-declared.example/')
+})
+
+test('a scope declared in pnpm-workspace.yaml beats the global _auth file', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: { 'https://project-choice.example/': { scopes: ['@org'] } },
+  })
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@org': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { workspaceDir: process.cwd() }
+  )
+
+  expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
+})
+
+test('a registry declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registry: 'https://global-choice.example/',
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('https://global-choice.example/')
+  // The credential stays keyed to the host it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the global config beats its own _auth file', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    registries: { 'https://global-org.example/': { scopes: ['@org'] } },
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://global-org.example/')
+  expect(config.authConfig['//private.example/:@org:_authToken']).toBe('stored-org-token')
+})
+
+test('an uncontested _auth file route reaches the package-manager registries too', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  // Bootstrap resolves the same way an install does.
+  expect(config.packageManagerRegistries?.default).toBe('https://private.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://private.example/')
+})
+
+test('the global _auth file still routes a scope nothing else declares', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@org': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://private.example/')
+})
+
+test('the _auth env var still overrides a registry declared in pnpm-workspace.yaml', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', { registry: 'https://project-choice.example/' })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': { '@': { authToken: 'proxy-token' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  // The environment is the operator's channel: a mandated CI proxy still wins.
+  expect(config.registry).toBe('https://my-npm-proxy.example/')
 })
 
 test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry auth)', async () => {
@@ -5568,4 +5890,275 @@ test('getConfig() never expands an env placeholder in a registries key from a wo
   } finally {
     delete process.env.PNPM_TEST_REGISTRY_TOKEN
   }
+})
+
+test('getConfig() resolves the canonical sideEffectsCache declaration', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: {
+      read: true,
+      write: false,
+      remote: { org: 'acme', packages: ['native-addon'] },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme', packages: ['native-addon'] })
+})
+
+test('getConfig() defaults read and write when only the remote tier is declared', async () => {
+  // Naming the remote tier says nothing about the local one, and the local one
+  // was on by default before this setting grew an object form. Reading `remote`
+  // as "and switch the rest off" would silently stop reusing local builds.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { remote: { org: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(true)
+})
+
+test('getConfig() lets the canonical sideEffectsCache win over the older spellings', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCacheReadonly: true,
+    remoteSideEffectsCache: { packages: ['from-the-old-key'] },
+    sideEffectsCache: {
+      read: false,
+      write: true,
+      remote: { org: 'acme' },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(false)
+  expect(config.sideEffectsCacheWrite).toBe(true)
+  // The two spellings of the remote tier compose rather than replace: a
+  // repository may name the packages under one and the organization under the
+  // other, and neither may drop the other's fields.
+  expect(config.remoteSideEffectsCache).toStrictEqual({
+    org: 'acme',
+    packages: ['from-the-old-key'],
+  })
+})
+
+test('getConfig() accepts the older organization spelling', async () => {
+  // It shipped in pacquet 12.0.0, so a file written for that keeps working;
+  // `org` is what pnpr calls the same namespace, and what consumers see.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { remote: { organization: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
+})
+
+test('getConfig() prefers the canonical remote tier whichever spelling comes first', async () => {
+  // Merging the two spellings as each is read would make precedence a function
+  // of the order the keys happen to appear in the file.
+  const canonical = { sideEffectsCache: { remote: { org: 'canonical' } } }
+  const deprecated = { remoteSideEffectsCache: { org: 'deprecated', packages: ['from-deprecated'] } }
+  const resolveFrom = async (manifest: object): Promise<unknown> => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', manifest)
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return config.remoteSideEffectsCache
+  }
+  // `org` is set under both, so the canonical spelling decides it; `packages`
+  // is set under only one, so it survives either way.
+  const expected = { org: 'canonical', packages: ['from-deprecated'] }
+
+  expect(await resolveFrom({ ...canonical, ...deprecated })).toStrictEqual(expected)
+  expect(await resolveFrom({ ...deprecated, ...canonical })).toStrictEqual(expected)
+})
+
+test('getConfig() lets sideEffectsCacheReadonly block writes on its own', async () => {
+  // `sideEffectsCache` defaults to true, so deriving writes from it alone left
+  // the readonly setting with no effect on writing at all — which pacquet has
+  // always enforced and this stack did not.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCacheReadonly: true })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+})
+
+test('getConfig() reads through sideEffectsCacheReadonly with the cache off', async () => {
+  // pacquet documents this pair as the read-only view; deriving reads from the
+  // boolean alone made it mean nothing at all.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: false,
+    sideEffectsCacheReadonly: true,
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(true)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+})
+
+test('getConfig() prefers the canonical org across the two remote spellings', async () => {
+  // The two spellings of the section and the two of the field are independent,
+  // so the deprecated section may carry `org` while the canonical one carries
+  // `organization`. Resolving the field only after merging would let whichever
+  // key happened to be named `org` win.
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    remoteSideEffectsCache: { org: 'deprecated' },
+    sideEffectsCache: { remote: { organization: 'canonical' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'canonical' })
+})
+
+/**
+ * Sets environment variables for one test and puts back exactly what was there,
+ * including "not set at all". Deleting instead would strip a value the suite
+ * inherited, and the tests after it would silently run against a different
+ * environment than the ones before.
+ */
+async function withEnv (values: Record<string, string | undefined>, run: () => Promise<void>): Promise<void> {
+  const previous = Object.keys(values).map((name): [string, string | undefined] => [name, process.env[name]])
+  for (const [name, value] of Object.entries(values)) {
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+  }
+  try {
+    await run()
+  } finally {
+    for (const [name, value] of previous) {
+      if (value === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
+  }
+}
+
+test.each([
+  ['KEY_ID', 'keyId', 'value', 'value'],
+  ['BUILDER_ID', 'builderId', 'value', 'value'],
+  ['IMAGE_DIGEST', 'imageDigest', 'value', 'value'],
+  ['ARCHITECTURE_BASELINE', 'architectureBaseline', 'value', 'value'],
+  ['PRIVATE_KEY', 'privateKey', 'value', 'value'],
+  ['PUBLISH', 'publish', 'true', true],
+  ['BUILD_ENV', 'buildEnv', '{"CC":"clang"}', { CC: 'clang' }],
+  ['TRUSTED_KEYS', 'trustedKeys', '{"acme-2026":"AA=="}', { 'acme-2026': 'AA==' }],
+])('getConfig() reads %s of the remote tier under either environment spelling', async (suffix, field, raw, expected) => {
+  // The suffixes do not share a parsing path — PUBLISH is a boolean, BUILD_ENV
+  // and TRUSTED_KEYS are JSON, the rest are strings — so each is covered under
+  // the name matching the setting and the name that matched its older spelling.
+  prepareEmpty()
+  const canonical = `PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`
+  const older = `PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`
+  const read = async (): Promise<unknown> => {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return (config.remoteSideEffectsCache as Record<string, unknown> | undefined)?.[field]
+  }
+
+  await withEnv({ [canonical]: raw, [older]: undefined }, async () => {
+    expect(await read()).toStrictEqual(expected)
+  })
+  await withEnv({ [older]: raw, [canonical]: undefined }, async () => {
+    expect(await read()).toStrictEqual(expected)
+  })
+})
+
+test('getConfig() prefers the environment name that matches the setting', async () => {
+  prepareEmpty()
+  await withEnv({
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_KEY_ID: 'older',
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_KEY_ID: 'canonical',
+  }, async () => {
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    expect(config.remoteSideEffectsCache?.keyId).toBe('canonical')
+  })
+})
+
+test('getConfig() names the environment variable the user actually set when its JSON is malformed', async () => {
+  prepareEmpty()
+  await withEnv({
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS: 'not json',
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS: undefined,
+  }, async () => {
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(/PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS/)
+  })
+})
+
+test('getConfig() does not fall back to a valid older variable when the canonical one is malformed', async () => {
+  // Precedence is by presence, not by validity: falling back would use a
+  // variable the reader did not reach for and leave the broken one unreported.
+  prepareEmpty()
+  await withEnv({
+    PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS: 'not json',
+    PNPM_REMOTE_SIDE_EFFECTS_CACHE_TRUSTED_KEYS: '{"acme-2026":"AA=="}',
+  }, async () => {
+    await expect(getConfig({
+      cliOptions: {},
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })).rejects.toThrow(/PNPM_SIDE_EFFECTS_CACHE_REMOTE_TRUSTED_KEYS/)
+  })
 })

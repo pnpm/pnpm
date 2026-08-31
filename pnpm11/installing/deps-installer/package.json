@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/installing.deps-installer",
-  "version": "1104.0.0",
+  "version": "1104.1.0",
   "description": "Fast, disk space efficient installation engine",
   "keywords": [
     "pnpm",
@@ -124,7 +124,6 @@
     "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "run-groups": "catalog:",
     "semver": "catalog:"
   },
   "peerDependencies": {

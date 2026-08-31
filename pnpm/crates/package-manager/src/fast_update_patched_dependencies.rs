@@ -316,13 +316,8 @@ fn applied_patch_keys<'a>(
     };
     let mut applied = BTreeSet::new();
     for key in snapshots.keys() {
-        // Keyed exactly as `resolve_snapshot_patches` keys the patches it
-        // applies from a loaded lockfile, so this agrees with what the
-        // materializer would do. The peer suffix carries any
-        // `(patch_hash=...)` segment too, so stripping it leaves the
-        // `name@version` the patch keys match on.
-        let metadata_key = key.without_peer().to_string();
-        let (name, version) = pnpm_deps_restorer::parse_name_version_from_key(&metadata_key);
+        let (name, version) =
+            pnpm_deps_restorer::name_version_from_package_key(key, lockfile.packages.as_ref());
         if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
             applied.insert(info.key.as_str());
         }

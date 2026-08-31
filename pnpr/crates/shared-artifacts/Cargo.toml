@@ -1,0 +1,33 @@
+[package]
+name                 = "pnpr-shared-artifacts"
+version              = "0.0.1"
+description          = "The shared build-artifact store: reservations, blob storage, and the usage accounting that bounds it"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-config                   = { workspace = true }
+pnpr-error                    = { workspace = true }
+pnpm-shared-artifact-protocol = { workspace = true }
+base64                        = { workspace = true }
+bytes                         = { workspace = true }
+futures-util                  = { workspace = true }
+getrandom                     = { workspace = true }
+object_store                  = { workspace = true }
+serde                         = { workspace = true }
+serde_json                    = { workspace = true }
+sha2                          = { workspace = true }
+tempfile                      = { workspace = true }
+tokio                         = { workspace = true }
+tracing                       = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+
+[lints]
+workspace = true

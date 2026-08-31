@@ -63,6 +63,22 @@ pub fn upload(
     Ok(())
 }
 
+pub fn upload_with_diff(
+    store_dir: &StoreDir,
+    built_pkg_location: &Path,
+    files_index_file: &str,
+    side_effects_cache_key: &str,
+    writer: &StoreIndexWriter,
+) -> Result<Option<SideEffectsDiff>, UploadError> {
+    let added =
+        add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
+    Ok(writer.queue_side_effects_upload_with_result(
+        files_index_file.to_string(),
+        side_effects_cache_key.to_string(),
+        added.files,
+    ))
+}
+
 /// Set-difference over file digests + modes.
 ///
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
@@ -99,6 +115,7 @@ pub fn calculate_diff(
     SideEffectsDiff {
         added: (!added.is_empty()).then_some(added),
         deleted: (!deleted.is_empty()).then_some(deleted),
+        remote_origin: None,
     }
 }
 

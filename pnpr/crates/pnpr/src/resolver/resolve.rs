@@ -200,17 +200,20 @@ pub async fn resolve(
             DependencyGroup::Optional,
         ],
         frozen_lockfile,
-        // Default to reuse so unchanged entries keep their pins; the
-        // client's `--no-prefer-frozen-lockfile` (`Some(false)`) forces
-        // a fresh re-resolve.
-        prefer_frozen_lockfile: request.prefer_frozen_lockfile.or(Some(true)),
+        // Default to reuse so unchanged entries keep their pins; an explicit
+        // metadata refresh always re-resolves the pinned registry versions.
+        prefer_frozen_lockfile: if request.update_patches || request.fix_lockfile {
+            Some(false)
+        } else {
+            request.prefer_frozen_lockfile.or(Some(true))
+        },
         ignore_manifest_check: request.ignore_manifest_check,
         skip_runtimes: false,
         // The lockfile was already verified under the client's policy
         // (in `handle_resolve`) before we get here, so the install path
         // must not re-verify it.
         trust_lockfile: true,
-        update_checksums: false,
+        update_checksums: request.update_patches,
         mutation: ProjectMutation::InstallWorkspace,
         installs_only: true,
         supported_architectures: None,
@@ -218,7 +221,13 @@ pub async fn resolve(
         lockfile_only: true,
         dry_run: false,
         persist_policy_excludes: false,
-        update_seed_policy: pnpm_package_manager::UpdateSeedPolicy::KeepAll,
+        update_seed_policy: if request.update_patches {
+            pnpm_package_manager::UpdateSeedPolicy::RefreshRevisions
+        } else if request.fix_lockfile {
+            pnpm_package_manager::UpdateSeedPolicy::FixLockfile
+        } else {
+            pnpm_package_manager::UpdateSeedPolicy::KeepAll
+        },
         preferred_versions_override: None,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
@@ -253,7 +262,11 @@ pub async fn resolve(
 /// checks prove the server's lockfile-only resolve would return it
 /// unchanged.
 pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) -> Option<Lockfile> {
-    if !request.frozen_lockfile || request.prefer_frozen_lockfile == Some(false) {
+    if request.update_patches
+        || request.fix_lockfile
+        || !request.frozen_lockfile
+        || request.prefer_frozen_lockfile == Some(false)
+    {
         return None;
     }
     if request.overrides.as_ref().is_some_and(|value| match value {
@@ -269,6 +282,7 @@ pub fn fresh_frozen_input_lockfile(config: &Config, request: &ResolveRequest) ->
             .as_ref()
             .is_some_and(|patterns| !patterns.is_empty())
         || config.patched_dependencies.as_ref().is_some_and(|map| !map.is_empty())
+        || config.patched_dependency_hashes_override.as_ref().is_some_and(|map| !map.is_empty())
         || config.inject_workspace_packages
     {
         return None;

@@ -14,7 +14,36 @@ export type SideEffects = Map<string, SideEffectsDiff>
 export interface SideEffectsDiff {
   deleted?: string[]
   added?: PackageFiles
+  remoteOrigin?: RemoteSideEffectsOrigin
 }
+
+export type RemoteSideEffectsOwner =
+  | { type: 'organization', name: string }
+  | { type: 'publisher', package: string }
+
+export interface RemoteSideEffectsBuilderProfile {
+  imageDigest?: string
+  architectureBaseline: string
+  environment: Record<string, string>
+}
+
+export interface RemoteSideEffectsEnvelope {
+  algorithm: string
+  keyId: string
+  payload: string
+  signature: string
+}
+
+export interface RemoteSideEffectsOrigin {
+  channel: string
+  owner: RemoteSideEffectsOwner
+  signerKeyId: string
+  builderProfile: RemoteSideEffectsBuilderProfile
+  envelope: RemoteSideEffectsEnvelope
+  verification: 'verified'
+}
+
+export type RemoteSideEffectsQuarantine = Map<string, string[]>
 
 export type ResolvedFrom = 'store' | 'local-dir' | 'remote'
 
@@ -26,7 +55,11 @@ export interface PackageFilesResponse {
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'clone' | 'clone-or-copy'
   // Pre-calculated file location maps for side effects, avoiding recalculation during import
   sideEffectsMaps?: Map<string, { added?: FilesMap, deleted?: string[] }>
+  sideEffectsDiffs?: SideEffects
+  remoteSideEffectsQuarantine?: RemoteSideEffectsQuarantine
   requiresBuild: boolean
+  /** Whether preparing a git package required lifecycle scripts before these files were stored. */
+  requiresPrepare?: boolean
 }
 
 export interface ImportPackageOpts {

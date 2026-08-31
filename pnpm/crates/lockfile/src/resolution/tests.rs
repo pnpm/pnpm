@@ -1,9 +1,11 @@
 use super::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution,
-    LockfileFormOptions, LockfileResolution, PlatformAssetResolution, PlatformAssetTarget,
-    PlatformSelector, RegistryOptions, RegistryResolution, RegistryServerType, TarballResolution,
-    TarballUrlOptions, VariationsResolution, is_git_hosted_tarball_url, libc_matches,
-    npm_tarball_url, registry_server_type, select_platform_variant,
+    LockfileFormError, LockfileFormOptions, LockfileResolution, PlatformAssetResolution,
+    PlatformAssetTarget, PlatformSelector, RegistryOptions, RegistryResolution, RegistryServerType,
+    TarballResolution, TarballRevision, TarballUrlOptions, VariationsResolution,
+    integrity_addressed_registry_tarball_url, is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url, libc_matches, npm_tarball_url,
+    registry_server_type, select_platform_variant,
 };
 use crate::serialize_yaml;
 use pretty_assertions::assert_eq;
@@ -70,6 +72,7 @@ fn deserialize_tarball_resolution() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -85,6 +88,7 @@ fn deserialize_tarball_resolution() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
         integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -103,6 +107,7 @@ fn deserialize_tarball_resolution_with_git_hosted() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -122,6 +127,7 @@ fn is_git_hosted_follows_the_url_over_a_contradicting_flag() {
         let resolution = TarballResolution {
             tarball: git_hosted_url.clone(),
             integrity: None,
+            revision: None,
             git_hosted: flag,
             path: None,
         };
@@ -131,6 +137,7 @@ fn is_git_hosted_follows_the_url_over_a_contradicting_flag() {
     let plain = TarballResolution {
         tarball: "https://example.com/pkg-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     };
@@ -146,6 +153,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -161,6 +169,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
             "https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz",
         ),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -172,6 +181,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("https://bitbucket.org/foo/bar/get/{GIT_COMMIT}.tar.gz"),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -185,6 +195,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -198,6 +209,7 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/zip/abc1234".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -249,6 +261,7 @@ fn serialize_tarball_resolution() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -261,6 +274,7 @@ fn serialize_tarball_resolution() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "file:ts-pipe-compose-0.2.1.tgz".to_string(),
         integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -281,6 +295,7 @@ fn deserialize_tarball_resolution_with_path() {
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: Some("packages/sub".to_string()),
     });
@@ -292,6 +307,7 @@ fn serialize_tarball_resolution_with_path() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: Some(true),
         path: Some("packages/sub".to_string()),
     });
@@ -306,6 +322,7 @@ fn serialize_tarball_resolution_with_git_hosted() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: integrity("sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==").into(),
+        revision: None,
         git_hosted: Some(true),
         path: None,
     });
@@ -326,6 +343,7 @@ fn deserialize_registry_resolution() {
         integrity: integrity(
             "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==",
         ),
+        revision: None,
     });
     assert_eq!(received, expected);
 }
@@ -336,11 +354,37 @@ fn serialize_registry_resolution() {
         integrity: integrity(
             "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==",
         ),
+        revision: None,
     });
     let received = render_resolution(&resolution);
     eprintln!("RECEIVED:\n{received}");
     let expected = "resolution: {integrity: sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==}";
     assert_eq!(received, expected);
+}
+
+#[test]
+fn registry_revision_round_trips_in_the_compact_lockfile_form() {
+    let resolution: LockfileResolution =
+        serde_saphyr::from_str(&format!("integrity: {REVISION_SHA512}\nrevision: 2"))
+            .expect("deserialize registry revision");
+    let expected = LockfileResolution::Registry(RegistryResolution {
+        integrity: integrity(REVISION_SHA512),
+        revision: Some(TarballRevision::try_from(2).unwrap()),
+    });
+    assert_eq!(resolution, expected);
+    assert_eq!(
+        render_resolution(&resolution),
+        format!("resolution: {{integrity: {REVISION_SHA512}, revision: 2}}"),
+    );
+}
+
+#[test]
+fn registry_revision_rejects_values_outside_the_positive_safe_integer_range() {
+    for revision in ["0", "-1", "1.5", "9007199254740992", "'1'"] {
+        let yaml = format!("integrity: {REVISION_SHA512}\nrevision: {revision}");
+        let result = serde_saphyr::from_str::<LockfileResolution>(&yaml);
+        assert!(result.is_err(), "revision {revision} must be rejected; got {result:?}");
+    }
 }
 
 #[test]
@@ -749,6 +793,115 @@ fn libc_matches_truth_table() {
 }
 
 const SHA512: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
+const REVISION_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+#[test]
+fn integrity_addressed_tarball_url_is_relative_to_the_declared_registry() {
+    let registry = "https://registry.example.test/npm/private";
+    let expected = format!("{registry}/-/tarballs/sha512/{}", "A".repeat(86));
+    assert_eq!(
+        integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry),
+        Some(expected.clone()),
+    );
+    assert!(is_integrity_addressed_registry_tarball_url(
+        &expected,
+        &integrity(REVISION_SHA512),
+        registry,
+    ));
+    assert!(!is_integrity_addressed_registry_tarball_url(
+        &format!("{expected}?token=untrusted"),
+        &integrity(REVISION_SHA512),
+        registry,
+    ));
+    assert!(!is_integrity_addressed_registry_tarball_url(
+        "https://registry.example.test/npm/private/foo/-/foo-1.0.0.tgz",
+        &integrity(REVISION_SHA512),
+        registry,
+    ));
+}
+
+#[test]
+fn to_lockfile_form_always_compacts_an_integrity_addressed_revision() {
+    let registry = "https://registry.example.test/npm/private/";
+    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
+        .expect("complete sha512 integrity");
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball,
+        integrity: Some(integrity(REVISION_SHA512)),
+        revision: Some(TarballRevision::try_from(3).unwrap()),
+        git_hosted: None,
+        path: None,
+    });
+    assert_eq!(
+        resolution.to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true)).unwrap(),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(REVISION_SHA512),
+            revision: Some(TarballRevision::try_from(3).unwrap()),
+        }),
+    );
+}
+
+#[test]
+fn to_lockfile_form_always_normalizes_an_integrity_addressed_url_without_a_revision() {
+    let registry = "https://registry.example.test/npm/private/";
+    let tarball = integrity_addressed_registry_tarball_url(&integrity(REVISION_SHA512), registry)
+        .expect("complete sha512 integrity");
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball,
+        integrity: Some(integrity(REVISION_SHA512)),
+        revision: None,
+        git_hosted: None,
+        path: None,
+    });
+
+    assert_eq!(
+        resolution.to_lockfile_form("foo", "1.0.0", undeclared_form(registry, true)).unwrap(),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(REVISION_SHA512),
+            revision: None,
+        }),
+    );
+}
+
+#[test]
+fn to_lockfile_form_rejects_a_revision_with_a_mismatched_url() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86)),
+        integrity: Some(integrity(REVISION_SHA512)),
+        revision: Some(TarballRevision::try_from(3).unwrap()),
+        git_hosted: None,
+        path: None,
+    });
+
+    assert!(matches!(
+        resolution.to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.example.test/", false),
+        ),
+        Err(LockfileFormError::RevisionUrlMismatch { .. }),
+    ));
+}
+
+#[test]
+fn to_lockfile_form_rejects_a_revision_without_integrity() {
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://registry.example.test/-/tarballs/sha512/digest".to_string(),
+        integrity: None,
+        revision: Some(TarballRevision::try_from(3).unwrap()),
+        git_hosted: None,
+        path: None,
+    });
+
+    assert!(matches!(
+        resolution.to_lockfile_form(
+            "foo",
+            "1.0.0",
+            undeclared_form("https://registry.example.test/", false),
+        ),
+        Err(LockfileFormError::RevisionWithoutIntegrity),
+    ));
+}
 
 /// A reconstructible registry tarball URL is dropped, leaving only the
 /// integrity, so the path-preserving cases below are not just returning the
@@ -758,17 +911,19 @@ fn to_lockfile_form_drops_reconstructible_registry_tarball() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form(
-        "foo",
-        "1.0.0",
-        undeclared_form("https://registry.npmjs.org/", false),
-    );
+    let actual = resolution
+        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .unwrap();
     assert_eq!(
         actual,
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(SHA512),
+            revision: None
+        }),
     );
 }
 
@@ -781,14 +936,13 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: Some(true),
         path: Some("/packages/foo".to_string()),
     });
-    let actual = resolution.to_lockfile_form(
-        "foo",
-        "1.0.0",
-        undeclared_form("https://registry.npmjs.org/", false),
-    );
+    let actual = resolution
+        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -799,14 +953,13 @@ fn to_lockfile_form_keeps_git_hosted_subdirectory_path_when_including_tarball_ur
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: Some(true),
         path: Some("/packages/foo".to_string()),
     });
-    let actual = resolution.to_lockfile_form(
-        "foo",
-        "1.0.0",
-        undeclared_form("https://registry.npmjs.org/", true),
-    );
+    let actual = resolution
+        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", true))
+        .unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -819,14 +972,17 @@ fn to_lockfile_form_keeps_scoped_tarball_with_percent_encoded_scope_separator() 
         let resolution = LockfileResolution::Tarball(TarballResolution {
             tarball: tarball_url.to_string(),
             integrity: Some(integrity(SHA512)),
+            revision: None,
             git_hosted: None,
             path: None,
         });
-        let actual = resolution.to_lockfile_form(
-            "@babel/core",
-            "7.0.0",
-            undeclared_form("https://npm.example.com/", false),
-        );
+        let actual = resolution
+            .to_lockfile_form(
+                "@babel/core",
+                "7.0.0",
+                undeclared_form("https://npm.example.com/", false),
+            )
+            .unwrap();
         assert_eq!(actual, resolution, "{tarball_url} must survive verbatim");
     }
 }
@@ -840,17 +996,23 @@ fn to_lockfile_form_drops_scoped_tarball_with_percent_encoding_on_the_public_reg
         let resolution = LockfileResolution::Tarball(TarballResolution {
             tarball: tarball_url.to_string(),
             integrity: Some(integrity(SHA512)),
+            revision: None,
             git_hosted: None,
             path: None,
         });
-        let actual = resolution.to_lockfile_form(
-            "@babel/core",
-            "7.0.0",
-            undeclared_form("https://registry.npmjs.org/", false),
-        );
+        let actual = resolution
+            .to_lockfile_form(
+                "@babel/core",
+                "7.0.0",
+                undeclared_form("https://registry.npmjs.org/", false),
+            )
+            .unwrap();
         assert_eq!(
             actual,
-            LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+            LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity(SHA512),
+                revision: None
+            }),
             "{tarball_url} must be dropped",
         );
     }
@@ -866,19 +1028,19 @@ fn to_lockfile_form_keeps_tarball_with_trailing_scheme_separator() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: tarball.clone(),
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form(
-        "foo",
-        "1.0.0",
-        undeclared_form("https://registry.npmjs.org/", false),
-    );
+    let actual = resolution
+        .to_lockfile_form("foo", "1.0.0", undeclared_form("https://registry.npmjs.org/", false))
+        .unwrap();
     assert_eq!(
         actual,
         LockfileResolution::Tarball(TarballResolution {
             tarball,
             integrity: Some(integrity(SHA512)),
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -1005,13 +1167,18 @@ fn to_lockfile_form_drops_the_artifactory_url_of_a_scoped_package() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false));
+    let actual =
+        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false)).unwrap();
     assert_eq!(
         actual,
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(SHA512),
+            revision: None
+        }),
     );
 }
 
@@ -1023,10 +1190,12 @@ fn to_lockfile_form_keeps_the_npm_layout_url_on_an_artifactory_registry() {
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false));
+    let actual =
+        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(false)).unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -1036,14 +1205,13 @@ fn to_lockfile_form_keeps_the_artifactory_url_on_a_registry_left_on_the_npm_layo
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form(
-        "@acme/widget",
-        "1.2.3",
-        undeclared_form(ARTIFACTORY_REGISTRY, false),
-    );
+    let actual = resolution
+        .to_lockfile_form("@acme/widget", "1.2.3", undeclared_form(ARTIFACTORY_REGISTRY, false))
+        .unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -1053,10 +1221,12 @@ fn to_lockfile_form_keeps_the_artifactory_url_when_include_tarball_url_is_set() 
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
-    let actual = resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(true));
+    let actual =
+        resolution.to_lockfile_form("@acme/widget", "1.2.3", artifactory_form(true)).unwrap();
     assert_eq!(actual, resolution);
 }
 
@@ -1087,6 +1257,7 @@ fn to_lockfile_form_drops_the_encoded_scoped_path_only_when_the_registry_is_decl
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: format!("{registry}@babel%2Fcore/-/core-7.0.0.tgz"),
         integrity: Some(integrity(SHA512)),
+        revision: None,
         git_hosted: None,
         path: None,
     });
@@ -1097,11 +1268,16 @@ fn to_lockfile_form_drops_the_encoded_scoped_path_only_when_the_registry_is_decl
         include_tarball_url: false,
     };
     assert_eq!(
-        resolution.to_lockfile_form("@babel/core", "7.0.0", declared_npm),
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity(SHA512) }),
+        resolution.to_lockfile_form("@babel/core", "7.0.0", declared_npm).unwrap(),
+        LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(SHA512),
+            revision: None
+        }),
     );
     assert_eq!(
-        resolution.to_lockfile_form("@babel/core", "7.0.0", undeclared_form(registry, false)),
+        resolution
+            .to_lockfile_form("@babel/core", "7.0.0", undeclared_form(registry, false))
+            .unwrap(),
         resolution,
     );
 }

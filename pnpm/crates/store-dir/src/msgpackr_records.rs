@@ -615,7 +615,7 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 /// ## Optional-field handling
 ///
 /// - **`PackageFilesIndex`**: `algo` and `files` are always emitted;
-///   `requires_build`, `manifest`, and `side_effects` are included
+///   `requires_build`, `requires_prepare`, `manifest`, and `side_effects` are included
 ///   in the record schema only when `Some`. The `manifest`
 ///   ([`serde_json::Value`]) is encoded recursively, with every
 ///   nested JSON object record-encoded so a pnpm reader sees them as
@@ -629,10 +629,8 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 ///   the slot. When `Some`, it's written as `float 64` (see
 ///   [`CafsFileInfo::checked_at`] for why — msgpackr reads `uint 64`
 ///   as `BigInt`, which crashes pnpm's `mtimeMs - (checkedAt ?? 0)`).
-/// - **`SideEffectsDiff`**: `added` and `deleted` are both optional;
-///   each is included in the schema only when `Some`. The four
-///   possible shapes (`{added}`, `{deleted}`, `{added, deleted}`,
-///   `{}`) each get their own slot on first use.
+/// - **`SideEffectsDiff`**: `added`, `deleted`, and `remoteOrigin` are
+///   optional; each field set gets its own slot on first use.
 pub fn encode_package_files_index(index: &PackageFilesIndex) -> Result<Vec<u8>, EncodeError> {
     let mut state = EncodeState::default();
     let mut out = Vec::with_capacity(256);
@@ -648,7 +646,7 @@ pub enum EncodeError {
         "Ran out of msgpackr record slots: encountered more than \
          {max} distinct record shapes (slot range is 0x41..=0x7f). \
          `CafsFileInfo` contributes at most 2 shapes and \
-         `SideEffectsDiff` at most 4; the rest are allocated lazily \
+         `SideEffectsDiff` at most 8; the rest are allocated lazily \
          from `PackageFilesIndex.manifest`'s nested object shapes, \
          which in practice fit comfortably inside the remaining \
          range for a single tarball's manifest. Reaching this error \
@@ -677,7 +675,7 @@ const FIRST_INNER_SLOT: u8 = SLOT_LO + 1; // 0x41
 ///
 /// Shape keys are small bitmasks over the optional fields of each
 /// record type, see [`cafs_shape`] / [`side_effects_shape`]. Each type has
-/// at most a handful of possible shapes (2 for `CafsFileInfo`, 4 for
+/// at most a handful of possible shapes (2 for `CafsFileInfo`, 8 for
 /// `SideEffectsDiff`), so the 0x40..=0x7f slot range is vastly
 /// over-provisioned for realistic workloads.
 #[derive(SmartDefault)]
@@ -688,8 +686,8 @@ struct EncodeState {
     /// in this stream.
     cafs_slots: [Option<u8>; 2],
     /// Same for `SideEffectsDiff`, indexed by [`side_effects_shape`]
-    /// (4 possible values).
-    side_effects_slots: [Option<u8>; 4],
+    /// (8 possible values).
+    side_effects_slots: [Option<u8>; 8],
     /// Field-name vector → slot for every JSON-object shape seen so
     /// far inside a manifest value. Shape keys are owned `Vec<String>`
     /// because the field names are read from a borrowed
@@ -729,9 +727,11 @@ fn cafs_shape(info: &CafsFileInfo) -> u8 {
 }
 
 /// Bitmask describing which optional fields a [`SideEffectsDiff`]
-/// carries. Bit 0 = `added`, bit 1 = `deleted`.
+/// carries. Bit 0 = `added`, bit 1 = `deleted`, bit 2 = `remoteOrigin`.
 fn side_effects_shape(diff: &SideEffectsDiff) -> u8 {
-    u8::from(diff.added.is_some()) | (u8::from(diff.deleted.is_some()) << 1)
+    u8::from(diff.added.is_some())
+        | (u8::from(diff.deleted.is_some()) << 1)
+        | (u8::from(diff.remote_origin.is_some()) << 2)
 }
 
 fn encode_pkg_files_index_value(
@@ -739,14 +739,17 @@ fn encode_pkg_files_index_value(
     state: &mut EncodeState,
     idx: &PackageFilesIndex,
 ) -> Result<(), EncodeError> {
-    // Field order `[algo, requiresBuild?, manifest?, files, sideEffects?]`.
+    // Field order `[algo, requiresBuild?, requiresPrepare?, manifest?, files, sideEffects?]`.
     // Optional fields are omitted from the schema when `None`, matching
     // msgpackr's field-omit-when-absent shape so a pnpm reader sees the
     // same JS object regardless of whether pacquet or pnpm wrote the row.
-    let mut fields: Vec<&str> = Vec::with_capacity(5);
+    let mut fields: Vec<&str> = Vec::with_capacity(7);
     fields.push("algo");
     if idx.requires_build.is_some() {
         fields.push("requiresBuild");
+    }
+    if idx.requires_prepare.is_some() {
+        fields.push("requiresPrepare");
     }
     if idx.manifest.is_some() {
         fields.push("manifest");
@@ -755,6 +758,9 @@ fn encode_pkg_files_index_value(
     if idx.side_effects.is_some() {
         fields.push("sideEffects");
     }
+    if idx.remote_side_effects_quarantine.is_some() {
+        fields.push("remoteSideEffectsQuarantine");
+    }
 
     write_record_def_header(writer, PKG_FILES_INDEX_SLOT, &fields);
 
@@ -762,6 +768,9 @@ fn encode_pkg_files_index_value(
     write_str(writer, &idx.algo);
     if let Some(rb) = idx.requires_build {
         write_bool(writer, rb);
+    }
+    if let Some(rp) = idx.requires_prepare {
+        write_bool(writer, rp);
     }
     if let Some(manifest) = &idx.manifest {
         encode_json_value(writer, state, manifest)?;
@@ -784,6 +793,16 @@ fn encode_pkg_files_index_value(
         for (platform, diff) in sorted_by_key(se) {
             write_str(writer, platform);
             encode_side_effects_diff(writer, state, diff)?;
+        }
+    }
+    if let Some(quarantine) = &idx.remote_side_effects_quarantine {
+        write_map_header(writer, quarantine.len());
+        for (channel, digests) in sorted_by_key(quarantine) {
+            write_str(writer, channel);
+            write_array_header(writer, digests.len());
+            for digest in digests {
+                write_str(writer, digest);
+            }
         }
     }
 
@@ -936,13 +955,17 @@ fn encode_side_effects_diff(
     } else {
         let slot = state.allocate_slot()?;
         state.side_effects_slots[shape as usize] = Some(slot);
-        let fields: &[&str] = match (diff.added.is_some(), diff.deleted.is_some()) {
-            (true, true) => &["added", "deleted"],
-            (true, false) => &["added"],
-            (false, true) => &["deleted"],
-            (false, false) => &[],
-        };
-        write_record_def_header(writer, slot, fields);
+        let mut fields = Vec::with_capacity(3);
+        if diff.added.is_some() {
+            fields.push("added");
+        }
+        if diff.deleted.is_some() {
+            fields.push("deleted");
+        }
+        if diff.remote_origin.is_some() {
+            fields.push("remoteOrigin");
+        }
+        write_record_def_header(writer, slot, &fields);
     }
 
     if let Some(added) = &diff.added {
@@ -957,6 +980,11 @@ fn encode_side_effects_diff(
         for name in deleted {
             write_str(writer, name);
         }
+    }
+    if let Some(origin) = &diff.remote_origin {
+        let value = serde_json::to_value(origin)
+            .expect("RemoteSideEffectsOrigin serialization cannot fail");
+        encode_json_value(writer, state, &value)?;
     }
     Ok(())
 }

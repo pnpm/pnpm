@@ -13,6 +13,10 @@ use std::collections::HashSet;
 pub(crate) struct Manifest {
     text: String,
     pub(crate) top_level_keys: Vec<String>,
+    /// Whether the document separates its top-level blocks with blank lines,
+    /// as judged by [`crate::edit::uses_blank_line_style`] on the original
+    /// text. New blocks are inserted in the same style.
+    pub(crate) blank_line_style: bool,
     /// `catalog:` shorthand for the default catalog.
     pub(crate) catalog: Option<IndexMap<String, String>>,
     /// `catalogs:` map of named catalogs (may include `default`).
@@ -39,6 +43,9 @@ pub(crate) struct Manifest {
     /// `auditConfig.ignoreGhsas:` list. Consulted to detect a no-op write
     /// of an already-present list.
     pub(crate) audit_ignore_ghsas: Option<Vec<String>>,
+    /// `audit.ignore:` list — the canonical spelling, which wins over
+    /// `auditConfig.ignoreGhsas` when both are present.
+    pub(crate) audit_ignore: Option<Vec<String>>,
     /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
     /// of an already-present list.
     pub(crate) minimum_release_age_exclude: Option<Vec<String>>,
@@ -63,6 +70,8 @@ struct CatalogData {
     overrides: Option<IndexMap<String, OverrideValue>>,
     #[serde(default, rename = "auditConfig")]
     audit_config: Option<AuditConfigData>,
+    #[serde(default)]
+    audit: Option<AuditData>,
     #[serde(default, rename = "minimumReleaseAgeExclude")]
     minimum_release_age_exclude: Option<Vec<String>>,
     #[serde(default, rename = "trustPolicyExclude")]
@@ -74,6 +83,13 @@ struct CatalogData {
 struct AuditConfigData {
     #[serde(default, rename = "ignoreGhsas")]
     ignore_ghsas: Option<Vec<String>>,
+}
+
+/// The `audit` slice consulted for no-op detection and target selection.
+#[derive(Default, Deserialize)]
+struct AuditData {
+    #[serde(default)]
+    ignore: Option<Vec<String>>,
 }
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
@@ -120,6 +136,7 @@ impl Manifest {
             return Ok(Manifest {
                 text,
                 top_level_keys: Vec::new(),
+                blank_line_style: false,
                 catalog: None,
                 catalogs: None,
                 config_dependencies: None,
@@ -128,6 +145,7 @@ impl Manifest {
                 overrides: None,
                 non_scalar_overrides: HashSet::new(),
                 audit_ignore_ghsas: None,
+                audit_ignore: None,
                 minimum_release_age_exclude: None,
                 trust_policy_exclude: None,
             });
@@ -135,7 +153,9 @@ impl Manifest {
 
         let top: Option<IndexMap<String, serde::de::IgnoredAny>> =
             serde_saphyr::from_str(&text).map_err(Box::new)?;
-        let top_level_keys = top.map(|map| map.into_keys().collect()).unwrap_or_default();
+        let top_level_keys: Vec<String> =
+            top.map(|map| map.into_keys().collect()).unwrap_or_default();
+        let blank_line_style = crate::edit::uses_blank_line_style(&text, &top_level_keys);
 
         let data: CatalogData = serde_saphyr::from_str(&text).map_err(Box::new)?;
         let config_dependencies = data.config_dependencies.map(|entries| {
@@ -171,10 +191,12 @@ impl Manifest {
                 .collect()
         });
         let audit_ignore_ghsas = data.audit_config.and_then(|config| config.ignore_ghsas);
+        let audit_ignore = data.audit.and_then(|audit| audit.ignore);
 
         Ok(Manifest {
             text,
             top_level_keys,
+            blank_line_style,
             catalog: data.catalog,
             catalogs: data.catalogs,
             config_dependencies,
@@ -183,6 +205,7 @@ impl Manifest {
             overrides,
             non_scalar_overrides,
             audit_ignore_ghsas,
+            audit_ignore,
             minimum_release_age_exclude: data.minimum_release_age_exclude,
             trust_policy_exclude: data.trust_policy_exclude,
         })

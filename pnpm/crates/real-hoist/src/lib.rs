@@ -40,7 +40,9 @@
 use derive_more::{Display, Error};
 use indexmap::{IndexMap, IndexSet};
 use miette::Diagnostic;
-use pnpm_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry, VersionPart,
+};
 use std::{
     cell::{Cell, RefCell},
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
@@ -605,8 +607,27 @@ fn collect_snapshot_deps(
 /// package under a second name gets a node, and a directory, of its
 /// own. An index over the result holds the list and resolves an edge
 /// to its first entry.
+///
+/// An injected directory dependency (a `file:` version that is not a
+/// local tarball) keeps its peer suffix: every variant of it is a
+/// separate on-disk copy of the local package, materialized with its
+/// own peer-resolved dependency set, so collapsing the variants would
+/// rewire every dependent of the losing one onto the survivor's
+/// children (Bit's root components pin conflicting peers across such
+/// copies on purpose). The registry collapse exists to stop
+/// peer-variant explosion on large lockfiles; directory snapshots are
+/// one per injected workspace package and cannot explode that way. A
+/// local tarball (`file:foo.tgz`) unpacks the same archive for every
+/// variant like a registry package, so it collapses like one — the
+/// boundary is [`pnpm_lockfile::is_local_tarball_path`], the same one
+/// the lockfile itself draws for `file:` resolutions.
 #[must_use]
 pub fn pkg_id(dep_key: &PkgNameVerPeer) -> String {
+    if let VersionPart::File(path) = dep_key.suffix.version()
+        && !pnpm_lockfile::is_local_tarball_path(path)
+    {
+        return dep_key.to_string();
+    }
     dep_key.without_peer().to_string()
 }
 

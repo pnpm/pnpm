@@ -93,6 +93,52 @@ export interface DepsStateCache {
   [depPath: string]: string
 }
 
+export const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX = 'dependency-side-effects:v1:'
+
+export interface CalcDepStateInputKeyOptions<T extends string> {
+  depsGraph: DepsGraph<T>
+  depPath: T
+  patchFileHash?: string
+  supportedArchitectures?: SupportedArchitectures
+}
+
+/**
+ * Compute the machine-independent lookup key for a remotely shareable
+ * dependency build.
+ *
+ * `depsGraph` must contain `depPath`, and every reachable node must provide
+ * either `fullPkgId` or the resolution metadata needed to derive it. The
+ * function does not mutate the graph or caller state. Each call uses an
+ * isolated cache, so the result is independent of earlier roots and platform
+ * selections.
+ *
+ * The returned key starts with {@link DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX},
+ * followed by the recursive dependency-graph hash and, when non-empty, the
+ * patch-file hash. Host identity is excluded and advertised by the artifact's
+ * signed compatibility constraints. When a resolution contains platform
+ * variations, `supportedArchitectures` selects the source integrity included
+ * in the graph hash.
+ */
+export function calcDepStateInputKey<T extends string> (
+  opts: CalcDepStateInputKeyOptions<T>
+): string {
+  if (opts.depsGraph[opts.depPath] == null) {
+    throw new Error(`Dependency side-effects input-key root ${opts.depPath} is not present in depsGraph`)
+  }
+  const depGraphHash = calcDepGraphHash({
+    depsGraph: opts.depsGraph,
+    cache: {},
+    parents: new Set(),
+    depPath: opts.depPath,
+    context: createDepGraphHashContext(opts.supportedArchitectures),
+  })
+  let result = `${DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps=${depGraphHash}`
+  if (opts.patchFileHash) {
+    result += `;patch=${opts.patchFileHash}`
+  }
+  return result
+}
+
 export function calcDepState<T extends string> (
   depsGraph: DepsGraph<T>,
   cache: DepsStateCache,
@@ -117,7 +163,13 @@ export function calcDepState<T extends string> (
   const ownPin = readSnapshotRuntimePin(depsGraph[depPath as T]?.children)
   let result = engineName(ownPin ?? opts.nodeVersion)
   if (opts.includeDepGraphHash) {
-    const depGraphHash = calcDepGraphHash(depsGraph, cache, new Set(), depPath, opts.supportedArchitectures)
+    const depGraphHash = calcDepGraphHash({
+      depsGraph,
+      cache,
+      parents: new Set(),
+      depPath: depPath as T,
+      context: createDepGraphHashContext(opts.supportedArchitectures),
+    })
     result += `;deps=${depGraphHash}`
   }
   if (opts.patchFileHash) {
@@ -126,40 +178,64 @@ export function calcDepState<T extends string> (
   return result
 }
 
-function calcDepGraphHash<T extends string> (
-  depsGraph: DepsGraph<T>,
-  cache: DepsStateCache,
-  parents: Set<string>,
-  depPath: T,
-  supportedArchitectures?: SupportedArchitectures
-): string {
-  if (cache[depPath]) return cache[depPath]
+interface CalcDepGraphHashOptions<T extends string> {
+  depsGraph: DepsGraph<T>
+  cache: DepsStateCache
+  parents: Set<string>
+  depPath: T
+  context: DepGraphHashContext
+}
+
+function calcDepGraphHash<T extends string> ({
+  depsGraph,
+  cache,
+  parents,
+  depPath,
+  context,
+}: CalcDepGraphHashOptions<T>): string {
+  const cacheKey = `${context.cacheKeyPrefix}${depPath}`
+  if (cache[cacheKey]) return cache[cacheKey]
   const node = depsGraph[depPath]
   if (!node) return ''
-  if (!node.fullPkgId) {
-    if (!node.pkgIdWithPatchHash) {
-      throw new Error(`pkgIdWithPatchHash is not defined for ${depPath} in depsGraph`)
-    }
-    if (!node.resolution) {
-      throw new Error(`resolution is not defined for ${depPath} in depsGraph`)
-    }
-    node.fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution, supportedArchitectures)
+  let fullPkgId = node.fullPkgId
+  if (node.pkgIdWithPatchHash != null && node.resolution != null) {
+    fullPkgId = createFullPkgId(node.pkgIdWithPatchHash, node.resolution, context.supportedArchitectures)
+  } else if (fullPkgId == null) {
+    throw new Error(`fullPkgId or resolution metadata is not defined for ${depPath} in depsGraph`)
   }
   const deps: Record<string, string> = {}
-  if (Object.keys(node.children).length && !parents.has(node.fullPkgId)) {
-    const nextParents = new Set([...Array.from(parents), node.fullPkgId])
+  if (Object.keys(node.children).length && !parents.has(fullPkgId)) {
+    const nextParents = new Set([...Array.from(parents), fullPkgId])
     for (const alias in node.children) {
       if (Object.hasOwn(node.children, alias)) {
         const childId = node.children[alias]
-        deps[alias] = calcDepGraphHash(depsGraph, cache, nextParents, childId, supportedArchitectures)
+        deps[alias] = calcDepGraphHash({
+          depsGraph,
+          cache,
+          parents: nextParents,
+          depPath: childId,
+          context,
+        })
       }
     }
   }
-  cache[depPath] = hashObject({
-    id: node.fullPkgId,
+  cache[cacheKey] = hashObject({
+    id: fullPkgId,
     deps,
   })
-  return cache[depPath]
+  return cache[cacheKey]
+}
+
+interface DepGraphHashContext {
+  supportedArchitectures?: SupportedArchitectures
+  cacheKeyPrefix: string
+}
+
+function createDepGraphHashContext (supportedArchitectures?: SupportedArchitectures): DepGraphHashContext {
+  return {
+    supportedArchitectures,
+    cacheKeyPrefix: supportedArchitectures == null ? '' : `\0architectures=${hashObject(supportedArchitectures)}\0`,
+  }
 }
 
 export interface PkgMeta {
@@ -259,7 +335,13 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   // to the install-wide value.
   const ownPin = readSnapshotRuntimePin(graph[depPath]?.children)
   const engine = includeEngine ? engineName(ownPin ?? nodeVersion) : null
-  const deps = calcDepGraphHash(graph, cache, new Set(), depPath, supportedArchitectures)
+  const deps = calcDepGraphHash({
+    depsGraph: graph,
+    cache,
+    parents: new Set(),
+    depPath,
+    context: createDepGraphHashContext(supportedArchitectures),
+  })
   const isLocalDirectory = isLocalDirectoryResolution(graph[depPath]?.resolution)
   // Scoping the slot needs the project's identity; the segment only needs to
   // know that the package is a local directory, so a caller that leaves
@@ -383,14 +465,16 @@ export function lockfileToDepGraph (
   const linkTargetNodes = new Set<DepPath>()
   if (lockfile.packages != null) {
     for (const [depPath, pkgSnapshot] of Object.entries(lockfile.packages)) {
+      const pkgIdWithPatchHash = getPkgIdWithPatchHash(depPath as DepPath)
       const children = lockfileDepsToGraphChildren({
         ...pkgSnapshot.dependencies,
         ...pkgSnapshot.optionalDependencies,
       }, lockfileDir, linkTargetNodes)
       graph[depPath as DepPath] = {
         children,
+        pkgIdWithPatchHash,
         resolution: pkgSnapshot.resolution,
-        fullPkgId: createFullPkgId(getPkgIdWithPatchHash(depPath as DepPath), pkgSnapshot.resolution, supportedArchitectures),
+        fullPkgId: createFullPkgId(pkgIdWithPatchHash, pkgSnapshot.resolution, supportedArchitectures),
       }
     }
   }

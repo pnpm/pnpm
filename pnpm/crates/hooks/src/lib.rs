@@ -149,6 +149,11 @@ pub trait PnpmfileHooks: Send + Sync {
     /// `filterLog` hook: determines if a log message should be emitted.
     async fn filter_log(&self, log: Value, ctx: HookContext) -> bool;
 
+    /// Whether this pnpmfile exports a callable `filterLog` hook.
+    async fn has_filter_log(&self) -> bool {
+        false
+    }
+
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///

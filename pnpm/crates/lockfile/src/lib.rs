@@ -17,6 +17,7 @@ mod pkg_name_ver_peer;
 mod pkg_ver_peer;
 mod project_snapshot;
 mod prune_time;
+mod prune_undeclared_importer_deps;
 mod resolution;
 mod resolved_dependency;
 mod save_lockfile;
@@ -44,6 +45,7 @@ pub use pkg_name_ver_peer::*;
 pub use pkg_ver_peer::*;
 pub use project_snapshot::*;
 pub use prune_time::*;
+pub use prune_undeclared_importer_deps::*;
 pub use resolution::*;
 pub use resolved_dependency::*;
 pub use save_lockfile::*;
@@ -224,6 +226,33 @@ impl Lockfile {
     /// The key used to refer to the root project inside `importers`.
     pub const ROOT_IMPORTER_KEY: &str = ".";
 
+    /// Keep only the lockfile fields that seed a repairing resolution.
+    pub fn prepare_for_fix(&mut self) {
+        if let Some(packages) = self.packages.as_mut() {
+            for metadata in packages.values_mut() {
+                metadata.version = None;
+                metadata.engines = None;
+                metadata.cpu = None;
+                metadata.os = None;
+                metadata.libc = None;
+                metadata.deprecated = None;
+                metadata.has_bin = None;
+                metadata.prepare = None;
+                metadata.bundled_dependencies = None;
+                metadata.peer_dependencies = None;
+                metadata.peer_dependencies_meta = None;
+            }
+        }
+        if let Some(snapshots) = self.snapshots.as_mut() {
+            for snapshot in snapshots.values_mut() {
+                snapshot.id = None;
+                snapshot.transitive_peer_dependencies = None;
+                snapshot.patched = None;
+                snapshot.optional = false;
+            }
+        }
+    }
+
     /// Convenience accessor for the root project's snapshot.
     #[must_use]
     pub fn root_project(&self) -> Option<&'_ ProjectSnapshot> {
@@ -297,9 +326,12 @@ impl Lockfile {
 }
 
 /// Whether `path` ends in a tarball extension (`.tgz`, `.tar.gz`, or
-/// `.tar`, case-insensitively), so the directory-vs-tarball boundary
-/// applied here matches the resolver's at resolve time.
-fn is_local_tarball_path(path: &str) -> bool {
+/// `.tar`, case-insensitively) — the directory-vs-tarball boundary the
+/// resolver applies to a `file:` spec at resolve time. Public so
+/// consumers classifying a `file:` snapshot key (such as the hoister's
+/// identity function) draw the same line.
+#[must_use]
+pub fn is_local_tarball_path(path: &str) -> bool {
     let lower = path.as_bytes();
     let ends_with_ci = |suffix: &str| {
         let bytes = suffix.as_bytes();

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fs.hard-link-dir",
-  "version": "1100.0.3",
+  "version": "1100.0.4",
   "description": "Hard link (or copy if linking fails) all files from a directory to several target directories.",
   "keywords": [
     "pnpm",
@@ -34,8 +34,7 @@
   },
   "dependencies": {
     "@pnpm/fs.graceful-fs": "workspace:*",
-    "path-temp": "catalog:",
-    "rename-overwrite": "catalog:"
+    "path-temp": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:"

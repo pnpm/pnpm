@@ -56,6 +56,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> ScriptExi
         extra_env: &extra_env,
         silent: true,
         output: ScriptOutput::Inherit,
+        process_tracker: None,
     })
     .expect("run the script")
 }

@@ -171,20 +171,13 @@ pub fn try_lockfile_verification_cache(
     }
 
     let hash = hash_lockfile();
-    let Some(record) = indexes.by_hash.get(&hash) else {
+    let Some(record) = trusted_record_by_hash(&indexes, &hash, verifiers) else {
         return CacheLookupResult {
             hit: false,
             verified_at: None,
             precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
         };
     };
-    if !every_verifier_trusts_cached_run(record, verifiers) {
-        return CacheLookupResult {
-            hit: false,
-            verified_at: None,
-            precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
-        };
-    }
 
     // Refresh the byPath slot so the next install at this path takes
     // the stat shortcut. Failure here is best-effort: even if the
@@ -208,6 +201,17 @@ pub fn try_lockfile_verification_cache(
         verified_at: (!refreshed.verified_at.is_empty()).then(|| refreshed.verified_at.clone()),
         precomputed: CachePrecomputed { stat: Some(stat), hash: Some(hash) },
     }
+}
+
+/// Look up a verification by content hash without consulting any
+/// lockfile path or filesystem metadata.
+pub(crate) fn lockfile_verification_is_cached_by_hash(
+    cache_dir: &Path,
+    hash: &str,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> bool {
+    let Ok(indexes) = read_cache(cache_dir) else { return false };
+    trusted_record_by_hash(&indexes, hash, verifiers).is_some()
 }
 
 /// Persist a successful verification.
@@ -250,6 +254,15 @@ struct CacheIndexes {
     by_hash: HashMap<String, CacheRecord>,
     /// Latest record per absolute path — same-machine stat fast path.
     by_path: HashMap<String, CacheRecord>,
+}
+
+fn trusted_record_by_hash<'a>(
+    indexes: &'a CacheIndexes,
+    hash: &str,
+    verifiers: &[Arc<dyn ResolutionVerifier>],
+) -> Option<&'a CacheRecord> {
+    let record = indexes.by_hash.get(hash)?;
+    every_verifier_trusts_cached_run(record, verifiers).then_some(record)
 }
 
 /// Read the cache file, building both indexes in one pass. Records

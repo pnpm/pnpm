@@ -6,8 +6,8 @@ use crate::{
         WriteWorkspaceCatalogsError, post_install_prune, write_workspace_catalogs,
         write_workspace_catalogs_selected,
     },
-    decide_catalog_outcome, emit_initial_package_manifest, included_direct_groups,
-    package_manifest_prefix,
+    decide_catalog_outcome, defer_ignored_builds, emit_initial_package_manifest,
+    included_direct_groups, package_manifest_prefix,
     resolution_policy::{PickPolicy, pick_package_context},
     resolve_latest::LatestPicker,
     selected_project_indices,
@@ -15,6 +15,7 @@ use crate::{
 use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesOrdered};
 use miette::Diagnostic;
+use pipe_trait::Pipe;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
@@ -269,7 +270,7 @@ where
         // reach the resolver.
         let named_a_version = !seed_policies.is_empty();
 
-        Install {
+        let ignored_builds = Install {
             tarball_mem_cache,
             http_client,
             http_client_arc,
@@ -329,6 +330,7 @@ where
         }
         .run::<Reporter>()
         .await
+        .pipe(defer_ignored_builds)
         .map_err(AddError::Install)?;
 
         persist_manifest::<Reporter>(manifest)?;
@@ -336,15 +338,19 @@ where
         post_install_prune(config, Some(&catalog_ctx.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
 
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(AddError::Install(ignored_builds));
+        }
         Ok(())
     }
 
     pub async fn run_selected<Reporter: self::Reporter + 'static>(
         self,
         projects: &mut [pnpm_workspace::Project],
-        ordered_groups: &[Vec<PathBuf>],
+        project_dependencies: &indexmap::IndexMap<PathBuf, Vec<PathBuf>>,
         ordered_dirs: &[PathBuf],
         selected_dirs: &HashSet<PathBuf>,
+        install_dirs: &HashSet<PathBuf>,
         active_manifest_is_standin: bool,
     ) -> Result<(), AddError> {
         let Add {
@@ -425,7 +431,7 @@ where
         // reach the resolver.
         let named_a_version = !seed_policies.is_empty();
 
-        Box::pin(
+        let ignored_builds = Box::pin(
             Install {
                 tarball_mem_cache,
                 http_client,
@@ -475,19 +481,24 @@ where
             }
             .run_selected::<Reporter>(WorkspaceInstallSelection {
                 all_projects: projects,
-                ordered_groups,
+                project_dependencies,
                 ordered_dirs,
                 selected_dirs,
+                install_dirs,
                 active_manifest_is_standin,
             }),
         )
         .await
+        .pipe(defer_ignored_builds)
         .map_err(AddError::Install)?;
 
         persist_selected_manifests::<Reporter>(projects, &selected_indices)?;
 
         post_install_prune(config, Some(&prepared.workspace_dir), manifest)
             .map_err(AddError::WriteWorkspaceManifest)?;
+        if let Some(ignored_builds) = ignored_builds {
+            return Err(AddError::Install(ignored_builds));
+        }
         Ok(())
     }
 }

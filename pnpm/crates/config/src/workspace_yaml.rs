@@ -141,6 +141,134 @@ pub fn decided_allow_builds(allow_builds: HashMap<String, AllowBuild>) -> HashMa
     allow_builds.into_iter().filter_map(|(pkg, value)| Some((pkg, value.decided()?))).collect()
 }
 
+/// Organization-owned dependency build artifacts eligible for this workspace.
+///
+/// `org` and `packages` default to empty because one section is
+/// assembled from several sources: the repository names the eligible
+/// organization and packages while the machine supplies the trust root. The
+/// feature applies only once both halves are present.
+///
+/// Only `org` and `packages` may come from a repository. Every other
+/// field describes the act of signing and travels with the machine: loading a
+/// `pnpm-workspace.yaml` that sets one fails with
+/// [`LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust`], leaving the
+/// global config yaml and the environment.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct RemoteSideEffectsCacheSettings {
+    /// `org` is what pnpr calls this namespace in its own configuration and
+    /// what its endpoints are built from.
+    pub org: String,
+    /// The alternative spelling of [`Self::org`]. A non-empty [`Self::org`]
+    /// wins over this field.
+    ///
+    /// A separate field rather than a serde alias: an alias makes a file
+    /// carrying both keys a duplicate-field parse error, where every other
+    /// pair of spellings here resolves to the canonical one.
+    pub organization: String,
+    pub packages: Vec<String>,
+    /// Publish the lifecycle-script diff of every eligible package that is built.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub publish: Option<bool>,
+    /// Identifies which of the consumer's trusted keys signed a published artifact.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub builder_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_digest: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architecture_baseline: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub build_env: Option<BTreeMap<String, String>>,
+    /// Base64-encoded P-256 `SubjectPublicKeyInfo` DER, keyed by key id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trusted_keys: Option<BTreeMap<String, String>>,
+    /// Base64-encoded PKCS#8 P-256 private key used to sign published artifacts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub private_key: Option<String>,
+}
+
+/// `sideEffectsCache` as written: either a bare boolean, or the declaration
+/// carrying all three parts.
+#[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SideEffectsCacheSetting {
+    Enabled(bool),
+    /// Boxed because the shorthand is one byte and this is not, and an
+    /// `Option<SideEffectsCacheSetting>` sits in a struct built for every
+    /// workspace file read.
+    Settings(Box<SideEffectsCacheSettings>),
+}
+
+/// Where a dependency's build output may be reused from: this machine, and —
+/// through [`Self::remote`] — other machines in the same organization.
+#[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SideEffectsCacheSettings {
+    /// Restore a package's build from the cache when one is present.
+    pub read: Option<bool>,
+    /// Save a package's build output to the cache.
+    pub write: Option<bool>,
+    pub remote: Option<RemoteSideEffectsCacheSettings>,
+}
+
+impl RemoteSideEffectsCacheSettings {
+    /// Overlay the fields `other` sets onto `self`, leaving the rest alone.
+    ///
+    /// A workspace declares eligibility while the machine holds the signing
+    /// trust root, so the two sources contribute different fields of one
+    /// section and the later one must not drop what the earlier one set.
+    pub(crate) fn overlay(&mut self, other: Self) {
+        let Self {
+            org,
+            organization,
+            packages,
+            publish,
+            key_id,
+            builder_id,
+            image_digest,
+            architecture_baseline,
+            build_env,
+            trusted_keys,
+            private_key,
+        } = other;
+        // Resolved as the section is layered rather than at each read, so
+        // that `.org` is the only spelling anything downstream has to know.
+        let org = if org.is_empty() { organization } else { org };
+        if !org.is_empty() {
+            self.org = org;
+        }
+        if !packages.is_empty() {
+            self.packages = packages;
+        }
+        if publish.is_some() {
+            self.publish = publish;
+        }
+        if key_id.is_some() {
+            self.key_id = key_id;
+        }
+        if builder_id.is_some() {
+            self.builder_id = builder_id;
+        }
+        if image_digest.is_some() {
+            self.image_digest = image_digest;
+        }
+        if architecture_baseline.is_some() {
+            self.architecture_baseline = architecture_baseline;
+        }
+        if build_env.is_some() {
+            self.build_env = build_env;
+        }
+        if trusted_keys.is_some() {
+            self.trusted_keys = trusted_keys;
+        }
+        if private_key.is_some() {
+            self.private_key = private_key;
+        }
+    }
+}
+
 /// Settings readable from `pnpm-workspace.yaml`.
 ///
 /// pnpm 10+ moved the bulk of its configuration (`storeDir`, `registry`,
@@ -259,6 +387,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
     pub no_proxy: Option<serde_json::Value>,
@@ -339,7 +468,10 @@ pub struct WorkspaceSettings {
     ///
     /// [`Config::frozen_store`]: crate::Config::frozen_store
     pub frozen_store: Option<bool>,
-    pub side_effects_cache: Option<bool>,
+    /// `sideEffectsCache`: whether a build is restored, whether one is saved,
+    /// and where from. A bare boolean sets reading and writing together.
+    pub side_effects_cache: Option<SideEffectsCacheSetting>,
+    /// The boolean spelling of `sideEffectsCache: { read: true, write: false }`.
     pub side_effects_cache_readonly: Option<bool>,
     pub fetch_retries: Option<u32>,
     pub fetch_retry_factor: Option<u32>,
@@ -796,6 +928,10 @@ pub struct WorkspaceSettings {
     /// [`PeerDependencyRules`].
     pub peer_dependency_rules: Option<PeerDependencyRules>,
 
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, keyed by task (script) name. See [`TaskSettings`].
+    pub tasks: Option<IndexMap<String, TaskSettings>>,
+
     /// The problem keys [`Self::collect_key_issues`] found in the file this
     /// was parsed from. Not a setting: carried here so the CLI can report
     /// them at the point where it knows how severe they are (see the
@@ -836,6 +972,13 @@ pub struct AuditSettings {
     /// [`AuditConfig::ignore_ghsas`].
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore: Option<Vec<String>>,
+
+    /// When `true`, `pnpm audit --fix` removes entries from the ignore
+    /// list that no longer appear in the audit report, so a re-introduced
+    /// vulnerability under the same GHSA ID gets re-evaluated instead of
+    /// staying silently suppressed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_prune: Option<bool>,
 }
 
 /// `update` entry: settings that tune `pnpm update` (and `pnpm
@@ -870,6 +1013,59 @@ pub struct UpdateSettings {
     /// falling back to <https://github.com>.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub github_actions_server: Option<String>,
+}
+
+/// One task's entry in the `tasks` section. A task name is a script name:
+/// `pnpm -r run <name>` runs the task named `<name>` in every selected
+/// project.
+#[derive(Debug, Default, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TaskSettings {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrency: Option<i64>,
+
+    #[serde(skip)]
+    invalid_concurrency: Option<serde_json::Value>,
+
+    /// The tasks that must complete before this one may start. A `^name`
+    /// entry names the task in each of the project's workspace
+    /// dependencies; a bare `name` entry names the task in the same
+    /// project.
+    ///
+    /// A task with no declaration behaves as `dependsOn: ['^<its own
+    /// name>']`. An entry with `dependsOn` omitted declares an empty
+    /// dependency list — the task depends on nothing and may start
+    /// immediately.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub depends_on: Option<Vec<String>>,
+
+    /// Fields this version of pnpm does not read, kept so validation can
+    /// reject a typo instead of silently ignoring it.
+    #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
+    pub unknown: IndexMap<String, serde_json::Value>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct RawTaskSettings {
+    concurrency: Option<serde_json::Value>,
+    depends_on: Option<Vec<String>>,
+    #[serde(flatten)]
+    unknown: IndexMap<String, serde_json::Value>,
+}
+
+impl<'de> Deserialize<'de> for TaskSettings {
+    fn deserialize<De: Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
+        let raw = RawTaskSettings::deserialize(deserializer)?;
+        let concurrency = raw.concurrency.as_ref().and_then(serde_json::Value::as_i64);
+        let invalid_concurrency = raw.concurrency.filter(|value| value.as_i64().is_none());
+        Ok(Self {
+            concurrency,
+            invalid_concurrency,
+            depends_on: raw.depends_on,
+            unknown: raw.unknown,
+        })
+    }
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`.
@@ -1035,6 +1231,22 @@ pub enum LoadWorkspaceYamlError {
     #[display("The prefix {prefix:?} is declared by two registries")]
     #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
     PrefixDeclaredTwice { prefix: String },
+    #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
+    #[diagnostic(
+        code(ERR_PNPM_INVALID_SETTING),
+        help(r#"A task declares "concurrency" and "dependsOn"."#)
+    )]
+    UnknownTaskSettingField { task: String, field: String },
+    #[display(
+        "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    InvalidTaskConcurrency { task: String, concurrency: String },
+    #[display(
+        "The \"tasks['{task}'].dependsOn\" setting contains an entry with no task name: {entry:?}"
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    EmptyTaskDependsOnEntry { task: String, entry: String },
     #[display("Invalid `_auth` setting: {source}")]
     InvalidJsonAuth {
         #[error(source)]
@@ -1052,6 +1264,25 @@ pub enum LoadWorkspaceYamlError {
         )
     )]
     TokenHelperInProjectConfig { key: String },
+    /// An `_auth` credential did not decode as base64. Its whole point is
+    /// to carry `<username>:<password>` base64-encoded, so a value that
+    /// cannot be decoded would otherwise reach the registry as a header
+    /// no server can read — a silent 401 instead of a fixable error.
+    #[display("Failed to decode {key} as base64")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_INVALID_BASE64),
+        help("{key} must hold the base64 encoding of <username>:<password>.")
+    )]
+    AuthInvalidBase64 { key: &'static str },
+    /// A decoded `_auth` credential held no `:`, so it names no password.
+    #[display("No separator found in the decoded form of _auth")]
+    #[diagnostic(
+        code(ERR_PNPM_AUTH_MISSING_SEPARATOR),
+        help(
+            "_auth is a base64 encoded form of <username>:<password> where the colon (:) serves as the separator"
+        )
+    )]
+    AuthMissingSeparator,
     /// A honored `tokenHelper` value contained a character pnpm reserves
     /// for future quoting / interpolation support.
     #[display("Unexpected character {character:?} in tokenHelper")]
@@ -1077,6 +1308,19 @@ pub enum LoadWorkspaceYamlError {
     )]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_OVERRIDE_VERSION))]
     CannotResolveOverrideVersion { spec: String, dependency_name: String },
+
+    /// The signing trust root for remote side-effects artifacts appeared in a
+    /// committed file. Only the global config yaml and the environment may
+    /// carry it — see [`RemoteSideEffectsCacheSettings`].
+    #[display("{prefix}.{field} cannot be set by a workspace ({})", path.display())]
+    #[diagnostic(
+        code(ERR_PNPM_WORKSPACE_REMOTE_SIDE_EFFECTS_TRUST),
+        help(
+            "Set it in the global config file or in the environment instead of {}.",
+            path.display(),
+        )
+    )]
+    WorkspaceRemoteSideEffectsTrust { path: PathBuf, prefix: &'static str, field: &'static str },
 }
 
 impl WorkspaceSettings {
@@ -1101,6 +1345,7 @@ impl WorkspaceSettings {
             .map_err(Box::new)
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
@@ -1116,6 +1361,45 @@ impl WorkspaceSettings {
     fn validate_registries(&self) -> Result<(), LoadWorkspaceYamlError> {
         let Some(entries) = self.registries.as_ref() else { return Ok(()) };
         registries::validate(entries)
+    }
+
+    /// The `tasks` section feeds the task-graph builder of `pnpm -r run`,
+    /// which reads it without further checks — a malformed entry has to be
+    /// rejected here rather than surface as a scheduling bug far from the
+    /// setting that produced it.
+    fn validate_tasks(&self) -> Result<(), LoadWorkspaceYamlError> {
+        let Some(tasks) = self.tasks.as_ref() else { return Ok(()) };
+        for (task, settings) in tasks {
+            if let Some(field) = settings.unknown.keys().next() {
+                return Err(LoadWorkspaceYamlError::UnknownTaskSettingField {
+                    task: task.clone(),
+                    field: field.clone(),
+                });
+            }
+            if let Some(concurrency) = settings.concurrency
+                && concurrency < 1
+            {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency: concurrency.to_string(),
+                });
+            }
+            if let Some(concurrency) = settings.invalid_concurrency.as_ref() {
+                return Err(LoadWorkspaceYamlError::InvalidTaskConcurrency {
+                    task: task.clone(),
+                    concurrency: concurrency.to_string(),
+                });
+            }
+            for entry in settings.depends_on.iter().flatten() {
+                if entry.is_empty() || entry == "^" {
+                    return Err(LoadWorkspaceYamlError::EmptyTaskDependsOnEntry {
+                        task: task.clone(),
+                        entry: entry.clone(),
+                    });
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Warn about the keys of the global `config.yaml` that never reach the
@@ -1249,6 +1533,9 @@ impl WorkspaceSettings {
         self.versioning = None;
         self.packages = None;
         self.catalog = None;
+        // Task declarations describe the workspace's own scripts; pnpm's
+        // config-file key filter drops them from the global file too.
+        self.tasks = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
         // not from here. Honoring it globally would silently drop a
@@ -1332,10 +1619,71 @@ impl WorkspaceSettings {
         let mut settings: WorkspaceSettings = text
             .pipe_as_ref(serde_saphyr::from_str)
             .map_err(Box::new)
-            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path, source })?;
+            .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
+        settings.validate_tasks()?;
+        settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
+    }
+
+    /// Reject every remote side-effects field a committed file may not set.
+    ///
+    /// A workspace declares which organization and packages are eligible and
+    /// nothing else: the rest describes the act of signing — which key signs,
+    /// what provenance the signature attests, and whether to publish at all —
+    /// so it belongs to the machine holding the key. Letting a repository set
+    /// `publish` would turn a key the machine holds for its own builds into a
+    /// signing oracle any clone could aim at a registry of its choosing.
+    ///
+    /// Checked after parsing rather than through `deny_unknown_fields` because
+    /// the same struct also parses the global config yaml, where every field is
+    /// legitimate.
+    fn reject_repo_controlled_trust_material(
+        &self,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let canonical = match self.side_effects_cache.as_ref() {
+            Some(SideEffectsCacheSetting::Settings(settings)) => settings.remote.as_ref(),
+            _ => None,
+        };
+        // The message names the spelling the file actually used, since telling
+        // someone to move `remoteSideEffectsCache.privateKey` out of a file
+        // that says `sideEffectsCache.remote.privateKey` sends them looking
+        // for a key that is not there.
+        for (setting, prefix) in [
+            (canonical, "sideEffectsCache.remote"),
+            (self.remote_side_effects_cache.as_ref(), "remoteSideEffectsCache"),
+        ] {
+            let Some(settings) = setting else { continue };
+            Self::reject_machine_only_fields(settings, prefix, path)?;
+        }
+        Ok(())
+    }
+
+    fn reject_machine_only_fields(
+        settings: &RemoteSideEffectsCacheSettings,
+        prefix: &'static str,
+        path: &Path,
+    ) -> Result<(), LoadWorkspaceYamlError> {
+        let machine_only = [
+            ("publish", settings.publish.is_some()),
+            ("keyId", settings.key_id.is_some()),
+            ("builderId", settings.builder_id.is_some()),
+            ("imageDigest", settings.image_digest.is_some()),
+            ("architectureBaseline", settings.architecture_baseline.is_some()),
+            ("buildEnv", settings.build_env.is_some()),
+            ("trustedKeys", settings.trusted_keys.is_some()),
+            ("privateKey", settings.private_key.is_some()),
+        ];
+        let Some((field, _)) = machine_only.into_iter().find(|(_, is_set)| *is_set) else {
+            return Ok(());
+        };
+        Err(LoadWorkspaceYamlError::WorkspaceRemoteSideEffectsTrust {
+            path: path.to_path_buf(),
+            prefix,
+            field,
+        })
     }
 
     /// Bucket the file's keys that set nothing into [`Self::key_issues`],
@@ -1584,7 +1932,7 @@ impl WorkspaceSettings {
             save_workspace_protocol,
             inject_workspace_packages,
             prefer_workspace_packages,
-            side_effects_cache, side_effects_cache_readonly,
+            side_effects_cache_readonly,
             fetch_retries, fetch_retry_factor,
             fetch_retry_mintimeout, fetch_retry_maxtimeout,
             network_concurrency, fetch_timeout,
@@ -1599,7 +1947,7 @@ impl WorkspaceSettings {
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches,
+            allow_unused_patches, tasks,
         }
 
         if let Some(virtual_store_type) = virtual_store_type {
@@ -1711,6 +2059,31 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.remote_side_effects_cache {
+            config.remote_side_effects_cache.get_or_insert_default().overlay(v);
+        }
+        // The canonical declaration is applied after the alias so that it wins
+        // where both are set, and its `remote` half overlays rather than
+        // replaces: a repository names the organization while the machine
+        // supplies the signing key, and neither may drop the other's fields.
+        match self.side_effects_cache {
+            Some(SideEffectsCacheSetting::Enabled(enabled)) => {
+                config.side_effects_cache = enabled;
+                // A later layer saying `sideEffectsCache: false` has to beat an
+                // earlier layer's object, and the helpers prefer these when set,
+                // so the shorthand must clear what the object left behind.
+                config.side_effects_cache_read_setting = None;
+                config.side_effects_cache_write_setting = None;
+            }
+            Some(SideEffectsCacheSetting::Settings(settings)) => {
+                config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));
+                config.side_effects_cache_write_setting = Some(settings.write.unwrap_or(true));
+                if let Some(remote) = settings.remote {
+                    config.remote_side_effects_cache.get_or_insert_default().overlay(remote);
+                }
+            }
+            None => {}
         }
         if let Some(v) = self.named_registries {
             if declared_prefixes {
@@ -1880,6 +2253,9 @@ impl WorkspaceSettings {
                     );
                 }
                 config.audit_config.ignore_ghsas = ignore;
+            }
+            if let Some(prune) = audit.ignore_prune {
+                config.audit_ignore_prune = Some(prune);
             }
         }
         if let Some(v) = self.versioning {

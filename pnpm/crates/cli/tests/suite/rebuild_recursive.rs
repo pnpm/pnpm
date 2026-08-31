@@ -64,7 +64,7 @@ fn filtered_rebuild_selects_projects_with_dedicated_lockfiles() {
 }
 
 #[test]
-fn dedicated_recursive_rebuild_no_bail_continues_topological_chunks() {
+fn dedicated_recursive_rebuild_no_bail_runs_dependents_after_failures() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("pnpm-workspace.yaml"),
@@ -112,7 +112,7 @@ fn dedicated_recursive_rebuild_no_bail_continues_topological_chunks() {
     assert!(!output.status.success(), "the failed project should fail the command");
     assert!(
         app_b.join("rebuilt.txt").exists(),
-        "--no-bail should continue to the dependent project's topological chunk: {output:?}",
+        "--no-bail should continue to the dependent project after its dependency fails: {output:?}",
     );
 
     drop(root);

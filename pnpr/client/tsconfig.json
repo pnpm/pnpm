@@ -13,13 +13,28 @@
       "path": "../../pnpm11/catalogs/types"
     },
     {
+      "path": "../../pnpm11/core/error"
+    },
+    {
       "path": "../../pnpm11/core/types"
+    },
+    {
+      "path": "../../pnpm11/crypto/object-hasher"
+    },
+    {
+      "path": "../../pnpm11/deps/graph-hasher"
     },
     {
       "path": "../../pnpm11/lockfile/fs"
     },
     {
       "path": "../../pnpm11/lockfile/types"
+    },
+    {
+      "path": "../../pnpm11/network/auth-header"
+    },
+    {
+      "path": "../../pnpm11/store/controller-types"
     }
   ]
 }

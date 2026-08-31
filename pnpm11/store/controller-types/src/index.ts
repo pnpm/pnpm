@@ -15,11 +15,14 @@ import type {
 } from '@pnpm/resolving.resolver-base'
 import type {
   FilesMap,
+  FileWriteResult,
   ImportPackageFunction,
   ImportPackageFunctionAsync,
   PackageFileInfo,
   PackageFilesResponse,
+  RemoteSideEffectsOrigin,
   ResolvedFrom,
+  SideEffectsDiff,
 } from '@pnpm/store.cafs-types'
 import type {
   AllowBuild,
@@ -31,7 +34,7 @@ import type {
   TrustPolicy,
 } from '@pnpm/types'
 
-export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, ResolvedFrom }
+export type { FilesMap, ImportPackageFunction, ImportPackageFunctionAsync, PackageFileInfo, PackageFilesResponse, RemoteSideEffectsOrigin, ResolvedFrom, SideEffectsDiff }
 
 export * from '@pnpm/resolving.resolver-base'
 export type { BundledManifest }
@@ -41,7 +44,12 @@ export interface UploadPkgToStoreOpts {
   sideEffectsCacheKey: string
 }
 
-export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<void>
+export interface UploadPkgToStoreResult {
+  filesMap: FilesMap
+  sideEffects?: SideEffectsDiff
+}
+
+export type UploadPkgToStore = (builtPkgLocation: string, opts: UploadPkgToStoreOpts) => Promise<UploadPkgToStoreResult>
 
 export interface StoreController {
   requestPackage: RequestPackageFunction
@@ -51,6 +59,27 @@ export interface StoreController {
   close: () => Promise<void>
   prune: (removeAlienFiles?: boolean) => Promise<void>
   upload: UploadPkgToStore
+  addFileToStore?: (buffer: Buffer, mode: number) => FileWriteResult
+  /**
+   * Path of the file the store already holds for this content, or `undefined`
+   * when it holds none.
+   *
+   * Lets a caller that would otherwise fetch content the store already has —
+   * a remote side-effects artifact whose files are shared with the package's
+   * own, or with another artifact — skip the transfer. `mode` matters because
+   * the store keeps executable and non-executable content apart.
+   */
+  locateFileInStore?: (hexDigest: string, mode: number) => Promise<string | undefined>
+  persistRemoteSideEffects?: (opts: {
+    filesIndexFile: string
+    sideEffectsCacheKey: string
+    sideEffects: SideEffectsDiff
+  }) => boolean
+  quarantineRemoteSideEffects?: (opts: {
+    channel: string
+    envelopeDigest: string
+    filesIndexFile: string
+  }) => boolean
   clearResolutionCache: () => void
 }
 
@@ -140,6 +169,7 @@ export interface RequestPackageOptions {
   sideEffectsCache?: boolean
   skipFetch?: boolean
   update?: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   /**
    * True only when this specific package matches the user's update target
    * (e.g. `pnpm up <name>`). Unlike `update`, this is false for unrelated

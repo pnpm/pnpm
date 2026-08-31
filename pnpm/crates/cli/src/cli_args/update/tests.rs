@@ -129,3 +129,46 @@ fn ignore_pnpmfile_flag_applies_to_config() {
     update_args(&["--ignore-pnpmfile"]).apply_cli_config(&mut config);
     assert!(config.ignore_pnpmfile, "flag present → config set");
 }
+
+#[test]
+fn pnpr_server_flag_applies_to_config() {
+    let mut config = Config::default();
+
+    update_args(&["--pnpr-server", "https://pnpr.example.test/"]).apply_cli_config(&mut config);
+
+    assert_eq!(config.pnpr_server.as_deref(), Some("https://pnpr.example.test/"));
+}
+
+#[test]
+fn patches_is_a_selectorless_update_mode() {
+    let patches = update_args(&["--patches"]);
+    assert!(patches.patches);
+    patches.check_patches_options().expect("standalone --patches");
+
+    for args in [
+        &["--patches", "foo"][..],
+        &["--patches", "--latest"][..],
+        &["--patches", "--interactive"][..],
+        &["--patches", "--global"][..],
+    ] {
+        let error =
+            update_args(args).check_patches_options().expect_err("--patches combination must fail");
+        assert_eq!(
+            error.to_string(),
+            "--patches cannot be combined with package selectors, --latest, --interactive, or --global",
+        );
+    }
+}
+
+#[test]
+fn constrained_patch_refresh_stays_on_the_client() {
+    let all_groups = vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = vec![DependencyGroup::Prod];
+
+    assert!(update_args(&["--patches"]).can_delegate_patch_refresh(false, &all_groups));
+    assert!(
+        !update_args(&["--patches", "--depth", "0"]).can_delegate_patch_refresh(false, &all_groups),
+    );
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(true, &all_groups));
+    assert!(!update_args(&["--patches"]).can_delegate_patch_refresh(false, &prod_only));
+}

@@ -150,7 +150,7 @@ export async function handler (
     if (selectedProjectsGraph != null) {
       const sequencedGraph = sequenceGraph(selectedProjectsGraph)
       // Check and warn if there are cyclic dependencies
-      if (!opts.ignoreWorkspaceCycles && !sequencedGraph.safe) {
+      if (!opts.ignoreWorkspaceCycles && sequencedGraph.cycles.some((cycle) => cycle.length > 1)) {
         const cyclicDependenciesInfo = sequencedGraph.cycles.length > 0
           ? `: ${sequencedGraph.cycles.map(deps => deps.join(', ')).join('; ')}`
           : ''

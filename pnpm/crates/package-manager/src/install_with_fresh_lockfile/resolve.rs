@@ -59,6 +59,8 @@ pub(super) fn preferred_versions_seeds(
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
+        | UpdateSeedPolicy::RefreshRevisions
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
         UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
         UpdateSeedPolicy::DropOnly { targets, .. } => {
@@ -183,6 +185,7 @@ pub(super) struct SharedResolveOptions<'a> {
     pub workspace_packages: Option<Arc<pnpm_resolving_resolver_base::WorkspacePackages>>,
     /// See [`super::InstallWithFreshLockfile::update_checksums`].
     pub update_checksums: bool,
+    pub update_behavior: pnpm_resolving_resolver_base::UpdateBehavior,
 }
 
 impl SharedResolveOptions<'_> {
@@ -209,6 +212,7 @@ impl SharedResolveOptions<'_> {
             inject_workspace_packages: self.config.inject_workspace_packages,
             prefer_workspace_packages: self.config.prefer_workspace_packages,
             update_checksums: self.update_checksums,
+            update: self.update_behavior,
             ..ResolveOptions::default()
         }
     }

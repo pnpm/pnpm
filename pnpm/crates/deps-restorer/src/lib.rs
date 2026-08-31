@@ -1,12 +1,12 @@
+pub mod build_graph;
 pub mod build_modules;
-pub mod build_sequence;
 pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;
 pub mod current_lockfile;
 mod custom_fetcher;
 pub mod deps_graph;
-pub mod graph_sequencer;
+pub mod dir_clone_cache;
 pub mod hoist;
 pub mod hoisted_dep_graph;
 pub mod hoisting_limits;
@@ -28,6 +28,7 @@ pub mod prune_stale_modules;
 pub mod remove_quarantine;
 pub mod retry_config;
 pub mod safe_join_modules_dir;
+mod shared_side_effects;
 pub mod store_init;
 pub mod symlink_direct_dependencies;
 pub mod symlink_package;
@@ -35,15 +36,15 @@ pub mod validate_lockfile_paths;
 pub mod version_policy;
 pub mod virtual_store_layout;
 
+pub use build_graph::*;
 pub use build_modules::*;
-pub use build_sequence::*;
 pub use create_symlink_layout::*;
 pub use create_virtual_dir_by_snapshot::*;
 pub use create_virtual_store::*;
 pub use current_lockfile::*;
 pub use custom_fetcher::CustomFetcherSession;
 pub use deps_graph::*;
-pub use graph_sequencer::*;
+pub use dir_clone_cache::*;
 pub use hoist::*;
 pub use hoisted_dep_graph::*;
 pub use hoisting_limits::*;
@@ -58,6 +59,7 @@ pub use link_hoisted_modules::*;
 pub use link_root_component_members::*;
 pub use package_map::*;
 pub use pnp::*;
+pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, graph_sequencer};
 pub use prune_direct_deps::*;
 pub use prune_stale_modules::*;
 pub use safe_join_modules_dir::*;
@@ -95,6 +97,27 @@ pub fn store_index_key_for_resolution(
 #[must_use]
 pub fn snapshot_has_patch(snapshot_key: &pnpm_lockfile::PackageKey) -> bool {
     pnpm_deps_path::index_of_dep_path_suffix(&snapshot_key.to_string()).patch_hash_index.is_some()
+}
+
+/// Returns the package identity used to match a lockfile snapshot against
+/// `patchedDependencies`.
+///
+/// Non-registry package keys carry their resolution in the version slot, so
+/// the manifest version recorded in `packages:` takes precedence when present.
+#[must_use]
+pub fn name_version_from_package_key(
+    key: &pnpm_lockfile::PackageKey,
+    packages: Option<
+        &std::collections::HashMap<pnpm_lockfile::PackageKey, pnpm_lockfile::PackageMetadata>,
+    >,
+) -> (String, String) {
+    let metadata_key = key.without_peer();
+    let name = metadata_key.name.to_string();
+    let version = packages
+        .and_then(|packages| packages.get(&metadata_key))
+        .and_then(|metadata| metadata.version.clone())
+        .unwrap_or_else(|| metadata_key.suffix.version().to_string());
+    (name, version)
 }
 
 const MAX_SCRIPT_THREADS: usize = 256;

@@ -157,7 +157,6 @@ export interface ResolutionContext extends RegistryContext {
   autoInstallPeersFromHighestMatch: boolean
   allowedDeprecatedVersions: AllowedDeprecatedVersions
   allPreferredVersions?: PreferredVersions
-  appliedPatches: Set<string>
   updatedSet: Set<string>
   catalogResolver: CatalogResolver
   defaultTag: string
@@ -353,6 +352,7 @@ interface ResolvedDependenciesOptions {
   pickLowestVersion?: boolean
   resolvedDependencies?: ResolvedDependencies
   updateMatching?: UpdateMatchingFunction
+  updatePatches?: boolean
   updateDepth: number
   prefix: string
   supportedArchitectures?: SupportedArchitectures
@@ -1043,6 +1043,7 @@ async function resolveDependenciesOfDependency (
     proceed: extendedWantedDep.proceed || updateShouldContinue || ctx.updatedSet.size > 0,
     publishedBy: options.publishedBy,
     update: update ? options.updateToLatest ? 'latest' : 'compatible' : false,
+    updatePatches: options.updatePatches,
     updateChecksums: ctx.updateChecksums,
     updateDepth,
     updateRequested,
@@ -1124,6 +1125,7 @@ async function resolveDependenciesOfDependency (
     parentDepth: options.currentDepth,
     parentIds: [...options.parentIds, resolveDependencyResult.pkgId],
     updateDepth,
+    updatePatches: options.updatePatches,
     prefix: options.prefix,
     updateMatching: options.updateMatching,
     supportedArchitectures: options.supportedArchitectures,
@@ -1440,6 +1442,7 @@ async function resolveChildren (
     dependencyLockfile,
     parentDepth,
     updateDepth,
+    updatePatches,
     updateMatching,
     prefix,
     supportedArchitectures,
@@ -1450,6 +1453,7 @@ async function resolveChildren (
     dependencyLockfile: PackageSnapshot | undefined
     parentDepth: number
     updateDepth: number
+    updatePatches?: boolean
     prefix: string
     updateMatching?: UpdateMatchingFunction
     supportedArchitectures?: SupportedArchitectures
@@ -1509,6 +1513,7 @@ async function resolveChildren (
       publishedBy,
       resolvedDependencies,
       updateDepth,
+      updatePatches,
       updateMatching,
       supportedArchitectures,
       parentIds,
@@ -1847,6 +1852,7 @@ interface ResolveDependencyOptions {
   publishedBy?: Date
   pickLowestVersion?: boolean
   update: false | 'compatible' | 'latest'
+  updatePatches?: boolean
   updateChecksums?: boolean
   updateDepth: number
   /**
@@ -1921,6 +1927,17 @@ async function resolveDependency (
 
     try {
       const calcSpecifier = options.currentDepth === 0
+      if (
+        options.updatePatches &&
+        currentPkg.version &&
+        !hasRegistryRevisionSpecifier(wantedDependency.bareSpecifier)
+      ) {
+        wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(
+          wantedDependency.bareSpecifier,
+          currentPkg.version,
+          ctx.namedRegistryPrefixes
+        )
+      }
       if (!options.update && currentPkg.version && pkgIdPinsVersion(currentPkg.pkgId, currentPkg.version) && !calcSpecifier) {
         wantedDependency.bareSpecifier = replaceVersionInBareSpecifier(wantedDependency.bareSpecifier, currentPkg.version, ctx.namedRegistryPrefixes)
       }
@@ -1957,6 +1974,7 @@ async function resolveDependency (
         trustPolicyExclude: ctx.trustPolicyExclude,
         trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
         update: options.update,
+        updatePatches: options.updatePatches,
         updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
@@ -2104,7 +2122,6 @@ async function resolveDependency (
     let pkgIdWithPatchHash = (pkgResponse.body.id.startsWith(`${pkg.name}@`) ? pkgResponse.body.id : `${pkg.name}@${pkgResponse.body.id}`) as PkgIdWithPatchHash
     const patch = getPatchInfo(ctx.patchedDependencies, pkg.name, pkg.version)
     if (patch) {
-      ctx.appliedPatches.add(patch.key)
       pkgIdWithPatchHash = `${pkgIdWithPatchHash}(patch_hash=${patch.hash})` as PkgIdWithPatchHash
     }
 
@@ -2234,6 +2251,7 @@ async function resolveDependency (
       })
     } else {
       detectNamedRegistryCollision(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
+      detectRegistryRevisionConflict(ctx.resolvedPkgsById[pkgResponse.body.id], pkgResponse)
       ctx.resolvedPkgsById[pkgResponse.body.id].prod = ctx.resolvedPkgsById[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
       ctx.resolvedPkgsById[pkgResponse.body.id].dev = ctx.resolvedPkgsById[pkgResponse.body.id].dev || wantedDependency.dev
       ctx.resolvedPkgsById[pkgResponse.body.id].optional = ctx.resolvedPkgsById[pkgResponse.body.id].optional && currentIsOptional
@@ -2294,6 +2312,16 @@ async function resolveDependency (
   } finally {
     finishPackageResolution()
   }
+}
+
+function hasRegistryRevisionSpecifier (specifier: string): boolean {
+  const selectorStart = Math.max(specifier.lastIndexOf(':'), specifier.lastIndexOf('@')) + 1
+  const selector = specifier.slice(selectorStart)
+  if (semver.valid(selector) == null) return false
+  const marker = selector.lastIndexOf('+r')
+  if (marker === -1) return false
+  const revision = selector.slice(marker + 2)
+  return revision.length > 0 && Array.from(revision).every((character) => character >= '0' && character <= '9')
 }
 
 /**
@@ -2458,6 +2486,23 @@ export function detectNamedRegistryCollision (
     `"${resolved.name}@${resolved.version}" resolved to two different artifacts under one identity.`,
     {
       hint: 'A registry served different content for the same package name and version. Continuing would hand one dependency the other artifact\'s bytes, so the install stops here.',
+    }
+  )
+}
+
+export function detectRegistryRevisionConflict (
+  resolved: ResolvedPackage,
+  pkgResponse: PackageResponse
+): void {
+  const existing = resolved.resolution as TarballResolution | undefined
+  const incoming = pkgResponse.body.resolution as TarballResolution | undefined
+  if (existing?.revision == null && incoming?.revision == null) return
+  if (existing?.revision === incoming?.revision && existing?.integrity === incoming?.integrity) return
+  throw new PnpmError(
+    'REVISION_CONFLICT',
+    `Conflicting registry revisions were requested for "${resolved.name}@${resolved.version}".`,
+    {
+      hint: 'A single package name and version can resolve to only one registry artifact in an install.',
     }
   )
 }

@@ -5,7 +5,7 @@ use super::{
     ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
     WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
     current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
-    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    merge_pending_builds, project_lifecycle_graph, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
@@ -561,15 +561,15 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
             })
         };
     if !projects_to_run.is_empty() {
-        let project_groups = order_project_lifecycle_groups(
+        let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            selection.map(|selection| selection.ordered_groups),
+            selection.map(|selection| selection.project_dependencies),
             workspace_root,
             materialized_current_lockfile,
         )?;
-        if !project_groups.is_empty() {
+        if !project_graph.dependencies.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
-                &project_groups,
+                &project_graph,
                 config,
                 node_linker,
                 workspace_root,

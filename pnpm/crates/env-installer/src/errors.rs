@@ -1,6 +1,6 @@
 use derive_more::{Display, Error};
 use pnpm_diagnostics::miette::{self, Diagnostic};
-use pnpm_lockfile::{LoadLockfileError, SaveLockfileError};
+use pnpm_lockfile::{LoadLockfileError, LockfileFormError, SaveLockfileError};
 use pnpm_package_manager::ImportIndexedDirError;
 use pnpm_resolving_resolver_base::ResolveError;
 use pnpm_tarball::TarballError;
@@ -13,6 +13,9 @@ use std::{io, path::PathBuf};
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ConfigDepError {
+    #[diagnostic(transparent)]
+    LockfileForm(#[error(source)] LockfileFormError),
+
     /// The `ERR_PNPM_CONFIG_DEP_NO_INTEGRITY` error: a config
     /// dependency was declared without an integrity checksum.
     #[display(r#"Your config dependency called "{name}" doesn't have an integrity checksum"#)]

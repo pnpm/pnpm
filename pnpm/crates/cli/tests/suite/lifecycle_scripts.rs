@@ -753,7 +753,14 @@ mod dependency_build_scripts {
 
         // The dependency was still added and materialized; only its
         // blocked scripts did not run. Mirrors pnpm, which writes the
-        // artifacts before failing.
+        // manifest and the artifacts before failing.
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap())
+                .expect("parse package.json");
+        assert_eq!(
+            manifest["dependencies"],
+            serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        );
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
@@ -2181,6 +2188,17 @@ mod project_scripts_in_a_workspace {
         let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
 
         pacquet(&workspace.join("packages").join("a"), ["update"]).assert().success();
+
+        assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
+
+        drop((root, anchor));
+    }
+
+    #[test]
+    fn filtered_bare_update_runs_the_selected_member_and_workspace_root() {
+        let (root, workspace, anchor) = installed_workspace(&["a", "b"]);
+
+        pacquet(&workspace, ["--filter", "a", "update"]).assert().success();
 
         assert_ran(&workspace, &["root", "a"], &["root", "a", "b"]);
 

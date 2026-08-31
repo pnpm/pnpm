@@ -500,6 +500,7 @@ fn graph_node(name: &str, version: &str, dir: &Path) -> DependenciesGraphNode {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: String::new(),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),

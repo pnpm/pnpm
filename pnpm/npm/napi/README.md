@@ -37,7 +37,7 @@ See [`index.d.ts`](./index.d.ts) for the full typed contract.
 | `filterLockfileByImporters(lockfile, importerIds, options?)` | Narrow a lockfile to the transitive closure of what the named importers reach. |
 | `readModulesManifest(modulesDir)` | The `.modules.yaml` state of an installed `node_modules`. |
 | `engineVersion()` | Version string of the underlying Rust engine (pacquet). |
-| `getPeerDependencyIssues(options)` | **Not yet implemented** — throws `ERR_PNPM_NAPI_UNIMPLEMENTED`. Peer-issue reporting is not ported in pacquet's CLI either; consumers should degrade gracefully. |
+| `getPeerDependencyIssues(options)` | Resolve the in-memory importers without writing an install and return missing or incompatible peer dependencies by importer. `autoInstallPeers` defaults to `false` for this query. |
 
 ### Output
 

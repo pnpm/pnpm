@@ -19,6 +19,8 @@ import {
   type PackageFilesIndex,
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 } from './checkPkgFilesIntegrity.js'
 import {
@@ -50,6 +52,8 @@ export {
   type SideEffectsDiff,
   takeVerifiedFileIntegrity,
   type VerifiedFileIntegrity,
+  verifyFileIntegrity,
+  verifyFileIntegrityAsync,
   type VerifyResult,
 }
 

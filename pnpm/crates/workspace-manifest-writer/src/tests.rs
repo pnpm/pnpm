@@ -589,7 +589,7 @@ fn patched_dependency_removes_empty_last_block() {
     let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
     let out = run_patched_deps(Some(original), &[]);
 
-    assert_eq!(out, "packages:\n  - '*'\n\n");
+    assert_eq!(out, "packages:\n  - '*'\n");
 }
 
 #[test]
@@ -861,23 +861,45 @@ fn ignore_ghsas_empty_with_sibling_only_is_a_noop() {
 }
 
 #[test]
+fn ignore_ghsas_targets_the_canonical_audit_ignore_list() {
+    let original = "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &["GHSA-dddd-eeee-ffff"]).expect("written");
+    assert_eq!(out, "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-dddd-eeee-ffff\n");
+}
+
+#[test]
+fn ignore_ghsas_removes_the_shadowed_deprecated_list_when_both_are_present() {
+    let original = "audit:\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\nauditConfig:\n  ignoreGhsas:\n    - GHSA-1111-2222-3333\n";
+    let out = run_ignore_ghsas(Some(original), &["GHSA-dddd-eeee-ffff"]).expect("written");
+    assert_eq!(out, "audit:\n  ignore:\n    - GHSA-dddd-eeee-ffff\n");
+}
+
+#[test]
+fn ignore_ghsas_empty_removes_audit_ignore_and_keeps_siblings() {
+    let original = "audit:\n  ignorePrune: true\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &[]).expect("written");
+    assert_eq!(out, "audit:\n  ignorePrune: true\n");
+}
+
+#[test]
+fn ignore_ghsas_empty_removes_the_audit_block_when_ignore_is_its_only_key() {
+    let original = "packages:\n  - '.'\naudit:\n  ignore:\n    - GHSA-aaaa-bbbb-cccc\n";
+    let out = run_ignore_ghsas(Some(original), &[]).expect("written");
+    assert_eq!(out, "packages:\n  - '.'\n");
+}
+
+#[test]
 fn ignore_ghsas_edits_an_inline_flow_audit_config() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
-    fs::write(
-        &path,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n",
-    )
-    .expect("seed");
+    fs::write(&path, "auditConfig: { other: keep, ignoreGhsas: [GHSA-aaaa-bbbb-cccc] }\n")
+        .expect("seed");
 
     crate::set_audit_ignore_ghsas(dir.path(), &["GHSA-dddd-eeee-ffff".to_string()])
         .expect("set_audit_ignore_ghsas succeeds");
 
     let after = fs::read_to_string(&path).expect("read manifest");
-    assert_eq!(
-        after,
-        "auditConfig: { cleanupUnusedIgnoredGhsas: true, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n",
-    );
+    assert_eq!(after, "auditConfig: { other: keep, ignoreGhsas: [ GHSA-dddd-eeee-ffff ] }\n");
 }
 
 #[test]
@@ -1227,6 +1249,148 @@ fn delete_last_field_removes_file() {
         &serde_json::Value::Null,
     );
     assert_eq!(out, None);
+}
+
+#[test]
+fn delete_last_field_leaves_no_trailing_blank_line() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "cacheDir: ~/cache\n");
+}
+
+#[test]
+fn delete_last_field_keeps_a_kept_chomped_block_scalars_trailing_blank() {
+    for header in [
+        "|+",
+        ">+",
+        "|+2",
+        "|2+",
+        "|2+ # keep the breaks",
+        "|+ # retain > blanks",
+        "&notes |+",
+        "!!str >+",
+    ] {
+        let original = format!("notes: {header}\n  foo\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("notes: {header}\n  foo\n\n"), "header {header}");
+    }
+}
+
+#[test]
+fn delete_last_field_keeps_the_blank_below_a_deeper_indented_scalar_line() {
+    let out = run_update_field(
+        Some("notes: |+\n  foo\n    bar\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: |+\n  foo\n    bar\n\n");
+}
+
+#[test]
+fn delete_last_field_keeps_the_blank_of_a_scalar_under_a_quoted_key() {
+    let out = run_update_field(
+        Some("\"notes: title\": |+\n  foo\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "\"notes: title\": |+\n  foo\n\n");
+}
+
+#[test]
+fn delete_last_field_keeps_the_blank_of_a_scalar_under_an_apostrophe_key() {
+    for key in ["it's", "'it''s: title'"] {
+        let original = format!("{key}: |+\n  foo\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("{key}: |+\n  foo\n\n"), "key {key}");
+    }
+}
+
+#[test]
+fn delete_last_field_drops_a_separator_below_a_header_written_in_a_comment() {
+    for line in ["notes: text # detail: |+", "notes: text\n# detail: |+"] {
+        let original = format!("{line}\n\nvirtualStoreDir: .pnpm\n");
+        let out = run_update_field(Some(&original), "virtualStoreDir", &serde_json::Value::Null)
+            .expect("file kept");
+        assert_eq!(out, format!("{line}\n"), "line {line}");
+    }
+}
+
+#[test]
+fn delete_last_field_drops_a_separator_below_a_quoted_scalar_holding_a_header() {
+    let out = run_update_field(
+        Some("notes: \"foo |+ #\"\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: \"foo |+ #\"\n");
+}
+
+#[test]
+fn delete_last_field_drops_a_separator_below_an_unrelated_kept_chomped_scalar() {
+    let out = run_update_field(
+        Some("notes: |+\n  foo\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    )
+    .expect("file kept");
+    assert_eq!(out, "notes: |+\n  foo\n\nstoreDir: ~/store\n");
+}
+
+#[test]
+fn setting_a_field_after_deleting_the_last_one_keeps_a_single_blank_line() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    let original = "cacheDir: ~/cache\n\nstoreDir: ~/store\n";
+    fs::write(&path, original).expect("seed manifest");
+    let with_field = format!("{original}\nvirtualStoreDir: .pnpm\n");
+
+    for value in [serde_json::json!(".pnpm"), serde_json::Value::Null, serde_json::json!(".pnpm")] {
+        crate::update_manifest_field(&path, "virtualStoreDir", &value).expect("update succeeds");
+    }
+
+    assert_eq!(fs::read_to_string(&path).expect("file kept"), with_field);
+}
+
+#[test]
+fn changing_the_value_of_the_last_field_keeps_its_single_blank_line() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n"),
+        "storeDir",
+        &serde_json::json!("~/other"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/other\n");
+}
+
+#[test]
+fn a_manifest_already_ending_in_a_blank_line_gains_no_second_one() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n\n"),
+        "virtualStoreDir",
+        &serde_json::json!(".pnpm"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n\nvirtualStoreDir: .pnpm\n");
+}
+
+#[test]
+fn a_manifest_ending_in_a_whitespace_only_line_gains_no_second_blank() {
+    let out = run_update_field(
+        Some("cacheDir: ~/cache\n\nstoreDir: ~/store\n  \n"),
+        "virtualStoreDir",
+        &serde_json::json!(".pnpm"),
+    )
+    .expect("file written");
+    assert_eq!(out, "cacheDir: ~/cache\n\nstoreDir: ~/store\n  \nvirtualStoreDir: .pnpm\n");
 }
 
 #[test]

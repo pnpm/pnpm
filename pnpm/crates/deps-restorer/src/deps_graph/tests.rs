@@ -1,7 +1,9 @@
-use super::{build_deps_graph, build_deps_subgraph};
+use super::{build_deps_graph, build_deps_graph_for_platform, build_deps_subgraph};
+use pnpm_graph_hasher::calc_dep_state_input_key;
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer, RegistryResolution,
-    SnapshotDepRef, SnapshotEntry,
+    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
+    PkgName, PkgVerPeer, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
+    RegistryResolution, SnapshotDepRef, SnapshotEntry, VariationsResolution,
 };
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
@@ -29,7 +31,47 @@ fn integrity() -> Integrity {
 
 fn registry_metadata() -> PackageMetadata {
     PackageMetadata {
-        resolution: LockfileResolution::Registry(RegistryResolution { integrity: integrity() }),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: integrity(),
+            revision: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
+fn variations_metadata() -> PackageMetadata {
+    let variant = |integrity: Integrity, os: &str, libc: Option<&str>| PlatformAssetResolution {
+        resolution: LockfileResolution::Binary(BinaryResolution {
+            url: format!("https://example.com/{os}.tar.gz"),
+            integrity,
+            bin: BinarySpec::Single("bin/node".to_string()),
+            archive: BinaryArchive::Tarball,
+            prefix: None,
+        }),
+        targets: vec![PlatformAssetTarget {
+            os: os.to_string(),
+            cpu: "x64".to_string(),
+            libc: libc.map(str::to_string),
+        }],
+    };
+    PackageMetadata {
+        resolution: LockfileResolution::Variations(VariationsResolution {
+            variants: vec![
+                variant("sha512-AAAA".parse().unwrap(), "linux", None),
+                variant("sha512-BBBB".parse().unwrap(), "linux", Some("musl")),
+                variant("sha512-CCCC".parse().unwrap(), "darwin", None),
+            ],
+        }),
         version: None,
         engines: None,
         cpu: None,
@@ -58,6 +100,31 @@ fn registry_resolution_full_pkg_id_uses_integrity_verbatim() {
         "expected full_pkg_id to start with `{expected_prefix}`, got `{}`",
         node.full_pkg_id,
     );
+}
+
+#[test]
+fn variation_input_keys_use_the_selected_platform_integrity() {
+    let pkg = key("node", "runtime:22.0.0");
+    let snapshots = HashMap::from([(pkg.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(pkg.clone(), variations_metadata())]);
+    let linux_glibc = PlatformSelector {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        libc: Some("glibc".to_string()),
+    };
+    let linux_musl = PlatformSelector {
+        os: "linux".to_string(),
+        cpu: "x64".to_string(),
+        libc: Some("musl".to_string()),
+    };
+    let darwin = PlatformSelector { os: "darwin".to_string(), cpu: "x64".to_string(), libc: None };
+
+    let input_key = |selector: &PlatformSelector| {
+        let graph = build_deps_graph_for_platform(&snapshots, &packages, selector);
+        calc_dep_state_input_key(&graph, &pkg, None)
+    };
+    let keys = [input_key(&linux_glibc), input_key(&linux_musl), input_key(&darwin)];
+    assert_eq!(keys.iter().collect::<std::collections::HashSet<_>>().len(), 3);
 }
 
 #[test]

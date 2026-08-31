@@ -9,10 +9,11 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
-use pnpm_lockfile::PkgNameVerPeer;
+use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
-    RegistryResponseError, ResolveError, ResolveOptions, Resolver, WantedDependency,
+    RegistryResponseError, ResolveError, ResolveOptions, Resolver, UpdateBehavior,
+    WantedDependency,
 };
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use serde_json::Value;
@@ -257,7 +258,7 @@ where
     }
 
     // Memoise the per-wanted resolve. The first caller for a given
-    // `(alias, bare_specifier, optional)` runs the resolver chain and
+    // `(alias, bare_specifier, optional, injected)` runs the resolver chain and
     // stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
     // every later caller for the same wanted dep clones the `Arc` and
     // skips the chain entirely. Concurrent first-callers can both miss
@@ -280,6 +281,19 @@ where
         let lockfile = ctx.workspace.wanted_lockfile.as_ref()?;
         current_pkg_from_lockfile(lockfile, key, &ctx.workspace.registry_context)
     });
+    if opts.update == UpdateBehavior::Patches
+        && let Some(version) = current_pkg.as_ref().and_then(|current| current.version.as_deref())
+        && let Some(specifier) = wanted.bare_specifier.as_deref()
+    {
+        wanted.bare_specifier = exact_registry_specifier_for_revision_refresh(
+            specifier,
+            version,
+            prior_key
+                .as_ref()
+                .and_then(|key| key.suffix.registry_qualified().map(|(name, _)| name)),
+        )
+        .into();
+    }
     let opts_with_current_pkg;
     let opts = match current_pkg {
         Some(current_pkg) => {
@@ -473,6 +487,13 @@ where
     // a package nothing has resolved yet.
     let mut packages = lock_recoverable(&ctx.workspace.packages);
     let package_is_new = if let Some(existing) = packages.get_mut(id.as_str()) {
+        if registry_revisions_conflict(&existing.result.resolution, &result.resolution) {
+            let name_ver = result.name_ver.as_ref().expect("registry result has name and version");
+            return Err(ResolveDependencyTreeError::RevisionConflict {
+                name: name_ver.name.to_string(),
+                version: name_ver.suffix.to_string(),
+            });
+        }
         existing.optional = existing.optional && current_is_optional;
         false
     } else {
@@ -520,6 +541,61 @@ where
         current_is_optional,
         prior_key,
     })))
+}
+
+fn exact_registry_specifier_for_revision_refresh(
+    specifier: &str,
+    version: &str,
+    named_registry: Option<&str>,
+) -> String {
+    if has_registry_revision_specifier(specifier) {
+        return specifier.to_string();
+    }
+    if specifier.parse::<node_semver::Range>().is_ok() {
+        return version.to_string();
+    }
+    let Some((protocol, body)) = specifier.split_once(':') else {
+        return specifier.to_string();
+    };
+    if protocol != "npm" && protocol != "jsr" && named_registry != Some(protocol) {
+        return specifier.to_string();
+    }
+    if body.parse::<node_semver::Range>().is_ok() {
+        return format!("{protocol}:{version}");
+    }
+    let Some(delimiter) = body.rfind('@').filter(|index| *index > 0) else {
+        return format!("{protocol}:{body}@{version}");
+    };
+    format!("{protocol}:{}@{version}", &body[..delimiter])
+}
+
+fn has_registry_revision_specifier(specifier: &str) -> bool {
+    let selector_start =
+        specifier.rfind([':', '@']).map_or(0, |delimiter| delimiter.saturating_add(1));
+    let selector = &specifier[selector_start..];
+    if node_semver::Version::parse(selector).is_err() {
+        return false;
+    }
+    let Some((_, revision)) = selector.rsplit_once("+r") else { return false };
+    !revision.is_empty() && revision.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn registry_revisions_conflict(
+    existing: &LockfileResolution,
+    incoming: &LockfileResolution,
+) -> bool {
+    let revision = |resolution: &LockfileResolution| match resolution {
+        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
+        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+        _ => None,
+    };
+    let existing_revision = revision(existing);
+    let incoming_revision = revision(incoming);
+    if existing_revision.is_none() && incoming_revision.is_none() {
+        return false;
+    }
+    existing_revision != incoming_revision
+        || existing.checkable_integrity() != incoming.checkable_integrity()
 }
 
 /// The name the edge installs under: the key its parent manifest
@@ -779,7 +855,7 @@ fn record_walked_children(
         return (lazy_children(&pending.parent_ancestors), false);
     }
     let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
+        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
@@ -861,7 +937,7 @@ where
     let FrontierNode { pending, claim, children_overlay, children_pkg_aliases } = node;
     // Look up cached children specs first; only read the manifest on a
     // miss. The cache value is held by `Arc` so revisits clone the
-    // refcount instead of the inner `Vec<(String, String, bool)>`, and
+    // refcount instead of the inner `Vec<ChildSpec>`, and
     // it is cached unfiltered because which of the specs the package's
     // own `peerDependencies` shadow is a property of the owner
     // occurrence, not of the manifest.
@@ -882,7 +958,7 @@ where
     } else {
         child_specs
             .iter()
-            .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
+            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .cloned()
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
@@ -890,9 +966,9 @@ where
     let child_specs = if resolves_children_through_catalogs(&pending.result) {
         child_specs
             .iter()
-            .map(|(name, range, optional)| {
+            .map(|(name, range, optional, injected)| {
                 resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                    .map(|(name, range)| (name, range, *optional))
+                    .map(|(name, range)| (name, range, *optional, *injected))
             })
             .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()?
             .pipe(Arc::new)
@@ -925,11 +1001,12 @@ where
     let next_ancestors = Arc::clone(&pending.next_ancestors);
     let seeds = child_specs
         .iter()
-        .map(|(child_name, child_range, child_optional)| {
+        .map(|(child_name, child_range, child_optional, child_injected)| {
             let mut child_wanted = WantedDependency {
                 alias: Some(child_name.clone()),
                 bare_specifier: Some(child_range.clone()),
                 optional: Some(*child_optional),
+                injected: child_injected.then_some(true),
                 ..WantedDependency::default()
             };
             let mut child_prior = prior_children_snapshot
@@ -1240,12 +1317,13 @@ pub(super) async fn warm_children_resolutions<Chain>(
     let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
-        .filter(|(name, _, optional)| *optional || !pending.peer_shadowed.contains(name))
-        .map(|(name, range, optional)| {
+        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+        .map(|(name, range, optional, injected)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
                 bare_specifier: Some(range.clone()),
                 optional: Some(*optional),
+                injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());

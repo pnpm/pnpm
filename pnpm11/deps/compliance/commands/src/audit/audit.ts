@@ -1,11 +1,13 @@
 import { checkbox, Separator } from '@inquirer/prompts'
 import { docsUrl, interactivePromptPageSize, TABLE_OPTIONS } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, types as allTypes, type UniversalOptions } from '@pnpm/config.reader'
+import { writeSettings } from '@pnpm/config.writer'
 import { audit, type AuditAdvisory, type AuditLevelNumber, type AuditLevelString, type AuditReport, type AuditVulnerabilityCounts, type IgnoredAuditVulnerabilityCounts, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { PnpmError } from '@pnpm/error'
 import { type InstallCommandOptions, update } from '@pnpm/installing.commands'
 import { globalInfo } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { RegistriesByScope } from '@pnpm/types'
 import { table } from '@zkochan/table'
 import chalk, { type ChalkInstance } from 'chalk'
@@ -17,6 +19,7 @@ import { fix } from './fix.js'
 import { fixWithUpdate, type FixWithUpdateResult } from './fixWithUpdate.js'
 import { getAuditFixChoices } from './getAuditFixChoices.js'
 import { ignore } from './ignore.js'
+import { pruneIgnoredGhsas } from './pruneIgnoredGhsas.js'
 import { correctInferredPatchedVersions, createPublishTimesFetcher, type PublishTimesFetcher } from './publishTimes.js'
 import { auditSignatures } from './signatures.js'
 
@@ -177,6 +180,7 @@ export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
    */
   getPublishTimes?: PublishTimesFetcher
 } & Pick<Config, 'auditConfig'
+| 'auditIgnorePrune'
 | 'auditLevel'
 | 'minimumReleaseAge'
 | 'ca'
@@ -271,6 +275,37 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
     throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
+    if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
+      const configuredGhsas = opts.auditConfig.ignoreGhsas
+      const { pruned, retained } = pruneIgnoredGhsas(configuredGhsas, auditReport)
+      if (pruned.length > 0) {
+        // The pruned ids keep their original spelling from the
+        // repository-controlled workspace manifest, so strip control
+        // characters before they reach the terminal.
+        globalInfo(`Removed ${pruned.length} unused ignored GHSA${pruned.length === 1 ? '' : 's'}: ${pruned.map(sanitizeInline).join(', ')}`)
+      }
+      // Persist even when nothing was removed: `retained` may still differ
+      // from the configured list (deduplicated or case-normalized), and the
+      // file should always reflect the canonical form.
+      const retainedDiffers = retained.length !== configuredGhsas.length ||
+        retained.some((ghsa, index) => ghsa !== configuredGhsas[index])
+      if (retainedDiffers) {
+        // Written through the dedicated ignore-list update so the retained
+        // list lands on whichever spelling the manifest uses — replacing
+        // only `auditConfig` would let a canonical `audit.ignore` list
+        // shadow the pruned result on the next read.
+        await writeSettings({
+          ...opts,
+          workspaceDir: opts.workspaceDir ?? opts.rootProjectManifestDir,
+          updatedAuditIgnoreGhsas: retained,
+        })
+        // Update opts for subsequent operations
+        opts.auditConfig = {
+          ...opts.auditConfig,
+          ignoreGhsas: retained.length > 0 ? retained : undefined,
+        }
+      }
+    }
     // Pre-filter by auditLevel and ignoreGhsas so the interactive prompt
     // and the update-method path see the same set of advisories that
     // fix.ts's getFixableAdvisories filters for the override path.

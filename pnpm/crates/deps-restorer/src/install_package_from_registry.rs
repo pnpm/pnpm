@@ -157,6 +157,10 @@ impl InstallPackageFromRegistry<'_> {
         let symlink_path = node_modules_dir.join(alias);
 
         if first_visit {
+            let revision_addressed = matches!(
+                &resolution.resolution,
+                LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
+            );
             let (tarball_url, integrity) = extract_tarball(&resolution.resolution)?;
             let unpacked_size = manifest_unpacked_size(resolution.manifest.as_deref());
             let file_count = manifest_file_count(resolution.manifest.as_deref());
@@ -170,7 +174,7 @@ impl InstallPackageFromRegistry<'_> {
             }));
 
             // TODO: skip when it already exists in store?
-            let cas_paths = DownloadTarballToStore {
+            let download = DownloadTarballToStore {
                 http_client,
                 store_dir: &config.store_dir,
                 store_index: store_index.cloned(),
@@ -194,9 +198,12 @@ impl InstallPackageFromRegistry<'_> {
                 // dedupe set with it.
                 progress_reported: None,
                 append_manifest: None,
+            };
+            let cas_paths = if revision_addressed {
+                download.run_revision_addressed_with_mem_cache::<Reporter>(tarball_mem_cache).await
+            } else {
+                download.run_with_mem_cache::<Reporter>(tarball_mem_cache).await
             }
-            .run_with_mem_cache::<Reporter>(tarball_mem_cache)
-            .await
             .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
 
             tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");

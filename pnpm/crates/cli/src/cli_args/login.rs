@@ -1,5 +1,5 @@
 //! `pacquet login` / `pacquet adduser` — authenticate with an npm registry
-//! and record the token in `auth.ini`. The command logic lives in
+//! and record the token in the global `config.yaml`. The command logic lives in
 //! `pnpm-auth-commands`; this module is the thin CLI adapter that resolves
 //! config into [`LoginOptions`].
 
@@ -31,8 +31,8 @@ pub struct LoginArgs {
 pub enum LoginCliError {
     /// pacquet-specific guard: pnpm always resolves a `configDir`, but
     /// pacquet leaves [`Config::config_dir`] `None` when no home directory
-    /// can be located, and `login` cannot write `auth.ini` without it.
-    #[display("Could not determine the pnpm config directory to locate auth.ini")]
+    /// can be located, and `login` has nowhere to record the token without it.
+    #[display("Could not determine the pnpm config directory to locate config.yaml")]
     #[diagnostic(code(ERR_PNPM_NO_CONFIG_DIR))]
     NoConfigDir,
 }

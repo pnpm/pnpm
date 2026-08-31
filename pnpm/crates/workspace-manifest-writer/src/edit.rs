@@ -423,15 +423,41 @@ fn override_keys_in_text(text: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
-/// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
-/// absent. An empty `ghsas` removes the `auditConfig:` block. `pnpm audit
-/// --ignore` calls this with the merged ignore list. Returns whether anything
+/// Set the ignore list to `ghsas` (the complete desired list) in whichever
+/// spelling the manifest uses — the canonical `audit.ignore` wins over the
+/// deprecated `auditConfig.ignoreGhsas`, matching the reader's precedence,
+/// so a stale canonical list can't shadow the update on the next read. When
+/// both spellings are present, the shadowed deprecated list is removed as
+/// part of the write. `auditConfig.ignoreGhsas` is created when neither is
+/// present. An empty `ghsas` removes the list, dropping its block when
+/// nothing else remains in it. `pnpm audit --ignore` and `audit.ignorePrune`
+/// call this with the complete desired list. Returns whether anything
 /// changed.
 pub(crate) fn set_audit_ignore_ghsas(
     manifest: &mut Manifest,
     ghsas: &[String],
 ) -> Result<bool, Box<yamlpatch::Error>> {
+    if manifest.audit_ignore.is_some() {
+        let mut changed = if ghsas.is_empty() {
+            remove_block_list_key(manifest, "audit", "ignore");
+            manifest.audit_ignore = None;
+            true
+        } else if manifest.audit_ignore.as_deref() == Some(ghsas) {
+            false
+        } else {
+            let new_text = upsert_sequence_entry(manifest.text(), "audit", "ignore", ghsas);
+            manifest.set_text(new_text);
+            manifest.audit_ignore = Some(ghsas.to_vec());
+            true
+        };
+        if manifest.audit_ignore_ghsas.is_some() {
+            remove_block_list_key(manifest, "auditConfig", "ignoreGhsas");
+            manifest.audit_ignore_ghsas = None;
+            changed = true;
+        }
+        return Ok(changed);
+    }
+
     const BLOCK: &str = "auditConfig";
     let current = manifest.audit_ignore_ghsas.as_deref().unwrap_or_default();
 
@@ -440,18 +466,12 @@ pub(crate) fn set_audit_ignore_ghsas(
         if locate(text, &[BLOCK]).is_none() {
             return Ok(false);
         }
-        let keys = mapping_keys(text, &[BLOCK]);
         // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
         // don't touch sibling `auditConfig` keys.
-        if !keys.iter().any(|key| key == "ignoreGhsas") {
+        if !mapping_keys(text, &[BLOCK]).iter().any(|key| key == "ignoreGhsas") {
             return Ok(false);
         }
-        if keys.iter().all(|key| key == "ignoreGhsas") {
-            manifest.set_text(remove_top_level_block(text, BLOCK));
-            manifest.top_level_keys.retain(|key| key != BLOCK);
-        } else {
-            manifest.set_text(remove_mapping_entries(text, &[BLOCK], &["ignoreGhsas".to_string()]));
-        }
+        remove_block_list_key(manifest, BLOCK, "ignoreGhsas");
         manifest.audit_ignore_ghsas = None;
         return Ok(true);
     }
@@ -473,6 +493,28 @@ pub(crate) fn set_audit_ignore_ghsas(
     }
     manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
     Ok(true)
+}
+
+/// Remove `block.key` from the document — the whole `block:` when the key is
+/// its only entry, so no empty mapping is left behind. Sibling keys of
+/// `block` are never touched. A missing block or key is a no-op.
+fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
+    let text = manifest.text();
+    if locate(text, &[block]).is_none() {
+        return;
+    }
+    let keys = mapping_keys(text, &[block]);
+    if !keys.iter().any(|k| k == key) {
+        return;
+    }
+    if keys.iter().all(|k| k == key) {
+        let new_text = remove_top_level_block(text, block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys.retain(|k| k != block);
+    } else {
+        let new_text = remove_mapping_entries(text, &[block], &[key.to_string()]);
+        manifest.set_text(new_text);
+    }
 }
 
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
@@ -1132,9 +1174,143 @@ fn remove_top_level_block(text: &str, key: &str) -> String {
     let Some(span) = top_level_span(text, key) else {
         return text.to_string();
     };
+    // The span runs up to the next top-level key, so it carries the blank
+    // line that separates this block from that one. The last block in a
+    // document has no such successor: its separator is the blank line
+    // *before* it, which has to go too, or the file is left ending in a
+    // blank line that the next insert would then separate from again.
+    let start = if span.block_end == text.len()
+        && !blanks_belong_to_kept_scalar(text, span.key_line_start)
+    {
+        blank_run_start(text, span.key_line_start)
+    } else {
+        span.key_line_start
+    };
     let mut out = text.to_string();
-    out.replace_range(span.key_line_start..span.block_end, "");
+    out.replace_range(start..span.block_end, "");
     out
+}
+
+/// Whether the blank lines that end at `line_start` are the tail of a
+/// keep-chomped block scalar rather than a separator. Such a scalar keeps
+/// the blank lines that follow it *as its value*, so dropping them would
+/// rewrite a setting the caller never asked to touch.
+///
+/// The blanks belong to the scalar when the content above them climbs out to
+/// a keep-chomping header: walking up, each line that is less indented than
+/// everything seen so far either is that header or becomes the new bar to
+/// clear. A top-level line that is not a header ends the search — a scalar's
+/// body is always indented past its own key.
+fn blanks_belong_to_kept_scalar(text: &str, line_start: usize) -> bool {
+    let all = lines(&text[..line_start]);
+    let mut enclosing_indent = usize::MAX;
+    for line in all.iter().rev().filter(|line| !line.content.trim().is_empty()) {
+        let indent = indent_width(line.content);
+        if indent >= enclosing_indent {
+            continue;
+        }
+        if is_kept_chomping_header(line.content) {
+            return true;
+        }
+        if indent == 0 {
+            return false;
+        }
+        enclosing_indent = indent;
+    }
+    false
+}
+
+/// Whether `content` declares a block scalar that keeps its trailing line
+/// breaks. Only the value position counts — a `|+` inside an ordinary
+/// scalar, inside a comment, or inside a quoted key is text.
+fn is_kept_chomping_header(content: &str) -> bool {
+    let mut line = content.trim_start();
+    while let Some(item) = line.strip_prefix("- ") {
+        line = item.trim_start();
+    }
+    opens_kept_chomping_scalar(line) || line_value(line).is_some_and(opens_kept_chomping_scalar)
+}
+
+/// The value of a `key: value` line, or `None` when the line declares none.
+/// The delimiter is the first `:` that ends the line or is followed by
+/// whitespace *outside* a quoted scalar and before any comment, so neither a
+/// quoted key holding `: ` nor a comment holding one is mistaken for it.
+fn line_value(line: &str) -> Option<&str> {
+    let mut quote = None;
+    let mut escaped = false;
+    for (index, char) in line.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if let Some(open) = quote {
+            match char {
+                '\\' if open == '"' => escaped = true,
+                // A doubled quote inside a single-quoted scalar is one
+                // escaped quote, not the end of the scalar.
+                '\'' if open == '\'' && line[index + 1..].starts_with('\'') => escaped = true,
+                _ if char == open => quote = None,
+                _ => {}
+            }
+        } else {
+            match char {
+                // A quote only opens a scalar at the start of a token: the
+                // apostrophe in a plain key like `it's` is part of the key.
+                '\'' | '"'
+                    if index == 0
+                        || line[..index].ends_with([' ', '\t', ':', '-', '[', '{', ',']) =>
+                {
+                    quote = Some(char);
+                }
+                '#' if index == 0 || line[..index].ends_with([' ', '\t']) => return None,
+                ':' => {
+                    let value = &line[index + 1..];
+                    if value.is_empty() || value.starts_with([' ', '\t']) {
+                        return Some(value.trim_start());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+/// Whether `value` is a block scalar header carrying a `+`, in either order
+/// relative to an explicit indentation digit (`|+`, `>+2`, `|2+`), with or
+/// without a trailing comment. Any anchor and tag properties in front of the
+/// header (`&notes |+`, `!!str >+`) are skipped.
+fn opens_kept_chomping_scalar(value: &str) -> bool {
+    let mut value = value.trim_start();
+    while value.starts_with(['&', '!']) {
+        let Some((_, rest)) = value.split_once([' ', '\t']) else {
+            return false;
+        };
+        value = rest.trim_start();
+    }
+    let Some(indicators) = value.strip_prefix(['|', '>']) else {
+        return false;
+    };
+    let indicators = indicators.split_whitespace().next().unwrap_or_default();
+    indicators.contains('+') && indicators.chars().all(|char| char == '+' || char.is_ascii_digit())
+}
+
+/// Leading-space count of `content`, whatever the line holds — unlike
+/// [`structural_indent`], which reads a comment or a blank as unindented.
+/// Block scalar bodies can hold both.
+fn indent_width(content: &str) -> usize {
+    content.len() - content.trim_start().len()
+}
+
+/// Start of the run of blank lines immediately preceding `line_start`, or
+/// `line_start` itself when the preceding line is not blank.
+fn blank_run_start(text: &str, line_start: usize) -> usize {
+    let mut start = line_start;
+    for line in lines(&text[..line_start]).iter().rev() {
+        if !line.content.trim().is_empty() {
+            break;
+        }
+        start = line.start;
+    }
+    start
 }
 
 /// Write a new named catalog (`<name>:` + its first entry) into an existing
@@ -1177,7 +1353,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
     let order = render::target_order(&manifest.top_level_keys, &[new_key.to_string()]);
     let position =
         order.iter().position(|key| key == new_key).expect("new key is in the merged order");
-    let blank_style = uses_blank_line_style(text, &manifest.top_level_keys);
+    let blank_style = manifest.blank_line_style;
 
     if position == 0 {
         // New key sorts to the front: prepend the block. Under blank-line
@@ -1201,7 +1377,7 @@ fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) 
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        if blank_style && !out.is_empty() {
+        if blank_style && !out.is_empty() && !ends_with_blank_line(&out) {
             out.push('\n');
         }
         out.push_str(block_text);
@@ -1516,7 +1692,9 @@ fn is_comment_line(content: &str) -> bool {
 }
 
 /// Whether every original non-first top-level key has a blank line before it.
-fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
+/// Judged once, on the document as parsed: an edit that drops a key must not
+/// change how the surviving blocks are separated.
+pub(crate) fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
     if top_level_keys.len() < 2 {
         return false;
     }
@@ -1536,6 +1714,13 @@ fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
         }
     }
     non_first > 0 && non_first == non_first_with_blank
+}
+
+/// Whether `text`'s final line is blank, by the same trimmed-content test
+/// [`blank_run_start`] and [`has_blank_before`] use — so a whitespace-only
+/// separator counts as one too.
+fn ends_with_blank_line(text: &str) -> bool {
+    lines(text).last().is_some_and(|line| line.content.trim().is_empty())
 }
 
 /// Whether a blank line precedes the key at `idx`, looking past the key's own

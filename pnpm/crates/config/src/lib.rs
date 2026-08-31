@@ -20,6 +20,7 @@ mod workspace_yaml;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
+    npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
 };
 
 use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
@@ -28,8 +29,8 @@ use pipe_trait::Pipe;
 use pnpm_git_utils::{Host as GitHost, get_current_branch};
 use pnpm_lockfile::{Lockfile, RegistryOptions, WantedLockfileSelection};
 use pnpm_patching::{
-    CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
-    resolve_and_group,
+    CalcPatchHashError, PatchGroupRecord, PatchInput, ResolvePatchedDependenciesError,
+    create_hex_hash_from_file, group_patched_dependencies, resolve_and_group,
 };
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::ConfigDependency;
@@ -47,7 +48,8 @@ pub use crate::defaults::{
     available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
     default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
     default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    is_unsafe_perm_posix, resolve_child_concurrency, resolve_configured_state_dir,
+    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
+    resolve_configured_state_dir, standalone_install_command,
 };
 use crate::defaults::{
     default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
@@ -58,12 +60,66 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
+
+impl Config {
+    /// The environment is the last word on the remote side-effects cache: it is
+    /// where a CI runner injects the signing material that must not be
+    /// committed, and where a build job flips publication on for one
+    /// invocation.
+    ///
+    /// Read here rather than by the installer so the values reach it as
+    /// ordinary settings. A malformed JSON variable is dropped with a warning
+    /// rather than failing the install, matching how the feature degrades to a
+    /// local build on every other cache failure.
+    pub(crate) fn apply_remote_side_effects_cache_env<Sys: EnvVar>(&mut self) {
+        let mut settings = RemoteSideEffectsCacheSettings::default();
+        let mut set_any = false;
+        if let Some((publish, _)) = side_effects_cache_remote_env::<Sys>("PUBLISH") {
+            settings.publish = Some(publish == "true");
+            set_any = true;
+        }
+        for (field, suffix) in [
+            (&mut settings.key_id, "KEY_ID"),
+            (&mut settings.builder_id, "BUILDER_ID"),
+            (&mut settings.image_digest, "IMAGE_DIGEST"),
+            (&mut settings.architecture_baseline, "ARCHITECTURE_BASELINE"),
+            (&mut settings.private_key, "PRIVATE_KEY"),
+        ] {
+            if let Some((value, _)) = side_effects_cache_remote_env::<Sys>(suffix) {
+                *field = Some(value);
+                set_any = true;
+            }
+        }
+        for (field, suffix) in
+            [(&mut settings.build_env, "BUILD_ENV"), (&mut settings.trusted_keys, "TRUSTED_KEYS")]
+        {
+            let Some((value, variable)) = side_effects_cache_remote_env::<Sys>(suffix) else {
+                continue;
+            };
+            match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+                Ok(parsed) => {
+                    *field = Some(parsed);
+                    set_any = true;
+                }
+                Err(error) => tracing::warn!(
+                    target: "pacquet::config",
+                    variable,
+                    %error,
+                    "remote side-effects environment variable is not a string-valued JSON object",
+                ),
+            }
+        }
+        if set_any {
+            self.remote_side_effects_cache.get_or_insert_default().overlay(settings);
+        }
+    }
+}
 
 fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     let ci = Sys::var("CI");
@@ -1385,6 +1441,9 @@ pub struct Config {
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
     /// mapping is recorded. Overridden by `--scope`.
+    ///
+    /// No repo-committed config file can set it — see
+    /// [`crate::refused_keys`].
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
@@ -1760,6 +1819,19 @@ pub struct Config {
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
 
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
+
+    /// `sideEffectsCache.read` and `.write` as declared, which
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer over the boolean pair.
+    ///
+    /// The pair cannot express every combination the declaration can: reading
+    /// without writing is `sideEffectsCacheReadonly`, but writing without
+    /// reading — populate a cache this run never consumes, which is what a
+    /// warming CI job wants — has no spelling in it at all.
+    pub side_effects_cache_read_setting: Option<bool>,
+    pub side_effects_cache_write_setting: Option<bool>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this
@@ -1790,6 +1862,12 @@ pub struct Config {
     /// pnpm v11 reads `patchedDependencies` from `pnpm-workspace.yaml`
     /// only.
     pub patched_dependencies: Option<IndexMap<String, String>>,
+
+    /// Precomputed `patchedDependencies` hashes supplied by a remote
+    /// resolver. Resolution only needs the hashes to key patched package
+    /// snapshots; the client retains the file paths and applies the patches
+    /// while materializing the returned lockfile.
+    pub patched_dependency_hashes_override: Option<IndexMap<String, String>>,
 
     /// Raw `patchesDir` setting used by `patch-commit` when writing
     /// generated patch files. `None` means the command default
@@ -2193,10 +2271,14 @@ pub struct Config {
     pub trust_policy: TrustPolicy,
 
     /// `init-package-manager` / `initPackageManager` config: whether
-    /// `pnpm init` pins the running pnpm in the manifest it scaffolds,
+    /// `pnpm init` pins a pnpm version in the manifest it scaffolds,
     /// through both `devEngines.packageManager` and the legacy
     /// `packageManager` field. Only the workspace root is pinned — a
-    /// member of an existing workspace inherits the root's pin.
+    /// member of an existing workspace inherits the root's pin. The version
+    /// pinned is the registry's `latest`, resolved by `pnpm-cli`'s
+    /// `cli_args::init::version_to_pin`, which falls back to the running
+    /// version whenever `latest` is unavailable, unusable, or older — see
+    /// there for the cases.
     ///
     /// Defaults to `true`.
     #[default = true]
@@ -2247,6 +2329,10 @@ pub struct Config {
 
     /// `auditConfig` config for `pnpm audit`.
     pub audit_config: AuditConfig,
+
+    /// `audit.ignorePrune` from `pnpm-workspace.yaml`. See
+    /// [`AuditSettings::ignore_prune`].
+    pub audit_ignore_prune: Option<bool>,
 
     /// `versioning` from `pnpm-workspace.yaml`: native workspace release
     /// management, consumed by `pnpm change` and the bare `pnpm version -r`.
@@ -2354,6 +2440,12 @@ pub struct Config {
     /// patterns the command skips, and whether GitHub Actions should be
     /// updated.
     pub update_config: workspace_yaml::UpdateConfig,
+
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, consumed by the recursive `run` task scheduler. See
+    /// [`workspace_yaml::TaskSettings`]. Empty when the workspace declares
+    /// none.
+    pub tasks: IndexMap<String, workspace_yaml::TaskSettings>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See
@@ -2528,6 +2620,7 @@ impl Config {
             level: self.audit_level,
             ignore: (!self.audit_config.ignore_ghsas.is_empty())
                 .then(|| self.audit_config.ignore_ghsas.clone()),
+            ignore_prune: self.audit_ignore_prune,
         };
         (audit != AuditSettings::default()).then_some(audit)
     }
@@ -2696,7 +2789,8 @@ impl Config {
     /// `sideEffectsCacheReadonly: true` with `sideEffectsCache: false`
     /// and get a read-only view.
     pub fn side_effects_cache_read(&self) -> bool {
-        self.side_effects_cache || self.side_effects_cache_readonly
+        self.side_effects_cache_read_setting
+            .unwrap_or(self.side_effects_cache || self.side_effects_cache_readonly)
     }
 
     /// Whether the install is allowed to populate the side-effects
@@ -2707,7 +2801,8 @@ impl Config {
     /// flags are explicitly set, but `readonly` as a flag name only makes
     /// sense if it really does block writes.
     pub fn side_effects_cache_write(&self) -> bool {
-        self.side_effects_cache && !self.side_effects_cache_readonly
+        self.side_effects_cache_write_setting
+            .unwrap_or(self.side_effects_cache && !self.side_effects_cache_readonly)
     }
 
     /// Resolve relative patch file paths in
@@ -2957,7 +3052,7 @@ impl Config {
     /// This runs after all config sources have been merged because an explicit
     /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
     /// regardless of which source supplied either setting.
-    fn apply_shamefully_hoist_derivation(&mut self) {
+    pub fn apply_shamefully_hoist_derivation(&mut self) {
         match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
             Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
             Some(false) => self.public_hoist_pattern = None,
@@ -3008,6 +3103,20 @@ impl Config {
         );
     }
 
+    /// Resolve the default store location relative to an explicit pnpm home
+    /// directory instead of the ambient one — the programmatic counterpart
+    /// of the `pnpmHomeDir` input of pnpm's `getStorePath`. The store lands
+    /// at `<pnpm_home_dir>/store/<version>` when `start_dir` can hardlink
+    /// into that volume, with the same mount-point fallback as the ambient
+    /// default. Callers apply it only when no config source set `storeDir`.
+    pub fn resolve_store_dir_from_home<Sys>(&mut self, pnpm_home_dir: &Path, start_dir: &Path)
+    where
+        Sys: GetHomeDir + LinkProbe,
+    {
+        self.store_dir = StoreDir::new(pnpm_home_dir.join("store"));
+        self.resolve_default_store_dir::<Sys>(start_dir);
+    }
+
     fn resolve_default_store_dir<Sys: GetHomeDir + LinkProbe>(&mut self, start_dir: &Path) {
         let Some(home_dir) = Sys::home_dir() else {
             return;
@@ -3053,6 +3162,12 @@ impl Config {
     pub fn resolved_patched_dependencies(
         &self,
     ) -> Result<Option<PatchGroupRecord>, ResolvePatchedDependenciesError> {
+        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
+            let groups = group_patched_dependencies(hashes.iter().map(|(key, hash)| {
+                (key.clone(), PatchInput { hash: hash.clone(), patch_file_path: None })
+            }))?;
+            return Ok((!groups.is_empty()).then_some(groups));
+        }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
         else {
             return Ok(None);
@@ -3076,20 +3191,38 @@ impl Config {
     pub fn patched_dependency_hashes(
         &self,
     ) -> Result<Option<BTreeMap<String, String>>, CalcPatchHashError> {
+        Ok(self
+            .patched_dependency_hashes_in_config_order()?
+            .map(|hashes| hashes.into_iter().collect()))
+    }
+
+    /// Return patch hashes in configured selector order.
+    ///
+    /// Precomputed overrides avoid file reads. Without an override, each
+    /// configured patch file is hashed and any I/O or hashing error is
+    /// propagated. Returns `None` when no non-empty patch configuration is
+    /// available.
+    pub fn patched_dependency_hashes_in_config_order(
+        &self,
+    ) -> Result<Option<IndexMap<String, String>>, CalcPatchHashError> {
+        if let Some(hashes) = self.patched_dependency_hashes_override.as_ref() {
+            return Ok((!hashes.is_empty()).then(|| hashes.clone()));
+        }
         let (Some(workspace_dir), Some(raw)) = (&self.workspace_dir, &self.patched_dependencies)
         else {
             return Ok(None);
         };
-        let resolved = raw.iter().map(|(key, rel_or_abs)| {
+        let mut hashes = IndexMap::with_capacity(raw.len());
+        for (key, rel_or_abs) in raw {
             let candidate = Path::new(rel_or_abs);
             let path = if candidate.is_absolute() {
                 candidate.to_path_buf()
             } else {
                 workspace_dir.join(candidate)
             };
-            (key.clone(), path)
-        });
-        Ok(Some(calc_patch_hashes(resolved)?))
+            hashes.insert(key.clone(), create_hex_hash_from_file(&path)?);
+        }
+        Ok((!hashes.is_empty()).then_some(hashes))
     }
 
     /// Load the merged configuration for a CLI run.
@@ -3404,7 +3537,11 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
         if let Some(mut global_settings) = global_settings {
+            note_declared_registries(&mut declared_registries, &global_settings);
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
@@ -3479,6 +3616,7 @@ impl Config {
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
                 settings.state_dir = None;
+                settings.scope = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3491,6 +3629,7 @@ impl Config {
                     settings.clear_self_update_policy();
                 }
                 self.workspace_key_issues = settings.key_issues.clone();
+                note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
@@ -3510,7 +3649,7 @@ impl Config {
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
         // explicit `pnpm_config_registry` / `--registry` still wins) —
         // pnpm's "CLI > _auth > yaml" precedence.
-        npmrc_auth.apply_json_env_registries(&mut self);
+        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
 
         // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
         // env vars override yaml. The `WorkspaceSettings::apply_to`
@@ -3540,6 +3679,7 @@ impl Config {
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =
             configured_state_dir.as_deref().filter(|value| !value.is_empty())
         {
@@ -3711,6 +3851,25 @@ impl Config {
 /// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
 /// out, or `pnpm config get` would answer one of the two with the value the
 /// install did not use.
+/// Record what `settings` declares about registry routing, before
+/// [`WorkspaceSettings::apply_to`] consumes it.
+fn note_declared_registries(
+    declared: &mut crate::npmrc_auth::DeclaredRegistries,
+    settings: &WorkspaceSettings,
+) {
+    declared.registry |= settings.registry.is_some();
+    let Some(entries) = settings.registries.as_ref() else {
+        return;
+    };
+    for scope in crate::workspace_yaml::registries::routed_scopes(entries) {
+        if scope == crate::workspace_yaml::registries::DEFAULT_REGISTRY_SCOPE {
+            declared.registry = true;
+        } else {
+            declared.scopes.insert(scope);
+        }
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -3755,7 +3914,9 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.warnings.clear();
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
-    trusted_auth.apply_json_env_registries(&mut config);
+    // No config file reaches the bootstrap cascade, so none declares here.
+    trusted_auth
+        .apply_json_env_registries(&mut config, &crate::npmrc_auth::DeclaredRegistries::default());
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;
@@ -3822,4 +3983,23 @@ fn full_metadata_policy(
     supports_time_field: bool,
 ) -> bool {
     trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+}
+
+/// Reads one field of the remote tier from the environment, under the name
+/// that matches the setting and under the one that matched its older spelling.
+///
+/// A machine configured for `remoteSideEffectsCache` keeps working; a machine
+/// setting both gets the name that matches the setting it is configuring.
+/// The name comes back with the value because a malformed one is reported by
+/// name, and naming a variable the user did not set sends them looking for it.
+fn side_effects_cache_remote_env<Sys: EnvVar>(suffix: &str) -> Option<(String, String)> {
+    for variable in [
+        format!("PNPM_SIDE_EFFECTS_CACHE_REMOTE_{suffix}"),
+        format!("PNPM_REMOTE_SIDE_EFFECTS_CACHE_{suffix}"),
+    ] {
+        if let Some(value) = Sys::var(&variable) {
+            return Some((value, variable));
+        }
+    }
+    None
 }

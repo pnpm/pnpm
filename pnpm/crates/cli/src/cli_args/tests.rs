@@ -725,6 +725,43 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     );
 }
 
+/// The range is built from `PNPM_VERSION` so the source checkout's version
+/// (a different major) can never satisfy it and answer first.
+#[test]
+fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    let range = format!("^{}", pnpm_config::PNPM_VERSION);
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{range}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+
+    assert_eq!(package_manager.specifier, range);
+    assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
+}
+
+#[test]
+fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"^999.0.0","onFail":"download"}}}"#,
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    assert_eq!(package_manager_to_sync(&manifest, root.path(), None), None);
+}
+
 #[test]
 fn resolve_bool_override_tri_state() {
     // force_on wins, force_off wins over a config `true`, and an unset
@@ -1098,6 +1135,38 @@ fn store_status_and_add_are_subcommands_of_store() {
         panic!("expected store add");
     };
     assert_eq!(add.packages, ["express@4", "typescript@2.1.0"]);
+}
+
+/// `--production` is the setting name behind `--prod`, and pnpm accepts
+/// it wherever `--prod` selects dependency groups — in a command line
+/// typed by hand as much as in the install the verify-deps-before-run
+/// gate reproduces
+/// ([pnpm/pnpm#14147](https://github.com/pnpm/pnpm/issues/14147)).
+#[test]
+fn production_is_an_alias_of_prod() {
+    for argv in [
+        ["pacquet", "install", "--production"].as_slice(),
+        ["pacquet", "fetch", "--production"].as_slice(),
+        ["pacquet", "prune", "--production"].as_slice(),
+        ["pacquet", "update", "--production"].as_slice(),
+        ["pacquet", "sbom", "--sbom-format", "spdx", "--production"].as_slice(),
+        ["pacquet", "list", "--production"].as_slice(),
+        ["pacquet", "why", "--production", "foo"].as_slice(),
+        ["pacquet", "audit", "--production"].as_slice(),
+        ["pacquet", "licenses", "list", "--production"].as_slice(),
+        ["pacquet", "outdated", "--production"].as_slice(),
+    ] {
+        CliArgs::try_parse_from(argv)
+            .unwrap_or_else(|error| panic!("`{}` must parse: {error}", argv.join(" ")));
+    }
+
+    let groups = |argv: &[&str]| {
+        install_args(argv).dependency_options.dependency_groups(true).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        groups(&["pacquet", "install", "--production"]),
+        groups(&["pacquet", "install", "--prod"]),
+    );
 }
 
 fn command(argv: &[&str]) -> CliCommand {

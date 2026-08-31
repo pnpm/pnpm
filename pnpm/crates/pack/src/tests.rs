@@ -40,6 +40,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         out: None,
         before_packing_hooks: Vec::new(),
         injected_files: Vec::new(),
+        output_locks: None,
     };
     (dir, opts)
 }
@@ -477,6 +478,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         out: None,
         before_packing_hooks: Vec::new(),
         injected_files: Vec::new(),
+        output_locks: None,
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -527,6 +529,7 @@ fn symlinked_workspace_license_is_not_injected() {
         out: None,
         before_packing_hooks: Vec::new(),
         injected_files: Vec::new(),
+        output_locks: None,
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();
@@ -567,6 +570,7 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
         out: None,
         before_packing_hooks: Vec::new(),
         injected_files: Vec::new(),
+        output_locks: None,
     };
 
     let result = api::<SilentReporter, Host>(&opts).unwrap();

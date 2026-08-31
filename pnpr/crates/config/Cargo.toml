@@ -1,0 +1,36 @@
+[package]
+name                 = "pnpr-config"
+version              = "0.0.1"
+description          = "The pnpr YAML configuration: parsing, validation, and the resolved server settings"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-error        = { workspace = true }
+pnpr-package-name = { workspace = true }
+pnpr-policy       = { workspace = true }
+pnpr-registry     = { workspace = true }
+pnpm-config-dir   = { workspace = true }
+pnpm-env-replace  = { workspace = true }
+getrandom         = { workspace = true }
+home              = { workspace = true }
+indexmap          = { workspace = true }
+object_store      = { workspace = true }
+reqwest           = { workspace = true }
+serde             = { workspace = true }
+serde-saphyr      = { workspace = true }
+tracing           = { workspace = true }
+url               = { workspace = true }
+
+[dev-dependencies]
+pnpm-testing-utils = { workspace = true }
+tempfile           = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lints]
+workspace = true

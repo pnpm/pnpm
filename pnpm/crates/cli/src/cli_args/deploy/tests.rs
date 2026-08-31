@@ -77,6 +77,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
                     .parse()
                     .expect("parse integrity"),
             ),
+            revision: None,
             git_hosted: None,
             path: None,
         }),

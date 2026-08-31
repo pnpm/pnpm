@@ -6,16 +6,23 @@ import { summaryLogger } from '@pnpm/core-loggers'
 import {
   cleanOrphanedInstallDirs,
   createInstallDir,
+  getGlobalPackageDetails,
   getHashLink,
   type GlobalPackageInfo,
   scanGlobalPackages,
 } from '@pnpm/global.packages'
 import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
+import semver from 'semver'
 
 import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
-import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
+import {
+  installGlobalPackages,
+  type InstallGlobalPackagesResult,
+  type ResolutionPolicyViolation,
+} from './installGlobalPackages.js'
+import { hasPnpmCliDependency } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -40,10 +47,14 @@ export async function handleGlobalUpdate (
   const globalDir = opts.globalPkgDir!
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
-  const allPackages = scanGlobalPackages(globalDir)
+  const scannedPackages = scanGlobalPackages(globalDir)
 
-  if (allPackages.length === 0) {
+  if (scannedPackages.length === 0) {
     return 'No global packages found'
+  }
+  const allPackages = scannedPackages.filter((pkg) => !hasPnpmCliDependency(pkg))
+  if (allPackages.length === 0) {
+    return 'No global packages to update. Run "pnpm self-update" to update pnpm itself.'
   }
 
   // If specific packages are requested, filter to only groups containing them
@@ -80,46 +91,15 @@ async function updateGlobalPackageGroup (
   commands: CommandHandlerMap
 ): Promise<void> {
   const installDir = createInstallDir(globalDir)
-
-  // When --latest, just pass alias names to get the latest version.
-  // Otherwise, pass alias@spec to update within the existing range.
-  const depSpecs = Object.entries(pkg.dependencies).map(
-    ([alias, spec]) => opts.latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
-  )
-
-  const include = {
-    dependencies: true,
-    devDependencies: false,
-    optionalDependencies: true,
-  }
-  const allowBuilds = opts.allowBuilds ?? {}
-
-  const { ignoredBuilds, resolutionPolicyViolations } = await installGlobalPackages({
-    ...opts,
-    global: false,
-    bin: path.join(installDir, 'node_modules/.bin'),
-    dir: installDir,
-    lockfileDir: installDir,
-    rootProjectManifestDir: installDir,
-    rootProjectManifest: undefined,
-    saveProd: true,
-    saveDev: false,
-    saveOptional: false,
-    savePeer: false,
-    workspaceDir: undefined,
-    sharedWorkspaceLockfile: false,
-    lockfileOnly: false,
-    include,
-    includeDirect: include,
-    allowBuilds,
-    omitSummaryLog: true,
-  }, depSpecs)
+  const pins = await pinsForDowngrades(opts, installDir, pkg)
+  const { ignoredBuilds, resolutionPolicyViolations } =
+    await installGroup(opts, installDir, depSpecsForUpdate(pkg.dependencies, opts.latest, pins))
 
   await promptApproveGlobalBuilds({
     globalPkgDir: globalDir,
     installDir,
     ignoredBuilds,
-    allowBuilds,
+    allowBuilds: opts.allowBuilds ?? {},
     inheritedOpts: opts,
   }, commands)
 
@@ -156,6 +136,109 @@ async function updateGlobalPackageGroup (
     protectedBins,
   })
   await opts.updateResolutionPolicyManifest?.(resolutionPolicyViolations, globalDir)
+}
+
+/**
+ * Installs `depSpecs` into `installDir`, which the caller has already created
+ * under the global packages dir. The manifest and lockfile are written there;
+ * with `lockfileOnly` nothing else is, so `node_modules` stays absent.
+ */
+async function installGroup (
+  opts: GlobalUpdateOptions & { lockfileOnly?: boolean },
+  installDir: string,
+  depSpecs: string[]
+): Promise<InstallGlobalPackagesResult> {
+  const include = {
+    dependencies: true,
+    devDependencies: false,
+    optionalDependencies: true,
+  }
+  return installGlobalPackages({
+    ...opts,
+    global: false,
+    bin: path.join(installDir, 'node_modules/.bin'),
+    dir: installDir,
+    lockfileDir: installDir,
+    rootProjectManifestDir: installDir,
+    rootProjectManifest: undefined,
+    saveProd: true,
+    saveDev: false,
+    saveOptional: false,
+    savePeer: false,
+    workspaceDir: undefined,
+    sharedWorkspaceLockfile: false,
+    lockfileOnly: opts.lockfileOnly ?? false,
+    include,
+    includeDirect: include,
+    allowBuilds: opts.allowBuilds ?? {},
+    omitSummaryLog: true,
+  }, depSpecs)
+}
+
+/**
+ * The selectors that reinstall a group. With `--latest` a plain version spec is
+ * dropped so the newest release is picked; `pins` holds back the aliases that
+ * would otherwise move backwards.
+ */
+function depSpecsForUpdate (
+  dependencies: Record<string, string>,
+  latest?: boolean,
+  pins: ReadonlyMap<string, string> = new Map()
+): string[] {
+  return Object.entries(dependencies).map(([alias, spec]) => {
+    const pin = pins.get(alias)
+    if (pin != null) return `${alias}@${pin}`
+    return latest && isPlainVersionSpec(spec) ? alias : `${alias}@${spec}`
+  })
+}
+
+/**
+ * The version to hold each dependency of `pkg` at, for the ones an update would
+ * otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
+ * points at an older release than the one installed whenever that came from
+ * another tag, or from a major that has not been promoted to `latest` yet.
+ *
+ * The versions are resolved into `installDir` without installing anything, so a
+ * release that is about to be rejected never gets the chance to run its
+ * lifecycle scripts. The install that follows reuses the lockfile written here
+ * and only re-resolves what a pin changes.
+ *
+ * Only plain version dependencies are considered: every other spec form says
+ * where the package comes from, so holding one at a bare version would resolve
+ * a different package from the default registry.
+ */
+async function pinsForDowngrades (
+  opts: GlobalUpdateOptions,
+  installDir: string,
+  pkg: GlobalPackageInfo
+): Promise<Map<string, string>> {
+  const pins = new Map<string, string>()
+  // Only `--latest` can pick a version outside the recorded range, and only a
+  // plain version spec is dropped for it. Everything else resolves within a
+  // range the installed version already satisfies, so nothing below — not even
+  // reading the group's installed versions — is worth doing.
+  if (opts.latest !== true) return pins
+  const versionsBefore = new Map(
+    (await getGlobalPackageDetails(pkg))
+      .filter(({ alias }) => isPlainVersionSpec(pkg.dependencies[alias] ?? ''))
+      .map(({ alias, version }) => [alias, version])
+  )
+  // Nothing to compare a resolution against, so nothing to resolve.
+  if (versionsBefore.size === 0) return pins
+
+  const { resolvedVersions } = await installGroup(
+    { ...opts, lockfileOnly: true },
+    installDir,
+    depSpecsForUpdate(pkg.dependencies, opts.latest)
+  )
+  for (const [alias, before] of versionsBefore) {
+    const resolved = resolvedVersions[alias]
+    if (semver.valid(before) == null || semver.valid(resolved) == null) continue
+    if (semver.lt(resolved, before)) {
+      pins.set(alias, before)
+    }
+  }
+  return pins
 }
 
 // Only a plain version range may be dropped in favor of the bare alias.

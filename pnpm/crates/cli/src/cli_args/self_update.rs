@@ -16,7 +16,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
-use pnpm_config::{Config, PNPM_VERSION};
+use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
 use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{
@@ -49,9 +49,12 @@ fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
 /// `ERR_PNPM_PNPM_...`.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum SelfUpdateError {
-    #[display("You should update pnpm with corepack")]
-    #[diagnostic(code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK))]
-    CantSelfUpdateInCorepack,
+    #[display("pnpm cannot update itself when it is executed by Corepack")]
+    #[diagnostic(
+        code(ERR_PNPM_CANT_SELF_UPDATE_IN_COREPACK),
+        help("Install pnpm with the standalone script instead: {install_command}")
+    )]
+    CantSelfUpdateInCorepack { install_command: &'static str },
 
     #[display(r#"Cannot find "{specifier}" version of pnpm"#)]
     #[diagnostic(code(ERR_PNPM_CANNOT_RESOLVE_PNPM))]
@@ -170,7 +173,10 @@ fn enforce_resolution_policy(
 /// `.npmrc` / workspace config can't mask the corepack refusal.
 pub(crate) fn reject_if_corepack() -> miette::Result<()> {
     if is_executed_by_corepack() {
-        return Err(SelfUpdateError::CantSelfUpdateInCorepack.into());
+        return Err(SelfUpdateError::CantSelfUpdateInCorepack {
+            install_command: standalone_install_command(),
+        }
+        .into());
     }
     Ok(())
 }
@@ -596,7 +602,7 @@ fn coerce_major(version: &str) -> Option<u64> {
     node_semver::Version::parse(version).ok().map(|version| version.major)
 }
 
-fn version_lt(left: &str, right: &str) -> bool {
+pub(super) fn version_lt(left: &str, right: &str) -> bool {
     match (node_semver::Version::parse(left), node_semver::Version::parse(right)) {
         (Ok(left), Ok(right)) => left < right,
         _ => false,

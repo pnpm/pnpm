@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@jest/globals'
 import { hashObject, hashObjectWithoutSorting } from '@pnpm/crypto.object-hasher'
-import { calcDepState, calcGraphNodeHash, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
+import { calcDepState, calcDepStateInputKey, calcGraphNodeHash, findRuntimeNodeVersion, readSnapshotRuntimePin } from '@pnpm/deps.graph-hasher'
 import { engineName } from '@pnpm/engine.runtime.system-version'
 import type { DepPath, PkgIdWithPatchHash } from '@pnpm/types'
 
@@ -54,6 +54,71 @@ test('calcDepState() when scripts are ignored', () => {
   expect(calcDepState(depsGraph, {}, 'foo@1.0.0', {
     includeDepGraphHash: false,
   })).toBe(ENGINE_NAME)
+})
+
+test('calcDepStateInputKey() excludes the host engine and includes patches', () => {
+  const expectedDepsHash = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: {
+      bar: hashObject({
+        id: 'bar@1.0.0:001',
+        deps: {
+          foo: hashObject({
+            id: 'foo@1.0.0:000',
+            deps: {},
+          }),
+        },
+      }),
+    },
+  })
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'foo@1.0.0',
+    patchFileHash: 'patch-hash',
+  })).toBe(`dependency-side-effects:v1:deps=${expectedDepsHash};patch=patch-hash`)
+})
+
+test('calcDepStateInputKey() rejects a missing root', () => {
+  expect(() => calcDepStateInputKey({
+    depsGraph,
+    depPath: 'missing@1.0.0',
+  })).toThrow('input-key root missing@1.0.0 is not present in depsGraph')
+})
+
+test('calcDepStateInputKey() isolates cyclic roots', () => {
+  const truncatedFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: {},
+  })
+  const nestedBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: { foo: truncatedFoo },
+  })
+  const rootFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: { bar: nestedBar },
+  })
+  const truncatedBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: {},
+  })
+  const nestedFoo = hashObject({
+    id: 'foo@1.0.0:000',
+    deps: { bar: truncatedBar },
+  })
+  const rootBar = hashObject({
+    id: 'bar@1.0.0:001',
+    deps: { foo: nestedFoo },
+  })
+
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'foo@1.0.0',
+  })).toBe(`dependency-side-effects:v1:deps=${rootFoo}`)
+  expect(calcDepStateInputKey({
+    depsGraph,
+    depPath: 'bar@1.0.0',
+  })).toBe(`dependency-side-effects:v1:deps=${rootBar}`)
 })
 
 test('findRuntimeNodeVersion() pulls the pinned major from a node@runtime: snapshot key', () => {

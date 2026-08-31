@@ -18,6 +18,7 @@ fn registry_package(
             integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -288,8 +289,10 @@ fn integrity_string_publishes_only_verified_hashes() {
     const HASH: &str = "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==";
     let hash = || HASH.parse::<ssri::Integrity>().expect("parse integrity");
 
-    let registry =
-        LockfileResolution::Registry(pnpm_lockfile::RegistryResolution { integrity: hash() });
+    let registry = LockfileResolution::Registry(pnpm_lockfile::RegistryResolution {
+        integrity: hash(),
+        revision: None,
+    });
     assert_eq!(integrity_string(&registry).as_deref(), Some(HASH));
 
     let binary = LockfileResolution::Binary(pnpm_lockfile::BinaryResolution {

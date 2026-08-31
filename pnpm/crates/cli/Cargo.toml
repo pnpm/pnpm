@@ -58,6 +58,7 @@ pnpm-resolving-git-resolver            = { workspace = true }
 pnpm-resolving-npm-resolver            = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-semver-include-prerelease         = { workspace = true }
 pnpm-store-dir                         = { workspace = true }
 pnpm-tarball                           = { workspace = true }
 pnpm-text-sanitize                     = { workspace = true }
@@ -69,6 +70,7 @@ pnpm-workspace-manifest-writer         = { workspace = true }
 pnpm-workspace-projects-graph          = { workspace = true }
 pnpm-workspace-projects-filter         = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
+pnpm-workspace-task-scheduler          = { workspace = true }
 
 chrono               = { workspace = true }
 clap                 = { workspace = true }
@@ -115,6 +117,7 @@ wax                  = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
+  "Win32_System_Console",
   "Win32_System_SystemInformation",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",

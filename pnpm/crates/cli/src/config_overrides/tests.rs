@@ -2,12 +2,15 @@ use super::{
     ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
 };
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker, PmOnFail,
-    RuntimeOnFail,
+    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker,
+    PackageImportMethod, PmOnFail, RuntimeOnFail, TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
-use std::{ffi::OsString, path::PathBuf};
+use std::{
+    ffi::OsString,
+    path::{Path, PathBuf},
+};
 
 fn argv<Items: IntoIterator<Item = &'static str>>(items: Items) -> Vec<OsString> {
     items.into_iter().map(OsString::from).collect()
@@ -23,7 +26,7 @@ fn extract_separates_config_tokens_from_argv() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install", "--frozen-lockfile"]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, "https://example.test/");
     assert_eq!(config.package_manager_bootstrap.registry, "https://example.test/");
     assert_eq!(
@@ -42,7 +45,7 @@ fn extract_reads_the_login_scope() {
         ConfigOverrides::extract(argv(["pacquet", "--config.scope=@my-org", "login"]));
     assert_eq!(remaining, argv(["pacquet", "login"]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.scope.as_deref(), Some("@my-org"));
 }
 
@@ -56,9 +59,72 @@ fn extract_accepts_the_on_fail_settings_as_bare_flags() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.pm_on_fail, Some(PmOnFail::Ignore));
     assert_eq!(config.runtime_on_fail, Some(RuntimeOnFail::Warn));
+}
+
+#[test]
+fn extract_accepts_shamefully_hoist_cli_spellings() {
+    for (flag, expected) in [
+        ("--shamefully-hoist", true),
+        ("--shamefully-hoist=true", true),
+        ("--shamefully-hoist=false", false),
+        ("--shamefully-hoist=1", true),
+        ("--shamefully-hoist=0", false),
+        ("--config.shamefully-hoist=true", true),
+        ("--config.shamefully-hoist=false", false),
+        ("--config.shamefully-hoist=1", true),
+        ("--config.shamefully-hoist=0", false),
+        ("--no-shamefully-hoist", false),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.shamefully_hoist, expected);
+        let expected_public_hoist_pattern = expected.then(|| vec!["*".to_string()]);
+        assert_eq!(config.public_hoist_pattern, expected_public_hoist_pattern);
+        assert_eq!(
+            config.explicit_settings.get("shamefullyHoist"),
+            Some(&serde_json::Value::Bool(expected)),
+        );
+    }
+}
+
+#[test]
+fn shamefully_hoist_override_preserves_virtual_store_only_precedence() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--shamefully-hoist=true", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(vec!["*".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config, Path::new("/workspace"));
+
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
+}
+
+#[test]
+fn extract_leaves_invalid_shamefully_hoist_values_for_clap() {
+    for flag in [
+        "--shamefully-hoist=yes",
+        "--shamefully-hoist=",
+        "--config.shamefully-hoist=yes",
+        "--config.shamefully-hoist=",
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "--version"]));
+        assert_eq!(remaining, argv(["pacquet", flag, "--version"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(!config.explicit_settings.contains_key("shamefullyHoist"));
+    }
 }
 
 #[test]
@@ -85,7 +151,7 @@ fn extract_leaves_config_tokens_after_the_separator_for_the_child() {
         ]),
     );
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.pm_on_fail, None);
     assert_eq!(config.registry, Config::default().registry);
 }
@@ -159,7 +225,7 @@ fn extract_applies_scoped_registry_overrides() {
     ]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(
         config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
@@ -182,7 +248,7 @@ fn scoped_registry_override_wins_over_existing_config() {
         .package_manager_bootstrap
         .registries
         .insert("@private".to_string(), "https://json-env.example/npm/".to_string());
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(
         config.registries_by_scope.get("@private").map(String::as_str),
         Some("https://cli.example/npm/"),
@@ -200,7 +266,7 @@ fn unknown_keys_are_dropped_silently() {
     assert_eq!(remaining, argv(["pacquet", "install"]));
     let default_registry = Config::default().registry;
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, default_registry, "no known key set ⇒ registry untouched");
 }
 
@@ -217,7 +283,7 @@ fn extract_applies_inject_workspace_packages_and_node_linker_overrides() {
     let mut config = Config::default();
     assert!(!config.inject_workspace_packages);
     assert_eq!(config.node_linker, NodeLinker::Isolated);
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.inject_workspace_packages);
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
 }
@@ -237,7 +303,7 @@ fn extract_applies_the_minimum_release_age_overrides() {
     assert_eq!(config.minimum_release_age, Some(1440));
     assert!(config.minimum_release_age_ignore_missing_time);
     assert_eq!(config.minimum_release_age_strict, None);
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.minimum_release_age, Some(0));
     assert!(!config.minimum_release_age_ignore_missing_time);
     assert_eq!(config.minimum_release_age_strict, Some(false));
@@ -250,7 +316,7 @@ fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
         ConfigOverrides::extract(argv(["pacquet", "--config.maxsockets=4", "install"]));
     assert_eq!(remaining, argv(["pacquet", "install"]));
     let mut config = Config { max_sockets: Some(2), ..Config::default() };
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.max_sockets, Some(4));
 
     let (overrides, _) = ConfigOverrides::extract(argv([
@@ -260,7 +326,7 @@ fn max_sockets_overrides_win_over_the_config_layers_in_either_spelling() {
         "install",
     ]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.max_sockets, Some(9), "the canonical spelling wins over npm's");
 }
 
@@ -274,7 +340,7 @@ fn repeated_minimum_release_age_exclude_overrides_collect_into_a_list() {
         minimum_release_age_exclude: Some(vec!["from-yaml".to_string()]),
         ..Config::default()
     };
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(
         config.minimum_release_age_exclude,
         Some(vec!["pnpm".to_string(), "@pnpm/exe".to_string()]),
@@ -289,7 +355,7 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     let mut config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
     config.apply_prefer_symlinked_executables_derivation();
     assert_eq!(config.prefer_symlinked_executables, Some(true));
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.node_linker, NodeLinker::Isolated);
     assert_eq!(config.prefer_symlinked_executables, None);
 
@@ -298,7 +364,7 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.node-linker=hoisted", "install"]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.prefer_symlinked_executables, Some(true));
 
     // An explicit `false` — recorded in `explicit_settings` by the
@@ -309,7 +375,7 @@ fn node_linker_override_rederives_prefer_symlinked_executables() {
     config
         .explicit_settings
         .insert("preferSymlinkedExecutables".to_string(), serde_json::Value::Bool(false));
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.node_linker, NodeLinker::Hoisted);
     assert_eq!(config.prefer_symlinked_executables, Some(false));
 }
@@ -321,14 +387,14 @@ fn extract_applies_ignore_scripts_override() {
     assert_eq!(remaining, argv(["pacquet", "pack"]));
     let mut config = Config::default();
     assert!(!config.ignore_scripts);
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert!(config.ignore_scripts);
     assert_eq!(config.explicit_settings.get("ignoreScripts"), Some(&serde_json::Value::Bool(true)));
 
     let (overrides, _) =
         ConfigOverrides::extract(argv(["pacquet", "--config.ignore-scripts=false", "pack"]));
     let mut config = Config { ignore_scripts: true, ..Config::default() };
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.ignore_scripts);
     assert_eq!(
         config.explicit_settings.get("ignoreScripts"),
@@ -359,7 +425,7 @@ fn extract_applies_default_parity_overrides() {
     assert_eq!(remaining, argv(["pacquet", "install"]));
 
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.bail);
     assert!(config.ci);
     assert_eq!(config.color, ColorMode::Never);
@@ -386,7 +452,7 @@ fn explicit_lockfile_override_wins_over_package_lock() {
         "install",
     ]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.package_lock);
     assert!(config.lockfile);
 }
@@ -404,7 +470,7 @@ fn config_tokens_after_external_command_stay_in_argv() {
     let expected = argv(["pacquet", "--dir", "project", "commitlint", "--config.foo=bar"]);
     assert_eq!(remaining, expected);
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, "https://example.test/");
 }
 
@@ -424,7 +490,7 @@ fn non_utf8_token_stops_config_token_extraction() {
     assert_eq!(remaining, expected);
 
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, "https://example.test/");
 }
 
@@ -442,7 +508,7 @@ fn last_value_wins_for_repeated_keys() {
         "--config.registry=https://second.test/",
     ]));
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, "https://second.test/");
     assert_eq!(config.package_manager_bootstrap.registry, "https://second.test/");
 }
@@ -460,7 +526,7 @@ fn dotted_proxy_overrides_apply_to_network_config() {
     config.proxy.https_proxy = Some("http://yaml.example:9443".to_string());
     config.proxy.http_proxy = Some("http://yaml.example:9080".to_string());
     config.package_manager_bootstrap.proxy = config.proxy.clone();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
 
     assert_eq!(config.proxy.https_proxy.as_deref(), Some("http://proxy.example:8443"));
     assert_eq!(config.proxy.http_proxy.as_deref(), Some("http://proxy.example:8080"));
@@ -479,7 +545,7 @@ fn apply_is_a_noop_when_no_overrides_set() {
     let (overrides, _) = ConfigOverrides::extract(argv(["pacquet", "install"]));
     let default_registry = Config::default().registry;
     let mut config = Config::default();
-    overrides.apply(&mut config);
+    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.registry, default_registry);
 }
 
@@ -621,4 +687,325 @@ fn empty_store_dir_override_uses_the_injected_default_provider() {
         config.explicit_settings.get("storeDir"),
         Some(&serde_json::Value::String(String::new())),
     );
+}
+
+#[test]
+fn extract_accepts_the_install_settings_as_bare_flags() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--package-import-method=hardlink",
+        "--child-concurrency=3",
+        "--strict-peer-dependencies",
+        "--side-effects-cache",
+        "--side-effects-cache-readonly",
+        "--optimistic-repeat-install",
+        "--trust-policy=no-downgrade",
+        "--trust-policy-exclude=lodash",
+        "--trust-policy-ignore-after=5",
+        "--no-lockfile",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.package_import_method, PackageImportMethod::Hardlink);
+    assert_eq!(config.child_concurrency, 3);
+    assert!(config.strict_peer_dependencies);
+    assert!(config.side_effects_cache);
+    assert!(config.side_effects_cache_readonly);
+    assert!(config.optimistic_repeat_install);
+    assert_eq!(config.trust_policy, TrustPolicy::NoDowngrade);
+    assert_eq!(config.trust_policy_exclude, Some(vec!["lodash".to_string()]));
+    assert_eq!(config.trust_policy_ignore_after, Some(5));
+    assert!(!config.lockfile);
+}
+
+#[test]
+fn a_value_taking_setting_reads_the_next_argv_token() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--package-import-method", "copy", "install"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.package_import_method, PackageImportMethod::Copy);
+}
+
+#[test]
+fn a_boolean_setting_claims_the_next_token_only_when_it_spells_a_boolean() {
+    for (tokens, expected) in [
+        (vec!["--side-effects-cache", "install"], true),
+        (vec!["--side-effects-cache", "false", "install"], false),
+        (vec!["--side-effects-cache", "true", "install"], true),
+    ] {
+        let (overrides, remaining) =
+            ConfigOverrides::extract(argv(["pacquet"]).into_iter().chain(argv(tokens)));
+        assert_eq!(remaining, argv(["pacquet", "install"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.side_effects_cache, expected);
+    }
+}
+
+#[test]
+fn a_repeated_list_setting_accumulates_its_values() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--hoist-pattern",
+        "eslint",
+        "--hoist-pattern=babel",
+        "--public-hoist-pattern=types",
+    ]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(vec!["eslint".to_string(), "babel".to_string()]));
+    assert_eq!(config.public_hoist_pattern, Some(vec!["types".to_string()]));
+}
+
+#[test]
+fn no_hoist_clears_the_private_hoist_pattern() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--no-hoist",
+        "--hoist-pattern=eslint",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.hoist);
+    assert_eq!(config.hoist_pattern, None);
+}
+
+#[test]
+fn shamefully_hoist_wins_over_a_public_hoist_pattern_on_the_same_command_line() {
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--public-hoist-pattern=types",
+        "--shamefully-hoist",
+    ]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.public_hoist_pattern, Some(vec!["*".to_string()]));
+}
+
+#[test]
+fn the_modules_and_virtual_store_dirs_are_anchored_at_the_workspace_root() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--modules-dir=custom_modules",
+        "--virtual-store-dir=custom_store",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let workspace_dir = PathBuf::from("/workspace");
+    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace/pkg"));
+    assert_eq!(config.modules_dir, workspace_dir.join("custom_modules"));
+    assert_eq!(config.virtual_store_dir, workspace_dir.join("custom_store"));
+}
+
+#[test]
+fn the_modules_dir_alone_re_anchors_the_default_virtual_store() {
+    let (overrides, _) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--modules-dir=custom_modules"]));
+
+    let workspace_dir = PathBuf::from("/workspace");
+    let mut config = Config { workspace_dir: Some(workspace_dir.clone()), ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.virtual_store_dir, workspace_dir.join("custom_modules/.pnpm"));
+}
+
+#[test]
+fn the_global_dir_override_re_derives_the_global_package_dir() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "add", "-g", "--global-dir", "/custom/global"]));
+    assert_eq!(remaining, argv(["pacquet", "add", "-g"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.global_dir.as_deref(), Some(Path::new("/custom/global")));
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(Path::new("/custom/global").join(pnpm_config::GLOBAL_LAYOUT_VERSION)),
+    );
+}
+
+#[test]
+fn a_setting_flag_does_not_swallow_the_command_it_precedes() {
+    let (_, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--modules-dir",
+        "custom_modules",
+        "run",
+        "build",
+        "--hoist-pattern=eslint",
+    ]));
+
+    // `--hoist-pattern` is past the script name, so it is the script's.
+    assert_eq!(remaining, argv(["pacquet", "run", "build", "--hoist-pattern=eslint"]));
+}
+
+/// A setting is stripped from argv before clap runs, so one spelled like
+/// a *global* option would claim that option on every command line — a
+/// command's own option is left for clap instead, and can collide.
+#[test]
+fn no_bare_setting_flag_shadows_a_global_option() {
+    let grammar = crate::cli_args::grammar();
+    let declared: Vec<&str> = grammar
+        .get_arguments()
+        .flat_map(|arg| {
+            arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
+        })
+        .collect();
+    let shadowed: Vec<&str> = super::BARE_SETTING_FLAGS
+        .iter()
+        .map(|&(setting, _)| setting)
+        .filter(|setting| declared.contains(setting))
+        .collect();
+    assert_eq!(shadowed, Vec::<&str>::new());
+}
+
+/// `pnpm clean --lockfile` removes lockfiles; it does not turn the
+/// `lockfile` setting on.
+#[test]
+fn a_command_option_wins_over_the_setting_of_the_same_name() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", "clean", "--lockfile"]));
+    assert_eq!(remaining, argv(["pacquet", "clean", "--lockfile"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.lockfile, Config::default().lockfile);
+}
+
+/// A value the setting does not take must reach clap, which reports it:
+/// dropping `--trust-policy=typo` would run the install under the default
+/// `off` policy the user meant to replace.
+#[test]
+fn extract_leaves_invalid_setting_values_for_clap() {
+    for tokens in [
+        ["--trust-policy=typo"].as_slice(),
+        &["--trust-policy", "typo"],
+        &["--config.trust-policy=typo"],
+        &["--package-import-method=symlink"],
+        &["--child-concurrency=lots"],
+        &["--child-concurrency", "lots"],
+        &["--trust-policy-ignore-after=soon"],
+    ] {
+        let command_line = ["pacquet", "install"]
+            .into_iter()
+            .chain(tokens.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line, "{tokens:?}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        let defaults = Config::default();
+        assert_eq!(config.trust_policy, defaults.trust_policy, "{tokens:?}");
+        assert_eq!(config.package_import_method, defaults.package_import_method, "{tokens:?}");
+        assert_eq!(config.child_concurrency, defaults.child_concurrency, "{tokens:?}");
+        assert_eq!(
+            config.trust_policy_ignore_after, defaults.trust_policy_ignore_after,
+            "{tokens:?}",
+        );
+    }
+}
+
+/// The boundary scan and the extraction have to agree on how much a bare
+/// boolean setting claims, or the settings after an explicit `true` /
+/// `false` are mistaken for a script's arguments and forwarded to clap.
+#[test]
+fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--strict-peer-dependencies",
+        "false",
+        "--config.registry=https://example.test/",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config { strict_peer_dependencies: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.strict_peer_dependencies);
+    assert_eq!(config.registry, "https://example.test/");
+}
+
+/// `lockfile` is both a setting and `clean`'s own option, so the boundary
+/// scan and the extraction have to agree on how much `--lockfile true`
+/// claims even when the command is not `clean`.
+#[test]
+fn a_boolean_settings_value_is_claimed_even_when_a_command_declares_the_name() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--lockfile",
+        "true",
+        "--config.registry=https://example.test/",
+        "install",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config { lockfile: false, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.lockfile);
+    assert_eq!(config.registry, "https://example.test/");
+}
+
+/// A `--` or another flag is never a free-form setting's value: claiming
+/// one would drop the separator and point `modulesDir` at a directory
+/// named `--`.
+#[test]
+fn a_setting_flag_never_claims_a_separator_or_another_flag() {
+    for tokens in [
+        ["--modules-dir", "--", "extra"].as_slice(),
+        &["--modules-dir", "--"],
+        &["--modules-dir", "--prod"],
+        &["--modules-dir", "-C"],
+    ] {
+        let command_line = ["pacquet", "install"]
+            .into_iter()
+            .chain(tokens.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line, "{tokens:?}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.modules_dir, Config::default().modules_dir, "{tokens:?}");
+    }
+}
+
+/// A parsed setting decides for itself: `childConcurrency` reads a
+/// negative value as "every core but this many", so the flag claims it
+/// even though it opens with `-`.
+#[test]
+fn a_numeric_setting_claims_a_negative_value() {
+    for tokens in [["--child-concurrency", "-1"].as_slice(), &["--child-concurrency=-1"]] {
+        let command_line = ["pacquet", "install"]
+            .into_iter()
+            .chain(tokens.iter().copied())
+            .map(OsString::from)
+            .collect::<Vec<_>>();
+        let (overrides, remaining) = ConfigOverrides::extract(command_line);
+        assert_eq!(remaining, argv(["pacquet", "install"]), "{tokens:?}");
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(
+            config.child_concurrency,
+            pnpm_config::resolve_child_concurrency(Some(-1)),
+            "{tokens:?}",
+        );
+    }
 }

@@ -3,8 +3,9 @@
 
 use std::collections::BTreeMap;
 
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::RegistryDeclaration;
+use pnpm_config::{PackageExtension, RegistryDeclaration};
 use pnpm_network::AuthHeadersByScope;
 use serde::Deserialize;
 
@@ -77,6 +78,18 @@ pub struct ResolveRequest {
     /// server-side.
     #[serde(default)]
     pub overrides: Option<serde_json::Value>,
+    /// The client's `patchedDependencies`, with local file paths replaced by
+    /// their SHA-256 hashes. Resolution uses the hashes in package snapshot
+    /// keys; patch application remains client-side.
+    #[serde(default)]
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// The client's `packageExtensions`, applied to dependency manifests
+    /// during server-side resolution.
+    #[serde(default)]
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    /// Whether configured patches that match no resolved package are allowed.
+    #[serde(default)]
+    pub allow_unused_patches: bool,
     /// The client's workspace catalogs (`catalog:` / `catalogs:` from
     /// `pnpm-workspace.yaml`), keyed by catalog name with the default
     /// catalog at `"default"`. The reconstructed workspace has no catalog
@@ -111,6 +124,14 @@ pub struct ResolveRequest {
     /// when the lockfile is up to date. `None` defaults to reuse.
     #[serde(default)]
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version. Omitted by older clients and false for ordinary resolves.
+    #[serde(default)]
+    pub update_patches: bool,
+    /// Re-resolve every edge while preserving compatible locked versions and
+    /// regenerating derived lockfile fields.
+    #[serde(default)]
+    pub fix_lockfile: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     #[serde(default)]

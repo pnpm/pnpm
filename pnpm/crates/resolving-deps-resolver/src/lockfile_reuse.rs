@@ -5,8 +5,9 @@
 
 use node_semver::{Range, Version};
 use pnpm_lockfile::{
-    Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    RegistryContext, ResolvedDependencySpec, SnapshotEntry, TarballResolution, TarballUrlOptions,
+    BundledDependencies, Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer,
+    ProjectSnapshot, RegistryContext, ResolvedDependencySpec, SnapshotEntry, StringOrList,
+    TarballResolution, TarballUrlOptions, integrity_addressed_registry_tarball_url,
     npm_tarball_url, pick_registry_for_package, registry_server_type,
 };
 use pnpm_resolving_parse_wanted_dependency::git_specifiers_are_equivalent;
@@ -48,8 +49,12 @@ pub(crate) fn current_pkg_from_lockfile(
             if registry.is_empty() {
                 return None;
             }
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: npm_tarball_url(
+            let tarball = match registry_resolution.revision {
+                Some(_) => integrity_addressed_registry_tarball_url(
+                    &registry_resolution.integrity,
+                    &registry,
+                )?,
+                None => npm_tarball_url(
                     &name,
                     &tarball_version,
                     TarballUrlOptions {
@@ -60,7 +65,11 @@ pub(crate) fn current_pkg_from_lockfile(
                         ),
                     },
                 ),
+            };
+            LockfileResolution::Tarball(TarballResolution {
+                tarball,
                 integrity: Some(registry_resolution.integrity.clone()),
+                revision: registry_resolution.revision,
                 git_hosted: None,
                 path: None,
             })
@@ -288,9 +297,11 @@ pub(crate) fn synthesize_reused_result(
 }
 
 /// Reconstruct the minimal manifest fragment downstream consumers read
-/// off a reused [`ResolveResult`]. Carries the peer / platform metadata
-/// the lockfile records; omits `dependencies` because a reused node's
-/// children come from the snapshot graph, not the manifest.
+/// off a reused [`ResolveResult`]. Carries the peer / platform /
+/// packaging metadata the lockfile records, in the shape it recorded it,
+/// so a rewrite re-emits the entry unchanged; omits `dependencies`
+/// because a reused node's children come from the snapshot graph, not
+/// the manifest.
 fn synthesize_manifest(
     name: &PkgName,
     version: Option<&str>,
@@ -334,10 +345,21 @@ fn synthesize_manifest(
         manifest.insert("os".to_string(), string_array(os));
     }
     if let Some(libc) = metadata.libc.as_ref() {
-        manifest.insert("libc".to_string(), string_array(libc));
+        let value = match libc {
+            StringOrList::String(single) => Value::String(single.clone()),
+            StringOrList::List(names) => string_array(names),
+        };
+        manifest.insert("libc".to_string(), value);
     }
     if let Some(deprecated) = metadata.deprecated.as_ref() {
         manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));
+    }
+    if let Some(bundled) = metadata.bundled_dependencies.as_ref() {
+        let value = match bundled {
+            BundledDependencies::Boolean(bundles_all) => Value::Bool(*bundles_all),
+            BundledDependencies::Names(names) => string_array(names),
+        };
+        manifest.insert("bundledDependencies".to_string(), value);
     }
     // `has_bin: Some(true)` round-trips as a truthy `bin` so the
     // bundled-manifest bin linker sees a non-empty bin set; the exact

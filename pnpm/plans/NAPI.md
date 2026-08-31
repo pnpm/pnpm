@@ -114,8 +114,8 @@ Implementation notes:
   `(id, manifest)` pairs instead of on-disk workspace discovery. This is the one real
   pacquet-side feature addition; it mirrors what the TS `mutateModules` has always
   accepted (`allProjects` with in-memory manifests).
-- Build ordering: Rust's `graph_sequencer`/`build_sequence` handles lifecycle ordering;
-  callers do not pass `buildIndex` (Bit's `groupPkgs`/`sortProjects` dance is dropped).
+- Build ordering: Rust's `graph_sequencer`/`build_graph` handles lifecycle ordering;
+  callers pass project dependencies instead of a `buildIndex`.
 - `readPackageHook` maps onto the existing `PnpmfileHooks` seam via a `ThreadsafeFunction`
   that serializes the manifest to JSON and deserializes the synchronous JS result. The JS
   side receives `(manifest)` for dependency manifests. Importer-manifest transforms that
@@ -337,12 +337,16 @@ Dropped from consumers: `@pnpm/installing.deps-installer`, `@pnpm/installing.cli
     the global `networkConcurrency` semaphore stays the outer bound.
   - `enableModulesDir: false` → pacquet's lockfile-only path (resolve + write
     lockfile, materialize no `node_modules`).
-  - `ignorePackageManifest` → pacquet's existing `ignore_manifest_check` (skip
-    the manifest↔lockfile freshness gate). pnpm additionally skips the
-    project-level linking phase (`pnpm fetch` semantics); a fuller native port
-    of that is a follow-up.
-  - `pnpmHomeDir` → accepted and ignored; only global flows consult it and the
-    binding drives project installs.
+  - `ignorePackageManifest` → the full `pnpm fetch` shape: the frozen path
+    against the lockfile alone (`ignore_manifest_check` skips the
+    manifest↔lockfile freshness gate), `virtual_store_only` (no importer
+    symlinks, `.bin` entries, hoisting, or project lifecycle scripts), a
+    forced-on modules dir, and `ProjectMutation::NoInstall` — the same
+    settings both stacks' fetch handlers pin.
+  - `pnpmHomeDir` → the home directory the default store location resolves
+    under when no `storeDir` is configured
+    (`Config::resolve_store_dir_from_home`, pnpm's `getStorePath`
+    semantics). An explicit or cascade-configured `storeDir` wins.
 
 - **`install` remaining work** (additive; core pipeline + hook + multi-importer
   + build approval above are proven):

@@ -24,6 +24,7 @@ import {
 } from '@pnpm/lockfile.filtering'
 import type { LockfileObject } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
+import { createRemoteSideEffectsRestorer } from '@pnpm/pnpr.client'
 import type { StoreController, TarballResolution } from '@pnpm/store.controller-types'
 import type {
   AllowBuild,
@@ -31,6 +32,8 @@ import type {
   HoistedDependencies,
   ProjectId,
   RegistriesByScope,
+  RegistryConfig,
+  RemoteSideEffectsCacheSettings,
   SupportedArchitectures,
 } from '@pnpm/types'
 import { symlinkAllModules } from '@pnpm/worker'
@@ -67,6 +70,9 @@ export interface LinkPackagesOptions {
   registriesByScope: RegistriesByScope
   rootModulesDir: string
   sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
   skipRuntimes?: boolean
@@ -163,6 +169,9 @@ export async function linkPackages (projects: ImporterToUpdate[], depGraph: Depe
       lockfileDir: opts.lockfileDir,
       optional: opts.include.optionalDependencies,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
+      pnprServer: opts.pnprServer,
+      configByUri: opts.configByUri,
       symlink: opts.symlink,
       skipped: opts.skipped,
       storeController: opts.storeController,
@@ -335,6 +344,9 @@ interface LinkNewPackagesOptions {
   ignoreScripts: boolean
   lockfileDir: string
   sideEffectsCacheRead: boolean
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+  pnprServer?: string
+  configByUri: Record<string, RegistryConfig>
   symlink: boolean
   skipped: Set<DepPath>
   storeController: StoreController
@@ -452,6 +464,9 @@ async function linkNewPackages (
       ignoreScripts: opts.ignoreScripts,
       lockfileDir: opts.lockfileDir,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
+      remoteSideEffectsCache: opts.remoteSideEffectsCache,
+      pnprServer: opts.pnprServer,
+      configByUri: opts.configByUri,
       supportedArchitectures: opts.supportedArchitectures,
     }),
   ])
@@ -509,6 +524,9 @@ async function linkAllPkgs (
     ignoreScripts: boolean
     lockfileDir: string
     sideEffectsCacheRead: boolean
+    remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
+    pnprServer?: string
+    configByUri: Record<string, RegistryConfig>
     supportedArchitectures?: SupportedArchitectures
   }
 ): Promise<void> {
@@ -517,20 +535,45 @@ async function linkAllPkgs (
   // rather than pnpm's own `process.version`. Computed once outside
   // the per-node loop.
   const nodeVersion = findRuntimeNodeVersion(Object.keys(opts.depGraph))
+  const restorer = createRemoteSideEffectsRestorer({
+    allowBuild: opts.allowBuild,
+    configByUri: opts.configByUri,
+    depsGraph: opts.depGraph,
+    depsStateCache: opts.depsStateCache,
+    ignoreScripts: opts.ignoreScripts,
+    nodeVersion,
+    pnprServer: opts.pnprServer,
+    settings: opts.remoteSideEffectsCache,
+    sideEffectsCacheRead: opts.sideEffectsCacheRead,
+    storeController,
+    supportedArchitectures: opts.supportedArchitectures,
+    warn: (message) => logger.warn({ message, prefix: opts.lockfileDir }),
+  })
   await Promise.all(
     depNodes.map(async (depNode): Promise<undefined> => {
       const { files } = await depNode.fetching()
-
       depNode.requiresBuild = files.requiresBuild
-      let sideEffectsCacheKey: string | undefined
-      if (opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
+      let sideEffectsCacheKey = await restorer?.restore({
+        graphKey: depNode.depPath,
+        depPath: depNode.depPath,
+        files,
+        filesIndexFile: depNode.filesIndexFile,
+        name: depNode.name,
+        patchFileHash: depNode.patch?.hash,
+        resolution: depNode.resolution,
+        version: depNode.version,
+      })
+      if (sideEffectsCacheKey == null && opts.sideEffectsCacheRead && files.sideEffectsMaps && !isEmpty(files.sideEffectsMaps)) {
         if (opts.allowBuild?.(depNode.depPath) === true) {
-          sideEffectsCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
-            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild, // true when is built
+          const localCacheKey = calcDepState(opts.depGraph, opts.depsStateCache, depNode.depPath, {
+            includeDepGraphHash: !opts.ignoreScripts && depNode.requiresBuild === true,
             patchFileHash: depNode.patch?.hash,
             supportedArchitectures: opts.supportedArchitectures,
             nodeVersion,
           })
+          if (files.sideEffectsDiffs?.get(localCacheKey)?.remoteOrigin == null) {
+            sideEffectsCacheKey = localCacheKey
+          }
         }
       }
       const { importMethod, isBuilt } = await storeController.importPackage(depNode.dir, {

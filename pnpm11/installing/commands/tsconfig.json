@@ -157,6 +157,9 @@
       "path": "../../text/ordinal-comparator"
     },
     {
+      "path": "../../text/sanitize"
+    },
+    {
       "path": "../../worker"
     },
     {
@@ -182,6 +185,9 @@
     },
     {
       "path": "../../workspace/state"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
     },
     {
       "path": "../../workspace/workspace-manifest-reader"

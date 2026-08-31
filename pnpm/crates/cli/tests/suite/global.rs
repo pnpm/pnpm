@@ -188,6 +188,7 @@ fn global_shims_all_prefers_local_bins() {
     std::os::unix::fs::symlink("../@foo/touch-file-one-bin/cli.sh", &local_bin).unwrap();
 
     let output = Command::new(&shim_path)
+        .without_ambient_pnpm_config()
         .with_current_dir(&project)
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("XDG_STATE_HOME", root.path().join("state"))
@@ -1032,29 +1033,161 @@ fn global_interactive_update_without_a_matching_group() {
     drop(root);
 }
 
-/// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`.
+/// `pacquet add -g pnpm` is rejected — pnpm is managed via `self-update`. An
+/// `npm:` alias installs pnpm under another name, but the package still carries
+/// pnpm's own `pnpm` bin, so it is rejected the same way. A comma-separated
+/// group is a request to install each of its tokens, so pnpm hiding inside one
+/// is caught as well.
 #[test]
 fn global_add_pnpm_is_rejected() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
 
-    let output = Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(&workspace)
-        .with_env("PNPM_HOME", &pnpm_home)
-        .with_arg("add")
-        .with_arg("-g")
-        .with_arg("pnpm")
-        .output()
-        .expect("run add -g pnpm");
+    for selector in [
+        "pnpm",
+        "@pnpm/exe",
+        "pnpm@12",
+        "my-pnpm@npm:pnpm@12",
+        "pnpm,lodash",
+        "lodash,my-pnpm@npm:pnpm@12",
+    ] {
+        let output = Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .with_env("PNPM_HOME", &pnpm_home)
+            .with_arg("add")
+            .with_arg("-g")
+            .with_arg(selector)
+            .output()
+            .expect("run add -g");
 
-    assert!(!output.status.success(), "add -g pnpm must fail");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        stderr.contains("self-update"),
-        "the failure should point at self-update, got: {stderr}",
-    );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "add -g {selector} must fail, got: {stderr}");
+        assert!(
+            stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
+                && stderr
+                    .contains(r#"Use the "pnpm self-update" command to install or update pnpm"#),
+            "add -g {selector} must report the self-update diagnostic, got: {stderr}",
+        );
+    }
 
     drop(root);
+}
+
+/// `pnpm update -g pnpm` is rejected — pnpm is managed via `self-update`. The
+/// interactive form goes through its own selection path, so it is covered too.
+#[cfg(unix)]
+#[test]
+fn global_update_pnpm_is_rejected() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
+
+    for selector in ["pnpm", "@pnpm/exe", "pnpm@12", "my-pnpm@npm:pnpm@12"] {
+        for extra_args in [&[][..], &["-i"][..]] {
+            let output = global_command(&workspace, &pnpm_home)
+                .with_args(["update", "-g", selector])
+                .with_args(extra_args)
+                .output()
+                .expect("run update -g");
+
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(!output.status.success(), "update -g {selector} must fail, got: {stderr}");
+            assert!(
+                stderr.contains("ERR_PNPM_GLOBAL_PNPM_INSTALL")
+                    && stderr.contains(
+                        r#"Use the "pnpm self-update" command to install or update pnpm"#
+                    ),
+                "update -g {selector} must report the self-update diagnostic, got: {stderr}",
+            );
+        }
+    }
+
+    drop(root);
+}
+
+/// `pnpm self-update` owns the pnpm CLI's global install: it is what points
+/// the pnpm home's bins at a release. Reinstalling that group from `update -g`
+/// would resolve pnpm from the `latest` dist-tag and relink the bins, rolling
+/// the running pnpm back to whatever `latest` points at (pnpm/pnpm#14270).
+#[cfg(unix)]
+#[test]
+fn global_update_leaves_the_pnpm_cli_group_to_self_update() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    // The group `self-update` leaves behind: a hash symlink to an install dir
+    // whose only dependency is the pnpm CLI wrapper.
+    let global_pkg_dir = pnpm_home.join("global/v11");
+    let install_dir = global_pkg_dir.join("pnpm-cli-install");
+    fs::create_dir_all(&install_dir).expect("create the pnpm CLI install dir");
+    fs::write(install_dir.join("package.json"), r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#)
+        .expect("write the pnpm CLI group manifest");
+    std::os::unix::fs::symlink(&install_dir, global_pkg_dir.join("hash-pnpm-cli"))
+        .expect("link the pnpm CLI group");
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .output()
+        .expect("run update -g --latest");
+
+    assert!(
+        output.status.success(),
+        "update -g should succeed: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("No global packages to update"),
+        "the pnpm CLI group must be left to self-update, got: {stdout}",
+    );
+    assert_eq!(
+        fs::read_to_string(install_dir.join("package.json")).expect("read the group manifest"),
+        r#"{"dependencies":{"@pnpm/exe":"11.24.0"}}"#,
+        "the pnpm CLI group must be left untouched",
+    );
+
+    drop((root, npmrc_info));
+}
+
+/// `--latest` resolves the `latest` dist-tag, which can point at an older
+/// release than the one installed — that is what rolled a self-updated pnpm
+/// back in pnpm/pnpm#14270. An update must never move a global package
+/// backwards.
+#[cfg(unix)]
+#[test]
+fn global_update_latest_keeps_a_package_that_latest_would_downgrade() {
+    use assert_cmd::assert::OutputAssertExt;
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    let pnpm_home = root.path().join("pnpm-home");
+    prepare_global_home(&pnpm_home, &npmrc_info);
+
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "2.1.0", "latest");
+    global_command(&workspace, &pnpm_home)
+        .with_args(["add", "-g", "@pnpm.e2e/multi-version-a@2.1.0"])
+        .assert()
+        .success();
+    npmrc_info.set_dist_tag("@pnpm.e2e/multi-version-a", "1.0.0", "latest");
+
+    global_command(&workspace, &pnpm_home)
+        .with_args(["update", "-g", "--latest"])
+        .assert()
+        .success();
+
+    let output = global_command(&workspace, &pnpm_home)
+        .with_args(["list", "-g"])
+        .output()
+        .expect("run list -g");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("@pnpm.e2e/multi-version-a@2.1.0"),
+        "the installed version must be kept, got: {stdout}",
+    );
+
+    drop((root, npmrc_info));
 }

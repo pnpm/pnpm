@@ -98,7 +98,17 @@ function createDistNodeModules () {
     'deploy',
     DEPLOY_DIR
   ].join(' ')
-  execSync(pnpmDeploy, { cwd: WORKSPACE_DIR, stdio: 'inherit' })
+  execSync(pnpmDeploy, {
+    cwd: WORKSPACE_DIR,
+    stdio: 'inherit',
+    // The hoisted node linker turns preferSymlinkedExecutables on, which makes
+    // node_modules/.bin a directory of symlinks — and a symlink cannot travel
+    // inside an npm tarball, so every bin would silently disappear from the
+    // published dist/node_modules/.bin. Shell shims survive packing. Passed
+    // through the environment rather than as `--config.` because the release-
+    // pinned pnpm ignores that flag for this setting.
+    env: { ...process.env, pnpm_config_prefer_symlinked_executables: 'false' },
+  })
 
   cleanupNodeModules(DEPLOY_DIR)
 

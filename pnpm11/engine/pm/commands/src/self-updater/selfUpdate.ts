@@ -3,18 +3,17 @@ import path from 'node:path'
 
 import { confirm } from '@inquirer/prompts'
 import { linkBins } from '@pnpm/bins.linker'
-import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import { isExecutedByCorepack, packageManager, standaloneInstallCommand } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
 import { type Config, type ConfigContext, getPackageManagerBootstrapConfig, parsePackageManager, shouldPersistLockfile, types as allTypes } from '@pnpm/config.reader'
-import { createPackageVersionPolicyOrThrow, getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { PnpmError } from '@pnpm/error'
-import { createResolver, policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
+import { policyViolationToError, type ResolutionPolicyViolation } from '@pnpm/installing.client'
 import { resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalInfo, globalWarn } from '@pnpm/logger'
 import { inferRangeSpecStyle, versionWithRangeSpecStyle } from '@pnpm/pkg-manifest.utils'
 import { MINIMUM_RELEASE_AGE_VIOLATION_CODE } from '@pnpm/resolving.npm-resolver'
-import { createStoreController, type CreateStoreControllerOptions, shouldFetchFullMetadata } from '@pnpm/store.connection-manager'
+import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import { readProjectManifest } from '@pnpm/workspace.project-manifest-reader'
 import { isCI } from 'ci-info'
 import { pick } from 'ramda'
@@ -22,6 +21,7 @@ import { renderHelp } from 'render-help'
 import semver from 'semver'
 
 import { assertReleaseIsInstallable, findGlobalPnpmInstallDir, installPnpm, pnpmPackageNameToInstall } from './installPnpm.js'
+import { resolvePnpmVersion } from './resolvePnpmVersion.js'
 
 export function rcOptionsTypes (): Record<string, unknown> {
   return pick([], allTypes)
@@ -81,37 +81,12 @@ export async function handler (
   params: string[]
 ): Promise<undefined | string> {
   if (isExecutedByCorepack()) {
-    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'You should update pnpm with corepack')
+    throw new PnpmError('CANT_SELF_UPDATE_IN_COREPACK', 'pnpm cannot update itself when it is executed by Corepack', {
+      hint: `Install pnpm with the standalone script instead: ${standaloneInstallCommand()}`,
+    })
   }
   globalInfo('Checking for updates...')
-  // Resolve the engine version exactly as a regular install would.
-  // `minimumReleaseAge` is not part of `shouldFetchFullMetadata` because the
-  // resolver upgrades abbreviated metadata to full on demand for the
-  // maturity check, so it isn't requested up front here.
-  const fullMetadata = shouldFetchFullMetadata(opts)
-  // Every request self-update makes goes through the trusted package-manager
-  // bootstrap config — the same channel version switching uses — so a
-  // repo-controlled `.npmrc` or workspace manifest cannot redirect the pnpm
-  // download or attach its own credentials to it.
   const bootstrapConfig = getPackageManagerBootstrapConfig(opts)
-  const { resolve } = createResolver({
-    ...opts,
-    ...bootstrapConfig,
-    fullMetadata,
-    filterMetadata: fullMetadata,
-    ignoreMissingTimeField: opts.minimumReleaseAgeIgnoreMissingTime,
-  })
-  const pkgName = 'pnpm'
-  // The running version is already on this machine, so hiding it behind the
-  // maturity cutoff protects nothing — it only makes a dist-tag that points
-  // at it fall back to an older release, downgrading the user (pnpm/pnpm#13883).
-  const { publishedBy, publishedByExclude } = getPublishedByPolicy({
-    ...opts,
-    minimumReleaseAgeExclude: [
-      ...opts.minimumReleaseAgeExclude ?? [],
-      `${pkgName}@${packageManager.version}`,
-    ],
-  })
   // `pnpm self-update` (no args) defaults to the `latest` dist-tag, but we
   // refuse to downgrade in that case — `latest` on the registry can lag the
   // installed version when a new major has shipped without being tagged.
@@ -119,26 +94,15 @@ export async function handler (
   // still force a downgrade when they want one.
   const isImplicitLatest = params.length === 0
   const bareSpecifier = params[0] ?? 'latest'
-  const resolution = await resolve({ alias: pkgName, bareSpecifier }, {
-    lockfileDir: opts.lockfileDir ?? opts.dir,
-    preferredVersions: {},
-    projectDir: opts.dir,
-    publishedBy,
-    publishedByExclude,
-    // Unlike `dlx` (whose real install re-resolves through the store
-    // controller), this `resolve` is self-update's only version selection,
-    // so the trust policy has to be passed here for the no-downgrade check
-    // to run.
-    trustPolicy: opts.trustPolicy,
-    trustPolicyExclude: opts.trustPolicyExclude
-      ? createPackageVersionPolicyOrThrow(opts.trustPolicyExclude, 'trustPolicyExclude')
-      : undefined,
-    trustPolicyIgnoreAfter: opts.trustPolicyIgnoreAfter,
-  })
-  if (!resolution?.manifest) {
+  const resolved = await resolvePnpmVersion(opts, bareSpecifier)
+  if (resolved == null) {
     throw new PnpmError('CANNOT_RESOLVE_PNPM', `Cannot find "${bareSpecifier}" version of pnpm`)
   }
-  await enforceResolutionPolicy(resolution.policyViolation, opts)
+  await enforceResolutionPolicy(resolved.policyViolation, opts)
+  const targetVersion = resolved.version
+  // Before the pin below is written, not just before the install: the pin is
+  // shared, so a release this wrapper survives can still break a teammate's.
+  assertReleaseIsInstallable(targetVersion)
 
   // Determine the "previous" pnpm version being upgraded FROM. If the
   // project pins pnpm via `packageManager`/`devEngines.packageManager`,
@@ -146,10 +110,6 @@ export async function handler (
   // be at a newer major (e.g. a globally-installed v11 operating on a
   // project still pinned to v10). Otherwise fall back to the running
   // binary. Skip the hint entirely on a no-op (target === previous).
-  const targetVersion = resolution.manifest.version
-  // Before the pin below is written, not just before the install: the pin is
-  // shared, so a release this wrapper survives can still break a teammate's.
-  assertReleaseIsInstallable(targetVersion)
   let previousVersion: string | undefined
   if (opts.wantedPackageManager?.name === packageManager.name) {
     if (opts.wantedPackageManager.version !== targetVersion) {
@@ -168,14 +128,14 @@ export async function handler (
   }
 
   if (opts.wantedPackageManager?.name === packageManager.name) {
-    if (opts.wantedPackageManager?.version !== resolution.manifest.version) {
+    if (opts.wantedPackageManager?.version !== targetVersion) {
       if (isImplicitLatest) {
         // Prefer the lockfile-pinned version when available — for range
         // specs like `>=8.0.0`, the spec's lower bound understates the
         // version that was actually installed (see #11418 review).
         const projectCurrentVersion = await readProjectPinnedPnpmVersion(opts.rootProjectManifestDir, opts.wantedPackageManager?.version)
-        if (projectCurrentVersion != null && semver.lt(resolution.manifest.version, projectCurrentVersion)) {
-          return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+        if (projectCurrentVersion != null && semver.lt(targetVersion, projectCurrentVersion)) {
+          return `The current project is set to use pnpm v${projectCurrentVersion}, which is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
         }
       }
       const { manifest, writeProjectManifest } = await readProjectManifest(opts.rootProjectManifestDir)
@@ -197,15 +157,15 @@ export async function handler (
           : devEnginesPm.name === 'pnpm' ? devEnginesPm : undefined
         if (pnpmEntry) {
           const updated = legacyPinsPnpm
-            ? resolution.manifest.version
-            : updateVersionConstraint(pnpmEntry.version, resolution.manifest.version)
+            ? targetVersion
+            : updateVersionConstraint(pnpmEntry.version, targetVersion)
           if (updated !== pnpmEntry.version) {
             pnpmEntry.version = updated
             manifestChanged = true
           }
         }
         if (legacyPinsPnpm) {
-          const newLegacy = `pnpm@${resolution.manifest.version}`
+          const newLegacy = `pnpm@${targetVersion}`
           if (manifest.packageManager !== newLegacy) {
             manifest.packageManager = newLegacy
             manifestChanged = true
@@ -214,7 +174,7 @@ export async function handler (
         if (manifestChanged) await writeProjectManifest(manifest)
         if (shouldPersistLockfile({ ...opts.wantedPackageManager, fromDevEngines: true })) {
           const store = await createStoreController({ ...opts, ...bootstrapConfig })
-          await resolvePackageManagerIntegrities(resolution.manifest.version, {
+          await resolvePackageManagerIntegrities(targetVersion, {
             registriesByScope: bootstrapConfig.registriesByScope,
             rootDir: opts.rootProjectManifestDir,
             storeController: store.ctrl,
@@ -222,40 +182,40 @@ export async function handler (
           })
         }
       } else {
-        manifest.packageManager = `pnpm@${resolution.manifest.version}`
+        manifest.packageManager = `pnpm@${targetVersion}`
         await writeProjectManifest(manifest)
       }
-      return `The current project has been updated to use pnpm v${resolution.manifest.version}`
+      return `The current project has been updated to use pnpm v${targetVersion}`
     } else {
-      return `The current project is already set to use pnpm v${resolution.manifest.version}`
+      return `The current project is already set to use pnpm v${targetVersion}`
     }
   }
   // Version equality with the running binary alone must not skip the
   // update: a removed global install can be recovered by running a local
   // pnpm of the same version (see pnpm/pnpm#12877).
   if (
-    resolution.manifest.version === packageManager.version &&
-    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(resolution.manifest.version), resolution.manifest.version) != null
+    targetVersion === packageManager.version &&
+    await findGlobalPnpmInstallDir(opts.globalPkgDir, pnpmPackageNameToInstall(targetVersion), targetVersion) != null
   ) {
     return `The currently active ${packageManager.name} v${packageManager.version} is already "${bareSpecifier}" and doesn't need an update`
   }
 
-  if (isImplicitLatest && semver.lt(resolution.manifest.version, packageManager.version)) {
-    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${resolution.manifest.version}). No update performed. Run "pnpm self-update latest" to downgrade.`
+  if (isImplicitLatest && semver.lt(targetVersion, packageManager.version)) {
+    return `The currently active ${packageManager.name} v${packageManager.version} is newer than the "latest" version on the registry (v${targetVersion}). No update performed. Run "pnpm self-update latest" to downgrade.`
   }
 
-  globalInfo(`Switching pnpm from v${packageManager.version} to v${resolution.manifest.version}...`)
+  globalInfo(`Switching pnpm from v${packageManager.version} to v${targetVersion}...`)
   const store = await createStoreController({ ...opts, ...bootstrapConfig })
 
   // Resolve integrities and write env lockfile to pnpm-lock.yaml
-  const envLockfile = await resolvePackageManagerIntegrities(resolution.manifest.version, {
+  const envLockfile = await resolvePackageManagerIntegrities(targetVersion, {
     registriesByScope: bootstrapConfig.registriesByScope,
     rootDir: opts.pnpmHomeDir,
     storeController: store.ctrl,
     storeDir: store.dir,
   })
 
-  const { baseDir, alreadyExisted } = await installPnpm(resolution.manifest.version, {
+  const { baseDir, alreadyExisted } = await installPnpm(targetVersion, {
     ...opts,
     ...bootstrapConfig,
     envLockfile,
@@ -284,9 +244,9 @@ export async function handler (
   }
 
   if (alreadyExisted) {
-    return `The ${bareSpecifier} version, v${resolution.manifest.version}, is already present on the system. It was activated by linking it from ${baseDir}.`
+    return `The ${bareSpecifier} version, v${targetVersion}, is already present on the system. It was activated by linking it from ${baseDir}.`
   }
-  return `Successfully updated pnpm to v${resolution.manifest.version}`
+  return `Successfully updated pnpm to v${targetVersion}`
 }
 
 /**

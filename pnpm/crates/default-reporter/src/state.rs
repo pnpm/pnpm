@@ -21,7 +21,10 @@ use pnpm_reporter::{
 };
 use serde_json::Value;
 
-use pnpm_config::matcher::{Matcher, create_matcher};
+use pnpm_config::{
+    matcher::{Matcher, create_matcher},
+    standalone_install_command,
+};
 
 use crate::{
     MaxLogLevel, SummaryScope,
@@ -1214,9 +1217,7 @@ impl ReporterState {
             latest = self.colors.green(&log.latest_version),
             changelog = self.colors.magenta("Changelog:"),
             version = log.latest_version,
-            command = self
-                .colors
-                .magenta(&update_command(detect_install_source(), &log.latest_version)),
+            command = self.colors.magenta(&update_command(detect_install_source())),
         ));
     }
 
@@ -1586,15 +1587,17 @@ fn detect_install_source() -> PnpmInstallSource {
 
 /// pnpm's `renderUpdateCommand`: the command that updates the pnpm the
 /// user is running.
-///
-/// pnpm names `@pnpm/exe` in the last case when it is running as a single
-/// executable. From v12 the native binary is published only as `pnpm`, so
-/// it always names `pnpm`.
-fn update_command(source: PnpmInstallSource, latest_version: &str) -> String {
+fn update_command(source: PnpmInstallSource) -> String {
     match source {
-        PnpmInstallSource::Corepack => format!("corepack use pnpm@{latest_version}"),
         PnpmInstallSource::PnpmHome => "pnpm self-update".to_string(),
-        PnpmInstallSource::Elsewhere => "pnpm add -g pnpm".to_string(),
+        // `self-update` replaces the pnpm that `PNPM_HOME` manages. Corepack
+        // refuses it outright, and an install another package manager owns is
+        // resolved from that manager's bin directory rather than pnpm's home,
+        // so a self-update would land beside the executable in use instead of
+        // replacing it. The installer is the command that updates either one.
+        PnpmInstallSource::Corepack | PnpmInstallSource::Elsewhere => {
+            standalone_install_command().to_string()
+        }
     }
 }
 

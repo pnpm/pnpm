@@ -294,7 +294,7 @@ async fn removes_token_locally_when_fetch_errors() {
 }
 
 #[tokio::test]
-async fn warns_when_token_is_not_in_auth_ini() {
+async fn warns_when_the_token_is_in_no_file_pnpm_owns() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -318,10 +318,10 @@ async fn warns_when_token_is_not_in_auth_ini() {
     .unwrap();
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
-    assert!(WRITES.lock().unwrap().is_empty(), "auth.ini must not be written");
+    assert!(WRITES.lock().unwrap().is_empty(), "no file pnpm owns must be written");
     let warnings = warns(&EVENTS);
     let warning = warnings.first().expect("a warning was emitted");
-    let expected_path = Path::new("/config").join("auth.ini");
+    let expected_path = Path::new("/config").join("config.yaml");
     assert!(warning.contains(&format!("was not found in {}", expected_path.display())));
     assert!(warning.contains("The token was revoked on the registry but must be removed manually"));
 }
@@ -362,7 +362,7 @@ async fn throws_when_registry_call_fails_and_token_not_in_auth_ini() {
 }
 
 #[tokio::test]
-async fn warns_when_auth_ini_does_not_exist() {
+async fn warns_when_neither_file_exists() {
     recording_reporter!(Rep, EVENTS);
     sys_fake!(
         Sys,
@@ -387,7 +387,7 @@ async fn warns_when_auth_ini_does_not_exist() {
 
     assert_eq!(result, "Logged out of https://registry.npmjs.org/");
     let warnings = warns(&EVENTS);
-    let expected_path = Path::new("/nonexistent/config").join("auth.ini");
+    let expected_path = Path::new("/nonexistent/config").join("config.yaml");
     assert!(warnings[0].contains(&format!("was not found in {}", expected_path.display())));
 }
 
@@ -415,8 +415,8 @@ async fn propagates_non_not_found_read_errors() {
     .await
     .unwrap_err();
 
-    let LogoutError::ReadAuthIni { error, .. } = &err else {
-        panic!("expected ReadAuthIni, got {err:?}");
+    let LogoutError::ReadConfigYaml { error, .. } = &err else {
+        panic!("expected ReadConfigYaml, got {err:?}");
     };
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
@@ -826,4 +826,65 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for CaptureWriter {
     fn make_writer(&'a self) -> Self::Writer {
         self.clone()
     }
+}
+
+/// A `config.yaml` that cannot be read must not strand the copy of the token
+/// in `auth.ini`: the two files are independent, and a credential pnpm would
+/// still send is worse than a logout that reports trouble. Uses a hand-rolled
+/// fake rather than `sys_fake!` because it is the only test whose two files
+/// answer differently.
+#[tokio::test]
+async fn a_broken_config_yaml_still_lets_the_legacy_token_go() {
+    static WRITES: Mutex<Vec<(std::path::PathBuf, String)>> = Mutex::new(Vec::new());
+    WRITES.lock().unwrap().clear();
+    struct Sys;
+    impl FsReadToString for Sys {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            if path.file_name().is_some_and(|name| name == "config.yaml") {
+                return Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"));
+            }
+            Ok("//registry.npmjs.org/:_authToken=stale-token\nother=value\n".to_string())
+        }
+    }
+    impl FsWrite for Sys {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            let text = String::from_utf8(bytes.to_vec()).expect("written auth.ini is UTF-8");
+            WRITES.lock().unwrap().push((path.to_path_buf(), text));
+            Ok(())
+        }
+    }
+    impl RevokeToken for Sys {
+        async fn revoke(
+            _client: &ThrottledClient,
+            _url: &str,
+            _token: &str,
+            _retry: RetryOpts,
+        ) -> RevokeOutcome {
+            RevokeOutcome::Revoked
+        }
+    }
+
+    let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "stale-token")]);
+    let err = logout::<Sys, SilentReporter>(
+        &unused_client(),
+        LogoutOptions {
+            registry: None,
+            auth_config: &auth,
+            config_dir: Path::new("/broken/config"),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, LogoutError::ReadConfigYaml { .. }),
+        "the unreadable config must still be reported, got {err:?}",
+    );
+    let writes = WRITES.lock().unwrap().clone();
+    let (path, text) = writes.first().expect("auth.ini must still be rewritten");
+    assert_eq!(path, &Path::new("/broken/config").join("auth.ini"));
+    assert!(!text.contains("stale-token"), "the legacy token must be gone: {text:?}");
+    assert!(text.contains("other=value"), "the rest of auth.ini must survive: {text:?}");
 }

@@ -45,6 +45,10 @@ pub(crate) struct RunCtx<'a> {
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
     pub(crate) if_present: bool,
+    /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
+    /// command, so a `package.json` script of the same name must not
+    /// override it. See [`crate::pm_prefix`].
+    pub(crate) builtin_command_forced: bool,
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but anchored at the pnpm home dir instead of
     /// `--dir`, so a `-g` install can't inherit the caller project's
@@ -136,7 +140,7 @@ impl CliArgs {
         let Ok(mut config) = loaded else {
             return false;
         };
-        config_overrides.apply(&mut config);
+        config_overrides.apply(&mut config, &dir);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -174,8 +178,14 @@ impl CliArgs {
     /// tokens already stripped from argv by [`ConfigOverrides::extract`];
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
     /// `Config` is loaded, mirroring pnpm 11's
-    /// "CLI > yaml > .npmrc > defaults" precedence.
-    pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+    /// "CLI > yaml > .npmrc > defaults" precedence. `builtin_command_forced`
+    /// carries the `pm` prefix stripped from argv by
+    /// [`crate::pm_prefix::strip_prefix`].
+    pub async fn run(
+        self,
+        config_overrides: &ConfigOverrides,
+        builtin_command_forced: bool,
+    ) -> miette::Result<()> {
         if self.run_completion_if_requested()? {
             return Ok(());
         }
@@ -286,7 +296,7 @@ impl CliArgs {
         // including `self-update`'s.
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
-                config_overrides.apply(&mut cfg);
+                config_overrides.apply(&mut cfg, anchor);
                 cfg.color = if let Some(color) = color {
                     color
                 } else if no_color {
@@ -437,6 +447,7 @@ impl CliArgs {
             recursive_report_summary: report_summary,
             recursive_parallel: parallel,
             if_present,
+            builtin_command_forced,
             config: &config,
             global_config: &global_config,
             config_self_update: &config_self_update,
@@ -582,7 +593,11 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
 }
 
 fn prints_json_errors(command: &CliCommand) -> bool {
-    matches!(command, CliCommand::Publish(args) if args.flags.json)
+    match command {
+        CliCommand::Publish(args) => args.flags.json,
+        CliCommand::View(args) => args.json,
+        _ => false,
+    }
 }
 
 fn print_json_error(error: &miette::Report) {

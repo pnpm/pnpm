@@ -1,6 +1,6 @@
 use deno_task_shell::{
-    KillSignal, ShellPipeReader, ShellPipeWriter, ShellState, execute_with_pipes, parser,
-    parser::SequentialList, pipe,
+    KillSignal, ShellPipeReader, ShellPipeWriter, ShellState, SignalKind, execute_with_pipes,
+    parser, parser::SequentialList, pipe,
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -13,6 +13,8 @@ use std::{
     thread,
 };
 use tokio::{runtime::Builder, task::LocalSet};
+
+use crate::process_tracker::{EmulatedCancellation, ProcessTracker};
 
 /// Failure to run a script under the `shellEmulator` setting. A script
 /// that runs and exits non-zero is not an error here — the exit code is
@@ -56,6 +58,7 @@ pub fn execute_emulated(
     cwd: &Path,
     env: &HashMap<String, String>,
     output: EmulatedOutput<'_>,
+    process_tracker: Option<&ProcessTracker>,
 ) -> Result<i32, ShellEmulatorError> {
     let list = parser::parse(script).map_err(|error| ShellEmulatorError::Parse {
         script: script.to_string(),
@@ -67,6 +70,8 @@ pub fn execute_emulated(
     let cwd = path::absolute(cwd)
         .map_err(|source| ShellEmulatorError::Start { script: script.to_string(), source })?;
     let env = env.iter().map(|(key, value)| (OsString::from(key), OsString::from(value))).collect();
+    let cancellation = process_tracker.map(ProcessTracker::track_emulated);
+    let receiver = cancellation.as_ref().map(EmulatedCancellation::receiver);
 
     match output {
         EmulatedOutput::Inherit => run_to_completion(
@@ -76,6 +81,7 @@ pub fn execute_emulated(
             cwd,
             ShellPipeWriter::stdout(),
             ShellPipeWriter::stderr(),
+            receiver,
         ),
         EmulatedOutput::Lines(sink) => thread::scope(|scope| {
             let (stdout_reader, stdout_writer) = pipe();
@@ -87,7 +93,8 @@ pub fn execute_emulated(
 
             // Both writers are consumed by the run, so the pumps see EOF
             // as soon as it returns and the joins below finish promptly.
-            let code = run_to_completion(script, list, env, cwd, stdout_writer, stderr_writer);
+            let code =
+                run_to_completion(script, list, env, cwd, stdout_writer, stderr_writer, receiver);
             let _ = stdout_pump.join();
             let _ = stderr_pump.join();
             code
@@ -108,13 +115,23 @@ fn run_to_completion(
     cwd: PathBuf,
     stdout: ShellPipeWriter,
     stderr: ShellPipeWriter,
+    cancellation: Option<tokio::sync::watch::Receiver<bool>>,
 ) -> Result<i32, ShellEmulatorError> {
     let run = thread::spawn(move || {
         let runtime = Builder::new_current_thread().enable_all().build()?;
-        let state = ShellState::new(env, cwd, HashMap::new(), KillSignal::default());
+        let kill_signal = KillSignal::default();
+        let local_set = LocalSet::new();
+        if let Some(mut cancellation) = cancellation {
+            let cancellation_signal = kill_signal.clone();
+            local_set.spawn_local(async move {
+                if *cancellation.borrow_and_update() || cancellation.changed().await.is_ok() {
+                    cancellation_signal.send(SignalKind::SIGKILL);
+                }
+            });
+        }
+        let state = ShellState::new(env, cwd, HashMap::new(), kill_signal);
         let stdin = ShellPipeReader::stdin();
-        Ok(LocalSet::new()
-            .block_on(&runtime, execute_with_pipes(list, state, stdin, stdout, stderr)))
+        Ok(local_set.block_on(&runtime, execute_with_pipes(list, state, stdin, stdout, stderr)))
     });
 
     match run.join() {

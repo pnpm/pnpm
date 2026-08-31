@@ -2,9 +2,10 @@ use super::{
     DecodeError, EncodeError, EncodeState, FIRST_INNER_SLOT, PKG_FILES_INDEX_SLOT,
     RECORD_DEF_EXT_TYPE, SLOT_HI, encode_package_files_index, transcode_to_plain_msgpack,
 };
-use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff};
+use crate::{CafsFileInfo, PackageFilesIndex, RemoteSideEffectsOrigin, SideEffectsDiff};
+use pnpm_shared_artifact_protocol::{BuilderProfile, OwnerScope, SignedArtifactEnvelope};
 use pretty_assertions::assert_eq;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 fn decode(bytes: &[u8]) -> PackageFilesIndex {
     let plain = transcode_to_plain_msgpack(bytes).expect("transcode succeeds");
@@ -140,9 +141,11 @@ fn round_trips_plain_msgpack_through_transcoder() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: Some(false),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = rmp_serde::to_vec_named(&original).unwrap();
     let transcoded = transcode_to_plain_msgpack(&bytes).unwrap();
@@ -275,9 +278,11 @@ fn encode_emits_record_header_for_top_level_struct() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     assert_eq!(&bytes[0..3], &[0xd4, RECORD_DEF_EXT_TYPE, PKG_FILES_INDEX_SLOT]);
@@ -290,9 +295,11 @@ fn encode_roundtrips_single_file() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -306,9 +313,11 @@ fn encode_roundtrips_many_files_sharing_one_slot() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
@@ -334,9 +343,11 @@ fn encode_handles_fixint_in_slot_range_safely() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     assert_eq!(roundtrip(&original).files.get("f").unwrap().size, 0x7b);
 }
@@ -348,9 +359,11 @@ fn encode_omits_checked_at_when_none() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let needle = b"checkedAt";
@@ -370,9 +383,11 @@ fn encode_allocates_separate_slots_for_distinct_cafs_shapes() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
@@ -389,12 +404,29 @@ fn encode_requires_build_when_set() {
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let roundtripped = roundtrip(&original);
     assert_eq!(roundtripped.requires_build, Some(true));
+}
+
+#[test]
+fn encode_requires_prepare_when_set() {
+    let original = PackageFilesIndex {
+        manifest: None,
+        requires_build: Some(true),
+        requires_prepare: Some(true),
+        algo: "sha512".to_string(),
+        files: HashMap::new(),
+        side_effects: None,
+        remote_side_effects_quarantine: None,
+    };
+    let roundtripped = roundtrip(&original);
+    assert_eq!(roundtripped.requires_prepare, Some(true));
 }
 
 #[test]
@@ -412,9 +444,11 @@ fn encode_outer_field_order_matches_msgpackr() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     // Find the outer schema bytes: after `d4 72 40` (fixext1 +
@@ -440,9 +474,11 @@ fn encode_omits_requires_build_when_none() {
     let idx = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     let needle = b"requiresBuild";
@@ -459,16 +495,61 @@ fn encode_side_effects_roundtrip() {
     let mut side_effects = HashMap::new();
     side_effects.insert(
         "linux".to_string(),
-        SideEffectsDiff { added: Some(added), deleted: Some(vec!["bar.o".to_string()]) },
+        SideEffectsDiff {
+            added: Some(added),
+            deleted: Some(vec!["bar.o".to_string()]),
+            remote_origin: None,
+        },
     );
     let mut files = HashMap::new();
     files.insert("main.js".to_string(), sample_cafs(10, true));
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
+    };
+    assert_eq!(roundtrip(&original), original);
+}
+
+#[test]
+fn encode_remote_side_effects_origin_and_quarantine_roundtrip() {
+    let origin = RemoteSideEffectsOrigin {
+        channel: "https://pnpr.example/".to_string(),
+        owner: OwnerScope::organization("acme"),
+        signer_key_id: "acme-2026".to_string(),
+        builder_profile: BuilderProfile {
+            image_digest: Some("sha256:builder".to_string()),
+            architecture_baseline: "x64-v2".to_string(),
+            environment: BTreeMap::from([("CC".to_string(), "clang".to_string())]),
+        },
+        envelope: SignedArtifactEnvelope {
+            algorithm: "ecdsa-p256-sha256".to_string(),
+            key_id: "acme-2026".to_string(),
+            payload: "payload".to_string(),
+            signature: "signature".to_string(),
+        },
+        verification: "verified".to_string(),
+    };
+    let original = PackageFilesIndex {
+        algo: "sha512".to_string(),
+        files: HashMap::new(),
+        side_effects: Some(HashMap::from([(
+            "linux".to_string(),
+            SideEffectsDiff {
+                added: Some(HashMap::new()),
+                deleted: Some(Vec::new()),
+                remote_origin: Some(origin),
+            },
+        )])),
+        remote_side_effects_quarantine: Some(HashMap::from([(
+            "https://pnpr.example/".to_string(),
+            vec!["a".repeat(64), "b".repeat(64)],
+        )])),
+        ..Default::default()
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -478,13 +559,18 @@ fn encode_side_effects_with_only_added_omits_deleted_field() {
     let mut added = HashMap::new();
     added.insert("foo.so".to_string(), sample_cafs(42, true));
     let mut side_effects = HashMap::new();
-    side_effects.insert("linux".to_string(), SideEffectsDiff { added: Some(added), deleted: None });
+    side_effects.insert(
+        "linux".to_string(),
+        SideEffectsDiff { added: Some(added), deleted: None, remote_origin: None },
+    );
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     assert!(
@@ -499,18 +585,26 @@ fn encode_allocates_separate_slots_for_distinct_side_effects_shapes() {
     let mut linux_added = HashMap::new();
     linux_added.insert("foo.so".to_string(), sample_cafs(42, true));
     let mut side_effects = HashMap::new();
-    side_effects
-        .insert("linux".to_string(), SideEffectsDiff { added: Some(linux_added), deleted: None });
+    side_effects.insert(
+        "linux".to_string(),
+        SideEffectsDiff { added: Some(linux_added), deleted: None, remote_origin: None },
+    );
     side_effects.insert(
         "darwin".to_string(),
-        SideEffectsDiff { added: None, deleted: Some(vec!["bar.o".to_string()]) },
+        SideEffectsDiff {
+            added: None,
+            deleted: Some(vec!["bar.o".to_string()]),
+            remote_origin: None,
+        },
     );
     let original = PackageFilesIndex {
         manifest: None,
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: Some(side_effects),
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&original).unwrap();
     let record_def_headers =
@@ -551,9 +645,11 @@ fn encode_roundtrips_simple_manifest() {
     let original = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     assert_eq!(roundtrip(&original), original);
 }
@@ -576,9 +672,11 @@ fn encode_record_encodes_nested_objects_in_manifest() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
 
@@ -607,9 +705,11 @@ fn encode_shares_slot_for_same_shaped_nested_objects() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let bytes = encode_package_files_index(&idx).unwrap();
     let record_defs =
@@ -644,9 +744,11 @@ fn encode_roundtrips_all_json_value_kinds() {
     let idx = PackageFilesIndex {
         manifest: Some(manifest),
         requires_build: None,
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     assert_eq!(roundtrip(&idx), idx);
 }
@@ -661,9 +763,11 @@ fn encode_roundtrips_manifest_with_other_fields() {
     let original = PackageFilesIndex {
         manifest: Some(serde_json::json!({ "name": "x", "bin": "cli.js" })),
         requires_build: Some(true),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     assert_eq!(roundtrip(&original), original);
 }

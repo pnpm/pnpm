@@ -376,6 +376,7 @@ impl PublishArgs {
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
             before_packing_hooks,
             injected_files: Vec::new(),
+            output_locks: None,
         };
         crate::cli_args::pack::set_injected_changelog(&mut options, config, dir).await?;
         pack_api::<Reporter, PackHost>(&options)

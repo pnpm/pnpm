@@ -18,6 +18,7 @@ pnpm-resolving-parse-wanted-dependency = { workspace = true }
 derive_more = { workspace = true }
 dunce       = { workspace = true }
 miette      = { workspace = true }
+node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
 same-file   = { workspace = true }

@@ -975,7 +975,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -1855,7 +1855,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2773,9 +2773,9 @@ dependencies = [
 
 [[package]]
 name = "ignore"
-version = "0.4.26"
+version = "0.4.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b915661dd01db3f05050265b2477bcc6527b3792388e2749b41623cc592be67d"
+checksum = "0b17771570a2b94107741a7b033f19132c2eee21d59d21b24d2ced26500bd66e"
 dependencies = [
  "crossbeam-deque",
  "globset",
@@ -2882,7 +2882,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi",
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3069,7 +3069,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8cfc352a66ba903c23239ef51e809508b6fc2b0f90e3476ac7a9ff47e863ae95"
 dependencies = [
  "scopeguard",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3079,7 +3079,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "160f2eade097f30263b548aae5deb12ad349c909baa710fa24b92c9090b2e006"
 dependencies = [
  "scopeguard",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3710,7 +3710,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4331,13 +4331,16 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "pipe-trait",
+ "pnpm-config",
  "pnpm-fs",
  "pnpm-network",
  "pnpm-network-web-auth",
  "pnpm-network-web-auth-testing",
  "pnpm-reporter",
+ "pnpm-workspace-manifest-writer",
  "pretty_assertions",
  "reqwest",
+ "serde-saphyr",
  "serde_json",
  "tempfile",
  "tokio",
@@ -4451,6 +4454,7 @@ dependencies = [
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-semver-include-prerelease",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
@@ -4461,6 +4465,7 @@ dependencies = [
  "pnpm-workspace-projects-filter",
  "pnpm-workspace-projects-graph",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pnpr",
  "pretty_assertions",
  "rayon",
@@ -4497,6 +4502,7 @@ dependencies = [
  "derive_more",
  "dunce",
  "miette 7.6.0",
+ "node-semver",
  "pipe-trait",
  "pnpm-fs",
  "pnpm-package-manifest",
@@ -4513,6 +4519,7 @@ dependencies = [
 name = "pnpm-config"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "derive_more",
  "dunce",
  "home",
@@ -4570,6 +4577,7 @@ version = "0.0.1"
 dependencies = [
  "base64 0.23.1",
  "sha2",
+ "ssri",
  "tempfile",
 ]
 
@@ -4595,8 +4603,8 @@ name = "pnpm-default-reporter"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "console",
  "insta",
- "libc",
  "node-semver",
  "owo-colors",
  "pnpm-config",
@@ -4664,20 +4672,24 @@ name = "pnpm-deps-restorer"
 version = "0.0.1"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "derive_more",
  "dunce",
  "flate2",
  "futures-util",
  "indexmap 2.14.0",
  "insta",
+ "libc",
  "miette 7.6.0",
  "mockito",
  "node-semver",
+ "p256",
  "pathdiff",
  "pipe-trait",
  "pnpm-cmd-shim",
  "pnpm-config",
  "pnpm-deps-path",
+ "pnpm-detect-libc",
  "pnpm-directory-fetcher",
  "pnpm-executor",
  "pnpm-fs",
@@ -4691,15 +4703,18 @@ dependencies = [
  "pnpm-package-is-installable",
  "pnpm-package-manifest",
  "pnpm-patching",
+ "pnpm-pnpr-client",
  "pnpm-real-hoist",
  "pnpm-reporter",
  "pnpm-resolving-deps-resolver",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpm-workspace",
+ "pnpm-workspace-task-scheduler",
  "pretty_assertions",
  "rayon",
  "reflink-copy",
@@ -4710,12 +4725,14 @@ dependencies = [
  "serde_json",
  "sha2",
  "ssri",
+ "sysinfo",
  "tar",
  "tempfile",
  "text-block-macros",
  "tokio",
  "tracing",
  "walkdir",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4886,6 +4903,7 @@ version = "0.0.1"
 dependencies = [
  "deno_task_shell",
  "derive_more",
+ "libc",
  "miette 7.6.0",
  "pnpm-package-manifest",
  "pnpm-reporter",
@@ -4894,6 +4912,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4907,6 +4926,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-package-manifest",
  "pnpm-resolving-jsr-specifier-parser",
+ "pnpm-workspace-spec",
  "serde_json",
  "tempfile",
 ]
@@ -5060,6 +5080,7 @@ dependencies = [
  "derive_more",
  "indexmap 2.14.0",
  "libc",
+ "miette 7.6.0",
  "node-semver",
  "pipe-trait",
  "pnpm-catalogs-types",
@@ -5077,6 +5098,7 @@ dependencies = [
  "ssri",
  "tempfile",
  "text-block-macros",
+ "url",
 ]
 
 [[package]]
@@ -5137,6 +5159,8 @@ dependencies = [
  "pnpm-resolving-resolver-base",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpm-workspace-projects-graph",
+ "pnpm-workspace-task-scheduler",
  "project-root",
  "serde_json",
  "ssri",
@@ -5281,6 +5305,7 @@ dependencies = [
  "pnpm-config",
  "pnpm-executor",
  "pnpm-exportable-manifest",
+ "pnpm-fs",
  "pnpm-fs-packlist",
  "pnpm-hooks",
  "pnpm-package-manifest",
@@ -5300,6 +5325,7 @@ dependencies = [
  "derive_more",
  "miette 7.6.0",
  "node-semver",
+ "pnpm-semver-include-prerelease",
  "pnpm-testing-utils",
  "pretty_assertions",
  "serde",
@@ -5376,8 +5402,8 @@ dependencies = [
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
  "pnpm-workspace-state",
+ "pnpm-workspace-task-scheduler",
  "pretty_assertions",
- "rayon",
  "reflink-copy",
  "rustc-hash 2.1.2",
  "serde",
@@ -5431,19 +5457,25 @@ dependencies = [
 name = "pnpm-pnpr-client"
 version = "0.0.1"
 dependencies = [
+ "base64 0.23.1",
  "derive_more",
  "futures-util",
+ "indexmap 2.14.0",
  "mockito",
+ "p256",
  "pnpm-catalogs-types",
  "pnpm-config",
+ "pnpm-graph-hasher",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",
+ "pnpm-shared-artifact-protocol",
  "pnpm-testing-utils",
  "pnpr",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "tokio",
  "tracing",
@@ -5593,6 +5625,7 @@ dependencies = [
  "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-parse-wanted-dependency",
  "pnpm-resolving-resolver-base",
+ "pnpm-semver-include-prerelease",
  "pretty_assertions",
  "rustc-hash 2.1.2",
  "serde_json",
@@ -5732,6 +5765,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-semver-include-prerelease"
+version = "0.0.1"
+dependencies = [
+ "node-semver",
+]
+
+[[package]]
+name = "pnpm-shared-artifact-protocol"
+version = "0.0.1"
+dependencies = [
+ "base64 0.23.1",
+ "derive_more",
+ "p256",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "pnpm-store-dir"
 version = "0.0.1"
 dependencies = [
@@ -5745,6 +5797,7 @@ dependencies = [
  "pnpm-deps-path",
  "pnpm-fs",
  "pnpm-resolving-parse-wanted-dependency",
+ "pnpm-shared-artifact-protocol",
  "pretty_assertions",
  "rmp-serde",
  "rusqlite",
@@ -5929,8 +5982,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpm-workspace-task-scheduler"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "futures-util",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pnpm-config",
+ "pnpm-fs",
+ "pnpm-reporter",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "pnpr"
-version = "0.1.0-alpha.7"
+version = "0.1.0-alpha.9"
 dependencies = [
  "async-trait",
  "axum 0.8.9",
@@ -5955,6 +6025,7 @@ dependencies = [
  "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-config-dir",
+ "pnpm-crypto-hash",
  "pnpm-env-replace",
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
@@ -5964,8 +6035,21 @@ dependencies = [
  "pnpm-reporter",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-resolver-base",
+ "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpr-auth",
+ "pnpr-config",
+ "pnpr-error",
+ "pnpr-osv",
+ "pnpr-package-name",
+ "pnpr-policy",
+ "pnpr-registry",
+ "pnpr-route",
+ "pnpr-search",
+ "pnpr-shared-artifacts",
+ "pnpr-storage",
+ "pnpr-upstream",
  "reqwest",
  "rusqlite",
  "serde",
@@ -5986,6 +6070,68 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-auth"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "bcrypt",
+ "getrandom 0.4.3",
+ "libsql",
+ "pnpr-config",
+ "pnpr-error",
+ "rusqlite",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpr-config"
+version = "0.0.1"
+dependencies = [
+ "getrandom 0.4.3",
+ "home",
+ "indexmap 2.14.0",
+ "object_store",
+ "pnpm-config-dir",
+ "pnpm-env-replace",
+ "pnpm-testing-utils",
+ "pnpr-error",
+ "pnpr-package-name",
+ "pnpr-policy",
+ "pnpr-registry",
+ "reqwest",
+ "serde",
+ "serde-saphyr",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "pnpr-error"
+version = "0.0.1"
+dependencies = [
+ "axum 0.8.9",
+ "bcrypt",
+ "derive_more",
+ "libsql",
+ "object_store",
+ "reqwest",
+ "rusqlite",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "pnpr-fixtures"
 version = "0.0.1"
 dependencies = [
@@ -5999,6 +6145,141 @@ dependencies = [
  "tar",
  "tempfile",
  "walkdir",
+]
+
+[[package]]
+name = "pnpr-osv"
+version = "0.0.1"
+dependencies = [
+ "libc",
+ "node-semver",
+ "pnpm-resolving-resolver-base",
+ "pnpr-config",
+ "pnpr-error",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "zip",
+]
+
+[[package]]
+name = "pnpr-package-name"
+version = "0.0.1"
+dependencies = [
+ "pnpr-error",
+]
+
+[[package]]
+name = "pnpr-policy"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.14.0",
+ "pnpr-registry",
+]
+
+[[package]]
+name = "pnpr-registry"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.14.0",
+ "pnpr-error",
+ "pnpr-package-name",
+ "wax",
+]
+
+[[package]]
+name = "pnpr-route"
+version = "0.0.1"
+dependencies = [
+ "indexmap 2.14.0",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-policy",
+ "pnpr-registry",
+ "reqwest",
+ "sha2",
+ "tracing",
+ "wax",
+]
+
+[[package]]
+name = "pnpr-search"
+version = "0.0.1"
+dependencies = [
+ "pnpr-error",
+ "pnpr-package-name",
+ "pnpr-storage",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "pnpr-shared-artifacts"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "base64 0.23.1",
+ "bytes",
+ "futures-util",
+ "getrandom 0.4.3",
+ "object_store",
+ "pnpm-shared-artifact-protocol",
+ "pnpr-config",
+ "pnpr-error",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpr-storage"
+version = "0.0.1"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "base64 0.23.1",
+ "futures-util",
+ "getrandom 0.4.3",
+ "object_store",
+ "pnpm-crypto-hash",
+ "pnpr-config",
+ "pnpr-error",
+ "pnpr-package-name",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "pnpr-upstream"
+version = "0.0.1"
+dependencies = [
+ "chrono",
+ "mockito",
+ "pnpm-lockfile",
+ "pnpm-network",
+ "pnpr-config",
+ "pnpr-error",
+ "pnpr-package-name",
+ "pnpr-policy",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -6639,7 +6920,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6697,7 +6978,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6864,9 +7145,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.150"
+version = "1.0.151"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8014e44b4736ed0538adeecded0fce2a272f22dc9578a7eb6b2d9993c74cfb9"
+checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
 dependencies = [
  "indexmap 2.14.0",
  "itoa",
@@ -7839,7 +8120,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7849,7 +8130,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -8672,9 +8953,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "1.0.7"
+version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f31141ce3fc3e300ae89b78c0dd67f9708061d1d2eda54b8209346fd6be9a92c"
+checksum = "b96554aa2acc8ccdb7e1c9a58a7a68dd5d13bccc69cd124cb09406db612a1c9b"
 dependencies = [
  "rustls-pki-types",
 ]
@@ -8756,7 +9037,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

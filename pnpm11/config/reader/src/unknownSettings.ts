@@ -34,8 +34,11 @@ const TYPED_WORKSPACE_MANIFEST_KEYS = [
   'peerDependencyRules',
   'pnprServer',
   'registries',
+  'remoteSideEffectsCache',
   'requiredScripts',
+  'sideEffectsCache',
   'supportedArchitectures',
+  'tasks',
   'update',
   'updateConfig',
   'versioning',
@@ -57,6 +60,7 @@ const _proofTypedWorkspaceManifestKeysAreExhaustive: ProofTypedWorkspaceManifest
  */
 const CONFIG_ONLY_SETTING_KEYS = [
   'allowNew',
+  'auditIgnorePrune',
   'authConfig',
   'autoConfirmAllPrompts',
   'bin',
@@ -96,12 +100,8 @@ const CONFIG_ONLY_SETTING_KEYS = [
   'workspacePrefix',
 ] as const satisfies ReadonlyArray<keyof ConfigWithDeprecatedSettings>
 
-/**
- * Recognized keys that have no field on {@link WorkspaceManifest} or
- * {@link ConfigWithDeprecatedSettings}: the legacy build policies
- * `pnpm approve-builds` migrates into `allowBuilds`, and `executionEnv`.
- */
 const UNTYPED_WORKSPACE_SETTING_KEYS = [
+  'confirmModulesPurge',
   'executionEnv',
   'ignoredBuiltDependencies',
   'neverBuiltDependencies',

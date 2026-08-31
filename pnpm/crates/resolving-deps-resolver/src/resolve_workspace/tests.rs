@@ -143,6 +143,7 @@ fn fake_result(
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{name}-{version}.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -260,6 +261,7 @@ fn importer_scoped_update_lockfile(
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -1626,6 +1628,7 @@ fn lockfile_with_package(key: &str) -> pnpm_lockfile::Lockfile {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: format!("https://registry.example/{key}.tgz"),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -2099,6 +2102,7 @@ fn reuse_graph_lockfile(
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -3272,6 +3276,7 @@ fn reuse_steal_lockfile() -> pnpm_lockfile::Lockfile {
             integrity: "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg=="
                 .parse()
                 .expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,

@@ -11,21 +11,44 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! The resolver itself is stateless — it materializes no store and the
+//! The resolver itself is stateless: it materializes no store and the
 //! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
 //! from upstream public URLs or, for a private proxied route, an upstream's
-//! `/~<name>/` registry endpoint (which may cache them server-side under
-//! its own private namespace).
+//! `/~<name>/` registry endpoint, which may cache them server-side under
+//! its own private namespace. The opt-in shared-artifact `PoC` is a separate
+//! stateful protocol surface.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    time::Duration,
+};
 
 use derive_more::{Display, Error, From};
 use futures_util::StreamExt as _;
+use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
-use pnpm_config::{RegistryDeclaration, ResolutionMode, TrustPolicy};
-use pnpm_lockfile::Lockfile;
+use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPolicy};
+use pnpm_graph_hasher::hash_object_nullable_with_prefix;
+use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
 use reqwest::Client;
+
+pub use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    windows_tag,
+};
+use pnpm_shared_artifact_protocol::{
+    MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
+    ResolveArtifactsResponse, compatibility_rank_prevalidated, validate_supported_tags,
+    verify_blob,
+};
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
@@ -39,6 +62,7 @@ pub type DepMap = BTreeMap<String, String>;
 pub struct PnprClient {
     http: Client,
     base_url: String,
+    artifact_request_timeout: Duration,
 }
 
 /// Inputs for a single-project resolution.
@@ -65,6 +89,13 @@ pub struct ResolveOptions {
     /// at resolve time server-side. Sent unresolved: `catalog:` references
     /// in them are resolved server-side against [`Self::catalogs`].
     pub overrides: Option<serde_json::Value>,
+    /// The client's `patchedDependencies`, with paths replaced by their
+    /// SHA-256 hashes. The server uses these to key patched snapshots;
+    /// materialization and patch application remain client-side.
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    /// The client's manifest extensions, applied during server resolution.
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     /// The client's workspace catalogs (`catalog:` / `catalogs:` from
     /// `pnpm-workspace.yaml`). The workspace the server reconstructs from
     /// this request carries no catalog sections, so without these it
@@ -89,6 +120,9 @@ pub struct ResolveOptions {
     /// `preferFrozenLockfile`. `Some(false)` forces the server to
     /// re-resolve; `None` lets it default to reuse.
     pub prefer_frozen_lockfile: Option<bool>,
+    /// Refresh registry artifacts while retaining every locked package
+    /// version.
+    pub update_patches: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     pub ignore_manifest_check: bool,
@@ -135,6 +169,9 @@ pub struct ResolveProjectsOptions {
     pub registries: RegistryDeclarations,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
+    pub patched_dependencies: Option<IndexMap<String, String>>,
+    pub package_extensions: Option<IndexMap<String, PackageExtension>>,
+    pub allow_unused_patches: bool,
     pub catalogs: Option<Catalogs>,
     pub auto_install_peers: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -142,6 +179,9 @@ pub struct ResolveProjectsOptions {
     pub lockfile: Option<Lockfile>,
     pub frozen_lockfile: bool,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub update_patches: bool,
+    /// Regenerate derived lockfile metadata while retaining compatible pins.
+    pub fix_lockfile: bool,
     pub ignore_manifest_check: bool,
     pub trust_lockfile: bool,
     /// See [`ResolveOptions::resolution_mode`].
@@ -169,6 +209,9 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             registries: opts.registries,
             authorization: opts.authorization,
             overrides: opts.overrides,
+            patched_dependencies: opts.patched_dependencies,
+            package_extensions: opts.package_extensions,
+            allow_unused_patches: opts.allow_unused_patches,
             catalogs: opts.catalogs,
             auto_install_peers: opts.auto_install_peers,
             dedupe_peers: opts.dedupe_peers,
@@ -176,6 +219,8 @@ impl From<ResolveOptions> for ResolveProjectsOptions {
             lockfile: opts.lockfile,
             frozen_lockfile: opts.frozen_lockfile,
             prefer_frozen_lockfile: opts.prefer_frozen_lockfile,
+            update_patches: opts.update_patches,
+            fix_lockfile: false,
             ignore_manifest_check: opts.ignore_manifest_check,
             trust_lockfile: opts.trust_lockfile,
             resolution_mode: opts.resolution_mode,
@@ -278,6 +323,45 @@ pub struct ResolvedPackage {
     /// published one. The per-file term of the download priority's
     /// pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Registry artifact revision, when the server resolved an immutable
+    /// integrity-addressed artifact.
+    pub revision: Option<TarballRevision>,
+}
+
+/// Inputs to the signed shared-artifact lookup `PoC`.
+pub struct ResolveArtifactsOptions {
+    pub candidates: Vec<ArtifactCandidate>,
+    /// Most preferred compatibility tag first.
+    pub supported_tags: Vec<String>,
+    /// Package names that passed the configured remote-artifact eligibility
+    /// policy.
+    pub eligible_packages: HashSet<String>,
+    /// Package names that passed pnpm's effective `allowBuild` policy.
+    pub allowed_builds: HashSet<String>,
+    /// The effective `--ignore-scripts` value. When true, no remote lookup is
+    /// made because applying build output would violate the same policy that
+    /// suppresses a local build.
+    pub ignore_scripts: bool,
+    /// P-256 `SubjectPublicKeyInfo` DER bytes keyed by the envelope's key id.
+    pub trusted_keys: BTreeMap<String, Vec<u8>>,
+    pub quarantined_envelope_digests: BTreeMap<String, HashSet<String>>,
+    pub on_rejected_artifact: Option<std::sync::Arc<dyn Fn(RejectedArtifact) + Send + Sync>>,
+    pub authorization: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct RejectedArtifact {
+    pub input_key: String,
+    pub envelope_digest: String,
+    pub reason: String,
+}
+
+/// A variant whose signature, owner, input key, source integrity, manifest,
+/// and compatibility constraints have all passed client-side validation.
+pub struct VerifiedArtifact {
+    pub payload: ArtifactPayload,
+    pub envelope: SignedArtifactEnvelope,
+    pub envelope_digest: String,
 }
 
 #[derive(Debug, Display, Error, From)]
@@ -307,6 +391,9 @@ pub enum PnprClientError {
 /// Protocol version this client speaks. The server advertises the
 /// versions it supports at `GET /-/pnpr`; today only v0 exists.
 const PROTOCOL_VERSION: u32 = 0;
+/// Match the TypeScript client's generous ceiling for large artifact transfers
+/// while still letting a stalled pnpr fail the install or publication.
+const ARTIFACT_REQUEST_TIMEOUT: Duration = Duration::from_mins(10);
 
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
@@ -318,6 +405,10 @@ struct HandshakeResponse {
 struct HandshakeCapability {
     #[serde(default)]
     versions: Vec<u32>,
+    #[serde(default)]
+    artifacts: Vec<u32>,
+    #[serde(default, rename = "fixLockfile")]
+    fix_lockfile: Vec<u32>,
 }
 
 impl PnprClient {
@@ -326,14 +417,62 @@ impl PnprClient {
         if !base_url.ends_with('/') {
             base_url.push('/');
         }
-        PnprClient { http: Client::new(), base_url }
+        PnprClient {
+            http: Client::new(),
+            base_url,
+            artifact_request_timeout: ARTIFACT_REQUEST_TIMEOUT,
+        }
     }
 
     /// Confirm the server speaks a compatible protocol version. Errors
     /// if it's unreachable, isn't a pnpr (404 at `/-/pnpr`), or shares
     /// no protocol version with this client.
     pub async fn handshake(&self) -> Result<(), PnprClientError> {
-        let response = self.http.get(format!("{}-/pnpr", self.base_url)).send().await?;
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)
+    }
+
+    async fn handshake_fix_lockfile(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        if !capability.fix_lockfile.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise lockfile repair support for resolver protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    fn require_resolver_protocol(capability: &HandshakeCapability) -> Result<(), PnprClientError> {
+        if !capability.versions.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
+                capability.versions,
+            )));
+        }
+        Ok(())
+    }
+
+    /// Confirm that the server enabled the v0 signed-artifact `PoC`.
+    pub async fn handshake_artifacts(&self) -> Result<(), PnprClientError> {
+        let capability = self.fetch_handshake(Some(self.artifact_request_timeout)).await?;
+        if !capability.artifacts.contains(&PROTOCOL_VERSION) {
+            return Err(PnprClientError::Server(format!(
+                "pnpr server does not advertise shared artifact protocol v{PROTOCOL_VERSION}",
+            )));
+        }
+        Ok(())
+    }
+
+    async fn fetch_handshake(
+        &self,
+        timeout: Option<Duration>,
+    ) -> Result<HandshakeCapability, PnprClientError> {
+        let mut get = self.http.get(format!("{}-/pnpr", self.base_url));
+        if let Some(timeout) = timeout {
+            get = get.timeout(timeout);
+        }
+        let response = get.send().await?;
         if !response.status().is_success() {
             return Err(PnprClientError::Server(format!(
                 "{} is not a pnpr server (GET /-/pnpr returned {})",
@@ -342,13 +481,218 @@ impl PnprClient {
             )));
         }
         let body: HandshakeResponse = response.json().await?;
-        if !body.pnpr.versions.contains(&PROTOCOL_VERSION) {
+        Ok(body.pnpr)
+    }
+
+    /// Upload one already-signed organization artifact and all blobs that are
+    /// not yet present in the owner's namespace.
+    pub async fn publish_artifact(
+        &self,
+        request: &PublishArtifactRequest,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let mut put = self
+            .http
+            .put(format!("{}-/pnpr/v0/artifacts", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
+        if let Some(authorization) = authorization {
+            put = put.header("authorization", authorization);
+        }
+        let response = put.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
             return Err(PnprClientError::Server(format!(
-                "pnpr server speaks protocol versions {:?}, but this client requires v{PROTOCOL_VERSION}",
-                body.pnpr.versions,
+                "/-/pnpr/v0/artifacts returned {status}: {}",
+                String::from_utf8_lossy(&body),
             )));
         }
         Ok(())
+    }
+
+    /// Resolve a batch and keep only variants signed by a configured key and
+    /// compatible with this consumer. A malformed or untrusted variant is a
+    /// cache miss; a malformed response envelope is a protocol error.
+    pub async fn resolve_artifacts(
+        &self,
+        mut opts: ResolveArtifactsOptions,
+    ) -> Result<BTreeMap<String, VerifiedArtifact>, PnprClientError> {
+        validate_supported_tags(&opts.supported_tags)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if opts.ignore_scripts {
+            return Ok(BTreeMap::new());
+        }
+        opts.candidates.retain(|candidate| {
+            let ArtifactSubject::DependencySideEffects { package, .. } = &candidate.subject else {
+                return false;
+            };
+            opts.eligible_packages.contains(&package.name)
+                && opts.allowed_builds.contains(&package.name)
+        });
+        if opts.candidates.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        if opts.candidates.len() > MAX_CANDIDATES {
+            return Err(PnprClientError::Protocol(format!(
+                "shared artifact lookup exceeds the {MAX_CANDIDATES}-candidate limit",
+            )));
+        }
+        let mut candidates = BTreeMap::new();
+        for candidate in &opts.candidates {
+            candidate.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+            if candidates.insert(candidate.key.as_str(), candidate).is_some() {
+                return Err(PnprClientError::Protocol(format!(
+                    "duplicate shared artifact candidate {:?}",
+                    candidate.key,
+                )));
+            }
+        }
+        let request = ResolveArtifactsRequest { candidates: opts.candidates.clone() };
+        let mut post = self
+            .http
+            .post(format!("{}-/pnpr/v0/artifacts/resolve", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(&request);
+        if let Some(authorization) = opts.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/artifacts/resolve returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        let body = response_body_bounded(response, MAX_RESOLVE_RESPONSE_SIZE).await?;
+        let response: ResolveArtifactsResponse = serde_json::from_slice(&body)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        if response.artifacts.len() > candidates.len() {
+            return Err(PnprClientError::Protocol(
+                "shared artifact response contains more entries than requested".to_string(),
+            ));
+        }
+
+        let mut selected = BTreeMap::new();
+        let mut response_keys = HashSet::new();
+        for artifact in response.artifacts {
+            if !response_keys.insert(artifact.key.clone()) {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response repeats key {:?}",
+                    artifact.key,
+                )));
+            }
+            let Some(candidate) = candidates.get(artifact.key.as_str()) else {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response returned a key that was not requested: {:?}",
+                    artifact.key,
+                )));
+            };
+            if artifact.variants.len() > MAX_VARIANTS_PER_CANDIDATE {
+                return Err(PnprClientError::Protocol(format!(
+                    "shared artifact response exceeds the per-key variant limit for {:?}",
+                    artifact.key,
+                )));
+            }
+            let mut best: Option<(u64, String, VerifiedArtifact)> = None;
+            for variant in artifact.variants {
+                let Some(public_key) = opts.trusted_keys.get(&variant.envelope.key_id) else {
+                    continue;
+                };
+                let Ok(payload_bytes) = variant.envelope.verify_signature_bytes(public_key) else {
+                    continue;
+                };
+                let envelope_digest = variant
+                    .envelope
+                    .digest()
+                    .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+                if opts
+                    .quarantined_envelope_digests
+                    .get(candidate.key.as_str())
+                    .is_some_and(|digests| digests.contains(&envelope_digest))
+                {
+                    continue;
+                }
+                let payload: ArtifactPayload = match serde_json::from_slice(&payload_bytes) {
+                    Ok(payload) => payload,
+                    Err(error) => {
+                        if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
+                            on_rejected_artifact(RejectedArtifact {
+                                input_key: candidate.key.clone(),
+                                envelope_digest,
+                                reason: format!("payload is not valid JSON: {error}"),
+                            });
+                        }
+                        continue;
+                    }
+                };
+                if let Err(error) = payload.validate() {
+                    if let Some(on_rejected_artifact) = &opts.on_rejected_artifact {
+                        on_rejected_artifact(RejectedArtifact {
+                            input_key: candidate.key.clone(),
+                            envelope_digest,
+                            reason: error.to_string(),
+                        });
+                    }
+                    continue;
+                }
+                if !artifact_matches_candidate(&payload, candidate) {
+                    continue;
+                }
+                let Some(rank) =
+                    compatibility_rank_prevalidated(&payload.compatibility, &opts.supported_tags)
+                else {
+                    continue;
+                };
+                if best.as_ref().is_none_or(|(best_rank, best_digest, _)| {
+                    (rank, &envelope_digest) < (*best_rank, best_digest)
+                }) {
+                    best = Some((
+                        rank,
+                        envelope_digest.clone(),
+                        VerifiedArtifact { payload, envelope: variant.envelope, envelope_digest },
+                    ));
+                }
+            }
+            if let Some((_, _, artifact)) = best {
+                selected.insert(candidate.key.clone(), artifact);
+            }
+        }
+        Ok(selected)
+    }
+
+    /// Download and recompute a selected manifest blob's SHA-512 before
+    /// returning any bytes to the caller.
+    pub async fn download_artifact_blob(
+        &self,
+        request: &ArtifactBlobRequest,
+        authorization: Option<&str>,
+    ) -> Result<Vec<u8>, PnprClientError> {
+        request.validate().map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let mut post = self
+            .http
+            .post(format!("{}-/pnpr/v0/artifacts/blob", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
+        if let Some(authorization) = authorization {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/artifacts/blob returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        let bytes = response_body_bounded(response, MAX_FILE_SIZE as usize).await?;
+        verify_blob(&request.integrity, &bytes)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        Ok(bytes)
     }
 
     /// Resolve a single project against the server and return the
@@ -449,6 +793,9 @@ impl PnprClient {
         opts: ResolveProjectsOptions,
         mut on_package: impl FnMut(ResolvedPackage),
     ) -> Result<ResolveOutcome, PnprClientError> {
+        if opts.fix_lockfile {
+            self.handshake_fix_lockfile().await?;
+        }
         // The server's response is untrusted, and the caller merges the
         // returned lockfile into `pnpm-lock.yaml`. Constrain it to the
         // importers this request is about — the requested projects plus
@@ -466,11 +813,15 @@ impl PnprClient {
             .map(|project| project.dir.clone())
             .chain(opts.lockfile.iter().flat_map(|lockfile| lockfile.importers.keys().cloned()))
             .collect();
+        let project_transforms_requested = has_project_transforms(&opts);
         let request = serde_json::json!({
             "projects": opts.projects,
             "registry": opts.registry,
             "registries": opts.registries,
             "overrides": opts.overrides,
+            "patchedDependencies": opts.patched_dependencies,
+            "packageExtensions": opts.package_extensions,
+            "allowUnusedPatches": opts.allow_unused_patches,
             "catalogs": opts.catalogs,
             "autoInstallPeers": opts.auto_install_peers,
             "dedupePeers": opts.dedupe_peers,
@@ -478,6 +829,8 @@ impl PnprClient {
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
             "preferFrozenLockfile": opts.prefer_frozen_lockfile,
+            "updatePatches": opts.update_patches,
+            "fixLockfile": opts.fix_lockfile,
             "ignoreManifestCheck": opts.ignore_manifest_check,
             "trustLockfile": opts.trust_lockfile,
             "resolutionMode": opts.resolution_mode,
@@ -502,10 +855,24 @@ impl PnprClient {
             )));
         }
 
-        // Consume the NDJSON stream line by line. `package` frames feed
-        // `on_package` as they arrive (overlapping the server's
-        // resolution); the first terminal frame ends the loop. reqwest's
-        // `gzip` feature transparently inflates the byte stream if a
+        if project_transforms_requested
+            && response
+                .headers()
+                .get(PROJECT_TRANSFORMS_HEADER)
+                .and_then(|value| value.to_str().ok())
+                != Some(PROJECT_TRANSFORMS_VERSION)
+        {
+            return Err(PnprClientError::Protocol(
+                "pnpr server /-/pnpr/v0/resolve does not advertise project-transform support"
+                    .to_string(),
+            ));
+        }
+
+        // Consume the NDJSON stream line by line. The response header above
+        // proves transform support before any package frame is consumed, so
+        // current servers preserve resolution/fetch overlap while older
+        // servers fail without triggering downloads or buffering hints.
+        // reqwest's `gzip` feature transparently inflates the byte stream if a
         // proxy compressed it, so the frames arrive as plain JSON lines.
         let mut stream = response.bytes_stream();
         let mut buf: Vec<u8> = Vec::new();
@@ -526,6 +893,7 @@ impl PnprClient {
                         tarball,
                         unpacked_size,
                         file_count,
+                        revision,
                     } => {
                         on_package(ResolvedPackage {
                             id,
@@ -535,6 +903,7 @@ impl PnprClient {
                             tarball,
                             unpacked_size,
                             file_count,
+                            revision,
                         });
                     }
                     Frame::Done { lockfile, stats } => {
@@ -547,6 +916,7 @@ impl PnprClient {
                                 "/-/pnpr/v0/resolve returned an importer that was not requested: {unexpected:?}",
                             )));
                         }
+                        assert_transform_metadata(&lockfile, &opts)?;
                         return Ok(ResolveOutcome { lockfile: *lockfile, stats });
                     }
                     Frame::Error { message } => return Err(PnprClientError::Server(message)),
@@ -562,12 +932,87 @@ impl PnprClient {
     }
 }
 
+fn has_project_transforms(opts: &ResolveProjectsOptions) -> bool {
+    opts.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty())
+        || opts.package_extensions.as_ref().is_some_and(|extensions| !extensions.is_empty())
+}
+
+const PROJECT_TRANSFORMS_HEADER: &str = "pnpr-project-transforms";
+const PROJECT_TRANSFORMS_VERSION: &str = "1";
+
+fn assert_transform_metadata(
+    lockfile: &Lockfile,
+    opts: &ResolveProjectsOptions,
+) -> Result<(), PnprClientError> {
+    if let Some(expected) = opts.patched_dependencies.as_ref().filter(|patches| !patches.is_empty())
+        && !equal_patch_hashes(lockfile.patched_dependencies.as_ref(), expected)
+    {
+        return Err(PnprClientError::Protocol(
+            "/-/pnpr/v0/resolve returned patchedDependencies that do not match the request; the server may not support project transforms".to_string(),
+        ));
+    }
+
+    if let Some(package_extensions) =
+        opts.package_extensions.as_ref().filter(|extensions| !extensions.is_empty())
+    {
+        let value = serde_json::to_value(package_extensions)
+            .map_err(|err| PnprClientError::Protocol(err.to_string()))?;
+        let expected = hash_object_nullable_with_prefix(&value)
+            .expect("a non-empty packageExtensions map has a checksum");
+        if lockfile.package_extensions_checksum.as_deref() != Some(expected.as_str()) {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned packageExtensionsChecksum that does not match the request; the server may not support project transforms".to_string(),
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+fn equal_patch_hashes(
+    actual: Option<&BTreeMap<String, String>>,
+    expected: &IndexMap<String, String>,
+) -> bool {
+    actual.is_some_and(|actual| {
+        actual.len() == expected.len()
+            && expected.iter().all(|(selector, hash)| actual.get(selector) == Some(hash))
+    })
+}
+
 fn parse_frame(line: &[u8]) -> Result<Frame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
+fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCandidate) -> bool {
+    let ArtifactCandidate { key: input_key, subject, owner } = candidate;
+    payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
+}
+
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
+async fn response_body_bounded(
+    response: reqwest::Response,
+    limit: usize,
+) -> Result<Vec<u8>, PnprClientError> {
+    if response.content_length().is_some_and(|length| length > limit as u64) {
+        return Err(PnprClientError::Protocol(format!(
+            "pnpr response exceeds the {limit}-byte limit",
+        )));
+    }
+    let mut body = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        if body.len().saturating_add(chunk.len()) > limit {
+            return Err(PnprClientError::Protocol(format!(
+                "pnpr response exceeds the {limit}-byte limit",
+            )));
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 /// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the
@@ -586,6 +1031,8 @@ enum Frame {
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]
         file_count: Option<usize>,
+        #[serde(default)]
+        revision: Option<TarballRevision>,
     },
     /// Boxed: the lockfile dwarfs the other variants, so keeping it
     /// behind a pointer keeps the enum small.

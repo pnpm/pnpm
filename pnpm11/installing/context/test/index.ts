@@ -47,6 +47,33 @@ test('getContext - extendNodePath true', async () => {
   expect(context.extraNodePaths).toEqual([path.join(context.virtualStoreDir, 'node_modules')])
 })
 
+test('getContext resolves the virtual store through a symlinked modules directory', async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'pnpm-get-context-'))
+  const primaryDir = path.join(tempDir, 'primary')
+  const primaryModulesDir = path.join(primaryDir, 'node_modules')
+  const worktreeDir = path.join(tempDir, 'worktree')
+  await Promise.all([
+    fs.mkdir(path.join(primaryModulesDir, '.pnpm'), { recursive: true }),
+    fs.mkdir(worktreeDir, { recursive: true }),
+  ])
+  await fs.symlink(primaryModulesDir, path.join(worktreeDir, 'node_modules'), process.platform === 'win32' ? 'junction' : 'dir')
+
+  const context = await getContext({
+    ...DEFAULT_OPTIONS,
+    allProjects: [{
+      buildIndex: 0,
+      manifest: {},
+      rootDir: worktreeDir as ProjectRootDir,
+    }],
+    lockfileDir: worktreeDir,
+    storeDir: path.join(tempDir, 'store'),
+  })
+
+  const realPrimaryModulesDir = await fs.realpath(primaryModulesDir)
+  expect(context.rootModulesDir).toBe(realPrimaryModulesDir)
+  expect(context.virtualStoreDir).toBe(path.join(realPrimaryModulesDir, '.pnpm'))
+})
+
 // This is supported for compatibility with Yarn's implementation
 // see https://github.com/pnpm/pnpm/issues/2648
 test('arrayOfWorkspacePackagesToMap() treats private packages with no version as packages with 0.0.0 version', () => {
@@ -74,7 +101,7 @@ test('readLockfiles() throws on incompatible lockfile in CI when frozenLockfile 
     ci: true,
     force: false,
     frozenLockfile: true,
-    projects: [{ id: '.' as ProjectId, rootDir: lockfileDir as ProjectRootDir }],
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
@@ -93,7 +120,7 @@ test('readLockfiles() throws on an empty wanted lockfile when frozenLockfile is 
     ci: false,
     force: false,
     frozenLockfile: true,
-    projects: [{ id: '.' as ProjectId, rootDir: lockfileDir as ProjectRootDir }],
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,
@@ -112,7 +139,7 @@ test('readLockfiles() ignores incompatible lockfile in CI when frozenLockfile is
     ci: true,
     force: false,
     frozenLockfile: false,
-    projects: [{ id: '.' as ProjectId, rootDir: lockfileDir as ProjectRootDir }],
+    projects: [{ id: '.' as ProjectId, manifest: {}, rootDir: lockfileDir as ProjectRootDir }],
     lockfileDir,
     registry: 'https://registry.npmjs.org/',
     useLockfile: true,

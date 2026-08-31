@@ -329,3 +329,39 @@ test('fetch applies patches to dependencies when patchedDependencies key is bare
   const patchedIndexJsAfterFetch = fs.readFileSync(path.join(virtualStoreDir, consoleLogDirs[0], 'node_modules/@pnpm.e2e/console-log/index.js'), 'utf8')
   expect(patchedIndexJsAfterFetch).toContain('FIRST LINE')
 })
+
+// Regression test for https://github.com/pnpm/pnpm/issues/14174
+// A dependency's lifecycle script resolves a sibling dependency's bin
+// through the `node_modules/.bin` linked next to it in the virtual store.
+// fetch runs those scripts, so it has to write those links even though it
+// materializes nothing importer-facing.
+test('fetch runs a build script that calls a dependency bin', async () => {
+  const project = prepare({
+    dependencies: { '@pnpm.e2e/pre-and-postinstall-scripts-example': '1.0.0' },
+  })
+  const storeDir = path.resolve('store')
+
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileOnly: true,
+    storeDir,
+  })
+
+  // The Docker "fetcher stage" shape: the lockfile with no project manifest.
+  rimrafSync(path.resolve(project.dir(), './package.json'))
+
+  await fetch.handler({
+    ...DEFAULT_OPTIONS,
+    allowBuilds: { '@pnpm.e2e/pre-and-postinstall-scripts-example': true },
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    storeDir,
+  })
+
+  const pkgDir = path.resolve(project.dir(), 'node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0/node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example')
+  expect(fs.existsSync(path.join(pkgDir, 'node_modules/.bin/hello-world-js-bin'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'generated-by-postinstall.js'))).toBeTruthy()
+})

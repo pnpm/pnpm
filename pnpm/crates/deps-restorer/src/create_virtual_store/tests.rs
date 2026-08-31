@@ -22,6 +22,7 @@ fn metadata_with_integrity(integrity: &str) -> PackageMetadata {
     PackageMetadata {
         resolution: LockfileResolution::Registry(RegistryResolution {
             integrity: integrity.parse().expect("parse integrity"),
+            revision: None,
         }),
         version: None,
         engines: None,
@@ -181,12 +182,14 @@ async fn cold_batch_links_slots_in_parallel() {
         requester: &requester,
         store_index_writer: &store_index_writer,
         store_context: None,
+        cas_prefetch: None,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
         custom_fetcher_session: None,
@@ -272,9 +275,11 @@ async fn shared_store_context_materializes_a_warm_package() {
             &PackageFilesIndex {
                 manifest: None,
                 requires_build: Some(false),
+                requires_prepare: None,
                 algo: "sha512".to_string(),
                 files,
                 side_effects: None,
+                remote_side_effects_quarantine: None,
             },
         )
         .expect("seed context store index");
@@ -311,6 +316,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         logged_methods: &logged_methods,
         requester: &requester,
         store_index_writer: &store_index_writer,
+        cas_prefetch: None,
         store_context: Some(CreateVirtualStoreStoreContext {
             index: Some(&shared_index),
             verified_files_cache: &verified_files_cache,
@@ -321,6 +327,7 @@ async fn shared_store_context_materializes_a_warm_package() {
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: None,
         custom_fetcher_session: None,
@@ -437,12 +444,14 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
         requester: &requester,
         store_index_writer: &store_index_writer,
         store_context: None,
+        cas_prefetch: None,
         allow_build_policy: &allow_build_policy,
         skipped: &skipped,
         include_optional_dependencies: true,
         supported_architectures: None,
         workspace_root: &workspace_root,
         node_linker: NodeLinker::Isolated,
+        dir_clone_cache: None,
         progress_reported: &progress_reported,
         tarball_mem_cache: Some(&mem_cache),
         custom_fetcher_session: None,
@@ -662,6 +671,7 @@ fn git_hosted_tarball_metadata() -> PackageMetadata {
             tarball: "https://codeload.github.com/foo/bar/tar.gz/f43f6a1cefff47fb361c88cf4b943fdbcaafe540"
                 .to_string(),
             integrity: None,
+            revision: None,
             git_hosted: Some(true),
             path: None,
         }),
@@ -693,10 +703,11 @@ fn snapshot_cache_key_for_git_resolution_uses_git_hosted_key() {
     let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect("snapshot_cache_key must not error");
     assert_eq!(
-        received,
+        received.value,
         Some(format!("{pkg}\tbuilt")),
         "git resolutions must route through gitHostedStoreIndexKey",
     );
+    assert!(received.is_git_hosted);
 }
 
 #[test]
@@ -707,10 +718,11 @@ fn snapshot_cache_key_for_git_hosted_tarball_uses_git_hosted_key() {
     let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect("snapshot_cache_key must not error");
     assert_eq!(
-        received,
+        received.value,
         Some(format!("{pkg}\tbuilt")),
         "git-hosted tarball resolutions must route through gitHostedStoreIndexKey",
     );
+    assert!(received.is_git_hosted);
 }
 
 /// A plain remote tarball with no `integrity` is refused when the
@@ -725,7 +737,8 @@ fn snapshot_cache_key_for_a_refused_tarball_is_absent() {
 
     let received = snapshot_cache_key(&pkg, &packages, false, &host_platform_selector())
         .expect("snapshot_cache_key must not error");
-    assert_eq!(received, None, "a tarball the fetch path refuses must not warm-hit");
+    assert_eq!(received.value, None, "a tarball the fetch path refuses must not warm-hit");
+    assert!(!received.is_git_hosted);
 }
 
 fn tarball_metadata_without_integrity() -> PackageMetadata {
@@ -733,6 +746,7 @@ fn tarball_metadata_without_integrity() -> PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz".to_string(),
             integrity: None,
+            revision: None,
             git_hosted: None,
             path: None,
         }),
@@ -804,7 +818,9 @@ fn slot_link<'a>(
         cas_paths,
         warm_cache_key: None,
         source_is_mutable: true,
+        force_import: false,
         needs_build_marker_source: None,
+        dir_clone_cacheable: false,
         removed_aliases,
     }
 }

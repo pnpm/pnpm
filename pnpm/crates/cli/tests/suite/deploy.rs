@@ -318,6 +318,14 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
             "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
             "optionalDependencies": { "@pnpm.e2e/qar": "100.0.0" },
+            "peerDependencies": {
+                "@pnpm.e2e/bar": "*",
+                "@pnpm.e2e/peer-c": "1.0.0",
+            },
+            "peerDependenciesMeta": {
+                "@pnpm.e2e/bar": { "optional": true },
+                "@pnpm.e2e/peer-c": { "optional": true },
+            },
         }),
     );
 
@@ -337,6 +345,10 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
         deploy_manifest["dependencies"]["@pnpm.e2e/foo"].is_string(),
         "the production dependency should survive: {deploy_manifest:#}",
     );
+    assert!(
+        deploy_manifest["dependencies"]["@pnpm.e2e/peer-c"].is_string(),
+        "the auto-installed peer should survive: {deploy_manifest:#}",
+    );
     for excluded in ["devDependencies", "optionalDependencies"] {
         assert_eq!(
             deploy_manifest[excluded],
@@ -344,6 +356,14 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
             "the deployed manifest should drop {excluded}: {deploy_manifest:#}",
         );
     }
+    assert_eq!(
+        deploy_manifest["peerDependencies"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": "1.0.0" }),
+    );
+    assert_eq!(
+        deploy_manifest["peerDependenciesMeta"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": { "optional": true } }),
+    );
 
     let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
     let importer = deploy_lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY).unwrap();
@@ -364,6 +384,38 @@ fn shared_lockfile_deploy_drops_excluded_direct_dependencies() {
     assert!(
         dangling.is_empty(),
         "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
+    );
+
+    let dev_deploy_dir = root.path().join("dev-deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--dev", "--no-optional"])
+        .with_arg(&dev_deploy_dir)
+        .assert()
+        .success();
+    let dev_deploy_manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(dev_deploy_dir.join("package.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        dev_deploy_manifest["dependencies"],
+        serde_json::json!({ "@pnpm.e2e/peer-c": "1.0.0" }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["devDependencies"],
+        serde_json::json!({ "@pnpm.e2e/bar": "100.0.0" }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["peerDependencies"],
+        serde_json::json!({
+            "@pnpm.e2e/bar": "*",
+            "@pnpm.e2e/peer-c": "1.0.0",
+        }),
+    );
+    assert_eq!(
+        dev_deploy_manifest["peerDependenciesMeta"],
+        serde_json::json!({
+            "@pnpm.e2e/bar": { "optional": true },
+            "@pnpm.e2e/peer-c": { "optional": true },
+        }),
     );
 
     drop((root, mock_instance));
@@ -671,6 +723,101 @@ fn legacy_deploy_installs_selected_project() {
     assert!(deploy_dir.join("node_modules/lib").exists());
     assert!(!deploy_dir.join("node_modules/dev-only").exists());
     assert_workspace_lockfile_untouched(&workspace, &workspace_lockfile);
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn legacy_deploy_excludes_fetched_dependencies_of_unselected_projects() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_reachability_workspace(&workspace);
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    pacquet_cmd(&workspace).with_arg("fetch").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app...", "install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let virtual_store_entries = virtual_store_entries(&workspace.join("legacy-deploy"));
+    assert!(
+        virtual_store_entries.iter().any(|entry| entry.starts_with("@pnpm.e2e+pkg-with-1-dep@")),
+        "the deploy virtual store should include the selected dependency closure: {virtual_store_entries:#?}",
+    );
+    for excluded in ["@pnpm.e2e+bar@", "@pnpm.e2e+qar@"] {
+        assert!(
+            !virtual_store_entries.iter().any(|entry| entry.starts_with(excluded)),
+            "the deploy virtual store should exclude packages reachable only from unselected projects: {virtual_store_entries:#?}",
+        );
+    }
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn legacy_deploy_injects_transitive_workspace_dependencies() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "leaf": "workspace:*" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "leaf",
+        &serde_json::json!({
+            "name": "leaf",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--legacy", "--prod", "legacy-deploy"])
+        .assert()
+        .success();
+
+    let deploy_dir = workspace.join("legacy-deploy");
+    let virtual_store_entries = virtual_store_entries(&deploy_dir);
+    let lib_entry = virtual_store_entries
+        .iter()
+        .find(|entry| entry.starts_with("lib@file+"))
+        .expect("lib should be injected into the deploy virtual store");
+    let leaf_entry = virtual_store_entries
+        .iter()
+        .find(|entry| entry.starts_with("leaf@file+"))
+        .expect("transitive leaf should be injected into the deploy virtual store");
+    let nested_leaf =
+        deploy_dir.join("node_modules/.pnpm").join(lib_entry).join("node_modules/leaf");
+    let deployed_leaf =
+        deploy_dir.join("node_modules/.pnpm").join(leaf_entry).join("node_modules/leaf");
+    let deploy_dir = fs::canonicalize(deploy_dir).expect("resolve the deploy directory");
+    let deployed_lib = fs::canonicalize(deploy_dir.join("node_modules/lib"))
+        .expect("resolve the deployed lib package");
+    let nested_leaf = fs::canonicalize(nested_leaf).expect("resolve lib's leaf dependency");
+    let deployed_leaf = fs::canonicalize(deployed_leaf).expect("resolve the deployed leaf package");
+    for deployed_package in [&deployed_lib, &nested_leaf, &deployed_leaf] {
+        assert!(
+            deployed_package.starts_with(&deploy_dir),
+            "{deployed_package:?} should resolve inside {deploy_dir:?}",
+        );
+    }
+    assert_eq!(nested_leaf, deployed_leaf);
 
     drop((root, mock_instance));
 }

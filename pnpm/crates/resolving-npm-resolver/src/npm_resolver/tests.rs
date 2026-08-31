@@ -6,20 +6,23 @@ use std::{
 
 use chrono::TimeZone;
 use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
-use pnpm_lockfile::LockfileResolution;
+use pnpm_lockfile::{LockfileResolution, RegistryResolution, TarballRevision};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
-    LatestQuery, PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
-    ResolveOptions, Resolver, UpdateBehavior, WantedDependency, WorkspacePackage,
-    WorkspacePackages, WorkspacePackagesByVersion,
+    CurrentPkg, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
+    PackageVersionGuardFuture, PkgResolutionId, ResolveOptions, Resolver, UpdateBehavior,
+    WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tempfile::TempDir;
 
 use crate::{
-    errors::InvalidTarballIntegrityError,
-    npm_resolver::NpmResolver,
+    errors::{
+        InvalidRevisionSpecifierError, InvalidTarballIntegrityError, MalformedRevisionHistoryError,
+        NoMatchingRevisionError,
+    },
+    npm_resolver::{NpmResolver, is_not_found_error},
     pick_package::{
         InMemoryPackageMetaCache, shared_packument_fetch_locker, shared_picked_manifest_cache,
     },
@@ -982,6 +985,130 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
 }
 
 #[tokio::test]
+async fn revision_qualified_selector_does_not_fall_back_to_workspace() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0+r1".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("a registry revision cannot resolve to an unversioned workspace artifact");
+    assert!(is_not_found_error(err.as_ref()), "expected registry 404, got: {err}");
+}
+
+#[tokio::test]
+async fn revision_refresh_preserves_an_implicit_workspace_resolution() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.update = UpdateBehavior::Patches;
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+    assert_eq!(result.id.as_str(), "link:../acme");
+}
+
+#[tokio::test]
+async fn revision_refresh_does_not_replace_a_registry_resolution_with_a_workspace_package() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(single_version_body(
+            "1.0.0",
+            "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        ))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let mut opts = workspace_resolve_options(packages);
+    opts.update = UpdateBehavior::Patches;
+    opts.current_pkg = Some(CurrentPkg {
+        id: PkgResolutionId::from("acme@1.0.0"),
+        name: Some("acme".to_string()),
+        version: Some("1.0.0".to_string()),
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+                .parse()
+                .unwrap(),
+            revision: None,
+        }),
+        published_at: None,
+    });
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
+    assert_eq!(result.resolved_via, "npm-registry");
+    assert_eq!(result.id.as_str(), "acme@1.0.0");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn revision_refresh_revalidates_a_warm_packument_without_update_checksums() {
+    let mut server = mockito::Server::new_async().await;
+    let first_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap();
+    first_mock.assert_async().await;
+    first_mock.remove_async().await;
+
+    let refresh_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let opts = ResolveOptions {
+        update: UpdateBehavior::Patches,
+        update_checksums: false,
+        ..ResolveOptions::default()
+    };
+    resolver.resolve(&wanted, &opts).await.unwrap();
+
+    refresh_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn workspace_shadows_registry_when_name_and_version_match() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server
@@ -1890,6 +2017,301 @@ fn shasum_only_package_body(shasum: &str) -> String {
         },
     })
     .to_string()
+}
+
+fn revision_package_body(tarball: &str, revision: &serde_json::Value) -> String {
+    json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": tarball,
+                    "revision": revision,
+                    "revisions": [{
+                        "revision": revision,
+                        "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                        "tarball": tarball,
+                        "manifest": {},
+                    }],
+                },
+            },
+        },
+    })
+    .to_string()
+}
+
+fn revision_history_package_body(registry: &str) -> String {
+    let digest_a =
+        "H0D8ktokFpR1CXnubPWC8tXX0o4YM13gWrxU0FYOD1MChgxlK_CNVgJSql50IQVG82n7u86MEs_HlXsmUv6adQ";
+    let digest_b =
+        "Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g";
+    let digest_c =
+        "rMKNsr63tCuqHLAkPUAcy04_zkTXsCh5pSeZqt_1QVItiCJZiy-mZPnVFWwAySSAXXXDhovVbCrLgdN-mONa3A";
+    let integrity_a = format!("sha512-{}==", digest_a.replace('_', "/").replace('-', "+"));
+    let integrity_b = format!("sha512-{}==", digest_b.replace('_', "/").replace('-', "+"));
+    let integrity_c = format!("sha512-{}==", digest_c.replace('_', "/").replace('-', "+"));
+    json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "deprecated": "current warning",
+                "dependencies": { "current-only": "1.0.0" },
+                "optionalDependencies": { "removed": "1.0.0" },
+                "dist": {
+                    "integrity": integrity_c,
+                    "tarball": format!("{registry}-/tarballs/sha512/{digest_c}"),
+                    "revision": 2,
+                    "revisions": [
+                        {
+                            "revision": 0,
+                            "integrity": integrity_a,
+                            "tarball": format!("{registry}-/tarballs/sha512/{digest_a}"),
+                            "manifest": { "dependencies": { "original": "1.0.0" } },
+                        },
+                        {
+                            "revision": 1,
+                            "integrity": integrity_b,
+                            "tarball": format!("{registry}-/tarballs/sha512/{digest_b}"),
+                            "manifest": {
+                                "name": "not-acme",
+                                "version": "9.0.0",
+                                "deprecated": "historical warning",
+                                "dist": {},
+                                "dependencies": { "fixed": "1.0.0" },
+                            },
+                        },
+                        {
+                            "revision": 2,
+                            "integrity": integrity_c,
+                            "tarball": format!("{registry}-/tarballs/sha512/{digest_c}"),
+                            "manifest": { "dependencies": { "selected-current": "1.0.0" } },
+                        },
+                    ],
+                },
+            },
+        },
+    })
+    .to_string()
+}
+
+#[tokio::test]
+async fn explicit_revision_selects_its_artifact_and_manifest() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_history_package_body(&registry))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0+r1".to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions { calc_specifier: true, ..ResolveOptions::default() };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    let LockfileResolution::Tarball(resolution) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(1));
+    assert!(resolution.tarball.ends_with("sha512/Umd2iCLuYk1I_OFexcp5y9YCy39MIVelFlVpkfIu-Me173sY0f9BxZNw77CFhlHUSpNsEbexRMSP4E3zxqPo2g"));
+    assert_eq!(result.normalized_bare_specifier.as_deref(), Some("1.0.0+r1"));
+    let manifest = result.manifest.as_ref().expect("manifest");
+    assert_eq!(manifest["name"], "acme");
+    assert_eq!(manifest["version"], "1.0.0");
+    assert_eq!(manifest["deprecated"], "current warning");
+    assert_eq!(manifest["dependencies"], json!({ "fixed": "1.0.0" }));
+    assert!(manifest.get("optionalDependencies").is_none());
+}
+
+#[tokio::test]
+async fn explicit_current_revision_accepts_its_matching_history_record() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_history_package_body(&registry))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0+r2".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let LockfileResolution::Tarball(resolution) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(2));
+    assert_eq!(
+        result.manifest.as_ref().expect("manifest")["dependencies"],
+        json!({
+            "selected-current": "1.0.0",
+        }),
+    );
+}
+
+#[tokio::test]
+async fn explicit_original_revision_omits_the_lockfile_revision() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_history_package_body(&registry))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("1.0.0+r0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+    let LockfileResolution::Tarball(resolution) = &result.resolution else {
+        panic!("expected tarball resolution");
+    };
+    assert_eq!(resolution.revision, None);
+    assert_eq!(
+        result.manifest.as_ref().expect("manifest")["dependencies"],
+        json!({
+            "original": "1.0.0",
+        }),
+    );
+}
+
+#[tokio::test]
+async fn unknown_and_invalid_explicit_revisions_are_hard_errors() {
+    for (specifier, expected_kind) in [("1.0.0+r9", "missing"), ("1.0.0+r01", "invalid")] {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(revision_history_package_body(&registry))
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+        let wanted = WantedDependency {
+            alias: Some("acme".to_string()),
+            bare_specifier: Some(specifier.to_string()),
+            ..WantedDependency::default()
+        };
+        let error = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+        match expected_kind {
+            "missing" => assert!(error.downcast_ref::<NoMatchingRevisionError>().is_some()),
+            "invalid" => assert!(error.downcast_ref::<InvalidRevisionSpecifierError>().is_some()),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[tokio::test]
+async fn revision_metadata_is_validated_and_preserved() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(2)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let result = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap().unwrap();
+
+    mock.assert_async().await;
+    let LockfileResolution::Tarball(resolution) = result.resolution else {
+        panic!("expected a tarball resolution");
+    };
+    assert_eq!(resolution.tarball, tarball);
+    assert_eq!(resolution.revision.map(TarballRevision::get), Some(2));
+}
+
+#[tokio::test]
+async fn current_revision_requires_a_matching_history_entry() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+    let mut body: serde_json::Value =
+        serde_json::from_str(&revision_package_body(&tarball, &json!(1))).unwrap();
+    body["versions"]["1.0.0"]["dist"]["revisions"] = json!([]);
+    server.mock("GET", "/acme").with_status(200).with_body(body.to_string()).create_async().await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+
+    let error = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+
+    assert!(error.downcast_ref::<MalformedRevisionHistoryError>().is_some());
+}
+
+#[tokio::test]
+async fn malformed_revision_metadata_has_the_malformed_metadata_error() {
+    for revision in
+        [json!(0), json!(-1), json!(1.5), json!(9_007_199_254_740_992_u64), json!("1"), json!("01")]
+    {
+        let mut server = mockito::Server::new_async().await;
+        let registry = format!("{}/", server.url());
+        let tarball = format!("{}-/tarballs/sha512/{}", registry, "A".repeat(86));
+        server
+            .mock("GET", "/acme")
+            .with_status(200)
+            .with_body(revision_package_body(&tarball, &revision))
+            .create_async()
+            .await;
+        let (resolver, _tempdir) = build_resolver(&registry);
+
+        let wanted =
+            WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+        let error = match resolver.resolve(&wanted, &ResolveOptions::default()).await {
+            Ok(result) => panic!("revision {revision} must fail the resolve; got {result:?}"),
+            Err(error) => error,
+        };
+
+        let error =
+            error.downcast_ref::<MalformedRevisionHistoryError>().expect("revision history error");
+        assert_eq!(error.name, "acme");
+        assert_eq!(error.version, "1.0.0");
+    }
+}
+
+#[tokio::test]
+async fn revision_metadata_rejects_a_tarball_from_another_registry() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let tarball = format!("https://attacker.example/-/tarballs/sha512/{}", "A".repeat(86));
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(revision_package_body(&tarball, &json!(1)))
+        .create_async()
+        .await;
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let wanted =
+        WantedDependency { alias: Some("acme".to_string()), ..WantedDependency::default() };
+    let error = resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect_err("a revision URL from another registry must fail the resolve");
+
+    assert!(error.downcast_ref::<MalformedRevisionHistoryError>().is_some());
 }
 
 #[tokio::test]

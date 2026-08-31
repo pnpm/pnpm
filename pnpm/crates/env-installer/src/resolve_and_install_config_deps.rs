@@ -180,11 +180,11 @@ async fn resolve_one(
     }
     env_lockfile.packages.insert(
         key.clone(),
-        registry_package_metadata(resolution.to_lockfile_form(
-            name,
-            &version,
-            npm_lockfile_form(registry),
-        )),
+        registry_package_metadata(
+            resolution
+                .to_lockfile_form(name, &version, npm_lockfile_form(registry))
+                .map_err(ConfigDepError::LockfileForm)?,
+        ),
     );
 
     // A pinned dependency covers only itself, so its optional subdeps stay out
@@ -220,10 +220,12 @@ fn migrate_into_lockfile(
     let resolution = LockfileResolution::Tarball(TarballResolution {
         tarball,
         integrity: Some(integrity),
+        revision: None,
         git_hosted: None,
         path: None,
     })
-    .to_lockfile_form(name, version, npm_lockfile_form(registry));
+    .to_lockfile_form(name, version, npm_lockfile_form(registry))
+    .map_err(ConfigDepError::LockfileForm)?;
     env_lockfile.packages.insert(key.clone(), registry_package_metadata(resolution));
     env_lockfile.snapshots.insert(key, SnapshotEntry::default());
     Ok(())

@@ -2578,6 +2578,100 @@ describe('update', () => {
     expect(updatedCatalogs!.default?.['@pnpm.e2e/foo']).toMatch(/^[\^~]?100\.1\.0$/)
   })
 
+  // Regression test for https://github.com/pnpm/pnpm/issues/12115
+  // A dependency that is both declared through the catalog and listed in
+  // "overrides" is handed to the resolver with the override's specifier, so the
+  // resolved version must not be written back over the "catalog:" reference.
+  test('update via install mutation preserves catalog: for an overridden dependency (issue #12115)', async () => {
+    const { options, projects, readLockfile } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+        '@pnpm.e2e/bar': '^100.0.0',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '^1.0.0' },
+      },
+      overrides: {
+        '@pnpm.e2e/foo': '^1.0.0',
+        '@pnpm.e2e/bar': '100.0.0',
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    expect(readLockfile().importers.project1.dependencies).toStrictEqual({
+      '@pnpm.e2e/bar': { specifier: '100.0.0', version: '100.0.0' },
+      '@pnpm.e2e/foo': { specifier: '^1.0.0', version: '1.3.0' },
+    })
+
+    // Simulate `pnpm update -r` by using the "install" mutation with update=true
+    // and updatePackageManifest=true, without specifying any dependencySelectors.
+    const { updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    // Both declarations are the overrides' input, not their output: neither the
+    // "catalog:" reference nor the declared range may be replaced by the version
+    // the override resolved to.
+    expect(updatedProjects[0]?.manifest.dependencies).toStrictEqual({
+      '@pnpm.e2e/foo': 'catalog:',
+      '@pnpm.e2e/bar': '^100.0.0',
+    })
+  })
+
+  // `pnpm update --latest -r` is what the issue reports, and it reaches the
+  // manifest through the same writer.
+  test('update via install mutation with updateToLatest preserves catalog: for an overridden dependency (issue #12115)', async () => {
+    await addDistTag({ package: '@pnpm.e2e/foo', version: '100.1.0', distTag: 'latest' })
+
+    const { options, projects } = preparePackagesAndReturnObjects([{
+      name: 'project1',
+      dependencies: {
+        '@pnpm.e2e/foo': 'catalog:',
+      },
+    }])
+
+    const mutateOpts = {
+      ...options,
+      lockfileOnly: true,
+      catalogs: {
+        default: { '@pnpm.e2e/foo': '^1.0.0' },
+      },
+      overrides: {
+        '@pnpm.e2e/foo': '^1.0.0',
+      },
+    }
+
+    await mutateModules(installProjects(projects), mutateOpts)
+
+    const { updatedProjects } = await mutateModules(
+      installProjects(projects).map((project) => ({
+        ...project,
+        mutation: 'install' as const,
+        update: true,
+        updateToLatest: true,
+        updatePackageManifest: true,
+      })),
+      mutateOpts
+    )
+
+    expect(updatedProjects[0]?.manifest.dependencies).toStrictEqual({
+      '@pnpm.e2e/foo': 'catalog:',
+    })
+  })
+
   // Test with multiple catalog dependencies: ensures that the index alignment in
   // updateProjectManifest is correct when some deps are catalog and some are not.
   test('update via install mutation preserves catalog: with mixed deps (issue #11658)', async () => {

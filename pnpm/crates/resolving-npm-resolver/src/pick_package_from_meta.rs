@@ -52,6 +52,12 @@ pub enum RegistryPackageSpecType {
     Range,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RegistryRevisionSelector {
+    Valid(u64),
+    Invalid(String),
+}
+
 /// Parsed registry spec produced by the bare-specifier parser. The
 /// picker (and the cache+fetch wrapper above it) consume this shape;
 /// the parser that produces it lives in its own module.
@@ -60,6 +66,7 @@ pub struct RegistryPackageSpec {
     pub name: String,
     pub fetch_spec: String,
     pub spec_type: RegistryPackageSpecType,
+    pub revision: Option<RegistryRevisionSelector>,
     /// Echo of the original bare specifier when the spec came from a
     /// tarball-URL parse. The resolver writes this back into
     /// `ResolveResult.normalized_bare_specifier`; the picker itself
@@ -74,6 +81,7 @@ impl RegistryPackageSpec {
             name: name.into(),
             fetch_spec: "latest".to_string(),
             spec_type: RegistryPackageSpecType::Tag,
+            revision: None,
             normalized_bare_specifier: None,
         }
     }

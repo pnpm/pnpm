@@ -309,6 +309,31 @@ fn pre_command_plan_records_a_pin_whose_specifier_the_lockfile_no_longer_matches
     );
 }
 
+/// A range pin resolves once; from then on the lockfile names the one pnpm
+/// every contributor on the project runs. A running pnpm the range would
+/// also have allowed is not that one.
+#[test]
+fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), ">=0.0.0");
+    write_lockfile(root.path(), &locked_package_manager(">=0.0.0", "99.0.0"));
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: false, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::Switch(plan)) = plan else {
+        panic!("expected a switch plan, got {plan:?}");
+    };
+    let SwitchSource::LockedEnv { version, .. } = plan.target.source else {
+        panic!("expected the locked resolution to be switched to");
+    };
+    assert_eq!(version, "99.0.0");
+}
+
 #[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");
@@ -461,12 +486,17 @@ fn switch_target_discards_package_manager_lockfile_resolution_with_non_integrity
     let target =
         switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
-    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: true } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: true,
+        locked_version,
+    } = target.source
     else {
         panic!("expected a forced re-resolve, got {:?}", target.source);
     };
     assert_eq!(env_root, root.path());
+    assert_eq!(locked_version.as_deref(), Some("9.3.0"));
 }
 
 #[test]
@@ -478,12 +508,17 @@ fn switch_target_discards_package_manager_lockfile_dependency_with_non_registry_
     let target =
         switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
-    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: true } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: true,
+        locked_version,
+    } = target.source
     else {
         panic!("expected a forced re-resolve, got {:?}", target.source);
     };
     assert_eq!(env_root, root.path());
+    assert_eq!(locked_version.as_deref(), Some("9.3.0"));
 }
 
 #[test]
@@ -496,8 +531,12 @@ fn switch_target_reresolves_when_locked_version_no_longer_satisfies_range() {
         switch_target(&Config::default(), root.path(), false).expect("target").expect("switch");
 
     assert_eq!(target.spec, ">=9.1.2 <9.1.4");
-    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: false,
+        locked_version: None,
+    } = target.source
     else {
         panic!("expected resolve target");
     };
@@ -518,8 +557,12 @@ fn switch_target_uses_global_env_for_legacy_package_manager_field() {
     .expect("target")
     .expect("switch");
 
-    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: false,
+        locked_version: None,
+    } = target.source
     else {
         panic!("expected resolve target");
     };
@@ -555,8 +598,12 @@ fn switch_target_refuses_to_record_a_persisting_pin_under_frozen_lockfile() {
     let target =
         switch_target(&Config::default(), root.path(), true).expect("target").expect("switch");
 
-    let SwitchSource::Resolve { env_root, frozen_lockfile: true, force_resync: false } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: true,
+        force_resync: false,
+        locked_version: None,
+    } = target.source
     else {
         panic!("expected a frozen resolve target, got {:?}", target.source);
     };
@@ -577,8 +624,12 @@ fn switch_target_leaves_the_global_env_writable_under_frozen_lockfile() {
     .expect("target")
     .expect("switch");
 
-    let SwitchSource::Resolve { env_root, frozen_lockfile: false, force_resync: false } =
-        target.source
+    let SwitchSource::Resolve {
+        env_root,
+        frozen_lockfile: false,
+        force_resync: false,
+        locked_version: None,
+    } = target.source
     else {
         panic!("expected an unfrozen resolve target, got {:?}", target.source);
     };

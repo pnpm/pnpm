@@ -10,6 +10,8 @@ import type {
   RegistriesByScope,
   RegistryConfig,
   RegistryOptions,
+  RemoteSideEffectsCacheSettings,
+  SideEffectsCacheSettings,
   TrustPolicy,
   VersioningSettings,
   VirtualStoreType,
@@ -138,6 +140,7 @@ export interface Config extends OptionsFromRootManifest {
   nodeDownloadMirrors?: Record<string, string>
   offline?: boolean
   registry?: string
+  scope?: string
   optional?: boolean
   unsafePerm?: boolean
   loglevel?: 'silent' | 'error' | 'warn' | 'info' | 'debug'
@@ -145,8 +148,14 @@ export interface Config extends OptionsFromRootManifest {
   preferFrozenLockfile?: boolean
   only?: 'prod' | 'production' | 'dev' | 'development'
   preferOffline?: boolean
-  sideEffectsCache?: boolean // for backward compatibility
-  sideEffectsCacheReadonly?: boolean // for backward compatibility
+  /**
+   * As declared. Resolved into {@link Config.sideEffectsCacheRead},
+   * {@link Config.sideEffectsCacheWrite} and
+   * {@link Config.remoteSideEffectsCache} before any consumer sees it.
+   */
+  sideEffectsCache?: boolean | SideEffectsCacheSettings
+  /** The boolean spelling of `sideEffectsCache: { read: true, write: false }`. */
+  sideEffectsCacheReadonly?: boolean
   sideEffectsCacheRead?: boolean
   sideEffectsCacheWrite?: boolean
   shamefullyHoist?: boolean
@@ -257,6 +266,7 @@ export interface Config extends OptionsFromRootManifest {
   blockExoticSubdeps?: boolean
 
   pnprServer?: string
+  remoteSideEffectsCache?: RemoteSideEffectsCacheSettings
 
   registriesByScope: RegistriesByScope
   packageManagerRegistries?: RegistriesByScope

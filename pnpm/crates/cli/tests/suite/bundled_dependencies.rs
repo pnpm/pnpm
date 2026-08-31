@@ -147,6 +147,27 @@ fn bundle_dependencies_false_is_not_recorded() {
     drop((root, npmrc_info)); // cleanup
 }
 
+#[test]
+fn bundled_dependencies_survive_a_lockfile_rewrite() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+
+    pacquet.with_args(["add", "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0"]).assert().success();
+
+    // Adding an unrelated package rewrites the lockfile while the first
+    // entry's resolution is reused rather than resolved again.
+    pacquet_in(&workspace).with_args(["add", "@pnpm.e2e/foo@100.0.0"]).assert().success();
+
+    let lockfile = read_wanted_lockfile(&workspace);
+    assert_eq!(
+        package(&lockfile, "@pnpm.e2e/pkg-with-bundled-dependencies@1.0.0").bundled_dependencies,
+        Some(BundledDependencies::Names(vec!["@pnpm.e2e/hello-world-js-bin".to_string()])),
+        "an entry whose resolution was reused keeps its recorded bundled dependencies",
+    );
+
+    drop((root, npmrc_info)); // cleanup
+}
+
 /// A linked bin means something different per platform: Unix has the
 /// executable bit on the extensionless shim, while Windows has no such bit and
 /// instead relies on the `.cmd` / `.ps1` launchers written next to it. Assert

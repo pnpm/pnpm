@@ -1,6 +1,6 @@
 //! Shared machinery for the recursive (`-r`) variants of `run` and
 //! `exec`: workspace-project discovery, `--filter` selection,
-//! topological sorting, the `--resume-from` chunk trimming, and the
+//! dependency graph construction, `--resume-from` trimming, and the
 //! `pnpm-exec-summary.json` execution-status report.
 //!
 //! The per-command pieces (which action runs per project, and the
@@ -27,10 +27,6 @@ use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
-    sync::{
-        Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
 };
 
 /// `Cannot find package {resume_from}` — raised by both recursive `run`
@@ -62,51 +58,32 @@ pub struct NoMatchingProjects {
     pub message: String,
 }
 
-/// Sort the `--filter`-selected workspace projects into topologically
-/// ordered chunks: every project in chunk `i` depends only on projects in
-/// earlier chunks, so chunk `i` may run after chunks `0..i`.
-///
-/// Order is resolved through the full workspace graph, so two selected
-/// projects connected only through an unselected one are still ordered
-/// correctly. `--filter-prod` projects in `prod_only_selected` resolve
-/// through `prod_all` instead, so the dev edges that selection pruned are
-/// not pulled back into the order. Unrelated projects share a chunk and
-/// stay concurrent.
-pub fn sort_filtered_projects<Pkg>(
+/// The dependency edges among the `--filter`-selected projects, resolved
+/// through the full workspace graph so a relationship between two selected
+/// projects via an unselected one becomes a direct edge. Keys keep the
+/// selection order.
+pub fn filtered_projects_dependencies<Pkg>(
     selected: &ProjectGraph<Pkg>,
     all: &ProjectGraph<Pkg>,
     prod_all: Option<&ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
-) -> Vec<Vec<PathBuf>> {
-    match prod_all {
-        None => sort_projects(selected, Some(all)),
-        Some(prod_all) => {
-            sequence_graph_by_project(selected, |project_dir| {
-                if prod_only_selected.contains(project_dir) { prod_all } else { all }
-            })
-            .chunks
-        }
-    }
+) -> IndexMap<PathBuf, Vec<PathBuf>> {
+    let sorted: HashSet<&Path> = selected.keys().map(PathBuf::as_path).collect();
+    selected
+        .keys()
+        .map(|project_dir| {
+            let full_graph = match prod_all {
+                Some(prod_all) if prod_only_selected.contains(project_dir) => prod_all,
+                _ => all,
+            };
+            (project_dir.clone(), sorted_dependencies(selected, full_graph, project_dir, &sorted))
+        })
+        .collect()
 }
 
-/// Sort `graph` into topologically ordered chunks: every project in chunk
-/// `i` depends only on projects in earlier chunks, so chunk `i` may run
-/// after chunks `0..i`.
-///
-/// `full_graph` resolves edges that pass through projects outside `graph`,
-/// so two selected projects connected only through an unselected one are
-/// still ordered correctly; `None` resolves only the edges among `graph`'s
-/// own projects.
-pub fn sort_projects<Pkg>(
-    graph: &ProjectGraph<Pkg>,
-    full_graph: Option<&ProjectGraph<Pkg>>,
-) -> Vec<Vec<PathBuf>> {
-    sequence_graph(graph, full_graph.unwrap_or(graph)).chunks
-}
-
-/// Sequence `projects_graph` into topologically ordered chunks, resolving
-/// transitive edges through `full_projects_graph`. See [`sort_projects`].
-fn sequence_graph<Pkg>(
+/// Sequence `projects_graph` into one deterministic topological order,
+/// resolving transitive edges through `full_projects_graph`.
+pub fn sequence_graph<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
     full_projects_graph: &ProjectGraph<Pkg>,
 ) -> GraphSequencerResult<PathBuf> {
@@ -170,53 +147,45 @@ fn sorted_dependencies<Pkg>(
     dependencies
 }
 
-/// Drop every chunk before the one containing the `resume_from` package,
-/// so execution resumes from that package.
-///
-/// The package is located by manifest name; an unknown name is a
-/// [`ResumeFromNotFound`] error.
-pub fn get_resumed_package_chunks(
+/// The project directory `--resume-from` names, located by manifest name;
+/// an unknown name is a [`ResumeFromNotFound`] error. The invocation's
+/// task for that project anchors the resumed task graph.
+pub fn find_resume_root(
     resume_from: &str,
-    chunks: Vec<Vec<PathBuf>>,
     graph: &ProjectGraph<GraphPkg<'_>>,
-) -> Result<Vec<Vec<PathBuf>>, ResumeFromNotFound> {
-    let resume_root = graph
+) -> Result<PathBuf, ResumeFromNotFound> {
+    graph
         .iter()
         .find(|(_, node)| node.package.manifest_name() == Some(resume_from))
         .map(|(root, _)| root.clone())
-        .ok_or_else(|| ResumeFromNotFound { resume_from: resume_from.to_string() })?;
-    let position = chunks
-        .iter()
-        .position(|chunk| chunk.contains(&resume_root))
-        .expect("the resume-from package is present in the sorted chunks");
-    Ok(chunks.into_iter().skip(position).collect())
+        .ok_or_else(|| ResumeFromNotFound { resume_from: resume_from.to_string() })
 }
 
 /// Write the recursive summary to `pnpm-exec-summary.json` under `dir`.
 ///
-/// The per-package map is nested under an `executionStatus` key.
+/// The per-task map is nested under an `executionStatus` key. Keys are
+/// project directories, `#`-qualified with the task name for tasks
+/// `dependsOn` pulled in — see `task_summary_key`.
 pub fn write_recursive_summary(
     dir: &Path,
-    summary: &IndexMap<PathBuf, ExecutionStatus>,
+    summary: &IndexMap<String, ExecutionStatus>,
 ) -> miette::Result<()> {
-    let execution_status = summary
-        .iter()
-        .map(|(root, status)| (root.to_string_lossy().into_owned(), status.clone()))
-        .collect();
     let path = dir.join("pnpm-exec-summary.json");
     let mut contents =
-        serde_json::to_string_pretty(&ExecSummaryFile { execution_status }).into_diagnostic()?;
+        serde_json::to_string_pretty(&ExecSummaryFile { execution_status: summary.clone() })
+            .into_diagnostic()?;
     contents.push('\n');
     std::fs::write(&path, contents)
         .into_diagnostic()
         .wrap_err_with(|| format!("writing {}", path.display()))
 }
 
-/// Count the packages whose action failed.
+/// Count the tasks whose action failed.
 ///
 /// The caller turns a non-zero count into its command-specific
-/// `ERR_PNPM_RECURSIVE_FAIL` error.
-pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
+/// `ERR_PNPM_RECURSIVE_FAIL` error. Skipped dependents of a failed task do
+/// not add to the count: the failure that blocked them is already counted.
+pub fn count_failures(summary: &IndexMap<String, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
 }
 
@@ -279,7 +248,7 @@ impl<'a> RecursiveSelection<'a> {
 }
 
 /// Build the `--filter`-selected workspace projects the recursive command
-/// runs over, together with the graphs [`sort_filtered_projects`] resolves
+/// runs over, together with the graphs [`filtered_projects_dependencies`] resolves
 /// order through. `prefix` is where path selectors resolve; `auto_exclude_root`
 /// applies the main-dispatch `!{<workspace-root>}` augmentation for
 /// `run` / `exec`.
@@ -373,7 +342,7 @@ pub fn select_recursive_projects<'a>(
     // dropped. A project also matched by a regular selector keeps this earlier
     // position but has its node overwritten with the full-graph one below, and
     // is left out of `prod_only_selected`. Insertion order is user-visible: the
-    // recursive runners execute and print a topological chunk's projects in it.
+    // recursive runners use it as the dispatch tie-break order.
     if let Some(prod_all) = &prod_all {
         let regular: HashSet<&PathBuf> = regular_selected.iter().collect();
         for dir in &prod_selected {
@@ -451,55 +420,6 @@ pub fn selected_importer_ids(
         .keys()
         .map(|project_dir| importer_id_from_root_dir(lockfile_dir, project_dir))
         .collect()
-}
-
-/// Run one dependency-independent workspace chunk with at most
-/// `workspace_concurrency` operations in flight, preserving input order in
-/// the returned results.
-pub fn run_workspace_chunk<Output, Operation>(
-    roots: &[PathBuf],
-    workspace_concurrency: u32,
-    operation: Operation,
-) -> miette::Result<Vec<Output>>
-where
-    Output: Send,
-    Operation: Fn(&Path) -> Output + Sync,
-{
-    if roots.is_empty() {
-        return Ok(Vec::new());
-    }
-    let concurrency =
-        usize::try_from(workspace_concurrency).unwrap_or(usize::MAX).max(1).min(roots.len());
-    let next = AtomicUsize::new(0);
-    let outputs = Mutex::new((0..roots.len()).map(|_| None).collect::<Vec<Option<Output>>>());
-    std::thread::scope(|scope| -> miette::Result<()> {
-        let handles = (0..concurrency)
-            .map(|_| {
-                std::thread::Builder::new()
-                    .spawn_scoped(scope, || {
-                        loop {
-                            let index = next.fetch_add(1, Ordering::Relaxed);
-                            let Some(root) = roots.get(index) else { break };
-                            let output = operation(root);
-                            outputs.lock().expect("workspace output lock is not poisoned")[index] =
-                                Some(output);
-                        }
-                    })
-                    .into_diagnostic()
-                    .wrap_err("failed to start workspace task runner")
-            })
-            .collect::<miette::Result<Vec<_>>>()?;
-        for handle in handles {
-            handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic));
-        }
-        Ok(())
-    })?;
-    Ok(outputs
-        .into_inner()
-        .expect("workspace output lock is not poisoned")
-        .into_iter()
-        .map(|output| output.expect("every workspace operation produced an output"))
-        .collect())
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.

@@ -1,6 +1,6 @@
 use super::{BuildSnapshotError, build_package_snapshot, registry_package_key};
 use node_semver::Version;
-use pnpm_lockfile::{LockfileResolution, PkgName, PkgVerPeer};
+use pnpm_lockfile::{LockfileResolution, PkgName, PkgVerPeer, TarballRevision};
 use pnpm_registry::{PackageDistribution, PackageVersion};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
@@ -20,6 +20,8 @@ fn make_package(name: &str, version: &str) -> PackageVersion {
             )),
             shasum: None,
             tarball: format!("https://registry.npmjs.org/{name}/-/{name}-{version}.tgz"),
+            revision: None,
+            revisions: None,
             file_count: None,
             unpacked_size: None,
             attestations: None,
@@ -51,12 +53,17 @@ fn builds_package_key_for_scoped_name() {
 
 #[test]
 fn builds_metadata_with_registry_resolution_and_no_deps() {
-    let pkg = make_package("lodash", "4.17.21");
+    let mut pkg = make_package("lodash", "4.17.21");
+    pkg.dist.revision = Some(serde_json::json!(2));
     let built = build_package_snapshot(&pkg, &HashMap::new()).unwrap();
 
     assert_eq!(built.package_key.to_string(), "lodash@4.17.21");
     dbg!(&built.metadata.resolution);
-    assert!(matches!(built.metadata.resolution, LockfileResolution::Registry(_)));
+    assert!(matches!(
+        built.metadata.resolution,
+        LockfileResolution::Registry(registry)
+            if registry.revision == Some(TarballRevision::try_from(2).unwrap())
+    ));
     dbg!(&built.snapshot.dependencies);
     assert!(built.snapshot.dependencies.is_none());
 }
@@ -84,4 +91,18 @@ fn returns_error_when_integrity_is_missing() {
         build_package_snapshot(&pkg, &HashMap::new()).expect_err("should fail without integrity");
     eprintln!("err={err:?}");
     assert!(matches!(err, BuildSnapshotError::MissingIntegrity { .. }));
+}
+
+#[test]
+fn returns_error_when_revision_is_invalid() {
+    let mut pkg = make_package("broken", "1.0.0");
+    pkg.dist.revision = Some(serde_json::json!(0));
+
+    let err = build_package_snapshot(&pkg, &HashMap::new())
+        .expect_err("should fail with an invalid revision");
+    assert!(matches!(err, BuildSnapshotError::InvalidRevision(_)));
+    assert_eq!(
+        miette::Diagnostic::code(&err).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_MALFORMED_METADATA"),
+    );
 }

@@ -5,8 +5,7 @@ use super::{
     LogEvent, LogLevel, MemCache, NodeLinker, PackageManifest, Path, PathBuf, PeerIssuesSink,
     PnpmLog, ProjectMutation, RebuildOptions, Reporter, ResolutionVerifier, ResolvedPackages,
     ThrottledClient, UpdateSeedPolicy, build_workspace_packages_map, map_fresh_lockfile_error,
-    map_frozen_lockfile_error, node_version_from_engines_runtime, record_lockfile_verified,
-    verify_lockfile_eagerly,
+    map_frozen_lockfile_error, record_lockfile_verified, verify_lockfile_eagerly,
 };
 
 pub(super) struct MaterializationInputs<'a, 'install> {
@@ -17,6 +16,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) config: &'static Config,
     pub(super) manifest: &'a PackageManifest,
     pub(super) lockfile: Option<&'a Lockfile>,
+    pub(super) merge_wanted_lockfile: Option<&'a Lockfile>,
     pub(super) take_frozen_path: bool,
     pub(super) lockfile_verification_override:
         Option<super::LockfileVerificationOverride<'install>>,
@@ -37,6 +37,11 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) current_lockfile: Option<&'a Lockfile>,
     pub(super) supported_architectures:
         Option<&'a pnpm_package_is_installable::SupportedArchitectures>,
+    /// A host detection spawned right after the wanted lockfile parse —
+    /// see [`pnpm_deps_restorer::materialization_plan::HostDetection::spawn`].
+    /// Handed to whichever install path runs.
+    pub(super) early_host_detection:
+        Option<pnpm_deps_restorer::materialization_plan::HostDetection>,
     pub(super) skip_runtimes: bool,
     pub(super) modules_manifest: Option<&'a pnpm_modules_yaml::ModulesLayout>,
     pub(super) prior_hoisted_dependencies: Option<&'a HoistedDependencies>,
@@ -58,6 +63,7 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) peer_issues_sink: Option<PeerIssuesSink>,
     pub(super) deps_requiring_build_sink: Option<DepsRequiringBuildSink>,
     pub(super) pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
+    pub(super) deploy_manifest_hook: bool,
     pub(super) save_lockfile: bool,
     pub(super) manifest_spec_bumps: Option<&'a crate::ManifestSpecBumps>,
     pub(super) catalogs: &'a Catalogs,
@@ -95,6 +101,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         config,
         manifest,
         lockfile,
+        merge_wanted_lockfile,
         take_frozen_path,
         lockfile_verification_override,
         resolution_verifiers,
@@ -113,6 +120,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         mutation,
         current_lockfile,
         supported_architectures,
+        early_host_detection,
         skip_runtimes,
         modules_manifest,
         prior_hoisted_dependencies,
@@ -132,6 +140,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         peer_issues_sink,
         deps_requiring_build_sink,
         pnpmfile_hook,
+        deploy_manifest_hook,
         save_lockfile,
         manifest_spec_bumps,
         catalogs,
@@ -140,8 +149,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     let ignored_builds: Vec<String>;
     let deferred_builds: Vec<String>;
     let injected_deps: BTreeMap<String, Vec<String>>;
-    let effective_node_version =
-        config.node_version.clone().or_else(|| node_version_from_engines_runtime(manifest.value()));
+    let effective_node_version = super::effective_node_version(config, manifest);
     let (
         hoisted_dependencies,
         hoisted_locations,
@@ -279,6 +287,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             supported_architectures,
             skip_runtimes,
             node_version: effective_node_version.clone(),
+            early_host_detection,
             node_linker,
             tarball_mem_cache: Some(&tarball_mem_cache),
             seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
@@ -382,7 +391,9 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             // entries keep their pins on rewrite (the `update: false`
             // mode). State 4 (no lockfile) passes `None`.
             wanted_lockfile: lockfile,
+            merge_wanted_lockfile,
             node_version: effective_node_version,
+            early_host_detection,
             node_linker,
             supported_architectures,
             lockfile_only: resolve_only,
@@ -399,12 +410,14 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             peer_issues_sink: peer_issues_sink.clone(),
             deps_requiring_build_sink: deps_requiring_build_sink.as_ref().map(Arc::clone),
             pnpmfile_hook_override: pnpmfile_hook,
+            deploy_manifest_hook,
             real_importer_ids: requested_importer_ids.map(|_| real_importer_ids),
             selected_importer_ids: requested_importer_ids,
             current_lockfile,
             prior_hoisted_dependencies,
             prune_orphans,
             manifest_spec_bumps,
+            resolution_verifiers: &resolution_verifiers,
             lockfile_verification_gate,
         }
         .run::<Reporter>()

@@ -6,8 +6,9 @@
 //! Runs immediately after the prefetch, whose results it consumes.
 
 use super::{
-    PackageManifests, RequiresBuildBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
-    snapshot_needs_build_marker,
+    PackageManifests, RemoteSideEffectsQuarantineBySnapshot, RequiresBuildBySnapshot,
+    SideEffectsBySnapshot, SideEffectsMapsBySnapshot, SnapshotWithCacheKey,
+    StoreIndexKeysBySnapshot, snapshot_needs_build_marker,
 };
 use pnpm_config::NodeLinker;
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
@@ -31,6 +32,9 @@ pub(super) struct Partition<'a> {
     /// linker need not re-read each child's `package.json`.
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    pub side_effects_by_snapshot: SideEffectsBySnapshot,
+    pub remote_side_effects_quarantine_by_snapshot: RemoteSideEffectsQuarantineBySnapshot,
+    pub store_index_keys_by_snapshot: StoreIndexKeysBySnapshot,
     pub requires_build_by_snapshot: RequiresBuildBySnapshot,
 }
 
@@ -108,13 +112,22 @@ pub(super) fn partition_snapshots<'a>(
         node_linker = ?node_linker,
         "phase complete",
     );
-    let IndexRows { package_manifests, side_effects_maps_by_snapshot, requires_build_by_snapshot } =
-        rows;
+    let IndexRows {
+        package_manifests,
+        side_effects_maps_by_snapshot,
+        side_effects_by_snapshot,
+        remote_side_effects_quarantine_by_snapshot,
+        store_index_keys_by_snapshot,
+        requires_build_by_snapshot,
+    } = rows;
     Partition {
         warm,
         cold,
         package_manifests,
         side_effects_maps_by_snapshot,
+        side_effects_by_snapshot,
+        remote_side_effects_quarantine_by_snapshot,
+        store_index_keys_by_snapshot,
         requires_build_by_snapshot,
     }
 }
@@ -124,6 +137,9 @@ pub(super) fn partition_snapshots<'a>(
 struct IndexRows {
     package_manifests: PackageManifests,
     side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
+    side_effects_by_snapshot: SideEffectsBySnapshot,
+    remote_side_effects_quarantine_by_snapshot: RemoteSideEffectsQuarantineBySnapshot,
+    store_index_keys_by_snapshot: StoreIndexKeysBySnapshot,
     requires_build_by_snapshot: RequiresBuildBySnapshot,
 }
 
@@ -132,6 +148,11 @@ impl IndexRows {
         IndexRows {
             package_manifests: HashMap::with_capacity(prefetch.manifests.len()),
             side_effects_maps_by_snapshot: HashMap::with_capacity(prefetch.side_effects_maps.len()),
+            side_effects_by_snapshot: HashMap::with_capacity(prefetch.side_effects.len()),
+            remote_side_effects_quarantine_by_snapshot: HashMap::with_capacity(
+                prefetch.remote_side_effects_quarantine.len(),
+            ),
+            store_index_keys_by_snapshot: HashMap::with_capacity(prefetch.cas_paths.len()),
             requires_build_by_snapshot: HashMap::with_capacity(prefetch.requires_build.len()),
         }
     }
@@ -148,6 +169,7 @@ impl IndexRows {
         marker_rebuilds: &HashSet<PackageKey>,
     ) {
         let Some(cache_key) = cache_key else { return };
+        self.store_index_keys_by_snapshot.insert(snapshot_key.clone(), cache_key.to_string());
         if let Some(manifest) = prefetch.manifests.get(cache_key) {
             self.package_manifests
                 .entry(snapshot_key.without_peer())
@@ -160,6 +182,14 @@ impl IndexRows {
         {
             self.side_effects_maps_by_snapshot
                 .insert(snapshot_key.clone(), std::sync::Arc::clone(maps));
+        }
+        if let Some(diffs) = prefetch.side_effects.get(cache_key) {
+            self.side_effects_by_snapshot
+                .insert(snapshot_key.clone(), std::sync::Arc::clone(diffs));
+        }
+        if let Some(quarantine) = prefetch.remote_side_effects_quarantine.get(cache_key) {
+            self.remote_side_effects_quarantine_by_snapshot
+                .insert(snapshot_key.clone(), std::sync::Arc::clone(quarantine));
         }
         if let Some(&requires_build) = prefetch.requires_build.get(cache_key) {
             self.requires_build_by_snapshot.insert(snapshot_key.clone(), requires_build);

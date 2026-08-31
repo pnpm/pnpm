@@ -55,6 +55,9 @@
       "path": "../../pkg-manifest/utils"
     },
     {
+      "path": "../../resolving/parse-wanted-dependency"
+    },
+    {
       "path": "../../store/connection-manager"
     },
     {

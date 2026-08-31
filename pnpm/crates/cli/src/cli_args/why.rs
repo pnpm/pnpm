@@ -47,7 +47,7 @@ pub struct WhyArgs {
 
     /// Display only the dependency graph for packages in `dependencies`
     /// and `optionalDependencies`.
-    #[clap(short = 'P', long = "prod")]
+    #[clap(short = 'P', long = "prod", visible_alias = "production")]
     pub production: bool,
 
     /// Display only the dependency graph for packages in `devDependencies`.

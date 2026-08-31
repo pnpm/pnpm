@@ -6,7 +6,7 @@ import path from 'node:path'
 import { PnpmError } from '@pnpm/error'
 import { globalWarn } from '@pnpm/logger'
 import type { VerifiedFileIntegrity } from '@pnpm/store.cafs'
-import type { FilesMap, PackageFilesResponse } from '@pnpm/store.cafs-types'
+import type { FilesMap, PackageFilesResponse, SideEffectsDiff } from '@pnpm/store.cafs-types'
 import type { StoreIndex } from '@pnpm/store.index'
 import type { BundledManifest } from '@pnpm/types'
 import { WorkerPool } from '@rushstack/worker-pool'
@@ -119,10 +119,12 @@ interface AddFilesResult {
   filesMap: FilesMap
   manifest?: BundledManifest
   requiresBuild: boolean
+  requiresPrepare?: boolean
   integrity?: string
+  sideEffects?: SideEffectsDiff
 }
 
-type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules'> & {
+type AddFilesFromDirOptions = Pick<AddDirToStoreMessage, 'storeDir' | 'dir' | 'filesIndexFile' | 'sideEffectsCacheKey' | 'readManifest' | 'pkg' | 'files' | 'appendManifest' | 'includeNodeModules' | 'requiresPrepare'> & {
   storeIndex: StoreIndex
 }
 
@@ -164,6 +166,7 @@ export async function addFilesFromDir (opts: AddFilesFromDirOptions): Promise<Ad
       appendManifest: opts.appendManifest,
       files: opts.files,
       includeNodeModules: opts.includeNodeModules,
+      requiresPrepare: opts.requiresPrepare,
     })
   })
 }

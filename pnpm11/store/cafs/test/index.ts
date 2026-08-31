@@ -251,7 +251,7 @@ test('unpack a tarball that contains hard links', () => {
 // A malicious tarball entry like "foo\..\..\..\.npmrc" should have its path normalized
 test('path traversal with backslashes is blocked (Windows security fix)', () => {
   // Create a minimal valid tarball with a malicious filename
-  const tarBuffer = createTarballWithEntry('foo\\..\\..\\..\\malicious.txt', 'evil content')
+  const tarBuffer = createTarballWithEntry('package/foo\\..\\..\\..\\malicious.txt', 'evil content')
 
   const result = parseTarball(tarBuffer)
   const fileNames = Array.from(result.files.keys())
@@ -263,16 +263,21 @@ test('path traversal with backslashes is blocked (Windows security fix)', () => 
   }
 })
 
+test('only one segment is stripped from a dot-prefixed tarball entry', () => {
+  const result = parseTarball(createTarballWithEntry('./package/package.json', '{}'))
+
+  expect(Array.from(result.files.keys())).toStrictEqual(['package/package.json'])
+})
+
 // Helper to create a minimal tarball buffer with a single entry
-function createTarballWithEntry (fileName: string, content: string): Buffer {
+function createTarballWithEntry (entryPath: string, content: string): Buffer {
   const contentBytes = Buffer.from(content, 'utf8')
 
   // Create a 512-byte header
   const header = Buffer.alloc(512, 0)
 
   // File name at offset 0 (max 100 chars)
-  const nameToWrite = `package/${fileName}`
-  header.write(nameToWrite, 0, Math.min(nameToWrite.length, 100), 'utf8')
+  header.write(entryPath, 0, Math.min(entryPath.length, 100), 'utf8')
 
   // File mode at offset 100 (octal, 8 bytes) - 0644
   header.write('0000644\0', 100, 8, 'utf8')

@@ -29,7 +29,10 @@ use dashmap::DashMap;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
 use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
-use pnpm_lockfile::{LockfileResolution, PkgName, is_git_hosted_tarball_url};
+use pnpm_lockfile::{
+    LockfileResolution, PkgName, TarballRevision, is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url,
+};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pnpm_registry::{
     Approver, DerivedPackuments, NpmUser, Package, PackageDistribution, PackageVersion,
@@ -51,8 +54,8 @@ use crate::{
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
         MINIMUM_RELEASE_AGE_VIOLATION_CODE, MISSING_NAMED_REGISTRY_VIOLATION_CODE,
-        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
-        TRUST_DOWNGRADE_VIOLATION_CODE,
+        MISSING_TARBALL_INTEGRITY_VIOLATION_CODE, TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -333,6 +336,9 @@ impl ResolutionVerifier for NpmResolutionVerifier {
         if cached_policy.get("tarballUrlBinding").and_then(JsonValue::as_bool) != Some(true) {
             return false;
         }
+        if cached_policy.get("revisionHistoryBinding").and_then(JsonValue::as_bool) != Some(true) {
+            return false;
+        }
 
         // The missing-integrity check is also unconditional; a cached run
         // without the flag cannot prove it rejected unverifiable tarballs.
@@ -450,7 +456,7 @@ impl NpmResolutionVerifier {
                     return ResolutionVerification::Err {
                         code: MISSING_NAMED_REGISTRY_VIOLATION_CODE,
                         reason: format!(
-                            "was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting",
+                            "has registry prefix '{registry_name}:', which is not declared by the registries setting",
                         ),
                     };
                 }
@@ -465,7 +471,6 @@ impl NpmResolutionVerifier {
         if tarball_url.is_none() && !age_applies && !trust_applies {
             return ResolutionVerification::Ok;
         }
-
         let registry = named_registry.unwrap_or_else(|| self.pick_registry(ctx.name, tarball_url));
 
         // A registry entry that pins an explicit tarball URL must point at
@@ -475,9 +480,17 @@ impl NpmResolutionVerifier {
         // it does not depend on the minimum-release-age / trust policies and
         // isn't narrowed by their exclude lists, since it guards integrity
         // rather than maturity/trust.
-        if let Some(url) = tarball_url
-            && let Some(violation) =
-                self.run_tarball_url_check(&registry, ctx.name, ctx.version, url).await
+        if (tarball_url.is_some()
+            || (lockfile_revision(resolution).is_some() && (age_applies || trust_applies)))
+            && let Some(violation) = self
+                .run_registry_artifact_check(
+                    &registry,
+                    ctx.name,
+                    ctx.version,
+                    resolution,
+                    tarball_url,
+                )
+                .await
         {
             return violation;
         }
@@ -543,14 +556,15 @@ impl NpmResolutionVerifier {
     /// `dist.tarball`, the entry can't be confirmed and is rejected —
     /// otherwise a tampered lockfile could smuggle a malicious URL past the
     /// check by pointing it at a `name@version` the registry can't vouch for.
-    async fn run_tarball_url_check(
+    async fn run_registry_artifact_check(
         &self,
         registry: &str,
         name: &PkgName,
         version: &str,
-        lockfile_tarball: &str,
+        resolution: &LockfileResolution,
+        lockfile_tarball: Option<&str>,
     ) -> Option<ResolutionVerification> {
-        let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
+        let artifact = match self.fetch_abbreviated_meta(registry, name).await {
             Ok(meta) => {
                 if let Some(sink) = self.observed_dist_stats.as_ref()
                     && let Some(stats) =
@@ -558,7 +572,7 @@ impl NpmResolutionVerifier {
                 {
                     sink.insert((name.to_string(), version.to_string()), *stats);
                 }
-                meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
+                meta.version_artifacts.and_then(|artifacts| artifacts.get(version).cloned())
             }
             Err(message) => {
                 // Couldn't reach the registry to verify (auth/network/5xx).
@@ -570,19 +584,153 @@ impl NpmResolutionVerifier {
                 return Some(ResolutionVerification::FetchFailed { message });
             }
         };
-        match registry_tarball {
-            Some(url) if same_tarball_url(lockfile_tarball, &url) => None,
-            Some(url) => Some(ResolutionVerification::Err {
+        let Some(artifact) = artifact else {
+            if lockfile_tarball.is_none() && lockfile_revision(resolution).is_none() {
+                return None;
+            }
+            return Some(ResolutionVerification::Err {
+                code: if lockfile_tarball.is_some() {
+                    TARBALL_URL_MISMATCH_VIOLATION_CODE
+                } else {
+                    TARBALL_REVISION_MISMATCH_VIOLATION_CODE
+                },
+                reason: "could not be verified against the registry's published metadata"
+                    .to_string(),
+            });
+        };
+        let revision_aware = lockfile_revision(resolution).is_some()
+            || artifact.current.revision.is_some()
+            || !artifact.revisions.is_empty();
+        if !revision_aware {
+            return match (lockfile_tarball, artifact.current.tarball) {
+                (None, _) => None,
+                (Some(lockfile), Some(registry)) if same_tarball_url(lockfile, &registry) => None,
+                (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
+                    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                    reason: format!(
+                        "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
+                    ),
+                }),
+                (Some(_), None) => Some(ResolutionVerification::Err {
+                    code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+                    reason: "could not be verified against the registry's published metadata"
+                        .to_string(),
+                }),
+            };
+        }
+        let current_revision = match artifact.current.revision.as_ref() {
+            None => 0,
+            Some(raw_revision) => match raw_revision
+                .as_u64()
+                .and_then(|revision| TarballRevision::try_from(revision).ok())
+            {
+                Some(revision) => revision.get(),
+                None => {
+                    return Some(ResolutionVerification::Err {
+                        code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                        reason: format!(
+                            "registry metadata has an invalid current revision ({raw_revision})",
+                        ),
+                    });
+                }
+            },
+        };
+        if current_revision > 0 {
+            let current_history: Vec<_> = artifact
+                .revisions
+                .iter()
+                .filter(|candidate| {
+                    candidate.revision.as_ref().and_then(JsonValue::as_u64)
+                        == Some(current_revision)
+                })
+                .collect();
+            if current_history.len() != 1
+                || current_history[0].integrity != artifact.current.integrity
+                || !matches!(
+                    (
+                        artifact.current.tarball.as_deref(),
+                        artifact.current.integrity.as_ref(),
+                    ),
+                    (Some(tarball), Some(integrity))
+                        if is_integrity_addressed_registry_tarball_url(
+                            tarball, integrity, registry,
+                        ),
+                )
+                || !matches!(
+                    (
+                        current_history[0].tarball.as_deref(),
+                        artifact.current.tarball.as_deref(),
+                    ),
+                    (Some(history), Some(current)) if same_tarball_url(history, current),
+                )
+            {
+                return Some(ResolutionVerification::Err {
+                    code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                    reason: format!(
+                        "registry metadata revision {current_revision} does not have exactly one matching history entry",
+                    ),
+                });
+            }
+        }
+        let requested = lockfile_revision(resolution).unwrap_or(0);
+        let integrity = resolution.checkable_integrity().expect("checked before artifact binding");
+        let current_matches = current_revision == requested;
+        let historical: Vec<_> = artifact
+            .revisions
+            .iter()
+            .filter(|candidate| {
+                candidate.revision.as_ref().and_then(JsonValue::as_u64) == Some(requested)
+            })
+            .collect();
+        if historical.len() > 1 {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "revision {requested} is advertised more than once in the registry's history",
+                ),
+            });
+        }
+        let historical = historical.first().copied();
+        let selected = if current_matches { Some(&artifact.current) } else { historical };
+        let Some(selected) = selected.filter(|selected| {
+            selected.integrity.as_ref() == Some(integrity)
+                && (!current_matches
+                    || historical
+                        .is_none_or(|historical| historical.integrity.as_ref() == Some(integrity)))
+        }) else {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "has revision {requested} with an integrity that does not match the registry's current or historical metadata",
+                ),
+            });
+        };
+        if (requested > 0 || !current_matches)
+            && !selected.tarball.as_deref().is_some_and(|tarball| {
+                is_integrity_addressed_registry_tarball_url(tarball, integrity, registry)
+            })
+        {
+            return Some(ResolutionVerification::Err {
+                code: TARBALL_REVISION_MISMATCH_VIOLATION_CODE,
+                reason: format!(
+                    "has revision {requested} that is not addressed by its complete sha512 integrity",
+                ),
+            });
+        }
+        match (lockfile_tarball, selected.tarball.as_deref()) {
+            (Some(lockfile), Some(registry)) if same_tarball_url(lockfile, registry) => None,
+            (Some(lockfile), Some(registry)) => Some(ResolutionVerification::Err {
                 code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
                 reason: format!(
-                    "has a tarball URL ({lockfile_tarball}) that does not match the registry's published metadata ({url})",
+                    "has a tarball URL ({lockfile}) that does not match the registry's published metadata ({registry})",
                 ),
             }),
-            None => Some(ResolutionVerification::Err {
+            (Some(_), None) => Some(ResolutionVerification::Err {
                 code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
                 reason: "could not be verified against the registry's published metadata"
                     .to_string(),
             }),
+            (None, _) => None,
         }
     }
 
@@ -846,7 +994,7 @@ impl NpmResolutionVerifier {
         if parsed >= cutoff {
             return None;
         }
-        if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
+        if !meta.version_artifacts.as_ref().is_some_and(|map| map.contains_key(version)) {
             return None;
         }
         Some(modified)
@@ -1219,6 +1367,7 @@ fn build_policy_snapshot(opts: &BuildPolicySnapshot<'_>) -> serde_json::Map<Stri
     // Marks runs that enforced the (unconditional) tarball-URL binding so
     // `can_trust_past_check` rejects pre-rule cache records and re-verifies.
     map.insert("tarballUrlBinding".to_string(), JsonValue::Bool(true));
+    map.insert("revisionHistoryBinding".to_string(), JsonValue::Bool(true));
     // Same cache identity rule for the missing-integrity structural check.
     map.insert("integrityRequired".to_string(), JsonValue::Bool(true));
     map.insert(
@@ -1327,6 +1476,8 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
             integrity: None,
             shasum: None,
             tarball: String::new(),
+            revision: None,
+            revisions: None,
             file_count: None,
             unpacked_size: None,
             attestations,
@@ -1350,10 +1501,41 @@ fn project_abbreviated_meta(
     meta: &Package,
     include_time: bool,
 ) -> crate::lookup_context::AbbreviatedMetaProjection {
-    let version_tarballs = meta
+    let version_artifacts = meta
         .versions
         .iter()
-        .map(|(version, manifest)| (version.clone(), manifest.dist.tarball.clone()))
+        .map(|(version, manifest)| {
+            let revisions = manifest
+                .dist
+                .revisions
+                .as_ref()
+                .and_then(JsonValue::as_array)
+                .into_iter()
+                .flatten()
+                .map(|revision| crate::lookup_context::RegistryArtifact {
+                    revision: revision.get("revision").cloned(),
+                    integrity: revision
+                        .get("integrity")
+                        .and_then(JsonValue::as_str)
+                        .and_then(|integrity| integrity.parse().ok()),
+                    tarball: revision
+                        .get("tarball")
+                        .and_then(JsonValue::as_str)
+                        .map(str::to_string),
+                })
+                .collect();
+            (
+                version.clone(),
+                crate::lookup_context::RegistryArtifactHistory {
+                    current: crate::lookup_context::RegistryArtifact {
+                        revision: manifest.dist.revision.clone(),
+                        integrity: manifest.dist.integrity.clone(),
+                        tarball: Some(manifest.dist.tarball.clone()),
+                    },
+                    revisions,
+                },
+            )
+        })
         .collect();
     let version_dist_stats = meta
         .versions
@@ -1379,7 +1561,7 @@ fn project_abbreviated_meta(
     });
     crate::lookup_context::AbbreviatedMetaProjection {
         modified: meta.modified.clone(),
-        version_tarballs: Some(version_tarballs),
+        version_artifacts: Some(version_artifacts),
         version_dist_stats: Some(version_dist_stats),
         version_time,
     }
@@ -1387,6 +1569,14 @@ fn project_abbreviated_meta(
 
 fn same_tarball_url(left: &str, right: &str) -> bool {
     canonical_tarball_url(left) == canonical_tarball_url(right)
+}
+
+fn lockfile_revision(resolution: &LockfileResolution) -> Option<u64> {
+    match resolution {
+        LockfileResolution::Registry(registry) => registry.revision.map(TarballRevision::get),
+        LockfileResolution::Tarball(tarball) => tarball.revision.map(TarballRevision::get),
+        _ => None,
+    }
 }
 
 /// Canonicalize a tarball URL: parse-and-reserialize to drop default

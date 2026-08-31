@@ -13,7 +13,7 @@ use pnpm_store_dir::{
 };
 use tar::Archive;
 use tracing::instrument;
-use zune_inflate::{DeflateDecoder, DeflateOptions};
+use zune_inflate::{DeflateDecoder, DeflateOptions, errors::DecodeErrorStatus};
 
 /// Build the buffer the tarball body streams into, pre-sized from the
 /// response's `Content-Length` where possible.
@@ -40,19 +40,41 @@ pub(crate) fn allocate_tarball_buffer(
     Ok(buf)
 }
 
-/// Bound a registry-supplied `dist.unpackedSize` before it reaches
-/// zune-inflate, which reserves the hint as an infallible zero-filled
-/// `vec![0; hint]` and aborts the process if that allocation fails.
+/// Bound an untrusted unpacked-size claim — the registry's
+/// `dist.unpackedSize` or the archive's own gzip trailer — before it
+/// reaches zune-inflate, which reserves the hint as an infallible
+/// zero-filled `vec![0; hint]` and aborts the process if that
+/// allocation fails.
 pub(crate) fn bounded_gzip_size_hint(unpacked_size: Option<usize>) -> Option<usize> {
     unpacked_size.map(|size| size.min(MAX_UNTRUSTED_PREALLOC_BYTES))
 }
 
+/// Decompress a whole gzipped archive into one contiguous buffer,
+/// refusing to inflate past [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+///
+/// The ceiling is the same one [`should_stream_extract`] pivots on, so
+/// the two agree on how large an archive the eager path may hold — the
+/// difference being that this one measures the archive instead of
+/// trusting a hint about it. Both signals [`should_stream_extract`] has
+/// can be wrong: `dist.unpackedSize` is attacker-controlled, and the
+/// compressed length says nothing about the ratio. Integrity
+/// verification is no help either, since a gzip bomb is a legitimately
+/// published package whose hash matches. Without the ceiling the only
+/// bound is `zune-inflate`'s own 1 GiB default, which every
+/// concurrently extracting task may claim (see
+/// [`crate::post_download_semaphore`]).
+///
+/// Exceeding it is not a refusal: callers answer
+/// [`is_eager_decode_limit_exceeded`] by re-running the archive through
+/// a streaming decoder, which decodes it in full.
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
 pub(crate) fn decompress_gzip(
     gz_data: &[u8],
     unpacked_size: Option<usize>,
 ) -> Result<Vec<u8>, TarballError> {
-    let mut options = DeflateOptions::default().set_confirm_checksum(false);
+    let mut options = DeflateOptions::default()
+        .set_confirm_checksum(false)
+        .set_limit(MAX_UNTRUSTED_PREALLOC_BYTES);
 
     if let Some(size) = bounded_gzip_size_hint(unpacked_size) {
         options = options.set_size_hint(size);
@@ -62,6 +84,105 @@ pub(crate) fn decompress_gzip(
         .decode_gzip()
         .map_err(TarballError::DecodeGzip)
 }
+
+/// Whether `error` is [`decompress_gzip`] reporting that the archive
+/// inflated past its ceiling, the one decode failure that says nothing
+/// about the archive being malformed.
+pub(crate) fn is_eager_decode_limit_exceeded(error: &TarballError) -> bool {
+    matches!(
+        error,
+        TarballError::DecodeGzip(decode) if matches!(decode.error, DecodeErrorStatus::OutputLimitExceeded(..)),
+    )
+}
+
+/// Extract a fully buffered gzipped tarball into the CAFS through
+/// whichever of the two extractors suits its size.
+///
+/// Eager extraction buys zero-copy payload slices and one big parallel
+/// write phase, and holds the whole decompressed archive to do it —
+/// multiplied across every extraction running concurrently. It is
+/// therefore taken only while the archive is small:
+/// [`should_stream_extract`] routes on the size signals available
+/// before decoding, and [`decompress_gzip`]'s ceiling catches an
+/// archive that only turns out to be large once it inflates.
+///
+/// No archive is refused for its size. Both outcomes route to
+/// [`stream_extract_gzipped_tarball`], which decodes the same bytes
+/// with the same results in bounded memory.
+pub(crate) fn extract_gzipped_tarball(
+    gz_data: &[u8],
+    unpacked_size: Option<usize>,
+    store_dir: &StoreDir,
+    ignore_file_pattern: Option<&IgnoreEntryFilter>,
+) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    // Route on the larger of the two claims about the unpacked size.
+    // Neither is trustworthy, and taking the larger is the conservative
+    // reading: a registry hint that under-reports cannot hide a trailer
+    // that does not, or the other way round.
+    let unpacked_size = unpacked_size.max(gzip_isize_hint(gz_data));
+    if should_stream_extract(gz_data.len(), unpacked_size) {
+        return stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern);
+    }
+    match decompress_gzip(gz_data, unpacked_size) {
+        Ok(tar_data) => extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern),
+        Err(error) if is_eager_decode_limit_exceeded(&error) => {
+            tracing::debug!(
+                target: "pacquet::download",
+                gz_data_len = gz_data.len(),
+                "archive inflated past the eager decode ceiling; extracting it as a stream",
+            );
+            stream_extract_gzipped_tarball(gz_data, store_dir, ignore_file_pattern)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// The uncompressed size a gzip stream records in its own trailer.
+///
+/// The last four bytes of a gzip member are ISIZE: what it decodes to,
+/// modulo 2^32. It is the archive's own claim and no more trustworthy
+/// than the registry's `dist.unpackedSize` — but it is available where
+/// that one often is not (a lockfile records no unpacked size, so a
+/// frozen install has nothing else), and routing on it means an honest
+/// archive that inflates past the eager ceiling is streamed on the
+/// first pass instead of being decoded twice. A dishonest one is still
+/// caught by [`decompress_gzip`]'s ceiling.
+///
+/// `None` unless the buffer opens with a deflate member header — the
+/// same three bytes the decoder itself checks first. A body that will
+/// fail at the decoder anyway keeps taking the path whose diagnostic
+/// says so, rather than being routed by four bytes of whatever it
+/// happens to end with.
+pub(crate) fn gzip_isize_hint(gz_data: &[u8]) -> Option<usize> {
+    if !gz_data.starts_with(&GZIP_MAGIC) || gz_data.get(GZIP_MAGIC.len()) != Some(&GZIP_CM_DEFLATE)
+    {
+        return None;
+    }
+    let trailer: [u8; 4] = gz_data.get(gz_data.len().checked_sub(4)?..)?.try_into().ok()?;
+    usize::try_from(u32::from_le_bytes(trailer)).ok()
+}
+
+/// The decode error a body whose first bytes are not gzip will produce,
+/// raised from those bytes alone so a response that cannot be an
+/// archive is never buffered in full. `decode_gzip` rejects on the
+/// magic number, so the verdict does not depend on how much of the body
+/// has arrived.
+pub(crate) fn non_gzip_body_error(prefix_len: usize) -> TarballError {
+    let status = if prefix_len < GZIP_MAGIC.len() {
+        DecodeErrorStatus::InsufficientData
+    } else {
+        DecodeErrorStatus::CorruptData
+    };
+    TarballError::DecodeGzip(zune_inflate::errors::InflateDecodeErrors::new_with_error(status))
+}
+
+/// First bytes of every gzip member, and all a reader needs to tell an
+/// archive from whatever else a server might answer with.
+pub(crate) const GZIP_MAGIC: [u8; 2] = [0x1f, 0x8b];
+
+/// Compression method byte following [`GZIP_MAGIC`]. Deflate is the
+/// only method npm archives use and the only one the decoder accepts.
+const GZIP_CM_DEFLATE: u8 = 8;
 
 /// Compressed-size pivot for [`should_stream_extract`]. The compressed
 /// length is the one exact size we hold in hand; npm tarballs
@@ -77,11 +198,13 @@ pub(crate) const STREAM_EXTRACT_COMPRESSED_THRESHOLD: usize = 16 * 1024 * 1024;
 /// The eager path materializes the entire decompressed archive as one
 /// contiguous buffer, which for a large package multiplies across every
 /// concurrently extracting task. Stream once either signal says the
-/// archive is large: the exact compressed length, or the registry's
-/// `dist.unpackedSize` hint. The hint is attacker-controlled, but here
-/// it only picks between two correct extraction paths — a lying value
-/// costs at most the wrong path's performance profile, never
-/// correctness or unbounded memory.
+/// archive is large: the exact compressed length, or an unpacked-size
+/// claim ([`crate::extract_gzipped_tarball`] takes the larger of the
+/// registry's `dist.unpackedSize` and the gzip trailer's). A claim is
+/// attacker-controlled, but here it only picks between two correct
+/// extraction paths — a lying value costs at most the wrong path's
+/// performance profile, and [`decompress_gzip`]'s ceiling keeps even
+/// that path's memory bounded.
 pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option<usize>) -> bool {
     compressed_len >= STREAM_EXTRACT_COMPRESSED_THRESHOLD
         || unpacked_size.is_some_and(|size| size >= MAX_UNTRUSTED_PREALLOC_BYTES)
@@ -92,23 +215,49 @@ pub(crate) fn should_stream_extract(compressed_len: usize, unpacked_size: Option
 /// whose post-download extraction is likely to extend the install tail.
 pub(crate) const STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD: u64 = 4 * 1024 * 1024;
 
+/// Body chunks in flight between the download loop and the extractor.
+///
+/// The queue is what keeps the two decoupled — the extractor is
+/// normally far faster than the network, and a few chunks of slack stop
+/// a momentary stall on either side from costing throughput. It is
+/// bounded because the alternative is a queue that grows to whatever a
+/// server sends faster than the extractor can consume it, which would
+/// hand back the unbounded buffer this path exists to avoid. Reaching
+/// the bound applies backpressure to the download rather than failing
+/// it.
+pub(crate) const STREAM_CHANNEL_CHUNKS: usize = 64;
+
+/// Sender half of the queue [`ChannelBytesReader`] drains.
+///
+/// `Ok` items are payload. An `Err` item is the download loop reporting
+/// that the body failed mid-stream; it surfaces as the reader's error
+/// so the extractor unwinds instead of mistaking a truncated body for a
+/// complete archive.
+pub(crate) type BodyChunkSender = tokio::sync::mpsc::Sender<std::io::Result<bytes::Bytes>>;
+
+/// Receiver half of [`BodyChunkSender`].
+pub(crate) type BodyChunkReceiver = tokio::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>;
+
+/// Allocate the bounded queue joining an async download loop to a
+/// blocking extractor.
+pub(crate) fn body_chunk_channel() -> (BodyChunkSender, BodyChunkReceiver) {
+    tokio::sync::mpsc::channel(STREAM_CHANNEL_CHUNKS)
+}
+
 /// Blocking [`Read`] over a channel of downloaded body chunks: the
 /// bridge that lets [`extract_tarball_entries_streaming`] run on a
 /// blocking thread while the async download loop keeps feeding it.
 ///
-/// `Ok` items are payload. An `Err` item is the download loop
-/// reporting that the body failed mid-stream. It surfaces as this
-/// reader's error so the extractor unwinds instead of mistaking a
-/// truncated body for a complete archive. A closed channel (sender
-/// dropped after the last chunk) is end-of-stream.
+/// A closed channel (sender dropped after the last chunk) is
+/// end-of-stream.
 pub(crate) struct ChannelBytesReader {
-    rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>,
+    rx: BodyChunkReceiver,
     current: bytes::Bytes,
     offset: usize,
 }
 
 impl ChannelBytesReader {
-    pub(crate) fn new(rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>) -> Self {
+    pub(crate) fn new(rx: BodyChunkReceiver) -> Self {
         Self { rx, current: bytes::Bytes::new(), offset: 0 }
     }
 }
@@ -119,13 +268,16 @@ impl Read for ChannelBytesReader {
             return Ok(0);
         }
         while self.offset >= self.current.len() {
-            match self.rx.recv() {
-                Ok(Ok(chunk)) => {
+            // Only ever reached from the blocking thread the extractor
+            // runs on, which is where `blocking_recv` belongs; it
+            // panics inside an async context.
+            match self.rx.blocking_recv() {
+                Some(Ok(chunk)) => {
                     self.current = chunk;
                     self.offset = 0;
                 }
-                Ok(Err(error)) => return Err(error),
-                Err(_) => return Ok(0),
+                Some(Err(error)) => return Err(error),
+                None => return Ok(0),
             }
         }
         let take = (self.current.len() - self.offset).min(buf.len());
@@ -138,7 +290,7 @@ impl Read for ChannelBytesReader {
 /// Gunzips and CAS-writes a download delivered in chunks through `rx`.
 /// This runs on a blocking thread for the lifetime of the download.
 pub(crate) fn stream_extract_gzipped_channel(
-    rx: std::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>,
+    rx: BodyChunkReceiver,
     store_dir: &StoreDir,
     ignore_file_pattern: Option<&IgnoreEntryFilter>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
@@ -499,9 +651,11 @@ fn assemble_extract_output(
     let pkg_files_idx = PackageFilesIndex {
         manifest,
         requires_build: Some(requires_build),
+        requires_prepare: None,
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     (cas_paths, pkg_files_idx)
 }
@@ -582,6 +736,26 @@ fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
 /// on it), so it is buffered up to [`MAX_UNTRUSTED_PREALLOC_BYTES`],
 /// beyond which the archive is rejected as hostile.
 pub(crate) const STREAM_ENTRY_BUFFER_MAX: u64 = 4 * 1024 * 1024;
+
+/// Reject a `package.json` entry that claims more than
+/// [`MAX_UNTRUSTED_PREALLOC_BYTES`].
+///
+/// A manifest has to reach memory to be parsed — the bundled manifest
+/// and its build-script detection both come from its bytes — so a
+/// reader that otherwise holds only a bounded window has to draw the
+/// line somewhere, and silently skipping the parse would record wrong
+/// build metadata instead. Real manifests are a few KB; one past the
+/// cap exists only in a hostile archive, so failing loudly is the
+/// honest outcome.
+pub(crate) fn oversized_manifest_error(file_size: u64) -> TarballError {
+    TarballError::ReadTarballEntries(std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!(
+            "tar entry package.json is {file_size} bytes, which exceeds the \
+             {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
+        ),
+    ))
+}
 
 /// Byte budget for one batch of buffered entries on the streaming
 /// extraction path. A batch flushes to [`write_pending_files`] once it
@@ -670,24 +844,10 @@ pub(crate) fn extract_tarball_entries_streaming(
             file_build_hooks = true;
         }
 
-        // `package.json` must be buffered — the bundled manifest and
-        // its build-script detection are parsed from bytes, exactly as
-        // on the eager path — so its size is hard-capped instead:
-        // buffering an unbounded manifest would defeat this path's
-        // bounded-memory guarantee, and silently skipping the parse
-        // would record wrong build metadata. A manifest beyond the cap
-        // exists only in a hostile archive (real ones are a few KB), so
-        // failing loudly is the honest outcome. A tar entry's payload
-        // can never exceed its header size, so the pre-read check is
-        // sufficient.
+        // A tar entry's payload can never exceed its header size, so
+        // the pre-read check is sufficient.
         if cleaned_entry_path == "package.json" && file_size > MAX_UNTRUSTED_PREALLOC_BYTES as u64 {
-            return Err(TarballError::ReadTarballEntries(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!(
-                    "tar entry package.json is {file_size} bytes, which exceeds the \
-                     {MAX_UNTRUSTED_PREALLOC_BYTES}-byte manifest limit",
-                ),
-            )));
+            return Err(oversized_manifest_error(file_size));
         }
         let buffer_entry =
             file_size <= STREAM_ENTRY_BUFFER_MAX || cleaned_entry_path == "package.json";
@@ -800,6 +960,9 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 /// both implementations share to a reader that *does* treat them as
 /// separators.
 ///
+/// A leading `.` is preserved because npm's `tar` counts it as the
+/// component removed by `strip: 1`. Other `.` components are ignored.
+///
 /// `None` for an absolute path or one climbing past the root.
 pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
     let normalized = raw.replace('\\', "/");
@@ -807,9 +970,11 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
         return None;
     }
     let mut segments = Vec::new();
-    for segment in normalized.split('/') {
+    for (index, segment) in normalized.split('/').enumerate() {
         match segment {
-            "" | "." => {}
+            "" => {}
+            "." if index == 0 => segments.push(segment.to_string()),
+            "." => {}
             ".." => return None,
             other => segments.push(other.to_string()),
         }

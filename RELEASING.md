@@ -68,19 +68,25 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 
 6. After the workflow finishes, approve the staged npm packages. The TypeScript
    pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
-   stages its native packages, then its `@pnpm/napi` wrapper, and finally
-   `pnpm`. Copy the stage IDs from the completed job's summary and approve each
-   one from a maintainer's machine. Approve all packages in each dependency
-   layer before moving to the next layer, leaving `pnpm` until last:
+   stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
+   `pnpm`. Approve them from a maintainer's machine, from a checkout of this
+   repository so the staged packages are approved in workspace dependency
+   order:
 
    ```bash
-   pnpm stage approve <stage-id>
+   pnpm stage approve
    ```
 
-   Approval requires interactive 2FA. The npm trusted publishers for `pnpm`,
-   `@pnpm/exe`, `@pnpm/napi`, and their platform packages must allow staged
-   publishing only, so CI can stage a release but cannot approve or publish it
-   directly.
+   The command lists every staged version, approves the ones selected in the
+   picker, and stops before publishing a package whose workspace dependency
+   failed to be approved. Passing the stage IDs from the completed job's
+   summary (`pnpm stage approve <stage-id> ...`) approves that set instead.
+
+   Approval requires interactive 2FA, once for the whole selection — pnpm asks
+   for another one-time password only when the registry stops accepting the
+   one it holds. The npm trusted publishers for `pnpm`, `@pnpm/exe`,
+   `@pnpm/napi`, and their platform packages must allow staged publishing only,
+   so CI can stage a release but cannot approve or publish it directly.
 
 ## Reruns and partial releases
 

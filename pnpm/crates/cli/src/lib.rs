@@ -11,10 +11,12 @@ mod job_control;
 mod leading_separator;
 mod parse_boundary;
 mod path_env;
+mod pm_prefix;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
 mod state;
+mod virtual_terminal;
 mod with_current;
 
 use boolean_negations::with_boolean_negations;
@@ -28,6 +30,9 @@ use state::State;
 use std::{ffi::OsString, future::Future, path::Path, process::ExitCode};
 
 pub fn main() -> ExitCode {
+    // Runs before anything can print, so the first styled byte already
+    // reaches a console that understands it; see `virtual_terminal`.
+    virtual_terminal::enable();
     enable_tracing_by_env();
     install_report_handler();
     set_panic_hook();
@@ -81,6 +86,11 @@ fn run_cli() -> miette::Result<()> {
         std::process::exit(exit_code);
     }
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
+    // `pnpm pm <cmd>` is stripped before every other pass, so they all see
+    // the command line the prefix stands for; the child argv above keeps
+    // it, since a dispatched pnpm has to force the built-in too. See
+    // `pm_prefix`.
+    let (argv_with_alias, builtin_command_forced) = pm_prefix::strip_prefix(argv_with_alias);
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias);
     // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
     // the packageManager / devEngines check disabled; rewrite argv before
@@ -170,7 +180,7 @@ fn run_cli() -> miette::Result<()> {
     // default to 8 MiB, so the limit trips on Windows first). Run it on a
     // thread with a generous, platform-uniform stack instead of the OS
     // default main-thread stack.
-    block_on_runtime("pacquet-main", args.run(&config_overrides))
+    block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced))
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over

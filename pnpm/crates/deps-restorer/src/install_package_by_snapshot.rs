@@ -13,7 +13,9 @@ use pnpm_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTar
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
-    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, is_git_hosted_tarball_url,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, TarballUrlOptions,
+    integrity_addressed_registry_tarball_url, is_git_hosted_tarball_url,
+    is_integrity_addressed_registry_tarball_url, npm_tarball_url, registry_server_type,
     select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
@@ -176,13 +178,19 @@ pub enum InstallPackageBySnapshotError {
     MissingTarballIntegrity { package_key: String },
 
     #[display(
-        "Cannot install package \"{package_key}\": it was resolved from the named registry '{registry_name}:', which is not present in the namedRegistries setting."
+        "Cannot install package \"{package_key}\": its registry prefix '{registry_name}:' is not declared by the registries setting."
     )]
     #[diagnostic(
         code(ERR_PNPM_MISSING_NAMED_REGISTRY),
-        help("Add '{registry_name}' to the namedRegistries setting in pnpm-workspace.yaml.")
+        help("Add a registries entry with \"prefix: {registry_name}\" to pnpm-workspace.yaml.")
     )]
     MissingNamedRegistry { package_key: String, registry_name: String },
+
+    #[display(
+        "Cannot install package \"{package_key}\": its lockfile entry with a revision {reason}."
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_TARBALL_REVISION))]
+    InvalidTarballRevision { package_key: String, reason: &'static str },
 
     #[display(
         "Package `{package_key}` uses a `{resolution_kind}` resolution, which pnpm does not yet support."
@@ -420,6 +428,11 @@ impl InstallPackageBySnapshot<'_> {
         let cas_paths = match (custom_cas_paths, resolution) {
             (Some(paths), _) => paths,
             (None, LockfileResolution::Tarball(_) | LockfileResolution::Registry(_)) => {
+                let revision_addressed = match resolution {
+                    LockfileResolution::Tarball(tarball) => tarball.revision.is_some(),
+                    LockfileResolution::Registry(registry) => registry.revision.is_some(),
+                    _ => false,
+                };
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
@@ -450,13 +463,24 @@ impl InstallPackageBySnapshot<'_> {
                         // `clone()` is cheap (refs + `Arc`s) and lets us
                         // retry through `run_without_mem_cache` below if
                         // the shared download failed.
-                        match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
+                        let result = if revision_addressed {
+                            download
+                                .clone()
+                                .run_revision_addressed_with_mem_cache::<Reporter>(mem_cache)
+                                .await
+                        } else {
+                            download.clone().run_with_mem_cache::<Reporter>(mem_cache).await
+                        };
+                        match result {
                             Ok(cas_paths) => Ok((*cas_paths).clone()),
-                            Err(TarballError::SiblingFetchFailed { .. }) => {
+                            Err(TarballError::SiblingFetchFailed { .. }) if !revision_addressed => {
                                 download.run_without_mem_cache::<Reporter>().await
                             }
                             Err(err) => Err(err),
                         }
+                    }
+                    _ if revision_addressed => {
+                        download.run_revision_addressed_without_mem_cache::<Reporter>().await
                     }
                     _ => download.run_without_mem_cache::<Reporter>().await,
                 }
@@ -667,6 +691,7 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 source_is_mutable,
+                force_import: false,
                 include_optional_dependencies,
                 symlink: config.symlink,
                 skipped,
@@ -675,6 +700,10 @@ impl InstallPackageBySnapshot<'_> {
                 // against), so there are never obsolete children here.
                 removed_aliases: &[],
                 needs_build_marker_source: None,
+                // The fresh single-package path materializes one slot;
+                // there is no per-install batch to amortize a cache
+                // layout over.
+                dir_clone_cache: None,
                 #[cfg(test)]
                 link_concurrency_probe,
             }
@@ -744,6 +773,27 @@ pub fn tarball_url_and_integrity<'a>(
         LockfileResolution::Tarball(tarball_resolution) => {
             let tarball_url = tarball_resolution.tarball.as_str();
             let integrity = resolution.checkable_integrity();
+            if tarball_resolution.revision.is_some() {
+                if tarball_url.starts_with("file:") || tarball_resolution.is_git_hosted() {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "does not identify a registry tarball",
+                    ));
+                }
+                let Some(integrity) = integrity else {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has invalid or missing integrity",
+                    ));
+                };
+                let (registry, _) = registry_and_version(package_key, config)?;
+                if !is_integrity_addressed_registry_tarball_url(tarball_url, integrity, &registry) {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has a mismatched tarball URL",
+                    ));
+                }
+            }
             if integrity.is_none() && !unverified_fetch_is_allowed(tarball_url) {
                 return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
@@ -751,41 +801,36 @@ pub fn tarball_url_and_integrity<'a>(
             }
             Ok((tarball_url.pipe(Cow::Borrowed), integrity))
         }
-        LockfileResolution::Registry(_) => {
+        LockfileResolution::Registry(registry_resolution) => {
             let Some(integrity) = resolution.checkable_integrity() else {
+                if registry_resolution.revision.is_some() {
+                    return Err(invalid_tarball_revision(
+                        package_key,
+                        "has invalid or missing integrity",
+                    ));
+                }
                 return Err(InstallPackageBySnapshotError::MissingTarballIntegrity {
                     package_key: package_key.to_string(),
                 });
             };
-            let name = package_key.name.to_string();
-            // A registry-qualified key (`<name>@<registryName>:<version>`)
-            // reconstructs its tarball from its named registry; everything
-            // else routes by scope.
-            let (registry, version) =
-                if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
-                    let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
-                        .iter()
-                        .find(|(name, _)| *name == registry_name)
-                        .map(|(_, url)| (*url).to_string())
-                        .pipe(|builtin| {
-                            config.registries_by_prefix.get(registry_name).cloned().or(builtin)
-                        })
-                        .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
-                            package_key: package_key.to_string(),
-                            registry_name: registry_name.to_string(),
-                        })?;
-                    (registry, version.to_string())
-                } else {
-                    let registries: HashMap<String, String> =
-                        config.resolved_registries().into_iter().collect();
-                    (
-                        pick_registry_for_package(&registries, &name, None),
-                        package_key.suffix.version().to_string(),
-                    )
-                };
-            let registry = registry.strip_suffix('/').unwrap_or(&registry);
-            let bare_name = package_key.name.bare.as_str();
-            let tarball_url = format!("{registry}/{name}/-/{bare_name}-{version}.tgz");
+            let (registry, version) = registry_and_version(package_key, config)?;
+            let tarball_url = match registry_resolution.revision {
+                Some(_) => integrity_addressed_registry_tarball_url(integrity, &registry)
+                    .ok_or_else(|| {
+                        invalid_tarball_revision(package_key, "has invalid or missing integrity")
+                    })?,
+                None => npm_tarball_url(
+                    &package_key.name.to_string(),
+                    &version,
+                    TarballUrlOptions {
+                        registry: &registry,
+                        server_type: registry_server_type(
+                            &config.registry_options_by_url,
+                            &registry,
+                        ),
+                    },
+                ),
+            };
             Ok((Cow::Owned(tarball_url), Some(integrity)))
         }
         // Caller (`run`) only invokes this helper for the tarball /
@@ -798,6 +843,40 @@ pub fn tarball_url_and_integrity<'a>(
         | LockfileResolution::Custom(_) => {
             unreachable!("tarball_url_and_integrity called with non-tarball resolution");
         }
+    }
+}
+
+fn registry_and_version(
+    package_key: &PackageKey,
+    config: &Config,
+) -> Result<(String, String), InstallPackageBySnapshotError> {
+    if let Some((registry_name, version)) = package_key.suffix.registry_qualified() {
+        let registry = pnpm_resolving_npm_resolver::BUILTIN_REGISTRIES_BY_PREFIX
+            .iter()
+            .find(|(name, _)| *name == registry_name)
+            .map(|(_, url)| (*url).to_string())
+            .pipe(|builtin| config.registries_by_prefix.get(registry_name).cloned().or(builtin))
+            .ok_or_else(|| InstallPackageBySnapshotError::MissingNamedRegistry {
+                package_key: package_key.to_string(),
+                registry_name: registry_name.to_string(),
+            })?;
+        return Ok((registry, version.to_string()));
+    }
+    let name = package_key.name.to_string();
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    Ok((
+        pick_registry_for_package(&registries, &name, None),
+        package_key.suffix.version().to_string(),
+    ))
+}
+
+fn invalid_tarball_revision(
+    package_key: &PackageKey,
+    reason: &'static str,
+) -> InstallPackageBySnapshotError {
+    InstallPackageBySnapshotError::InvalidTarballRevision {
+        package_key: package_key.to_string(),
+        reason,
     }
 }
 

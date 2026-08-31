@@ -43,7 +43,9 @@ const TYPED_WORKSPACE_MANIFEST_KEYS: &[&str] = &[
     "peerDependencyRules",
     "pnprServer",
     "registries",
+    "remoteSideEffectsCache",
     "requiredScripts",
+    "sideEffectsCache",
     "supportedArchitectures",
     "update",
     "updateConfig",
@@ -56,6 +58,7 @@ const TYPED_WORKSPACE_MANIFEST_KEYS: &[&str] = &[
 /// fields.
 const CONFIG_ONLY_SETTING_KEYS: &[&str] = &[
     "allowNew",
+    "auditIgnorePrune",
     "authConfig",
     "autoConfirmAllPrompts",
     "bin",
@@ -102,6 +105,8 @@ const UNTYPED_WORKSPACE_SETTING_KEYS: &[&str] = &[
     "onlyBuiltDependencies",
     "onlyBuiltDependenciesFile",
 ];
+
+const SETTINGS_OF_OTHER_PNPM_VERSIONS: &[(&str, &str)] = &[("confirmModulesPurge", "pnpm v11")];
 
 /// The camelCase field names of [`WorkspaceSettings`], read off its serde
 /// serialization so the set cannot drift from the struct.
@@ -155,6 +160,11 @@ pub fn is_known_setting_key(key: &str) -> bool {
 #[must_use]
 pub fn annotate_unknown_setting(key: &str) -> String {
     let camel = to_camel_case(key);
+    if let Some((_, version)) =
+        SETTINGS_OF_OTHER_PNPM_VERSIONS.iter().find(|(setting, _)| *setting == camel)
+    {
+        return format!(r#""{key}" (a {version} setting)"#);
+    }
     match did_you_mean(&camel, known_setting_keys_sorted().iter().map(String::as_str)) {
         Some(suggestion) => format!(r#""{key}" (did you mean "{suggestion}"?)"#),
         None => format!(r#""{key}""#),

@@ -181,6 +181,16 @@ fn dry_run_flag_parses() {
     assert!(parsed.args.dry_run, "flag present → true");
 }
 
+#[test]
+fn fix_lockfile_flag_parses() {
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test"]).expect("parses");
+    assert!(!parsed.args.fix_lockfile, "flag absent → false");
+
+    let parsed = InstallArgsHarness::try_parse_from(["pacquet-test", "--fix-lockfile"])
+        .expect("parses --fix-lockfile");
+    assert!(parsed.args.fix_lockfile, "flag present → true");
+}
+
 /// `--frozen-store` parses to `true`. Absent → `false`. The flag is
 /// folded into `config.frozen_store` at the dispatch in `cli_args.rs`
 /// (any `--frozen-store` upgrades a yaml `false` to `true`), so the
@@ -282,6 +292,7 @@ fn registry_rewrite_updates_explicit_tarball_resolution_urls() {
     let mut resolution = LockfileResolution::Tarball(TarballResolution {
         tarball: "http://server-registry.test/foo/-/foo-1.0.0.tgz".to_string(),
         integrity: None,
+        revision: None,
         git_hosted: None,
         path: None,
     });

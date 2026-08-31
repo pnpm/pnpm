@@ -212,12 +212,20 @@ export interface InstallOptions extends SharedEngineOptions {
    */
   enableModulesDir?: boolean
   /**
-   * Install from the lockfile without gating on the `package.json` ↔
-   * `pnpm-lock.yaml` freshness check, so an in-memory manifest that disagrees
-   * with the lockfile does not block the install.
+   * Install from the lockfile alone, ignoring the project manifests —
+   * pnpm's `pnpm fetch` semantics. The resolution step and the
+   * `package.json` ↔ `pnpm-lock.yaml` freshness check are skipped, every
+   * importer the lockfile records is imported into the virtual store, and
+   * no post-import linking is performed: no importer symlinks, no `.bin`
+   * entries, no hoisting, no project lifecycle scripts.
    */
   ignorePackageManifest?: boolean
-  /** pnpm home directory. Accepted for compatibility; unused for project installs. */
+  /**
+   * The pnpm home directory the default store location is resolved under
+   * when no `storeDir` is configured (`<pnpmHomeDir>/store`, with pnpm's
+   * same-volume fallback). An explicit `storeDir` — passed here or set by
+   * a config source — wins.
+   */
   pnpmHomeDir?: string
   /**
    * Fail with `ERR_PNPM_IGNORED_BUILDS` when a dependency build script is

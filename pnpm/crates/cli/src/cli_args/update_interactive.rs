@@ -17,6 +17,7 @@
 
 use crate::{
     cli_args::{
+        global::has_pnpm_cli_dependency,
         outdated::{
             OutdatedPackage, OutdatedQuery, OutdatedRun, TargetVersion,
             collect_outdated_for_importer, collect_outdated_for_importer_in_run,
@@ -123,6 +124,12 @@ pub(crate) async fn select_global_package_groups(
         .map_err(|err| miette!("failed to scan global packages: {err}"))?;
     if global_packages.is_empty() {
         println!("No global packages found");
+        return Ok(None);
+    }
+    let global_packages: Vec<_> =
+        global_packages.into_iter().filter(|pkg| !has_pnpm_cli_dependency(pkg)).collect();
+    if global_packages.is_empty() {
+        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(None);
     }
     // A global group is always updated as a whole, so the params select groups

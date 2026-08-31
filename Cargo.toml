@@ -14,6 +14,7 @@ repository  = "https://github.com/pnpm/pacquet"
 [workspace.dependencies]
 # Crates
 pnpm-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
+pnpm-shared-artifact-protocol          = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-auth-commands                     = { path = "pnpm/crates/auth-commands" }
 pnpm-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
@@ -80,6 +81,7 @@ pnpm-resolving-npm-resolver            = { path = "pnpm/crates/resolving-npm-res
 pnpm-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-wanted-dependency" }
 pnpm-resolving-resolver-base           = { path = "pnpm/crates/resolving-resolver-base" }
 pnpm-resolving-tarball-resolver        = { path = "pnpm/crates/resolving-tarball-resolver" }
+pnpm-semver-include-prerelease         = { path = "pnpm/crates/semver-include-prerelease" }
 pnpm-versioning                        = { path = "pnpm/crates/versioning" }
 pnpm-workspace                         = { path = "pnpm/crates/workspace" }
 pnpm-workspace-manifest-writer         = { path = "pnpm/crates/workspace-manifest-writer" }
@@ -88,13 +90,26 @@ pnpm-workspace-projects-graph          = { path = "pnpm/crates/workspace-project
 pnpm-workspace-range-resolver          = { path = "pnpm/crates/workspace-range-resolver" }
 pnpm-workspace-spec                    = { path = "pnpm/crates/workspace-spec" }
 pnpm-workspace-state                   = { path = "pnpm/crates/workspace-state" }
+pnpm-workspace-task-scheduler          = { path = "pnpm/crates/workspace-task-scheduler" }
 
 # Tasks
 pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr          = { path = "pnpr/crates/pnpr" }
-pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
+pnpr                  = { path = "pnpr/crates/pnpr" }
+pnpr-auth             = { path = "pnpr/crates/auth" }
+pnpr-config           = { path = "pnpr/crates/config" }
+pnpr-error            = { path = "pnpr/crates/error" }
+pnpr-osv              = { path = "pnpr/crates/osv" }
+pnpr-package-name     = { path = "pnpr/crates/package-name" }
+pnpr-policy           = { path = "pnpr/crates/policy" }
+pnpr-registry         = { path = "pnpr/crates/registry" }
+pnpr-storage          = { path = "pnpr/crates/storage" }
+pnpr-route            = { path = "pnpr/crates/route" }
+pnpr-search           = { path = "pnpr/crates/search" }
+pnpr-shared-artifacts = { path = "pnpr/crates/shared-artifacts" }
+pnpr-upstream         = { path = "pnpr/crates/upstream" }
+pnpr-fixtures         = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
