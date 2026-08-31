@@ -266,7 +266,8 @@ impl RunArgs {
         } else {
             usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
         };
-        let process_tracker = (concurrency > 1).then(ProcessTracker::default);
+        let process_tracker =
+            (specified.len() > 1 && concurrency > 1).then(ProcessTracker::foreground);
         let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
             manifest: &manifest,
@@ -334,7 +335,7 @@ impl RunArgs {
                 }
             }
         };
-        if concurrency == 1 {
+        if concurrency == 1 || tasks.len() == 1 {
             for name in tasks.keys() {
                 if !matches!(run_script(name.clone()), TaskCompletion::Passed) {
                     break;

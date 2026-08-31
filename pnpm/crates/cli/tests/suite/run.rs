@@ -2,7 +2,10 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::fs;
+use std::{
+    fs,
+    time::{Duration, Instant},
+};
 
 #[cfg(unix)]
 fn write_executable(path: &std::path::Path, body: &str) {
@@ -929,13 +932,45 @@ function finish () {
     )
     .expect("write package.json");
 
-    let output = pacquet.with_args(["run", "/^dev:/"]).assert().success().get_output().clone();
+    let output = pacquet
+        .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
 
     assert!(workspace.join("saw-parallel").exists(), "the selected scripts should overlap");
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(stdout.contains("dev:one: one"));
     assert!(stdout.contains("dev:two: two"));
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_scripts_cancel_siblings_after_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "dev:slow": r#"node -e "require('fs').writeFileSync('slow-started', ''); setTimeout(() => {}, 5000)""#,
+                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(1) : setTimeout(wait, 10); wait()""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let start = Instant::now();
+    pacquet.with_args(["--workspace-concurrency=2", "run", "/^dev:/"]).assert().failure();
+    assert!(
+        start.elapsed() < Duration::from_secs(4),
+        "a failed script should cancel its in-flight sibling",
+    );
 
     drop(root);
 }

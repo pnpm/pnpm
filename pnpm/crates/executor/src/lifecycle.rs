@@ -22,6 +22,8 @@ use std::{
 };
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader as AsyncBufReader};
 
+const STREAMED_OUTPUT_CHUNK_BYTES: usize = 64 * 1024;
+
 /// Error from running lifecycle scripts.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -561,8 +563,8 @@ impl StreamedScript<'_> {
         status
     }
 
-    /// Spawn a thread that reads `reader` line-by-line and republishes
-    /// each line.
+    /// Spawn a thread that reads `reader` and republishes newline-delimited
+    /// output in bounded chunks.
     ///
     /// Read as bytes and decoded lossily rather than through
     /// [`BufRead::lines`], whose `Err` on non-UTF-8 would stop the drain
@@ -581,19 +583,24 @@ impl StreamedScript<'_> {
             let target = StreamedScript { dep_path: &dep_path, stage: &stage, wd: &wd, emit };
             let mut reader = BufReader::new(reader);
             let mut line = Vec::new();
-            loop {
-                line.clear();
-                match reader.read_until(b'\n', &mut line) {
-                    // EOF. A final line with no newline was already
-                    // emitted by the read that returned it.
-                    Ok(0) => break,
-                    Ok(_) => {}
-                    // An EBADF or EPIPE means the child closed the
-                    // stream. Not fatal — the caller's `wait` surfaces a
-                    // non-zero exit code if the child failed over it.
-                    Err(_) => break,
+            // An EBADF or EPIPE means the child closed the stream. Not
+            // fatal — the caller's `wait` surfaces a non-zero exit code
+            // if the child failed over it.
+            while let Ok(buffered) = reader.fill_buf() {
+                if buffered.is_empty() {
+                    if !line.is_empty() {
+                        target.emit_bytes_line(stdio, &mut line);
+                    }
+                    break;
                 }
-                target.emit_bytes_line(stdio, &mut line);
+                let consumed = streamed_chunk_len(buffered, line.len());
+                line.extend_from_slice(&buffered[..consumed]);
+                let line_finished = line.last() == Some(&b'\n');
+                reader.consume(consumed);
+                if line_finished || line.len() == STREAMED_OUTPUT_CHUNK_BYTES {
+                    target.emit_bytes_line(stdio, &mut line);
+                    line.clear();
+                }
             }
         })
     }
@@ -601,12 +608,20 @@ impl StreamedScript<'_> {
     async fn pump_async_stream(&self, reader: impl AsyncRead + Unpin, stdio: LifecycleStdio) {
         let mut reader = AsyncBufReader::new(reader);
         let mut line = Vec::new();
-        loop {
-            line.clear();
-            match reader.read_until(b'\n', &mut line).await {
-                Ok(0) => break,
-                Ok(_) => self.emit_bytes_line(stdio, &mut line),
-                Err(_) => break,
+        while let Ok(buffered) = reader.fill_buf().await {
+            if buffered.is_empty() {
+                if !line.is_empty() {
+                    self.emit_bytes_line(stdio, &mut line);
+                }
+                break;
+            }
+            let consumed = streamed_chunk_len(buffered, line.len());
+            line.extend_from_slice(&buffered[..consumed]);
+            let line_finished = line.last() == Some(&b'\n');
+            reader.consume(consumed);
+            if line_finished || line.len() == STREAMED_OUTPUT_CHUNK_BYTES {
+                self.emit_bytes_line(stdio, &mut line);
+                line.clear();
             }
         }
     }
@@ -634,6 +649,12 @@ impl StreamedScript<'_> {
             },
         }));
     }
+}
+
+fn streamed_chunk_len(buffered: &[u8], accumulated: usize) -> usize {
+    let through_newline =
+        buffered.iter().position(|byte| *byte == b'\n').map_or(buffered.len(), |i| i + 1);
+    through_newline.min(STREAMED_OUTPUT_CHUNK_BYTES - accumulated)
 }
 
 #[cfg(test)]

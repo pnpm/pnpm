@@ -9,11 +9,17 @@ use tokio::sync::watch;
 #[cfg(unix)]
 use std::{io::Read, os::unix::process::CommandExt, process::Stdio, time::Duration};
 
-/// Tracks the processes started by one recursive command so a bailing task
-/// can stop the other work that is still in flight.
-#[derive(Default)]
+/// Tracks the processes started by one command so a bailing task can stop
+/// other work that is still in flight.
 pub struct ProcessTracker {
     state: Mutex<TrackerState>,
+    separate_process_groups: bool,
+}
+
+impl Default for ProcessTracker {
+    fn default() -> Self {
+        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: true }
+    }
 }
 
 #[derive(Default)]
@@ -25,14 +31,16 @@ struct TrackerState {
 
 #[derive(Clone)]
 enum RunningExecution {
-    Process(u32),
+    Process { pid: u32, separate_process_group: bool },
     Emulated(watch::Sender<bool>),
 }
 
 impl RunningExecution {
     fn cancel(&self) {
         match self {
-            Self::Process(pid) => terminate_process_tree(*pid),
+            Self::Process { pid, separate_process_group } => {
+                terminate_process(*pid, *separate_process_group);
+            }
             Self::Emulated(sender) => {
                 let _ = sender.send(true);
             }
@@ -41,6 +49,13 @@ impl RunningExecution {
 }
 
 impl ProcessTracker {
+    /// Track foreground children without moving them out of the terminal's
+    /// process group, so terminal signals continue to reach them directly.
+    #[must_use]
+    pub fn foreground() -> Self {
+        Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
+    }
+
     /// Cancel every registered execution. Returns `true` only to the caller
     /// that initiated cancellation.
     pub fn cancel(&self) -> bool {
@@ -59,7 +74,7 @@ impl ProcessTracker {
         }
         #[cfg(unix)]
         for pid in descendants {
-            terminate_process(pid);
+            terminate_descendant(pid);
         }
         true
     }
@@ -89,19 +104,23 @@ impl ProcessTracker {
     }
 }
 
-/// Spawn a child and optionally register it for recursive-command
-/// cancellation. On Unix a tracked child starts a process group so
-/// cancellation also reaches descendants.
+/// Spawn a child and optionally register it for cancellation. The default
+/// tracker gives each Unix child its own process group; a foreground tracker
+/// preserves the caller's process group and discovers descendants at cancel.
 pub fn spawn_child<'tracker>(
     command: &mut Command,
     process_tracker: Option<&'tracker ProcessTracker>,
 ) -> io::Result<SpawnedChild<'tracker>> {
-    if process_tracker.is_some() {
+    if process_tracker.is_some_and(|tracker| tracker.separate_process_groups) {
         prepare_command(command);
     }
     let child = command.spawn()?;
-    let registration =
-        process_tracker.map(|tracker| tracker.register(RunningExecution::Process(child.id())));
+    let registration = process_tracker.map(|tracker| {
+        tracker.register(RunningExecution::Process {
+            pid: child.id(),
+            separate_process_group: tracker.separate_process_groups,
+        })
+    });
     Ok(SpawnedChild { child, _registration: registration })
 }
 
@@ -157,18 +176,19 @@ fn prepare_command(command: &mut Command) {
 fn prepare_command(_: &mut Command) {}
 
 #[cfg(unix)]
-fn terminate_process_tree(pid: u32) {
+fn terminate_process(pid: u32, separate_process_group: bool) {
     let Ok(pid) = i32::try_from(pid) else { return };
-    // SAFETY: a negative PID asks `kill` to signal the process group whose
-    // ID is the tracked child's PID. The child was placed in that group by
-    // `prepare_command`; ESRCH is harmless when it exited concurrently.
+    let target = if separate_process_group { -pid } else { pid };
+    // SAFETY: a negative target signals the process group created by
+    // `prepare_command`; a positive target signals the foreground child.
+    // ESRCH is harmless when the process exited concurrently.
     unsafe {
-        libc::kill(-pid, libc::SIGKILL);
+        libc::kill(target, libc::SIGKILL);
     }
 }
 
 #[cfg(unix)]
-fn terminate_process(pid: i32) {
+fn terminate_descendant(pid: i32) {
     // SAFETY: every PID comes from the OS process list as a descendant of
     // this process. ESRCH is harmless when it exited concurrently.
     unsafe {
@@ -237,7 +257,7 @@ fn descendant_processes(root: u32) -> Vec<i32> {
 }
 
 #[cfg(windows)]
-fn terminate_process_tree(pid: u32) {
+fn terminate_process(pid: u32, _separate_process_group: bool) {
     use std::{os::windows::process::CommandExt, process::Stdio};
 
     let Some(taskkill) = taskkill_path() else { return };
@@ -274,3 +294,6 @@ fn taskkill_path() -> Option<std::path::PathBuf> {
         )
     }
 }
+
+#[cfg(all(test, unix))]
+mod tests;
