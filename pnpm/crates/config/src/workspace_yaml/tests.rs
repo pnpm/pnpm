@@ -6,14 +6,19 @@ use super::{
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
-    ShimPolicy, TrustPolicy, api::EnvVar,
+    ShimPolicy, TrustPolicy,
+    api::{EnvVar, GetHomeDir},
 };
 use pipe_trait::Pipe;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -3420,4 +3425,54 @@ fn rejects_string_task_concurrency_as_an_invalid_setting() {
         LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
             if task == "build" && concurrency == r#""2""#
     ));
+}
+
+/// The odd suffixes pnpm's `path.join(homedir, rest)` swallows: a doubled
+/// separator must not turn the value absolute, and a parent segment must
+/// collapse rather than survive into the resolved path.
+#[test]
+fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
+    struct FakeHome;
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/example"))
+        }
+    }
+
+    for (configured, expected) in [
+        ("~/bin", "/home/example/bin"),
+        ("~//bin", "/home/example/bin"),
+        ("~/../bin", "/home/bin"),
+        ("~/nested/../bin", "/home/example/bin"),
+    ] {
+        let mut settings = WorkspaceSettings {
+            global_dir: Some(configured.to_string()),
+            global_bin_dir: Some(configured.to_string()),
+            ..WorkspaceSettings::default()
+        };
+        settings.expand_global_dir_home_prefixes::<FakeHome>();
+        assert_eq!(settings.global_dir.as_deref(), Some(expected), "globalDir {configured}");
+        assert_eq!(settings.global_bin_dir.as_deref(), Some(expected), "globalBinDir {configured}");
+    }
+}
+
+/// A tilde that names no home-relative path is an ordinary value: pnpm's
+/// `/^~[/\\]/` does not match it either.
+#[test]
+fn a_tilde_without_a_separator_is_left_alone() {
+    struct FakeHome;
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/example"))
+        }
+    }
+
+    let mut settings = WorkspaceSettings {
+        global_dir: Some("~backup/global".to_string()),
+        global_bin_dir: Some("bin/~/nested".to_string()),
+        ..WorkspaceSettings::default()
+    };
+    settings.expand_global_dir_home_prefixes::<FakeHome>();
+    assert_eq!(settings.global_dir.as_deref(), Some("~backup/global"));
+    assert_eq!(settings.global_bin_dir.as_deref(), Some("bin/~/nested"));
 }

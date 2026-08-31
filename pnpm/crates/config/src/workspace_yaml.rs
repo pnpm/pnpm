@@ -1852,11 +1852,16 @@ impl WorkspaceSettings {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
+                // Without the trim, `~//bin` joins as an absolute path and
+                // lands on `/bin`; without the normalize, `~/../bin` keeps
+                // the parent segment pnpm's `path.join` collapses.
+                .map(|relative| relative.trim_start_matches(['/', '\\']))
             else {
                 continue;
             };
             if let Some(expanded) = Sys::home_dir()
-                .and_then(|home_dir| home_dir.join(relative).into_os_string().into_string().ok())
+                .map(|home_dir| pnpm_fs::lexical_normalize(&home_dir.join(relative)))
+                .and_then(|expanded| expanded.into_os_string().into_string().ok())
             {
                 *dir = Some(expanded);
             }

@@ -110,3 +110,48 @@ test('a leading ~ is expanded before the global directories are derived', async 
   expect(config.bin).toBe(globalBinDir)
   expect(config.globalPkgDir).toBe(path.join(homedir(), '.local', 'share', 'pnpm-global', GLOBAL_LAYOUT_VERSION))
 })
+
+test('PNPM_CONFIG_GLOBAL_BIN_DIR and PNPM_CONFIG_GLOBAL_DIR reach the derived directories', async () => {
+  const tmp = tempDir()
+  const envBinDir = path.join(tmp, 'env-bin')
+  fs.mkdirSync(envBinDir, { recursive: true })
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+      dir: import.meta.dirname,
+    },
+    env: {
+      [pathName]: `${envBinDir}${path.delimiter}${process.env[pathName]!}`,
+      PNPM_CONFIG_GLOBAL_BIN_DIR: envBinDir,
+      PNPM_CONFIG_GLOBAL_DIR: path.join(tmp, 'env-global'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.bin).toBe(envBinDir)
+  expect(config.globalPkgDir).toBe(path.join(tmp, 'env-global', GLOBAL_LAYOUT_VERSION))
+})
+
+test('a global-bin-dir on the command line outranks PNPM_CONFIG_GLOBAL_BIN_DIR', async () => {
+  const tmp = tempDir()
+  const cliBinDir = path.join(tmp, 'cli-bin')
+  fs.mkdirSync(cliBinDir, { recursive: true })
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+      'global-bin-dir': cliBinDir,
+      dir: import.meta.dirname,
+    },
+    env: {
+      [pathName]: `${cliBinDir}${path.delimiter}${process.env[pathName]!}`,
+      PNPM_CONFIG_GLOBAL_BIN_DIR: path.join(tmp, 'env-bin'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.bin).toBe(cliBinDir)
+})

@@ -4796,6 +4796,39 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
+  // The scenario the reporter hit: `pnpm config set -g global-bin-dir` writes
+  // the key into this file, and `pnpm add -g` has to install into it.
+  test('globalDir and globalBinDir from the global config.yaml reach the derived directories', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      globalBinDir: '~/pnpm-bin',
+      globalDir: '~/pnpm-global',
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const home = path.resolve('user-home')
+    const binDir = path.join(home, 'pnpm-bin')
+    const homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(home)
+    try {
+      const { config } = await getConfig({
+        cliOptions: { global: true },
+        env: {
+          [PATH]: `${binDir}${path.delimiter}${process.env[PATH]!}`,
+        },
+        packageManager: {
+          name: 'pnpm',
+          version: '1.0.0',
+        },
+      })
+      expect(config.globalPkgDir).toBe(path.join(home, 'pnpm-global', GLOBAL_LAYOUT_VERSION))
+      expect(config.bin).toBe(binDir)
+    } finally {
+      homedirSpy.mockRestore()
+    }
+  })
+
   test('warns about a kebab-case key in the global config.yaml', async () => {
     prepareEmpty()
 
