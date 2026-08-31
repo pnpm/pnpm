@@ -534,6 +534,49 @@ fn get_hoistable_optional_peers_stays_within_the_workspace_roots_range() {
 }
 
 #[test]
+fn get_hoistable_optional_peers_ignores_a_root_specifier_a_wanted_range_rejects() {
+    let preferred = preferred(&[(
+        "date-fns",
+        &[
+            ("2.30.0", plain(VersionSelectorType::Version)),
+            ("4.4.0", plain(VersionSelectorType::Version)),
+        ],
+    )]);
+    let mut missing = BTreeMap::new();
+    missing.insert("date-fns".to_string(), vec!["^4.0.0".to_string()]);
+    let root_deps = [WorkspaceRootDep {
+        alias: "date-fns-v2".to_string(),
+        pkg_name: "date-fns".to_string(),
+        normalized_bare_specifier: Some("npm:date-fns@2.30.0".to_string()),
+    }];
+
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_deps);
+    let mut expected = BTreeMap::new();
+    expected.insert("date-fns".to_string(), "4.4.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
+fn get_hoistable_optional_peers_ignores_a_root_specifier_only_one_wanted_range_accepts() {
+    let preferred = preferred(&[("foo", &[("2.0.0", plain(VersionSelectorType::Version))])]);
+    let mut missing = BTreeMap::new();
+    missing.insert(
+        "foo".to_string(),
+        vec![">=1.0.0 <3.0.0".to_string(), ">=2.0.0 <4.0.0".to_string()],
+    );
+    let root_deps = [WorkspaceRootDep {
+        alias: "foo".to_string(),
+        pkg_name: "foo".to_string(),
+        normalized_bare_specifier: Some("1.0.0".to_string()),
+    }];
+
+    let result = get_hoistable_optional_peers(&missing, &preferred, &root_deps);
+    let mut expected = BTreeMap::new();
+    expected.insert("foo".to_string(), "2.0.0".to_string());
+    assert_eq!(result, expected);
+}
+
+#[test]
 fn skips_a_workspace_root_dep_without_a_specifier_in_favor_of_one_with() {
     let root_deps = [
         WorkspaceRootDep {
