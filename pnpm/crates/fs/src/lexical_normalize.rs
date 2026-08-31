@@ -17,19 +17,26 @@ use std::path::{Component, Path, PathBuf};
 /// not exist yet, where [`std::fs::canonicalize`] cannot help.
 #[must_use]
 pub fn lexical_normalize(path: &Path) -> PathBuf {
-    let mut out = PathBuf::new();
+    if path.components().all(|c| !matches!(c, Component::CurDir | Component::ParentDir)) {
+        return path.to_path_buf();
+    }
+    let mut kept: Vec<Component<'_>> = Vec::new();
     for component in path.components() {
         match component {
-            Component::ParentDir => match out.components().next_back() {
+            Component::ParentDir => match kept.last() {
                 Some(Component::Normal(_)) => {
-                    out.pop();
+                    kept.pop();
                 }
                 Some(Component::RootDir | Component::Prefix(_)) => {}
-                _ => out.push(".."),
+                _ => kept.push(Component::ParentDir),
             },
             Component::CurDir => {}
-            other => out.push(other.as_os_str()),
+            other => kept.push(other),
         }
+    }
+    let mut out = PathBuf::with_capacity(path.as_os_str().len());
+    for component in kept {
+        out.push(component.as_os_str());
     }
     out
 }

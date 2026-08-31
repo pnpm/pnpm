@@ -424,20 +424,24 @@ pub(super) fn importer_relative_link_dep_path(
         return dep_path.clone();
     };
     let target = Path::new(target);
-    let absolute_target = if target.is_absolute() {
-        pnpm_fs::lexical_normalize(target)
-    } else {
-        pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+    let rel_space_target = crate::link_target::importer_rel_dir(project_dir, lockfile_dir)
+        .and_then(|rel| crate::link_target::target_relative_to_importer(target, rel));
+    let relative_target = match rel_space_target {
+        Some(relative_target) => relative_target,
+        None => {
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+            };
+            // `diff_paths` walks both paths component-wise, so a base still
+            // carrying `.` / `..` segments would consume them as real directories
+            // and count the wrong number of `..` hops back out.
+            let project_dir = pnpm_fs::lexical_normalize(project_dir);
+            pathdiff::diff_paths(&absolute_target, project_dir).unwrap_or(absolute_target)
+        }
     };
-    // `diff_paths` walks both paths component-wise, so a base still
-    // carrying `.` / `..` segments would consume them as real directories
-    // and count the wrong number of `..` hops back out.
-    let project_dir = pnpm_fs::lexical_normalize(project_dir);
-    let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
-        .unwrap_or(absolute_target)
-        .display()
-        .to_string()
-        .replace('\\', "/");
+    let relative_target = relative_target.display().to_string().replace('\\', "/");
     DepPath::from(format!("link:{relative_target}"))
 }
 
