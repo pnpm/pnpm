@@ -1,5 +1,5 @@
 use super::{LazyLockfile, MaybeLazyLockfile};
-use crate::{Lockfile, WantedLockfileSelection};
+use crate::{LoadLockfileError, Lockfile, WantedLockfileSelection};
 use std::fs;
 use text_block_macros::text_block;
 
@@ -247,6 +247,29 @@ fn repair_views_stay_on_the_same_file_generation() {
             .and_then(|metadata| metadata.deprecated.as_deref()),
         Some("first generation"),
     );
+}
+
+#[test]
+fn a_failed_repair_load_is_retried_rather_than_cached() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    fs::write(&path, "lockfileVersion: '9.0'\nimporters: [\n").expect("write broken lockfile");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    let error = lazy.get_for_fix().expect_err("a repair load cannot parse broken YAML");
+    eprintln!("ERROR:\n{error}\n");
+    assert!(matches!(error, LoadLockfileError::ParseYaml { .. }));
+
+    fs::write(
+        path,
+        text_block! {
+            "lockfileVersion: '9.0'"
+            "importers:"
+            "  .: {}"
+        },
+    )
+    .expect("write repaired lockfile");
+    assert!(lazy.get_for_fix().expect("the failed load was not cached").is_some());
 }
 
 #[test]
