@@ -720,10 +720,12 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
-    let broken = tmp.path().join("packages/broken");
+    // Component-wise joins, so the expected path below carries native
+    // separators like the discovery walk's error message does.
+    let broken = tmp.path().join("packages").join("broken");
     fs::create_dir_all(&broken).unwrap();
     fs::write(broken.join("package.json"), "{ not json").unwrap();
-    let broken_late = tmp.path().join("packages/zeta");
+    let broken_late = tmp.path().join("packages").join("zeta");
     fs::create_dir_all(&broken_late).unwrap();
     fs::write(broken_late.join("package.json"), "{ not json either").unwrap();
 
