@@ -16,6 +16,7 @@ on:
 jobs:
   build:
     name: Build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
     runs-on: blacksmith-8vcpu-ubuntu-2404
     environment: release
     permissions:
