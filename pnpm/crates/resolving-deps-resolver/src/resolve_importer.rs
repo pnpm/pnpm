@@ -925,8 +925,8 @@ fn importer_locked_peer_context(
     };
     let Some(importer) = lockfile.importers.get(importer_id) else {
         let mut versions = HashMap::<String, HashSet<String>>::default();
-        for (key, _) in lockfile.snapshots.iter().flatten() {
-            for (name, version) in locked_peer_versions_for_key(lockfile, key) {
+        for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+            for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
                 versions.entry(name).or_default().insert(version);
             }
         }
@@ -943,7 +943,8 @@ fn importer_locked_peer_context(
             continue;
         };
         let mut names = HashSet::default();
-        for (name, version) in locked_peer_versions_for_key(lockfile, &key) {
+        let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&key));
+        for (name, version) in locked_peer_versions_for_key(lockfile, &key, snapshot) {
             names.insert(name.clone());
             versions.entry(name).or_default().insert(version);
         }
@@ -954,19 +955,34 @@ fn importer_locked_peer_context(
     ImporterLockedPeerContext { versions, names_by_alias }
 }
 
+/// The peer name/version pairs the wanted lockfile pinned for `key`.
+///
+/// An explicit suffix already spells them out, save for the names an
+/// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
+/// spells out nothing, so the pairs are recovered from the package's
+/// declared peers and the snapshot edges that resolved them.
 fn locked_peer_versions_for_key(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
-    let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(key))
-    else {
+    let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
+    if !explicit.is_empty() {
+        if let Some(snapshot) = snapshot {
+            restore_aliased_peer_names(snapshot, &mut explicit);
+        }
         return explicit;
+    }
+    if !is_hashed_peer_suffix(key.suffix.peer()) {
+        return explicit;
+    }
+    let Some(snapshot) = snapshot else {
+        return Vec::new();
     };
     let Some(metadata) =
         lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
     else {
-        return explicit;
+        return Vec::new();
     };
     let peer_names = metadata
         .peer_dependencies
@@ -986,6 +1002,50 @@ fn locked_peer_versions_for_key(
                 .map(|version| (name.to_string(), version.without_peer().to_string()))
         })
         .collect()
+}
+
+/// Rename the suffix segments an npm alias provides back to the alias
+/// the dependent declared.
+///
+/// A peer suffix names each provider by the package it resolved to,
+/// while peer resolution keys providers by the peer name — which for
+/// `"peer": "npm:provider@1"` is the alias, not `provider`. Reading the
+/// segment back verbatim would pin a peer nobody declares and leave the
+/// declared one unpinned, so a repeated resolution is free to pick the
+/// other variant.
+fn restore_aliased_peer_names(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    peers: &mut [(String, String)],
+) {
+    for (alias, reference) in
+        snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
+    {
+        let pnpm_lockfile::SnapshotDepRef::Alias(target) = reference else {
+            continue;
+        };
+        let target_name = target.name.to_string();
+        let target_version = target.suffix.without_peer().to_string();
+        // The rename makes the entry stop matching, so a second alias
+        // onto the same provider takes the next segment, not this one.
+        let Some(peer) = peers
+            .iter_mut()
+            .find(|(name, version)| *name == target_name && *version == target_version)
+        else {
+            continue;
+        };
+        peer.0 = alias.to_string();
+    }
+}
+
+/// Whether the suffix is the opaque hash
+/// [`create_peer_dep_graph_hash`](fn@pnpm_deps_path::create_peer_dep_graph_hash)
+/// emits once the spelled-out peers exceed
+/// [`ResolvePeersOptions::peers_suffix_max_length`], rather than
+/// segments [`peer_suffix_versions`] can read.
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
 }
 
 fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {
