@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 
-import { resolveNodeRuntime } from '../lib/index.js'
+import { resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -101,6 +101,33 @@ test('resolveNodeRuntime() omits credentials for a remote HTTP mirror', async ()
   expect(requests).toEqual([
     { url: `${mirror}index.json`, authHeaderValue: undefined },
     { url: `${mirror}v22.11.0/SHASUMS256.txt`, authHeaderValue: undefined },
+  ])
+})
+
+test('resolveNodeVersion() selects credentials again after a redirect', async () => {
+  const startUrl = `${MIRROR}index.json`
+  const redirectedUrl = 'http://node.example/public/index.json'
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const redirectingFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    if (url === startUrl) {
+      return new Response(null, { status: 302, headers: { location: redirectedUrl } })
+    }
+    if (url === redirectedUrl) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const version = await resolveNodeVersion(redirectingFetch, 'latest', {
+    nodeMirrorBaseUrl: MIRROR,
+    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+  })
+
+  expect(version).toBe('22.11.0')
+  expect(requests).toEqual([
+    { url: startUrl, authHeaderValue: 'Bearer mirror-token' },
+    { url: redirectedUrl, authHeaderValue: undefined },
   ])
 })
 

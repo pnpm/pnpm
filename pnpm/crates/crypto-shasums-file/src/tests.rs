@@ -225,6 +225,52 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
     signature.assert_async().await;
 }
 
+#[tokio::test]
+async fn authenticated_verified_fetch_reselects_auth_after_redirects() {
+    let mut server = mockito::Server::new_async().await;
+    let shasums_redirect = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .match_header("authorization", "Bearer mirror-token")
+        .with_status(302)
+        .with_header("location", "/public/SHASUMS256.txt")
+        .create_async()
+        .await;
+    let shasums = server
+        .mock("GET", "/public/SHASUMS256.txt")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(NODE_22_11_0_SHASUMS)
+        .create_async()
+        .await;
+    let signature_redirect = server
+        .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .match_header("authorization", "Bearer mirror-token")
+        .with_status(302)
+        .with_header("location", "/public/SHASUMS256.txt.sig")
+        .create_async()
+        .await;
+    let signature = server
+        .mock("GET", "/public/SHASUMS256.txt.sig")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(node_22_11_0_signature())
+        .create_async()
+        .await;
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
+    let auth_headers =
+        AuthHeaders::from_creds_map([(nerf_dart(&url), "Bearer mirror-token".to_string())]);
+
+    fetch_verified_node_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers)
+        .await
+        .expect("fetch redirected checksums and signature");
+
+    shasums_redirect.assert_async().await;
+    shasums.assert_async().await;
+    signature_redirect.assert_async().await;
+    signature.assert_async().await;
+}
+
 /// A body that fails signature verification must not be cached: the
 /// retry after the failure still refetches.
 #[tokio::test]
@@ -322,6 +368,36 @@ async fn authenticated_plain_fetch_ignores_and_preserves_the_url_cache() {
         read_cached_shasums(Some(cache_dir.path()), ShasumsTrust::Unverified, &url).as_deref(),
         Some(cached_body),
     );
+    shasums.assert_async().await;
+}
+
+#[tokio::test]
+async fn authenticated_plain_fetch_reselects_auth_after_redirects() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/download/v1.2.3/SHASUMS256.txt")
+        .match_header("authorization", "Bearer mirror-token")
+        .with_status(302)
+        .with_header("location", "/public/SHASUMS256.txt")
+        .create_async()
+        .await;
+    let shasums = server
+        .mock("GET", "/public/SHASUMS256.txt")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body("ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  foo.tar.gz\n")
+        .create_async()
+        .await;
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
+    let auth_headers =
+        AuthHeaders::from_creds_map([(nerf_dart(&url), "Bearer mirror-token".to_string())]);
+
+    fetch_shasums_file_cached_with_auth_headers(&client, &url, None, &auth_headers)
+        .await
+        .expect("fetch redirected checksums");
+
+    redirect.assert_async().await;
     shasums.assert_async().await;
 }
 

@@ -276,6 +276,8 @@ const SEMVER_OPTS = {
   loose: true,
 }
 
+const MAX_NODE_MIRROR_REDIRECTS = 20
+
 export async function resolveNodeVersion (
   fetch: FetchFromRegistry,
   versionSpec: string,
@@ -333,10 +335,23 @@ function normalizeNodeVersionFetchOptions (opts?: string | NodeVersionFetchOptio
 
 function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeader?: GetAuthHeader): FetchFromRegistry {
   if (getAuthHeader == null) return fetch
-  return (url, opts) => fetch(url, {
-    ...opts,
-    authHeaderValue: getSecureAuthHeader(getAuthHeader, url),
-  })
+  return async (url, opts) => {
+    let currentUrl = url
+    for (let redirectCount = 0; ; redirectCount++) {
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(currentUrl, {
+        ...opts,
+        authHeaderValue: getSecureAuthHeader(getAuthHeader, currentUrl),
+        redirect: 'manual',
+      })
+      if (opts?.redirect === 'manual' || !isRedirectStatus(response.status) || redirectCount === MAX_NODE_MIRROR_REDIRECTS) {
+        return response
+      }
+      const location = response.headers.get('location')
+      if (location == null) return response
+      currentUrl = new URL(location, currentUrl).toString()
+    }
+  }
 }
 
 function getSecureAuthHeader (getAuthHeader: GetAuthHeader | undefined, url: string): string | undefined {
@@ -349,6 +364,10 @@ function getSecureAuthHeader (getAuthHeader: GetAuthHeader | undefined, url: str
 
 function isLoopbackHost (hostname: string): boolean {
   return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.')
+}
+
+function isRedirectStatus (status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
 }
 
 function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {

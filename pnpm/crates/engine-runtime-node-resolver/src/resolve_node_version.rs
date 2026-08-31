@@ -54,6 +54,10 @@ pub enum ResolveNodeVersionError {
         error: Arc<reqwest::Error>,
     },
 
+    #[display("Failed to fetch Node.js release index at {url}: HTTP status {status}")]
+    #[diagnostic(code(ERR_PNPM_FETCH_NODE_INDEX_FAILED))]
+    FetchIndexStatus { url: String, status: u16 },
+
     #[display("Failed to decode Node.js release index at {url}")]
     #[diagnostic(code(ERR_PNPM_DECODE_NODE_INDEX_FAILED))]
     DecodeIndex {
@@ -155,19 +159,20 @@ async fn fetch_all_versions(
 ) -> Result<Vec<NodeVersion>, ResolveNodeVersionError> {
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
-    let mut request = http_client.acquire_for_url(&url).await.get(&url);
-    if let Some(authorization) = auth_headers.for_secure_url(&url) {
-        request = request.header("authorization", authorization);
-    }
-    let response =
-        request.send().await.and_then(reqwest::Response::error_for_status).map_err(|error| {
-            ResolveNodeVersionError::FetchIndex { url: url.clone(), error: Arc::new(error) }
+    let response = http_client
+        .get_bytes_with_secure_auth_headers(&url, auth_headers)
+        .await
+        .map_err(|error| ResolveNodeVersionError::FetchIndex {
+            url: url.clone(),
+            error: Arc::new(error),
         })?;
-    let body = response.text().await.map_err(|error| ResolveNodeVersionError::FetchIndex {
-        url: url.clone(),
-        error: Arc::new(error),
-    })?;
-    let raw: Vec<RawNodeVersion> = serde_json::from_str(&body).map_err(|error| {
+    if !response.status.is_success() {
+        return Err(ResolveNodeVersionError::FetchIndexStatus {
+            url,
+            status: response.status.as_u16(),
+        });
+    }
+    let raw: Vec<RawNodeVersion> = serde_json::from_slice(&response.body).map_err(|error| {
         ResolveNodeVersionError::DecodeIndex { url: url.clone(), error: Arc::new(error) }
     })?;
     Ok(raw
