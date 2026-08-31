@@ -592,8 +592,8 @@ fn expands_env_vars_inside_non_registry_workspace_values() {
     }
 
     let yaml = r"
-storeDir: ${STORE_DIR}/café
-cacheDir: ${CACHE_DIR}/日本語
+storeDir: ${STORE_DIR}
+cacheDir: ${CACHE_DIR}
 scriptShell: ${SHELL}
 nodeOptions: --require=${HOOK}
 userAgent: ${USER_AGENT}
@@ -605,11 +605,41 @@ userAgent: ${USER_AGENT}
     let mut config = Config::new();
     settings.apply_to(&mut config, base);
 
-    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
-    assert_eq!(config.cache_dir, base.join("cache-dir/日本語"));
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir")));
+    assert_eq!(config.cache_dir, base.join("cache-dir"));
     assert_eq!(config.script_shell.as_deref(), Some("custom-shell"));
     assert_eq!(config.node_options.as_deref(), Some("--require=hook.js"));
     assert_eq!(config.user_agent, "pacquet-test/1.0");
+}
+
+#[test]
+fn keeps_non_ascii_text_in_workspace_values() {
+    struct EnvWithPaths;
+    impl EnvVar for EnvWithPaths {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CACHE_DIR" => Some("cache-dir".to_owned()),
+                "STORE_DIR" => Some("store-dir".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = r"
+storeDir: ${STORE_DIR}/café
+cacheDir: 日本語/${CACHE_DIR}
+scriptShell: ./ünicode-shell
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithPaths>();
+
+    let base = Path::new("/workspace/root");
+    let mut config = Config::new();
+    settings.apply_to(&mut config, base);
+
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
+    assert_eq!(config.cache_dir, base.join("日本語/cache-dir"));
+    assert_eq!(config.script_shell.as_deref(), Some("./ünicode-shell"));
 }
 
 #[test]
