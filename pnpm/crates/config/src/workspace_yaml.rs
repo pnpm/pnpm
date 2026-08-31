@@ -3,7 +3,7 @@ use crate::{
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
-    api::EnvVar,
+    api::{EnvVar, GetHomeDir},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
@@ -357,6 +357,18 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
+    /// `globalDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
+    pub global_dir: Option<String>,
+    /// `globalBinDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_bin_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
+    pub global_bin_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
@@ -1828,6 +1840,30 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
+    /// directory, as pnpm's `transformGlobalDirKeys` does. A shell expands
+    /// the tilde before `pnpm config set` sees it, but a hand-written
+    /// `config.yaml` carries it verbatim.
+    ///
+    /// Call this before [`Self::apply_to`], which would otherwise take the
+    /// tilde for an ordinary relative path segment.
+    pub(crate) fn expand_global_dir_home_prefixes<Sys: GetHomeDir>(&mut self) {
+        for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
+            let Some(relative) = dir
+                .as_deref()
+                .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
+            else {
+                continue;
+            };
+            if let Some(expanded) = Sys::home_dir()
+                .map(|home_dir| join_home_relative(&home_dir, relative))
+                .and_then(|expanded| expanded.into_os_string().into_string().ok())
+            {
+                *dir = Some(expanded);
+            }
+        }
+    }
+
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
@@ -1835,6 +1871,8 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_dir);
+        substitute_optional_string::<Sys>(&mut self.global_bin_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
@@ -2026,6 +2064,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
+        }
+        if let Some(v) = self.global_dir {
+            config.global_dir = Some(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.global_bin_dir {
+            config.global_bin_dir = Some(resolve(base_dir, &v));
         }
         // Last of the path-valued settings: pinning the lockfile dir
         // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
@@ -2367,6 +2411,19 @@ fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<Strin
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// Join a `~/`-relative suffix onto the home directory the way pnpm's
+/// `path.join` does: concatenate with the separator, then normalize. Node
+/// treats every argument after the first as a fragment, so `Path::join` is
+/// the wrong primitive here — it lets a suffix that parses as rooted
+/// (`~//bin`) replace the home directory outright, which is how the tilde
+/// would end up naming somewhere else entirely.
+fn join_home_relative(home: &Path, relative: &str) -> PathBuf {
+    let mut joined = home.as_os_str().to_os_string();
+    joined.push(std::path::MAIN_SEPARATOR_STR);
+    joined.push(relative);
+    pnpm_fs::lexical_normalize(Path::new(&joined))
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {

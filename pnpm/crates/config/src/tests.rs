@@ -3,7 +3,7 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
     default_ci, fs,
 };
-use crate::defaults::{default_state_dir, default_store_dir};
+use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -369,6 +369,91 @@ pub fn state_dir_uses_only_trusted_config_sources() {
     ]);
     let config = load_with_fake_env(project.path());
     assert!(config.state_dir.as_os_str().is_empty());
+}
+
+#[test]
+pub fn global_dirs_use_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalDir: from-global\nglobalBinDir: from-global-bin\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "globalDir: from-project\nglobalBinDir: from-project-bin\n",
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-global").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-global-bin")));
+    assert_eq!(config.workspace_key_issues.refused, ["globalDir", "globalBinDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_GLOBAL_DIR", "from-env"),
+        ("PNPM_CONFIG_GLOBAL_BIN_DIR", "from-env-bin"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-env").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-env-bin")));
+    assert_eq!(
+        config.explicit_settings.get("globalBinDir"),
+        Some(&serde_json::Value::String("from-env-bin".to_string())),
+    );
+}
+
+#[test]
+pub fn global_dirs_expand_a_leading_tilde() {
+    let home = tempdir().expect("home tempdir");
+    static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    HOME_PATH.set(home.path().to_path_buf()).expect("set once");
+    let config_dir = home.path().join("xdg").join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "globalDir: ~/global\nglobalBinDir: ~/bin\n")
+        .expect("write global config.yaml");
+
+    struct HostWithHome;
+    impl EnvVar for HostWithHome {
+        fn var(name: &str) -> Option<String> {
+            if name == "XDG_CONFIG_HOME" {
+                let xdg = HOME_PATH.get().expect("home path").join("xdg");
+                return Some(xdg.to_str().expect("utf-8 home path").to_string());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithHome {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithHome {
+        fn home_dir() -> Option<PathBuf> {
+            HOME_PATH.get().cloned()
+        }
+    }
+    inert_link_probe!(HostWithHome);
+    host_current_dir!(HostWithHome);
+
+    let project = tempdir().expect("project tempdir");
+    let config =
+        Config::new().current::<HostWithHome>(project.path()).expect("global config.yaml loads");
+    assert_eq!(config.global_pkg_dir, Some(home.path().join("global").join(GLOBAL_LAYOUT_VERSION)));
+    assert_eq!(config.global_bin, Some(home.path().join("bin")));
 }
 
 #[test]
@@ -4104,8 +4189,7 @@ pub fn global_config_yaml_schema_directive_is_silent() {
 pub fn global_config_yaml_key_pnpm_honors_stays_silent() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "globalBinDir: /usr/local/pnpm-bin\n")
-        .expect("write global config.yaml");
+    fs::write(&config_file, "globalPath: /usr/local/pnpm\n").expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())

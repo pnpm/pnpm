@@ -3540,6 +3540,7 @@ impl Config {
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.expand_global_dir_home_prefixes::<Sys>();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
@@ -3609,6 +3610,8 @@ impl Config {
                 settings.ci = None;
                 settings.state_dir = None;
                 settings.scope = None;
+                settings.global_dir = None;
+                settings.global_bin_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3669,6 +3672,7 @@ impl Config {
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
+        env_settings.expand_global_dir_home_prefixes::<Sys>();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
@@ -3739,13 +3743,6 @@ impl Config {
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
         // `bin = globalBinDir ?? <pnpm-home>/bin`.
-        if self.global_dir.is_none() {
-            self.global_dir = read_pnpm_env::<Sys>("global_dir", "GLOBAL_DIR").map(PathBuf::from);
-        }
-        if self.global_bin_dir.is_none() {
-            self.global_bin_dir =
-                read_pnpm_env::<Sys>("global_bin_dir", "GLOBAL_BIN_DIR").map(PathBuf::from);
-        }
         let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
         let global_dir_root = self
             .global_dir

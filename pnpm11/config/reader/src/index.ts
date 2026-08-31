@@ -51,7 +51,7 @@ import {
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
-import { transformPathKeys } from './transformPath.js'
+import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
@@ -429,6 +429,21 @@ export async function getConfig (opts: {
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
+  // `globalPkgDir` and `bin` are derived just below, and `globalPkgDir` is
+  // read again further down, both before the full `PNPM_CONFIG_*` pass runs.
+  // The two settings they are built from therefore have to come off the
+  // environment here; that pass sets them again to the same values. The CLI
+  // outranks the environment, exactly as it does there.
+  for (const { key, value } of parseEnvVars(
+    schemaKey => schemaKey === 'global-dir' || schemaKey === 'global-bin-dir' ? types[schemaKey] : undefined,
+    env
+  )) {
+    if ((key !== 'globalDir' && key !== 'globalBinDir') || typeof value !== 'string') continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
+    pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
+  }
+  transformGlobalDirKeys(pnpmConfig, os.homedir())
   let globalDirRoot
   if (pnpmConfig.globalDir) {
     globalDirRoot = pnpmConfig.globalDir
