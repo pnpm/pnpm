@@ -653,7 +653,7 @@ fn context_aware_sh_shim_dispatches_through_versioned_binary_then_falls_back() {
     let runtime = ScriptRuntime { prog: Some("node".to_string()), args: String::new() };
     let body = generate_sh_shim(target, shim, Some(&runtime), &[], ShimStyle::ContextAware);
     assert!(
-        body.contains(r#"exec "$basedir/.pnpm-shim-v1$exe" --shim 'tool' "$basedir_win/"'tool' "$basedir_win/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
+        body.contains(r#"exec "$dispatcher" --shim 'tool' "$dispatcher_basedir/"'tool' "$dispatcher_basedir/../global/v11/x/node_modules/pkg/cli.js" -- "$@""#),
         "body was:\n{body}",
     );
     assert!(body.contains(r#"[ -z "$PNPM_SHIM_BYPASS" ]"#), "body was:\n{body}");
@@ -661,6 +661,50 @@ fn context_aware_sh_shim_dispatches_through_versioned_binary_then_falls_back() {
     assert!(body.contains(r#""$basedir/node""#), "body was:\n{body}");
     assert!(is_context_aware_shim(&body));
     assert!(is_shim_pointing_at(&body, target));
+}
+
+#[cfg(unix)]
+#[test]
+fn context_aware_sh_shim_uses_native_dispatcher_paths_on_wsl2() {
+    use std::{env, fs, os::unix::fs::PermissionsExt, process::Command};
+
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("bin");
+    let tools_bin = root.path().join("tools");
+    let target = root.path().join("global/node_modules/pkg/cli.js");
+    let dispatched_target = global_bin.join("../global/node_modules/pkg/cli.js");
+    let shim = global_bin.join("tool");
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
+    let uname = tools_bin.join("uname");
+    let wslpath = tools_bin.join("wslpath");
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::create_dir_all(&tools_bin).unwrap();
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::write(&shim, generate_sh_shim(&target, &shim, None, &[], ShimStyle::ContextAware)).unwrap();
+    fs::write(&dispatcher, "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n").unwrap();
+    fs::write(&uname, "#!/bin/sh\nprintf 'Linux test WSL2\\n'\n").unwrap();
+    fs::write(&wslpath, "#!/bin/sh\nprintf 'C:\\\\converted\\n'\n").unwrap();
+    for executable in [&shim, &dispatcher, &uname, &wslpath] {
+        fs::set_permissions(executable, fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    let path = env::join_paths(
+        std::iter::once(tools_bin).chain(env::split_paths(&env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+
+    let output = Command::new(&shim).env("PATH", path).arg("forwarded").output().unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        stdout,
+        format!(
+            "<--shim>\n<tool>\n<{}>\n<{}>\n<-->\n<forwarded>\n",
+            shim.display(),
+            dispatched_target.display(),
+        ),
+    );
 }
 
 #[test]

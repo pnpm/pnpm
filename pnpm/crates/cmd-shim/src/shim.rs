@@ -299,21 +299,23 @@ pub fn generate_sh_shim(
     };
 
     if style == ShimStyle::ContextAware {
-        // The dispatcher receives the target as data, not as a path the
-        // shell resolves, so hand it the `$basedir_win` flavor: identical
-        // to `$basedir` everywhere except MSYS/WSL, where the pnpm
-        // Windows executable needs the Windows spelling.
         let quoted_name = sh_single_quote(shim_name(shim_path));
-        // Adjacent quoting: the `$basedir_win` expansion stays inside
+        // Adjacent quoting: the `$dispatcher_basedir` expansion stays inside
         // double quotes while the manifest-controlled file name is
         // single-quoted, so it can never be command-substituted.
-        let quoted_shim_win =
-            format!(r#""$basedir_win/"{}"#, sh_single_quote(shim_name(shim_path)));
-        writeln!(
-            sh,
-            "if [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" ]; then\n  exec \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" --shim {quoted_name} {quoted_shim_win} {quoted_target_win} -- \"$@\"\nfi",
-        )
-        .unwrap();
+        let quoted_shim =
+            format!(r#""$dispatcher_basedir/"{}"#, sh_single_quote(shim_name(shim_path)));
+        let quoted_dispatch_target = if Path::new(&sh_target).is_absolute() {
+            format!(r#""{sh_target}""#)
+        } else {
+            format!(r#""$dispatcher_basedir/{sh_target}""#)
+        };
+        write_context_aware_sh_dispatch(
+            &mut sh,
+            &quoted_name,
+            &quoted_shim,
+            &quoted_dispatch_target,
+        );
     }
 
     match runtime {
@@ -646,6 +648,19 @@ esac
 
 "#;
 
+fn write_context_aware_sh_dispatch(
+    sh: &mut String,
+    quoted_name: &str,
+    quoted_shim: &str,
+    quoted_target: &str,
+) {
+    writeln!(
+        sh,
+        "if [ -z \"$PNPM_SHIM_BYPASS\" ]; then\n  dispatcher=\"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}\"\n  dispatcher_basedir=\"$basedir\"\n  if [ -n \"$msys\" ] && [ -x \"$dispatcher$exe\" ]; then\n    dispatcher=\"$dispatcher$exe\"\n    dispatcher_basedir=\"$basedir_win\"\n  elif [ ! -x \"$dispatcher\" ] && [ -n \"$exe\" ] && [ -x \"$dispatcher$exe\" ]; then\n    dispatcher=\"$dispatcher$exe\"\n    dispatcher_basedir=\"$basedir_win\"\n  fi\n  if [ -x \"$dispatcher\" ]; then\n    exec \"$dispatcher\" --shim {quoted_name} {quoted_shim} {quoted_target} -- \"$@\"\n  fi\nfi",
+    )
+    .unwrap();
+}
+
 fn indent_shell_block(script: &str) -> String {
     script
         .split('\n')
@@ -705,14 +720,10 @@ pub fn generate_virtual_sh_shim(package: &str, shim_path: &Path) -> String {
     let mut sh = String::from(SH_SHIM_HEADER);
     let bin = shim_name(shim_path);
     let quoted_name = sh_single_quote(bin);
-    let quoted_shim_win = format!(r#""$basedir_win/"{}"#, sh_single_quote(bin));
+    let quoted_shim = format!(r#""$dispatcher_basedir/"{}"#, sh_single_quote(bin));
     let target = virtual_shim_target(package);
     let quoted_target = sh_single_quote(&target);
-    writeln!(
-        sh,
-        "if [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" ]; then\n  exec \"$basedir/{CONTEXT_AWARE_DISPATCHER_NAME}$exe\" --shim {quoted_name} {quoted_shim_win} {quoted_target} -- \"$@\"\nfi",
-    )
-    .unwrap();
+    write_context_aware_sh_dispatch(&mut sh, &quoted_name, &quoted_shim, &quoted_target);
     writeln!(sh, "echo {} >&2", sh_single_quote(&no_target_message(bin, package))).unwrap();
     writeln!(sh, "exit 1").unwrap();
     writeln!(sh, "# {CONTEXT_AWARE_MARKER}").unwrap();
