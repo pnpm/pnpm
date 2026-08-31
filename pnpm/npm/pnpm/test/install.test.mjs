@@ -44,7 +44,7 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   }))
 
   const prefix = path.join(tempDir, 'prefix')
-  execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', [
+  execFileSync('npm', [
     'install',
     '--global',
     '--install-links=true',
@@ -52,7 +52,7 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
     '--prefix',
     prefix,
     fixtureDir,
-  ], { cwd: tempDir, stdio: 'pipe' })
+  ], { cwd: tempDir, shell: process.platform === 'win32', stdio: 'pipe' })
 
   if (process.platform === 'win32') {
     const shim = path.join(prefix, 'pnpm.ps1')
