@@ -55,6 +55,36 @@ fn format_yaml_error(error: &serde_saphyr::Error) -> String {
     }
 }
 
+/// The parsing budgets for a lockfile document of `document_len` bytes.
+///
+/// Every size-proportional budget is raised to the document's byte length:
+/// none of these dimensions can exceed the size of an input that is already
+/// in memory, so a valid lockfile must never trip them, however large. The
+/// remaining defaults (aliases, anchors, depth, documents) bound YAML shapes
+/// the lockfile emitter never produces and stay as security caps.
+fn yaml_parse_options(document_len: usize) -> serde_saphyr::Options {
+    serde_saphyr::options! {
+        budget: serde_saphyr::budget! {
+            max_events: document_len.max(DEFAULT_YAML_MAX_EVENTS),
+            max_nodes: document_len.max(DEFAULT_YAML_MAX_NODES),
+            max_total_scalar_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
+            max_total_comment_bytes: document_len.max(DEFAULT_YAML_MAX_SCALAR_BYTES),
+            max_reader_input_bytes: Some(document_len.max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
+        },
+    }
+}
+
+/// The text of a lockfile file, or `None` when it is absent. Every other
+/// read failure is an error: an existing-but-unreadable lockfile must not
+/// be mistaken for a missing one.
+fn read_lockfile_text(file_path: &Path) -> Result<Option<String>, LoadLockfileError> {
+    match fs::read_to_string(file_path) {
+        Ok(content) => Ok(Some(content)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => error.pipe(LoadLockfileError::ReadFile).pipe(Err),
+    }
+}
+
 impl Lockfile {
     /// Load lockfile from the current directory.
     pub fn load_from_current_dir() -> Result<Option<Self>, LoadLockfileError> {
@@ -127,6 +157,9 @@ impl Lockfile {
         Ok(LoadedWantedLockfile::default())
     }
 
+    /// [`Self::load_wanted_detailed`] for a repairing install: each file
+    /// it reads is read once and yields both of the views the repair
+    /// needs. See [`LoadedRepairLockfile`] for why they must be paired.
     pub(crate) fn load_wanted_detailed_for_fix(
         dir: &Path,
         selection: &WantedLockfileSelection,
@@ -190,29 +223,12 @@ impl Lockfile {
         if main.trim().is_empty() {
             return Ok(None);
         }
-        serde_saphyr::from_str_with_options::<Self>(
-            &main,
-            serde_saphyr::options! {
-                // Every size-proportional budget is raised to the document's
-                // byte length: none of these dimensions can exceed the size of
-                // an input that is already in memory, so a valid lockfile must
-                // never trip them, however large. The remaining defaults
-                // (aliases, anchors, depth, documents) bound YAML shapes the
-                // lockfile emitter never produces and stay as security caps.
-                budget: serde_saphyr::budget! {
-                    max_events: main.len().max(DEFAULT_YAML_MAX_EVENTS),
-                    max_nodes: main.len().max(DEFAULT_YAML_MAX_NODES),
-                    max_total_scalar_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-                    max_total_comment_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-                    max_reader_input_bytes: Some(main.len().max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
-                },
-            },
-        )
-        .map(|mut lockfile| {
-            lockfile.reconstruct_missing_directory_resolutions();
-            Some(lockfile)
-        })
-        .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
+        serde_saphyr::from_str_with_options::<Self>(&main, yaml_parse_options(main.len()))
+            .map(|mut lockfile| {
+                lockfile.reconstruct_missing_directory_resolutions();
+                Some(lockfile)
+            })
+            .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))
     }
 
     fn parse_repair_views(
@@ -225,15 +241,7 @@ impl Lockfile {
         }
         let mut value = serde_saphyr::from_str_with_options::<serde_json::Value>(
             &main,
-            serde_saphyr::options! {
-                budget: serde_saphyr::budget! {
-                    max_events: main.len().max(DEFAULT_YAML_MAX_EVENTS),
-                    max_nodes: main.len().max(DEFAULT_YAML_MAX_NODES),
-                    max_total_scalar_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-                    max_total_comment_bytes: main.len().max(DEFAULT_YAML_MAX_SCALAR_BYTES),
-                    max_reader_input_bytes: Some(main.len().max(DEFAULT_YAML_MAX_READER_INPUT_BYTES)),
-                },
-            },
+            yaml_parse_options(main.len()),
         )
         .map_err(|source| LoadLockfileError::parse_yaml(file_path, &source))?;
         prepare_value_for_fix(&mut value);
@@ -254,22 +262,16 @@ impl Lockfile {
     /// file is absent or its main document is empty, the same absence
     /// rules the directory-addressed loaders use.
     pub fn load_from_path(file_path: &Path) -> Result<Option<Self>, LoadLockfileError> {
-        let content = match fs::read_to_string(file_path) {
-            Ok(content) => content,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
-        };
+        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
         Self::parse(&content, file_path)
     }
 
+    /// [`Self::load_from_path`] deriving both repair views from the
+    /// single read.
     fn load_repair_views_from_path(
         file_path: &Path,
     ) -> Result<Option<RepairLockfileViews>, LoadLockfileError> {
-        let content = match fs::read_to_string(file_path) {
-            Ok(content) => content,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-            Err(error) => return error.pipe(LoadLockfileError::ReadFile).pipe(Err),
-        };
+        let Some(content) = read_lockfile_text(file_path)? else { return Ok(None) };
         Self::parse_repair_views(&content, file_path)
     }
 }
@@ -290,13 +292,23 @@ pub struct LoadedWantedLockfile {
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
 }
 
-#[derive(Debug, Default, Clone)]
+/// The views a repairing install reads the wanted lockfile for, and the
+/// importers the branch-lockfile fold started from — see
+/// [`LoadedWantedLockfile`] for why the caller needs those.
+///
+/// The views are held as one value because they are one file generation
+/// seen two ways: caching them separately lets a repair resolve from one
+/// generation and restore the projects outside its filter from another.
+#[derive(Debug, Default)]
 pub(crate) struct LoadedRepairLockfile {
     views: Option<RepairLockfileViews>,
     pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
 }
 
 impl LoadedRepairLockfile {
+    /// Derive both views from a lockfile that is already in memory,
+    /// for the sources [`Lockfile::load_wanted_detailed_for_fix`] never
+    /// reads.
     pub(crate) fn from_loaded(loaded: LoadedWantedLockfile) -> Self {
         let views = loaded.lockfile.map(|merge| {
             let mut seed = merge.clone();
@@ -319,7 +331,10 @@ impl LoadedRepairLockfile {
     }
 }
 
-#[derive(Debug, Clone)]
+/// One wanted-lockfile generation seen two ways: `seed` has the fields a
+/// repairing resolution regenerates cleared, `merge` is intact so the
+/// projects a filtered repair did not select keep what they had.
+#[derive(Debug)]
 struct RepairLockfileViews {
     seed: Lockfile,
     merge: Lockfile,
@@ -368,6 +383,8 @@ fn merge_git_branch_lockfiles(base: Lockfile, dir: &Path) -> Result<Lockfile, Lo
     Ok(merged)
 }
 
+/// [`merge_git_branch_lockfiles`] folding each branch lockfile into both
+/// repair views, so a branch file too is read once for the pair.
 fn merge_git_branch_lockfile_repairs(
     mut base: RepairLockfileViews,
     dir: &Path,
