@@ -16,6 +16,35 @@ test('installing a CLI tool that requires a specific version of Node.js to be in
   expect(fs.readFileSync('node-version', 'utf8')).toBe('v22.19.0')
 })
 
+test('downloaded runtime is available to dependency lifecycle scripts without a system Node.js', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/install-script-example': '1.0.0',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '22.0.0',
+        onFail: 'download',
+      },
+    },
+  })
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    allowBuilds: {
+      '@pnpm.e2e/install-script-example': true,
+    },
+    scriptShell: process.platform === 'win32' ? process.env.ComSpec : '/bin/sh',
+  })
+  const opts = { env: { PATH: '' } }
+
+  await execPnpm(['install'], opts)
+  project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
+
+  fs.rmSync('node_modules', { force: true, recursive: true })
+  await execPnpm(['install', '--frozen-lockfile'], opts)
+  project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
+})
+
 test('a devEngines.runtime is never promoted into a catalog under catalogMode=strict', async () => {
   const project = prepare({
     devEngines: {

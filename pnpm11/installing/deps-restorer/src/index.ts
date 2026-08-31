@@ -936,9 +936,10 @@ async function linkRuntimeBinsOfImporters (opts: {
   graph: DependenciesGraph
   preferSymlinkedExecutables?: boolean
   projects: Project[]
-}): Promise<void> {
-  await Promise.all(opts.projects.map(async (project) => {
-    await linkBinsOfRuntimeDependencies(
+}
+): Promise<void> {
+  await Promise.all(opts.projects.map((project) => limitLinking(() =>
+    linkBinsOfRuntimeDependencies(
       Object.values(opts.directDependenciesByImporterId[project.id]).map((location) => opts.graph[location]),
       project.binsDir,
       {
@@ -946,7 +947,7 @@ async function linkRuntimeBinsOfImporters (opts: {
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       }
     )
-  }))
+  )))
 }
 
 async function getRootPackagesToLink (

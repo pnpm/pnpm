@@ -2756,9 +2756,10 @@ async function linkRuntimeBinsOfImporters (opts: {
   extraNodePaths?: string[]
   preferSymlinkedExecutables?: boolean
   projects: Array<Pick<ImporterToUpdate, 'binsDir' | 'id'>>
-}): Promise<void> {
-  await Promise.all(opts.projects.map(async (project) => {
-    await linkBinsOfRuntimeDependencies(
+}
+): Promise<void> {
+  await Promise.all(opts.projects.map((project) => limitLinking(() =>
+    linkBinsOfRuntimeDependencies(
       Array.from(opts.dependenciesByProjectId[project.id].values()).map((depPath) => opts.dependenciesGraph[depPath]),
       project.binsDir,
       {
@@ -2766,7 +2767,7 @@ async function linkRuntimeBinsOfImporters (opts: {
         preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
       }
     )
-  }))
+  )))
 }
 
 async function linkAllBins (
