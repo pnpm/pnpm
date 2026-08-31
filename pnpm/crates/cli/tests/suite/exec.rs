@@ -1,9 +1,12 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-
-#[cfg(unix)]
-use std::fs;
+use std::{
+    fs,
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 
 #[cfg(unix)]
 fn write_executable(path: &std::path::Path, body: &str) {
@@ -12,6 +15,60 @@ fn write_executable(path: &std::path::Path, body: &str) {
     let mut perms = fs::metadata(path).expect("stat executable").permissions();
     perms.set_mode(0o755);
     fs::set_permissions(path, perms).expect("chmod executable");
+}
+
+fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
+    let marker_json = serde_json::to_string(&marker_path.to_string_lossy()).expect("quote marker");
+    let detached_script =
+        format!("setTimeout(() => require('fs').writeFileSync({marker_json}, 'survived'), 500)");
+    let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
+    format!(
+        "const {{ spawn }} = require('child_process'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); process.exit({parent_exit_code})",
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
+    let ready_path_json =
+        serde_json::to_string(&ready_path.to_string_lossy()).expect("quote ready path");
+    let detached_script = format!(
+        "const fs = require('fs'); const socket = require('net').createConnection({{ host: '127.0.0.1', port: {port} }}, () => fs.writeFileSync({ready_path_json}, 'ready')); socket.on('data', () => process.exit(0))",
+    );
+    let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
+    format!(
+        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); const deadline = Date.now() + 10000; while (!fs.existsSync({ready_path_json}) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); process.exit(fs.existsSync({ready_path_json}) ? 1 : 42)",
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn assert_connection_closes(mut connection: std::net::TcpStream) {
+    use std::io::{ErrorKind, Read, Write};
+
+    connection
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .expect("set detached child connection timeout");
+    let mut byte = [0];
+    let process_exited = match connection.read(&mut byte) {
+        Ok(0) => true,
+        Ok(_) => false,
+        Err(err)
+            if matches!(
+                err.kind(),
+                ErrorKind::BrokenPipe
+                    | ErrorKind::ConnectionAborted
+                    | ErrorKind::ConnectionReset
+                    | ErrorKind::NotConnected,
+            ) =>
+        {
+            true
+        }
+        Err(err) if matches!(err.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => false,
+        Err(err) => panic!("read detached child connection: {err}"),
+    };
+    if !process_exited {
+        let _ = connection.write_all(b"exit");
+        panic!("the detached process should be cleaned up");
+    }
 }
 
 /// `pacquet exec <command>` resolves the command against the project's
@@ -135,6 +192,71 @@ fn exec_shell_mode_preserves_embedded_quotes() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "shell-mode command must exit 0, got: {output:?}");
     assert!(stdout.contains("shell-quote-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+
+    drop(root);
+}
+
+#[test]
+fn exec_preserves_a_detached_process_after_success() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("detached-marker.txt");
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("node")
+        .with_arg("-e")
+        .with_arg(make_detached_node_script(&marker_path, 0))
+        .assert()
+        .success();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !marker_path.exists() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(50));
+    }
+    let marker_exists = marker_path.exists();
+    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
+    assert!(marker_exists, "the detached process should survive a successful pnpm exec");
+
+    drop(root);
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn exec_cleans_up_a_detached_process_after_failure() {
+    use std::{io::ErrorKind, net::TcpListener};
+
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let ready_path = workspace.join("detached-ready.txt");
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
+    listener.set_nonblocking(true).expect("set listener nonblocking");
+    let port = listener.local_addr().expect("read listener address").port();
+
+    let mut pacquet_process = pacquet
+        .with_arg("exec")
+        .with_arg("node")
+        .with_arg("-e")
+        .with_arg(make_connected_detached_node_script(&ready_path, port))
+        .spawn()
+        .expect("spawn pacquet exec");
+
+    let deadline = Instant::now() + Duration::from_secs(12);
+    let connection = loop {
+        match listener.accept() {
+            Ok((connection, _)) => break connection,
+            Err(err) if err.kind() == ErrorKind::WouldBlock && Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                let _ = pacquet_process.kill();
+                let _ = pacquet_process.wait();
+                panic!("the detached process did not connect before the deadline");
+            }
+            Err(err) => panic!("accept detached child connection: {err}"),
+        }
+    };
+    let status = pacquet_process.wait().expect("wait for pacquet exec");
+    assert_eq!(status.code(), Some(1), "the fixture must reach its intentional failure");
+    assert_connection_closes(connection);
 
     drop(root);
 }

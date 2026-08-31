@@ -169,10 +169,8 @@ fn run_cli() -> miette::Result<()> {
     if args.run_completion_if_requested()? {
         return Ok(());
     }
-    // Tie any child pacquet spawns (lifecycle scripts and their descendants)
-    // to this process so none are orphaned on Windows. Held until `main`
-    // returns; see `job_control`.
-    let _job_guard = job_control::setup();
+    // Arm Windows process-tree cleanup until the command succeeds.
+    let job_guard = job_control::setup();
     configure_rayon_pool();
     // `block_on` polls the command future on the calling thread, and the
     // install pipeline has a deep synchronous call chain whose stack frames
@@ -180,7 +178,14 @@ fn run_cli() -> miette::Result<()> {
     // default to 8 MiB, so the limit trips on Windows first). Run it on a
     // thread with a generous, platform-uniform stack instead of the OS
     // default main-thread stack.
-    block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced))
+    let result =
+        block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced));
+    if result.is_ok()
+        && let Some(job_guard) = job_guard
+    {
+        job_guard.disarm();
+    }
+    result
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
