@@ -2004,13 +2004,15 @@ fn importers_consuming_linked_peers(
                 // only ever "walk this importer too".
                 let linked_name = spec.alias.as_deref().unwrap_or(entry_key);
                 peer_declaring_names.contains(linked_name) || !project_names.contains(linked_name)
-            } else if let Some(relative) = bare_specifier
-                .strip_prefix("link:")
-                .or_else(|| bare_specifier.strip_prefix("file:"))
-                // A `file:` tarball resolves to a package, not to a
-                // directory the lockfile records as a `link:` entry.
-                .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
-            {
+            } else if let Some(relative) = bare_specifier.strip_prefix("link:").or_else(|| {
+                // Only `file:` reads the name: it resolves to a package
+                // when that names a tarball, and only its directory form
+                // becomes the `link:` entry the walk inspects. A `link:`
+                // is a directory whatever it is called.
+                bare_specifier
+                    .strip_prefix("file:")
+                    .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
+            }) {
                 let linked_id = pnpm_workspace::importer_id_from_root_dir(
                     lockfile_dir,
                     &importer_dir.join(relative),

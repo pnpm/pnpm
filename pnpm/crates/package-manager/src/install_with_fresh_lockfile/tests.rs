@@ -291,6 +291,26 @@ fn same_named_workspace_projects_count_when_any_version_declares_a_peer() {
     );
 }
 
+/// `link:` names a directory whatever it is called, so a tarball-looking
+/// name must not exclude it the way the same name excludes a `file:`.
+#[test]
+fn a_link_to_a_tarball_named_directory_still_counts() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({ "name": "app", "dependencies": { "lib": "link:../lib.tgz" } }),
+            ),
+            (
+                "packages/lib.tgz",
+                serde_json::json!({ "name": "lib", "peerDependencies": { "react": "^18.0.0" } }),
+            ),
+        ]),
+        vec!["packages/app".to_string()],
+    );
+}
+
 /// A `file:` tarball resolves to a package rather than to a directory,
 /// so it never becomes the `link:` entry the report's walk inspects.
 #[test]
