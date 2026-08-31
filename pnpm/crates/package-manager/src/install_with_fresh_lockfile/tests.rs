@@ -291,6 +291,28 @@ fn same_named_workspace_projects_count_when_any_version_declares_a_peer() {
     );
 }
 
+/// A `file:` tarball resolves to a package rather than to a directory,
+/// so it never becomes the `link:` entry the report's walk inspects.
+#[test]
+fn a_file_tarball_dependency_adds_no_candidate() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({
+                    "name": "app",
+                    "dependencies": {
+                        "packed": "file:../../vendor/packed-1.0.0.tgz",
+                        "archived": "file:../../vendor/archived.tar.gz",
+                    },
+                }),
+            ),
+        ]),
+        Vec::<String>::new(),
+    );
+}
+
 /// A `link:` target that is not a workspace project counts either way:
 /// the report's walk reads its manifest when it resolves inside the
 /// lockfile directory, and a symlink decides whether one that escapes

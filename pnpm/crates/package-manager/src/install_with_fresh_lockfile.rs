@@ -2007,6 +2007,9 @@ fn importers_consuming_linked_peers(
             } else if let Some(relative) = bare_specifier
                 .strip_prefix("link:")
                 .or_else(|| bare_specifier.strip_prefix("file:"))
+                // A `file:` tarball resolves to a package, not to a
+                // directory the lockfile records as a `link:` entry.
+                .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
             {
                 let linked_id = pnpm_workspace::importer_id_from_root_dir(
                     lockfile_dir,
