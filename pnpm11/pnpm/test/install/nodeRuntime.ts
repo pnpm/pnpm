@@ -37,15 +37,15 @@ test('downloaded runtime is available to dependency lifecycle scripts without a 
   })
   const opts = { env: { PATH: '' } }
 
-  await execPnpm(['install', '--ignore-scripts'])
+  await execPnpm(['install', '--ignore-scripts', '--virtual-store-dir=.pnpm'])
   fs.rmSync('node_modules', { force: true, recursive: true })
   fs.rmSync('pnpm-lock.yaml', { force: true })
 
-  await execPnpm(['install'], opts)
+  await execPnpm(['install', '--prefer-offline', '--virtual-store-dir=.pnpm'], opts)
   project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
 
   fs.rmSync('node_modules', { force: true, recursive: true })
-  await execPnpm(['install', '--frozen-lockfile'], opts)
+  await execPnpm(['install', '--frozen-lockfile', '--prefer-offline', '--virtual-store-dir=.pnpm'], opts)
   project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
 })
 

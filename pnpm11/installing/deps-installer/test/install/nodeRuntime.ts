@@ -454,31 +454,6 @@ test('installing Node.js runtime, when it is set via the engines field of a depe
   expect(fs.readFileSync('node_modules/@pnpm.e2e/cli-with-node-engine/node-version', 'utf8')).toBe('v22.19.0')
 })
 
-test('downloaded Node.js runtime is available to dependency lifecycle scripts', async () => {
-  const project = prepareEmpty()
-  const manifest = {
-    dependencies: {
-      '@pnpm.e2e/install-script-example': '1.0.0',
-    },
-    devDependencies: {
-      node: 'runtime:22.0.0',
-    },
-  }
-  const opts = {
-    allowBuilds: { '@pnpm.e2e/install-script-example': true },
-    extraEnv: { PATH: '' },
-    fastUnpack: false,
-    scriptShell: process.platform === 'win32' ? process.env.ComSpec : '/bin/sh',
-  }
-
-  await install(manifest, testDefaults(opts))
-  project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
-
-  rimrafSync('node_modules')
-  await install(manifest, testDefaults({ ...opts, frozenLockfile: true }))
-  project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
-})
-
 test('update --latest keeps a Node.js runtime dependency on the runtime resolver', async () => {
   prepareEmpty()
   const manifest = {
