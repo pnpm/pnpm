@@ -37,6 +37,10 @@ test('downloaded runtime is available to dependency lifecycle scripts without a 
   })
   const opts = { env: { PATH: '' } }
 
+  await execPnpm(['install', '--ignore-scripts'])
+  fs.rmSync('node_modules', { force: true, recursive: true })
+  fs.rmSync('pnpm-lock.yaml', { force: true })
+
   await execPnpm(['install'], opts)
   project.has('@pnpm.e2e/install-script-example/generated-by-install.js')
 
