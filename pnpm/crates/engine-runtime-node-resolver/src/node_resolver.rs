@@ -16,8 +16,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError,
-    fetch_shasums_file_cached_with_auth_headers,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
+    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
@@ -453,14 +453,24 @@ async fn read_node_assets_from_mirror(
     // eligible for the SHASUMS disk cache.
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
     let items = if verify_signature {
-        fetch_verified_node_shasums_file_cached_with_auth_headers(
-            http_client,
-            &integrities_url,
-            cache_dir,
-            auth_headers,
-        )
-        .await
-        .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+        if auth_headers.is_empty() {
+            fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
+                .await
+                .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+        } else {
+            fetch_verified_node_shasums_file_cached_with_auth_headers(
+                http_client,
+                &integrities_url,
+                cache_dir,
+                auth_headers,
+            )
+            .await
+            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+        }
+    } else if auth_headers.is_empty() {
+        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
+            .await
+            .map_err(NodeResolverError::FetchShasumsFile)?
     } else {
         fetch_shasums_file_cached_with_auth_headers(
             http_client,

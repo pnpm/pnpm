@@ -182,6 +182,13 @@ impl fmt::Debug for AuthHeaders {
 }
 
 impl AuthHeaders {
+    /// Whether no configured credential or route hook can provide
+    /// authorization for any URL.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+    }
+
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
     /// pairs. Caller is responsible for nerf-darting and for choosing
     /// the right scheme (`Bearer ...` or `Basic ...`).
