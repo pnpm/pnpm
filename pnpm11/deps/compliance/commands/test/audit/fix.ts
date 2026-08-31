@@ -529,21 +529,23 @@ test('audit.ignorePrune sanitizes the removed ids in the log message', async () 
   expect(collectedInfos.every((message) => !message.includes('\u001b'))).toBe(true)
 })
 
-test('a bare --fix arriving as the string "true" still applies the default fix method', async () => {
+test.each([
+  ['the empty string the CLI parser delivers', ''],
+  ['a boolean from an rc file', true],
+  ['the string form of that boolean', 'true'],
+])('a --fix without a method applies the default fix method: %s', async (_label, fix) => {
   const tmp = f.prepare('has-vulnerabilities')
 
   getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
     .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
     .reply(200, responses.ALL_VULN_RESP)
 
-  // The rc-option spec for --fix is [String, Boolean], so the CLI parser
-  // delivers a bare --fix as the string 'true'.
   const { exitCode, output } = await audit.handler({
     ...AUDIT_REGISTRY_OPTS,
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
-    fix: 'true',
+    fix,
   })
 
   expect(exitCode).toBe(0)
@@ -565,9 +567,7 @@ test('an invalid --fix value is rejected', async () => {
     auditLevel: 'moderate',
     dir: tmp,
     rootProjectManifestDir: tmp,
-    // The CLI parser delivers --fix values as strings before validation, so
-    // the options type cannot represent this input.
-    fix: 'bogus' as unknown as 'update',
+    fix: 'bogus',
   })).rejects.toMatchObject({ code: 'ERR_PNPM_INVALID_FIX_OPTION' })
 })
 
