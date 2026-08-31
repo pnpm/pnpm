@@ -7,6 +7,8 @@ import { writeYamlFileSync } from 'write-yaml-file'
 
 import { execPnpm } from '../utils/index.js'
 
+const skipOnWindows = process.platform === 'win32' ? test.skip : test
+
 test('installing a CLI tool that requires a specific version of Node.js to be installed alongside it', async () => {
   prepare()
   fs.writeFileSync('pnpm-workspace.yaml', 'allowBuilds: { "@pnpm.e2e/cli-with-node-engine@1.0.0": true }', 'utf8')
@@ -16,7 +18,7 @@ test('installing a CLI tool that requires a specific version of Node.js to be in
   expect(fs.readFileSync('node-version', 'utf8')).toBe('v22.19.0')
 })
 
-test('downloaded runtime is available to dependency lifecycle scripts without a system Node.js', async () => {
+skipOnWindows('downloaded runtime is available to dependency lifecycle scripts without a system Node.js', async () => {
   const project = prepare({
     dependencies: {
       '@pnpm.e2e/install-script-example': '1.0.0',
