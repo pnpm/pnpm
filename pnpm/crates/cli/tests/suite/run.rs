@@ -889,6 +889,57 @@ fn run_executes_every_script_matching_a_regexp_selector() {
     }
 }
 
+#[test]
+fn regexp_selected_scripts_run_concurrently_by_default() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("track-concurrency.js"),
+        r"const fs = require('fs')
+const [self, other] = process.argv.slice(2)
+const marker = `active-${self}`
+fs.writeFileSync(marker, '')
+const started = Date.now()
+const check = setInterval(() => {
+  if (fs.existsSync(`active-${other}`)) {
+    fs.writeFileSync('saw-parallel', '')
+    finish()
+  } else if (Date.now() - started > 1000) {
+    finish()
+  }
+}, 10)
+function finish () {
+  clearInterval(check)
+  fs.rmSync(marker, { force: true })
+  console.log(self)
+}
+",
+    )
+    .expect("write concurrency probe");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "dev:one": "node track-concurrency.js one two",
+                "dev:two": "node track-concurrency.js two one",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet.with_args(["run", "/^dev:/"]).assert().success().get_output().clone();
+
+    assert!(workspace.join("saw-parallel").exists(), "the selected scripts should overlap");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(stdout.contains("dev:one: one"));
+    assert!(stdout.contains("dev:two: two"));
+
+    drop(root);
+}
+
 /// Flags on a selector say nothing about which scripts to pick, so pnpm
 /// rejects them instead of honouring a subset.
 #[cfg(unix)]
