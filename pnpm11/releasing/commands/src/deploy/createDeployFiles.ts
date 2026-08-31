@@ -110,7 +110,7 @@ export function createDeployFiles ({
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
     const manifest = allProjects.find(project => project.rootDirRealPath === projectRootDirRealPath)?.manifest
-    if (manifest) linkedWorkspaceProjects.set(depPath, manifest)
+    if (manifest?.peerDependencies != null) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
   for (const field of DEPENDENCIES_FIELD) {
