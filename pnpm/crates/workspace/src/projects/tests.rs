@@ -747,21 +747,26 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
 }
 
 #[test]
-fn an_invalid_glob_pattern_fails_and_names_the_pattern() {
+fn an_invalid_glob_pattern_fails_before_any_walk() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
-    make_project(tmp.path(), "packages/alpha", "alpha");
+    // Walking the *earlier* pattern would fail with `Walk`: `packages`
+    // is a file, and the non-terminal star keeps the pattern off the
+    // specialized paths. Errors are otherwise selected in pattern-list
+    // order, so `InvalidGlob` winning proves the malformed pattern is
+    // rejected by the up-front parse check, before any pattern walks.
+    fs::write(tmp.path().join("packages"), "not a directory").unwrap();
 
     let result = find_workspace_projects(
         tmp.path(),
         &FindWorkspaceProjectsOpts {
-            patterns: Some(vec!["packages/*".to_string(), "packages/[invalid".to_string()]),
+            patterns: Some(vec!["packages/*/lib".to_string(), "nodes/[invalid".to_string()]),
         },
     );
 
     // `expect_err` would need `Project: Debug`, which it deliberately is not.
     let Err(FindWorkspaceProjectsError::InvalidGlob { pattern, .. }) = result else {
-        panic!("an invalid glob must fail discovery");
+        panic!("an invalid glob must fail discovery before any walk");
     };
-    assert_eq!(pattern, "packages/[invalid");
+    assert_eq!(pattern, "nodes/[invalid");
 }
