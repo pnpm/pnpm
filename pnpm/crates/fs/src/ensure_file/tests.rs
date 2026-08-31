@@ -1,6 +1,6 @@
 use super::{
-    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes,
-    is_transient_rename_error, rename_with_retry, strip_dash_suffix, temp_path_in,
+    EnsureFileError, create_exclusive_temp_file, ensure_file, file_equals_bytes, strip_dash_suffix,
+    temp_path_in,
 };
 use std::{fs, io, path::Path};
 use tempfile::tempdir;
@@ -119,54 +119,6 @@ fn create_exclusive_temp_file_yields_distinct_open_files() {
     assert_eq!(fs::read(&path_a).unwrap(), b"payload");
 }
 
-/// Windows AV / indexer interference surfaces as
-/// `PermissionDenied` or `ResourceBusy` and must trigger the
-/// retry loop there. On non-Windows those codes are essentially
-/// always permanent (permission / mount-point issues), so the
-/// classifier must return `false` to avoid pathologically
-/// spinning for 60 s on a misconfigured store dir. Any other
-/// kind must propagate immediately on every platform.
-#[test]
-fn transient_rename_error_classifier() {
-    let permission_denied = io::Error::from(io::ErrorKind::PermissionDenied);
-    let resource_busy = io::Error::from(io::ErrorKind::ResourceBusy);
-
-    #[cfg(windows)]
-    {
-        assert!(is_transient_rename_error(&permission_denied));
-        assert!(is_transient_rename_error(&resource_busy));
-    }
-    #[cfg(not(windows))]
-    {
-        assert!(
-            !is_transient_rename_error(&permission_denied),
-            "Unix PermissionDenied is permanent, must not retry",
-        );
-        assert!(
-            !is_transient_rename_error(&resource_busy),
-            "Unix ResourceBusy is effectively permanent, must not retry",
-        );
-    }
-
-    // Non-transient kinds must never trigger the retry loop on
-    // any platform — a regression classifying e.g. `NotFound` as
-    // transient would spin for 60 s on a legitimately missing
-    // source.
-    for kind in [
-        io::ErrorKind::NotFound,
-        io::ErrorKind::AlreadyExists,
-        io::ErrorKind::InvalidInput,
-        io::ErrorKind::InvalidData,
-        io::ErrorKind::Unsupported,
-        io::ErrorKind::Other,
-    ] {
-        assert!(
-            !is_transient_rename_error(&io::Error::from(kind)),
-            "{kind:?} must not be classified as transient",
-        );
-    }
-}
-
 /// A symlink at the target path — which on Unix returns `EEXIST`
 /// from `open(O_CREAT|O_EXCL)` just like a regular file would —
 /// must be scrubbed and replaced with a real regular file even
@@ -208,25 +160,6 @@ fn dangling_symlink_at_cas_path_is_scrubbed_to_a_regular_file() {
     let meta = fs::symlink_metadata(&cas_path).unwrap();
     assert!(meta.file_type().is_file(), "cas_path must end as a regular file");
     assert_eq!(fs::read(&cas_path).unwrap(), b"fresh");
-}
-
-/// Happy-path rename (no transient errors) moves the payload
-/// atomically and removes the source. Correctness only — we
-/// deliberately don't assert a wall-clock bound because rename
-/// latency on loaded CI / slow filesystems can exceed any
-/// reasonable timing threshold without the retry path actually
-/// being taken.
-#[test]
-fn rename_with_retry_succeeds_when_no_error() {
-    let tmp = tempdir().unwrap();
-    let src = tmp.path().join("src");
-    let dst = tmp.path().join("dst");
-    fs::write(&src, b"payload").unwrap();
-
-    rename_with_retry(&src, &dst).expect("rename should succeed");
-
-    assert_eq!(fs::read(&dst).unwrap(), b"payload");
-    assert!(!src.exists(), "source should be gone after rename");
 }
 
 #[test]

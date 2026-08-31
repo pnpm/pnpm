@@ -680,7 +680,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
     //    the staged tree and any merge backup hold the preserved data.
     //    Try to move it back into place before bailing, and retain
     //    those temporary paths if restoration can't run.
-    if let Err(error) = fs::remove_dir_all(dir_path) {
+    if let Err(error) = pnpm_fs::remove_dir_all_with_retry(dir_path) {
         finalize_stage_cleanup_after_failure(
             &preserved_modules,
             &stage,
@@ -697,7 +697,7 @@ fn stage_and_swap<Reporter: self::Reporter>(
     //    rename fails, recreate
     //    `dir_path` so the rescued `node_modules/` has somewhere to
     //    land.
-    if let Err(error) = fs::rename(&stage, dir_path) {
+    if let Err(error) = pnpm_fs::rename_with_retry(&stage, dir_path) {
         // `create_dir_all` is the gate: without `dir_path`, the rescue
         // rename has no destination. Treat its failure as "rescue
         // can't run" and leak the staging directory below.
