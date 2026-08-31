@@ -3,7 +3,6 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
-import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -392,11 +391,13 @@ test('native deploy refuses a linked workspace package whose peer resolves to mo
   await install.handler(opts)
   // The rendered wording is shared with pacquet's ERR_PNPM_DEPLOY_AMBIGUOUS_PEER;
   // keep the two in step.
-  const err = await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy']).catch((error: unknown) => error) as PnpmError
-  expect(err.code).toBe('ERR_PNPM_DEPLOY_AMBIGUOUS_PEER')
-  expect(err.message).toContain("Workspace package 'project-2' declares a peer dependency on '@pnpm.e2e/peer-a'")
-  expect(err.message).toContain('more than one version (1.0.0, 1.0.1)')
-  expect(err.hint).toContain('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry')
+  await expect(
+    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  ).rejects.toMatchObject({
+    code: 'ERR_PNPM_DEPLOY_AMBIGUOUS_PEER',
+    message: expect.stringMatching(/Workspace package 'project-2' declares a peer dependency on '@pnpm\.e2e\/peer-a'.*more than one version \(1\.0\.0, 1\.0\.1\)/),
+    hint: expect.stringContaining('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry'),
+  })
 })
 
 // A peer that the package also declares as an optional dependency is already
