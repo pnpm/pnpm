@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fixed concurrent installs sharing a Global Virtual Store sometimes failing while another installer replaces the same command shim between writing it and making it executable.
+Fixed `ERR_PNPM_CMD_SHIM_CHMOD` when several installs run at once against a shared global virtual store. One install could remove a command shim while another was making it executable ([pnpm/pnpm#14353](https://github.com/pnpm/pnpm/issues/14353)).
