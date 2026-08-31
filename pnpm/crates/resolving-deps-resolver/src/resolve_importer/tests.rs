@@ -280,6 +280,46 @@ fn competing_ordinary_aliases_do_not_rename_the_segment() {
     );
 }
 
+/// A `link:` edge resolves to a path, not a package version, so it can
+/// never be the provider a suffix segment names.
+#[test]
+fn a_linked_dependency_is_not_a_peer_provider() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", alias_dependency("alias-provider@1.0.0")),
+                ("local", link_dependency("../local")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// A hashed suffix spells no peers out, so without the package metadata
+/// naming them there is nothing left to recover them from.
+#[test]
+fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
+    let lockfile = peer_context_lockfile(
+        None,
+        [(
+            "consumer@1.0.0(0123456789abcdef0123456789abcdef)",
+            snapshot_with_dependency("peer", plain_dependency("1.0.0")),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert!(versions.is_empty());
+}
+
 /// A package that declares no peers still carries the peers its own
 /// children resolved through it, so the suffix stays the only record of
 /// them.
@@ -389,6 +429,10 @@ fn plain_dependency(ver_peer: &str) -> pnpm_lockfile::SnapshotDepRef {
 
 fn alias_dependency(key: &str) -> pnpm_lockfile::SnapshotDepRef {
     pnpm_lockfile::SnapshotDepRef::Alias(pnpm_lockfile::PkgNameVerPeer::from_str(key).unwrap())
+}
+
+fn link_dependency(target: &str) -> pnpm_lockfile::SnapshotDepRef {
+    pnpm_lockfile::SnapshotDepRef::Link(target.to_string())
 }
 
 /// The locked peer names a lockfile yields for an importer it does not
