@@ -27,6 +27,7 @@ use std::{
     thread,
     time::Duration,
 };
+use text_block_macros::text_block_fnl;
 
 const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
@@ -439,8 +440,13 @@ fn install_via_pnpr_links_node_modules() {
 
 #[test]
 fn install_via_pnpr_replaces_a_conflicted_lockfile() {
-    const CONFLICTED_LOCKFILE: &str =
-        "<<<<<<< HEAD\nlockfileVersion: '9.0'\n=======\nlockfileVersion: '9.0'\n>>>>>>> branch\n";
+    const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
+        "<<<<<<< HEAD"
+        "lockfileVersion: '9.0'"
+        "======="
+        "lockfileVersion: '9.0'"
+        ">>>>>>> branch"
+    };
 
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
