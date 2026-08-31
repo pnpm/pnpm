@@ -600,8 +600,8 @@ catalogs:
       specifier: 3.0.0
       version: 3.0.0
     open:
-      specifier: ^11.0.1
-      version: 11.0.1
+      specifier: ^11.0.2
+      version: 11.0.2
     openpgp:
       specifier: ^6.3.1
       version: 6.3.1
@@ -645,8 +645,8 @@ catalogs:
       specifier: ^5.0.0
       version: 5.0.0
     pretty-bytes:
-      specifier: ^7.1.1
-      version: 7.1.1
+      specifier: ^7.1.2
+      version: 7.1.2
     pretty-ms:
       specifier: ^9.3.1
       version: 9.3.1
@@ -2156,7 +2156,7 @@ importers:
         version: 3.0.0
       pretty-bytes:
         specifier: 'catalog:'
-        version: 7.1.1
+        version: 7.1.2
       pretty-ms:
         specifier: 'catalog:'
         version: 9.3.1
@@ -3419,7 +3419,7 @@ importers:
         version: '@pnpm/hosted-git-info@1.0.0'
       open:
         specifier: 'catalog:'
-        version: 11.0.1
+        version: 11.0.2
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -7463,7 +7463,7 @@ importers:
         version: link:../../core/error
       open:
         specifier: 'catalog:'
-        version: 11.0.1
+        version: 11.0.2
       qrcode-terminal:
         specifier: 'catalog:'
         version: 0.12.0
@@ -9443,7 +9443,7 @@ importers:
         version: 2.0.0
       pretty-bytes:
         specifier: 'catalog:'
-        version: 7.1.1
+        version: 7.1.2
       ramda:
         specifier: 'catalog:'
         version: '@pnpm/ramda@0.28.1'
@@ -10875,8 +10875,8 @@ packages:
   '@cspell/dict-public-licenses@2.0.16':
     resolution: {integrity: sha512-EQRrPvEOmwhwWezV+W7LjXbIBjiy6y/shrET6Qcpnk3XANTzfvWflf9PnJ5kId/oKWvihFy0za0AV1JHd03pSQ==}
 
-  '@cspell/dict-python@4.4.1':
-    resolution: {integrity: sha512-hyVRJ7RAN8j9fh6JLq4ihDeYNu2NiP6LrsYrjIy/0B2SW35zsFRMAZZJ9sz9ggs/plHMWAkOS85NjTyIi96VYw==}
+  '@cspell/dict-python@4.5.0':
+    resolution: {integrity: sha512-O1lSuFXoX8p+4hvJMbqvg3blbn0Zx8LHqdPQSNaOxFZGf7hmq6pc8sfta+98E7Q/WtDooAnU3XpBxBXcn0r94g==}
 
   '@cspell/dict-r@2.1.1':
     resolution: {integrity: sha512-71Ka+yKfG4ZHEMEmDxc6+blFkeTTvgKbKAbwiwQAuKl3zpqs1Y0vUtwW2N4b3LgmSPhV3ODVY0y4m5ofqDuKMw==}
@@ -10893,8 +10893,8 @@ packages:
   '@cspell/dict-shell@1.2.0':
     resolution: {integrity: sha512-PVctvT22lJ49niMiakO8xieY7ELCAzjSqhejWR7bAMb5AZ9F4WDEs+XdGMnoVHWeXq7K5rcepLPmEJb+37zzIw==}
 
-  '@cspell/dict-software-terms@5.4.1':
-    resolution: {integrity: sha512-tY88gnOWj2ax6h+i7BjU7dIH1f3fvY4WypS0a+TpjBgXC318AdOMmy0zK1SzxGNOjhWJfCeCZNVoLFM/DuOG4g==}
+  '@cspell/dict-software-terms@5.4.2':
+    resolution: {integrity: sha512-C2tS1JjxqHef9TpPRm08a6n+PJCrKrD6FsmPEyXb2J6TFef4FFnKRcGOf3pFnd+a6/oyQgXZWeKiECH6lBFjQA==}
 
   '@cspell/dict-sql@2.2.1':
     resolution: {integrity: sha512-qDHF8MpAYCf4pWU8NKbnVGzkoxMNrFqBHyG/dgrlic5EQiKANCLELYtGlX5auIMDLmTf1inA0eNtv74tyRJ/vg==}
@@ -14064,8 +14064,8 @@ packages:
     resolution: {integrity: sha512-eRnCtTTtGZFpQCwhJiUOuxPQWRXVKYDn0b2PeHfXL6/Zi53SLAzAHfVhVWK2AryC/WH05kGfxhFIPvTF0SXQzg==}
     engines: {node: '>= 4.9.1'}
 
-  fastq@1.20.2:
-    resolution: {integrity: sha512-UpGiiODyCGprM8EPP6JodP6jC9Rws6TCuiDOD+nn0CJhR8guI3g/ozo4ugL0vJ+Yz1UtJuuRPqvQuybVOF1VQA==}
+  fastq@1.20.3:
+    resolution: {integrity: sha512-XKv5nnLs6nLF71NgiKJLIZFLkPyIEuOselLG7ujZnGrRfQK8HpvY+WqKhAJUAdLomwVHErVS4LfxFlPq0/FTAw==}
 
   fb-watchman@2.0.2:
     resolution: {integrity: sha512-p5161BqbuCaSnB8jIbzQHOlpgsPmK5rJVDfDKO91Axs5NC1uu3HRQm6wt9cd9/+GtQQIO53JdGXXoyDpTAsgYA==}
@@ -14584,8 +14584,8 @@ packages:
     resolution: {integrity: sha512-agE4QfB2Lkp9uICn7BAqoscw4SZP9kTE2hxiFI3jBPmXJfdqiahTbUuKGsMoN2GtqL9AxhYioAcVvgsb1HvRbA==}
     engines: {node: '>= 0.10'}
 
-  ip-address@10.5.0:
-    resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
+  ip-address@10.7.0:
+    resolution: {integrity: sha512-BGFsyJd5mpXp3rK6jIdADLNgpJUK1jnjzvYF8lK+VyDab9JAmqN0YOKDdP17HlgKb2+ehPgDc8EtnRLbGCAMhA==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -15825,8 +15825,8 @@ packages:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
 
-  open@11.0.1:
-    resolution: {integrity: sha512-NzwMUB6C1D0+Kd+9iMS/H4k+Ck3cTX6Ckyfr/gAGlmvSE1LUQZnEZvWBi4PYmMwH/S5SMeTXnE+9uAz8uF+pWw==}
+  open@11.0.2:
+    resolution: {integrity: sha512-RWqF+pBSkqecEvCKOn8QYhaNdRMJDZRIrlS/7rTDdLHaPcfXGCZ/h8zb413NfvdeAV0MR7T1yJcA34/q+CSm1Q==}
     engines: {node: '>=20'}
 
   open@7.4.2:
@@ -16121,8 +16121,8 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  powershell-utils@0.2.0:
-    resolution: {integrity: sha512-ZlsFlG7MtSFCoc5xreOvBAozCJ6Pf06opgJjh9ONEv418xpZSAzNjstD36C6+JwOnfSqOW/9uDkqKjezTdxZhw==}
+  powershell-utils@0.2.1:
+    resolution: {integrity: sha512-C+y9x90UElAddDZmV4qOx9W53B61PO7cIqWz2dQsWlwswuq4mr8NEwytdGKboYbQlGZ3awrkTeNvcZiZNHnQ8A==}
     engines: {node: '>=20'}
 
   preferred-pm@3.1.4:
@@ -16145,8 +16145,8 @@ packages:
     resolution: {integrity: sha512-FFw039TmrBqFK8ma/7OL3sDz/VytdtJr044/QUJtH0wK9lb9jLq9tJyIxUwtQJHwar2BqtiA4iCWSwo9JLkzFg==}
     engines: {node: '>=6'}
 
-  pretty-bytes@7.1.1:
-    resolution: {integrity: sha512-X+vn9z8nOFZQlxOLmfJ0iKDdMD7jYTsTW12OAlCpdoE3Igik6L37pugIZi+N3usuyp5McfgKPWi12q3zvHLeGQ==}
+  pretty-bytes@7.1.2:
+    resolution: {integrity: sha512-spZIOSORH9joSPGN0L/tYfvINH+xbOpnI3kdcEkq0mzGMjFvDZzyRVbqEOV0wACF0gggdKE9RWO2mosGsBh/Rg==}
     engines: {node: '>=20'}
 
   pretty-format@29.7.0:
@@ -16230,8 +16230,8 @@ packages:
     resolution: {integrity: sha512-EXtzRZmC+YGmGlDFbXKxQiMZNwCLEO6BANKXG4iCtSIM0yqc/pappSx3RIKr4r0uh5JsBckOXeKrB3Iz7mdQpQ==}
     hasBin: true
 
-  qs@6.15.3:
-    resolution: {integrity: sha512-O9gl3zCl5h5blw1KGUzQKhA5oUXSl8rwUIM5o0S3nCXMliSvy5Dzx7/DJcI+SwgICv+IneSZwhBh1oSyEHA71A==}
+  qs@6.16.0:
+    resolution: {integrity: sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA==}
     engines: {node: '>=0.6'}
 
   queue-microtask@1.2.3:
@@ -16771,8 +16771,8 @@ packages:
     resolution: {integrity: sha512-GaPUh5gfdrYzqeVNZvUfT23vYYxXzKYidUcnMtJg/3rxRV63EFZy3k6xfKlmfeJD0176lnUV/Usr3XcwSvFzpg==}
     engines: {node: '>=20'}
 
-  string.prototype.matchall@4.0.12:
-    resolution: {integrity: sha512-6CC9uyBL+/48dYizRf7H7VAYCMCNTBeM78x/VTUe9bFEaxBepPJDa1Ow99LqI/1yF7kuy7Q3cQsYMrcjGUcskA==}
+  string.prototype.matchall@4.1.0:
+    resolution: {integrity: sha512-tHNHTxInrYLCga9O9YGxWA3G9/nnzQw8UGAyqGx3Ar1pSTTzIuM4woFSq4SowkXCjJIwq5sIiQvEfRI9tCH1qQ==}
     engines: {node: '>= 0.4'}
 
   string.prototype.trim@1.2.11:
@@ -17854,13 +17854,13 @@ snapshots:
       '@cspell/dict-php': 4.1.1
       '@cspell/dict-powershell': 5.0.15
       '@cspell/dict-public-licenses': 2.0.16
-      '@cspell/dict-python': 4.4.1
+      '@cspell/dict-python': 4.5.0
       '@cspell/dict-r': 2.1.1
       '@cspell/dict-ruby': 5.1.2
       '@cspell/dict-rust': 4.1.2
       '@cspell/dict-scala': 5.0.9
       '@cspell/dict-shell': 1.2.0
-      '@cspell/dict-software-terms': 5.4.1
+      '@cspell/dict-software-terms': 5.4.2
       '@cspell/dict-sql': 2.2.1
       '@cspell/dict-svelte': 1.0.7
       '@cspell/dict-swift': 2.0.6
@@ -17986,7 +17986,7 @@ snapshots:
 
   '@cspell/dict-public-licenses@2.0.16': {}
 
-  '@cspell/dict-python@4.4.1':
+  '@cspell/dict-python@4.5.0':
     dependencies:
       '@cspell/dict-data-science': 2.0.16
 
@@ -18000,7 +18000,7 @@ snapshots:
 
   '@cspell/dict-shell@1.2.0': {}
 
-  '@cspell/dict-software-terms@5.4.1': {}
+  '@cspell/dict-software-terms@5.4.2': {}
 
   '@cspell/dict-sql@2.2.1': {}
 
@@ -18331,7 +18331,7 @@ snapshots:
   '@jest/console@30.4.1':
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       jest-message-util: 30.4.1
       jest-util: 30.4.1
@@ -18345,7 +18345,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.8)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       ci-info: 4.4.0
@@ -18353,7 +18353,7 @@ snapshots:
       fast-json-stable-stringify: 2.1.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
       jest-changed-files: 30.4.1
-      jest-config: 30.4.2(@babel/types@7.29.8)(@types/node@26.4.0)(supports-color@10.2.2)
+      jest-config: 30.4.2(@babel/types@7.29.8)(@types/node@22.19.19)(supports-color@10.2.2)
       jest-haste-map: 30.4.1
       jest-message-util: 30.4.1
       jest-regex-util: 30.4.0
@@ -18382,7 +18382,7 @@ snapshots:
     dependencies:
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       jest-mock: 30.4.1
 
   '@jest/expect-utils@30.4.1':
@@ -18404,7 +18404,7 @@ snapshots:
     dependencies:
       '@jest/types': 30.4.1
       '@sinonjs/fake-timers': 15.4.0
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       jest-message-util: 30.4.1
       jest-mock: 30.4.1
       jest-util: 30.4.1
@@ -18424,7 +18424,7 @@ snapshots:
 
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       jest-regex-util: 30.4.0
 
   '@jest/pattern@30.5.0':
@@ -18440,7 +18440,7 @@ snapshots:
       '@jest/transform': 30.4.1(@babel/types@7.29.8)(supports-color@10.2.2)
       '@jest/types': 30.4.1
       '@jridgewell/trace-mapping': 0.3.31
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       collect-v8-coverage: 1.0.3
       exit-x: 0.2.2
@@ -18535,7 +18535,7 @@ snapshots:
       '@jest/schemas': 30.4.1
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -18613,7 +18613,7 @@ snapshots:
   '@nodelib/fs.walk@1.2.8':
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
-      fastq: 1.20.2
+      fastq: 1.20.3
 
   '@npm/types@1.0.2': {}
 
@@ -19371,7 +19371,7 @@ snapshots:
     dependencies:
       '@pnpm/error': 1000.1.0
       safe-execa: 0.1.4
-      string.prototype.matchall: 4.0.12
+      string.prototype.matchall: 4.1.0
 
   '@pnpm/os.env.path-extender@3.0.1':
     dependencies:
@@ -20784,7 +20784,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
-      qs: 6.15.3
+      qs: 6.16.0
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -21833,7 +21833,7 @@ snapshots:
       parseurl: 1.3.3
       path-to-regexp: 0.1.13
       proxy-addr: 2.0.7
-      qs: 6.15.3
+      qs: 6.16.0
       range-parser: 1.2.1
       safe-buffer: 5.2.1
       send: 0.19.2(supports-color@10.2.2)
@@ -21884,7 +21884,7 @@ snapshots:
 
   fastest-levenshtein@1.0.16: {}
 
-  fastq@1.20.2:
+  fastq@1.20.3:
     dependencies:
       reusify: 1.1.0
 
@@ -22454,7 +22454,7 @@ snapshots:
 
   interpret@1.4.0: {}
 
-  ip-address@10.5.0: {}
+  ip-address@10.7.0: {}
 
   ipaddr.js@1.9.1: {}
 
@@ -22698,7 +22698,7 @@ snapshots:
       '@jest/expect': 30.4.1(supports-color@10.2.2)
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       co: 4.6.0
       dedent: 1.7.2
@@ -22771,38 +22771,6 @@ snapshots:
       - babel-plugin-macros
       - supports-color
 
-  jest-config@30.4.2(@babel/types@7.29.8)(@types/node@26.4.0)(supports-color@10.2.2):
-    dependencies:
-      '@babel/core': 7.29.7(supports-color@10.2.2)
-      '@jest/get-type': 30.1.0
-      '@jest/pattern': 30.4.0
-      '@jest/test-sequencer': 30.4.1
-      '@jest/types': 30.4.1
-      babel-jest: 30.4.1(@babel/core@7.29.7(supports-color@10.2.2))(@babel/types@7.29.8)(supports-color@10.2.2)
-      chalk: 4.1.2
-      ci-info: 4.4.0
-      deepmerge: 4.3.1
-      glob: 11.1.0
-      graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
-      jest-circus: 30.4.2(@babel/types@7.29.8)(supports-color@10.2.2)
-      jest-docblock: 30.4.0
-      jest-environment-node: 30.4.1
-      jest-regex-util: 30.4.0
-      jest-resolve: 30.4.1
-      jest-runner: 30.4.2(@babel/types@7.29.8)(supports-color@10.2.2)
-      jest-util: 30.4.1
-      jest-validate: 30.4.1
-      parse-json: 5.2.0
-      pretty-format: 30.4.1
-      slash: 3.0.0
-      strip-json-comments: 3.1.1
-    optionalDependencies:
-      '@types/node': 26.4.0
-    transitivePeerDependencies:
-      - '@babel/types'
-      - babel-plugin-macros
-      - supports-color
-
   jest-diff@30.4.1:
     dependencies:
       '@jest/diff-sequences': 30.4.0
@@ -22834,7 +22802,7 @@ snapshots:
       '@jest/environment': 30.4.1
       '@jest/fake-timers': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       jest-mock: 30.4.1
       jest-util: 30.4.1
       jest-validate: 30.4.1
@@ -22860,7 +22828,7 @@ snapshots:
   jest-haste-map@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -22920,7 +22888,7 @@ snapshots:
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       jest-util: 30.4.1
 
   jest-mock@30.5.0:
@@ -22981,7 +22949,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.8)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       emittery: 0.13.1
       exit-x: 0.2.2
@@ -23011,7 +22979,7 @@ snapshots:
       '@jest/test-result': 30.4.1
       '@jest/transform': 30.4.1(@babel/types@7.29.8)(supports-color@10.2.2)
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       cjs-module-lexer: 2.2.1
       collect-v8-coverage: 1.0.3
@@ -23068,7 +23036,7 @@ snapshots:
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11(patch_hash=68ebc232025360cb3dcd3081f4067f4e9fc022ab6b6f71a3230e86c7a5b337d1)
@@ -23105,7 +23073,7 @@ snapshots:
     dependencies:
       '@jest/test-result': 30.4.1
       '@jest/types': 30.4.1
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       ansi-escapes: 4.3.2
       chalk: 4.1.2
       emittery: 0.13.1
@@ -23121,7 +23089,7 @@ snapshots:
 
   jest-worker@30.4.1:
     dependencies:
-      '@types/node': 26.4.0
+      '@types/node': 22.19.19
       '@ungap/structured-clone': 1.4.0
       jest-util: 30.4.1
       merge-stream: 2.0.0
@@ -23939,13 +23907,13 @@ snapshots:
     dependencies:
       mimic-fn: 2.1.0
 
-  open@11.0.1:
+  open@11.0.2:
     dependencies:
       default-browser: 5.5.1
       define-lazy-prop: 3.0.0
       is-in-ssh: 1.0.0
       is-inside-container: 1.0.0
-      powershell-utils: 0.2.0
+      powershell-utils: 0.2.1
       wsl-utils: 1.0.0
 
   open@7.4.2:
@@ -24193,7 +24161,7 @@ snapshots:
 
   powershell-utils@0.1.0: {}
 
-  powershell-utils@0.2.0: {}
+  powershell-utils@0.2.1: {}
 
   preferred-pm@3.1.4:
     dependencies:
@@ -24216,7 +24184,7 @@ snapshots:
 
   pretty-bytes@5.6.0: {}
 
-  pretty-bytes@7.1.1: {}
+  pretty-bytes@7.1.2: {}
 
   pretty-format@29.7.0:
     dependencies:
@@ -24305,7 +24273,7 @@ snapshots:
 
   qrcode-terminal@0.12.0: {}
 
-  qs@6.15.3:
+  qs@6.16.0:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -24792,7 +24760,7 @@ snapshots:
 
   socks@2.8.9:
     dependencies:
-      ip-address: 10.5.0
+      ip-address: 10.7.0
       smart-buffer: 4.2.0
 
   sort-keys@4.2.0:
@@ -24914,7 +24882,7 @@ snapshots:
       get-east-asian-width: 1.6.0
       strip-ansi: 7.2.0
 
-  string.prototype.matchall@4.0.12:
+  string.prototype.matchall@4.1.0:
     dependencies:
       call-bind: 1.0.9
       call-bound: 1.0.4

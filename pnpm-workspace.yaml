@@ -289,7 +289,7 @@ catalog:
   # above pnpm's supported floor of Node.js >=22.13.
   npm-registry-fetch: ^19.0.0
   object-hash: 3.0.0
-  open: ^11.0.1
+  open: ^11.0.2
   openpgp: ^6.3.1
   '@openpgp/web-stream-tools': 0.3.1
   p-defer: ^4.0.1
@@ -305,7 +305,7 @@ catalog:
   path-temp: ^3.0.0
   pidtree: ^1.0.0
   preferred-pm: ^5.0.0
-  pretty-bytes: ^7.1.1
+  pretty-bytes: ^7.1.2
   pretty-ms: ^9.3.1
   promise-share: ^2.0.1
   proxyquire: ^2.1.3

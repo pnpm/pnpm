@@ -149,7 +149,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: just
 
@@ -157,7 +157,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: cargo-nextest
 
@@ -373,7 +373,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: cargo-deny
 
