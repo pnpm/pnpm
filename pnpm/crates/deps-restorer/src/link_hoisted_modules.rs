@@ -304,7 +304,9 @@ fn import_node<Reporter: self::Reporter>(
 
     // `pnpm:progress imported` — see the matching emit in
     // `create_virtual_dir_by_snapshot::run` for the rationale on the
-    // optimistic `method` value. `to` is the node's hoisted directory.
+    // optimistic `method` value. Under `nodeLinker: hoisted` that emit
+    // never runs (no virtual-store slot is written), so this is the
+    // only source of the reporter's `added` counter.
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
         message: ProgressMessage::Imported {

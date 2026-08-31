@@ -420,6 +420,9 @@ fn hierarchy_entry_missing_from_graph_errors() {
     }
 }
 
+/// One `pnpm:progress imported` per imported node — the event the
+/// default reporter counts as `added`, and the only source of that
+/// counter under `nodeLinker: hoisted`.
 #[test]
 fn import_pass_emits_one_imported_event_per_node() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
