@@ -3439,11 +3439,13 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
         }
     }
 
+    // Compared as paths, not strings: the join separator is `\\` on Windows.
+    let home = PathBuf::from("/home/example");
     for (configured, expected) in [
-        ("~/bin", "/home/example/bin"),
-        ("~//bin", "/home/example/bin"),
-        ("~/../bin", "/home/bin"),
-        ("~/nested/../bin", "/home/example/bin"),
+        ("~/bin", home.join("bin")),
+        ("~//bin", home.join("bin")),
+        ("~/../bin", PathBuf::from("/home").join("bin")),
+        ("~/nested/../bin", home.join("bin")),
     ] {
         let mut settings = WorkspaceSettings {
             global_dir: Some(configured.to_string()),
@@ -3451,8 +3453,17 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
             ..WorkspaceSettings::default()
         };
         settings.expand_global_dir_home_prefixes::<FakeHome>();
-        assert_eq!(settings.global_dir.as_deref(), Some(expected), "globalDir {configured}");
-        assert_eq!(settings.global_bin_dir.as_deref(), Some(expected), "globalBinDir {configured}");
+        let expected = Some(expected.as_path());
+        assert_eq!(
+            settings.global_dir.as_deref().map(Path::new),
+            expected,
+            "globalDir {configured}"
+        );
+        assert_eq!(
+            settings.global_bin_dir.as_deref().map(Path::new),
+            expected,
+            "globalBinDir {configured}",
+        );
     }
 }
 
