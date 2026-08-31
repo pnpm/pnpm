@@ -1110,6 +1110,7 @@ where
             hoisted_dependencies,
             hoisted_locations,
             install_skipped,
+            peer_issue_importer_ids,
             fresh_lockfile,
             store_index_teardown,
         } = materialize::<Reporter>(MaterializationInputs {
@@ -1173,6 +1174,7 @@ where
             dry_run,
             peer_issues_sink_is_none,
             existing_wanted_lockfile,
+            peer_issue_importer_ids,
             fresh_lockfile,
             prefix,
             lockfile,

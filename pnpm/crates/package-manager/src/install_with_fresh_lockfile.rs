@@ -701,6 +701,11 @@ pub struct InstallWithFreshLockfileResult {
     /// see [`crate::collect_injected_deps`]. Empty on the
     /// `lockfile_only` path, which never materializes.
     pub injected_deps: BTreeMap<String, Vec<String>>,
+    /// Importers whose fresh resolution found peer-dependency issues.
+    /// The install completion path uses this as a candidate set when
+    /// rendering the final issue report from [`Self::wanted_lockfile`],
+    /// avoiding a second walk of every clean workspace importer.
+    pub peer_issue_importer_ids: HashSet<String>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
     /// `config.lockfile=false`). The caller mirrors the same gate when
@@ -1192,6 +1197,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
         }
         let total_nodes = workspace_result.peers.graph.len();
+        let peer_issue_importer_ids =
+            workspace_result.peers.peer_dependency_issues_by_importer.keys().cloned().collect();
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.
         if let Some(sink) = &peer_issues_sink {
@@ -1305,6 +1312,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
+                peer_issue_importer_ids,
                 config,
                 lockfile_dir,
                 requester,
@@ -1765,6 +1773,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             hoisted_dependencies,
             hoisted_locations,
             injected_deps,
+            peer_issue_importer_ids,
             wanted_lockfile,
             can_record_lockfile_verification,
             ignored_builds,
@@ -1928,6 +1937,7 @@ fn build_extra_env(
 
 struct LockfileOnlyOptions<'a> {
     built_lockfile: Lockfile,
+    peer_issue_importer_ids: HashSet<String>,
     config: &'a Config,
     lockfile_dir: &'a Path,
     requester: &'a str,
@@ -1964,6 +1974,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
 ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
     let LockfileOnlyOptions {
         built_lockfile,
+        peer_issue_importer_ids,
         config,
         lockfile_dir,
         requester,
@@ -2004,6 +2015,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
         hoisted_dependencies: HoistedDependencies::new(),
         hoisted_locations: BTreeMap::new(),
         injected_deps: BTreeMap::new(),
+        peer_issue_importer_ids,
         wanted_lockfile,
         can_record_lockfile_verification,
         ignored_builds: Vec::new(),

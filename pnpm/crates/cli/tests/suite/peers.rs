@@ -133,6 +133,32 @@ fn a_resolving_install_warns_about_peer_dependency_issues() {
     drop((root, mock_instance));
 }
 
+/// The resolve-only install path carries the resolver's peer-issue
+/// candidates through its separate completion plumbing without
+/// materializing `node_modules`.
+#[test]
+fn a_lockfile_only_install_warns_about_peer_dependency_issues() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_conflict_manifest(&workspace, "peer-conflict");
+
+    let output = pacquet
+        .with_args(["install", "--lockfile-only"])
+        .output()
+        .expect("run pnpm install --lockfile-only");
+    assert!(output.status.success(), "lockfile-only install must succeed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "the lockfile must be written");
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "lockfile-only install must not materialize node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// `strictPeerDependencies` turns the same verdict into
 /// `ERR_PNPM_PEER_DEP_ISSUES`. pnpm fails after the artifacts are
 /// written, so `node_modules` is still there for the user to inspect

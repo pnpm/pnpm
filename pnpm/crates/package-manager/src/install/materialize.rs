@@ -82,6 +82,7 @@ pub(super) struct MaterializationOutput {
     pub(super) hoisted_dependencies: HoistedDependencies,
     pub(super) hoisted_locations: BTreeMap<String, Vec<String>>,
     pub(super) install_skipped: crate::SkippedSnapshots,
+    pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
     /// The store-index writer task, already winding down (both install
     /// paths dropped every writer handle before returning). The caller
@@ -149,6 +150,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
     let ignored_builds: Vec<String>;
     let deferred_builds: Vec<String>;
     let injected_deps: BTreeMap<String, Vec<String>>;
+    let peer_issue_importer_ids: HashSet<String>;
     let effective_node_version = super::effective_node_version(config, manifest);
     let (
         hoisted_dependencies,
@@ -307,6 +309,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         ignored_builds = frozen_result.ignored_builds;
         deferred_builds = frozen_result.deferred_builds;
         injected_deps = frozen_result.injected_deps;
+        peer_issue_importer_ids = HashSet::new();
         (
             frozen_result.hoisted_dependencies,
             frozen_result.hoisted_locations,
@@ -443,6 +446,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         ignored_builds = fresh_result.ignored_builds;
         deferred_builds = fresh_result.deferred_builds;
         injected_deps = fresh_result.injected_deps;
+        peer_issue_importer_ids = fresh_result.peer_issue_importer_ids;
         (
             fresh_result.hoisted_dependencies,
             fresh_result.hoisted_locations,
@@ -459,6 +463,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         hoisted_dependencies,
         hoisted_locations,
         install_skipped,
+        peer_issue_importer_ids,
         fresh_lockfile,
         store_index_teardown,
     })
