@@ -554,6 +554,75 @@ fn link_bins_propagates_chmod_error_via_di() {
 }
 
 #[test]
+fn link_bins_swallows_shim_chmod_not_found_via_di() {
+    use std::io;
+
+    struct NotFoundShimChmod;
+    impl FsReadDir for NotFoundShimChmod {
+        fn read_dir(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            Ok(empty())
+        }
+    }
+    impl FsReadFile for NotFoundShimChmod {
+        fn read_file(_: &Path) -> io::Result<Vec<u8>> {
+            unreachable!()
+        }
+    }
+    impl FsReadToString for NotFoundShimChmod {
+        fn read_to_string(_: &Path) -> io::Result<String> {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+    impl FsReadHead for NotFoundShimChmod {
+        fn read_head(_: &Path, _: u64, _: &mut [u8]) -> io::Result<usize> {
+            Ok(0)
+        }
+    }
+    impl FsCreateDirAll for NotFoundShimChmod {
+        fn create_dir_all(_: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsWrite for NotFoundShimChmod {
+        fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsSetExecutable for NotFoundShimChmod {
+        fn set_executable(_: &Path) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+    impl FsEnsureExecutableBits for NotFoundShimChmod {
+        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsWalkFiles for NotFoundShimChmod {
+        fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            unreachable!("directories.bin not exercised by this test");
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
+            Ok(empty())
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "").unwrap();
+    link_bins_of_packages::<NotFoundShimChmod>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &tmp.path().join(".bin"),
+        &LinkBinsOptions::default(),
+    )
+    .expect("NotFound on shim chmod must be tolerated for concurrent GVS writers");
+}
+
+#[test]
 fn link_bins_propagates_target_chmod_error_via_di() {
     use std::io;
 

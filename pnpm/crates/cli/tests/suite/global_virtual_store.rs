@@ -25,7 +25,7 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 /// `<store_dir>/v11/links` — the root every GVS slot hangs off.
@@ -267,6 +267,89 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
         workspace.join("node_modules/.pnpm/lock.yaml").exists(),
         "the current lockfile must be rewritten",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
+    const WORKERS: usize = 8;
+    const REPETITIONS: usize = 20;
+    const PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let fixture_files =
+        ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"].map(|name| {
+            let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
+            (name, bytes)
+        });
+    // Siblings of `workspace`, not children of it: the harness writes
+    // `storeDir` / `cacheDir` as `../pacquet-store` / `../pacquet-cache`, so
+    // only at this depth do all the workers resolve to the one store — and
+    // with it the one GVS whose slots they race over. Nested any deeper they
+    // would each get a private store and the test would pass vacuously.
+    let worker_dirs = (0..WORKERS)
+        .map(|worker| {
+            let dir = root.path().join(format!("concurrent-gvs-{worker}"));
+            fs::create_dir(&dir).expect("create concurrent-install workspace");
+            for (name, bytes) in &fixture_files {
+                fs::write(dir.join(*name), bytes).expect("write concurrent-install fixture");
+            }
+            dir
+        })
+        .collect::<Vec<_>>();
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove priming node_modules");
+    fs::remove_dir_all(gvs_root(&store_dir)).expect("remove priming GVS");
+
+    for repetition in 1..=REPETITIONS {
+        let children = worker_dirs
+            .iter()
+            .enumerate()
+            .map(|(worker, dir)| {
+                let mut command = pacquet(dir);
+                command
+                    .args(["install", "--frozen-lockfile"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped());
+                let child = command.spawn().expect("spawn concurrent GVS install");
+                (worker, child)
+            })
+            .collect::<Vec<_>>();
+
+        for (worker, child) in children {
+            let output = child.wait_with_output().expect("wait for concurrent GVS install");
+            assert!(
+                output.status.success(),
+                "worker {worker} failed in repetition {repetition}: {}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
+
+        let version_dir = pkg_version_dir(&store_dir, PARENT, "1.0.0");
+        let hash_dir = sole_hash_dir(&version_dir);
+        let shared_bin =
+            pkg_in_slot(&hash_dir, PARENT).join("node_modules/.bin/hello-world-js-bin");
+        assert!(shared_bin.exists(), "the shared GVS bin must remain materialized");
+
+        if repetition < REPETITIONS {
+            for dir in &worker_dirs {
+                fs::remove_dir_all(dir.join("node_modules"))
+                    .expect("remove worker node_modules before the next repetition");
+            }
+            fs::remove_dir_all(gvs_root(&store_dir)).expect("reset GVS before the next repetition");
+        }
+    }
 
     drop((root, mock_instance));
 }
