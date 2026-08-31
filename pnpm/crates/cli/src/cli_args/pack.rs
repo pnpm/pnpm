@@ -87,20 +87,18 @@ impl PackArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config).await
+            self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
-            let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let mut options = self.pack_options(
                 dir.to_path_buf(),
                 config,
                 configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
-                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
-                    |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
-                )?,
+                before_packing_hooks,
             );
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
@@ -117,6 +115,7 @@ impl PackArgs {
         &self,
         dir: &Path,
         config: &Config,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         // `--out` and `--pack-destination` are mutually exclusive. The
         // single-project path enforces this inside `api`; the recursive
@@ -146,13 +145,6 @@ impl PackArgs {
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
         let catalogs = configured_catalogs(config)?;
-        // Load the pnpmfiles once for the whole workspace (they live at the
-        // workspace root); cloning the Arcs into each project shares one
-        // worker per pnpmfile instead of re-spawning it per packed project.
-        let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
-                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
-            )?;
         let output_can_change_while_packing = !before_packing_hooks.is_empty()
             || (!config.ignore_scripts
                 && graph.values().any(|node| {

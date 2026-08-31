@@ -10,13 +10,14 @@
 
 mod recursive;
 
-use std::{collections::HashMap, path::Path};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
 use pnpm_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycle_hook};
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
 use pnpm_publish::{
     Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
@@ -160,9 +161,17 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<()> {
-        let published =
-            self.publish_packages::<Reporter>(dir, config, recursive, /* stage */ false).await?;
+        let published = self
+            .publish_packages::<Reporter>(
+                dir,
+                config,
+                recursive,
+                /* stage */ false,
+                before_packing_hooks,
+            )
+            .await?;
         // Mirror `pnpm publish --json`: serialize only when asked. The
         // recursive path emits the array of per-package summaries (an empty
         // array when nothing was published).
@@ -189,6 +198,7 @@ impl PublishArgs {
         config: &Config,
         recursive: bool,
         stage: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<PublishedPackages> {
         if self.flags.batch && !recursive {
             return Err(miette::miette!(
@@ -205,7 +215,8 @@ impl PublishArgs {
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
         if recursive {
-            let published = self.run_recursive::<Reporter>(dir, config, stage).await?;
+            let published =
+                self.run_recursive::<Reporter>(dir, config, stage, &before_packing_hooks).await?;
             return Ok(PublishedPackages::Recursive(published));
         }
 
@@ -219,7 +230,14 @@ impl PublishArgs {
                 self.publish_tarball::<Reporter>(package, &opts, &network).await?
             } else {
                 let project_dir = self.package.as_deref().map_or(dir, Path::new);
-                self.publish_directory::<Reporter>(project_dir, config, &opts, &network).await?
+                self.publish_directory::<Reporter>(
+                    project_dir,
+                    config,
+                    &opts,
+                    &network,
+                    &before_packing_hooks,
+                )
+                .await?
             };
         Ok(PublishedPackages::Single(Box::new(summary)))
     }
@@ -260,8 +278,10 @@ impl PublishArgs {
         config: &Config,
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PublishSummary> {
-        let packed = self.pack_directory::<Reporter>(project_dir, config).await?;
+        let packed =
+            self.pack_directory::<Reporter>(project_dir, config, before_packing_hooks).await?;
         let summary =
             publish_packed_pkg::<Host, Reporter>(&packed.packed_pkg(), opts, network).await?;
 
@@ -273,6 +293,7 @@ impl PublishArgs {
         &self,
         project_dir: &Path,
         config: &Config,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PackedDirectory> {
         let manifest = pnpm_package_manifest::safe_read_package_json_from_dir(project_dir)
             .into_diagnostic()
@@ -295,8 +316,14 @@ impl PublishArgs {
         }
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
-        let pack_result =
-            self.pack_for_publish::<Reporter>(project_dir, config, pack_destination.path()).await?;
+        let pack_result = self
+            .pack_for_publish::<Reporter>(
+                project_dir,
+                config,
+                pack_destination.path(),
+                before_packing_hooks,
+            )
+            .await?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
@@ -344,12 +371,8 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         pack_destination: &Path,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<PackResult> {
-        let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
-                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
-            )?;
         let mut options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: crate::cli_args::catalogs::configured_catalogs(config)?,
@@ -374,7 +397,7 @@ impl PublishArgs {
             dry_run: false,
             out: None,
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
-            before_packing_hooks,
+            before_packing_hooks: before_packing_hooks.to_vec(),
             injected_files: Vec::new(),
             output_locks: None,
         };

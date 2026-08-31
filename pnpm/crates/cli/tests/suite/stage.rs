@@ -70,8 +70,17 @@ fn publish_dry_run_reports_that_the_package_would_be_staged() {
     write_project(
         dir.path(),
         &registry,
-        &json!({ "name": "@scope/stage-publish-dry-run", "version": "1.0.0" }),
+        &json!({
+            "name": "@scope/stage-publish-dry-run",
+            "version": "1.0.0",
+            "devDependencies": { "is-odd": "catalog:" },
+        }),
     );
+    fs::write(
+        dir.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: config => ({ ...config, catalogs: { default: { 'is-odd': '3.0.1' } } }) } }",
+    )
+    .expect("write .pnpmfile.cjs");
     let mock = server.mock("POST", Matcher::Any).expect(0).create();
 
     let output =

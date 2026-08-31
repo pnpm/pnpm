@@ -8,13 +8,14 @@
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::Mutex,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_publish::{
     Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
@@ -48,6 +49,7 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         stage: bool,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
@@ -132,7 +134,10 @@ impl PublishArgs {
                     .order
             {
                 if to_publish.contains(&root) {
-                    packed.push(self.pack_directory::<Reporter>(&root, config).await?);
+                    packed.push(
+                        self.pack_directory::<Reporter>(&root, config, before_packing_hooks)
+                            .await?,
+                    );
                 }
             }
             let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
@@ -166,7 +171,16 @@ impl PublishArgs {
                 if !to_publish.contains(&root) {
                     return TaskCompletion::Passed;
                 }
-                match command.publish_directory::<Reporter>(&root, config, opts, network).await {
+                match command
+                    .publish_directory::<Reporter>(
+                        &root,
+                        config,
+                        opts,
+                        network,
+                        before_packing_hooks,
+                    )
+                    .await
+                {
                     Ok(summary) => {
                         published
                             .lock()
