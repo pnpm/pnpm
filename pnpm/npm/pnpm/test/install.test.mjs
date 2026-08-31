@@ -15,7 +15,7 @@ const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'packag
 test('npm installs a shim that runs the native pnpm binary', (t) => {
   assert.equal(wrapperManifest.bin.pnpm, 'pnpm.exe')
 
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-wrapper-install-'))
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm wrapper install-'))
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
 
   const candidate = getBinCandidates()[0]
@@ -44,7 +44,7 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   }))
 
   const prefix = path.join(tempDir, 'prefix')
-  execFileSync('npm', [
+  runNpm([
     'install',
     '--global',
     '--install-links=true',
@@ -52,7 +52,7 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
     '--prefix',
     prefix,
     fixtureDir,
-  ], { cwd: tempDir, shell: process.platform === 'win32', stdio: 'pipe' })
+  ], tempDir)
 
   if (process.platform === 'win32') {
     const shim = path.join(prefix, 'pnpm.ps1')
@@ -62,6 +62,15 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
     assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
   }
 })
+
+function runNpm (args, cwd) {
+  if (process.platform === 'win32') {
+    const npmCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js')
+    execFileSync(process.execPath, [npmCli, ...args], { cwd, stdio: 'pipe' })
+  } else {
+    execFileSync('npm', args, { cwd, stdio: 'pipe' })
+  }
+}
 
 function writeNativeFixture (destPath) {
   if (process.platform === 'win32') {
