@@ -176,7 +176,7 @@ pub async fn fetch_verified_node_shasums(
     shasums_url: &str,
 ) -> Result<String, FetchVerifiedNodeShasumsError> {
     let (body, _signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url).await?;
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None).await?;
     Ok(body)
 }
 
@@ -186,12 +186,14 @@ pub async fn fetch_verified_node_shasums(
 async fn fetch_verified_node_shasums_with_signature(
     http_client: &ThrottledClient,
     shasums_url: &str,
+    authorization: Option<&str>,
 ) -> Result<(String, Vec<u8>), FetchVerifiedNodeShasumsError> {
     let shasums_bytes =
-        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt").await?;
+        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", authorization).await?;
     let signature_url = format!("{shasums_url}.sig");
     let signature_bytes =
-        fetch_node_shasums_bytes(http_client, &signature_url, "SHASUMS256.txt.sig").await?;
+        fetch_node_shasums_bytes(http_client, &signature_url, "SHASUMS256.txt.sig", authorization)
+            .await?;
 
     if !is_signed_by_trusted_node_release_key(&shasums_bytes, &signature_bytes)? {
         return Err(FetchVerifiedNodeShasumsError::SignatureInvalid {
@@ -230,6 +232,18 @@ pub async fn fetch_verified_node_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    fetch_verified_node_shasums_file_cached_with_auth(http_client, shasums_url, cache_dir, None)
+        .await
+}
+
+/// Like [`fetch_verified_node_shasums_file_cached`], sending the supplied
+/// authorization value when the cache misses.
+pub async fn fetch_verified_node_shasums_file_cached_with_auth(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    authorization: Option<&str>,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
     let signature_url = format!("{shasums_url}.sig");
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
         && let Some(signature) =
@@ -239,7 +253,7 @@ pub async fn fetch_verified_node_shasums_file_cached(
         return Ok(parse_shasums_file(&body));
     }
     let (body, signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url).await?;
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, authorization).await?;
     write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, body.as_bytes());
     write_cached_shasums(cache_dir, ShasumsTrust::Verified, &signature_url, &signature);
     Ok(parse_shasums_file(&body))
@@ -255,10 +269,21 @@ pub async fn fetch_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    fetch_shasums_file_cached_with_auth(http_client, shasums_url, cache_dir, None).await
+}
+
+/// Like [`fetch_shasums_file_cached`], sending the supplied authorization
+/// value when the cache misses.
+pub async fn fetch_shasums_file_cached_with_auth(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    authorization: Option<&str>,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }
-    let body = fetch_shasums_file_raw(http_client, shasums_url).await?;
+    let body = fetch_shasums_file_raw_with_auth(http_client, shasums_url, authorization).await?;
     write_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url, body.as_bytes());
     Ok(parse_shasums_file(&body))
 }
@@ -270,13 +295,22 @@ pub async fn fetch_shasums_file_raw(
     http_client: &ThrottledClient,
     shasums_url: &str,
 ) -> Result<String, FetchShasumsFileError> {
-    let response =
-        http_client.acquire_for_url(shasums_url).await.get(shasums_url).send().await.map_err(
-            |error| FetchShasumsFileError::Network {
-                url: shasums_url.to_string(),
-                error: Arc::new(error),
-            },
-        )?;
+    fetch_shasums_file_raw_with_auth(http_client, shasums_url, None).await
+}
+
+async fn fetch_shasums_file_raw_with_auth(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    authorization: Option<&str>,
+) -> Result<String, FetchShasumsFileError> {
+    let mut request = http_client.acquire_for_url(shasums_url).await.get(shasums_url);
+    if let Some(authorization) = authorization {
+        request = request.header("authorization", authorization);
+    }
+    let response = request.send().await.map_err(|error| FetchShasumsFileError::Network {
+        url: shasums_url.to_string(),
+        error: Arc::new(error),
+    })?;
     if !response.status().is_success() {
         return Err(FetchShasumsFileError::StatusNotOk {
             url: shasums_url.to_string(),
@@ -293,14 +327,17 @@ async fn fetch_node_shasums_bytes(
     http_client: &ThrottledClient,
     url: &str,
     what: &'static str,
+    authorization: Option<&str>,
 ) -> Result<Vec<u8>, FetchVerifiedNodeShasumsError> {
+    let mut request = http_client.acquire_for_url(url).await.get(url);
+    if let Some(authorization) = authorization {
+        request = request.header("authorization", authorization);
+    }
     let response =
-        http_client.acquire_for_url(url).await.get(url).send().await.map_err(|error| {
-            FetchVerifiedNodeShasumsError::Network {
-                what,
-                url: url.to_string(),
-                error: Arc::new(error),
-            }
+        request.send().await.map_err(|error| FetchVerifiedNodeShasumsError::Network {
+            what,
+            url: url.to_string(),
+            error: Arc::new(error),
         })?;
     if !response.status().is_success() {
         return Err(FetchVerifiedNodeShasumsError::StatusNotOk {

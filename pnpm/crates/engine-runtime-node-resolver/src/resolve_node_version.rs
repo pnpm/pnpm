@@ -16,7 +16,7 @@ use std::sync::Arc;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::Deserialize;
 
 /// Pattern matched against archive entries pacquet strips out of the
@@ -74,7 +74,24 @@ pub async fn resolve_node_version(
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, node_mirror_base_url).await?;
+    resolve_node_version_with_auth(
+        http_client,
+        &AuthHeaders::default(),
+        version_spec,
+        node_mirror_base_url,
+    )
+    .await
+}
+
+/// Like [`resolve_node_version`], authenticating the release-index request
+/// with the longest URL-prefix match from [`AuthHeaders`].
+pub async fn resolve_node_version_with_auth(
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    version_spec: &str,
+    node_mirror_base_url: Option<&str>,
+) -> Result<Option<String>, ResolveNodeVersionError> {
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
         return Ok(all_versions.first().map(|version| version.version.clone()));
     }
@@ -92,7 +109,24 @@ pub async fn resolve_node_versions(
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, node_mirror_base_url).await?;
+    resolve_node_versions_with_auth(
+        http_client,
+        &AuthHeaders::default(),
+        version_spec,
+        node_mirror_base_url,
+    )
+    .await
+}
+
+/// Like [`resolve_node_versions`], authenticating the release-index request
+/// with the longest URL-prefix match from [`AuthHeaders`].
+pub async fn resolve_node_versions_with_auth(
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    version_spec: Option<&str>,
+    node_mirror_base_url: Option<&str>,
+) -> Result<Vec<String>, ResolveNodeVersionError> {
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
         return Ok(all_versions.into_iter().map(|version| version.version).collect());
     };
@@ -116,20 +150,18 @@ pub async fn resolve_node_versions(
 
 async fn fetch_all_versions(
     http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<NodeVersion>, ResolveNodeVersionError> {
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
-    let response = http_client
-        .acquire_for_url(&url)
-        .await
-        .get(&url)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|error| ResolveNodeVersionError::FetchIndex {
-            url: url.clone(),
-            error: Arc::new(error),
+    let mut request = http_client.acquire_for_url(&url).await.get(&url);
+    if let Some(authorization) = auth_headers.for_url(&url) {
+        request = request.header("authorization", authorization);
+    }
+    let response =
+        request.send().await.and_then(reqwest::Response::error_for_status).map_err(|error| {
+            ResolveNodeVersionError::FetchIndex { url: url.clone(), error: Arc::new(error) }
         })?;
     let body = response.text().await.map_err(|error| ResolveNodeVersionError::FetchIndex {
         url: url.clone(),

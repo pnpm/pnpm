@@ -3,8 +3,9 @@ use pretty_assertions::assert_eq;
 use super::{
     FetchVerifiedNodeShasumsError, PickFileChecksumError, ShasumsFileItem,
     fetch_shasums_file_cached, fetch_verified_node_shasums,
-    fetch_verified_node_shasums_file_cached, is_signed_by_trusted_node_release_key,
-    parse_shasums_file, pick_file_checksum_from_shasums_file,
+    fetch_verified_node_shasums_file_cached, fetch_verified_node_shasums_file_cached_with_auth,
+    is_signed_by_trusted_node_release_key, parse_shasums_file,
+    pick_file_checksum_from_shasums_file,
 };
 
 #[test]
@@ -152,6 +153,7 @@ async fn verified_fetch_caches_the_body_after_verification() {
     let mut server = mockito::Server::new_async().await;
     let shasums = server
         .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
+        .match_header("authorization", "Bearer mirror-token")
         .with_status(200)
         .with_body(NODE_22_11_0_SHASUMS)
         .expect(1)
@@ -159,6 +161,7 @@ async fn verified_fetch_caches_the_body_after_verification() {
         .await;
     let signature = server
         .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
+        .match_header("authorization", "Bearer mirror-token")
         .with_status(200)
         .with_body(node_22_11_0_signature())
         .expect(1)
@@ -168,9 +171,14 @@ async fn verified_fetch_caches_the_body_after_verification() {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
 
-    let fetched = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
-        .await
-        .expect("fetch and verify");
+    let fetched = fetch_verified_node_shasums_file_cached_with_auth(
+        &client,
+        &url,
+        Some(cache_dir.path()),
+        Some("Bearer mirror-token"),
+    )
+    .await
+    .expect("fetch and verify");
     let cached = fetch_verified_node_shasums_file_cached(&client, &url, Some(cache_dir.path()))
         .await
         .expect("serve from cache");

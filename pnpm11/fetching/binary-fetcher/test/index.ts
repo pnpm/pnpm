@@ -198,6 +198,29 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'README.md'))).toBe(true)
     })
 
+    it('should authenticate the ZIP download', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const fetch = (_url: string, opts?: { authHeaderValue?: string }) => {
+        expect(opts?.authHeaderValue).toBe('Bearer mirror-token')
+        return Promise.resolve({
+          body: (async function * () {
+            yield zipBuffer
+          })(),
+        })
+      }
+
+      await downloadAndUnpackZip(fetch as never, {
+        url: 'https://example.com/node.zip',
+        integrity,
+        basename: 'node-v20.0.0',
+        authHeaderValue: 'Bearer mirror-token',
+      }, targetDir)
+    })
+
     it('should handle empty basename correctly', async () => {
       const targetDir = temporaryDirectory()
       const zip = new AdmZip()

@@ -1909,7 +1909,10 @@ fn ensure_latest_resolver_chain<'chain>(
             create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
                 .map_err(UpdateError::InvalidNamedRegistry)?,
         );
-        let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
+        let mut node_resolver = NodeResolver::new_with_auth(
+            Arc::clone(ctx.http_client_arc),
+            Arc::clone(&ctx.config.auth_headers),
+        );
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;
         node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());

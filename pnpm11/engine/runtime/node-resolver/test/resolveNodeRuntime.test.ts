@@ -43,6 +43,28 @@ test.each([
   expect(resolution?.normalizedBareSpecifier).toBe(expected)
 })
 
+test('resolveNodeRuntime() authenticates release index and SHASUMS requests', async () => {
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const authenticatedFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    return fetch(url)
+  }
+
+  await resolveNodeRuntime({
+    fetchFromRegistry: authenticatedFetch,
+    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+    nodeDownloadMirrors: { rc: MIRROR },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22',
+  })
+
+  expect(requests).toEqual([
+    { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
+    { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
+  ])
+})
+
 const RELEASE_MIRROR = 'https://node.example/download/release/'
 
 // An exact-specifier resolve skips the release index, so a nonexistent

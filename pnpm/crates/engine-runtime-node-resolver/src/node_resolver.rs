@@ -16,14 +16,14 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
-    fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached_with_auth,
+    fetch_verified_node_shasums_file_cached_with_auth,
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
     PlatformAssetTarget, VariationsResolution,
 };
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{
     LatestInfo, LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
     ResolveResult, Resolver, WantedDependency,
@@ -36,7 +36,7 @@ use crate::{
         DEFAULT_NODE_MIRROR_BASE_URL, UNOFFICIAL_NODE_MIRROR_BASE_URL, get_node_mirror,
     },
     parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier},
-    resolve_node_version::{ResolveNodeVersionError, resolve_node_version},
+    resolve_node_version::{ResolveNodeVersionError, resolve_node_version_with_auth},
 };
 
 const RESOLVED_VIA: &str = "nodejs.org";
@@ -93,6 +93,7 @@ pub enum NodeResolverError {
 /// to time out behind a proxy.
 pub struct NodeResolver {
     pub http_client: Arc<ThrottledClient>,
+    pub auth_headers: Arc<AuthHeaders>,
     pub node_download_mirrors: HashMap<String, String>,
     pub offline: bool,
     /// The pnpm cache directory backing the per-version SHASUMS disk
@@ -104,7 +105,21 @@ pub struct NodeResolver {
 impl NodeResolver {
     #[must_use]
     pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, node_download_mirrors: HashMap::new(), offline: false, cache_dir: None }
+        Self::new_with_auth(http_client, Arc::new(AuthHeaders::default()))
+    }
+
+    #[must_use]
+    pub fn new_with_auth(
+        http_client: Arc<ThrottledClient>,
+        auth_headers: Arc<AuthHeaders>,
+    ) -> Self {
+        Self {
+            http_client,
+            auth_headers,
+            node_download_mirrors: HashMap::new(),
+            offline: false,
+            cache_dir: None,
+        }
     }
 }
 
@@ -159,8 +174,9 @@ impl NodeResolver {
             // raises for a nonexistent version; any other outcome
             // re-raises the asset error unchanged.
             Err(error) if picked.resolved_without_index => {
-                let error = match resolve_node_version(
+                let error = match resolve_node_version_with_auth(
                     &self.http_client,
+                    &self.auth_headers,
                     &picked.version,
                     Some(&picked.mirror),
                 )
@@ -227,13 +243,15 @@ impl NodeResolver {
                 resolved_without_index: true,
             });
         }
-        let version =
-            resolve_node_version(&self.http_client, &parsed.version_specifier, Some(&mirror))
-                .await
-                .map_err(NodeResolverError::FetchReleaseIndex)?
-                .ok_or_else(|| NodeResolverError::VersionNotFound {
-                    spec: version_spec.to_string(),
-                })?;
+        let version = resolve_node_version_with_auth(
+            &self.http_client,
+            &self.auth_headers,
+            &parsed.version_specifier,
+            Some(&mirror),
+        )
+        .await
+        .map_err(NodeResolverError::FetchReleaseIndex)?
+        .ok_or_else(|| NodeResolverError::VersionNotFound { spec: version_spec.to_string() })?;
         Ok(PickedNodeVersion {
             version,
             mirror,
@@ -288,12 +306,14 @@ impl NodeResolver {
             Box::new(NodeResolverError::InvalidReleaseChannel(err)) as ResolveError
         })?;
         let mirror = get_node_mirror(Some(&self.node_download_mirrors), &parsed.release_channel);
-        let version =
-            resolve_node_version(&self.http_client, &parsed.version_specifier, Some(&mirror))
-                .await
-                .map_err(|err| {
-                    Box::new(NodeResolverError::FetchReleaseIndex(err)) as ResolveError
-                })?;
+        let version = resolve_node_version_with_auth(
+            &self.http_client,
+            &self.auth_headers,
+            &parsed.version_specifier,
+            Some(&mirror),
+        )
+        .await
+        .map_err(|err| Box::new(NodeResolverError::FetchReleaseIndex(err)) as ResolveError)?;
         let Some(version) = version else {
             return Ok(Some(LatestInfo::default()));
         };
@@ -321,6 +341,7 @@ impl NodeResolver {
     ) -> Result<Vec<PlatformAssetResolution>, NodeResolverError> {
         let mut assets = read_node_assets_from_mirror(
             &self.http_client,
+            &self.auth_headers,
             mirror,
             version,
             /* musl_only */ false,
@@ -331,6 +352,7 @@ impl NodeResolver {
         if mirror == DEFAULT_NODE_MIRROR_BASE_URL
             && let Ok(mut musl_assets) = read_node_assets_from_mirror(
                 &self.http_client,
+                &self.auth_headers,
                 UNOFFICIAL_NODE_MIRROR_BASE_URL,
                 version,
                 /* musl_only */ true,
@@ -419,6 +441,7 @@ fn normalize_node_runtime_version_specifier(
 /// caller asked for.
 async fn read_node_assets_from_mirror(
     http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
     node_mirror_base_url: &str,
     version: &str,
     musl_only: bool,
@@ -428,14 +451,25 @@ async fn read_node_assets_from_mirror(
     // The URL is pinned to one released version, which is what makes it
     // eligible for the SHASUMS disk cache.
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
+    let authorization = auth_headers.for_url(&integrities_url);
     let items = if verify_signature {
-        fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
-            .await
-            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+        fetch_verified_node_shasums_file_cached_with_auth(
+            http_client,
+            &integrities_url,
+            cache_dir,
+            authorization.as_deref(),
+        )
+        .await
+        .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
     } else {
-        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
-            .await
-            .map_err(NodeResolverError::FetchShasumsFile)?
+        fetch_shasums_file_cached_with_auth(
+            http_client,
+            &integrities_url,
+            cache_dir,
+            authorization.as_deref(),
+        )
+        .await
+        .map_err(NodeResolverError::FetchShasumsFile)?
     };
     let mut assets = Vec::new();
     for item in items {

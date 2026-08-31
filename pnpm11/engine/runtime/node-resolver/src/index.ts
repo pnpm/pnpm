@@ -1,6 +1,6 @@
 import { fetchShasumsFileCached, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
   LatestInfo,
@@ -39,6 +39,7 @@ export interface NodeRuntimeResolveResult extends ResolveResult {
 export async function resolveNodeRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
+    getAuthHeader?: GetAuthHeader
     nodeDownloadMirrors?: Record<string, string>
     offline?: boolean
     cacheDir?: string
@@ -57,6 +58,7 @@ export async function resolveNodeRuntime (
   }
 
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
+  const fetch = createAuthenticatedFetch(ctx.fetchFromRegistry, ctx.getAuthHeader)
   const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
@@ -66,21 +68,21 @@ export async function resolveNodeRuntime (
   const exactVersion = exactReleaseVersion(releaseChannel, versionSpecifier)
   let version = exactVersion
   if (version == null) {
-    version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl) ?? undefined
+    version = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl) ?? undefined
     if (!version) {
       throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
     }
   }
   let variants: PlatformAssetResolution[]
   try {
-    variants = await readNodeAssets(ctx.fetchFromRegistry, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
+    variants = await readNodeAssets(fetch, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
   } catch (err: unknown) {
     // The exact-specifier pick skipped the release index, so a failed asset
     // read is ambiguous: the version may simply not exist. Consult the index
     // now, purely to raise the same NODEJS_VERSION_NOT_FOUND the index-first
     // path raises for a nonexistent version; any other outcome re-raises the
     // asset error unchanged.
-    if (exactVersion != null && await versionMissingFromIndex(ctx.fetchFromRegistry, exactVersion, nodeMirrorBaseUrl)) {
+    if (exactVersion != null && await versionMissingFromIndex(fetch, exactVersion, nodeMirrorBaseUrl)) {
       throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
     }
     throw err
@@ -103,7 +105,7 @@ export async function resolveNodeRuntime (
 }
 
 export async function resolveLatestNodeRuntime (
-  ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
+  ctx: { fetchFromRegistry: FetchFromRegistry, getAuthHeader?: GetAuthHeader, nodeDownloadMirrors?: Record<string, string> },
   query: LatestQuery,
   _opts: ResolveOptions
 ): Promise<LatestInfo | undefined> {
@@ -112,7 +114,10 @@ export async function resolveLatestNodeRuntime (
   const versionSpec = query.compatible ? normalizeRuntimeSpec(manifestSpec.substring('runtime:'.length)) : 'latest'
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
-  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
+  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, {
+    nodeMirrorBaseUrl,
+    getAuthHeader: ctx.getAuthHeader,
+  })
   if (!version) return {}
   return { latestManifest: { name: 'node', version } }
 }
@@ -267,9 +272,10 @@ const SEMVER_OPTS = {
 export async function resolveNodeVersion (
   fetch: FetchFromRegistry,
   versionSpec: string,
-  nodeMirrorBaseUrl?: string
+  opts?: string | NodeVersionFetchOptions
 ): Promise<string | null> {
-  const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
+  const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
     return allVersions[0].version
@@ -281,9 +287,10 @@ export async function resolveNodeVersion (
 export async function resolveNodeVersions (
   fetch: FetchFromRegistry,
   versionSpec?: string,
-  nodeMirrorBaseUrl?: string
+  opts?: string | NodeVersionFetchOptions
 ): Promise<string[]> {
-  const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
+  const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   if (versionSpec == null) {
     return allVersions.map(({ version }) => version)
   }
@@ -306,6 +313,23 @@ async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: s
     version: version.substring(1),
     lts,
   }))
+}
+
+export interface NodeVersionFetchOptions {
+  nodeMirrorBaseUrl?: string
+  getAuthHeader?: GetAuthHeader
+}
+
+function normalizeNodeVersionFetchOptions (opts?: string | NodeVersionFetchOptions): NodeVersionFetchOptions {
+  return typeof opts === 'string' ? { nodeMirrorBaseUrl: opts } : opts ?? {}
+}
+
+function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeader?: GetAuthHeader): FetchFromRegistry {
+  if (getAuthHeader == null) return fetch
+  return (url, opts) => fetch(url, {
+    ...opts,
+    authHeaderValue: getAuthHeader(url),
+  })
 }
 
 function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {
