@@ -156,6 +156,20 @@ fn links_the_host_platform_binary_into_the_wrapper() {
 
 #[cfg(unix)]
 #[test]
+fn links_the_host_platform_binary_over_an_extension_bearing_wrapper_target() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    fake_engine_install(temp.path(), true);
+    let wrapper_dir = package_dir(temp.path(), PNPM_PACKAGE_NAME);
+    fs::write(wrapper_dir.join("pnpm.exe"), b"placeholder").expect("write placeholder");
+
+    link_exe_platform_binary(temp.path(), PNPM_PACKAGE_NAME).expect("linking should succeed");
+
+    let dest = wrapper_dir.join("pnpm.exe");
+    assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
+}
+
+#[cfg(unix)]
+#[test]
 fn links_the_host_platform_binary_into_scoped_exe_wrapper() {
     let temp = tempfile::tempdir().expect("tempdir");
     fake_engine_install_for(temp.path(), PNPM_EXE_PACKAGE_NAME, true);

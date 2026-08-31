@@ -418,7 +418,9 @@ pub(crate) fn link_exe_platform_binary(
         })?;
     let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
     let src = validate_native_binary_source(&src, &native_source_root)?;
-    let dest = wrapper_real_dir.join(executable);
+    let wrapper_executable =
+        if wrapper_real_dir.join("pnpm.exe").exists() { "pnpm.exe" } else { executable };
+    let dest = wrapper_real_dir.join(wrapper_executable);
     replace_executable(&src, &dest)
         .into_diagnostic()
         .wrap_err("link the native pnpm binary into the wrapper")?;
