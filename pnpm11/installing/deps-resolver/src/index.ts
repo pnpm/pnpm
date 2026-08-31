@@ -37,6 +37,7 @@ import {
 } from '@pnpm/types'
 import { isSubdir } from 'is-subdir'
 import { difference, zipWith } from 'ramda'
+import semver from 'semver'
 
 import { depPathToRef } from './depPathToRef.js'
 import { getCatalogSnapshots } from './getCatalogSnapshots.js'
@@ -418,7 +419,9 @@ export async function resolveDependencies (
       if (dep.normalizedBareSpecifier == null) continue
       updatedCatalogs ??= {}
       updatedCatalogs[dep.catalogLookup.catalogName] ??= {}
-      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = dep.normalizedBareSpecifier
+      updatedCatalogs[dep.catalogLookup.catalogName][dep.alias] = isExplicitDistTagSpecifier(dep.wantedDependency?.bareSpecifier)
+        ? dep.version
+        : dep.normalizedBareSpecifier
     }
   }
 
@@ -488,6 +491,10 @@ export async function resolveDependencies (
     wantedToBeSkippedPackageIds,
     resolutionPolicyViolations,
   }
+}
+
+function isExplicitDistTagSpecifier (bareSpecifier: string | undefined): boolean {
+  return bareSpecifier != null && bareSpecifier !== 'latest' && !bareSpecifier.includes(':') && semver.validRange(bareSpecifier) == null
 }
 
 function treeHasLockedPeerContexts (dependenciesTree: DependenciesTree<ResolvedPackage>): boolean {

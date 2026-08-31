@@ -5993,6 +5993,9 @@ importers:
 
   pnpm11/installing/deps-resolver:
     dependencies:
+      '@pnpm/catalogs.protocol-parser':
+        specifier: workspace:*
+        version: link:../../catalogs/protocol-parser
       '@pnpm/catalogs.resolver':
         specifier: workspace:*
         version: link:../../catalogs/resolver
