@@ -20,6 +20,7 @@ use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use std::{
     collections::BTreeSet,
+    fs::{self, DirEntry},
     io::ErrorKind,
     path::{Path, PathBuf},
 };
@@ -140,18 +141,18 @@ pub fn find_workspace_projects_no_check(
     }
 
     // wax's `not` takes a single pattern; combine the ignores with
-    // `wax::any` so the walk filters them all in one pass (ignoring
-    // `**/node_modules/**` and `**/bower_components/**`).
-    // Built once outside the per-pattern loop and `.clone()`-d into each
-    // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
-    // since `IGNORE_PATTERNS` is a constant and reparsing it on every
-    // user-supplied pattern is wasted work.
-    let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
-        FindWorkspaceProjectsError::InvalidGlob {
+    // `wax::any` so the walk filters them all in one pass. Built once
+    // outside the per-pattern loop to avoid reparsing the constant
+    // ignores.
+    let build_ignores = |patterns: &mut dyn Iterator<Item = &'static str>| {
+        wax::any(patterns).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<built-in ignore>".to_string(),
             message: err.to_string(),
-        }
-    })?;
+        })
+    };
+    let ignore_template = build_ignores(&mut IGNORE_PATTERNS.iter().copied())?;
+    let dot_pruning_ignore_template =
+        build_ignores(&mut IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN]))?;
 
     // User negations are written relative to the workspace root, while a
     // parent-relative include walks from an ancestor of it, so they are
@@ -172,6 +173,30 @@ pub fn find_workspace_projects_no_check(
     // silently dropped from the workspace.
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
     for pattern in include_patterns {
+        match specialized_pattern(pattern) {
+            Some(SpecializedPattern::ChildrenOf(parent)) => {
+                collect_manifests_in_children(
+                    &workspace_root.join(parent),
+                    workspace_root,
+                    &ignore_template,
+                    &user_negations,
+                    &mut manifest_paths,
+                )?;
+                continue;
+            }
+            Some(SpecializedPattern::Literal(directory)) => {
+                collect_literal_manifests_in(
+                    &workspace_root.join(directory),
+                    workspace_root,
+                    &ignore_template,
+                    &user_negations,
+                    &mut manifest_paths,
+                );
+                continue;
+            }
+            None => {}
+        }
+
         for normalized in normalize_manifest_patterns(pattern) {
             let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized)
             else {
@@ -186,37 +211,36 @@ pub fn find_workspace_projects_no_check(
                     message: err.to_string(),
                 })?;
 
-            let walk = glob.walk(walk_root).not(ignore_template.clone()).map_err(|err| {
-                FindWorkspaceProjectsError::InvalidGlob {
-                    pattern: pattern.to_string(),
-                    message: err.to_string(),
+            let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: pattern.to_string(),
+                message: err.to_string(),
+            };
+            match positional_dot_ignores(normalized) {
+                None => collect_walk_manifests(
+                    glob.walk(walk_root)
+                        .not(dot_pruning_ignore_template.clone())
+                        .map_err(invalid_glob)?,
+                    walk_root,
+                    workspace_root,
+                    &user_negations,
+                    &mut manifest_paths,
+                )?,
+                Some(dot_ignores) => {
+                    let ignores = wax::any(
+                        IGNORE_PATTERNS
+                            .iter()
+                            .copied()
+                            .chain(dot_ignores.iter().map(String::as_str)),
+                    )
+                    .map_err(invalid_glob)?;
+                    collect_walk_manifests(
+                        glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
+                        walk_root,
+                        workspace_root,
+                        &user_negations,
+                        &mut manifest_paths,
+                    )?;
                 }
-            })?;
-
-            for entry in walk {
-                let entry = match entry {
-                    Ok(entry) => entry,
-                    Err(err) => {
-                        // Converting rather than restringifying keeps the
-                        // underlying `io::ErrorKind`, which the skip below
-                        // needs.
-                        let err = std::io::Error::from(err);
-                        if err.kind() == ErrorKind::NotFound {
-                            continue;
-                        }
-                        return Err(FindWorkspaceProjectsError::Walk {
-                            root: walk_root.to_path_buf(),
-                            source: err,
-                        });
-                    }
-                };
-                let manifest_path = entry.path();
-                if pathdiff::diff_paths(manifest_path, workspace_root)
-                    .is_some_and(|relative| user_negations.is_match(relative.as_path()))
-                {
-                    continue;
-                }
-                manifest_paths.insert(manifest_path.to_path_buf());
             }
         }
     }
@@ -272,16 +296,159 @@ pub fn find_workspace_projects_no_check(
 /// `**/tests/**` directories that the lower-level package-finding path
 /// excludes.
 const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
+
+/// Prunes every path with a dot-prefixed component, so a wildcard cannot
+/// descend into `.git`, `.cache`, and friends. Applied only to patterns that
+/// do not name a dot component themselves — see [`positional_dot_ignores`].
+const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
-fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    // Each user pattern is suffixed with every supported manifest basename
-    // so the glob matches manifest files rather than directories.
+fn normalize_directory_pattern(pattern: &str) -> Option<&str> {
     let trimmed = pattern.trim_end_matches('/');
     if trimmed.is_empty() || trimmed == "." {
-        return Vec::new();
+        return None;
     }
+    Some(trimmed)
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum SpecializedPattern<'pattern> {
+    Literal(&'pattern str),
+    ChildrenOf(&'pattern str),
+}
+
+fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_>> {
+    let pattern = normalize_directory_pattern(pattern)?;
+    if let Some(parent) = pattern.strip_suffix("/*") {
+        return is_safe_relative_literal(parent).then_some(SpecializedPattern::ChildrenOf(parent));
+    }
+    is_safe_relative_literal(pattern).then_some(SpecializedPattern::Literal(pattern))
+}
+
+fn is_safe_relative_literal(pattern: &str) -> bool {
+    !pattern.chars().any(|ch| ch == '\\' || wax::is_meta_character(ch))
+        && !pattern.starts_with('/')
+        && pattern
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
+}
+
+fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
+    let Some(trimmed) = normalize_directory_pattern(pattern) else { return Vec::new() };
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+}
+
+fn collect_manifests_in_children(
+    parent: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    for_each_directory_entry(parent, workspace_root, |entry| {
+        if starts_with_dot(&entry.file_name()) {
+            return Ok(());
+        }
+        if !ignore_not_found(entry.file_type())
+            .map_err(|source| workspace_walk_error(workspace_root, source))?
+            .is_some_and(|file_type| file_type.is_dir())
+        {
+            return Ok(());
+        }
+        collect_manifests_in_child(
+            &entry.path(),
+            workspace_root,
+            built_in_ignores,
+            user_negations,
+            manifest_paths,
+        )
+    })
+}
+
+fn collect_literal_manifests_in(
+    directory: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) {
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let manifest_path = directory.join(basename);
+        if manifest_path.is_file()
+            && !is_ignored_manifest(
+                &manifest_path,
+                workspace_root,
+                built_in_ignores,
+                user_negations,
+            )
+        {
+            manifest_paths.insert(manifest_path);
+        }
+    }
+}
+
+fn collect_manifests_in_child(
+    directory: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    for_each_directory_entry(directory, workspace_root, |entry| {
+        if !PROJECT_MANIFEST_BASENAMES.iter().any(|basename| entry.file_name() == *basename) {
+            return Ok(());
+        }
+        let manifest_path = entry.path();
+        if !is_ignored_manifest(&manifest_path, workspace_root, built_in_ignores, user_negations) {
+            manifest_paths.insert(manifest_path);
+        }
+        Ok(())
+    })
+}
+
+fn for_each_directory_entry(
+    directory: &Path,
+    workspace_root: &Path,
+    mut visit: impl FnMut(DirEntry) -> Result<(), FindWorkspaceProjectsError>,
+) -> Result<(), FindWorkspaceProjectsError> {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(workspace_walk_error(workspace_root, source)),
+    };
+    for entry in entries {
+        if let Some(entry) = ignore_not_found(entry)
+            .map_err(|source| workspace_walk_error(workspace_root, source))?
+        {
+            visit(entry)?;
+        }
+    }
+    Ok(())
+}
+
+fn ignore_not_found<Value>(result: std::io::Result<Value>) -> std::io::Result<Option<Value>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn workspace_walk_error(
+    workspace_root: &Path,
+    source: std::io::Error,
+) -> FindWorkspaceProjectsError {
+    FindWorkspaceProjectsError::Walk { root: workspace_root.to_path_buf(), source }
+}
+
+fn is_ignored_manifest(
+    manifest_path: &Path,
+    workspace_root: &Path,
+    built_in_ignores: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+) -> bool {
+    let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
+    built_in_ignores.is_match(relative) || user_negations.is_match(relative)
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
@@ -300,6 +467,85 @@ fn split_parent_prefix<'root, 'pattern>(
         rest = tail;
     }
     Some((walk_root, rest))
+}
+
+/// Ignore globs that forbid a dot-prefixed component at each position where
+/// `pattern` has a wildcard, or `None` when no segment names a dot component
+/// and the hoisted [`DOT_COMPONENT_IGNORE_PATTERN`] already says the same thing.
+///
+/// A wildcard must never match a dot-prefixed component, but a pattern that
+/// spells one out must still reach it, and only there. Deriving one ignore per
+/// wildcard position keeps that distinction: given `packages/.cache/*/lib`,
+/// `.cache` stays reachable while `packages/.cache/.hidden/lib` and
+/// `packages/.cache/.cache/lib` are both pruned. A wildcard that itself starts
+/// with a dot, as in `packages/.*`, is asking for dot components and gets no
+/// ignore.
+fn positional_dot_ignores(pattern: &str) -> Option<Vec<String>> {
+    let segments: Vec<&str> = pattern.split('/').collect();
+    if !segments.iter().any(|segment| names_a_dot_component(segment)) {
+        return None;
+    }
+    let ignores = segments
+        .iter()
+        .enumerate()
+        .filter(|(_, segment)| !segment.starts_with('.') && !is_literal_pattern(segment))
+        .map(|(index, segment)| {
+            let dotted = if *segment == "**" { "**/.*/**" } else { ".*" };
+            let mut replaced = segments.clone();
+            replaced[index] = dotted;
+            replaced.join("/")
+        })
+        .collect();
+    Some(ignores)
+}
+
+/// Drain a prepared walk into `manifest_paths`, absorbing `NotFound` and
+/// applying the user negations that `Walk::not` cannot express.
+fn collect_walk_manifests<Entries, Matched, Failure>(
+    walk: Entries,
+    walk_root: &Path,
+    workspace_root: &Path,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) -> Result<(), FindWorkspaceProjectsError>
+where
+    Entries: Iterator<Item = Result<Matched, Failure>>,
+    Matched: Entry,
+    Failure: Into<std::io::Error>,
+{
+    for entry in walk {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(err) => {
+                // Converting rather than restringifying keeps the underlying
+                // `io::ErrorKind`, which the skip below needs.
+                let err: std::io::Error = err.into();
+                if err.kind() == ErrorKind::NotFound {
+                    continue;
+                }
+                return Err(FindWorkspaceProjectsError::Walk {
+                    root: walk_root.to_path_buf(),
+                    source: err,
+                });
+            }
+        };
+        let manifest_path = entry.path();
+        if pathdiff::diff_paths(manifest_path, workspace_root)
+            .is_some_and(|relative| user_negations.is_match(relative.as_path()))
+        {
+            continue;
+        }
+        manifest_paths.insert(manifest_path.to_path_buf());
+    }
+    Ok(())
+}
+
+fn names_a_dot_component(segment: &str) -> bool {
+    segment.starts_with('.') && segment != "." && segment != ".."
+}
+
+fn starts_with_dot(name: &std::ffi::OsStr) -> bool {
+    name.as_encoded_bytes().first() == Some(&b'.')
 }
 
 fn is_literal_pattern(pattern: &str) -> bool {

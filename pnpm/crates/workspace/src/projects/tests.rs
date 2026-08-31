@@ -1,6 +1,9 @@
-use super::{FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, find_workspace_projects};
+use super::{
+    FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, SpecializedPattern,
+    find_workspace_projects, specialized_pattern,
+};
 use pretty_assertions::assert_eq;
-use std::{fs, io::ErrorKind};
+use std::{fs, io::ErrorKind, path::Path};
 use tempfile::TempDir;
 
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
@@ -14,6 +17,62 @@ fn make_yaml_project(root: &std::path::Path, rel: &str, name: &str) {
     let dir = root.join(rel);
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("package.yaml"), format!("name: {name}\nversion: 0.0.1\n")).unwrap();
+}
+
+fn find_project_names(root: &Path, patterns: &[&str]) -> Vec<String> {
+    find_workspace_projects(
+        root,
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(patterns.iter().map(|pattern| (*pattern).to_string()).collect()),
+        },
+    )
+    .unwrap()
+    .iter()
+    .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
+    .collect()
+}
+
+#[test]
+fn recognizes_specialized_workspace_patterns() {
+    assert_eq!(
+        specialized_pattern("packages/alpha"),
+        Some(SpecializedPattern::Literal("packages/alpha")),
+    );
+    assert_eq!(
+        specialized_pattern("packages/alpha/"),
+        Some(SpecializedPattern::Literal("packages/alpha")),
+    );
+    assert_eq!(specialized_pattern("packages/*"), Some(SpecializedPattern::ChildrenOf("packages")));
+    assert_eq!(
+        specialized_pattern("packages/*/"),
+        Some(SpecializedPattern::ChildrenOf("packages")),
+    );
+}
+
+#[test]
+fn leaves_other_workspace_patterns_to_the_generic_walk() {
+    for pattern in [
+        "../shared",
+        "/shared",
+        "C:/shared",
+        "packages/**",
+        "packages/{alpha,beta}",
+        "packages/$",
+        "packages/<alpha>",
+        "packages/(alpha,beta)",
+        "packages/./alpha",
+        "../shared/*",
+        "/shared/*",
+        "C:/shared/*",
+        "packages/*/*",
+        "packages/{alpha,beta}/*",
+        "packages/$/*",
+        "packages/<alpha>/*",
+        "packages/(alpha,beta)/*",
+        "packages/./*",
+    ] {
+        assert_eq!(specialized_pattern(pattern), None, "pattern: {pattern}");
+    }
 }
 
 #[test]
@@ -37,6 +96,133 @@ fn expands_packages_glob() {
 }
 
 #[test]
+fn terminal_star_does_not_match_dotted_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    let names = find_project_names(tmp.path(), &["packages/*"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
+}
+
+#[test]
+fn recursive_wildcard_does_not_match_dotted_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "nested/plain/deep", "plain");
+    make_project(tmp.path(), "nested/.hidden/deep", "hidden");
+
+    let names = find_project_names(tmp.path(), &["nested/**"]);
+    assert_eq!(names, vec!["root".to_string(), "plain".to_string()]);
+}
+
+#[test]
+fn non_terminal_star_does_not_match_dotted_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha/lib", "alpha-lib");
+    make_project(tmp.path(), "packages/.cache/lib", "cached-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha-lib".to_string()]);
+}
+
+/// A wildcard must not reach a dot-prefixed directory, but a pattern that
+/// names one must.
+#[test]
+fn a_pattern_naming_a_dotted_directory_still_matches_it() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), ".config/alpha", "alpha");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    assert_eq!(
+        find_project_names(tmp.path(), &["packages/.cache"]),
+        vec!["root".to_string(), "cached".to_string()],
+    );
+    assert_eq!(
+        find_project_names(tmp.path(), &[".config/*"]),
+        vec!["root".to_string(), "alpha".to_string()],
+    );
+    assert_eq!(
+        find_project_names(tmp.path(), &["packages/.*"]),
+        vec!["root".to_string(), "cached".to_string()],
+    );
+}
+
+#[test]
+fn terminal_star_matches_only_immediate_child_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    make_project(tmp.path(), "packages/group/beta", "beta");
+    fs::write(tmp.path().join("packages/not-a-directory"), "text").unwrap();
+
+    let names = find_project_names(tmp.path(), &["packages/*"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
+}
+
+#[test]
+fn terminal_star_applies_built_in_ignores() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "node_modules/alpha", "alpha");
+    make_project(tmp.path(), "bower_components/beta", "beta");
+
+    let names = find_project_names(tmp.path(), &["node_modules/*", "bower_components/*"]);
+    assert_eq!(names, vec!["root".to_string()]);
+}
+
+#[test]
+fn terminal_star_applies_user_negations() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    make_project(tmp.path(), "packages/beta", "beta");
+
+    let names = find_project_names(tmp.path(), &["packages/*", "!packages/alpha"]);
+    assert_eq!(names, vec!["root".to_string(), "beta".to_string()]);
+}
+
+#[cfg(unix)]
+#[test]
+fn terminal_star_does_not_follow_symlinked_child_directories() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "linked-target", "linked");
+    fs::create_dir_all(tmp.path().join("packages")).unwrap();
+    symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
+
+    let names = find_project_names(tmp.path(), &["packages/*"]);
+    assert_eq!(names, vec!["root".to_string()]);
+}
+
+#[test]
+fn wax_metacharacters_use_generic_semantics() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "products/$/pkg", "dollar-pkg");
+    make_project(tmp.path(), "products/alpha/pkg", "alpha-pkg");
+    make_project(tmp.path(), "products/beta/pkg", "beta-pkg");
+    make_project(tmp.path(), "products/beta/other", "beta-other");
+
+    let mut names = find_project_names(tmp.path(), &["products/$/pkg"]);
+    names.sort();
+    assert_eq!(
+        names,
+        vec![
+            "alpha-pkg".to_string(),
+            "beta-pkg".to_string(),
+            "dollar-pkg".to_string(),
+            "root".to_string(),
+        ],
+    );
+}
+
+#[test]
 fn expands_packages_glob_to_package_yaml() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
@@ -56,22 +242,48 @@ fn expands_packages_glob_to_package_yaml() {
 }
 
 #[test]
-fn direct_package_pattern_does_not_require_every_manifest_format() {
+fn direct_package_patterns_support_both_manifest_formats() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    make_yaml_project(tmp.path(), "packages/beta", "beta");
+
+    let names = find_project_names(tmp.path(), &["packages/alpha", "packages/beta"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha".to_string(), "beta".to_string()]);
+}
+
+#[test]
+fn missing_direct_package_pattern_matches_nothing() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+
+    let names = find_project_names(tmp.path(), &["packages/alpha"]);
+    assert_eq!(names, vec!["root".to_string()]);
+}
+
+#[test]
+fn direct_package_pattern_applies_user_negations() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
     make_project(tmp.path(), "packages/alpha", "alpha");
 
-    let projects = find_workspace_projects(
-        tmp.path(),
-        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/alpha".to_string()]) },
-    )
-    .unwrap();
+    let names = find_project_names(tmp.path(), &["packages/alpha", "!packages/alpha"]);
+    assert_eq!(names, vec!["root".to_string()]);
+}
 
-    let names: Vec<String> = projects
-        .iter()
-        .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
-        .collect();
-    assert_eq!(names, vec!["root".to_string(), "alpha".to_string()]);
+#[cfg(unix)]
+#[test]
+fn direct_package_pattern_follows_symlinked_directory() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "linked-target", "linked");
+    fs::create_dir_all(tmp.path().join("packages")).unwrap();
+    symlink(tmp.path().join("linked-target"), tmp.path().join("packages/linked")).unwrap();
+
+    let names = find_project_names(tmp.path(), &["packages/linked"]);
+    assert_eq!(names, vec!["root".to_string(), "linked".to_string()]);
 }
 
 #[test]
@@ -443,4 +655,39 @@ fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
         .map(|project| project.manifest.value().get("name").unwrap().as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["root".to_string(), "bom".to_string()]);
+}
+
+#[test]
+fn a_named_dot_directory_does_not_exempt_later_wildcards() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/.cache/plain/lib", "plain-lib");
+    make_project(tmp.path(), "packages/.cache/.hidden/lib", "hidden-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/.cache/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
+}
+
+/// The exemption is positional, not by name: a wildcard must not match a dot
+/// component just because the pattern names one spelled the same way.
+#[test]
+fn a_named_dot_directory_does_not_exempt_a_repeat_of_its_own_name() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/.cache/plain/lib", "plain-lib");
+    make_project(tmp.path(), "packages/.cache/.cache/lib", "repeat-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/.cache/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
+}
+
+#[test]
+fn a_named_dot_directory_does_not_exempt_a_recursive_wildcard() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), ".config/plain/lib", "plain-lib");
+    make_project(tmp.path(), ".config/.hidden/lib", "hidden-lib");
+
+    let names = find_project_names(tmp.path(), &[".config/**"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
 }
