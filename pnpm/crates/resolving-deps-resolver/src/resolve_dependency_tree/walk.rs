@@ -984,10 +984,18 @@ where
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    let child_specs = resolve_catalog_child_specs(
-        child_specs,
-        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
-    )?;
+    let child_specs = if let Some(catalogs) =
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
+    {
+        child_specs
+            .iter()
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
+            .pipe(Arc::new)
+    } else {
+        child_specs
+    };
     // An *updated* parent (one that landed on a different version than
     // the lockfile recorded, or a new dep) discards its
     // `resolvedDependencies` child refs, forcing its subtree to
@@ -1476,16 +1484,21 @@ pub(super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
-    let specs = specs
-        .into_iter()
-        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
-        .collect::<Vec<ChildSpec>>()
-        .pipe(Arc::new);
-    let Ok(specs) = resolve_catalog_child_specs(
-        specs,
-        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
-    ) else {
-        return;
+    let specs = if pending.peer_shadowed.is_empty() {
+        specs
+    } else {
+        specs
+            .into_iter()
+            .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+            .collect()
+    };
+    let specs = if let Some(catalogs) =
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
+    {
+        let Ok(specs) = resolve_catalog_child_specs(specs, catalogs) else { return };
+        specs
+    } else {
+        specs
     };
     let opts = ctx.opts_for_depth(pending.depth + 1);
     let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
@@ -1550,18 +1563,16 @@ fn catalogs_for_children(
 }
 
 fn resolve_catalog_child_specs(
-    child_specs: Arc<Vec<ChildSpec>>,
-    catalogs: Option<&Catalogs>,
-) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
-    let Some(catalogs) = catalogs else { return Ok(child_specs) };
+    child_specs: Vec<ChildSpec>,
+    catalogs: &Catalogs,
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
     child_specs
-        .iter()
+        .into_iter()
         .map(|(name, range, optional, injected)| {
-            resolve_catalog_specifier(name.clone(), range.clone(), catalogs)
-                .map(|(name, range)| (name, range, *optional, *injected))
+            resolve_catalog_specifier(name, range, catalogs)
+                .map(|(name, range)| (name, range, optional, injected))
         })
-        .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()
-        .map(Arc::new)
+        .collect()
 }
 
 /// The install aliases one resolved level contributes to its
