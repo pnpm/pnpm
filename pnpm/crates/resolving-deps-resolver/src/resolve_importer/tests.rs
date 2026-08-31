@@ -201,6 +201,59 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
     );
 }
 
+/// Two declared peers can share one provider, and the suffix then
+/// spells its segment twice — once per peer.
+#[test]
+fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("first", alias_dependency("alias-provider@1.0.0")),
+                ("second", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([
+            ("first".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("second".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+        ]),
+    );
+}
+
+/// A declared peer and a peer propagated from a child can resolve to one
+/// provider through separate edges. Taking the declared edge for the
+/// first segment must leave the ordinary edge for the second.
+#[test]
+fn a_declared_peer_does_not_consume_the_propagated_peers_segment() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["provider"]))),
+        [(
+            "consumer@1.0.0(provider@1.0.0)(provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("provider", plain_dependency("1.0.0")),
+                ("child-peer", alias_dependency("provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([
+            ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("child-peer".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+        ]),
+    );
+}
+
 /// Nothing ranks two ordinary aliases onto one provider, and guessing
 /// between them would vary with map order.
 #[test]

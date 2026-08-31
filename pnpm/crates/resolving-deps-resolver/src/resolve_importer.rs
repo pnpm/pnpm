@@ -1015,18 +1015,17 @@ fn restore_aliased_peer_names(
     metadata: Option<&pnpm_lockfile::PackageMetadata>,
     peers: &mut [(String, String)],
 ) {
-    let providers = provider_aliases(snapshot, metadata);
+    let mut providers = provider_aliases(snapshot, metadata);
     if providers.is_empty() {
         return;
     }
     for (name, version) in peers.iter_mut() {
         let Some(alias) =
-            providers.get(&format!("{name}@{version}")).and_then(ProviderAliases::sole)
+            providers.get_mut(&format!("{name}@{version}")).and_then(ProviderAliases::claim)
         else {
             continue;
         };
-        name.clear();
-        name.push_str(alias);
+        *name = alias;
     }
 }
 
@@ -1068,41 +1067,52 @@ fn provider_aliases(
 
 /// The names one provider is installed under, split by whether the
 /// dependent declares that name as a peer.
+///
+/// The suffix spells one segment per peer-resolved edge and never merges
+/// equal ones, so each segment claims an edge of its own.
 #[derive(Default)]
 struct ProviderAliases {
-    declared_peer: Option<String>,
-    declared_peers: usize,
+    declared_peers: Vec<String>,
+    /// How many of `declared_peers` the segments seen so far claimed.
+    claimed: usize,
     ordinary: Option<String>,
     ordinaries: usize,
 }
 
 impl ProviderAliases {
     fn record(&mut self, alias: String, declares_peer: bool) {
-        let (first, count) = if declares_peer {
-            (&mut self.declared_peer, &mut self.declared_peers)
-        } else {
-            (&mut self.ordinary, &mut self.ordinaries)
-        };
-        *count += 1;
-        if *count == 1 {
-            *first = Some(alias);
+        if declares_peer {
+            self.declared_peers.push(alias);
+            return;
+        }
+        self.ordinaries += 1;
+        if self.ordinaries == 1 {
+            self.ordinary = Some(alias);
         }
     }
 
-    /// The name this provider's suffix segment belongs to.
+    /// The name to attribute the next segment naming this provider to.
     ///
-    /// A declared peer edge outranks an ordinary one, matching the
+    /// Declared peer edges go first, matching the
     /// `peerDependencies`-keyed lookup the TypeScript CLI restores peer
-    /// context with. Within a tier the segment is unattributable: an
-    /// ordinary dependency may be aliased onto the very package and
-    /// version a peer resolved to, and nothing in the lockfile tells two
-    /// such edges apart, so the suffix keeps the name it spelled.
-    fn sole(&self) -> Option<&str> {
-        match (self.declared_peers, self.ordinaries) {
-            (1, _) => self.declared_peer.as_deref(),
-            (0, 1) => self.ordinary.as_deref(),
-            _ => None,
+    /// context with; an ordinary edge takes the segment left over, which
+    /// is how a peer propagated up from a child — satisfied by an
+    /// ordinary dependency, under the name the child declared — gets its
+    /// name back.
+    ///
+    /// Competing ordinary edges are unattributable, since a dependency
+    /// may be aliased onto the very package and version a peer resolved
+    /// to and nothing in the lockfile tells the two apart, so the segment
+    /// keeps the name the suffix spelled.
+    fn claim(&mut self) -> Option<String> {
+        if self.claimed < self.declared_peers.len() {
+            self.claimed += 1;
+            return Some(self.declared_peers[self.claimed - 1].clone());
         }
+        if self.ordinaries == 1 {
+            return self.ordinary.take();
+        }
+        None
     }
 }
 
