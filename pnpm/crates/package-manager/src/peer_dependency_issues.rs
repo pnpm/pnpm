@@ -8,6 +8,7 @@
 //! reports nothing, so `pnpm peers check` is what answers for a tree
 //! nobody re-resolved.
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_deps_inspection_peers::peer_issues_for_lockfile;
 use pnpm_lockfile::Lockfile;
@@ -36,6 +37,7 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     installed_importer_ids: &HashSet<String>,
     lockfile_dir: &Path,
     config: &Config,
+    catalogs: &Catalogs,
 ) -> Result<(), InstallError> {
     let Some(lockfile) = resolved_lockfile else { return Ok(()) };
     let mut importer_ids: Vec<String> = peer_issue_importer_ids
@@ -52,7 +54,10 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         lockfile_dir,
         &importer_ids,
         &config.peer_dependency_rules,
-    ) else {
+        catalogs,
+    )
+    .map_err(InstallError::CatalogResolution)?
+    else {
         return Ok(());
     };
     if config.strict_peer_dependencies {

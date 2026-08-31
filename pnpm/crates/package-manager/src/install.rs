@@ -11,6 +11,7 @@ use miette::Diagnostic;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
+use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
@@ -773,6 +774,9 @@ pub enum InstallError {
     /// `catalogs.default`).
     #[diagnostic(transparent)]
     InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
+
+    #[diagnostic(transparent)]
+    CatalogResolution(#[error(source)] CatalogResolutionError),
 
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),

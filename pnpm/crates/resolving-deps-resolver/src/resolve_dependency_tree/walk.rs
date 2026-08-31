@@ -501,7 +501,11 @@ where
         let peer_dependencies = if is_link {
             BTreeMap::new()
         } else {
-            extract_peer_dependencies(&result, &peer_shadowed)
+            extract_peer_dependencies(
+                &result,
+                &peer_shadowed,
+                resolves_children_through_catalogs(&result).then_some(&ctx.catalogs),
+            )?
         };
         register_peer_dep_names(ctx, &peer_dependencies);
         ctx.workspace.record_package_write(&id);
@@ -667,7 +671,7 @@ pub(super) async fn walk_from_seeds<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    assign_level_owners(ctx, seeds.iter_mut());
+    assign_level_owners(ctx, seeds.iter_mut())?;
     let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
     while !frontier.is_empty() {
@@ -676,7 +680,7 @@ where
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
-        frontier = settle_level(ctx, seeded);
+        frontier = settle_level(ctx, seeded)?;
     }
     Ok(direct)
 }
@@ -689,7 +693,10 @@ where
 /// sorts first. Only that one claims: the losers cannot win against a
 /// standing owner either, since they do not even outrank their own
 /// level's winner.
-fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed mut NodeSeed>) {
+fn assign_level_owners<'seed>(
+    ctx: &TreeCtx,
+    seeds: impl Iterator<Item = &'seed mut NodeSeed>,
+) -> Result<(), ResolveDependencyTreeError> {
     // Linked nodes resolve their dependencies as their own importer,
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
@@ -726,9 +733,10 @@ fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed 
             &pending.parent_ancestors,
             peer_shadowed,
         );
-        install_owner_peer_dependencies(ctx, pending, &claim);
+        install_owner_peer_dependencies(ctx, pending, &claim)?;
         pending.claim = Some(claim);
     }
+    Ok(())
 }
 
 /// Split the package's envelope into children and peers the way its
@@ -740,20 +748,25 @@ fn install_owner_peer_dependencies(
     ctx: &TreeCtx,
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
-) {
+) -> Result<(), ResolveDependencyTreeError> {
     if pending.is_link || !claim.owns_children {
-        return;
+        return Ok(());
     }
-    let peer_dependencies = extract_peer_dependencies(&pending.result, &claim.peer_shadowed);
+    let peer_dependencies = extract_peer_dependencies(
+        &pending.result,
+        &claim.peer_shadowed,
+        resolves_children_through_catalogs(&pending.result).then_some(&ctx.catalogs),
+    )?;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return };
+    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
-        return;
+        return Ok(());
     }
     existing.peer_dependencies = peer_dependencies.clone();
     drop(packages);
     register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&pending.id);
+    Ok(())
 }
 
 /// Give every occurrence of a settled level its tree node, and collect
@@ -809,8 +822,11 @@ fn settle_seeds(
 
 /// Record what each occurrence of a seeded level resolved for its
 /// children, and settle that level's own seeds into the next frontier.
-fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode> {
-    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()));
+fn settle_level(
+    ctx: &TreeCtx,
+    mut seeded: Vec<SeededNode>,
+) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
+    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
     let mut frontier = Vec::new();
     for node in seeded {
         let SeededNode {
@@ -835,7 +851,7 @@ fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode>
             &grandchild_pkg_aliases,
         ));
     }
-    frontier
+    Ok(frontier)
 }
 
 /// Publish the child edges one occurrence resolved, and report the
