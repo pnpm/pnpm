@@ -1,7 +1,8 @@
 use super::{
-    is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry, retry_fs_operation,
+    RetryTiming, is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
+    retry_fs_operation, retry_fs_operation_with_timing,
 };
-use std::{cell::Cell, fs, io};
+use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
 
 #[test]
@@ -39,6 +40,31 @@ fn propagates_non_transient_errors_without_retrying() {
 
     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
     assert_eq!(attempts.get(), 1);
+}
+
+#[test]
+fn stops_retrying_at_the_budget_deadline() {
+    let attempts = Cell::new(0);
+    let elapsed = Cell::new(Duration::ZERO);
+    let budget = Duration::from_millis(15);
+
+    let result: io::Result<()> = retry_fs_operation_with_timing(
+        || {
+            let attempt = attempts.get() + 1;
+            attempts.set(attempt);
+            Err(io::Error::other(format!("attempt {attempt}")))
+        },
+        |_| true,
+        RetryTiming {
+            budget,
+            elapsed: || elapsed.get(),
+            sleep: |delay| elapsed.set(elapsed.get() + delay),
+        },
+    );
+
+    assert_eq!(result.unwrap_err().to_string(), "attempt 3");
+    assert_eq!(attempts.get(), 3);
+    assert_eq!(elapsed.get(), budget);
 }
 
 #[test]

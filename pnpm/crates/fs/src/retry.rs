@@ -18,25 +18,58 @@ pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
 }
 
 fn retry_fs_operation<Func, Value, Classify>(
-    mut operation: Func,
+    operation: Func,
     is_transient: Classify,
 ) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
     Classify: Fn(&io::Error) -> bool,
 {
-    let mut backoff = Duration::ZERO;
     let start = Instant::now();
+    retry_fs_operation_with_timing(
+        operation,
+        is_transient,
+        RetryTiming {
+            budget: RETRY_BUDGET,
+            elapsed: || start.elapsed(),
+            sleep: std::thread::sleep,
+        },
+    )
+}
+
+struct RetryTiming<Elapsed, Sleep> {
+    budget: Duration,
+    elapsed: Elapsed,
+    sleep: Sleep,
+}
+
+fn retry_fs_operation_with_timing<Func, Value, Classify, Elapsed, Sleep>(
+    mut operation: Func,
+    is_transient: Classify,
+    mut timing: RetryTiming<Elapsed, Sleep>,
+) -> io::Result<Value>
+where
+    Func: FnMut() -> io::Result<Value>,
+    Classify: Fn(&io::Error) -> bool,
+    Elapsed: FnMut() -> Duration,
+    Sleep: FnMut(Duration),
+{
+    let mut backoff = Duration::ZERO;
 
     loop {
         match operation() {
             Ok(value) => return Ok(value),
             Err(error) => {
-                if !is_transient(&error) || start.elapsed() >= RETRY_BUDGET {
+                if !is_transient(&error) || (timing.elapsed)() >= timing.budget {
                     return Err(error);
                 }
-                if !backoff.is_zero() {
-                    std::thread::sleep(backoff);
+                let remaining = timing.budget.saturating_sub((timing.elapsed)());
+                let delay = backoff.min(remaining);
+                if !delay.is_zero() {
+                    (timing.sleep)(delay);
+                }
+                if (timing.elapsed)() >= timing.budget {
+                    return Err(error);
                 }
                 backoff = (backoff + Duration::from_millis(10)).min(RETRY_BACKOFF_CAP);
             }
