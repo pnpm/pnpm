@@ -67,6 +67,7 @@ function runNpm (args, cwd) {
   if (process.platform === 'win32') {
     const npmCli = execFileSync('where.exe', ['npm.cmd'], { encoding: 'utf8' })
       .split(/\r?\n/)
+      .filter(Boolean)
       .map(launcher => path.join(path.dirname(launcher), 'node_modules', 'npm', 'bin', 'npm-cli.js'))
       .find(candidate => fs.existsSync(candidate))
     assert.ok(npmCli, 'Unable to find npm-cli.js next to an npm.cmd on PATH')
