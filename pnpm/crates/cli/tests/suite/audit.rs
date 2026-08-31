@@ -41,6 +41,7 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
 
     assert_eq!(output.status.code(), Some(1), "vulnerability should produce exit code 1");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.ends_with('\n'), "JSON report should end with a newline:\n{stdout}");
     let report: serde_json::Value = serde_json::from_str(&stdout).expect("audit JSON output");
     assert_eq!(report["advisories"]["123"]["title"], "test vulnerability");
     assert_eq!(report["advisories"]["123"]["module_name"], "vulnerable");
@@ -554,8 +555,9 @@ fn audit_signatures_json_reports_counts() {
         .expect("run audit signatures");
 
     assert_success(&output);
-    let report: serde_json::Value =
-        serde_json::from_str(&stdout(&output)).expect("signatures JSON");
+    let out = stdout(&output);
+    assert!(out.ends_with('\n'), "signatures JSON should end with a newline:\n{out}");
+    let report: serde_json::Value = serde_json::from_str(&out).expect("signatures JSON");
     assert_eq!(report["audited"], 1);
     assert_eq!(report["verified"], 1);
     assert_eq!(report["invalid"].as_array().expect("invalid array").len(), 0);
@@ -746,7 +748,9 @@ fn audit_fix_override_writes_overrides_to_workspace_manifest() {
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
     assert_success(&output);
-    assert!(stdout(&output).contains("overrides were added to pnpm-workspace.yaml"));
+    let out = stdout(&output);
+    assert!(out.contains("overrides were added to pnpm-workspace.yaml"), "{out}");
+    assert!(out.ends_with('\n'), "fix output should end with a newline:\n{out}");
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
@@ -947,7 +951,7 @@ fn audit_fix_override_with_no_fixable_vulnerabilities_makes_no_changes() {
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "No fixes were made");
+    assert_eq!(stdout(&output), "No fixes were made\n");
     mock.assert();
 }
 
@@ -1239,8 +1243,7 @@ fn audit_ignore_writes_ghsa_to_audit_config() {
         .expect("run pacquet audit --ignore");
 
     assert_success(&output);
-    assert!(stdout(&output).contains("1 new vulnerabilities were ignored"));
-    assert!(stdout(&output).contains("GHSA-test-1111-2222"));
+    assert_eq!(stdout(&output), "1 new vulnerabilities were ignored:\nGHSA-test-1111-2222\n");
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
