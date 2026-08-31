@@ -103,6 +103,7 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
         };
 
         output.push_str(&text[literal_start..index - backslashes]);
+        // Each pair of backslashes collapses to one literal backslash.
         for _ in 0..(backslashes / 2) {
             output.push('\\');
         }
