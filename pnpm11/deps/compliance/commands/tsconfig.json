@@ -80,6 +80,9 @@
       "path": "../../../pkg-manifest/reader"
     },
     {
+      "path": "../../../pkg-manifest/utils"
+    },
+    {
       "path": "../../../store/path"
     },
     {

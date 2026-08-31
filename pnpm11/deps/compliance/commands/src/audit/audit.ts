@@ -63,9 +63,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
       'registry',
     ], allTypes),
     'audit-level': ['info', 'low', 'moderate', 'high', 'critical'],
-    // For fix, use String instead of a list of allowed string values.
-    // Otherwise, an unexpected value will get coerced to true because of the Boolean type.
-    fix: [String, Boolean],
+    // A plain String, not a list of allowed values and not paired with
+    // Boolean: a list coerces an unexpected value to true, and Boolean makes
+    // nopt swallow the next `--flag` as the fix method. A bare `--fix` then
+    // arrives as the empty string.
+    fix: String,
     'ignore-registry-errors': Boolean,
     ignore: [String, Array],
     'ignore-unfixable': Boolean,
@@ -164,7 +166,12 @@ export function help (): string {
 export type { PublishTimesFetcher } from './publishTimes.js'
 
 export type AuditOptions = Pick<UniversalOptions, 'dir'> & {
-  fix?: boolean | 'override' | 'update'
+  /**
+   * The `--fix` value as the CLI hands it over: nopt types the option as a
+   * string, so `--fix` with no method arrives as `''` and `--fix=<method>`
+   * as the raw method name, valid or not. An rc file may still set a boolean.
+   */
+  fix?: boolean | string
   ignoreRegistryErrors?: boolean
   interactive?: boolean
   json?: boolean
@@ -264,15 +271,16 @@ export async function handler (opts: AuditOptions, params: string[] = []): Promi
   // is requested at most once.
   const getPublishTimes = createPublishTimesFetcher(opts)
   await correctInferredPatchedVersions(auditReport.advisories, getPublishTimes)
+  const { fix: fixOption } = opts
   let fixMethod: 'update' | 'override' | undefined
-  if (opts.fix === 'update' || opts.fix === 'override') {
-    fixMethod = opts.fix
-  } else if (opts.fix === true || (opts.interactive && !opts.fix)) {
+  if (fixOption === 'update' || fixOption === 'override') {
+    fixMethod = fixOption
+  } else if (isFixWithoutMethod(fixOption) || (opts.interactive && !fixOption)) {
     fixMethod = DEFAULT_FIX_METHOD
-  } else if (!opts.fix) {
+  } else if (!fixOption) {
     fixMethod = undefined
   } else {
-    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${opts.fix as string}. Should be one of "override" or "update"`)
+    throw new PnpmError('INVALID_FIX_OPTION', `Invalid value for --fix: ${fixOption}. Should be one of "override" or "update"`)
   }
   if (fixMethod != null) {
     if (opts.auditIgnorePrune && opts.auditConfig?.ignoreGhsas?.length) {
@@ -431,6 +439,15 @@ ${newIgnores.join('\n')}`,
     exitCode: output ? 1 : 0,
     output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoredVulnerabilities)}`,
   }
+}
+
+/**
+ * Whether `--fix` was passed without a fix method, in which case
+ * {@link DEFAULT_FIX_METHOD} applies. The CLI spells that as the empty
+ * string; an rc file spells it as a boolean or its string form.
+ */
+function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
+  return fix === '' || fix === true || fix === 'true'
 }
 
 function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {

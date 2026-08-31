@@ -60,6 +60,7 @@
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/store.path": "workspace:*",
     "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
