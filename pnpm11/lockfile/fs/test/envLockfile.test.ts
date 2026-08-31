@@ -32,14 +32,6 @@ testOnNonWindows('writeEnvLockfile rejects a symlinked lockfile without touching
   expect(fs.readFileSync(realLockfile, 'utf8')).toBe('target content')
 })
 
-function envLockfileWithConfigDep () {
-  const lockfile = createEnvLockfile()
-  lockfile.importers['.'].configDependencies = {
-    'my-config': { specifier: '^1.0.0', version: '1.0.0' },
-  }
-  return lockfile
-}
-
 test('writeEnvLockfile keeps the main document after the env document it replaces', async () => {
   const dir = temporaryDirectory()
   const lockfilePath = path.join(dir, WANTED_LOCKFILE)
@@ -80,3 +72,11 @@ testOnNonWindows('writeEnvLockfile preserves the lockfile mode against the umask
 
   expect(fs.statSync(lockfilePath).mode & 0o777).toBe(0o666)
 })
+
+function envLockfileWithConfigDep () {
+  const lockfile = createEnvLockfile()
+  lockfile.importers['.'].configDependencies = {
+    'my-config': { specifier: '^1.0.0', version: '1.0.0' },
+  }
+  return lockfile
+}
