@@ -129,6 +129,9 @@ test('writeEnvLockfile replaces the env document of a lockfile that carries a BO
   const written = fs.readFileSync(lockfilePath, 'utf8')
   expect(extractMainDocument(written)).toBe(mainDoc)
   expect(written.startsWith('---\n')).toBe(true)
+  await expect(readEnvLockfile(dir)).resolves.toMatchObject({
+    importers: { '.': { configDependencies: { 'my-config': { specifier: '^1.0.0', version: '1.0.0' } } } },
+  })
 })
 
 testOnNonWindows('writeEnvLockfile preserves the lockfile mode against the umask', async () => {
