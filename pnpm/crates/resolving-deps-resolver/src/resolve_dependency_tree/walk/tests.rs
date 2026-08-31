@@ -1,3 +1,5 @@
+mod shared_workspace_resolution_cache;
+
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, RegistryResolution, TarballRevision};
 
 use super::{

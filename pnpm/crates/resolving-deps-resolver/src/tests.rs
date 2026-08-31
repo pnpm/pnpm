@@ -3724,12 +3724,12 @@ mod cycle_edges {
 }
 
 /// The `(name, dir)` pairs recorded by [`RecordingHooks`].
-type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
+pub(crate) type RecordedReadPackageCalls = std::sync::Arc<Mutex<Vec<(String, Option<String>)>>>;
 
 /// [`pnpm_hooks::PnpmfileHooks`] stub that records the `(name, dir)` pair
 /// of every `read_package` call and returns the manifest unchanged.
-struct RecordingHooks {
-    calls: RecordedReadPackageCalls,
+pub(crate) struct RecordingHooks {
+    pub(crate) calls: RecordedReadPackageCalls,
 }
 
 #[async_trait::async_trait]

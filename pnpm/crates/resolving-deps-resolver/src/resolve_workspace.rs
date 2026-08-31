@@ -63,6 +63,14 @@ pub struct WorkspaceResolveOptions {
     pub exclude_links_from_lockfile: bool,
     pub lockfile_dir: PathBuf,
     pub peers_suffix_max_length: usize,
+    /// Whether named workspace resolutions may be shared across importers.
+    /// When `true`, an eligible named `workspace:` request resolves once
+    /// against a cache key that omits the consuming importer's `project_dir`,
+    /// and the importer-relative `link:` is rendered from that canonical
+    /// result afterwards. Must stay `false` whenever the resolver chain can
+    /// make a resolution depend on the consuming importer beyond that
+    /// rendering — a pnpmfile custom resolver above all.
+    pub share_workspace_resolutions: bool,
     /// `readPackageHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); the install layer typically threads
@@ -199,6 +207,7 @@ where
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
+        share_workspace_resolutions,
         manifest_hook,
         overrides_hook,
         pnpmfile_hook,
@@ -225,6 +234,7 @@ where
         .flatten();
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
+            .with_shared_workspace_resolutions(share_workspace_resolutions)
             .with_manifest_hook(manifest_hook)
             .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)

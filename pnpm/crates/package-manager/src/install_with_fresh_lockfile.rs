@@ -1123,6 +1123,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let workspace_result = resolve::run_resolve_pass::<Reporter>(resolve::ResolvePassInputs {
             config,
             resolver: &*resolver,
+            share_workspace_resolutions: custom_resolvers_raw.is_empty(),
             importer_manifests: &importer_manifests,
             dependency_groups: &dependency_groups,
             catalogs: &catalogs,

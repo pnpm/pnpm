@@ -6,9 +6,11 @@
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
+    hash::{Hash, Hasher},
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -98,6 +100,110 @@ pub(super) type WantedKey = (
     Option<String>,
     bool,
 );
+
+/// A wanted dependency key without its consumer directory, plus the resolver
+/// inputs that may vary between importers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct SharedWorkspaceWantedKey {
+    wanted: WantedKey,
+    previous_specifier: Option<String>,
+    resolve_options: WorkspaceResolutionOptionsKey,
+}
+
+impl SharedWorkspaceWantedKey {
+    pub(super) fn new(
+        wanted: WantedKey,
+        previous_specifier: Option<String>,
+        resolve_options: &ResolveOptions,
+    ) -> Self {
+        Self {
+            wanted,
+            previous_specifier,
+            resolve_options: WorkspaceResolutionOptionsKey::new(resolve_options),
+        }
+    }
+}
+
+/// Resolver inputs that can change a named workspace resolution independently
+/// of the consuming project directory.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct WorkspaceResolutionOptionsKey {
+    workspace_packages: Option<WorkspacePackagesKey>,
+    lockfile_dir: PathBuf,
+    default_tag: Option<String>,
+    inject_workspace_packages: bool,
+    calc_specifier: bool,
+    range_spec_style_discriminant: Option<u8>,
+    save_workspace_protocol_discriminant: u8,
+}
+
+impl WorkspaceResolutionOptionsKey {
+    fn new(options: &ResolveOptions) -> Self {
+        Self {
+            workspace_packages: options.workspace_packages.as_ref().map(WorkspacePackagesKey::new),
+            lockfile_dir: options.lockfile_dir.clone(),
+            default_tag: options.default_tag.clone(),
+            inject_workspace_packages: options.inject_workspace_packages,
+            calc_specifier: options.calc_specifier,
+            range_spec_style_discriminant: options.range_spec_style.map(|style| style as u8),
+            save_workspace_protocol_discriminant: options.save_workspace_protocol as u8,
+        }
+    }
+}
+
+/// Keeps the immutable workspace map alive.
+/// The key uses pointer identity instead of hashing the map for every dependency edge.
+/// Clones of the same [`Arc`] share a key. Separately allocated maps use separate keys.
+#[derive(Clone)]
+struct WorkspacePackagesKey(Arc<WorkspacePackages>);
+
+impl WorkspacePackagesKey {
+    fn new(packages: &Arc<WorkspacePackages>) -> Self {
+        Self(Arc::clone(packages))
+    }
+}
+
+impl std::fmt::Debug for WorkspacePackagesKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("WorkspacePackagesKey").field(&Arc::as_ptr(&self.0)).finish()
+    }
+}
+
+impl PartialEq for WorkspacePackagesKey {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for WorkspacePackagesKey {}
+
+impl Hash for WorkspacePackagesKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+/// Cache key for a hook-processed workspace result.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub(super) struct WorkspaceFinalWantedKey {
+    shared_wanted: SharedWorkspaceWantedKey,
+    canonical_resolution_id: PkgResolutionId,
+    rendered_resolution_id: PkgResolutionId,
+}
+
+impl WorkspaceFinalWantedKey {
+    pub(super) fn new(
+        shared_wanted: SharedWorkspaceWantedKey,
+        canonical_resolution_id: &PkgResolutionId,
+        rendered_resolution_id: &PkgResolutionId,
+    ) -> Self {
+        Self {
+            shared_wanted,
+            canonical_resolution_id: canonical_resolution_id.clone(),
+            rendered_resolution_id: rendered_resolution_id.clone(),
+        }
+    }
+}
 
 type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
@@ -253,6 +359,19 @@ pub struct WorkspaceTreeCtx {
     pub(super) applied_patches: Mutex<HashSet<String>>,
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Resolver output for workspace directory resolutions before manifest
+    /// hooks run. `link:` paths are canonicalised relative to the lockfile
+    /// root, so one entry can be rendered for every consuming importer.
+    pub(super) resolved_workspace_by_wanted:
+        Mutex<HashMap<SharedWorkspaceWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Hook-processed workspace results indexed by their canonical target and
+    /// rendered consumer link, so importers that render the same `link:` reuse
+    /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
+    /// these too — this map is what a *different* importer hits.
+    pub(super) resolved_workspace_final_by_wanted:
+        Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    pub(super) share_workspace_resolutions: bool,
     pub(super) children_specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
@@ -497,6 +616,9 @@ impl Default for WorkspaceTreeCtx {
             policy_violations: Mutex::new(Vec::new()),
             applied_patches: Mutex::new(HashSet::default()),
             resolved_by_wanted: Mutex::new(HashMap::default()),
+            resolved_workspace_by_wanted: Mutex::new(HashMap::default()),
+            resolved_workspace_final_by_wanted: Mutex::new(HashMap::default()),
+            share_workspace_resolutions: false,
             children_specs_by_id: Mutex::new(HashMap::default()),
             warmed_children_by_id: Mutex::new(HashSet::default()),
             children_by_id: Mutex::new(HashMap::default()),
@@ -528,6 +650,13 @@ impl Default for WorkspaceTreeCtx {
 }
 
 impl WorkspaceTreeCtx {
+    /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    #[must_use]
+    pub fn with_shared_workspace_resolutions(mut self, share_workspace_resolutions: bool) -> Self {
+        self.share_workspace_resolutions = share_workspace_resolutions;
+        self
+    }
+
     /// Snapshot the workspace context into a [`ResolvedTree`] without
     /// consuming `self`. `direct` carries the combined direct-dep
     /// envelopes the caller built up across importers; multi-importer

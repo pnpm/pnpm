@@ -400,6 +400,9 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
 pub(super) struct ResolvePassInputs<'a> {
     pub config: &'a Config,
     pub resolver: &'a dyn Resolver,
+    /// See
+    /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
+    pub share_workspace_resolutions: bool,
     pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
     pub dependency_groups: &'a [DependencyGroup],
     pub catalogs: &'a Catalogs,
@@ -451,6 +454,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     let ResolvePassInputs {
         config,
         resolver,
+        share_workspace_resolutions,
         importer_manifests,
         dependency_groups,
         catalogs,
@@ -504,6 +508,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
         lockfile_dir: lockfile_dir.to_path_buf(),
         peers_suffix_max_length,
+        share_workspace_resolutions,
         manifest_hook: manifest_hook.clone(),
         overrides_hook: overrides_hook.clone(),
         pnpmfile_hook,
