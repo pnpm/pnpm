@@ -128,6 +128,30 @@ fn installing_with_hoisted_node_linker() {
     drop((root, mock_instance));
 }
 
+/// The `added` counter on the progress line is fed by
+/// `pnpm:progress imported`, which under `nodeLinker: hoisted` only
+/// the hoisted linker emits — an install that materializes packages
+/// must move it off zero (pnpm/pnpm#14348).
+#[test]
+fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let output = pacquet_at(&workspace).with_args(["install"]).output().expect("run pnpm install");
+    assert!(output.status.success(), "install failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.contains("Progress: resolved 2, reused 0, downloaded 2, added 2, done"),
+        "stdout:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// With `lockfile: false` the hoisted install still materializes a
 /// real directory and writes no `pnpm-lock.yaml`.
 #[test]
