@@ -24,7 +24,7 @@ test('downloaded runtime is available to dependency lifecycle scripts without a 
     devEngines: {
       runtime: {
         name: 'node',
-        version: '22.0.0',
+        version: '22.19.0',
         onFail: 'download',
       },
     },
