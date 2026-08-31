@@ -274,7 +274,7 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
 #[test]
 fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
     const WORKERS: usize = 8;
-    const REPETITIONS: usize = 6;
+    const REPETITIONS: usize = 20;
     const PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -293,6 +293,11 @@ fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
             let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
             (name, bytes)
         });
+    // Siblings of `workspace`, not children of it: the harness writes
+    // `storeDir` / `cacheDir` as `../pacquet-store` / `../pacquet-cache`, so
+    // only at this depth do all the workers resolve to the one store — and
+    // with it the one GVS whose slots they race over. Nested any deeper they
+    // would each get a private store and the test would pass vacuously.
     let worker_dirs = (0..WORKERS)
         .map(|worker| {
             let dir = root.path().join(format!("concurrent-gvs-{worker}"));
