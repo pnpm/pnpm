@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
-import { buildModules } from '@pnpm/building.during-install'
+import { buildModules, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import {
   LAYOUT_VERSION,
@@ -674,6 +674,15 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
         ...makeNodePackageMapOption(path.join(rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
       }
     }
+    if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
+      await linkRuntimeBinsOfImporters({
+        directDependenciesByImporterId,
+        extraNodePaths: opts.extraNodePaths,
+        graph,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+        projects: selectedProjects,
+      })
+    }
     // Dependency lifecycle scripts must not run on an unverified lockfile.
     await opts.verifyLockfile?.()
     ignoredBuilds = (await buildModules(graph, Array.from(directNodes), {
@@ -919,6 +928,25 @@ async function linkBinsOfImporter (
     projectManifest: manifest,
     warn,
   })
+}
+
+async function linkRuntimeBinsOfImporters (opts: {
+  directDependenciesByImporterId: DirectDependenciesByImporterId
+  extraNodePaths?: string[]
+  graph: DependenciesGraph
+  preferSymlinkedExecutables?: boolean
+  projects: Project[]
+}): Promise<void> {
+  await Promise.all(opts.projects.map(async (project) => {
+    await linkBinsOfRuntimeDependencies(
+      Object.values(opts.directDependenciesByImporterId[project.id]).map((location) => opts.graph[location]),
+      project.binsDir,
+      {
+        extraNodePaths: opts.extraNodePaths,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      }
+    )
+  }))
 }
 
 async function getRootPackagesToLink (

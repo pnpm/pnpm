@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
@@ -2231,6 +2231,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
           }
         }
+        if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
+          await linkRuntimeBinsOfImporters({
+            dependenciesByProjectId,
+            dependenciesGraph,
+            extraNodePaths: ctx.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projects,
+          })
+        }
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
@@ -2740,6 +2749,25 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
 }
 
 const limitLinking = pLimit(16)
+
+async function linkRuntimeBinsOfImporters (opts: {
+  dependenciesByProjectId: Record<string, Map<string, DepPath>>
+  dependenciesGraph: DependenciesGraph
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
+  projects: Array<Pick<ImporterToUpdate, 'binsDir' | 'id'>>
+}): Promise<void> {
+  await Promise.all(opts.projects.map(async (project) => {
+    await linkBinsOfRuntimeDependencies(
+      Array.from(opts.dependenciesByProjectId[project.id].values()).map((depPath) => opts.dependenciesGraph[depPath]),
+      project.binsDir,
+      {
+        extraNodePaths: opts.extraNodePaths,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      }
+    )
+  }))
+}
 
 async function linkAllBins (
   depNodes: DependenciesGraphNode[],
