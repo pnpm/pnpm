@@ -1972,44 +1972,51 @@ fn importers_consuming_linked_peers(
         .filter(|(_, manifest)| declares_peers(manifest))
         .map(|(importer_id, _)| importer_id.as_str())
         .collect();
-    let ids_by_name: HashMap<&str, &str> = importer_manifests
-        .iter()
-        .filter_map(|(importer_id, manifest)| {
-            let name = manifest.value().get("name")?.as_str()?;
-            Some((name, importer_id.as_str()))
-        })
+    fn project_name(manifest: &PackageManifest) -> Option<&str> {
+        manifest.value().get("name")?.as_str()
+    }
+    let peer_declaring_names: HashSet<&str> = importer_manifests
+        .values()
+        .filter(|manifest| declares_peers(manifest))
+        .filter_map(|manifest| project_name(manifest))
         .collect();
+    let project_names: HashSet<&str> =
+        importer_manifests.values().filter_map(|manifest| project_name(manifest)).collect();
 
     let mut consumers = HashSet::new();
     for (importer_id, manifest) in importer_manifests {
         let importer_dir = lockfile_dir.join(importer_id);
         let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
         for (entry_key, bare_specifier) in manifest.dependencies(groups) {
-            let linked_id =
-                if let Some(spec) = pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier) {
-                    // `workspace:<name>@<range>` names the project it links
-                    // to; the bare form takes that name from the entry key.
-                    let project_name = spec.alias.as_deref().unwrap_or(entry_key);
-                    ids_by_name.get(project_name).copied().map(ToOwned::to_owned)
-                } else if let Some(relative) = bare_specifier
-                    .strip_prefix("link:")
-                    .or_else(|| bare_specifier.strip_prefix("file:"))
-                {
-                    Some(pnpm_workspace::importer_id_from_root_dir(
-                        lockfile_dir,
-                        &importer_dir.join(relative),
-                    ))
-                } else {
-                    continue;
-                };
-            // Not a workspace project, so its peers are unknown here.
-            // The walk reads such a manifest when the target resolves
-            // inside the lockfile directory and skips one that escapes;
-            // symlinks decide which, so both count.
-            let declares = linked_id.as_deref().is_none_or(|linked_id| {
-                peer_declaring_ids.contains(linked_id)
-                    || !importer_manifests.contains_key(linked_id)
-            });
+            // A target whose peers are unknown here counts. The walk
+            // reads such a manifest when it resolves inside the lockfile
+            // directory and skips one that escapes; symlinks decide
+            // which, so both count.
+            let declares = if let Some(spec) =
+                pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier)
+            {
+                // `workspace:<name>@<range>` names the project it links
+                // to; the bare form takes that name from the entry key.
+                // The range picks among the projects sharing that name,
+                // so any one of them declaring a peer counts — reaching
+                // for the picked version would duplicate
+                // `resolve_workspace_range` to narrow an answer that is
+                // only ever "walk this importer too".
+                let linked_name = spec.alias.as_deref().unwrap_or(entry_key);
+                peer_declaring_names.contains(linked_name) || !project_names.contains(linked_name)
+            } else if let Some(relative) = bare_specifier
+                .strip_prefix("link:")
+                .or_else(|| bare_specifier.strip_prefix("file:"))
+            {
+                let linked_id = pnpm_workspace::importer_id_from_root_dir(
+                    lockfile_dir,
+                    &importer_dir.join(relative),
+                );
+                peer_declaring_ids.contains(linked_id.as_str())
+                    || !importer_manifests.contains_key(&linked_id)
+            } else {
+                continue;
+            };
             if declares {
                 consumers.insert(importer_id.clone());
                 break;

@@ -265,6 +265,32 @@ fn an_aliased_workspace_dependency_resolves_through_its_specifier() {
     );
 }
 
+/// A workspace can hold several projects under one package name, with
+/// the `workspace:` range picking between them, so any one of them
+/// declaring a peer has to put the consumer in the candidate set.
+#[test]
+fn same_named_workspace_projects_count_when_any_version_declares_a_peer() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({ "name": "app", "dependencies": { "lib": "workspace:*" } }),
+            ),
+            (
+                "packages/lib-v1",
+                serde_json::json!({
+                    "name": "lib",
+                    "version": "1.0.0",
+                    "peerDependencies": { "react": "^18.0.0" },
+                }),
+            ),
+            ("packages/lib-v2", serde_json::json!({ "name": "lib", "version": "2.0.0" })),
+        ]),
+        vec!["packages/app".to_string()],
+    );
+}
+
 /// A `link:` target that is not a workspace project counts either way:
 /// the report's walk reads its manifest when it resolves inside the
 /// lockfile directory, and a symlink decides whether one that escapes
