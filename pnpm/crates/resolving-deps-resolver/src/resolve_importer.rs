@@ -925,8 +925,8 @@ fn importer_locked_peer_context(
     };
     let Some(importer) = lockfile.importers.get(importer_id) else {
         let mut versions = HashMap::<String, HashSet<String>>::default();
-        for (key, _) in lockfile.snapshots.iter().flatten() {
-            for (name, version) in locked_peer_versions_for_key(lockfile, key) {
+        for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+            for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
                 versions.entry(name).or_default().insert(version);
             }
         }
@@ -943,7 +943,8 @@ fn importer_locked_peer_context(
             continue;
         };
         let mut names = HashSet::default();
-        for (name, version) in locked_peer_versions_for_key(lockfile, &key) {
+        let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&key));
+        for (name, version) in locked_peer_versions_for_key(lockfile, &key, snapshot) {
             names.insert(name.clone());
             versions.entry(name).or_default().insert(version);
         }
@@ -954,21 +955,30 @@ fn importer_locked_peer_context(
     ImporterLockedPeerContext { versions, names_by_alias }
 }
 
+/// The peer name/version pairs the wanted lockfile pinned for `key`.
+///
+/// An explicit suffix already spells them out, save for the names an
+/// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
+/// spells out nothing, so the pairs are recovered from the package's
+/// declared peers and the snapshot edges that resolved them.
 fn locked_peer_versions_for_key(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
-    let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
-    if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
+    let metadata =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
+    if !explicit.is_empty() {
+        if let Some(snapshot) = snapshot {
+            restore_aliased_peer_names(snapshot, metadata, &mut explicit);
+        }
         return explicit;
     }
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(key))
-    else {
-        return Vec::new();
-    };
-    let Some(metadata) =
-        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
-    else {
+    if !is_hashed_peer_suffix(key.suffix.peer()) {
+        return explicit;
+    }
+    let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
     let peer_names = metadata
@@ -991,17 +1001,143 @@ fn locked_peer_versions_for_key(
         .collect()
 }
 
+/// Rename the suffix segments an npm alias provides back to the name
+/// the provider is installed under.
+///
+/// A peer suffix names each provider by the package it resolved to,
+/// while peer resolution keys providers by the name they occupy in the
+/// dependent's `node_modules` — which for `"peer": "npm:provider@1"` is
+/// `peer`, not `provider`. Reading the segment back verbatim would pin a
+/// peer nobody declares and leave the declared one unpinned, so a
+/// repeated resolution is free to pick the other variant.
+fn restore_aliased_peer_names(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+    peers: &mut [(String, String)],
+) {
+    let mut providers = provider_aliases(snapshot, metadata);
+    if providers.is_empty() {
+        return;
+    }
+    for (name, version) in peers.iter_mut() {
+        let Some(alias) =
+            providers.get_mut(&format!("{name}@{version}")).and_then(ProviderAliases::claim)
+        else {
+            continue;
+        };
+        *name = alias;
+    }
+}
+
+/// Index the snapshot's dependency edges by the `name@version` of the
+/// package each one installs, so every suffix segment is attributed in
+/// one lookup rather than another scan of the edges.
+///
+/// Empty — and every segment therefore left alone — unless some edge
+/// installs a package under a name other than its own, since that is the
+/// only shape that makes a segment disagree with its edge.
+fn provider_aliases(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+) -> HashMap<String, ProviderAliases> {
+    if !dependency_edges(snapshot)
+        .any(|(_, reference)| matches!(reference, pnpm_lockfile::SnapshotDepRef::Alias(_)))
+    {
+        return HashMap::default();
+    }
+    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
+    let mut providers = HashMap::<String, ProviderAliases>::default();
+    for (edge_name, reference) in dependency_edges(snapshot) {
+        let (provider, ver_peer) = match reference {
+            pnpm_lockfile::SnapshotDepRef::Plain(ver_peer) => (edge_name.to_string(), ver_peer),
+            pnpm_lockfile::SnapshotDepRef::Alias(target) => {
+                (target.name.to_string(), &target.suffix)
+            }
+            pnpm_lockfile::SnapshotDepRef::Link(_) => continue,
+        };
+        let edge_name = edge_name.to_string();
+        let declares_peer = declared.is_some_and(|peers| peers.contains_key(&edge_name));
+        providers
+            .entry(format!("{provider}@{}", ver_peer.without_peer()))
+            .or_default()
+            .record(edge_name, declares_peer);
+    }
+    providers
+}
+
+/// The names one provider is installed under, split by whether the
+/// dependent declares that name as a peer.
+///
+/// The suffix spells one segment per peer-resolved edge and never merges
+/// equal ones, so each segment claims an edge of its own.
+#[derive(Default)]
+struct ProviderAliases {
+    declared_peers: Vec<String>,
+    /// How many of `declared_peers` the segments seen so far claimed.
+    claimed: usize,
+    ordinary: Option<String>,
+    ordinaries: usize,
+}
+
+impl ProviderAliases {
+    fn record(&mut self, alias: String, declares_peer: bool) {
+        if declares_peer {
+            self.declared_peers.push(alias);
+            return;
+        }
+        self.ordinaries += 1;
+        if self.ordinaries == 1 {
+            self.ordinary = Some(alias);
+        }
+    }
+
+    /// The name to attribute the next segment naming this provider to.
+    ///
+    /// Declared peer edges go first, matching the
+    /// `peerDependencies`-keyed lookup the TypeScript CLI restores peer
+    /// context with; an ordinary edge takes the segment left over, which
+    /// is how a peer propagated up from a child — satisfied by an
+    /// ordinary dependency, under the name the child declared — gets its
+    /// name back.
+    ///
+    /// Competing ordinary edges are unattributable, since a dependency
+    /// may be aliased onto the very package and version a peer resolved
+    /// to and nothing in the lockfile tells the two apart, so the segment
+    /// keeps the name the suffix spelled.
+    fn claim(&mut self) -> Option<String> {
+        if self.claimed < self.declared_peers.len() {
+            self.claimed += 1;
+            return Some(self.declared_peers[self.claimed - 1].clone());
+        }
+        if self.ordinaries == 1 {
+            return self.ordinary.take();
+        }
+        None
+    }
+}
+
+fn dependency_edges(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+) -> impl Iterator<Item = (&PkgName, &pnpm_lockfile::SnapshotDepRef)> {
+    snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
+}
+
+/// Whether the suffix is the opaque hash
+/// [`create_peer_dep_graph_hash`](fn@pnpm_deps_path::create_peer_dep_graph_hash)
+/// emits once the spelled-out peers exceed
+/// [`ResolvePeersOptions::peers_suffix_max_length`], rather than
+/// segments [`peer_suffix_versions`] can read.
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
+}
+
 fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {
     peer_suffix.match_indices('(').filter_map(|(start, _)| {
         let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
         let (name, version) = segment.rsplit_once('@')?;
         (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
-    })
-}
-
-fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
     })
 }
 

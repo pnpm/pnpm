@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use pnpm_lockfile::SnapshotEntry;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::{
     EXISTING_VERSION_SELECTOR_WEIGHT, LatestQuery, PreferredVersions, ResolveError, ResolveFuture,
@@ -92,35 +93,16 @@ fn changed_direct_dependency_discards_prior_peer_context() {
 
 #[test]
 fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
-    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer, SnapshotEntry};
-
-    let lockfile = Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
-        settings: None,
-        catalogs: None,
-        overrides: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        importers: std::collections::HashMap::new(),
-        packages: None,
-        snapshots: Some(std::collections::HashMap::from([
+    let lockfile = peer_context_lockfile(
+        None,
+        [
+            ("consumer@1.0.0(peer@1.0.0)", SnapshotEntry::default()),
             (
-                PkgNameVerPeer::from_str("consumer@1.0.0(peer@1.0.0)").unwrap(),
+                "other@1.0.0(@types/node@24.0.0)(provider@1.0.0(nested@2.0.0))",
                 SnapshotEntry::default(),
             ),
-            (
-                PkgNameVerPeer::from_str(
-                    "other@1.0.0(@types/node@24.0.0)(provider@1.0.0(nested@2.0.0))",
-                )
-                .unwrap(),
-                SnapshotEntry::default(),
-            ),
-        ])),
-        time: None,
-        extra: pnpm_lockfile::LockfileExtra::default(),
-    };
+        ],
+    );
 
     assert_eq!(
         locked_peer_names(Some(&lockfile)),
@@ -135,59 +117,13 @@ fn only_peer_suffix_versions_are_treated_as_locked_peer_providers() {
 
 #[test]
 fn hashed_peer_suffix_uses_package_peer_metadata() {
-    use pnpm_lockfile::{
-        ComVer, DirectoryResolution, Lockfile, LockfileResolution, LockfileVersion,
-        PackageMetadata, PkgName, PkgNameVerPeer, PkgVerPeer, SnapshotDepRef, SnapshotEntry,
-    };
-
-    let package_key = PkgNameVerPeer::from_str("consumer@1.0.0").unwrap();
-    let snapshot_key =
-        PkgNameVerPeer::from_str("consumer@1.0.0(0123456789abcdef0123456789abcdef)").unwrap();
-    let lockfile = Lockfile {
-        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
-        settings: None,
-        catalogs: None,
-        overrides: None,
-        package_extensions_checksum: None,
-        pnpmfile_checksum: None,
-        ignored_optional_dependencies: None,
-        patched_dependencies: None,
-        importers: std::collections::HashMap::new(),
-        packages: Some(std::collections::HashMap::from([(
-            package_key,
-            PackageMetadata {
-                resolution: LockfileResolution::Directory(DirectoryResolution {
-                    directory: "consumer".to_string(),
-                }),
-                version: None,
-                engines: None,
-                cpu: None,
-                os: None,
-                libc: None,
-                deprecated: None,
-                has_bin: None,
-                prepare: None,
-                bundled_dependencies: None,
-                peer_dependencies: Some(std::collections::HashMap::from([
-                    ("peer".to_string(), "*".to_string()),
-                    ("missing".to_string(), "*".to_string()),
-                ])),
-                peer_dependencies_meta: None,
-            },
-        )])),
-        snapshots: Some(std::collections::HashMap::from([(
-            snapshot_key,
-            SnapshotEntry {
-                dependencies: Some(std::collections::HashMap::from([(
-                    PkgName::parse("peer").unwrap(),
-                    SnapshotDepRef::Plain(PkgVerPeer::from_str("1.0.0").unwrap()),
-                )])),
-                ..SnapshotEntry::default()
-            },
-        )])),
-        time: None,
-        extra: pnpm_lockfile::LockfileExtra::default(),
-    };
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer", "missing"]))),
+        [(
+            "consumer@1.0.0(0123456789abcdef0123456789abcdef)",
+            snapshot_with_dependency("peer", plain_dependency("1.0.0")),
+        )],
+    );
 
     let ImporterLockedPeerContext { versions, names_by_alias } =
         importer_locked_peer_context(Some(&lockfile), "missing-importer");
@@ -198,54 +134,312 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
     assert!(names_by_alias.is_empty());
 }
 
-fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
-    let Some(lockfile) = wanted_lockfile else {
-        return HashSet::default();
-    };
-    let mut names = HashSet::default();
-    for (key, snapshot) in lockfile.snapshots.iter().flatten() {
-        let peer_suffix = key.suffix.peer();
-        if peer_suffix.is_empty() {
-            continue;
-        }
-        names.extend(peer_suffix_names(peer_suffix));
-        if is_hashed_peer_suffix(peer_suffix)
-            && let Some(metadata) =
-                lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
-        {
-            let resolved_names = snapshot
-                .dependencies
-                .iter()
-                .chain(snapshot.optional_dependencies.iter())
-                .flatten()
-                .map(|(name, _)| name.to_string())
-                .collect::<HashSet<_>>();
-            names.extend(
-                metadata
-                    .peer_dependencies
-                    .iter()
-                    .flatten()
-                    .map(|(name, _)| name)
-                    .filter(|name| resolved_names.contains(*name))
-                    .cloned(),
-            );
-        }
+#[test]
+fn explicit_peer_suffix_uses_the_dependency_alias() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependency("peer", alias_dependency("alias-provider@1.0.0")),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, names_by_alias } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+    assert!(names_by_alias.is_empty());
+}
+
+/// An ordinary dependency may be aliased onto the very package and
+/// version a peer resolved to; only the suffix can tell them apart, so
+/// the segment keeps the name it spelled.
+#[test]
+fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(peer@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", plain_dependency("1.0.0")),
+                ("peer-alias", alias_dependency("peer@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// The dependent's `peerDependencies` name the edge a peer resolved
+/// through, so a competing ordinary alias onto the same provider does
+/// not make the segment unattributable.
+#[test]
+fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", alias_dependency("alias-provider@1.0.0")),
+                ("other", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// Two declared peers can share one provider, and the suffix then
+/// spells its segment twice — once per peer.
+#[test]
+fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["first", "second"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("first", alias_dependency("alias-provider@1.0.0")),
+                ("second", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([
+            ("first".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("second".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+        ]),
+    );
+}
+
+/// A declared peer and a peer propagated from a child can resolve to one
+/// provider through separate edges. Taking the declared edge for the
+/// first segment must leave the ordinary edge for the second.
+#[test]
+fn a_declared_peer_does_not_consume_the_propagated_peers_segment() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["provider"]))),
+        [(
+            "consumer@1.0.0(provider@1.0.0)(provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("provider", plain_dependency("1.0.0")),
+                ("child-peer", alias_dependency("provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([
+            ("provider".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+            ("child-peer".to_string(), HashSet::from_iter(["1.0.0".to_string()])),
+        ]),
+    );
+}
+
+/// Nothing ranks two ordinary aliases onto one provider, and guessing
+/// between them would vary with map order.
+#[test]
+fn competing_ordinary_aliases_do_not_rename_the_segment() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata([]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("one", alias_dependency("alias-provider@1.0.0")),
+                ("other", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([(
+            "alias-provider".to_string(),
+            HashSet::from_iter(["1.0.0".to_string()]),
+        )]),
+    );
+}
+
+/// A `link:` edge resolves to a path, not a package version, so it can
+/// never be the provider a suffix segment names.
+#[test]
+fn a_linked_dependency_is_not_a_peer_provider() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", alias_dependency("alias-provider@1.0.0")),
+                ("local", link_dependency("../local")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// A hashed suffix spells no peers out, so without the package metadata
+/// naming them there is nothing left to recover them from.
+#[test]
+fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
+    let lockfile = peer_context_lockfile(
+        None,
+        [(
+            "consumer@1.0.0(0123456789abcdef0123456789abcdef)",
+            snapshot_with_dependency("peer", plain_dependency("1.0.0")),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert!(versions.is_empty());
+}
+
+/// A package that declares no peers still carries the peers its own
+/// children resolved through it, so the suffix stays the only record of
+/// them.
+#[test]
+fn explicit_peer_suffix_of_an_undeclared_peer_is_kept() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata([]))),
+        [(
+            "consumer@1.0.0(peer@2.0.0)",
+            snapshot_with_dependency("child", plain_dependency("1.0.0(peer@2.0.0)")),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]),
+    );
+}
+
+/// A `packages:`/`snapshots:` pair keyed by the given depPaths, with
+/// every field the peer-context tests do not read left empty.
+fn peer_context_lockfile<const SNAPSHOTS: usize>(
+    package: Option<(&str, pnpm_lockfile::PackageMetadata)>,
+    snapshots: [(&str, pnpm_lockfile::SnapshotEntry); SNAPSHOTS],
+) -> pnpm_lockfile::Lockfile {
+    use pnpm_lockfile::{ComVer, Lockfile, LockfileVersion, PkgNameVerPeer};
+
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer::new(9, 0)).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: std::collections::HashMap::new(),
+        packages: package.map(|(key, metadata)| {
+            std::collections::HashMap::from([(PkgNameVerPeer::from_str(key).unwrap(), metadata)])
+        }),
+        snapshots: Some(
+            snapshots
+                .into_iter()
+                .map(|(key, entry)| (PkgNameVerPeer::from_str(key).unwrap(), entry))
+                .collect(),
+        ),
+        time: None,
+        extra: pnpm_lockfile::LockfileExtra::default(),
     }
-    names
 }
 
-fn peer_suffix_names(peer_suffix: &str) -> impl Iterator<Item = String> + '_ {
-    peer_suffix.match_indices('(').filter_map(|(start, _)| {
-        let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
-        let (name, _) = segment.rsplit_once('@')?;
-        (!name.is_empty()).then(|| name.to_string())
-    })
+/// `packages:` metadata whose only content is the declared peer names,
+/// each with a `*` range.
+fn peer_declaring_metadata<const PEERS: usize>(
+    peer_names: [&str; PEERS],
+) -> pnpm_lockfile::PackageMetadata {
+    use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PackageMetadata};
+
+    PackageMetadata {
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "consumer".to_string(),
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: Some(
+            peer_names.into_iter().map(|name| (name.to_string(), "*".to_string())).collect(),
+        ),
+        peer_dependencies_meta: None,
+    }
 }
 
-fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
-    })
+fn snapshot_with_dependency(
+    alias: &str,
+    dependency: pnpm_lockfile::SnapshotDepRef,
+) -> pnpm_lockfile::SnapshotEntry {
+    snapshot_with_dependencies([(alias, dependency)])
+}
+
+fn snapshot_with_dependencies<const DEPS: usize>(
+    dependencies: [(&str, pnpm_lockfile::SnapshotDepRef); DEPS],
+) -> pnpm_lockfile::SnapshotEntry {
+    use pnpm_lockfile::PkgName;
+
+    SnapshotEntry {
+        dependencies: Some(
+            dependencies
+                .into_iter()
+                .map(|(alias, dependency)| (PkgName::parse(alias).unwrap(), dependency))
+                .collect(),
+        ),
+        ..SnapshotEntry::default()
+    }
+}
+
+fn plain_dependency(ver_peer: &str) -> pnpm_lockfile::SnapshotDepRef {
+    pnpm_lockfile::SnapshotDepRef::Plain(pnpm_lockfile::PkgVerPeer::from_str(ver_peer).unwrap())
+}
+
+fn alias_dependency(key: &str) -> pnpm_lockfile::SnapshotDepRef {
+    pnpm_lockfile::SnapshotDepRef::Alias(pnpm_lockfile::PkgNameVerPeer::from_str(key).unwrap())
+}
+
+fn link_dependency(target: &str) -> pnpm_lockfile::SnapshotDepRef {
+    pnpm_lockfile::SnapshotDepRef::Link(target.to_string())
+}
+
+/// The locked peer names a lockfile yields for an importer it does not
+/// list — the union `importer_locked_peer_context` folds over every
+/// snapshot.
+fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
+    importer_locked_peer_context(wanted_lockfile, "missing-importer").versions.into_keys().collect()
 }
 
 struct StubResolver {
