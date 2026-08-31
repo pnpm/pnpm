@@ -399,6 +399,60 @@ test('native deploy refuses a linked workspace package whose peer resolves to mo
   expect(err.hint).toContain('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry')
 })
 
+// A peer that the package also declares as an optional dependency is already
+// bound. Re-binding it would copy it into the required map and quietly promote
+// it, changing what --no-optional and a failed fetch mean for it.
+test('native deploy keeps an optional peer of a linked workspace package optional', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      optionalDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const snapshots = assertProject(path.resolve('deploy')).readLockfile().snapshots
+  const [, lib] = Object.entries(snapshots).find(([key]) => key.startsWith('project-2@file:'))!
+  expect(lib.optionalDependencies?.['@pnpm.e2e/peer-a']).toBeDefined()
+  expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+})
+
 // The remedy ERR_PNPM_DEPLOY_AMBIGUOUS_PEER suggests: collapsing the peer to one
 // version makes the binding unambiguous, so the deploy goes through without
 // injecting the workspace or falling back to the legacy implementation.

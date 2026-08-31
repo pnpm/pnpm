@@ -1006,10 +1006,15 @@ fn bind_singleton_peers(
             continue;
         }
         for peer in &project.peer_dependencies {
-            let bound = snapshots
-                .get(package_key)
-                .and_then(|snapshot| snapshot.dependencies.as_ref())
-                .is_some_and(|dependencies| dependencies.contains_key(peer));
+            // Either map already binding the peer counts: re-binding one the
+            // package declares as an optional dependency would copy it into the
+            // required map and quietly promote it.
+            let bound = snapshots.get(package_key).is_some_and(|snapshot| {
+                [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
+                    .into_iter()
+                    .flatten()
+                    .any(|dependencies| dependencies.contains_key(peer))
+            });
             if bound {
                 continue;
             }

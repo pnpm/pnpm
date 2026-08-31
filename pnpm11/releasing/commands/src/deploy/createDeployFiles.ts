@@ -25,7 +25,7 @@ import normalizePath from 'normalize-path'
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
 export interface CreateDeployFilesOptions {
-  allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
+  allProjects: Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
   deployDir: string
   include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
@@ -109,7 +109,11 @@ export function createDeployFiles ({
     })
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
-    const manifest = allProjects.find(project => project.rootDirRealPath === projectRootDirRealPath)?.manifest
+    // `projectRootDirRealPath` is resolved lexically, so match either spelling:
+    // a project directory reached through a symlink has a different real path.
+    const manifest = allProjects.find(project =>
+      project.rootDirRealPath === projectRootDirRealPath || project.rootDir === projectRootDirRealPath
+    )?.manifest
     if (manifest?.peerDependencies != null) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
@@ -265,12 +269,18 @@ function filterDeployPackageSnapshots (
 }
 
 /**
- * A linked workspace package has no package snapshot in the shared lockfile,
- * so the importer its deployed snapshot is synthesized from carries no peer
- * bindings. Bind each still-unresolved peer to the deployed graph's own
- * resolution while that resolution is unambiguous, and refuse when it is not:
- * picking between candidates is precisely the decision that injecting the
- * package would have made, and it cannot be recovered afterwards.
+ * Resolves the peer dependencies of linked workspace packages against the
+ * deployed graph, editing the snapshots in `packages` in place.
+ *
+ * A linked workspace package has no package snapshot in the shared lockfile, so
+ * the importer its deployed snapshot is synthesized from carries no peer
+ * bindings and they cannot be recovered afterwards. A peer already bound by
+ * either dependency map, or absent from the deployed graph entirely, is left
+ * alone.
+ *
+ * @throws PnpmError DEPLOY_AMBIGUOUS_PEER when the deployed graph offers more
+ * than one resolution for a peer, since choosing between them is precisely the
+ * decision injecting the package would have made.
  */
 function bindSingletonPeers (
   importer: ProjectSnapshot,
@@ -306,7 +316,10 @@ function bindSingletonPeers (
     const snapshot = packages[depPath]
     if (snapshot == null) continue
     for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
-      if (snapshot.dependencies?.[peerName] != null) continue
+      // Either map already binding the peer counts: re-binding one the package
+      // declares as an optional dependency would copy it into the required map
+      // and quietly promote it.
+      if (snapshot.dependencies?.[peerName] != null || snapshot.optionalDependencies?.[peerName] != null) continue
       const candidates = references.get(peerName)
       // A peer the deployed graph does not provide at all stays unresolved,
       // exactly as it is in the workspace this deploy was taken from.
