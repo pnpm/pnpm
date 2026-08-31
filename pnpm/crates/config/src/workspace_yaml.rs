@@ -1852,15 +1852,11 @@ impl WorkspaceSettings {
             let Some(relative) = dir
                 .as_deref()
                 .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
-                // Without the trim, `~//bin` joins as an absolute path and
-                // lands on `/bin`; without the normalize, `~/../bin` keeps
-                // the parent segment pnpm's `path.join` collapses.
-                .map(|relative| relative.trim_start_matches(['/', '\\']))
             else {
                 continue;
             };
             if let Some(expanded) = Sys::home_dir()
-                .map(|home_dir| pnpm_fs::lexical_normalize(&home_dir.join(relative)))
+                .map(|home_dir| join_home_relative(&home_dir, relative))
                 .and_then(|expanded| expanded.into_os_string().into_string().ok())
             {
                 *dir = Some(expanded);
@@ -2415,6 +2411,19 @@ fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<Strin
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// Join a `~/`-relative suffix onto the home directory the way pnpm's
+/// `path.join` does: concatenate with the separator, then normalize. Node
+/// treats every argument after the first as a fragment, so `Path::join` is
+/// the wrong primitive here — it lets a suffix that parses as rooted
+/// (`~//bin`) replace the home directory outright, which is how the tilde
+/// would end up naming somewhere else entirely.
+fn join_home_relative(home: &Path, relative: &str) -> PathBuf {
+    let mut joined = home.as_os_str().to_os_string();
+    joined.push(std::path::MAIN_SEPARATOR_STR);
+    joined.push(relative);
+    pnpm_fs::lexical_normalize(Path::new(&joined))
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {
