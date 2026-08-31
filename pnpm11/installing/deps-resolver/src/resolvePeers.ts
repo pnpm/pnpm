@@ -549,7 +549,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (
     ctx.purePkgs.has(resolvedPackage.pkgIdWithPatchHash) &&
     ctx.depGraph[resolvedPackage.pkgIdWithPatchHash as unknown as DepPath].depth <= node.depth &&
-    Object.keys(resolvedPackage.peerDependencies ?? {}).length === 0
+    Object.keys(resolvedPackage.peerDependencies).length === 0
   ) {
     ctx.pathsByNodeId.set(nodeId, resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
     ctx.pathsByNodeIdPromises.get(nodeId)!.resolve(resolvedPackage.pkgIdWithPatchHash as unknown as DepPath)
@@ -596,7 +596,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
   if (node.lockedPeerContext != null && ctx.resolvedPeerProviderPaths != null) {
     for (const [peerName, previousPeerDepPath] of Object.entries(node.lockedPeerContext)) {
       const peerNodeId = ctx.nodeIdsByPreviousDepPath.get(previousPeerDepPath)
-      const peerDependency = resolvedPackage.peerDependencies?.[peerName]
+      const peerDependency = resolvedPackage.peerDependencies[peerName]
       if (peerNodeId == null || peerDependency == null) continue
       if (ctx.resolvedPeerProviderPaths?.get(peerNodeId) !== previousPeerDepPath) continue
       // Only pin providers that have no peer context of their own. A provider
@@ -675,7 +675,7 @@ async function resolvePeersOfNode<T extends PartialResolvedPackage> (
     parentDepPathsChain: ctx.parentDepPathsChain.includes(resolvedPackage.pkgIdWithPatchHash) ? ctx.parentDepPathsChain : [...ctx.parentDepPathsChain, resolvedPackage.pkgIdWithPatchHash],
   })
 
-  const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies ?? {}).length === 0
+  const { resolvedPeers, missingPeers } = Object.keys(resolvedPackage.peerDependencies).length === 0
     ? { resolvedPeers: new Map<string, NodeId>(), missingPeers: new Map<string, MissingPeerInfo>() }
     : _resolvePeers({
       currentDepth: node.depth,
