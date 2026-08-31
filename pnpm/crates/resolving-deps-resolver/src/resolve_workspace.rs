@@ -64,12 +64,12 @@ pub struct WorkspaceResolveOptions {
     pub lockfile_dir: PathBuf,
     pub peers_suffix_max_length: usize,
     /// Whether named workspace resolutions may be shared across importers.
-    /// When `true`, eligible named workspace requests reuse a canonical
-    /// resolution through a shared cache key that omits the importer's location
-    /// (`project_dir`). This increases cache hits for repeated workspace
-    /// resolutions. pnpm then renders and caches the final result for each
-    /// importer-relative `link:` variant. This preserves the correct link for
-    /// each importer.
+    /// When `true`, an eligible named `workspace:` request resolves once
+    /// against a cache key that omits the consuming importer's `project_dir`,
+    /// and the importer-relative `link:` is rendered from that canonical
+    /// result afterwards. Must stay `false` whenever the resolver chain can
+    /// make a resolution depend on the consuming importer beyond that
+    /// rendering — a pnpmfile custom resolver above all.
     pub share_workspace_resolutions: bool,
     /// `readPackageHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per

@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Reduced workspace dependency resolution work by sharing canonical resolver output across importers while preserving consumer-relative links and hook contexts.
+Sped up installs in large workspaces by resolving each named `workspace:` dependency (`workspace:*`, `workspace:^`, `workspace:1.2.3`) once and reusing it across every project that declares it, instead of re-resolving it per project.

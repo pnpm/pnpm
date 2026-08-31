@@ -1209,20 +1209,24 @@ fn shared_workspace_key(
     if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
         return None;
     }
-    cache_key.6.as_ref()?;
+    // The consumer scope is exactly what the shared key drops. Every
+    // `workspace:` selector carries one, so its absence means this edge is not
+    // the shape assumed here.
     let mut wanted_key = cache_key.clone();
-    wanted_key.6 = None;
+    wanted_key.6.take()?;
     Some(SharedWorkspaceWantedKey::new(wanted_key, wanted.prev_specifier.clone(), opts))
 }
 
-/// Look the wanted edge up in the final dedup cache or run the resolver chain
-/// and manifest-hook pipeline. Conservatively eligible named workspace
-/// selectors use two additional layers: a consumer-independent canonical
-/// resolver result and a hook-processed result keyed by its rendered link
-/// variant. Everything else remains under the project-scoped `cache_key`.
-/// Concurrent first-callers can both miss and resolve in parallel — the
-/// resolver's own per-cache-key fetch locker coalesces network work, and the
-/// second `or_insert` loses the race harmlessly.
+/// Look the wanted edge up in the per-wanted dedup cache or run the resolver
+/// chain and the manifest-hook pipeline, caching the `Arc<ResolveResult>`
+/// under `cache_key`. Eligible named workspace selectors add two more layers:
+/// a canonical resolver result, shared by every importer, and a hook-processed
+/// result keyed by the `link:` this importer renders, shared only with the
+/// importers that render the same one. A second importer therefore always
+/// skips the resolver chain, and skips the hooks as well when its rendered
+/// link matches. Concurrent first-callers can both miss and resolve in parallel —
+/// the resolver's own per-cache-key fetch locker coalesces the network work,
+/// and the second `or_insert` loses the race harmlessly.
 async fn resolve_wanted_cached<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -1304,6 +1308,12 @@ where
             .get(key)
             .map(Arc::clone)
     {
+        // Both return paths record the project-scoped entry, so the lookup at
+        // the top of this function stays authoritative: a repeat of this edge
+        // costs one lookup rather than a shared-key rebuild and a re-render.
+        lock_recoverable(&ctx.workspace.resolved_by_wanted)
+            .entry(cache_key)
+            .or_insert_with(|| Arc::clone(&cached));
         return Ok(cached);
     }
     if result.manifest.is_none() {
@@ -1324,9 +1334,9 @@ where
         && let Some(manifest) = result.manifest.take()
     {
         let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-        // Directory resolutions carry the path rendered for this consumer so
-        // the hook can tell a workspace project's dependency instance apart
-        // from a registry manifest — see `HookContext::dir`.
+        // Directory resolutions carry their directory so the hook can tell a
+        // workspace project's dependency instance apart from a registry
+        // manifest — see `HookContext::dir`.
         let dir = match &result.resolution {
             pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
                 Some(directory_resolution.directory.clone())
@@ -1359,11 +1369,10 @@ where
         lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
             .entry(key)
             .or_insert_with(|| Arc::clone(&result));
-    } else {
-        lock_recoverable(&ctx.workspace.resolved_by_wanted)
-            .entry(cache_key)
-            .or_insert_with(|| Arc::clone(&result));
     }
+    lock_recoverable(&ctx.workspace.resolved_by_wanted)
+        .entry(cache_key)
+        .or_insert_with(|| Arc::clone(&result));
     Ok(result)
 }
 

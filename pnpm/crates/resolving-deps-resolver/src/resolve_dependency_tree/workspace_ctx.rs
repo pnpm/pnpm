@@ -103,7 +103,7 @@ pub(super) type WantedKey = (
 
 /// A wanted dependency key without its consumer directory, plus the resolver
 /// inputs that may vary between importers.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(super) struct SharedWorkspaceWantedKey {
     wanted: WantedKey,
     previous_specifier: Option<String>,
@@ -126,7 +126,7 @@ impl SharedWorkspaceWantedKey {
 
 /// Resolver inputs that can change a named workspace resolution independently
 /// of the consuming project directory.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct WorkspaceResolutionOptionsKey {
     workspace_packages: Option<WorkspacePackagesKey>,
     lockfile_dir: PathBuf,
@@ -163,6 +163,12 @@ impl WorkspacePackagesKey {
     }
 }
 
+impl std::fmt::Debug for WorkspacePackagesKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("WorkspacePackagesKey").field(&Arc::as_ptr(&self.0)).finish()
+    }
+}
+
 impl PartialEq for WorkspacePackagesKey {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -178,7 +184,7 @@ impl Hash for WorkspacePackagesKey {
 }
 
 /// Cache key for a hook-processed workspace result.
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub(super) struct WorkspaceFinalWantedKey {
     shared_wanted: SharedWorkspaceWantedKey,
     canonical_resolution_id: PkgResolutionId,
@@ -359,19 +365,12 @@ pub struct WorkspaceTreeCtx {
     pub(super) resolved_workspace_by_wanted:
         Mutex<HashMap<SharedWorkspaceWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
     /// Hook-processed workspace results indexed by their canonical target and
-    /// rendered consumer link. This is intentionally separate from
-    /// `resolved_by_wanted`: the latter remains project-scoped for every
-    /// resolution that has not passed the conservative workspace-sharing
-    /// eligibility and result validation.
+    /// rendered consumer link, so importers that render the same `link:` reuse
+    /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
+    /// these too — this map is what a *different* importer hits.
     pub(super) resolved_workspace_final_by_wanted:
         Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
-    /// Whether named workspace resolutions may be shared across importers.
-    /// When `true`, eligible named workspace requests reuse a canonical
-    /// resolution through a shared cache key that omits the importer's location
-    /// (`project_dir`). This increases cache hits for repeated workspace
-    /// resolutions. pnpm then renders and caches the final result for each
-    /// importer-relative `link:` variant. This preserves the correct link for
-    /// each importer.
+    /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     pub(super) share_workspace_resolutions: bool,
     pub(super) children_specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
     /// Package ids whose children have already been speculatively
@@ -651,8 +650,7 @@ impl Default for WorkspaceTreeCtx {
 }
 
 impl WorkspaceTreeCtx {
-    /// Sets whether pnpm can share named workspace resolutions across importers.
-    /// Pass `false` if a resolver can use the current importer's directory.
+    /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
     #[must_use]
     pub fn with_shared_workspace_resolutions(mut self, share_workspace_resolutions: bool) -> Self {
         self.share_workspace_resolutions = share_workspace_resolutions;

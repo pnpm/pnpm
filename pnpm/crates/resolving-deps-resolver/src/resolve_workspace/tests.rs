@@ -70,12 +70,20 @@ impl Resolver for RecordingResolver {
 
 struct ProjectRelativeWorkspaceResolver {
     target_dir: std::path::PathBuf,
+    /// The `shared` specifier this resolver claims. Only a named
+    /// `workspace:` selector is eligible for the cross-importer cache, so the
+    /// tests vary it to cover both sides of that gate.
+    shared_specifier: &'static str,
     workspace_resolutions: AtomicUsize,
 }
 
 impl ProjectRelativeWorkspaceResolver {
     fn new(target_dir: std::path::PathBuf) -> Self {
-        Self { target_dir, workspace_resolutions: AtomicUsize::new(0) }
+        Self::claiming("workspace:^", target_dir)
+    }
+
+    fn claiming(shared_specifier: &'static str, target_dir: std::path::PathBuf) -> Self {
+        Self { target_dir, shared_specifier, workspace_resolutions: AtomicUsize::new(0) }
     }
 
     fn workspace_resolution_count(&self) -> usize {
@@ -93,6 +101,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let target_dir = self.target_dir.clone();
         let project_dir = opts.project_dir.clone();
+        let shared_specifier = self.shared_specifier;
         Box::pin(async move {
             if alias == "wrapper" && range == "1.0.0" {
                 return Ok(Some(fake_result(
@@ -102,11 +111,11 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                     serde_json::json!({
                         "name": "wrapper",
                         "version": "1.0.0",
-                        "dependencies": { "shared": "workspace:^" },
+                        "dependencies": { "shared": shared_specifier },
                     }),
                 )));
             }
-            if alias != "shared" || range != "workspace:^" {
+            if alias != "shared" || range != shared_specifier {
                 return Ok(None);
             }
             self.workspace_resolutions.fetch_add(1, Ordering::Relaxed);
@@ -547,6 +556,55 @@ async fn workspace_resolution_is_shared_and_rendered_per_importer() {
         shared_hook_dirs,
         [Some("../../packages/shared".to_string()), Some("../shared".to_string())],
     );
+}
+
+#[tokio::test]
+async fn semver_workspace_matches_stay_scoped_to_each_importer() {
+    // `always_try_workspace_packages` lets a plain semver range land on a
+    // workspace package too, but only a named `workspace:` selector is
+    // guaranteed to depend on the importer solely through the rendered link.
+    // A range keeps its per-importer resolution.
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let resolver = ProjectRelativeWorkspaceResolver::claiming(
+        "^1.0.0",
+        std::path::PathBuf::from("/repo/packages/shared"),
+    );
+    let importers = vec![
+        WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "apps/b".to_string(), manifest: &b_manifest },
+    ];
+    let lockfile_dir = std::path::PathBuf::from("/repo");
+    let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
+    let mut opts = workspace_opts(false, false);
+    opts.lockfile_dir.clone_from(&lockfile_dir);
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let project_dir = match importer.id.as_str() {
+                "packages/a" => std::path::PathBuf::from("/repo/packages/a"),
+                "apps/b" => std::path::PathBuf::from("/repo/apps/b"),
+                _ => unreachable!("unexpected importer"),
+            };
+            let mut opts = importer_opts(project_dir, None);
+            opts.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
+            opts
+        })
+        .await
+        .expect("resolve workspace");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/a"]["shared"].as_str(),
+        "link:../shared",
+    );
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
+        "link:../../packages/shared",
+    );
+    assert_eq!(resolver.workspace_resolution_count(), 2);
 }
 
 #[tokio::test]

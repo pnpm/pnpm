@@ -400,13 +400,8 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
 pub(super) struct ResolvePassInputs<'a> {
     pub config: &'a Config,
     pub resolver: &'a dyn Resolver,
-    /// Whether named workspace resolutions may be shared across importers.
-    /// When `true`, eligible named workspace requests reuse a canonical
-    /// resolution through a shared cache key that omits the importer's location
-    /// (`project_dir`). This increases cache hits for repeated workspace
-    /// resolutions. pnpm then renders and caches the final result for each
-    /// importer-relative `link:` variant. This preserves the correct link for
-    /// each importer.
+    /// See
+    /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
     pub share_workspace_resolutions: bool,
     pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
     pub dependency_groups: &'a [DependencyGroup],
