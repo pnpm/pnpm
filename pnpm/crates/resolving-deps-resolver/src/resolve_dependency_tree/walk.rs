@@ -9,6 +9,7 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
@@ -123,6 +124,7 @@ pub(super) struct PendingNode {
     alias: String,
     node_id: NodeId,
     is_link: bool,
+    resolves_children_through_catalogs: bool,
     parent_ancestors: Arc<Vec<String>>,
     next_ancestors: Arc<Vec<String>>,
     /// The dependency names this occurrence's own `peerDependencies`
@@ -474,6 +476,7 @@ where
     // id is collapsed to a leaf so every reference to the same workspace
     // path shares one [`NodeId`].
     let is_link = id.starts_with("link:");
+    let resolves_children_through_catalogs = resolves_children_through_catalogs(&result);
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
@@ -501,7 +504,11 @@ where
         let peer_dependencies = if is_link {
             BTreeMap::new()
         } else {
-            extract_peer_dependencies(&result, &peer_shadowed)
+            extract_peer_dependencies(
+                &result,
+                &peer_shadowed,
+                catalogs_for_children(ctx, resolves_children_through_catalogs),
+            )?
         };
         register_peer_dep_names(ctx, &peer_dependencies);
         ctx.workspace.record_package_write(&id);
@@ -534,6 +541,7 @@ where
         alias,
         node_id,
         is_link,
+        resolves_children_through_catalogs,
         parent_ancestors: Arc::clone(ancestor_ids),
         next_ancestors,
         peer_shadowed,
@@ -667,7 +675,7 @@ pub(super) async fn walk_from_seeds<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    assign_level_owners(ctx, seeds.iter_mut());
+    assign_level_owners(ctx, seeds.iter_mut())?;
     let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
     while !frontier.is_empty() {
@@ -676,7 +684,7 @@ where
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
-        frontier = settle_level(ctx, seeded);
+        frontier = settle_level(ctx, seeded)?;
     }
     Ok(direct)
 }
@@ -689,7 +697,10 @@ where
 /// sorts first. Only that one claims: the losers cannot win against a
 /// standing owner either, since they do not even outrank their own
 /// level's winner.
-fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed mut NodeSeed>) {
+fn assign_level_owners<'seed>(
+    ctx: &TreeCtx,
+    seeds: impl Iterator<Item = &'seed mut NodeSeed>,
+) -> Result<(), ResolveDependencyTreeError> {
     // Linked nodes resolve their dependencies as their own importer,
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
@@ -726,9 +737,10 @@ fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed 
             &pending.parent_ancestors,
             peer_shadowed,
         );
-        install_owner_peer_dependencies(ctx, pending, &claim);
+        install_owner_peer_dependencies(ctx, pending, &claim)?;
         pending.claim = Some(claim);
     }
+    Ok(())
 }
 
 /// Split the package's envelope into children and peers the way its
@@ -740,20 +752,25 @@ fn install_owner_peer_dependencies(
     ctx: &TreeCtx,
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
-) {
+) -> Result<(), ResolveDependencyTreeError> {
     if pending.is_link || !claim.owns_children {
-        return;
+        return Ok(());
     }
-    let peer_dependencies = extract_peer_dependencies(&pending.result, &claim.peer_shadowed);
+    let peer_dependencies = extract_peer_dependencies(
+        &pending.result,
+        &claim.peer_shadowed,
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+    )?;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return };
+    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
-        return;
+        return Ok(());
     }
     existing.peer_dependencies = peer_dependencies.clone();
     drop(packages);
     register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&pending.id);
+    Ok(())
 }
 
 /// Give every occurrence of a settled level its tree node, and collect
@@ -790,7 +807,7 @@ fn settle_seeds(
             insert_walked_node(ctx, &pending, children);
             continue;
         };
-        if !resolves_children_through_catalogs(&pending.result)
+        if !pending.resolves_children_through_catalogs
             && recorded_children_match(ctx, &pending.id, &children_context(ctx, &pending, &claim))
         {
             let children = lazy_children(&pending.parent_ancestors);
@@ -809,8 +826,11 @@ fn settle_seeds(
 
 /// Record what each occurrence of a seeded level resolved for its
 /// children, and settle that level's own seeds into the next frontier.
-fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode> {
-    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()));
+fn settle_level(
+    ctx: &TreeCtx,
+    mut seeded: Vec<SeededNode>,
+) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
+    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
     let mut frontier = Vec::new();
     for node in seeded {
         let SeededNode {
@@ -835,7 +855,7 @@ fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode>
             &grandchild_pkg_aliases,
         ));
     }
-    frontier
+    Ok(frontier)
 }
 
 /// Publish the child edges one occurrence resolved, and report the
@@ -964,14 +984,14 @@ where
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    let child_specs = if resolves_children_through_catalogs(&pending.result) {
+    let child_specs = if let Some(catalogs) =
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
+    {
         child_specs
             .iter()
-            .map(|(name, range, optional, injected)| {
-                resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                    .map(|(name, range)| (name, range, *optional, *injected))
-            })
-            .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()?
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
             .pipe(Arc::new)
     } else {
         child_specs
@@ -1464,11 +1484,26 @@ pub(super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
+    let specs = if pending.peer_shadowed.is_empty() {
+        specs
+    } else {
+        specs
+            .into_iter()
+            .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+            .collect()
+    };
+    let specs = if let Some(catalogs) =
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
+    {
+        let Ok(specs) = resolve_catalog_child_specs(specs, catalogs) else { return };
+        specs
+    } else {
+        specs
+    };
     let opts = ctx.opts_for_depth(pending.depth + 1);
     let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
-        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
         .map(|(name, range, optional, injected)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
@@ -1518,6 +1553,26 @@ fn resolves_children_through_catalogs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
     result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
+}
+
+fn catalogs_for_children(
+    ctx: &TreeCtx,
+    resolves_children_through_catalogs: bool,
+) -> Option<&Catalogs> {
+    (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
+}
+
+fn resolve_catalog_child_specs(
+    child_specs: Vec<ChildSpec>,
+    catalogs: &Catalogs,
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    child_specs
+        .into_iter()
+        .map(|(name, range, optional, injected)| {
+            resolve_catalog_specifier(name, range, catalogs)
+                .map(|(name, range)| (name, range, optional, injected))
+        })
+        .collect()
 }
 
 /// The install aliases one resolved level contributes to its

@@ -1,5 +1,6 @@
 use std::{collections::HashSet, sync::Mutex};
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_reporter::{LogEvent, Reporter};
@@ -42,6 +43,7 @@ snapshots:
     let lockfile_dir = tempfile::tempdir().expect("create lockfile directory");
     let mut config = Config::new();
     config.strict_peer_dependencies = true;
+    let catalogs = Catalogs::new();
 
     report_peer_dependency_issues::<RecordingReporter>(
         Some(&lockfile),
@@ -49,6 +51,7 @@ snapshots:
         &HashSet::from([".".to_string()]),
         lockfile_dir.path(),
         &config,
+        Some(&catalogs),
     )
     .expect("a clean resolver candidate set must skip the lockfile walk");
     assert_eq!(EVENTS.lock().unwrap().len(), 0);
@@ -59,6 +62,7 @@ snapshots:
         &HashSet::from([".".to_string()]),
         lockfile_dir.path(),
         &config,
+        Some(&catalogs),
     )
     .expect_err("a resolver candidate with a missing peer must fail in strict mode");
     assert!(matches!(error, InstallError::PeerDependencyIssues));

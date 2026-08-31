@@ -2,6 +2,7 @@
 //! `pkgIdWithPatchHash`, its child specs, its peer dependencies, its
 //! leaf classification, and its deprecation notice.
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::engines_runtime_dependencies;
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -11,8 +12,8 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    Deprecation, ResolveDependencyTreeError, dependency_is_injected, lock_recoverable,
-    tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
+    Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
+    dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -224,14 +225,16 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
 /// without a matching `peerDependencies` entry only counts when
 /// `optional: true` — it is treated as an optional `"*"` peer exactly
 /// like an explicitly declared one, and non-optional meta-only entries
-/// are ignored.
+/// are ignored. When [`Catalogs`] are supplied, `catalog:` ranges are
+/// dereferenced before they enter peer resolution.
 ///
 /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
-) -> BTreeMap<String, PeerDep> {
-    let Some(manifest) = result.manifest.as_ref() else { return BTreeMap::new() };
+    catalogs: Option<&Catalogs>,
+) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
+    let Some(manifest) = result.manifest.as_ref() else { return Ok(BTreeMap::new()) };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
     let dep_names = |key| {
@@ -253,10 +256,13 @@ pub(super) fn extract_peer_dependencies(
                 continue;
             }
             if let Some(range_str) = range.as_str() {
-                peers.insert(
-                    name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false },
-                );
+                let version = match catalogs {
+                    Some(catalogs) => {
+                        resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+                    }
+                    None => range_str.to_string(),
+                };
+                peers.insert(name.clone(), PeerDep { version, optional: false });
             }
         }
     }
@@ -275,7 +281,7 @@ pub(super) fn extract_peer_dependencies(
         }
     }
 
-    peers
+    Ok(peers)
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

@@ -4646,6 +4646,8 @@ dependencies = [
  "dunce",
  "node-semver",
  "owo-colors",
+ "pnpm-catalogs-resolver",
+ "pnpm-catalogs-types",
  "pnpm-config",
  "pnpm-lockfile",
  "pnpm-package-manifest",
