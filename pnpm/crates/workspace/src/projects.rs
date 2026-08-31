@@ -165,6 +165,25 @@ pub fn find_workspace_projects_no_check(
             message: err.to_string(),
         })?;
 
+    // Parse-check the generic-walk patterns up front, so a malformed
+    // glob fails before any pattern pays for a workspace walk. The fast
+    // paths accept only meta-character-free patterns, which cannot fail
+    // to parse.
+    for pattern in &include_patterns {
+        if specialized_pattern(pattern).is_some() {
+            continue;
+        }
+        for normalized in normalize_manifest_patterns(pattern) {
+            let Some((_, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
+                continue;
+            };
+            Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: (*pattern).to_string(),
+                message: err.to_string(),
+            })?;
+        }
+    }
+
     // Each pattern's set folds into the shared merge as it completes,
     // so peak memory stays one merged set plus the in-flight patterns —
     // overlapping patterns don't multiply it. Set union commutes and

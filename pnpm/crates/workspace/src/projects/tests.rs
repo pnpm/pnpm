@@ -743,3 +743,23 @@ fn a_malformed_manifest_fails_discovery_deterministically() {
         "the reported manifest must be the first broken project in root order",
     );
 }
+
+#[test]
+fn an_invalid_glob_pattern_fails_and_names_the_pattern() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+
+    let result = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts {
+            patterns: Some(vec!["packages/*".to_string(), "packages/[invalid".to_string()]),
+        },
+    );
+
+    // `expect_err` would need `Project: Debug`, which it deliberately is not.
+    let Err(FindWorkspaceProjectsError::InvalidGlob { pattern, .. }) = result else {
+        panic!("an invalid glob must fail discovery");
+    };
+    assert_eq!(pattern, "packages/[invalid");
+}
