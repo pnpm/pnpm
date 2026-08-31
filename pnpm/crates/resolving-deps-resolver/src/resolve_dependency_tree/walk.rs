@@ -9,6 +9,7 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
@@ -506,7 +507,7 @@ where
             extract_peer_dependencies(
                 &result,
                 &peer_shadowed,
-                resolves_children_through_catalogs.then_some(&ctx.catalogs),
+                catalogs_for_children(ctx, resolves_children_through_catalogs),
             )?
         };
         register_peer_dep_names(ctx, &peer_dependencies);
@@ -758,7 +759,7 @@ fn install_owner_peer_dependencies(
     let peer_dependencies = extract_peer_dependencies(
         &pending.result,
         &claim.peer_shadowed,
-        pending.resolves_children_through_catalogs.then_some(&ctx.catalogs),
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
     )?;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
     let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
@@ -983,18 +984,10 @@ where
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    let child_specs = if pending.resolves_children_through_catalogs {
-        child_specs
-            .iter()
-            .map(|(name, range, optional, injected)| {
-                resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                    .map(|(name, range)| (name, range, *optional, *injected))
-            })
-            .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()?
-            .pipe(Arc::new)
-    } else {
-        child_specs
-    };
+    let child_specs = resolve_catalog_child_specs(
+        child_specs,
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+    )?;
     // An *updated* parent (one that landed on a different version than
     // the lockfile recorded, or a new dep) discards its
     // `resolvedDependencies` child refs, forcing its subtree to
@@ -1483,11 +1476,21 @@ pub(super) async fn warm_children_resolutions<Chain>(
         return;
     }
     let Ok(specs) = extract_children(&pending.result) else { return };
+    let specs = specs
+        .into_iter()
+        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+        .collect::<Vec<ChildSpec>>()
+        .pipe(Arc::new);
+    let Ok(specs) = resolve_catalog_child_specs(
+        specs,
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+    ) else {
+        return;
+    };
     let opts = ctx.opts_for_depth(pending.depth + 1);
     let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
     specs
         .iter()
-        .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
         .map(|(name, range, optional, injected)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
@@ -1537,6 +1540,28 @@ fn resolves_children_through_catalogs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
     result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
+}
+
+fn catalogs_for_children(
+    ctx: &TreeCtx,
+    resolves_children_through_catalogs: bool,
+) -> Option<&Catalogs> {
+    (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
+}
+
+fn resolve_catalog_child_specs(
+    child_specs: Arc<Vec<ChildSpec>>,
+    catalogs: Option<&Catalogs>,
+) -> Result<Arc<Vec<ChildSpec>>, ResolveDependencyTreeError> {
+    let Some(catalogs) = catalogs else { return Ok(child_specs) };
+    child_specs
+        .iter()
+        .map(|(name, range, optional, injected)| {
+            resolve_catalog_specifier(name.clone(), range.clone(), catalogs)
+                .map(|(name, range)| (name, range, *optional, *injected))
+        })
+        .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()
+        .map(Arc::new)
 }
 
 /// The install aliases one resolved level contributes to its

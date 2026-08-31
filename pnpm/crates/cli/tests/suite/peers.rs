@@ -442,6 +442,60 @@ fn standalone_install_does_not_require_catalogs_for_linked_peers() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn workspace_without_catalogs_does_not_reject_an_injected_catalog_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nsharedWorkspaceLockfile: false\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the workspace library");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write the library manifest");
+
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create the consuming project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*", "@pnpm.e2e/foo": "1.0.0" },
+            "dependenciesMeta": { "lib": { "injected": true } },
+        })
+        .to_string(),
+    )
+    .expect("write the app manifest");
+
+    let output = pacquet
+        .with_args(["--filter", "app", "install"])
+        .output()
+        .expect("install workspace package");
+    assert!(
+        output.status.success(),
+        "install must report rather than reject the raw range: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
 fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
