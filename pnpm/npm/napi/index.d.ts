@@ -661,6 +661,8 @@ export interface DependentNode {
   /** Rendered in place of `name`, when set. */
   displayName?: string
   version: string
+  /** The raw dependency specifier the parent declared for this edge. */
+  requires?: string
   /** The node was reached again on its own path; the walk stopped there. */
   circular?: boolean
   /** Short hash distinguishing peer-dependency variants of a `name@version`. */

@@ -17,16 +17,36 @@ fn tree(name: &str, version: &str, dependents: Vec<DependentNode>) -> Dependents
 }
 
 fn importer(name: &str, version: &str, dep_field: DepField) -> DependentNode {
+    importer_with_requires(name, version, dep_field, None)
+}
+
+fn importer_with_requires(
+    name: &str,
+    version: &str,
+    dep_field: DepField,
+    requires: Option<&str>,
+) -> DependentNode {
     DependentNode {
         name: name.to_string(),
         version: version.to_string(),
+        requires: requires.map(str::to_string),
         dep_field: Some(dep_field),
         ..DependentNode::default()
     }
 }
 
 fn package(name: &str, version: &str, dependents: Vec<DependentNode>) -> DependentNode {
+    package_with_requires(name, version, None, dependents)
+}
+
+fn package_with_requires(
+    name: &str,
+    version: &str,
+    requires: Option<&str>,
+    dependents: Vec<DependentNode>,
+) -> DependentNode {
     DependentNode {
+        requires: requires.map(str::to_string),
         dep_field: None,
         dependents: Some(dependents),
         ..importer(name, version, DepField::Dependencies)
@@ -192,6 +212,32 @@ fn renders_package_with_no_dependents_and_a_search_message() {
 
     assert_eq!(lines[0], "bar@2.0.0");
     assert_eq!(lines[1], "Found via license check");
+}
+
+#[test]
+fn renders_requires_in_tree_output() {
+    let results = vec![tree(
+        "target",
+        "1.0.0",
+        vec![package_with_requires(
+            "mid-a",
+            "2.0.0",
+            Some("^2.0.0"),
+            vec![importer_with_requires(
+                "root-project",
+                "0.0.0",
+                DepField::Dependencies,
+                Some("workspace:*"),
+            )],
+        )],
+    )];
+
+    let output = render_dependents_tree(&results, &opts(None));
+    assert!(output.contains("mid-a@2.0.0 (requires ^2.0.0)"), "output: {output}");
+    assert!(
+        output.contains("root-project@0.0.0 (dependencies) (requires workspace:*)"),
+        "output: {output}",
+    );
 }
 
 // Port of upstream's 'whySummary > single package, single version' (deps/inspection/list/test/renderDependentsTree.test.ts).
@@ -376,6 +422,30 @@ fn does_not_include_search_message_when_undefined() {
         serde_json::from_str(&render_dependents_json(&results, &opts(None))).expect("valid JSON");
     dbg!(&parsed);
     assert!(parsed[0].get("searchMessage").is_none());
+}
+
+#[test]
+fn includes_requires_in_json_output() {
+    let results = vec![tree(
+        "target",
+        "1.0.0",
+        vec![package_with_requires(
+            "mid-a",
+            "2.0.0",
+            Some("^2.0.0"),
+            vec![importer_with_requires(
+                "root-project",
+                "0.0.0",
+                DepField::Dependencies,
+                Some("workspace:*"),
+            )],
+        )],
+    )];
+
+    let parsed: Value =
+        serde_json::from_str(&render_dependents_json(&results, &opts(None))).expect("valid JSON");
+    assert_eq!(parsed[0]["dependents"][0]["requires"], "^2.0.0");
+    assert_eq!(parsed[0]["dependents"][0]["dependents"][0]["requires"], "workspace:*");
 }
 
 // Port of upstream's 'renderDependentsParseable > depth limits parseable output depth' (deps/inspection/list/test/renderDependentsTree.test.ts).

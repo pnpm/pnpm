@@ -224,6 +224,10 @@ fn why_shows_reverse_tree_for_direct_dep() {
     assert!(stdout.contains(PKG), "should mention the package: {stdout}");
     assert!(stdout.contains("100.0.0"), "should show the version: {stdout}");
     assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
+    assert!(
+        stdout.contains("test-why@1.0.0 (dependencies) (requires 100.0.0)"),
+        "should show the direct dependency constraint: {stdout}",
+    );
 }
 
 #[test]
@@ -239,6 +243,14 @@ fn why_shows_reverse_tree_for_transitive_dep() {
     assert!(stdout.contains(DEP), "should mention the package: {stdout}");
     assert!(stdout.contains(PKG), "should show PKG as a dependent: {stdout}");
     assert!(stdout.contains("test-why"), "should show the project as a dependent: {stdout}");
+    assert!(
+        stdout.contains(&format!("{PKG}@100.0.0 (requires ^100.0.0)")),
+        "should show the transitive dependency constraint: {stdout}",
+    );
+    assert!(
+        stdout.contains("test-why@1.0.0 (dependencies) (requires 100.0.0)"),
+        "should show the root dependency constraint: {stdout}",
+    );
 }
 
 #[test]
@@ -607,6 +619,36 @@ fn why_displays_finder_message_in_json_output() {
     assert_eq!(matched["searchMessage"], "custom message");
 }
 
+#[test]
+fn why_json_output_includes_requires() {
+    let (_root, workspace, _anchor) = setup();
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{ "name": "project", "version": "0.0.0", "dependencies": {{ "{PKG}": "100.0.0" }} }}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet(&workspace, ["install"]).assert().success();
+
+    let output =
+        pacquet(&workspace, ["why", "--json", "--prod", DEP]).output().expect("run pacquet why");
+    assert!(output.status.success(), "why should succeed: {output:?}");
+    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout).expect("parse why JSON");
+    let matched = parsed
+        .as_array()
+        .expect("array output")
+        .iter()
+        .find(|result| result["name"] == DEP)
+        .expect("the queried package is present");
+    let dependents = matched["dependents"].as_array().expect("dependents array");
+    let pkg_node =
+        dependents.iter().find(|node| node["name"] == PKG).expect("package dependent is present");
+    assert_eq!(pkg_node["requires"], "^100.0.0");
+    let importer_node = pkg_node["dependents"][0].as_object().expect("importer dependent object");
+    assert_eq!(importer_node.get("requires").and_then(serde_json::Value::as_str), Some("100.0.0"),);
+}
+
 /// Port of upstream's `"why" finder can read manifest from store`.
 #[test]
 fn why_finder_can_read_manifest_from_store() {
@@ -694,7 +736,7 @@ fn why_marks_importer_dep_field_and_prints_summary() {
     assert_eq!(
         stdout,
         format!(
-            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies)\n\nFound 1 version of {PKG}\n"
+            "{PKG}@100.0.0\n\u{2514}\u{2500}\u{2500} project@0.0.0 (devDependencies) (requires 100.0.0)\n\nFound 1 version of {PKG}\n"
         ),
     );
 }
