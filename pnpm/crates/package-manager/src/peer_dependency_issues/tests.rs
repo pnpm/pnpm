@@ -51,7 +51,7 @@ snapshots:
         &HashSet::from([".".to_string()]),
         lockfile_dir.path(),
         &config,
-        &catalogs,
+        Some(&catalogs),
     )
     .expect("a clean resolver candidate set must skip the lockfile walk");
     assert_eq!(EVENTS.lock().unwrap().len(), 0);
@@ -62,7 +62,7 @@ snapshots:
         &HashSet::from([".".to_string()]),
         lockfile_dir.path(),
         &config,
-        &catalogs,
+        Some(&catalogs),
     )
     .expect_err("a resolver candidate with a missing peer must fail in strict mode");
     assert!(matches!(error, InstallError::PeerDependencyIssues));

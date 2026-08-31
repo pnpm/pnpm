@@ -401,6 +401,47 @@ fn ignored_workspace_does_not_require_workspace_catalogs_for_peer_inspection() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn standalone_install_does_not_require_catalogs_for_linked_peers() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::remove_file(workspace.join("pnpm-workspace.yaml"))
+        .expect("remove the mock registry's workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "link:./lib", "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write app manifest");
+    let lib = workspace.join("lib");
+    fs::create_dir_all(&lib).expect("create linked library");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write linked library manifest");
+
+    let output = pacquet.with_arg("install").output().expect("install standalone project");
+    assert!(
+        output.status.success(),
+        "install must report rather than reject the raw range: {output:?}",
+    );
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
 fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

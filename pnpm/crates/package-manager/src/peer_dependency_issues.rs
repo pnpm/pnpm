@@ -31,13 +31,17 @@ use crate::InstallError;
 /// acted on. A `--filter`ed install leaves every unselected importer in
 /// the lockfile untouched, and pnpm reports only on the projects that
 /// took part in the resolution.
+///
+/// `catalogs` is `None` when the install has no catalog context. Raw
+/// `catalog:` peer ranges in externally linked packages then remain peer
+/// issues instead of becoming catalog-configuration errors.
 pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     resolved_lockfile: Option<&Lockfile>,
     peer_issue_importer_ids: &HashSet<String>,
     installed_importer_ids: &HashSet<String>,
     lockfile_dir: &Path,
     config: &Config,
-    catalogs: &Catalogs,
+    catalogs: Option<&Catalogs>,
 ) -> Result<(), InstallError> {
     let Some(lockfile) = resolved_lockfile else { return Ok(()) };
     let mut importer_ids: Vec<String> = peer_issue_importer_ids
@@ -54,7 +58,7 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         lockfile_dir,
         &importer_ids,
         &config.peer_dependency_rules,
-        Some(catalogs),
+        catalogs,
     )
     .map_err(InstallError::CatalogResolution)?
     else {

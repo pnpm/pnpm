@@ -22,7 +22,7 @@ struct ResolveOnlyCompletionInputs<'a> {
     fresh_lockfile: Option<&'a Lockfile>,
     prefix: &'a str,
     config: &'static Config,
-    catalogs: &'a Catalogs,
+    catalogs: Option<&'a Catalogs>,
     workspace_root: &'a Path,
     installed_importer_ids: &'a HashSet<String>,
 }
@@ -589,7 +589,7 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
 
 struct ReportInstallCompletionInputs<'a> {
     config: &'static Config,
-    catalogs: &'a Catalogs,
+    catalogs: Option<&'a Catalogs>,
     workspace_root: &'a Path,
     workspace_manifest_dir: &'a Path,
     prefix: String,
@@ -756,6 +756,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
+    pub(super) catalog_context_present: bool,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
@@ -800,8 +801,10 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         selection,
         supported_architectures,
         catalogs,
+        catalog_context_present,
         verified_file_integrity_baseline,
     } = inputs;
+    let peer_catalogs = catalog_context_present.then_some(&catalogs);
     let modules_manifest = modules_manifest.as_ref();
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
@@ -819,7 +822,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         fresh_lockfile: fresh_lockfile.as_ref(),
         prefix: &prefix,
         config,
-        catalogs: &catalogs,
+        catalogs: peer_catalogs,
         workspace_root: &workspace_root,
         installed_importer_ids,
     })? {
@@ -919,7 +922,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
 
     report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
-        catalogs: &catalogs,
+        catalogs: peer_catalogs,
         workspace_root: &workspace_root,
         workspace_manifest_dir: &workspace_manifest_dir,
         prefix,

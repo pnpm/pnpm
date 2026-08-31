@@ -199,6 +199,9 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
+        let catalog_context_present = catalogs_override.is_some()
+            || config.catalogs.is_some()
+            || (!config.ignore_workspace && workspace_dir_opt.is_some());
         // Prefer a caller-supplied in-memory catalogs set
         // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
         // resolving a bumped `catalog:` entry that is not written to disk),
@@ -1207,6 +1210,7 @@ where
             selection,
             supported_architectures,
             catalogs,
+            catalog_context_present,
             verified_file_integrity_baseline,
         })
         .await?;
