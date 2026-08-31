@@ -144,12 +144,15 @@ pub fn find_workspace_projects_no_check(
     // `wax::any` so the walk filters them all in one pass. Built once
     // outside the per-pattern loop to avoid reparsing the constant
     // ignores.
-    let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
-        FindWorkspaceProjectsError::InvalidGlob {
+    let build_ignores = |patterns: &mut dyn Iterator<Item = &'static str>| {
+        wax::any(patterns).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<built-in ignore>".to_string(),
             message: err.to_string(),
-        }
-    })?;
+        })
+    };
+    let ignore_template = build_ignores(&mut IGNORE_PATTERNS.iter().copied())?;
+    let dot_pruning_ignore_template =
+        build_ignores(&mut IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN]))?;
 
     // User negations are written relative to the workspace root, while a
     // parent-relative include walks from an ancestor of it, so they are
@@ -208,7 +211,12 @@ pub fn find_workspace_projects_no_check(
                     message: err.to_string(),
                 })?;
 
-            let walk = glob.walk(walk_root).not(ignore_template.clone()).map_err(|err| {
+            let ignores = if names_a_dot_component(pattern) {
+                &ignore_template
+            } else {
+                &dot_pruning_ignore_template
+            };
+            let walk = glob.walk(walk_root).not(ignores.clone()).map_err(|err| {
                 FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.to_string(),
                     message: err.to_string(),
@@ -294,6 +302,11 @@ pub fn find_workspace_projects_no_check(
 /// `**/tests/**` directories that the lower-level package-finding path
 /// excludes.
 const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
+
+/// Prunes every path with a dot-prefixed component, so a wildcard cannot
+/// descend into `.git`, `.cache`, and friends. Applied only to patterns that
+/// do not name a dot component themselves — see [`names_a_dot_component`].
+const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
 fn normalize_directory_pattern(pattern: &str) -> Option<&str> {
@@ -339,7 +352,7 @@ fn collect_manifests_in_children(
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
     for_each_directory_entry(parent, workspace_root, |entry| {
-        if entry.file_name().as_encoded_bytes().first() == Some(&b'.') {
+        if starts_with_dot(&entry.file_name()) {
             return Ok(());
         }
         if !ignore_not_found(entry.file_type())
@@ -460,6 +473,25 @@ fn split_parent_prefix<'root, 'pattern>(
         rest = tail;
     }
     Some((walk_root, rest))
+}
+
+/// Whether `pattern` spells out a dot-prefixed path component, as
+/// `packages/.cache/*` and `packages/.*/lib` both do.
+///
+/// A wildcard must not match a dot-prefixed component, but a pattern that
+/// names one must still reach it. Rather than teach the walk which component
+/// each wildcard consumed, a pattern that names any dot component keeps the
+/// unpruned ignores and matches dot components at *every* position. That is a
+/// superset of the glob's meaning, reachable only by asking for a dot
+/// component in the first place.
+fn names_a_dot_component(pattern: &str) -> bool {
+    pattern
+        .split('/')
+        .any(|component| component.starts_with('.') && component != "." && component != "..")
+}
+
+fn starts_with_dot(name: &std::ffi::OsStr) -> bool {
+    name.as_encoded_bytes().first() == Some(&b'.')
 }
 
 fn is_literal_pattern(pattern: &str) -> bool {

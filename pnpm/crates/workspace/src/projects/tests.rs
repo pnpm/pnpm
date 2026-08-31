@@ -107,6 +107,51 @@ fn terminal_star_does_not_match_dotted_directories() {
 }
 
 #[test]
+fn recursive_wildcard_does_not_match_dotted_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "nested/plain/deep", "plain");
+    make_project(tmp.path(), "nested/.hidden/deep", "hidden");
+
+    let names = find_project_names(tmp.path(), &["nested/**"]);
+    assert_eq!(names, vec!["root".to_string(), "plain".to_string()]);
+}
+
+#[test]
+fn non_terminal_star_does_not_match_dotted_directories() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha/lib", "alpha-lib");
+    make_project(tmp.path(), "packages/.cache/lib", "cached-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "alpha-lib".to_string()]);
+}
+
+/// A wildcard must not reach a dot-prefixed directory, but a pattern that
+/// names one must.
+#[test]
+fn a_pattern_naming_a_dotted_directory_still_matches_it() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), ".config/alpha", "alpha");
+    make_project(tmp.path(), "packages/.cache", "cached");
+
+    assert_eq!(
+        find_project_names(tmp.path(), &["packages/.cache"]),
+        vec!["root".to_string(), "cached".to_string()],
+    );
+    assert_eq!(
+        find_project_names(tmp.path(), &[".config/*"]),
+        vec!["root".to_string(), "alpha".to_string()],
+    );
+    assert_eq!(
+        find_project_names(tmp.path(), &["packages/.*"]),
+        vec!["root".to_string(), "cached".to_string()],
+    );
+}
+
+#[test]
 fn terminal_star_matches_only_immediate_child_directories() {
     let tmp = TempDir::new().unwrap();
     make_project(tmp.path(), ".", "root");
