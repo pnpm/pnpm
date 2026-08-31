@@ -737,8 +737,7 @@ where
 
 /// Make the underlying script executable: apply a minimum mode of
 /// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so the simpler chmod-only path is
-/// enough here.
+/// already use LF in practice, so a chmod alone suffices.
 fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
