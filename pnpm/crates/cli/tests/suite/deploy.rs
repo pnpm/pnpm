@@ -479,8 +479,27 @@ fn deploy_refuses_non_empty_target_without_force() {
 fn shared_lockfile_deploy_supports_non_injected_workspace() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
     write_workspace(&workspace, false);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "nested": "workspace:*", "@pnpm.e2e/foo": "100.0.0" },
+        }),
+    );
+    write_project(
+        &workspace,
+        "nested",
+        &serde_json::json!({
+            "name": "nested",
+            "version": "1.0.0",
+            "files": ["index.js"],
+        }),
+    );
 
     pacquet.with_arg("install").assert().success();
     let deploy_dir = root.path().join("deploy");
@@ -514,6 +533,26 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
         "the deployed workspace dependency should stay inside {}: {}",
         deploy_dir_real.display(),
         lib_real.display(),
+    );
+
+    let lib_modules = lib_real.parent().expect("the deployed lib's node_modules");
+    assert!(lib_modules.join("@pnpm.e2e/foo").exists());
+    let nested_real = fs::canonicalize(lib_modules.join("nested")).unwrap();
+    assert!(
+        nested_real.starts_with(&deploy_dir_real),
+        "a transitively linked workspace dependency should stay inside {}: {}",
+        deploy_dir_real.display(),
+        nested_real.display(),
+    );
+
+    fs::copy(&npmrc_path, deploy_dir.join(".npmrc")).unwrap();
+    fs::remove_dir_all(deploy_dir.join("node_modules")).unwrap();
+    pacquet_cmd(&deploy_dir).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert!(deploy_dir.join("node_modules/lib/index.js").is_file());
+    let dangling = dangling_links(&deploy_dir.join("node_modules"));
+    assert!(
+        dangling.is_empty(),
+        "installing the deployed lockfile must not create dangling symlinks: {dangling:#?}",
     );
 
     drop((root, mock_instance));

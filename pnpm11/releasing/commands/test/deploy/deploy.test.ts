@@ -185,6 +185,14 @@ test('native deploy creates a dedicated lockfile from linked workspace dependenc
     {
       name: 'project-2',
       version: '1.0.0',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
     },
   ])
 
@@ -215,10 +223,32 @@ test('native deploy creates a dedicated lockfile from linked workspace dependenc
   }, ['deploy'])
 
   const deployDir = path.resolve('deploy')
+  const virtualStoreDir = `${path.join(deployDir, 'node_modules/.pnpm')}${path.sep}`
   expect(assertProject(deployDir).readLockfile().importers['.'].dependencies!['project-2'].version).toMatch(/^project-2@file:/)
-  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
-  expect(deployedDependencyDir.startsWith(`${path.join(deployDir, 'node_modules/.pnpm')}${path.sep}`)).toBeTruthy()
-  expect(deployedDependencyDir.endsWith(path.join('node_modules', 'project-2'))).toBeTruthy()
+  expectDeployedWorkspaceDependencies()
+
+  fs.rmSync(path.join(deployDir, 'node_modules'), { recursive: true })
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: deployDir,
+    frozenLockfile: true,
+    injectWorkspacePackages: false,
+    lockfileDir: deployDir,
+    production: true,
+    rootProjectManifestDir: deployDir,
+    rootProjectManifest: JSON.parse(fs.readFileSync(path.join(deployDir, 'package.json'), 'utf8')),
+  })
+  expectDeployedWorkspaceDependencies()
+
+  function expectDeployedWorkspaceDependencies (): void {
+    const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+    expect(deployedDependencyDir.startsWith(virtualStoreDir)).toBeTruthy()
+    expect(deployedDependencyDir.endsWith(path.join('node_modules', 'project-2'))).toBeTruthy()
+    const deployedDependencyModulesDir = path.dirname(deployedDependencyDir)
+    expect(fs.existsSync(path.join(deployedDependencyModulesDir, 'is-positive'))).toBeTruthy()
+    const deployedTransitiveDir = fs.realpathSync(path.join(deployedDependencyModulesDir, 'project-3'))
+    expect(deployedTransitiveDir.startsWith(virtualStoreDir)).toBeTruthy()
+  }
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {
