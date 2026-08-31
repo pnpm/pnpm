@@ -1954,8 +1954,8 @@ fn build_extra_env(
 /// workspace whose projects declare no peers costs one pass over the
 /// declared dependencies and no I/O. Over-approximates — a
 /// `workspace:` dependency the lockfile records as an injected
-/// directory rather than a link still counts — which only widens the
-/// walk.
+/// directory rather than a link still counts, as does a target this
+/// cannot name — which only widens the walk.
 fn importers_consuming_linked_peers(
     importer_manifests: &BTreeMap<String, &PackageManifest>,
     lockfile_dir: &Path,
@@ -1984,20 +1984,24 @@ fn importers_consuming_linked_peers(
     for (importer_id, manifest) in importer_manifests {
         let importer_dir = lockfile_dir.join(importer_id);
         let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        for (alias, bare_specifier) in manifest.dependencies(groups) {
-            let linked_id = if bare_specifier.starts_with("workspace:") {
-                ids_by_name.get(alias).copied().map(ToOwned::to_owned)
-            } else if let Some(relative) = bare_specifier
-                .strip_prefix("link:")
-                .or_else(|| bare_specifier.strip_prefix("file:"))
-            {
-                Some(pnpm_workspace::importer_id_from_root_dir(
-                    lockfile_dir,
-                    &importer_dir.join(relative),
-                ))
-            } else {
-                continue;
-            };
+        for (entry_key, bare_specifier) in manifest.dependencies(groups) {
+            let linked_id =
+                if let Some(spec) = pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier) {
+                    // `workspace:<name>@<range>` names the project it links
+                    // to; the bare form takes that name from the entry key.
+                    let project_name = spec.alias.as_deref().unwrap_or(entry_key);
+                    ids_by_name.get(project_name).copied().map(ToOwned::to_owned)
+                } else if let Some(relative) = bare_specifier
+                    .strip_prefix("link:")
+                    .or_else(|| bare_specifier.strip_prefix("file:"))
+                {
+                    Some(pnpm_workspace::importer_id_from_root_dir(
+                        lockfile_dir,
+                        &importer_dir.join(relative),
+                    ))
+                } else {
+                    continue;
+                };
             // A target outside the workspace has a manifest the walk
             // still reads, so it counts without being inspectable here.
             let declares = linked_id.as_deref().is_none_or(|linked_id| {

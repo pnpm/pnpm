@@ -241,6 +241,30 @@ fn only_the_importers_linking_to_a_peer_declaring_project_become_candidates() {
     );
 }
 
+/// `workspace:<name>@<range>` links to the project the specifier names,
+/// not to the one the entry key happens to match.
+#[test]
+fn an_aliased_workspace_dependency_resolves_through_its_specifier() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({
+                    "name": "app",
+                    "dependencies": { "decoy": "workspace:lib@*" },
+                }),
+            ),
+            ("packages/decoy", serde_json::json!({ "name": "decoy" })),
+            (
+                "packages/lib",
+                serde_json::json!({ "name": "lib", "peerDependencies": { "react": "^18.0.0" } }),
+            ),
+        ]),
+        vec!["packages/app".to_string()],
+    );
+}
+
 /// A `link:` target outside the workspace has a manifest the report's
 /// walk still reads, so it counts without being inspectable here.
 #[test]
