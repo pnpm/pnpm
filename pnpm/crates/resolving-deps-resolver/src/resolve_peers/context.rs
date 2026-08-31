@@ -592,16 +592,25 @@ fn peer_segment_name(segment: &str) -> Option<&str> {
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
+    let parsed_range = Range::parse(range).ok();
+    satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
+}
+
+pub(super) fn satisfies_with_parsed_prereleases(
+    version: &str,
+    range: &str,
+    parsed_range: Option<&Range>,
+) -> bool {
     if range == "*" {
         return true;
     }
     let Ok(parsed_version) = Version::parse(version) else {
         return version == range;
     };
-    let Ok(parsed_range) = Range::parse(range) else {
+    let Some(parsed_range) = parsed_range else {
         return version == range;
     };
-    if parsed_version.satisfies(&parsed_range) {
+    if parsed_version.satisfies(parsed_range) {
         return true;
     }
     if !parsed_version.is_prerelease() {
@@ -614,7 +623,7 @@ pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
         pre_release: Vec::new(),
         build: Vec::new(),
     };
-    base.satisfies(&parsed_range)
+    base.satisfies(parsed_range)
 }
 
 #[cfg(test)]
