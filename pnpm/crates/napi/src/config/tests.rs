@@ -1,6 +1,40 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::{BTreeMap, HashSet},
+    path::{Path, PathBuf},
+    sync::{Arc, Barrier},
+    thread,
+};
 
-use super::{ConfigOverlay, cache_key, overlay_default_registry, pin_unkeyed_header};
+use super::{
+    ConfigOverlay, cache_key, overlay_default_registry, pin_unkeyed_header, resolve_config,
+};
+
+#[test]
+fn concurrent_equal_configs_share_one_interned_reference() {
+    const CALLER_COUNT: usize = 32;
+    let temp_dir = tempfile::tempdir().expect("create temporary config directory");
+    let dir = Arc::new(PathBuf::from(temp_dir.path()));
+    let start = Arc::new(Barrier::new(CALLER_COUNT));
+
+    let mut handles = Vec::with_capacity(CALLER_COUNT);
+    for _ in 0..CALLER_COUNT {
+        let dir = Arc::clone(&dir);
+        let start = Arc::clone(&start);
+        handles.push(thread::spawn(move || {
+            start.wait();
+            resolve_config(&dir, &ConfigOverlay::default())
+                .map(|config| std::ptr::from_ref(config).addr())
+                .expect("resolve config")
+        }));
+    }
+
+    let config_addresses = handles
+        .into_iter()
+        .map(|handle| handle.join().expect("config thread should not panic"))
+        .collect::<HashSet<_>>();
+
+    assert_eq!(config_addresses.len(), 1);
+}
 
 /// Two independently constructed overlays with identical map contents must
 /// produce the same cache key. If the map fields were `HashMap` (random

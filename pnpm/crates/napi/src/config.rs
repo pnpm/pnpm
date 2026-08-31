@@ -31,7 +31,7 @@ use std::{
     sync::OnceLock,
 };
 
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::entry::Entry};
 use indexmap::IndexMap;
 use pnpm_config::{
     Config, GetHomeDir, Host, LinkWorkspacePackages, LoadWorkspaceYamlError, NodeLinker,
@@ -266,9 +266,10 @@ pub fn resolve_config(
         return Ok(*config);
     }
     let config = build_config(dir, overlay)?;
-    let leaked: &'static Config = config.leak();
-    config_cache().insert(key, leaked);
-    Ok(leaked)
+    Ok(match config_cache().entry(key) {
+        Entry::Occupied(entry) => *entry.get(),
+        Entry::Vacant(entry) => *entry.insert(config.leak()),
+    })
 }
 
 fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorkspaceYamlError> {
