@@ -526,6 +526,26 @@ fn non_notfound_walk_failure_still_errors() {
     );
 }
 
+#[test]
+fn non_notfound_walk_failure_still_errors_on_the_generic_path() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    fs::write(tmp.path().join("packages"), "not a directory").unwrap();
+
+    // A non-terminal star keeps this off the specialized paths, which reach
+    // the filesystem through their own enumeration.
+    let result = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*/lib".to_string()]) },
+    );
+
+    let Err(FindWorkspaceProjectsError::Walk { source, .. }) = result else {
+        panic!("a non-NotFound walk failure must surface as Walk, not an empty match");
+    };
+    dbg!(&source);
+    assert_ne!(source.kind(), ErrorKind::NotFound);
+}
+
 /// A `packages:` entry may point outside the workspace root, and the
 /// declared project has to be enumerated all the same, or the install
 /// later rejects its lockfile importer as untrusted (pnpm/pnpm#13880).
