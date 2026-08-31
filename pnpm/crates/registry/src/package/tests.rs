@@ -158,6 +158,12 @@ fn pinned_version_returns_none_when_no_match() {
 }
 
 #[test]
+fn pinned_version_returns_none_for_invalid_range() {
+    let pkg = package_with_versions("acme", &["1.0.0", "1.2.0"], "1.2.0");
+    assert!(pkg.pinned_version("not-a-range").is_none());
+}
+
+#[test]
 fn package_deserializes_full_provenance_packument() {
     let body = r#"{
         "name": "acme",

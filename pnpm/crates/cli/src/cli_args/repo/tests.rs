@@ -1,4 +1,60 @@
-use super::{get_repo_url_from_current_project, pick_repo_url, redact_url, repository_to_web_url};
+use std::collections::HashMap;
+
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+
+use super::{
+    get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url, redact_url,
+    repository_to_web_url,
+};
+
+#[tokio::test]
+async fn test_registry_package_name_defaults_to_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/acme-1.0.0.tgz" },
+                "repository": "https://github.com/acme/repo.git"
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config { registry: format!("{}/", server.url()), ..Config::default() };
+    let http_client = ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("create HTTP client");
+    let registries = config.resolved_registries().into_iter().collect::<HashMap<_, _>>();
+
+    let url = get_repo_url_from_registry(
+        &config,
+        "acme",
+        &http_client,
+        &registries,
+        &RetryOpts::default(),
+    )
+    .await
+    .expect("resolve repository URL");
+
+    assert_eq!(url, "https://github.com/acme/repo");
+    mock.assert_async().await;
+}
 
 #[test]
 fn test_opens_repository_url_from_local_manifest() {
