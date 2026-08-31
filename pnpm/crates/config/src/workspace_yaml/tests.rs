@@ -3457,7 +3457,7 @@ fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
         assert_eq!(
             settings.global_dir.as_deref().map(Path::new),
             expected,
-            "globalDir {configured}"
+            "globalDir {configured}",
         );
         assert_eq!(
             settings.global_bin_dir.as_deref().map(Path::new),
