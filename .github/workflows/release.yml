@@ -910,7 +910,8 @@ jobs:
           tar -xzf "$wrapper_tarball" \
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
-          "$smoke_dir/node_modules/pnpm/pnpm" --version
+          wrapper_bin=$(node -p 'require(process.argv[1]).bin.pnpm' "$smoke_dir/node_modules/pnpm/package.json")
+          "$smoke_dir/node_modules/pnpm/$wrapper_bin" --version
           # Corepack's entry point into the same tarball; it never runs
           # install.js, so its only job here is to prove it was published and
           # can reach the binary.
