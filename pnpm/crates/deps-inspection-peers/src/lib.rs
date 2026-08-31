@@ -130,7 +130,7 @@ pub fn peer_issues_for_lockfile(
     lockfile_dir: &Path,
     importer_ids: &[String],
     rules: &PeerDependencyRules,
-    catalogs: &Catalogs,
+    catalogs: Option<&Catalogs>,
 ) -> Result<Option<PeerIssuesReport>, CatalogResolutionError> {
     let issues = filter_peer_issues(
         check_peer_dependencies_of_importers(lockfile, lockfile_dir, importer_ids, catalogs)?,
@@ -150,7 +150,7 @@ pub fn check_peer_dependencies_from_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     project_dirs: &[PathBuf],
-    catalogs: &Catalogs,
+    catalogs: Option<&Catalogs>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
     let mut importer_ids: Vec<String> = project_dirs
         .iter()
@@ -169,7 +169,7 @@ pub fn check_peer_dependencies_of_importers(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     importer_ids: &[String],
-    catalogs: &Catalogs,
+    catalogs: Option<&Catalogs>,
 ) -> Result<IssuesByProjects, CatalogResolutionError> {
     let empty_packages = HashMap::new();
     let empty_snapshots = HashMap::new();
@@ -255,7 +255,7 @@ struct LinkedPackagePeers<'a> {
     manifest: &'a PackageManifest,
     alias: &'a str,
     linked_version: &'a str,
-    catalogs: &'a Catalogs,
+    catalogs: Option<&'a Catalogs>,
     issues: &'a mut PeerIssues,
 }
 
@@ -350,8 +350,9 @@ fn check_linked_package_peers(
 fn resolve_peer_range(
     peer_name: &str,
     peer_range: &str,
-    catalogs: &Catalogs,
+    catalogs: Option<&Catalogs>,
 ) -> Result<String, CatalogResolutionError> {
+    let Some(catalogs) = catalogs else { return Ok(peer_range.to_string()) };
     let wanted =
         WantedDependency { alias: peer_name.to_string(), bare_specifier: peer_range.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
@@ -364,7 +365,7 @@ fn resolve_peer_range(
 struct PeerWalkContext<'a> {
     lockfile: &'a Lockfile,
     lockfile_dir: &'a Path,
-    catalogs: &'a Catalogs,
+    catalogs: Option<&'a Catalogs>,
 }
 
 fn collect_initial_keys(

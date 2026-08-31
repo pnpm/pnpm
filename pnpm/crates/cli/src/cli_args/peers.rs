@@ -79,6 +79,8 @@ impl PeersArgs {
         .into_diagnostic()
         .wrap_err("load lockfile")?;
         let catalogs = configured_catalogs(config)?;
+        let catalogs =
+            (config.workspace_dir.is_some() || config.catalogs.is_some()).then_some(&catalogs);
 
         // A missing lockfile yields empty issues, mirroring pnpm's
         // `checkPeerDependencies`, so both output modes stay on the common
@@ -88,7 +90,7 @@ impl PeersArgs {
                 lockfile,
                 lockfile_dir,
                 &project_dirs,
-                &catalogs,
+                catalogs,
             )?,
             None => IssuesByProjects::new(),
         };

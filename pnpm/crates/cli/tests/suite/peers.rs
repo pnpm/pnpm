@@ -353,6 +353,54 @@ fn catalog_peer_of_an_injected_workspace_package_is_resolved() {
     assert_catalog_peer_of_workspace_package_is_resolved(true);
 }
 
+#[test]
+fn ignored_workspace_does_not_require_workspace_catalogs_for_peer_inspection() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\ncatalog:\n  '@pnpm.e2e/foo': 1.0.0\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*", "@pnpm.e2e/foo": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write root manifest");
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the workspace library");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write the library manifest");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&workspace)
+        .with_args(["--ignore-workspace", "peers", "check", "--lockfile-only", "--json"])
+        .output()
+        .expect("inspect peers without workspace configuration");
+    assert_eq!(output.status.code(), Some(1), "the raw catalog range remains unmet: {output:?}");
+    assert!(output.stderr.is_empty(), "inspection must not fail with a diagnostic: {output:?}");
+    let issues: Value = serde_json::from_slice(&output.stdout).expect("parse peers JSON");
+    assert_eq!(issues["."]["bad"]["@pnpm.e2e/foo"][0]["wantedRange"], "catalog:");
+
+    drop((root, mock_instance));
+}
+
 fn assert_catalog_peer_of_workspace_package_is_resolved(injected: bool) {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
