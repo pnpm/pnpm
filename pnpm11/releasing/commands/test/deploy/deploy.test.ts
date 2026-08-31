@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
+import type { PnpmError } from '@pnpm/error'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
@@ -389,9 +390,73 @@ test('native deploy refuses a linked workspace package whose peer resolves to mo
   }
 
   await install.handler(opts)
-  await expect(
-    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
-  ).rejects.toThrow(/project-2.*@pnpm\.e2e\/peer-a.*more than one version \(1\.0\.0, 1\.0\.1\)/)
+  // The rendered wording is shared with pacquet's ERR_PNPM_DEPLOY_AMBIGUOUS_PEER;
+  // keep the two in step.
+  const err = await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy']).catch((error: unknown) => error) as PnpmError
+  expect(err.code).toBe('ERR_PNPM_DEPLOY_AMBIGUOUS_PEER')
+  expect(err.message).toContain("Workspace package 'project-2' declares a peer dependency on '@pnpm.e2e/peer-a'")
+  expect(err.message).toContain('more than one version (1.0.0, 1.0.1)')
+  expect(err.hint).toContain('Pin \'@pnpm.e2e/peer-a\' to a single version with an "overrides" entry')
+})
+
+// The remedy ERR_PNPM_DEPLOY_AMBIGUOUS_PEER suggests: collapsing the peer to one
+// version makes the binding unambiguous, so the deploy goes through without
+// injecting the workspace or falling back to the legacy implementation.
+test('an override collapsing the peer unblocks a non-injected deploy', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    overrides: { '@pnpm.e2e/peer-a': '1.0.0' },
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {

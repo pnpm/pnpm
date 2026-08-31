@@ -313,7 +313,7 @@ function bindSingletonPeers (
       if (candidates == null) continue
       if (candidates.size > 1) {
         throw new PnpmError('DEPLOY_AMBIGUOUS_PEER', `Workspace package '${manifest.name ?? depPath}' declares a peer dependency on '${peerName}', which resolves to more than one version (${Array.from(candidates).sort().join(', ')}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to.`, {
-          hint: 'Set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.',
+          hint: `Pin '${peerName}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.`,
         })
       }
       snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }

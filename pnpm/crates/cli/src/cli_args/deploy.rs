@@ -93,7 +93,7 @@ enum DeployError {
     #[diagnostic(
         code(ERR_PNPM_DEPLOY_AMBIGUOUS_PEER),
         help(
-            r#"Set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag."#
+            r#"Pin '{peer}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag."#
         )
     )]
     AmbiguousPeer { package: String, peer: String, versions: String },

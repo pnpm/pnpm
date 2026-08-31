@@ -639,32 +639,7 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
-    write_peer_workspace(&workspace);
-    // Puts a second resolution of the peer into the deployed graph.
-    write_project(
-        &workspace,
-        "other",
-        &serde_json::json!({
-            "name": "other",
-            "version": "1.0.0",
-            "files": ["index.js"],
-            "dependencies": { "@pnpm.e2e/peer-a": "1.0.1" },
-        }),
-    );
-    write_project(
-        &workspace,
-        "app",
-        &serde_json::json!({
-            "name": "app",
-            "version": "1.0.0",
-            "files": ["index.js"],
-            "dependencies": {
-                "lib": "workspace:*",
-                "other": "workspace:*",
-                "@pnpm.e2e/peer-a": "1.0.0",
-            },
-        }),
-    );
+    write_ambiguous_peer_workspace(&workspace);
 
     pacquet.with_arg("install").assert().success();
     let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
@@ -681,12 +656,74 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
         "ERR_PNPM_DEPLOY_AMBIGUOUS_PEER",
         "Workspace package 'lib' declares a peer dependency on '@pnpm.e2e/peer-a'",
         "more than one version (1.0.0, 1.0.1)",
-        r#"Set "injectWorkspacePackages" to true"#,
+        r#"Pin '@pnpm.e2e/peer-a' to a single version with an "overrides" entry"#,
     ] {
         assert!(stderr.contains(expected), "stderr should mention {expected}:\n{stderr}");
     }
 
     drop((root, mock_instance));
+}
+
+/// The remedy `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` suggests: collapsing the peer to
+/// one version makes the binding unambiguous, so the deploy goes through
+/// without injecting the workspace or falling back to the legacy implementation.
+#[test]
+fn an_override_collapsing_the_peer_unblocks_a_non_injected_deploy() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_ambiguous_peer_workspace(&workspace);
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("overrides:\n  '@pnpm.e2e/peer-a': 1.0.0\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+
+    pacquet.with_arg("install").assert().success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--prod"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let lib_real = fs::canonicalize(deploy_dir.join("node_modules/lib")).unwrap();
+    let peer = lib_real.parent().unwrap().join("@pnpm.e2e/peer-a");
+    let manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(fs::canonicalize(&peer).unwrap().join("package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest["version"], "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// Adds a second workspace project that pulls in a different version of the
+/// peer, so the deployed graph offers two candidates for `lib`'s binding.
+fn write_ambiguous_peer_workspace(workspace: &Path) {
+    write_peer_workspace(workspace);
+    write_project(
+        workspace,
+        "other",
+        &serde_json::json!({
+            "name": "other",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": { "@pnpm.e2e/peer-a": "1.0.1" },
+        }),
+    );
+    write_project(
+        workspace,
+        "app",
+        &serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "dependencies": {
+                "lib": "workspace:*",
+                "other": "workspace:*",
+                "@pnpm.e2e/peer-a": "1.0.0",
+            },
+        }),
+    );
 }
 
 /// `lib`'s peer is satisfied in the workspace by its own devDependencies, which
