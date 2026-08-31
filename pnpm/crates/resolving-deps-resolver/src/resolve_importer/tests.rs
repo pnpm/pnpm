@@ -153,6 +153,56 @@ fn explicit_peer_suffix_uses_the_dependency_alias() {
     assert!(names_by_alias.is_empty());
 }
 
+/// An ordinary dependency may be aliased onto the very package and
+/// version a peer resolved to; only the suffix can tell them apart, so
+/// the segment keeps the name it spelled.
+#[test]
+fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(peer@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", plain_dependency("1.0.0")),
+                ("peer-alias", alias_dependency("peer@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// Two aliases onto one provider leave no way to tell which the peer
+/// resolved through, and guessing would vary with map order.
+#[test]
+fn competing_aliases_onto_one_provider_do_not_rename_the_segment() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("peer", alias_dependency("alias-provider@1.0.0")),
+                ("other", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([(
+            "alias-provider".to_string(),
+            HashSet::from_iter(["1.0.0".to_string()]),
+        )]),
+    );
+}
+
 /// A package that declares no peers still carries the peers its own
 /// children resolved through it, so the suffix stays the only record of
 /// them.
@@ -237,13 +287,21 @@ fn snapshot_with_dependency(
     alias: &str,
     dependency: pnpm_lockfile::SnapshotDepRef,
 ) -> pnpm_lockfile::SnapshotEntry {
-    use pnpm_lockfile::{PkgName, SnapshotEntry};
+    snapshot_with_dependencies([(alias, dependency)])
+}
+
+fn snapshot_with_dependencies<const DEPS: usize>(
+    dependencies: [(&str, pnpm_lockfile::SnapshotDepRef); DEPS],
+) -> pnpm_lockfile::SnapshotEntry {
+    use pnpm_lockfile::PkgName;
 
     SnapshotEntry {
-        dependencies: Some(std::collections::HashMap::from([(
-            PkgName::parse(alias).unwrap(),
-            dependency,
-        )])),
+        dependencies: Some(
+            dependencies
+                .into_iter()
+                .map(|(alias, dependency)| (PkgName::parse(alias).unwrap(), dependency))
+                .collect(),
+        ),
         ..SnapshotEntry::default()
     }
 }

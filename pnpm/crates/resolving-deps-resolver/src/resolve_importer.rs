@@ -1004,37 +1004,72 @@ fn locked_peer_versions_for_key(
         .collect()
 }
 
-/// Rename the suffix segments an npm alias provides back to the alias
-/// the dependent declared.
+/// Rename the suffix segments an npm alias provides back to the name
+/// the provider is installed under.
 ///
 /// A peer suffix names each provider by the package it resolved to,
-/// while peer resolution keys providers by the peer name — which for
-/// `"peer": "npm:provider@1"` is the alias, not `provider`. Reading the
-/// segment back verbatim would pin a peer nobody declares and leave the
-/// declared one unpinned, so a repeated resolution is free to pick the
-/// other variant.
+/// while peer resolution keys providers by the name they occupy in the
+/// dependent's `node_modules` — which for `"peer": "npm:provider@1"` is
+/// `peer`, not `provider`. Reading the segment back verbatim would pin a
+/// peer nobody declares and leave the declared one unpinned, so a
+/// repeated resolution is free to pick the other variant.
+///
+/// The dependent's own `peerDependencies` cannot drive this: a peer
+/// propagated up from a child is satisfied by an *ordinary* dependency
+/// of the dependent, under the name the child declared.
 fn restore_aliased_peer_names(
     snapshot: &pnpm_lockfile::SnapshotEntry,
     peers: &mut [(String, String)],
 ) {
-    for (alias, reference) in
-        snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
+    if !dependency_edges(snapshot)
+        .any(|(_, reference)| matches!(reference, pnpm_lockfile::SnapshotDepRef::Alias(_)))
     {
-        let pnpm_lockfile::SnapshotDepRef::Alias(target) = reference else {
-            continue;
-        };
-        let target_name = target.name.to_string();
-        let target_version = target.suffix.without_peer().to_string();
-        // The rename makes the entry stop matching, so a second alias
-        // onto the same provider takes the next segment, not this one.
-        let Some(peer) = peers
-            .iter_mut()
-            .find(|(name, version)| *name == target_name && *version == target_version)
-        else {
-            continue;
-        };
-        peer.0 = alias.to_string();
+        return;
     }
+    for (name, version) in peers.iter_mut() {
+        if let Some(alias) = sole_alias_providing(snapshot, name, version) {
+            *name = alias;
+        }
+    }
+}
+
+/// The one name other than `name` that the snapshot installs
+/// `name@version` under.
+///
+/// `None` unless that name is unambiguous: an ordinary dependency may be
+/// aliased onto the very package and version a peer resolved to, and
+/// nothing in the lockfile tells the two apart. A provider the snapshot
+/// also installs under its own name, or one two aliases both supply,
+/// keeps the name the suffix spelled.
+fn sole_alias_providing(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    name: &str,
+    version: &str,
+) -> Option<String> {
+    let mut alias: Option<String> = None;
+    for (edge_name, reference) in dependency_edges(snapshot) {
+        let provider = match reference {
+            pnpm_lockfile::SnapshotDepRef::Plain(ver_peer) => (edge_name.to_string(), ver_peer),
+            pnpm_lockfile::SnapshotDepRef::Alias(target) => {
+                (target.name.to_string(), &target.suffix)
+            }
+            pnpm_lockfile::SnapshotDepRef::Link(_) => continue,
+        };
+        if provider.0 != name || provider.1.without_peer().to_string() != version {
+            continue;
+        }
+        let edge_name = edge_name.to_string();
+        if edge_name == name || alias.replace(edge_name).is_some() {
+            return None;
+        }
+    }
+    alias
+}
+
+fn dependency_edges(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+) -> impl Iterator<Item = (&PkgName, &pnpm_lockfile::SnapshotDepRef)> {
+    snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
 }
 
 /// Whether the suffix is the opaque hash
