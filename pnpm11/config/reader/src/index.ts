@@ -51,7 +51,7 @@ import {
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
-import { transformPathKeys } from './transformPath.js'
+import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
@@ -429,6 +429,7 @@ export async function getConfig (opts: {
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
+  transformGlobalDirKeys(pnpmConfig, os.homedir())
   let globalDirRoot
   if (pnpmConfig.globalDir) {
     globalDirRoot = pnpmConfig.globalDir

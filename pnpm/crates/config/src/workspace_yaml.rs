@@ -357,15 +357,15 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
-    /// `globalDir` from the global `config.yaml`. Resolved against the
-    /// workspace dir like the other path-valued fields. See
-    /// [`Config::global_dir`].
+    /// `globalDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_dir`].
     ///
     /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_dir: Option<String>,
-    /// `globalBinDir` from the global `config.yaml`. Resolved against the
-    /// workspace dir like the other path-valued fields. See
-    /// [`Config::global_bin_dir`].
+    /// `globalBinDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_bin_dir`].
     ///
     /// No repo-committed file may set it — see [`crate::refused_keys`].
     pub global_bin_dir: Option<String>,
@@ -1841,13 +1841,13 @@ impl WorkspaceSettings {
     }
 
     /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
-    /// directory, as pnpm's `transformPathKeys` does. A shell expands the
-    /// tilde before `pnpm config set` sees it, but a hand-written
+    /// directory, as pnpm's `transformGlobalDirKeys` does. A shell expands
+    /// the tilde before `pnpm config set` sees it, but a hand-written
     /// `config.yaml` carries it verbatim.
     ///
     /// Call this before [`Self::apply_to`], which would otherwise take the
     /// tilde for an ordinary relative path segment.
-    pub fn expand_home_prefixes<Sys: GetHomeDir>(&mut self) {
+    pub(crate) fn expand_global_dir_home_prefixes<Sys: GetHomeDir>(&mut self) {
         for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
             let Some(relative) = dir
                 .as_deref()

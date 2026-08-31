@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { getConfig } from '@pnpm/config.reader'
+import { GLOBAL_LAYOUT_VERSION } from '@pnpm/constants'
 import { tempDir } from '@pnpm/prepare'
 import pathName from 'path-name'
 import { symlinkDir } from 'symlink-dir'
@@ -89,4 +90,23 @@ test('the global directory may be a symlink to a directory that is in PATH', asy
     },
   })
   expect(config.bin).toBe(globalBinDirSymlink)
+})
+
+test('a leading ~ is expanded before the global directories are derived', async () => {
+  const { config } = await getConfig({
+    cliOptions: {
+      global: true,
+      'global-bin-dir': '~/.local/pnpm',
+      'global-dir': '~/.local/share/pnpm-global',
+    },
+    env: {
+      [pathName]: `${globalBinDir}${path.delimiter}${process.env[pathName]!}`,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  expect(config.bin).toBe(globalBinDir)
+  expect(config.globalPkgDir).toBe(path.join(homedir(), '.local', 'share', 'pnpm-global', GLOBAL_LAYOUT_VERSION))
 })
