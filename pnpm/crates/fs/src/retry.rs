@@ -1,22 +1,38 @@
-use std::{
-    fs, io,
-    path::Path,
-    time::{Duration, Instant},
-};
+use std::{fs, io, path::Path};
 
+#[cfg(any(windows, test))]
+use std::time::{Duration, Instant};
+
+#[cfg(any(windows, test))]
 const RETRY_BUDGET: Duration = Duration::from_mins(1);
+#[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
 /// Rename a filesystem entry, retrying transient Windows file-lock errors.
 pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
-    retry_fs_operation(|| fs::rename(src, dst), is_transient_file_lock_error)
+    #[cfg(windows)]
+    {
+        retry_fs_operation(|| fs::rename(src, dst), is_transient_file_lock_error)
+    }
+    #[cfg(not(windows))]
+    {
+        fs::rename(src, dst)
+    }
 }
 
 /// Remove a directory tree, retrying transient Windows file-lock errors.
 pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
-    retry_fs_operation(|| fs::remove_dir_all(path), is_transient_file_lock_error)
+    #[cfg(windows)]
+    {
+        retry_fs_operation(|| fs::remove_dir_all(path), is_transient_file_lock_error)
+    }
+    #[cfg(not(windows))]
+    {
+        fs::remove_dir_all(path)
+    }
 }
 
+#[cfg(any(windows, test))]
 fn retry_fs_operation<Func, Value, Classify>(
     operation: Func,
     is_transient: Classify,
@@ -37,12 +53,14 @@ where
     )
 }
 
+#[cfg(any(windows, test))]
 struct RetryTiming<Elapsed, Sleep> {
     budget: Duration,
     elapsed: Elapsed,
     sleep: Sleep,
 }
 
+#[cfg(any(windows, test))]
 fn retry_fs_operation_with_timing<Func, Value, Classify, Elapsed, Sleep>(
     mut operation: Func,
     is_transient: Classify,
@@ -77,6 +95,7 @@ where
     }
 }
 
+#[cfg(any(windows, test))]
 fn is_transient_file_lock_error(
     #[cfg_attr(not(windows), allow(unused, reason = "only inspected on Windows"))]
     error: &io::Error,
