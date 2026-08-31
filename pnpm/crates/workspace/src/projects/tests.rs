@@ -711,3 +711,35 @@ fn a_named_dot_directory_does_not_exempt_a_recursive_wildcard() {
     let names = find_project_names(tmp.path(), &[".config/**"]);
     assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
 }
+
+/// A manifest that fails to parse must fail the discovery, and with
+/// several broken the reported one is a function of the project list —
+/// the first in root order — not of read scheduling.
+#[test]
+fn a_malformed_manifest_fails_discovery_deterministically() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+    let broken = tmp.path().join("packages/broken");
+    fs::create_dir_all(&broken).unwrap();
+    fs::write(broken.join("package.json"), "{ not json").unwrap();
+    let broken_late = tmp.path().join("packages/zeta");
+    fs::create_dir_all(&broken_late).unwrap();
+    fs::write(broken_late.join("package.json"), "{ not json either").unwrap();
+
+    let result = find_workspace_projects(
+        tmp.path(),
+        &FindWorkspaceProjectsOpts { patterns: Some(vec!["packages/*".to_string()]) },
+    );
+
+    // `expect_err` would need `Project: Debug`, which it deliberately is not.
+    let Err(FindWorkspaceProjectsError::ReadManifest(source)) = result else {
+        panic!("a malformed manifest must surface as ReadManifest, not be dropped");
+    };
+    let message = source.to_string();
+    dbg!(&message);
+    assert!(
+        message.contains(&broken.join("package.json").display().to_string()),
+        "the reported manifest must be the first broken project in root order",
+    );
+}

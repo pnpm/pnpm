@@ -19,6 +19,7 @@ derive_more  = { workspace = true }
 indexmap     = { workspace = true }
 miette       = { workspace = true }
 pathdiff     = { workspace = true }
+rayon        = { workspace = true }
 serde        = { workspace = true }
 serde-saphyr = { workspace = true }
 wax          = { workspace = true }

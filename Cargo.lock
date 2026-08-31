@@ -5904,6 +5904,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-workspace-projects-graph",
  "pretty_assertions",
+ "rayon",
  "serde",
  "serde-saphyr",
  "tempfile",

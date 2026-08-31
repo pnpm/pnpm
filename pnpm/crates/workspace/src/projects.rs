@@ -18,6 +18,7 @@ use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manif
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
+use rayon::prelude::*;
 use std::{
     collections::BTreeSet,
     fs::{self, DirEntry},
@@ -164,85 +165,26 @@ pub fn find_workspace_projects_no_check(
             message: err.to_string(),
         })?;
 
-    // `NotFound` is the one error kind this enumeration absorbs, in both
-    // the walk below and the manifest read after it: a pattern whose
-    // directory is absent matches nothing, and a file may vanish between
-    // being listed and being read. Every other kind — parse failures,
-    // permission denials, "is a directory" — must propagate, so a
-    // malformed `package.json` surfaces as a diagnostic instead of being
-    // silently dropped from the workspace.
+    // Each pattern's probe touches its own directories, so the patterns
+    // fan out across the rayon pool and their per-pattern sets merge in
+    // list order afterwards — the merged set, and which pattern's error
+    // wins when several fail, both stay a function of the pattern list
+    // alone.
+    let pattern_sets: Vec<Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError>> = include_patterns
+        .par_iter()
+        .map(|pattern| {
+            collect_pattern_manifests(
+                pattern,
+                workspace_root,
+                &ignore_template,
+                &dot_pruning_ignore_template,
+                &user_negations,
+            )
+        })
+        .collect();
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
-    for pattern in include_patterns {
-        match specialized_pattern(pattern) {
-            Some(SpecializedPattern::ChildrenOf(parent)) => {
-                collect_manifests_in_children(
-                    &workspace_root.join(parent),
-                    workspace_root,
-                    &ignore_template,
-                    &user_negations,
-                    &mut manifest_paths,
-                )?;
-                continue;
-            }
-            Some(SpecializedPattern::Literal(directory)) => {
-                collect_literal_manifests_in(
-                    &workspace_root.join(directory),
-                    workspace_root,
-                    &ignore_template,
-                    &user_negations,
-                    &mut manifest_paths,
-                );
-                continue;
-            }
-            None => {}
-        }
-
-        for normalized in normalize_manifest_patterns(pattern) {
-            let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized)
-            else {
-                continue;
-            };
-            if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
-                continue;
-            }
-            let glob =
-                Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                    pattern: pattern.to_string(),
-                    message: err.to_string(),
-                })?;
-
-            let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.to_string(),
-                message: err.to_string(),
-            };
-            match positional_dot_ignores(normalized) {
-                None => collect_walk_manifests(
-                    glob.walk(walk_root)
-                        .not(dot_pruning_ignore_template.clone())
-                        .map_err(invalid_glob)?,
-                    walk_root,
-                    workspace_root,
-                    &user_negations,
-                    &mut manifest_paths,
-                )?,
-                Some(dot_ignores) => {
-                    let ignores = wax::any(
-                        IGNORE_PATTERNS
-                            .iter()
-                            .copied()
-                            .chain(dot_ignores.iter().map(String::as_str)),
-                    )
-                    .map_err(invalid_glob)?;
-                    collect_walk_manifests(
-                        glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
-                        walk_root,
-                        workspace_root,
-                        &user_negations,
-                        &mut manifest_paths,
-                    )?;
-                }
-            }
-        }
+    for set in pattern_sets {
+        manifest_paths.extend(set?);
     }
 
     for basename in PROJECT_MANIFEST_BASENAMES {
@@ -260,13 +202,126 @@ pub fn find_workspace_projects_no_check(
         dir_left.cmp(dir_right)
     });
 
-    let mut projects = Vec::with_capacity(sorted.len());
-    let mut seen_roots = BTreeSet::new();
+    // One group per project root, candidates in manifest-precedence
+    // order (`package.json` before `package.yaml` — the sort above is
+    // stable and ties keep the set's full-path order). Grouping before
+    // the reads keeps "first readable manifest wins" intact while the
+    // roots read concurrently: a candidate that vanishes mid-run still
+    // hands its root to the next candidate, never to a skipped root.
+    let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {
         let root_dir = manifest_path.parent().unwrap_or(workspace_root).to_path_buf();
-        if seen_roots.contains(&root_dir) {
+        match root_groups.last_mut() {
+            Some((last_root, candidates)) if *last_root == root_dir => {
+                candidates.push(manifest_path);
+            }
+            _ => root_groups.push((root_dir, vec![manifest_path])),
+        }
+    }
+
+    let read_results: Vec<Result<Option<Project>, FindWorkspaceProjectsError>> = root_groups
+        .into_par_iter()
+        .map(|(root_dir, candidates)| read_first_project_manifest(root_dir, candidates))
+        .collect();
+    let mut projects = Vec::with_capacity(read_results.len());
+    for result in read_results {
+        if let Some(project) = result? {
+            projects.push(project);
+        }
+    }
+
+    Ok(projects)
+}
+
+/// Expand one include pattern into the manifest paths it matches. The
+/// contract [`find_workspace_projects_no_check`] states — which error
+/// kinds are absorbed, how the fast paths and the generic walk divide
+/// the pattern space — lives there; this is its per-pattern body.
+fn collect_pattern_manifests(
+    pattern: &str,
+    workspace_root: &Path,
+    ignore_template: &wax::Any<'_>,
+    dot_pruning_ignore_template: &wax::Any<'_>,
+    user_negations: &wax::Any<'_>,
+) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
+    let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
+    match specialized_pattern(pattern) {
+        Some(SpecializedPattern::ChildrenOf(parent)) => {
+            collect_manifests_in_children(
+                &workspace_root.join(parent),
+                workspace_root,
+                ignore_template,
+                user_negations,
+                &mut manifest_paths,
+            )?;
+            return Ok(manifest_paths);
+        }
+        Some(SpecializedPattern::Literal(directory)) => {
+            collect_literal_manifests_in(
+                &workspace_root.join(directory),
+                workspace_root,
+                ignore_template,
+                user_negations,
+                &mut manifest_paths,
+            );
+            return Ok(manifest_paths);
+        }
+        None => {}
+    }
+
+    for normalized in normalize_manifest_patterns(pattern) {
+        let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
+            continue;
+        };
+        if is_literal_pattern(normalized) && !walk_root.join(normalized).is_file() {
             continue;
         }
+        let glob =
+            Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
+                pattern: pattern.to_string(),
+                message: err.to_string(),
+            })?;
+
+        let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
+            pattern: pattern.to_string(),
+            message: err.to_string(),
+        };
+        match positional_dot_ignores(normalized) {
+            None => collect_walk_manifests(
+                glob.walk(walk_root)
+                    .not(dot_pruning_ignore_template.clone())
+                    .map_err(invalid_glob)?,
+                walk_root,
+                workspace_root,
+                user_negations,
+                &mut manifest_paths,
+            )?,
+            Some(dot_ignores) => {
+                let ignores = wax::any(
+                    IGNORE_PATTERNS.iter().copied().chain(dot_ignores.iter().map(String::as_str)),
+                )
+                .map_err(invalid_glob)?;
+                collect_walk_manifests(
+                    glob.walk(walk_root).not(ignores).map_err(invalid_glob)?,
+                    walk_root,
+                    workspace_root,
+                    user_negations,
+                    &mut manifest_paths,
+                )?;
+            }
+        }
+    }
+    Ok(manifest_paths)
+}
+
+/// Read `root_dir`'s project from the first readable candidate.
+/// `Ok(None)` when every candidate is gone or names no importer
+/// manifest — the root then simply isn't a project.
+fn read_first_project_manifest(
+    root_dir: PathBuf,
+    candidates: Vec<PathBuf>,
+) -> Result<Option<Project>, FindWorkspaceProjectsError> {
+    for manifest_path in candidates {
         let manifest = match read_exact_project_manifest(&manifest_path) {
             Ok(m) => m,
             Err(ReadProjectManifestError::Read(PackageManifestError::Io(err)))
@@ -284,11 +339,9 @@ pub fn find_workspace_projects_no_check(
             ))) => continue,
             Err(err) => return Err(FindWorkspaceProjectsError::ReadManifest(err)),
         };
-        seen_roots.insert(root_dir.clone());
-        projects.push(Project { root_dir, manifest, dependency_manifest: None });
+        return Ok(Some(Project { root_dir, manifest, dependency_manifest: None }));
     }
-
-    Ok(projects)
+    Ok(None)
 }
 
 /// Hardcoded ignore patterns. Enumerating a real workspace excludes
