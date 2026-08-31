@@ -729,16 +729,7 @@ where
         }
     }
 
-    // In a shared GVS another installer can replace the same shim between
-    // our write and chmod. The process that removed it will publish the
-    // equivalent shim, so `NotFound` is a benign concurrent-writer race.
-    match Sys::set_executable(shim_path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(LinkBinsError::Chmod { path: shim_path.to_path_buf(), error });
-        }
-    }
+    chmod_tolerating_removal(shim_path, Sys::set_executable)?;
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
@@ -747,17 +738,30 @@ where
 /// Make the underlying script executable: apply a minimum mode of
 /// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
 /// already use LF in practice, so the simpler chmod-only path is
-/// enough for the install tests this PR ports. `NotFound` is swallowed
-/// because the target may legitimately have been removed by an
-/// unrelated process between extraction and bin linking.
+/// enough here.
 fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
 {
-    match Sys::ensure_executable_bits(target_path) {
+    chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+}
+
+/// Apply `chmod` to `path`, treating a path that has vanished as success.
+///
+/// Nothing serializes bin linking across processes: independent installs
+/// sharing a global virtual store materialize the same shim, and an
+/// unrelated process can remove a package between extraction and bin
+/// linking. Whoever unlinked the path writes an equivalent one and chmods
+/// it in turn, so `NotFound` means another writer finished the job rather
+/// than that this one failed. Every other error still surfaces.
+fn chmod_tolerating_removal(
+    path: &Path,
+    chmod: impl FnOnce(&Path) -> io::Result<()>,
+) -> Result<(), LinkBinsError> {
+    match chmod(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error }),
+        Err(error) => Err(LinkBinsError::Chmod { path: path.to_path_buf(), error }),
     }
 }
 
