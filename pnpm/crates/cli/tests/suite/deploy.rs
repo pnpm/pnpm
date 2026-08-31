@@ -502,7 +502,13 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
     );
 
     pacquet.with_arg("install").assert().success();
-    let deploy_dir = root.path().join("deploy");
+    // The deployed lockfile stores the workspace sources as paths relative to
+    // the target this deploy is handed, while the reinstall below resolves
+    // them from the target's canonical path. Deploy to the canonical path so
+    // the two agree: a target reached through a symlink that changes the
+    // path's depth resolves those entries somewhere else entirely, which is
+    // its own defect and not what this test is about.
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
     pacquet_cmd(&workspace)
         .with_args(["--filter", "app", "deploy", "--prod"])
         .with_arg(&deploy_dir)
@@ -526,12 +532,11 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
         "the dedicated deploy lockfile should rewrite the linked workspace dependency: {lib_version}",
     );
 
-    let deploy_dir_real = fs::canonicalize(&deploy_dir).unwrap();
     let lib_real = fs::canonicalize(&lib_link).unwrap();
     assert!(
-        lib_real.starts_with(&deploy_dir_real),
+        lib_real.starts_with(&deploy_dir),
         "the deployed workspace dependency should stay inside {}: {}",
-        deploy_dir_real.display(),
+        deploy_dir.display(),
         lib_real.display(),
     );
 
@@ -539,9 +544,9 @@ fn shared_lockfile_deploy_supports_non_injected_workspace() {
     assert!(lib_modules.join("@pnpm.e2e/foo").exists());
     let nested_real = fs::canonicalize(lib_modules.join("nested")).unwrap();
     assert!(
-        nested_real.starts_with(&deploy_dir_real),
+        nested_real.starts_with(&deploy_dir),
         "a transitively linked workspace dependency should stay inside {}: {}",
-        deploy_dir_real.display(),
+        deploy_dir.display(),
         nested_real.display(),
     );
 
