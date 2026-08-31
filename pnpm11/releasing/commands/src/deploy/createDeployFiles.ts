@@ -327,8 +327,8 @@ function bindSingletonPeers (
       // optional map before this runs, so a peer the package depends on
       // optionally is invisible in the snapshot under `--no-optional`, and
       // binding it there would resurrect a dependency the flag excluded.
-      if (manifest.dependencies?.[peerName] != null || manifest.optionalDependencies?.[peerName] != null) continue
-      if (snapshot.dependencies?.[peerName] != null || snapshot.optionalDependencies?.[peerName] != null) continue
+      if (declaresDependency(manifest, peerName)) continue
+      if (declaresDependency(snapshot, peerName)) continue
       const candidates = references.get(peerName)
       // A peer the deployed graph does not provide at all stays unresolved,
       // exactly as it is in the workspace this deploy was taken from.
@@ -341,6 +341,21 @@ function bindSingletonPeers (
       snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
     }
   }
+}
+
+/**
+ * Whether `source` binds `name` through one of its runtime dependency maps.
+ *
+ * Own keys only: a package may legitimately be named `constructor` or
+ * `toString`, and a plain property read would find those on `Object.prototype`
+ * and report a binding that does not exist.
+ */
+function declaresDependency (
+  source: Pick<ProjectManifest, 'dependencies' | 'optionalDependencies'> | Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies'>,
+  name: string
+): boolean {
+  return (source.dependencies != null && Object.hasOwn(source.dependencies, name)) ||
+    (source.optionalDependencies != null && Object.hasOwn(source.optionalDependencies, name))
 }
 
 interface ConvertOptions {
