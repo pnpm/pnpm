@@ -17,7 +17,7 @@ fn write_executable(path: &std::path::Path, body: &str) {
     fs::set_permissions(path, perms).expect("chmod executable");
 }
 
-fn spawn_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
+fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
     let marker_json = serde_json::to_string(&marker_path.to_string_lossy()).expect("quote marker");
     let detached_script =
         format!("setTimeout(() => require('fs').writeFileSync({marker_json}, 'survived'), 500)");
@@ -25,6 +25,46 @@ fn spawn_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> Stri
     format!(
         "const {{ spawn }} = require('child_process'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); process.exit({parent_exit_code})",
     )
+}
+
+#[cfg(target_os = "windows")]
+fn make_long_lived_detached_node_script(pid_path: &Path) -> String {
+    let pid_path_json = serde_json::to_string(&pid_path.to_string_lossy()).expect("quote PID path");
+    let detached_script = format!(
+        "const fs = require('fs'); fs.writeFileSync({pid_path_json}, String(process.pid)); setTimeout(() => {{}}, 60000)",
+    );
+    let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
+    format!(
+        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); while (!fs.existsSync({pid_path_json})) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); process.exit(1)",
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn assert_process_exits(pid: u32) {
+    use windows_sys::Win32::{
+        Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT},
+        System::Threading::{
+            OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
+            WaitForSingleObject,
+        },
+    };
+
+    // SAFETY: the PID came from the detached child. A non-null handle is valid
+    // until it is closed below, and the requested access rights only wait for
+    // or terminate that child if the regression leaves it running.
+    unsafe {
+        let process = OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_TERMINATE, 0, pid);
+        if process.is_null() {
+            return;
+        }
+        let wait = WaitForSingleObject(process, 10_000);
+        if wait == WAIT_TIMEOUT {
+            TerminateProcess(process, 1);
+            WaitForSingleObject(process, 10_000);
+        }
+        CloseHandle(process);
+        assert_eq!(wait, WAIT_OBJECT_0, "the detached process should be cleaned up");
+    }
 }
 
 /// `pacquet exec <command>` resolves the command against the project's
@@ -161,7 +201,7 @@ fn exec_preserves_a_detached_process_after_success() {
         .with_arg("exec")
         .with_arg("node")
         .with_arg("-e")
-        .with_arg(spawn_detached_node_script(&marker_path, 0))
+        .with_arg(make_detached_node_script(&marker_path, 0))
         .assert()
         .success();
 
@@ -176,27 +216,25 @@ fn exec_preserves_a_detached_process_after_success() {
     drop(root);
 }
 
+#[cfg(target_os = "windows")]
 #[test]
-#[cfg_attr(
-    not(target_os = "windows"),
-    ignore = "only Windows Job Objects kill detached descendants"
-)]
 fn exec_cleans_up_a_detached_process_after_failure() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker_path = workspace.join("detached-marker.txt");
+    let pid_path = workspace.join("detached-pid.txt");
 
     pacquet
         .with_arg("exec")
         .with_arg("node")
         .with_arg("-e")
-        .with_arg(spawn_detached_node_script(&marker_path, 1))
+        .with_arg(make_long_lived_detached_node_script(&pid_path))
         .assert()
         .failure();
 
-    thread::sleep(Duration::from_secs(2));
-    let marker_exists = marker_path.exists();
-    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
-    assert!(!marker_exists, "the detached process should be cleaned up after a failed pnpm exec");
+    let pid = fs::read_to_string(&pid_path)
+        .expect("read detached process PID")
+        .parse()
+        .expect("parse detached process PID");
+    assert_process_exits(pid);
 
     drop(root);
 }
