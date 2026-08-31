@@ -237,6 +237,38 @@ async fn loose_mode_persists_excludes_without_prompting() {
 }
 
 #[tokio::test]
+async fn global_excludes_are_not_persisted_to_the_workspace_manifest() {
+    let dir = tempdir().expect("temp dir");
+    fs::write(
+        dir.path().join("pnpm-workspace.yaml"),
+        "minimumReleaseAgeExclude:\n  - local@1.0.0\n",
+    )
+    .expect("write workspace manifest");
+    let mut config = Config::new();
+    config.minimum_release_age = Some(60);
+    config.minimum_release_age_exclude =
+        Some(vec!["global-only".to_string(), "local@1.0.0".to_string()]);
+    let mut prompt = FakePrompt::default();
+
+    handle_minimum_release_age_violations_with::<SilentReporter, _>(
+        &config,
+        dir.path(),
+        &[violation("local", "2.0.0", "MINIMUM_RELEASE_AGE_VIOLATION")],
+        true,
+        true,
+        &mut prompt,
+    )
+    .await
+    .expect("loose mode always proceeds");
+
+    assert_eq!(
+        fs::read_to_string(dir.path().join("pnpm-workspace.yaml"))
+            .expect("read workspace manifest"),
+        "minimumReleaseAgeExclude:\n  - local@1.0.0 || 2.0.0\n",
+    );
+}
+
+#[tokio::test]
 async fn strict_approval_without_persistence_proceeds_but_leaves_the_workspace_manifest_unchanged()
 {
     recording_reporter!(reset_events, prompt_actions);

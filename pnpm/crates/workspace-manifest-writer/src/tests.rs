@@ -968,6 +968,21 @@ fn minimum_release_age_exclude_empty_removes_the_block() {
 }
 
 #[test]
+fn minimum_release_age_excludes_are_added_to_the_local_manifest_values() {
+    let added = ["local@2.0.0".to_string()];
+    let out = run_with(
+        Some("minimumReleaseAgeExclude:\n  - local@1.0.0\n"),
+        &UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: &added,
+            ..Default::default()
+        },
+    )
+    .expect("written");
+
+    assert_eq!(out, "minimumReleaseAgeExclude:\n  - local@1.0.0 || 2.0.0\n");
+}
+
+#[test]
 fn set_overrides_refuses_to_clobber_a_non_scalar_value() {
     let dir = TempDir::new().expect("temp dir");
     let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);

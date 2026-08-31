@@ -120,7 +120,7 @@ pub(crate) async fn fix_override(
         let added =
             resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
         if !added.is_empty() {
-            write_age_excludes(settings_dir, config, &added)?;
+            write_age_excludes(settings_dir, &added)?;
             let note = format!(
                 "\n\n{} entries were added to minimumReleaseAgeExclude to allow installing the patched versions:\n{}",
                 added.len(),
@@ -284,24 +284,23 @@ pub(crate) fn minimum_release_age_excludes(
     pnpm_config::version_policy::merge_package_version_specs(&specs).map_err(miette::Report::new)
 }
 
-/// Merge `added` into the existing `minimumReleaseAgeExclude` and persist the
-/// canonical result. Mirrors pnpm's `writeSettings` re-merge of
+/// Merge `added` into the project-local `minimumReleaseAgeExclude` and persist
+/// the canonical result. Mirrors pnpm's `writeSettings` re-merge of
 /// `[...existing, ...added]`.
 pub(crate) fn write_age_excludes(
     settings_dir: &std::path::Path,
-    config: &Config,
     added: &[String],
 ) -> miette::Result<()> {
-    let mut all = config.minimum_release_age_exclude.clone().unwrap_or_default();
-    all.extend(added.iter().cloned());
-    let merged = pnpm_config::version_policy::merge_package_version_specs(&all)
-        .map_err(miette::Report::new)?;
-    pnpm_workspace_manifest_writer::set_minimum_release_age_excludes(settings_dir, &merged).map_err(
-        |err| {
-            miette::Report::new(err)
-                .wrap_err("write minimumReleaseAgeExclude to pnpm-workspace.yaml")
+    pnpm_workspace_manifest_writer::update_workspace_manifest(
+        settings_dir,
+        &pnpm_workspace_manifest_writer::UpdateWorkspaceManifestOptions {
+            added_minimum_release_age_excludes: added,
+            ..Default::default()
         },
     )
+    .map_err(|err| {
+        miette::Report::new(err).wrap_err("write minimumReleaseAgeExclude to pnpm-workspace.yaml")
+    })
 }
 
 /// Merge the requested ignores into `auditConfig.ignoreGhsas` and persist
@@ -505,7 +504,7 @@ pub(crate) async fn fix_with_update<Reporter: self::Reporter + 'static>(
         let added =
             resolve_minimum_release_age_excludes(advisories, publish_infos, minimum_release_age)?;
         if !added.is_empty() {
-            write_age_excludes(settings_dir, state.config, &added)?;
+            write_age_excludes(settings_dir, &added)?;
         }
         added
     } else {
