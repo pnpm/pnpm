@@ -1,5 +1,5 @@
 use super::{
-    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_release_is_installable,
+    PNPM_EXE_PACKAGE_NAME, PNPM_PACKAGE_NAME, assert_pnpm_runs, assert_release_is_installable,
     exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, link_exe_platform_binary,
     package_dir, pnpm_package_to_install, reuse_cached_engine, run_install,
 };
@@ -166,6 +166,7 @@ fn links_the_host_platform_binary_over_an_extension_bearing_wrapper_target() {
 
     let dest = wrapper_dir.join("pnpm.exe");
     assert_eq!(fs::read(&dest).expect("read linked binary"), b"#!/bin/sh\necho pnpm\n");
+    assert_pnpm_runs(temp.path(), PNPM_PACKAGE_NAME, "12.0.0").expect("linked pnpm should run");
 }
 
 #[cfg(unix)]
