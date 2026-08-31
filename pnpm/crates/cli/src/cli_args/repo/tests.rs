@@ -20,6 +20,12 @@ async fn test_registry_package_name_defaults_to_latest() {
                 "version": "1.0.0",
                 "dist": { "tarball": "https://registry.example/acme-1.0.0.tgz" },
                 "repository": "https://github.com/acme/repo.git"
+            },
+            "2.0.0": {
+                "name": "acme",
+                "version": "2.0.0",
+                "dist": { "tarball": "https://registry.example/acme-2.0.0.tgz" },
+                "repository": "https://github.com/acme/next.git"
             }
         }
     })
