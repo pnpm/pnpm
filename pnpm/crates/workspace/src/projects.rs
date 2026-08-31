@@ -141,11 +141,9 @@ pub fn find_workspace_projects_no_check(
     }
 
     // wax's `not` takes a single pattern; combine the ignores with
-    // `wax::any` so the walk filters them all in one pass (ignoring
-    // `**/node_modules/**` and `**/bower_components/**`).
-    // Built once outside the per-pattern loop to avoid reparsing the
-    // constant ignores. Specialized paths borrow it, while generic walks
-    // clone it into each `Walk::not` call.
+    // `wax::any` so the walk filters them all in one pass. Built once
+    // outside the per-pattern loop to avoid reparsing the constant
+    // ignores.
     let ignore_template = wax::any(IGNORE_PATTERNS.iter().copied()).map_err(|err| {
         FindWorkspaceProjectsError::InvalidGlob {
             pattern: "<built-in ignore>".to_string(),
@@ -329,8 +327,6 @@ fn is_safe_relative_literal(pattern: &str) -> bool {
 }
 
 fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    // Generic glob walks match manifest files, so append every supported
-    // manifest basename to the normalized directory pattern.
     let Some(trimmed) = normalize_directory_pattern(pattern) else { return Vec::new() };
     PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
 }
@@ -445,9 +441,7 @@ fn is_ignored_manifest(
     user_negations: &wax::Any<'_>,
 ) -> bool {
     let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
-    built_in_ignores.is_match(relative)
-        || pathdiff::diff_paths(manifest_path, workspace_root)
-            .is_some_and(|relative| user_negations.is_match(relative.as_path()))
+    built_in_ignores.is_match(relative) || user_negations.is_match(relative)
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
