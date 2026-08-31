@@ -35,6 +35,23 @@ test('fetchShasumsFileCached() serves repeat reads from the cache', async () => 
   )).toBe(SHASUMS)
 })
 
+test('fetchShasumsFileCached() can bypass an existing URL cache entry', async () => {
+  const cacheDir = await temporaryDirectory()
+  let responseBody = SHASUMS
+  const { fetch, calls } = countingFetch({
+    [SHASUMS_URL]: () => new Response(responseBody),
+  })
+
+  const cachedContext = await fetchShasumsFileCached(fetch, SHASUMS_URL, { cacheDir })
+  responseBody = 'cafebabe'.repeat(8) + '  node-v22.11.0-linux-x64.tar.gz\n'
+  const isolatedContext = await fetchShasumsFileCached(fetch, SHASUMS_URL, { cacheDir, skipCache: true })
+  const stillCached = await fetchShasumsFileCached(fetch, SHASUMS_URL, { cacheDir })
+
+  expect(isolatedContext).not.toStrictEqual(cachedContext)
+  expect(stillCached).toStrictEqual(cachedContext)
+  expect(calls).toStrictEqual([SHASUMS_URL, SHASUMS_URL])
+})
+
 test('fetchVerifiedNodeShasumsFileCached() caches the body after verification and skips re-verification', async () => {
   const { signature, trustedKeys } = await signedShasums()
   const cacheDir = await temporaryDirectory()

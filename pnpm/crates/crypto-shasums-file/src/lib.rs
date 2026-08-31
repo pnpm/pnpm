@@ -237,13 +237,15 @@ pub async fn fetch_verified_node_shasums_file_cached(
 }
 
 /// Like [`fetch_verified_node_shasums_file_cached`], sending the supplied
-/// authorization value when the cache misses.
+/// authorization value. Authenticated responses bypass the URL-keyed cache so
+/// metadata cannot cross credential boundaries.
 pub async fn fetch_verified_node_shasums_file_cached_with_auth(
     http_client: &ThrottledClient,
     shasums_url: &str,
     cache_dir: Option<&Path>,
     authorization: Option<&str>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    let cache_dir = if authorization.is_some() { None } else { cache_dir };
     let signature_url = format!("{shasums_url}.sig");
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
         && let Some(signature) =
@@ -273,13 +275,15 @@ pub async fn fetch_shasums_file_cached(
 }
 
 /// Like [`fetch_shasums_file_cached`], sending the supplied authorization
-/// value when the cache misses.
+/// value. Authenticated responses bypass the URL-keyed cache so metadata
+/// cannot cross credential boundaries.
 pub async fn fetch_shasums_file_cached_with_auth(
     http_client: &ThrottledClient,
     shasums_url: &str,
     cache_dir: Option<&Path>,
     authorization: Option<&str>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    let cache_dir = if authorization.is_some() { None } else { cache_dir };
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }

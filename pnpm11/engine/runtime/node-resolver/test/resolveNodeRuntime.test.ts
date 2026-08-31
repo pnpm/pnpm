@@ -43,26 +43,36 @@ test.each([
   expect(resolution?.normalizedBareSpecifier).toBe(expected)
 })
 
-test('resolveNodeRuntime() authenticates release index and SHASUMS requests', async () => {
+test('resolveNodeRuntime() authenticates release index and SHASUMS requests without sharing cached metadata', async () => {
   const requests: Array<{ url: string, authHeaderValue?: string }> = []
   const authenticatedFetch: FetchFromRegistry = async (url, opts) => {
     requests.push({ url, authHeaderValue: opts?.authHeaderValue })
     return fetch(url)
   }
+  const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-auth-'))
+  try {
+    for (let run = 0; run < 2; run++) {
+      // eslint-disable-next-line no-await-in-loop
+      await resolveNodeRuntime({
+        fetchFromRegistry: authenticatedFetch,
+        getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+        nodeDownloadMirrors: { rc: MIRROR },
+        cacheDir,
+      }, {
+        alias: 'node',
+        bareSpecifier: 'runtime:rc/22',
+      })
+    }
 
-  await resolveNodeRuntime({
-    fetchFromRegistry: authenticatedFetch,
-    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
-    nodeDownloadMirrors: { rc: MIRROR },
-  }, {
-    alias: 'node',
-    bareSpecifier: 'runtime:rc/22',
-  })
-
-  expect(requests).toEqual([
-    { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
-    { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
-  ])
+    expect(requests).toEqual([
+      { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
+    ])
+  } finally {
+    await fs.promises.rm(cacheDir, { recursive: true, force: true })
+  }
 })
 
 const RELEASE_MIRROR = 'https://node.example/download/release/'

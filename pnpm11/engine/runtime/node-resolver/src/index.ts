@@ -75,7 +75,7 @@ export async function resolveNodeRuntime (
   }
   let variants: PlatformAssetResolution[]
   try {
-    variants = await readNodeAssets(fetch, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
+    variants = await readNodeAssets(fetch, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir, getAuthHeader: ctx.getAuthHeader })
   } catch (err: unknown) {
     // The exact-specifier pick skipped the release index, so a failed asset
     // read is ambiguous: the version may simply not exist. Consult the index
@@ -168,15 +168,16 @@ async function readNodeAssets (
     version: string
     releaseChannel: string
     cacheDir?: string
+    getAuthHeader?: GetAuthHeader
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir } = opts
+  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir, getAuthHeader } = opts
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
   // release keys embedded in pnpm. Only the `release` channel publishes a signed
   // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
   // so they cannot be verified this way.
-  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir })
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir, getAuthHeader })
 
   // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
   // since musl builds are not available on the official mirror. That URL is hardcoded (not
@@ -184,7 +185,7 @@ async function readNodeAssets (
   // over TLS rather than verified against the official release keys.
   if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
     try {
-      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir })
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir, getAuthHeader })
       assets.push(...muslAssets)
     } catch {
       // Musl variants may not be available for all Node.js versions (e.g. very old ones)
@@ -202,15 +203,20 @@ async function readNodeAssetsFromMirror (
     muslOnly: boolean
     verifySignature: boolean
     cacheDir?: string
+    getAuthHeader?: GetAuthHeader
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature, cacheDir } = opts
+  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature, getAuthHeader } = opts
   // The URL is pinned to one released version, which is what makes it
   // eligible for the SHASUMS disk cache.
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
+  const cacheOpts = {
+    cacheDir: opts.cacheDir,
+    skipCache: getAuthHeader?.(integritiesFileUrl) != null,
+  }
   const shasumsFileItems = verifySignature
-    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
-    : await fetchShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
+    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, cacheOpts)
+    : await fetchShasumsFileCached(fetch, integritiesFileUrl, cacheOpts)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   // The second capture group uses [^.-]+ to stop at a dash, so that the optional
   // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').

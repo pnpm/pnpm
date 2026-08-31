@@ -1,4 +1,5 @@
 ---
+"@pnpm/crypto.shasums-file": patch
 "@pnpm/engine.runtime.commands": patch
 "@pnpm/engine.runtime.node-resolver": patch
 "@pnpm/fetching.binary-fetcher": patch
