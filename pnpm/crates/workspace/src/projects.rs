@@ -211,10 +211,10 @@ pub fn find_workspace_projects_no_check(
                     message: err.to_string(),
                 })?;
 
-            let ignores = if names_a_dot_component(pattern) {
-                &ignore_template
-            } else {
-                &dot_pruning_ignore_template
+            let dot_access = dot_component_access(pattern);
+            let ignores = match dot_access {
+                DotComponentAccess::Pruned => &dot_pruning_ignore_template,
+                DotComponentAccess::Named(_) | DotComponentAccess::Unrestricted => &ignore_template,
             };
             let walk = glob.walk(walk_root).not(ignores.clone()).map_err(|err| {
                 FindWorkspaceProjectsError::InvalidGlob {
@@ -241,6 +241,11 @@ pub fn find_workspace_projects_no_check(
                     }
                 };
                 let manifest_path = entry.path();
+                if let DotComponentAccess::Named(named) = &dot_access
+                    && matched_a_dot_component_by_wildcard(manifest_path, walk_root, named)
+                {
+                    continue;
+                }
                 if pathdiff::diff_paths(manifest_path, workspace_root)
                     .is_some_and(|relative| user_negations.is_match(relative.as_path()))
                 {
@@ -305,7 +310,7 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 
 /// Prunes every path with a dot-prefixed component, so a wildcard cannot
 /// descend into `.git`, `.cache`, and friends. Applied only to patterns that
-/// do not name a dot component themselves — see [`names_a_dot_component`].
+/// do not name a dot component themselves — see [`DotComponentAccess`].
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
@@ -475,19 +480,45 @@ fn split_parent_prefix<'root, 'pattern>(
     Some((walk_root, rest))
 }
 
-/// Whether `pattern` spells out a dot-prefixed path component, as
-/// `packages/.cache/*` and `packages/.*/lib` both do.
+/// How `pattern` is allowed to reach dot-prefixed path components.
 ///
-/// A wildcard must not match a dot-prefixed component, but a pattern that
-/// names one must still reach it. Rather than teach the walk which component
-/// each wildcard consumed, a pattern that names any dot component keeps the
-/// unpruned ignores and matches dot components at *every* position. That is a
-/// superset of the glob's meaning, reachable only by asking for a dot
-/// component in the first place.
-fn names_a_dot_component(pattern: &str) -> bool {
-    pattern
-        .split('/')
-        .any(|component| component.starts_with('.') && component != "." && component != "..")
+/// A wildcard must never match a dot-prefixed component, but a pattern that
+/// spells one out must still reach it, and only it: in `packages/.cache/*/lib`
+/// the `*` stays subject to the usual rule.
+enum DotComponentAccess<'pattern> {
+    /// No segment names one, so they can be pruned during the walk.
+    Pruned,
+    /// Only these are reachable. Any other dot-prefixed component was matched
+    /// by a wildcard and has to be dropped from the results.
+    Named(Vec<&'pattern str>),
+    /// A dotted wildcard such as `.*` names components it cannot enumerate.
+    Unrestricted,
+}
+
+fn dot_component_access(pattern: &str) -> DotComponentAccess<'_> {
+    let mut named = Vec::new();
+    for segment in pattern.split('/') {
+        if !segment.starts_with('.') || segment == "." || segment == ".." {
+            continue;
+        }
+        if !is_literal_pattern(segment) {
+            return DotComponentAccess::Unrestricted;
+        }
+        named.push(segment);
+    }
+    if named.is_empty() { DotComponentAccess::Pruned } else { DotComponentAccess::Named(named) }
+}
+
+fn matched_a_dot_component_by_wildcard(
+    manifest_path: &Path,
+    walk_root: &Path,
+    named: &[&str],
+) -> bool {
+    manifest_path.strip_prefix(walk_root).unwrap_or(manifest_path).components().any(|component| {
+        let component = component.as_os_str();
+        starts_with_dot(component)
+            && !named.iter().any(|named| std::ffi::OsStr::new(named) == component)
+    })
 }
 
 fn starts_with_dot(name: &std::ffi::OsStr) -> bool {

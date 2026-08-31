@@ -656,3 +656,14 @@ fn discovers_a_project_whose_manifest_starts_with_a_utf8_bom() {
         .collect();
     assert_eq!(names, vec!["root".to_string(), "bom".to_string()]);
 }
+
+#[test]
+fn a_named_dot_directory_does_not_exempt_later_wildcards() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/.cache/plain/lib", "plain-lib");
+    make_project(tmp.path(), "packages/.cache/.hidden/lib", "hidden-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/.cache/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
+}
