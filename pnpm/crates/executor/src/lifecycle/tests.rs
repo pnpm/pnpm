@@ -1,12 +1,57 @@
-use super::{LifecycleScriptError, RunPostinstallHooks, run_postinstall_hooks};
+use super::{
+    LifecycleScriptError, RunPostinstallHooks, STREAMED_OUTPUT_CHUNK_BYTES, StreamedScript,
+    run_postinstall_hooks,
+};
 use crate::extend_path::ScriptsPrependNodePath;
 use pnpm_package_manifest::PackageManifestError;
 use pnpm_reporter::{
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, Reporter, SilentReporter,
 };
 use pretty_assertions::assert_eq;
-use std::{collections::HashMap, fs, sync::Mutex};
+use std::{collections::HashMap, fs, io::Cursor, sync::Mutex};
 use tempfile::tempdir;
+
+#[test]
+fn streamed_output_splits_newline_free_data_into_bounded_chunks() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().expect("lock").clear();
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().expect("lock").push(event.clone());
+        }
+    }
+
+    let streamed = StreamedScript {
+        dep_path: "test",
+        stage: "build",
+        wd: "test",
+        emit: RecordingReporter::emit,
+    };
+    let trailing_bytes = 17;
+    streamed
+        .pump_stream(
+            Cursor::new(vec![b'a'; STREAMED_OUTPUT_CHUNK_BYTES + trailing_bytes]),
+            LifecycleStdio::Stdout,
+        )
+        .join()
+        .expect("output pump");
+
+    let line_lengths: Vec<_> = EVENTS
+        .lock()
+        .expect("lock")
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Lifecycle(log) => match &log.message {
+                LifecycleMessage::Stdio { line, .. } => Some(line.len()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    assert_eq!(line_lengths, [STREAMED_OUTPUT_CHUNK_BYTES, trailing_bytes]);
+}
 
 /// Recording-fake reporter that pushes every emitted [`LogEvent`] into
 /// `EVENTS`. The static lives in this test function's own scope, so
