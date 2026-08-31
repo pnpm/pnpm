@@ -266,10 +266,14 @@ pub fn resolve_config(
         return Ok(*config);
     }
     let config = build_config(dir, overlay)?;
-    Ok(match config_cache().entry(key) {
-        Entry::Occupied(entry) => *entry.get(),
+    Ok(intern_config(key, config))
+}
+
+fn intern_config(key: u64, config: Config) -> &'static Config {
+    match config_cache().entry(key) {
+        Entry::Occupied(entry) => entry.get(),
         Entry::Vacant(entry) => *entry.insert(config.leak()),
-    })
+    }
 }
 
 fn build_config(dir: &Path, overlay: &ConfigOverlay) -> Result<Config, LoadWorkspaceYamlError> {

@@ -1,30 +1,34 @@
 use std::{
     collections::{BTreeMap, HashSet},
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Barrier},
     thread,
 };
 
 use super::{
-    ConfigOverlay, cache_key, overlay_default_registry, pin_unkeyed_header, resolve_config,
+    ConfigOverlay, build_config, cache_key, config_cache, intern_config, overlay_default_registry,
+    pin_unkeyed_header,
 };
 
 #[test]
-fn concurrent_equal_configs_share_one_interned_reference() {
+fn concurrent_publication_retains_one_interned_config() {
     const CALLER_COUNT: usize = 32;
     let temp_dir = tempfile::tempdir().expect("create temporary config directory");
-    let dir = Arc::new(PathBuf::from(temp_dir.path()));
-    let start = Arc::new(Barrier::new(CALLER_COUNT));
+    let overlay = ConfigOverlay::default();
+    let key = cache_key(temp_dir.path(), &overlay);
+    assert!(!config_cache().contains_key(&key));
+
+    let configs = (0..CALLER_COUNT)
+        .map(|_| build_config(temp_dir.path(), &overlay).expect("build config"))
+        .collect::<Vec<_>>();
+    let publish = Arc::new(Barrier::new(CALLER_COUNT));
 
     let mut handles = Vec::with_capacity(CALLER_COUNT);
-    for _ in 0..CALLER_COUNT {
-        let dir = Arc::clone(&dir);
-        let start = Arc::clone(&start);
+    for config in configs {
+        let publish = Arc::clone(&publish);
         handles.push(thread::spawn(move || {
-            start.wait();
-            resolve_config(&dir, &ConfigOverlay::default())
-                .map(|config| std::ptr::from_ref(config).addr())
-                .expect("resolve config")
+            publish.wait();
+            std::ptr::from_ref(intern_config(key, config)).addr()
         }));
     }
 
@@ -34,6 +38,11 @@ fn concurrent_equal_configs_share_one_interned_reference() {
         .collect::<HashSet<_>>();
 
     assert_eq!(config_addresses.len(), 1);
+    let cached_address = config_cache()
+        .get(&key)
+        .map(|config| std::ptr::from_ref(*config).addr())
+        .expect("config should be retained in cache");
+    assert_eq!(config_addresses.iter().next().copied(), Some(cached_address));
 }
 
 /// Two independently constructed overlays with identical map contents must
