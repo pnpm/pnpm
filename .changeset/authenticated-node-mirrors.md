@@ -1,8 +1,9 @@
 ---
 "@pnpm/crypto.shasums-file": patch
 "@pnpm/engine.runtime.commands": patch
-"@pnpm/engine.runtime.node-resolver": patch
+"@pnpm/engine.runtime.node-resolver": minor
 "@pnpm/fetching.binary-fetcher": patch
+"@pnpm/fetching.tarball-fetcher": patch
 "@pnpm/installing.client": patch
 "@pnpm/resolving.default-resolver": patch
 "pacquet": patch

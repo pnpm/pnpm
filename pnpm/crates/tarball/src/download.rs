@@ -7,9 +7,10 @@ use super::{
     Arc, Duration, GZIP_MAGIC, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, NetworkError,
     PathBuf, PrefetchedCasPaths, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys, TarballError,
-    VerifyChecksumError, allocate_tarball_buffer, body_chunk_channel, extract_gzipped_tarball,
-    local_file_tarball_path, non_gzip_body_error, open_local_tarball, post_download_semaphore,
-    read_local_tarball_buffer, stream_extract_gzipped_channel, streaming_extract_semaphore,
+    VerifyChecksumError, allocate_tarball_buffer, auth_header_for_package_download,
+    body_chunk_channel, extract_gzipped_tarball, local_file_tarball_path, non_gzip_body_error,
+    open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
+    stream_extract_gzipped_channel, streaming_extract_semaphore,
 };
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
@@ -675,7 +676,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // Resolve the per-URL auth header and attach it. Tarball hosts that
     // differ from the metadata host still pick up the header keyed at
     // the registry's nerf-darted URI.
-    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
+    if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
         request = request.header("authorization", value);
     }
 

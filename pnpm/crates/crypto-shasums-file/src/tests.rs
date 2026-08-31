@@ -2,11 +2,13 @@ use pretty_assertions::assert_eq;
 
 use super::{
     FetchVerifiedNodeShasumsError, PickFileChecksumError, ShasumsFileItem, ShasumsTrust,
-    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth, fetch_verified_node_shasums,
-    fetch_verified_node_shasums_file_cached, fetch_verified_node_shasums_file_cached_with_auth,
+    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
+    fetch_verified_node_shasums, fetch_verified_node_shasums_file_cached,
+    fetch_verified_node_shasums_file_cached_with_auth_headers,
     is_signed_by_trusted_node_release_key, parse_shasums_file,
     pick_file_checksum_from_shasums_file, read_cached_shasums, write_cached_shasums,
 };
+use pnpm_network::{AuthHeaders, nerf_dart};
 
 #[test]
 fn parses_rows_into_sri_encoded_integrities() {
@@ -186,7 +188,7 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
     let mut server = mockito::Server::new_async().await;
     let shasums = server
         .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt")
-        .match_header("authorization", "Bearer mirror-token")
+        .match_header("authorization", "Bearer shasums-token")
         .with_status(200)
         .with_body(NODE_22_11_0_SHASUMS)
         .expect(2)
@@ -194,7 +196,7 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
         .await;
     let signature = server
         .mock("GET", "/download/release/v22.11.0/SHASUMS256.txt.sig")
-        .match_header("authorization", "Bearer mirror-token")
+        .match_header("authorization", "Bearer signature-token")
         .with_status(200)
         .with_body(node_22_11_0_signature())
         .expect(2)
@@ -203,13 +205,17 @@ async fn authenticated_verified_fetch_bypasses_the_cache() {
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/release/v22.11.0/SHASUMS256.txt", server.url());
+    let auth_headers = AuthHeaders::from_creds_map([
+        (nerf_dart(&format!("{url}/")), "Bearer shasums-token".to_string()),
+        (nerf_dart(&format!("{url}.sig/")), "Bearer signature-token".to_string()),
+    ]);
 
     for _ in 0..2 {
-        fetch_verified_node_shasums_file_cached_with_auth(
+        fetch_verified_node_shasums_file_cached_with_auth_headers(
             &client,
             &url,
             Some(cache_dir.path()),
-            Some("Bearer mirror-token"),
+            &auth_headers,
         )
         .await
         .expect("fetch and verify");
@@ -291,6 +297,8 @@ async fn authenticated_plain_fetch_ignores_and_preserves_the_url_cache() {
     let cache_dir = tempfile::tempdir().expect("create temp cache dir");
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let url = format!("{}/download/v1.2.3/SHASUMS256.txt", server.url());
+    let auth_headers =
+        AuthHeaders::from_creds_map([(nerf_dart(&url), "Bearer mirror-token".to_string())]);
     let cached_body =
         "ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  cached.tar.gz\n";
     write_cached_shasums(
@@ -300,11 +308,11 @@ async fn authenticated_plain_fetch_ignores_and_preserves_the_url_cache() {
         cached_body.as_bytes(),
     );
 
-    let fetched = fetch_shasums_file_cached_with_auth(
+    let fetched = fetch_shasums_file_cached_with_auth_headers(
         &client,
         &url,
         Some(cache_dir.path()),
-        Some("Bearer mirror-token"),
+        &auth_headers,
     )
     .await
     .expect("fetch authenticated body");

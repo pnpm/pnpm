@@ -212,7 +212,8 @@ async function readNodeAssetsFromMirror (
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
   const cacheOpts = {
     cacheDir: opts.cacheDir,
-    skipCache: getAuthHeader?.(integritiesFileUrl) != null,
+    skipCache: getSecureAuthHeader(getAuthHeader, integritiesFileUrl) != null ||
+      getSecureAuthHeader(getAuthHeader, `${integritiesFileUrl}.sig`) != null,
   }
   const shasumsFileItems = verifySignature
     ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, cacheOpts)
@@ -334,8 +335,20 @@ function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeader?: Get
   if (getAuthHeader == null) return fetch
   return (url, opts) => fetch(url, {
     ...opts,
-    authHeaderValue: getAuthHeader(url),
+    authHeaderValue: getSecureAuthHeader(getAuthHeader, url),
   })
+}
+
+function getSecureAuthHeader (getAuthHeader: GetAuthHeader | undefined, url: string): string | undefined {
+  const authHeaderValue = getAuthHeader?.(url)
+  if (authHeaderValue == null) return undefined
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
+  return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.')
 }
 
 function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {

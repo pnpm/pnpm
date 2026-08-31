@@ -76,7 +76,7 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
           url: resolution.url,
           integrity: resolution.integrity,
           basename: resolution.prefix ?? '',
-          authHeaderValue: ctx.getAuthHeader?.(resolution.url),
+          authHeaderValue: getSecureNodeMirrorAuthHeader(ctx.getAuthHeader, resolution.url, opts.pkg.name),
           ignoreEntry: archiveFilter?.regex,
         }, tempLocation)
         fetchResult = await addFilesFromDir({
@@ -102,6 +102,18 @@ export function createBinaryFetcher (ctx: CreateBinaryFetcherOptions): { binary:
   return {
     binary: fetchBinary,
   }
+}
+
+function getSecureNodeMirrorAuthHeader (
+  getAuthHeader: GetAuthHeader | undefined,
+  url: string,
+  packageName: string | undefined
+): string | undefined {
+  const authHeaderValue = getAuthHeader?.(url)
+  if (authHeaderValue == null || packageName !== 'node') return authHeaderValue
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || parsed.hostname.startsWith('127.')) return authHeaderValue
+  return undefined
 }
 
 export interface AssetInfo {

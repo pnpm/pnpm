@@ -16,8 +16,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached_with_auth,
-    fetch_verified_node_shasums_file_cached_with_auth,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError,
+    fetch_shasums_file_cached_with_auth_headers,
+    fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
     BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PlatformAssetResolution,
@@ -451,22 +452,21 @@ async fn read_node_assets_from_mirror(
     // The URL is pinned to one released version, which is what makes it
     // eligible for the SHASUMS disk cache.
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
-    let authorization = auth_headers.for_url(&integrities_url);
     let items = if verify_signature {
-        fetch_verified_node_shasums_file_cached_with_auth(
+        fetch_verified_node_shasums_file_cached_with_auth_headers(
             http_client,
             &integrities_url,
             cache_dir,
-            authorization.as_deref(),
+            auth_headers,
         )
         .await
         .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
     } else {
-        fetch_shasums_file_cached_with_auth(
+        fetch_shasums_file_cached_with_auth_headers(
             http_client,
             &integrities_url,
             cache_dir,
-            authorization.as_deref(),
+            auth_headers,
         )
         .await
         .map_err(NodeResolverError::FetchShasumsFile)?

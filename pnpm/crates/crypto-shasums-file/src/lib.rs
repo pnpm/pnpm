@@ -29,7 +29,7 @@ use pgp::{
     composed::{Deserializable, DetachedSignature, SignedPublicKey},
     types::KeyDetails,
 };
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 
 use disk_cache::{ShasumsTrust, read_cached_bytes, read_cached_shasums, write_cached_shasums};
 use node_release_keys::{NODE_RELEASE_KEYS, NodeReleaseKey};
@@ -176,7 +176,7 @@ pub async fn fetch_verified_node_shasums(
     shasums_url: &str,
 ) -> Result<String, FetchVerifiedNodeShasumsError> {
     let (body, _signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None).await?;
+        fetch_verified_node_shasums_with_signature(http_client, shasums_url, None, None).await?;
     Ok(body)
 }
 
@@ -186,14 +186,20 @@ pub async fn fetch_verified_node_shasums(
 async fn fetch_verified_node_shasums_with_signature(
     http_client: &ThrottledClient,
     shasums_url: &str,
-    authorization: Option<&str>,
+    shasums_authorization: Option<&str>,
+    signature_authorization: Option<&str>,
 ) -> Result<(String, Vec<u8>), FetchVerifiedNodeShasumsError> {
     let shasums_bytes =
-        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", authorization).await?;
-    let signature_url = format!("{shasums_url}.sig");
-    let signature_bytes =
-        fetch_node_shasums_bytes(http_client, &signature_url, "SHASUMS256.txt.sig", authorization)
+        fetch_node_shasums_bytes(http_client, shasums_url, "SHASUMS256.txt", shasums_authorization)
             .await?;
+    let signature_url = format!("{shasums_url}.sig");
+    let signature_bytes = fetch_node_shasums_bytes(
+        http_client,
+        &signature_url,
+        "SHASUMS256.txt.sig",
+        signature_authorization,
+    )
+    .await?;
 
     if !is_signed_by_trusted_node_release_key(&shasums_bytes, &signature_bytes)? {
         return Err(FetchVerifiedNodeShasumsError::SignatureInvalid {
@@ -232,20 +238,45 @@ pub async fn fetch_verified_node_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    fetch_verified_node_shasums_file_cached_with_auth(http_client, shasums_url, cache_dir, None)
+    fetch_verified_node_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None, None)
         .await
 }
 
-/// Like [`fetch_verified_node_shasums_file_cached`], sending the supplied
-/// authorization value. Authenticated responses bypass the URL-keyed cache so
-/// metadata cannot cross credential boundaries.
-pub async fn fetch_verified_node_shasums_file_cached_with_auth(
+/// Like [`fetch_verified_node_shasums_file_cached`], selecting URL-scoped
+/// authorization independently for the body and detached signature.
+/// Authenticated responses bypass the URL-keyed cache so metadata cannot cross
+/// credential boundaries.
+pub async fn fetch_verified_node_shasums_file_cached_with_auth_headers(
     http_client: &ThrottledClient,
     shasums_url: &str,
     cache_dir: Option<&Path>,
-    authorization: Option<&str>,
+    auth_headers: &AuthHeaders,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
-    let cache_dir = if authorization.is_some() { None } else { cache_dir };
+    let signature_url = format!("{shasums_url}.sig");
+    let shasums_authorization = auth_headers.for_secure_url(shasums_url);
+    let signature_authorization = auth_headers.for_secure_url(&signature_url);
+    fetch_verified_node_shasums_file_cached_inner(
+        http_client,
+        shasums_url,
+        cache_dir,
+        shasums_authorization.as_deref(),
+        signature_authorization.as_deref(),
+    )
+    .await
+}
+
+async fn fetch_verified_node_shasums_file_cached_inner(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    shasums_authorization: Option<&str>,
+    signature_authorization: Option<&str>,
+) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
+    let cache_dir = if shasums_authorization.is_some() || signature_authorization.is_some() {
+        None
+    } else {
+        cache_dir
+    };
     let signature_url = format!("{shasums_url}.sig");
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
         && let Some(signature) =
@@ -254,8 +285,13 @@ pub async fn fetch_verified_node_shasums_file_cached_with_auth(
     {
         return Ok(parse_shasums_file(&body));
     }
-    let (body, signature) =
-        fetch_verified_node_shasums_with_signature(http_client, shasums_url, authorization).await?;
+    let (body, signature) = fetch_verified_node_shasums_with_signature(
+        http_client,
+        shasums_url,
+        shasums_authorization,
+        signature_authorization,
+    )
+    .await?;
     write_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url, body.as_bytes());
     write_cached_shasums(cache_dir, ShasumsTrust::Verified, &signature_url, &signature);
     Ok(parse_shasums_file(&body))
@@ -271,13 +307,24 @@ pub async fn fetch_shasums_file_cached(
     shasums_url: &str,
     cache_dir: Option<&Path>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    fetch_shasums_file_cached_with_auth(http_client, shasums_url, cache_dir, None).await
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, None).await
 }
 
-/// Like [`fetch_shasums_file_cached`], sending the supplied authorization
-/// value. Authenticated responses bypass the URL-keyed cache so metadata
+/// Like [`fetch_shasums_file_cached`], selecting URL-scoped authorization for
+/// the request. Authenticated responses bypass the URL-keyed cache so metadata
 /// cannot cross credential boundaries.
-pub async fn fetch_shasums_file_cached_with_auth(
+pub async fn fetch_shasums_file_cached_with_auth_headers(
+    http_client: &ThrottledClient,
+    shasums_url: &str,
+    cache_dir: Option<&Path>,
+    auth_headers: &AuthHeaders,
+) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
+    let authorization = auth_headers.for_secure_url(shasums_url);
+    fetch_shasums_file_cached_inner(http_client, shasums_url, cache_dir, authorization.as_deref())
+        .await
+}
+
+async fn fetch_shasums_file_cached_inner(
     http_client: &ThrottledClient,
     shasums_url: &str,
     cache_dir: Option<&Path>,

@@ -383,6 +383,24 @@ impl AuthHeaders {
         self.for_url_with_package(url, None)
     }
 
+    /// Resolve an `Authorization` header only when `url` uses TLS or targets
+    /// the local machine. The loopback exception keeps local registry proxies
+    /// usable without exposing credentials on a network link.
+    #[must_use]
+    pub fn for_secure_url(&self, url: &str) -> Option<String> {
+        self.for_secure_url_with_package(url, None)
+    }
+
+    /// Package-aware counterpart to [`Self::for_secure_url`].
+    #[must_use]
+    pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        let parsed = ParsedUrl::parse(url)?;
+        if !parsed.scheme.eq_ignore_ascii_case("https") && !is_loopback_host(parsed.host) {
+            return None;
+        }
+        self.for_url_with_package(url, pkg_name)
+    }
+
     /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
     /// selection. The returned [`AuthHeaders`] keeps its
     /// client-forwarded credentials (so [`Self::to_by_scope`] still
@@ -719,6 +737,14 @@ impl<'a> ParsedUrl<'a> {
 
 fn is_default_port(scheme: &str, port: &str) -> bool {
     matches!((scheme, port), ("https", "443") | ("http", "80"))
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .trim_matches(['[', ']'])
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for

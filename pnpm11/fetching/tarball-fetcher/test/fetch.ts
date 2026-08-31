@@ -747,6 +747,44 @@ test('does not require package name for tarball auth lookup', async () => {
   expect(calls).toContainEqual({ uri: resolution.tarball, pkgName: undefined })
 })
 
+test('does not send Node.js mirror credentials over remote HTTP', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({
+    path: '/download/node.tgz',
+    method: 'GET',
+    headers: headers => {
+      expect(headers.authorization).toBeUndefined()
+      return true
+    },
+  }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const download = createDownloader(fetchFromRegistry, {
+    retry: {
+      maxTimeout: 100,
+      minTimeout: 0,
+      retries: 1,
+    },
+  })
+  const url = `${registry}/download/node.tgz`
+
+  const index = await download(url, {
+    getAuthHeaderByURI: () => 'Bearer mirror-token',
+    cafs,
+    storeIndex,
+    filesIndexFile,
+    integrity: tarballIntegrity,
+    appendManifest: { name: 'node', version: '22.0.0' },
+  })
+
+  expect(index).toBeTruthy()
+})
+
 async function getFileIntegrity (filename: string) {
   return (await ssri.fromStream(fs.createReadStream(filename))).toString()
 }

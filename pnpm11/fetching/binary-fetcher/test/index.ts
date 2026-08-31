@@ -373,6 +373,36 @@ describe('extractZipToTarget security', () => {
 })
 
 describe('createBinaryFetcher', () => {
+  it.each([
+    ['https://mirror.example/node.zip', 'Bearer mirror-token'],
+    ['http://mirror.example/node.zip', undefined],
+  ])('selects secure Node.js mirror auth for %s', async (url, expectedAuthHeaderValue) => {
+    const fetch = ((_url: string, opts?: { authHeaderValue?: string }) => {
+      expect(opts?.authHeaderValue).toBe(expectedAuthHeaderValue)
+      throw new Error('stop after request inspection')
+    }) as never
+    const binaryFetcher = createBinaryFetcher({
+      fetch,
+      fetchFromRemoteTarball: fetch,
+      getAuthHeader: () => 'Bearer mirror-token',
+      storeIndex: {} as never,
+    }).binary
+
+    await expect(binaryFetcher({
+      tempDir: async () => temporaryDirectory(),
+    } as never, {
+      type: 'binary',
+      archive: 'zip',
+      bin: { node: 'node.exe' },
+      integrity: 'sha512-unused',
+      url,
+    }, {
+      filesIndexFile: 'unused',
+      lockfileDir: 'unused',
+      pkg: { name: 'node', version: '22.0.0' },
+    })).rejects.toThrow('stop after request inspection')
+  })
+
   it('rejects an invalid archiveFilters regex at creation time', () => {
     const noop = (() => {
       throw new Error('should not be called')

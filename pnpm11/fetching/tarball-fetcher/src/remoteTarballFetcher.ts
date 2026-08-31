@@ -67,7 +67,11 @@ export function createDownloader (
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
-    const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
+    const authHeaderValue = getSecureNodeMirrorAuthHeader(
+      opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name }),
+      url,
+      opts.appendManifest?.name
+    )
 
     const downloadRetryOpts = { ...retryOpts, ...opts.retry }
     const op = retry.operation(downloadRetryOpts)
@@ -226,6 +230,17 @@ export function createDownloader (
       })
     }
   }
+}
+
+function getSecureNodeMirrorAuthHeader (
+  authHeaderValue: string | undefined,
+  url: string,
+  appendedPackageName: string | undefined
+): string | undefined {
+  if (authHeaderValue == null || appendedPackageName !== 'node') return authHeaderValue
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || parsed.hostname.startsWith('127.')) return authHeaderValue
+  return undefined
 }
 
 // Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.

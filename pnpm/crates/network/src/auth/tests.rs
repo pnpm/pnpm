@@ -549,6 +549,16 @@ fn returns_none_for_unmatched_url_in_empty_map() {
     assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
 }
 
+#[test]
+fn secure_lookup_rejects_plain_http_but_allows_loopback() {
+    let headers = build(&[("//reg.com/", "Bearer remote"), ("//127.0.0.1/", "Bearer local")]);
+    assert_eq!(headers.for_secure_url("http://reg.com/pkg"), None);
+    let remote = headers.for_secure_url("https://reg.com/pkg");
+    assert_eq!(remote.as_deref(), Some("Bearer remote"));
+    let local = headers.for_secure_url("http://127.0.0.1/pkg");
+    assert_eq!(local.as_deref(), Some("Bearer local"));
+}
+
 /// Specifically exercises the trailing-slash-append branch in
 /// [`AuthHeaders::for_url`]: the URL ends without a `/` *and*
 /// names a path segment (`/scope`). Without the append,

@@ -8,8 +8,9 @@ use super::{
     Arc, Component, Cursor, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant,
     NetworkError, PathBuf, PrefetchedCasPaths, Read, STREAM_ENTRY_BUFFER_MAX, TarballError,
     UNIX_EPOCH, VerifyChecksumError, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, emit_progress_found_in_store, is_transient_error,
-    load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
+    apply_placeholder_manifest, auth_header_for_package_download, emit_progress_found_in_store,
+    is_transient_error, load_cached_cas_paths, post_download_semaphore,
+    tarball_error_to_request_retry,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -300,7 +301,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     // would 401 without this. Keeps parity with pnpm's binary
     // fetcher which goes through the same `fetchFromRegistry` /
     // auth-header plumbing.
-    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
+    if let Some(value) = auth_header_for_package_download(auth_headers, package_url, package_id) {
         request = request.header("authorization", value);
     }
 

@@ -156,7 +156,7 @@ async fn fetch_all_versions(
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
     let mut request = http_client.acquire_for_url(&url).await.get(&url);
-    if let Some(authorization) = auth_headers.for_url(&url) {
+    if let Some(authorization) = auth_headers.for_secure_url(&url) {
         request = request.header("authorization", authorization);
     }
     let response =

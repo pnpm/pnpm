@@ -75,6 +75,35 @@ test('resolveNodeRuntime() authenticates release index and SHASUMS requests with
   }
 })
 
+test('resolveNodeRuntime() omits credentials for a remote HTTP mirror', async () => {
+  const mirror = 'http://node.example/download/rc/'
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const httpFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    if (url === `${mirror}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    if (url === `${mirror}v22.11.0/SHASUMS256.txt`) {
+      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  await resolveNodeRuntime({
+    fetchFromRegistry: httpFetch,
+    getAuthHeader: () => 'Bearer mirror-token',
+    nodeDownloadMirrors: { rc: mirror },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22',
+  })
+
+  expect(requests).toEqual([
+    { url: `${mirror}index.json`, authHeaderValue: undefined },
+    { url: `${mirror}v22.11.0/SHASUMS256.txt`, authHeaderValue: undefined },
+  ])
+})
+
 const RELEASE_MIRROR = 'https://node.example/download/release/'
 
 // An exact-specifier resolve skips the release index, so a nonexistent
