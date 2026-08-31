@@ -116,6 +116,10 @@ struct ProjectInfo {
     root_dir: PathBuf,
     name: Option<String>,
     peer_dependencies: Vec<PkgName>,
+    /// Names the project declares as prod or optional dependencies. A peer it
+    /// depends on itself is already bound by that edge, whether or not the
+    /// deploy's group filter kept the edge in the deployed snapshot.
+    declared_dependencies: HashSet<PkgName>,
 }
 
 struct SelectedProject {
@@ -460,13 +464,13 @@ fn select_project(
         .map(|project| ProjectInfo {
             root_dir: lexical_normalize(&project.root_dir),
             name: project.manifest.value().get("name").and_then(Value::as_str).map(str::to_string),
-            peer_dependencies: project
-                .manifest
-                .value()
-                .get("peerDependencies")
-                .and_then(Value::as_object)
-                .map(|peers| peers.keys().filter_map(|peer| peer.parse().ok()).collect())
-                .unwrap_or_default(),
+            peer_dependencies: manifest_dependency_names(&project.manifest, &["peerDependencies"]),
+            declared_dependencies: manifest_dependency_names(
+                &project.manifest,
+                &["dependencies", "optionalDependencies"],
+            )
+            .into_iter()
+            .collect(),
         })
         .collect::<Vec<_>>();
 
@@ -725,6 +729,16 @@ fn apply_deploy_hook(manifest_path: &Path) -> miette::Result<()> {
         .wrap_err("read deployed manifest")?;
     apply_deploy_manifest_hook(manifest.value_mut());
     manifest.save().wrap_err("write deployed manifest")
+}
+
+fn manifest_dependency_names(manifest: &PackageManifest, groups: &[&str]) -> Vec<PkgName> {
+    groups
+        .iter()
+        .filter_map(|group| manifest.value().get(group))
+        .filter_map(Value::as_object)
+        .flat_map(|dependencies| dependencies.keys())
+        .filter_map(|name| name.parse().ok())
+        .collect()
 }
 
 fn create_deploy_files(
@@ -1015,6 +1029,13 @@ fn bind_singleton_peers(
             // Either map already binding the peer counts: re-binding one the
             // package declares as an optional dependency would copy it into the
             // required map and quietly promote it.
+            // The graph prune clears the optional map before this runs, so a
+            // peer the package depends on optionally is invisible in the
+            // snapshot under `--no-optional`. Binding it there would resurrect
+            // a dependency the flag excluded.
+            if project.declared_dependencies.contains(peer) {
+                continue;
+            }
             let bound = snapshots.get(package_key).is_some_and(|snapshot| {
                 [snapshot.dependencies.as_ref(), snapshot.optional_dependencies.as_ref()]
                     .into_iter()

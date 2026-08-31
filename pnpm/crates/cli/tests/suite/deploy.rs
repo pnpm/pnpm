@@ -747,6 +747,53 @@ fn shared_lockfile_deploy_keeps_an_optional_peer_optional() {
     drop((root, mock_instance));
 }
 
+/// `--no-optional` clears the optional map before the binding step, so the
+/// binder cannot see that the peer was already bound by an optional edge.
+/// Re-binding it there would resurrect a dependency the flag excluded.
+#[test]
+fn shared_lockfile_deploy_does_not_resurrect_an_excluded_optional_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_peer_workspace(&workspace);
+    write_project(
+        &workspace,
+        "lib",
+        &serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "files": ["index.js"],
+            "peerDependencies": { "@pnpm.e2e/peer-a": "*" },
+            "optionalDependencies": { "@pnpm.e2e/peer-a": "1.0.0" },
+        }),
+    );
+
+    pacquet.with_arg("install").assert().success();
+    let deploy_dir = fs::canonicalize(root.path()).unwrap().join("deploy");
+    pacquet_cmd(&workspace)
+        .with_args(["--filter", "app", "deploy", "--no-optional"])
+        .with_arg(&deploy_dir)
+        .assert()
+        .success();
+
+    let deploy_lockfile = Lockfile::load_wanted_from_dir(&deploy_dir).unwrap().unwrap();
+    let peer: PkgName = "@pnpm.e2e/peer-a".parse().unwrap();
+    let lib = deploy_lockfile
+        .snapshots
+        .as_ref()
+        .expect("deploy snapshots")
+        .iter()
+        .find(|(key, _)| key.name.to_string() == "lib")
+        .map(|(_, snapshot)| snapshot)
+        .expect("the deployed lib snapshot");
+    assert!(
+        !lib.dependencies.as_ref().is_some_and(|deps| deps.contains_key(&peer)),
+        "an excluded optional peer must not come back as a required dependency: {lib:#?}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// Adds a second workspace project that pulls in a different version of the
 /// peer, so the deployed graph offers two candidates for `lib`'s binding.
 fn write_ambiguous_peer_workspace(workspace: &Path) {

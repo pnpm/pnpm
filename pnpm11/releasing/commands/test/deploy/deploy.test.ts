@@ -454,6 +454,59 @@ test('native deploy keeps an optional peer of a linked workspace package optiona
   expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
 })
 
+// --no-optional clears the optional map before the binding step, so the binder
+// cannot see that the peer was already bound by an optional edge. Re-binding it
+// there would resurrect a dependency the flag excluded.
+test('native deploy does not resurrect an optional peer excluded by --no-optional', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      optionalDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, optional: false, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const snapshots = assertProject(path.resolve('deploy')).readLockfile().snapshots
+  const [, lib] = Object.entries(snapshots).find(([key]) => key.startsWith('project-2@file:'))!
+  expect(lib.dependencies?.['@pnpm.e2e/peer-a']).toBeUndefined()
+})
+
 // The remedy ERR_PNPM_DEPLOY_AMBIGUOUS_PEER suggests: collapsing the peer to one
 // version makes the binding unambiguous, so the deploy goes through without
 // injecting the workspace or falling back to the legacy implementation.

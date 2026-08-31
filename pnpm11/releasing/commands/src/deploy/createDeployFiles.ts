@@ -323,9 +323,11 @@ function bindSingletonPeers (
     const snapshot = packages[depPath]
     if (snapshot == null) continue
     for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
-      // Either map already binding the peer counts: re-binding one the package
-      // declares as an optional dependency would copy it into the required map
-      // and quietly promote it.
+      // Consult the manifest, not just the snapshot: the graph prune clears the
+      // optional map before this runs, so a peer the package depends on
+      // optionally is invisible in the snapshot under `--no-optional`, and
+      // binding it there would resurrect a dependency the flag excluded.
+      if (manifest.dependencies?.[peerName] != null || manifest.optionalDependencies?.[peerName] != null) continue
       if (snapshot.dependencies?.[peerName] != null || snapshot.optionalDependencies?.[peerName] != null) continue
       const candidates = references.get(peerName)
       // A peer the deployed graph does not provide at all stays unresolved,
