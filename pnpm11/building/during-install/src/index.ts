@@ -7,6 +7,7 @@ import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
@@ -423,4 +424,21 @@ export async function linkBinsOfDependencies<T extends string> (
       warn: opts.warn,
     })
   }
+}
+
+export async function linkBinsOfRuntimeDependencies<T extends string> (
+  depNodes: Array<DependenciesGraphNode<T> | undefined>,
+  binPath: string,
+  opts: {
+    extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
+  }
+): Promise<void> {
+  const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<T> => dep != null && isRuntimeDepPath(dep.depPath))
+  if (runtimeNodes.length === 0) return
+  const pkgs = await Promise.all(runtimeNodes.map(async (dep) => ({
+    location: dep.dir,
+    manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
+  })))
+  await linkBinsOfPackages(pkgs, binPath, opts)
 }

@@ -292,6 +292,61 @@ fn devengines_runtime_with_download_is_installed() {
     assert_installed(&workspace, std::slice::from_ref(&fixture));
 }
 
+#[cfg(unix)]
+#[test]
+fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!(
+            "nodeDownloadMirrors:\n  rc: '{}/'\nallowBuilds:\n  'dependency@file:dependency': true\n",
+            server.url(),
+        )
+        .as_str(),
+    );
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({
+            "name": "dependency",
+            "version": "1.0.0",
+            "scripts": { "install": "node && printf ran > lifecycle-ran" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "dependency": "file:dependency" },
+            "devEngines": {
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let empty_path = root.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
+
+    command(&workspace).with_env("PATH", &empty_path).with_arg("install").assert().success();
+    let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    command(&workspace)
+        .with_env("PATH", empty_path)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+}
+
 #[test]
 fn devengines_runtime_without_download_is_not_installed() {
     let root = tempfile::tempdir().unwrap();
