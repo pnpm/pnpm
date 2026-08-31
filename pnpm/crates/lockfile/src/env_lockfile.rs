@@ -123,11 +123,8 @@ impl EnvLockfile {
 
     /// Write this env document as the first YAML document of
     /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
-    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`.
-    ///
-    /// Ordered like [`crate::save_value_to_path`], and for the same reasons:
-    /// the read follows a symlink, an unchanged document is not rewritten, and
-    /// only a changed write refuses a symlinked lockfile.
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
+    /// document is not rewritten.
     pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
