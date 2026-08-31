@@ -507,6 +507,10 @@ function computeBuiltDepPaths (
  * engine in its GVS hash. It is computed as one graph-wide reverse closure,
  * so a package inside a dependency cycle gets the same answer no matter
  * which node the hasher reaches it from.
+ *
+ * A path with no node in `graph` is kept and still marks whatever depends on
+ * it: the built set comes from the allowBuild policy rather than the graph,
+ * so the two can disagree.
  */
 export function computeBuildRequiredDepPaths (
   graph: DepsGraph<DepPath>,

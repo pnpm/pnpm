@@ -220,6 +220,10 @@ pub fn warm_deps_state_cache<'a, Key>(
 /// the engine in a global-virtual-store hash. It is computed as one
 /// graph-wide fixed point so dependency cycles cannot produce different
 /// answers for different entry points.
+///
+/// A key with no node in `graph` is kept and still marks whatever depends
+/// on it: the built set comes from the allow-build policy rather than the
+/// graph, so the two can disagree.
 #[must_use]
 pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
