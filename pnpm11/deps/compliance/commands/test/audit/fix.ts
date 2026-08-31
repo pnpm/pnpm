@@ -1,4 +1,4 @@
-import { existsSync as fsExistsSync, readFileSync, writeFileSync } from 'node:fs'
+import fs, { existsSync as fsExistsSync } from 'node:fs'
 import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, test } from '@jest/globals'
@@ -294,7 +294,7 @@ test('audit.ignorePrune removes ignored GHSAs that are no longer in the report',
 
   // The preceding comment and the trailing same-line comment attached to
   // the removed entry must both go with it.
-  const rawContent = readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
   expect(rawContent).not.toContain('Expired GHSA')
   expect(rawContent).not.toContain('trailing comment')
 
@@ -424,7 +424,7 @@ test('audit.ignorePrune removes all entries when none are relevant', async () =>
 
 test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', async () => {
   const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
-  writeFileSync(
+  fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\nauditConfig: { ignoreGhsas: [GHSA-42xw-2xvc-qx8m, GHSA-xxxx-xxxx-xxxx] }\n'
   )
@@ -452,7 +452,7 @@ test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', asyn
 
   // The retained GHSA is edited in place inside the flow-style block, rather
   // than the whole auditConfig being reformatted into block style.
-  const rawContent = readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
+  const rawContent = fs.readFileSync(path.join(tmp, 'pnpm-workspace.yaml'), 'utf8')
   expect(rawContent).toContain(
     'auditConfig: { ignoreGhsas: [ GHSA-42xw-2xvc-qx8m ] }'
   )
@@ -463,7 +463,7 @@ test('audit.ignorePrune edits an inline (flow-style) auditConfig in place', asyn
 
 test('audit.ignorePrune updates the canonical audit.ignore list', async () => {
   const tmp = f.prepare('has-vulnerabilities-with-ignored-ghsas')
-  writeFileSync(
+  fs.writeFileSync(
     path.join(tmp, 'pnpm-workspace.yaml'),
     'packages:\n  - \'.\'\nsharedWorkspaceLockfile: false\naudit:\n  ignorePrune: true\n  ignore:\n    - GHSA-42xw-2xvc-qx8m\n    - GHSA-xxxx-xxxx-xxxx\n'
   )

@@ -64,7 +64,8 @@ export function caretRangeForPatched (patchedRange: string): string {
  * The minimum patched version saved with the operator of `rangeSpecStyle`.
  * The default `^X.Y.Z` keeps the resolver within the major the user pinned
  * to, where the advisory's own `>=X.Y.Z` could silently promote a dep to a
- * later breaking major.
+ * later breaking major. A `patchedRange` with no parseable minimum is
+ * returned unchanged, so an advisory pins whatever the registry sent.
  */
 function patchedRangeForStyle (patchedRange: string, rangeSpecStyle: RangeSpecStyle): string {
   const min = semver.minVersion(patchedRange)

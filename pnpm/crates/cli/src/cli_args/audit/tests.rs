@@ -1171,6 +1171,12 @@ fn create_overrides_respects_save_style() {
 
     let tilde = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("~")));
     assert_eq!(tilde["axios@<=0.18.0"], "~0.18.1");
+
+    let equals = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("=")));
+    assert_eq!(equals["axios@<=0.18.0"], "=0.18.1");
+
+    let bare = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("")));
+    assert_eq!(bare["axios@<=0.18.0"], "0.18.1");
 }
 
 #[test]
