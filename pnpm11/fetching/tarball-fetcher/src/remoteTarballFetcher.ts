@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import { isIP } from 'node:net'
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
@@ -67,7 +68,11 @@ export function createDownloader (
   const fetchMinSpeedKiBps = gotOpts.fetchMinSpeedKiBps ?? 50 // 50 KiB/s
 
   return async function download (url: string, opts: DownloadOptions): Promise<FetchResult> {
-    const authHeaderValue = opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name })
+    const authHeaderValue = getSecureNodeMirrorAuthHeader(
+      opts.getAuthHeaderByURI(url, { pkgName: opts.pkg?.name }),
+      url,
+      opts.appendManifest?.name
+    )
 
     const downloadRetryOpts = { ...retryOpts, ...opts.retry }
     const op = retry.operation(downloadRetryOpts)
@@ -226,6 +231,21 @@ export function createDownloader (
       })
     }
   }
+}
+
+function getSecureNodeMirrorAuthHeader (
+  authHeaderValue: string | undefined,
+  url: string,
+  appendedPackageName: string | undefined
+): string | undefined {
+  if (authHeaderValue == null || appendedPackageName !== 'node') return authHeaderValue
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
+  return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 // Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.

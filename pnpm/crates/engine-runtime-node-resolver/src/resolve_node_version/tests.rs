@@ -1,8 +1,11 @@
 use pretty_assertions::assert_eq;
 
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient, nerf_dart};
 
-use super::{NodeVersion, filter_versions, resolve_node_version, resolve_node_versions};
+use super::{
+    NodeVersion, filter_versions, resolve_node_version, resolve_node_version_with_auth,
+    resolve_node_versions,
+};
 
 fn make_versions() -> Vec<NodeVersion> {
     vec![
@@ -64,4 +67,86 @@ async fn empty_selector_picks_latest_version() {
 
     let picked = resolve_node_versions(&http_client, Some("  "), Some(&base_url)).await.unwrap();
     assert_eq!(picked, vec!["22.1.0"]);
+}
+
+#[tokio::test]
+async fn authenticated_version_resolve_uses_matching_mirror_credentials() {
+    let mut server = mockito::Server::new_async().await;
+    let index = server
+        .mock("GET", "/index.json")
+        .match_header("authorization", "Bearer mirror-token")
+        .with_status(200)
+        .with_body(r#"[{ "version": "v22.1.0", "lts": false }]"#)
+        .create_async()
+        .await;
+    let base_url = format!("{}/", server.url());
+    let auth_headers =
+        AuthHeaders::from_creds_map([(nerf_dart(&base_url), "Bearer mirror-token".to_string())]);
+    let http_client = ThrottledClient::new_for_installs();
+
+    let picked =
+        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
+            .await
+            .unwrap();
+
+    assert_eq!(picked, Some("22.1.0".to_string()));
+    index.assert_async().await;
+}
+
+#[tokio::test]
+async fn authenticated_version_resolve_omits_unmatched_credentials() {
+    let mut server = mockito::Server::new_async().await;
+    let index = server
+        .mock("GET", "/index.json")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(r#"[{ "version": "v22.1.0", "lts": false }]"#)
+        .create_async()
+        .await;
+    let base_url = format!("{}/", server.url());
+    let auth_headers = AuthHeaders::from_creds_map([(
+        "//other.example/".to_string(),
+        "Bearer other-token".to_string(),
+    )]);
+    let http_client = ThrottledClient::new_for_installs();
+
+    let picked =
+        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
+            .await
+            .unwrap();
+
+    assert_eq!(picked, Some("22.1.0".to_string()));
+    index.assert_async().await;
+}
+
+#[tokio::test]
+async fn authenticated_version_resolve_reselects_credentials_after_redirects() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/private/index.json")
+        .match_header("authorization", "Bearer mirror-token")
+        .with_status(302)
+        .with_header("location", "/public/index.json")
+        .create_async()
+        .await;
+    let index = server
+        .mock("GET", "/public/index.json")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body(r#"[{ "version": "v22.1.0", "lts": false }]"#)
+        .create_async()
+        .await;
+    let base_url = format!("{}/private/", server.url());
+    let auth_headers =
+        AuthHeaders::from_creds_map([(nerf_dart(&base_url), "Bearer mirror-token".to_string())]);
+    let http_client = ThrottledClient::new_for_installs();
+
+    let picked =
+        resolve_node_version_with_auth(&http_client, &auth_headers, "latest", Some(&base_url))
+            .await
+            .unwrap();
+
+    assert_eq!(picked, Some("22.1.0".to_string()));
+    redirect.assert_async().await;
+    index.assert_async().await;
 }

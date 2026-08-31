@@ -150,6 +150,7 @@ function createFetchers (
     ...createBinaryFetcher({
       fetch: fetchFromRegistry,
       fetchFromRemoteTarball: tarballFetchers.remoteTarball,
+      getAuthHeader,
       offline: opts.offline,
       storeIndex: opts.storeIndex,
       archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN },

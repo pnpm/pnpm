@@ -16,7 +16,7 @@ use std::sync::Arc;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use serde::Deserialize;
 
 /// Pattern matched against archive entries pacquet strips out of the
@@ -54,6 +54,10 @@ pub enum ResolveNodeVersionError {
         error: Arc<reqwest::Error>,
     },
 
+    #[display("Failed to fetch Node.js release index at {url}: HTTP status {status}")]
+    #[diagnostic(code(ERR_PNPM_FETCH_NODE_INDEX_FAILED))]
+    FetchIndexStatus { url: String, status: u16 },
+
     #[display("Failed to decode Node.js release index at {url}")]
     #[diagnostic(code(ERR_PNPM_DECODE_NODE_INDEX_FAILED))]
     DecodeIndex {
@@ -74,7 +78,24 @@ pub async fn resolve_node_version(
     version_spec: &str,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Option<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, node_mirror_base_url).await?;
+    resolve_node_version_with_auth(
+        http_client,
+        &AuthHeaders::default(),
+        version_spec,
+        node_mirror_base_url,
+    )
+    .await
+}
+
+/// Like [`resolve_node_version`], authenticating the release-index request
+/// with the longest URL-prefix match from [`AuthHeaders`].
+pub async fn resolve_node_version_with_auth(
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    version_spec: &str,
+    node_mirror_base_url: Option<&str>,
+) -> Result<Option<String>, ResolveNodeVersionError> {
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     if is_latest_selector(version_spec) {
         return Ok(all_versions.first().map(|version| version.version.clone()));
     }
@@ -92,7 +113,24 @@ pub async fn resolve_node_versions(
     version_spec: Option<&str>,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<String>, ResolveNodeVersionError> {
-    let all_versions = fetch_all_versions(http_client, node_mirror_base_url).await?;
+    resolve_node_versions_with_auth(
+        http_client,
+        &AuthHeaders::default(),
+        version_spec,
+        node_mirror_base_url,
+    )
+    .await
+}
+
+/// Like [`resolve_node_versions`], authenticating the release-index request
+/// with the longest URL-prefix match from [`AuthHeaders`].
+pub async fn resolve_node_versions_with_auth(
+    http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
+    version_spec: Option<&str>,
+    node_mirror_base_url: Option<&str>,
+) -> Result<Vec<String>, ResolveNodeVersionError> {
+    let all_versions = fetch_all_versions(http_client, auth_headers, node_mirror_base_url).await?;
     let Some(version_spec) = version_spec else {
         return Ok(all_versions.into_iter().map(|version| version.version).collect());
     };
@@ -116,26 +154,25 @@ pub async fn resolve_node_versions(
 
 async fn fetch_all_versions(
     http_client: &ThrottledClient,
+    auth_headers: &AuthHeaders,
     node_mirror_base_url: Option<&str>,
 ) -> Result<Vec<NodeVersion>, ResolveNodeVersionError> {
     let base = node_mirror_base_url.unwrap_or("https://nodejs.org/download/release/");
     let url = format!("{base}index.json");
     let response = http_client
-        .acquire_for_url(&url)
+        .get_bytes_with_secure_auth_headers(&url, auth_headers)
         .await
-        .get(&url)
-        .send()
-        .await
-        .and_then(reqwest::Response::error_for_status)
         .map_err(|error| ResolveNodeVersionError::FetchIndex {
             url: url.clone(),
             error: Arc::new(error),
         })?;
-    let body = response.text().await.map_err(|error| ResolveNodeVersionError::FetchIndex {
-        url: url.clone(),
-        error: Arc::new(error),
-    })?;
-    let raw: Vec<RawNodeVersion> = serde_json::from_str(&body).map_err(|error| {
+    if !response.status.is_success() {
+        return Err(ResolveNodeVersionError::FetchIndexStatus {
+            url,
+            status: response.status.as_u16(),
+        });
+    }
+    let raw: Vec<RawNodeVersion> = serde_json::from_slice(&response.body).map_err(|error| {
         ResolveNodeVersionError::DecodeIndex { url: url.clone(), error: Arc::new(error) }
     })?;
     Ok(raw

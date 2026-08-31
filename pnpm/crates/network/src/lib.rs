@@ -625,6 +625,49 @@ impl ThrottledClient {
         self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
     }
 
+    /// Send a GET whose URL-scoped credentials are re-evaluated for every
+    /// redirect target. Credentials are limited to TLS and loopback URLs by
+    /// [`AuthHeaders::for_secure_url`].
+    pub async fn get_bytes_with_secure_auth_headers(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let mut current_url = url.to_string();
+        for redirect_count in 0..=MAX_REDIRECT_HOPS {
+            let client = self
+                .acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
+                .await;
+            let mut request = client.get(&current_url);
+            if let Some(authorization) = auth_headers.for_secure_url(&current_url) {
+                request = request.header("authorization", authorization);
+            }
+            let response = request.send().await?;
+            if !is_redirect_status(response.status()) || redirect_count == MAX_REDIRECT_HOPS {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            }
+            let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            let Ok(location) = location.to_str() else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            let Ok(target) = response.url().join(location) else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            current_url = target.to_string();
+        }
+        unreachable!()
+    }
+
     async fn acquire_for_url_with_priority_and_redirects(
         &self,
         url: &str,
@@ -644,6 +687,11 @@ impl ThrottledClient {
         let client = clients.select(follow_redirects);
         ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
     }
+}
+
+pub struct SecureAuthResponse {
+    pub status: reqwest::StatusCode,
+    pub body: Vec<u8>,
 }
 
 fn ignore_warning(_: &str) {}
@@ -706,6 +754,10 @@ fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy 
             attempt.follow()
         }
     })
+}
+
+fn is_redirect_status(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308)
 }
 
 #[cfg(any(target_os = "macos", test))]

@@ -1,6 +1,6 @@
 use super::{
     FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
-    SharedReportedProgressKeys,
+    SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
         DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
         is_transient_error, slow_download_warning,
@@ -40,6 +40,31 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn node_runtime_downloads_do_not_send_auth_over_remote_http() {
+    let auth_headers = AuthHeaders::from_creds_map([(
+        "//mirror.example/".to_string(),
+        "Bearer mirror-token".to_string(),
+    )]);
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "http://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        ),
+        None,
+    );
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "https://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        )
+        .as_deref(),
+        Some("Bearer mirror-token"),
+    );
 }
 
 #[test]

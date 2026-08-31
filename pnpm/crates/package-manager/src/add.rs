@@ -892,7 +892,10 @@ async fn resolve_added_dependency<'a>(
     ) {
         workspace_specifier
     } else if let Some(version_spec) = node_runtime_version_spec(package_name, explicit_spec) {
-        let mut node_resolver = NodeResolver::new(std::sync::Arc::clone(http_client_arc));
+        let mut node_resolver = NodeResolver::new_with_auth(
+            std::sync::Arc::clone(http_client_arc),
+            std::sync::Arc::clone(&config.auth_headers),
+        );
         node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
         node_resolver.offline = config.offline;
         node_resolver.cache_dir = Some(config.cache_dir.clone());

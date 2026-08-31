@@ -7,7 +7,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
 use pnpm_engine_runtime_node_resolver::{
-    get_node_mirror, parse_node_specifier, resolve_node_versions,
+    get_node_mirror, parse_node_specifier, resolve_node_versions_with_auth,
 };
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{Reporter, emit_global_warning};
@@ -150,8 +150,9 @@ impl EnvArgs {
         let mirror =
             get_node_mirror(Some(&config.node_download_mirrors), &specifier.release_channel);
         let http_client = build_registry_client(config)?;
-        let mut versions = resolve_node_versions(
+        let mut versions = resolve_node_versions_with_auth(
             &http_client,
+            &config.auth_headers,
             Some(specifier.version_specifier.as_str()),
             Some(&mirror),
         )

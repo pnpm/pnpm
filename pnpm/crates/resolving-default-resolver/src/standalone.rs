@@ -111,7 +111,8 @@ pub fn build_standalone_chain(
     let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
     let local_path_resolver = LocalPathResolver::new(local_ctx);
 
-    let mut node_resolver = NodeResolver::new(Arc::clone(http_client));
+    let mut node_resolver =
+        NodeResolver::new_with_auth(Arc::clone(http_client), Arc::clone(&config.auth_headers));
     node_resolver.node_download_mirrors.clone_from(&config.node_download_mirrors);
     node_resolver.offline = config.offline;
     node_resolver.cache_dir = Some(config.cache_dir.clone());

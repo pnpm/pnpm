@@ -120,10 +120,10 @@ export function createResolver (
   const localCtx = { preserveAbsolutePaths: pnpmOpts.preserveAbsolutePaths }
   const _resolveFromLocalScheme = resolveFromLocalScheme.bind(null, localCtx)
   const _resolveFromLocalPath = resolveFromLocalPath.bind(null, localCtx)
-  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors, cacheDir: pnpmOpts.cacheDir })
+  const _resolveNodeRuntime = resolveNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, offline: pnpmOpts.offline, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors, cacheDir: pnpmOpts.cacheDir })
   const _resolveDenoRuntime = resolveDenoRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
   const _resolveBunRuntime = resolveBunRuntime.bind(null, { fetchFromRegistry, offline: pnpmOpts.offline, resolveFromNpm })
-  const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
+  const _resolveLatestNodeRuntime = resolveLatestNodeRuntime.bind(null, { fetchFromRegistry, getAuthHeader, nodeDownloadMirrors: pnpmOpts.nodeDownloadMirrors })
   const _resolveLatestDenoRuntime = resolveLatestDenoRuntime.bind(null, { resolveFromNpm })
   const _resolveLatestBunRuntime = resolveLatestBunRuntime.bind(null, { resolveFromNpm })
   const _resolveFromCustomResolvers = pnpmOpts.customResolvers

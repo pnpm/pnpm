@@ -546,7 +546,26 @@ fn registry_with_pathname_matches_with_explicit_port() {
 
 #[test]
 fn returns_none_for_unmatched_url_in_empty_map() {
-    assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
+    let headers = AuthHeaders::default();
+    assert!(headers.is_empty());
+    assert_eq!(headers.for_url("http://reg.com"), None);
+}
+
+#[test]
+fn secure_lookup_rejects_plain_http_but_allows_loopback() {
+    let headers = build(&[
+        ("//reg.com/", "Bearer remote"),
+        ("//127.0.0.1/", "Bearer local"),
+        ("//[::1]/", "Bearer ipv6-local"),
+    ]);
+    assert!(!headers.is_empty());
+    assert_eq!(headers.for_secure_url("http://reg.com/pkg"), None);
+    let remote = headers.for_secure_url("https://reg.com/pkg");
+    assert_eq!(remote.as_deref(), Some("Bearer remote"));
+    let local = headers.for_secure_url("http://127.0.0.1/pkg");
+    assert_eq!(local.as_deref(), Some("Bearer local"));
+    let ipv6_local = headers.for_secure_url("http://[::1]:4873/pkg");
+    assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
 }
 
 /// Specifically exercises the trailing-slash-append branch in
