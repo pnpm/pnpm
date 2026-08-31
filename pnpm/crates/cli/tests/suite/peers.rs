@@ -133,9 +133,9 @@ fn a_resolving_install_warns_about_peer_dependency_issues() {
     drop((root, mock_instance));
 }
 
-/// The resolve-only install path carries the resolver's peer-issue
-/// candidates through its separate completion plumbing without
-/// materializing `node_modules`.
+/// `--lockfile-only` finishes through its own completion path, which
+/// has to carry the resolver's peer-issue candidates just like the
+/// materializing one.
 #[test]
 fn a_lockfile_only_install_warns_about_peer_dependency_issues() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

@@ -82,6 +82,10 @@ pub(super) struct MaterializationOutput {
     pub(super) hoisted_dependencies: HoistedDependencies,
     pub(super) hoisted_locations: BTreeMap<String, Vec<String>>,
     pub(super) install_skipped: crate::SkippedSnapshots,
+    /// See
+    /// [`crate::InstallWithFreshLockfileResult::peer_issue_importer_ids`].
+    /// Empty on the frozen path, which resolves nothing and so also
+    /// leaves `fresh_lockfile` `None`.
     pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
     /// The store-index writer task, already winding down (both install

@@ -20,13 +20,16 @@ use crate::InstallError;
 /// resolved. `None` — every install that skipped resolution — reports
 /// nothing.
 ///
-/// `peer_issue_importer_ids` identifies importers for which the resolver found peer issues.
-/// This function checks only those importers against the final lockfile.
+/// `peer_issue_importer_ids` is the resolution's own verdict: the
+/// importers it left an issue under. Only those are walked, so a
+/// workspace the resolution found clean costs nothing here. The
+/// lockfile stays the report's source — it carries the resolved
+/// versions the resolver's parent chains leave out.
 ///
-/// Resolver parent chains omit package versions.
-/// The final lockfile supplies those versions to the report.
-/// `installed_importer_ids` prevents a filtered install from reporting
-/// issues for unselected projects.
+/// `installed_importer_ids` scopes the verdict to the projects this run
+/// acted on. A `--filter`ed install leaves every unselected importer in
+/// the lockfile untouched, and pnpm reports only on the projects that
+/// took part in the resolution.
 pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     resolved_lockfile: Option<&Lockfile>,
     peer_issue_importer_ids: &HashSet<String>,
@@ -43,9 +46,6 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
         })
         .cloned()
         .collect();
-    if importer_ids.is_empty() {
-        return Ok(());
-    }
     importer_ids.sort();
     let Some(report) = peer_issues_for_lockfile(
         lockfile,

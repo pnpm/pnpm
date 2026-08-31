@@ -701,10 +701,11 @@ pub struct InstallWithFreshLockfileResult {
     /// see [`crate::collect_injected_deps`]. Empty on the
     /// `lockfile_only` path, which never materializes.
     pub injected_deps: BTreeMap<String, Vec<String>>,
-    /// Importers whose fresh resolution found peer-dependency issues.
-    /// The install completion path uses this as a candidate set when
-    /// rendering the final issue report from [`Self::wanted_lockfile`],
-    /// avoiding a second walk of every clean workspace importer.
+    /// Importers the resolution left a peer-dependency issue under.
+    /// Install completion renders its report from
+    /// [`Self::wanted_lockfile`] — which carries the resolved versions
+    /// the resolver's parent chains leave out — but walks only these
+    /// importers.
     pub peer_issue_importer_ids: HashSet<String>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
