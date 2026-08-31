@@ -165,27 +165,34 @@ pub fn find_workspace_projects_no_check(
             message: err.to_string(),
         })?;
 
-    // Each pattern's probe touches its own directories, so the patterns
-    // fan out across the rayon pool and their per-pattern sets merge in
-    // list order afterwards — the merged set, and which pattern's error
-    // wins when several fail, both stay a function of the pattern list
-    // alone.
-    let pattern_sets: Vec<Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError>> = include_patterns
+    // Each pattern's set folds into the shared merge as it completes,
+    // so peak memory stays one merged set plus the in-flight patterns —
+    // overlapping patterns don't multiply it. Set union commutes and
+    // the first error *in pattern-list order* wins, keeping the result
+    // and the reported failure a function of the pattern list alone.
+    let merged_manifest_paths: std::sync::Mutex<BTreeSet<PathBuf>> = std::sync::Mutex::default();
+    let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = include_patterns
         .par_iter()
         .map(|pattern| {
-            collect_pattern_manifests(
+            match collect_pattern_manifests(
                 pattern,
                 workspace_root,
                 &ignore_template,
                 &dot_pruning_ignore_template,
                 &user_negations,
-            )
+            ) {
+                Ok(set) => {
+                    merged_manifest_paths.lock().expect("merge lock never poisoned").extend(set);
+                    None
+                }
+                Err(error) => Some(error),
+            }
         })
         .collect();
-    let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
-    for set in pattern_sets {
-        manifest_paths.extend(set?);
+    if let Some(error) = pattern_errors.into_iter().flatten().next() {
+        return Err(error);
     }
+    let mut manifest_paths = merged_manifest_paths.into_inner().expect("merge lock never poisoned");
 
     for basename in PROJECT_MANIFEST_BASENAMES {
         let root_manifest = workspace_root.join(basename);
@@ -202,12 +209,12 @@ pub fn find_workspace_projects_no_check(
         dir_left.cmp(dir_right)
     });
 
-    // One group per project root, candidates in manifest-precedence
-    // order (`package.json` before `package.yaml` — the sort above is
-    // stable and ties keep the set's full-path order). Grouping before
-    // the reads keeps "first readable manifest wins" intact while the
-    // roots read concurrently: a candidate that vanishes mid-run still
-    // hands its root to the next candidate, never to a skipped root.
+    // A root's candidates stay in manifest-precedence order —
+    // `package.json` before `package.yaml`, because the sort above is
+    // stable and ties keep the set's full-path order — and share one
+    // read task, so "first readable manifest wins" holds under
+    // concurrency: a candidate that vanishes mid-run hands its root to
+    // the next candidate, never to a skipped root.
     let mut root_groups: Vec<(PathBuf, Vec<PathBuf>)> = Vec::new();
     for manifest_path in sorted {
         let root_dir = manifest_path.parent().unwrap_or(workspace_root).to_path_buf();
