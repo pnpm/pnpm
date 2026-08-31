@@ -3,11 +3,16 @@ import path from 'node:path'
 import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import type { EnvLockfile } from '@pnpm/lockfile.types'
 import yaml from 'js-yaml'
-import writeFileAtomic from 'write-file-atomic'
 
 import { sortLockfileKeys } from './sortLockfileKeys.js'
-import { lockfileYamlDump } from './write.js'
-import { extractMainDocument, readLockfileToStringNoFollow, streamReadFirstYamlDocument } from './yamlDocuments.js'
+import { lockfileYamlDump, writeWantedLockfileAtomic } from './write.js'
+import {
+  extractMainDocument,
+  readLockfileToStringNoFollow,
+  streamReadFirstYamlDocument,
+  YAML_DOCUMENT_SEPARATOR,
+  YAML_DOCUMENT_START,
+} from './yamlDocuments.js'
 
 export function createEnvLockfile (): EnvLockfile {
   return {
@@ -54,6 +59,12 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
   return envLockfile
 }
 
+/**
+ * Replaces the env document that leads `pnpm-lock.yaml`, preserving the main
+ * document after it. Publishes through the same writer as the main document, so
+ * a symlink appearing at the path between the read below and the write cannot
+ * redirect it onto the link's target.
+ */
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
   const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)
   const sorted = sortLockfileKeys(lockfile)
@@ -62,6 +73,6 @@ export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile):
   const existing = await readLockfileToStringNoFollow(lockfilePath)
   const mainDoc = existing == null ? '' : extractMainDocument(existing)
 
-  const combined = `---\n${envYaml}\n---\n${mainDoc}`
-  return writeFileAtomic(lockfilePath, combined)
+  const combined = `${YAML_DOCUMENT_START}${envYaml}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`
+  await writeWantedLockfileAtomic(lockfilePath, combined)
 }
