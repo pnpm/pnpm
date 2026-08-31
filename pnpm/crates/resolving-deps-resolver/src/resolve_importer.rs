@@ -966,22 +966,19 @@ fn locked_peer_versions_for_key(
     key: &pnpm_lockfile::PkgNameVerPeer,
     snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
+    let metadata =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
     let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
     if !explicit.is_empty() {
         if let Some(snapshot) = snapshot {
-            restore_aliased_peer_names(snapshot, &mut explicit);
+            restore_aliased_peer_names(snapshot, metadata, &mut explicit);
         }
         return explicit;
     }
     if !is_hashed_peer_suffix(key.suffix.peer()) {
         return explicit;
     }
-    let Some(snapshot) = snapshot else {
-        return Vec::new();
-    };
-    let Some(metadata) =
-        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
-    else {
+    let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
     let peer_names = metadata
@@ -1013,57 +1010,100 @@ fn locked_peer_versions_for_key(
 /// `peer`, not `provider`. Reading the segment back verbatim would pin a
 /// peer nobody declares and leave the declared one unpinned, so a
 /// repeated resolution is free to pick the other variant.
-///
-/// The dependent's own `peerDependencies` cannot drive this: a peer
-/// propagated up from a child is satisfied by an *ordinary* dependency
-/// of the dependent, under the name the child declared.
 fn restore_aliased_peer_names(
     snapshot: &pnpm_lockfile::SnapshotEntry,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
     peers: &mut [(String, String)],
 ) {
-    if !dependency_edges(snapshot)
-        .any(|(_, reference)| matches!(reference, pnpm_lockfile::SnapshotDepRef::Alias(_)))
-    {
+    let providers = provider_aliases(snapshot, metadata);
+    if providers.is_empty() {
         return;
     }
     for (name, version) in peers.iter_mut() {
-        if let Some(alias) = sole_alias_providing(snapshot, name, version) {
-            *name = alias;
-        }
+        let Some(alias) =
+            providers.get(&format!("{name}@{version}")).and_then(ProviderAliases::sole)
+        else {
+            continue;
+        };
+        name.clear();
+        name.push_str(alias);
     }
 }
 
-/// The one name other than `name` that the snapshot installs
-/// `name@version` under.
+/// Index the snapshot's dependency edges by the `name@version` of the
+/// package each one installs, so every suffix segment is attributed in
+/// one lookup rather than another scan of the edges.
 ///
-/// `None` unless that name is unambiguous: an ordinary dependency may be
-/// aliased onto the very package and version a peer resolved to, and
-/// nothing in the lockfile tells the two apart. A provider the snapshot
-/// also installs under its own name, or one two aliases both supply,
-/// keeps the name the suffix spelled.
-fn sole_alias_providing(
+/// Empty — and every segment therefore left alone — unless some edge
+/// installs a package under a name other than its own, since that is the
+/// only shape that makes a segment disagree with its edge.
+fn provider_aliases(
     snapshot: &pnpm_lockfile::SnapshotEntry,
-    name: &str,
-    version: &str,
-) -> Option<String> {
-    let mut alias: Option<String> = None;
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+) -> HashMap<String, ProviderAliases> {
+    if !dependency_edges(snapshot)
+        .any(|(_, reference)| matches!(reference, pnpm_lockfile::SnapshotDepRef::Alias(_)))
+    {
+        return HashMap::default();
+    }
+    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
+    let mut providers = HashMap::<String, ProviderAliases>::default();
     for (edge_name, reference) in dependency_edges(snapshot) {
-        let provider = match reference {
+        let (provider, ver_peer) = match reference {
             pnpm_lockfile::SnapshotDepRef::Plain(ver_peer) => (edge_name.to_string(), ver_peer),
             pnpm_lockfile::SnapshotDepRef::Alias(target) => {
                 (target.name.to_string(), &target.suffix)
             }
             pnpm_lockfile::SnapshotDepRef::Link(_) => continue,
         };
-        if provider.0 != name || provider.1.without_peer().to_string() != version {
-            continue;
-        }
         let edge_name = edge_name.to_string();
-        if edge_name == name || alias.replace(edge_name).is_some() {
-            return None;
+        let declares_peer = declared.is_some_and(|peers| peers.contains_key(&edge_name));
+        providers
+            .entry(format!("{provider}@{}", ver_peer.without_peer()))
+            .or_default()
+            .record(edge_name, declares_peer);
+    }
+    providers
+}
+
+/// The names one provider is installed under, split by whether the
+/// dependent declares that name as a peer.
+#[derive(Default)]
+struct ProviderAliases {
+    declared_peer: Option<String>,
+    declared_peers: usize,
+    ordinary: Option<String>,
+    ordinaries: usize,
+}
+
+impl ProviderAliases {
+    fn record(&mut self, alias: String, declares_peer: bool) {
+        let (first, count) = if declares_peer {
+            (&mut self.declared_peer, &mut self.declared_peers)
+        } else {
+            (&mut self.ordinary, &mut self.ordinaries)
+        };
+        *count += 1;
+        if *count == 1 {
+            *first = Some(alias);
         }
     }
-    alias
+
+    /// The name this provider's suffix segment belongs to.
+    ///
+    /// A declared peer edge outranks an ordinary one, matching the
+    /// `peerDependencies`-keyed lookup the TypeScript CLI restores peer
+    /// context with. Within a tier the segment is unattributable: an
+    /// ordinary dependency may be aliased onto the very package and
+    /// version a peer resolved to, and nothing in the lockfile tells two
+    /// such edges apart, so the suffix keeps the name it spelled.
+    fn sole(&self) -> Option<&str> {
+        match (self.declared_peers, self.ordinaries) {
+            (1, _) => self.declared_peer.as_deref(),
+            (0, 1) => self.ordinary.as_deref(),
+            _ => None,
+        }
+    }
 }
 
 fn dependency_edges(

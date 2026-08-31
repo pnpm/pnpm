@@ -177,16 +177,40 @@ fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
     );
 }
 
-/// Two aliases onto one provider leave no way to tell which the peer
-/// resolved through, and guessing would vary with map order.
+/// The dependent's `peerDependencies` name the edge a peer resolved
+/// through, so a competing ordinary alias onto the same provider does
+/// not make the segment unattributable.
 #[test]
-fn competing_aliases_onto_one_provider_do_not_rename_the_segment() {
+fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
     let lockfile = peer_context_lockfile(
         Some(("consumer@1.0.0", peer_declaring_metadata(["peer"]))),
         [(
             "consumer@1.0.0(alias-provider@1.0.0)",
             snapshot_with_dependencies([
                 ("peer", alias_dependency("alias-provider@1.0.0")),
+                ("other", alias_dependency("alias-provider@1.0.0")),
+            ]),
+        )],
+    );
+
+    let ImporterLockedPeerContext { versions, .. } =
+        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    assert_eq!(
+        versions,
+        HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
+    );
+}
+
+/// Nothing ranks two ordinary aliases onto one provider, and guessing
+/// between them would vary with map order.
+#[test]
+fn competing_ordinary_aliases_do_not_rename_the_segment() {
+    let lockfile = peer_context_lockfile(
+        Some(("consumer@1.0.0", peer_declaring_metadata([]))),
+        [(
+            "consumer@1.0.0(alias-provider@1.0.0)",
+            snapshot_with_dependencies([
+                ("one", alias_dependency("alias-provider@1.0.0")),
                 ("other", alias_dependency("alias-provider@1.0.0")),
             ]),
         )],
