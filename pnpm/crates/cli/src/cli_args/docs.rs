@@ -22,7 +22,7 @@ impl DocsArgs {
 
         let parsed = parse_wanted_dependency(raw_spec);
         let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-        let bare = parsed.bare_specifier.as_deref().unwrap_or(name);
+        let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
         let (resolved_name, _range) = PackageManifest::resolve_registry_dependency(name, bare);
 
         let http_client = ThrottledClient::for_installs(

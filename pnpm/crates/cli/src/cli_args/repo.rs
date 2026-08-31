@@ -111,7 +111,7 @@ async fn get_repo_url_from_registry(
 ) -> miette::Result<String> {
     let parsed = parse_wanted_dependency(raw_spec);
     let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-    let bare = parsed.bare_specifier.as_deref().unwrap_or(name);
+    let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
     let (resolved_name, range) = PackageManifest::resolve_registry_dependency(name, bare);
 
     let registry = pick_registry_for_package(registries, resolved_name, Some(bare));
