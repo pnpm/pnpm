@@ -1,7 +1,8 @@
 use super::{
     ImporterUpdateSeedPolicy, UpdateSeedPolicy, compute_package_extensions_checksum,
-    full_resolution_required, include_transitive_optional_dependencies,
-    is_partial_workspace_selection, update_reuse_scopes, verify_merged_repair,
+    full_resolution_required, importers_consuming_linked_peers,
+    include_transitive_optional_dependencies, is_partial_workspace_selection, update_reuse_scopes,
+    verify_merged_repair,
 };
 use pnpm_config::{Config, PackageExtension};
 use pnpm_lockfile::Lockfile;
@@ -166,4 +167,92 @@ fn importer_scoped_update_absent_importer_keeps_all_reuse() {
     assert_eq!(default_scope, UpdateReuseScope::All);
     assert_eq!(scopes.get("selected"), Some(&UpdateReuseScope::None));
     assert!(!scopes.contains_key("unselected"));
+}
+
+fn workspace_manifests(
+    projects: &[(&str, serde_json::Value)],
+) -> std::collections::BTreeMap<String, pnpm_package_manifest::PackageManifest> {
+    projects
+        .iter()
+        .map(|(importer_id, manifest)| {
+            let path = std::path::PathBuf::from("/repo").join(importer_id).join("package.json");
+            (
+                (*importer_id).to_string(),
+                pnpm_package_manifest::PackageManifest::from_value(path, manifest.clone()),
+            )
+        })
+        .collect()
+}
+
+fn linked_peer_consumers(projects: &[(&str, serde_json::Value)]) -> Vec<String> {
+    let owned = workspace_manifests(projects);
+    let borrowed = owned.iter().map(|(id, manifest)| (id.clone(), manifest)).collect();
+    let mut consumers: Vec<String> =
+        importers_consuming_linked_peers(&borrowed, std::path::Path::new("/repo"))
+            .into_iter()
+            .collect();
+    consumers.sort();
+    consumers
+}
+
+/// The candidate set stays empty when nothing in the workspace declares
+/// a peer — the case the report's cost is scoped for.
+#[test]
+fn a_workspace_without_peer_declarations_adds_no_candidates() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({
+                    "name": "app",
+                    "dependencies": { "lib": "workspace:*", "is-positive": "1.0.0" },
+                }),
+            ),
+            ("packages/lib", serde_json::json!({ "name": "lib" })),
+        ]),
+        Vec::<String>::new(),
+    );
+}
+
+#[test]
+fn only_the_importers_linking_to_a_peer_declaring_project_become_candidates() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({ "name": "app", "dependencies": { "lib": "workspace:*" } }),
+            ),
+            (
+                "packages/relative",
+                serde_json::json!({ "name": "relative", "dependencies": { "lib": "link:../lib" } }),
+            ),
+            (
+                "packages/unrelated",
+                serde_json::json!({ "name": "unrelated", "dependencies": { "app": "workspace:*" } }),
+            ),
+            (
+                "packages/lib",
+                serde_json::json!({ "name": "lib", "peerDependencies": { "react": "^18.0.0" } }),
+            ),
+        ]),
+        vec!["packages/app".to_string(), "packages/relative".to_string()],
+    );
+}
+
+/// A `link:` target outside the workspace has a manifest the report's
+/// walk still reads, so it counts without being inspectable here.
+#[test]
+fn a_link_outside_the_workspace_is_treated_as_peer_declaring() {
+    assert_eq!(
+        linked_peer_consumers(&[
+            (".", serde_json::json!({ "name": "root" })),
+            (
+                "packages/app",
+                serde_json::json!({ "name": "app", "dependencies": { "vendored": "link:../../vendored" } }),
+            ),
+        ]),
+        vec!["packages/app".to_string()],
+    );
 }

@@ -1198,8 +1198,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
         }
         let total_nodes = workspace_result.peers.graph.len();
-        let peer_issue_importer_ids =
+        let mut peer_issue_importer_ids: HashSet<String> =
             workspace_result.peers.peer_dependency_issues_by_importer.keys().cloned().collect();
+        peer_issue_importer_ids
+            .extend(importers_consuming_linked_peers(&importer_manifests, lockfile_dir));
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.
         if let Some(sink) = &peer_issues_sink {
@@ -1934,6 +1936,81 @@ fn build_extra_env(
         );
     }
     env
+}
+
+/// Importers whose linked workspace dependency declares
+/// `peerDependencies`.
+///
+/// The lockfile walk that renders the report reads a linked project's
+/// manifest and checks its peers against the *consuming* importer's
+/// dependencies. Peer resolution has no counterpart for that check — a
+/// `link:` node's own peers are the linked importer's business — so
+/// these importers never reach
+/// `peer_dependency_issues_by_importer` and have to join the report's
+/// candidate set on their own. Only the direct consumer is needed: it
+/// is the importer whose dependencies the check compares against.
+///
+/// Answered from the manifests the install already parsed, so a
+/// workspace whose projects declare no peers costs one pass over the
+/// declared dependencies and no I/O. Over-approximates — a
+/// `workspace:` dependency the lockfile records as an injected
+/// directory rather than a link still counts — which only widens the
+/// walk.
+fn importers_consuming_linked_peers(
+    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    lockfile_dir: &Path,
+) -> HashSet<String> {
+    let declares_peers = |manifest: &PackageManifest| {
+        manifest
+            .value()
+            .get("peerDependencies")
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|peers| !peers.is_empty())
+    };
+    let peer_declaring_ids: HashSet<&str> = importer_manifests
+        .iter()
+        .filter(|(_, manifest)| declares_peers(manifest))
+        .map(|(importer_id, _)| importer_id.as_str())
+        .collect();
+    let ids_by_name: HashMap<&str, &str> = importer_manifests
+        .iter()
+        .filter_map(|(importer_id, manifest)| {
+            let name = manifest.value().get("name")?.as_str()?;
+            Some((name, importer_id.as_str()))
+        })
+        .collect();
+
+    let mut consumers = HashSet::new();
+    for (importer_id, manifest) in importer_manifests {
+        let importer_dir = lockfile_dir.join(importer_id);
+        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        for (alias, bare_specifier) in manifest.dependencies(groups) {
+            let linked_id = if bare_specifier.starts_with("workspace:") {
+                ids_by_name.get(alias).copied().map(ToOwned::to_owned)
+            } else if let Some(relative) = bare_specifier
+                .strip_prefix("link:")
+                .or_else(|| bare_specifier.strip_prefix("file:"))
+            {
+                Some(pnpm_workspace::importer_id_from_root_dir(
+                    lockfile_dir,
+                    &importer_dir.join(relative),
+                ))
+            } else {
+                continue;
+            };
+            // A target outside the workspace has a manifest the walk
+            // still reads, so it counts without being inspectable here.
+            let declares = linked_id.as_deref().is_none_or(|linked_id| {
+                peer_declaring_ids.contains(linked_id)
+                    || !importer_manifests.contains_key(linked_id)
+            });
+            if declares {
+                consumers.insert(importer_id.clone());
+                break;
+            }
+        }
+    }
+    consumers
 }
 
 struct LockfileOnlyOptions<'a> {

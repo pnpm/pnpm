@@ -269,6 +269,80 @@ fn write_peer_conflict_manifest(project_dir: &std::path::Path, name: &str) {
     .expect("write package.json");
 }
 
+/// A workspace project's own `peerDependencies` are checked against the
+/// dependencies of the projects that link to it. Peer resolution never
+/// sees them — a `link:` node's peers belong to the linked importer —
+/// so the consuming importer reaches the report by a route of its own.
+fn write_linked_peer_workspace(workspace: &std::path::Path) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "version": "1.0.0" }"#)
+        .expect("write root manifest");
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the linked project");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the linked manifest");
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create the consuming project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*", "@pnpm.e2e/foo": "2.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the consuming manifest");
+}
+
+#[test]
+fn a_linked_workspace_packages_unmet_peer_is_warned_about() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_linked_peer_workspace(&workspace);
+
+    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    assert!(output.status.success(), "install must succeed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(stdout.contains(PEERS_CHECK_HINT), "stdout:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn strict_peer_dependencies_fails_on_a_linked_workspace_packages_unmet_peer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_linked_peer_workspace(&workspace);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/*\nstrictPeerDependencies: true\n",
+    )
+    .expect("rewrite workspace manifest");
+
+    let output = pacquet.with_arg("install").output().expect("run pnpm install");
+    assert!(!output.status.success(), "install must fail: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.contains("[ERR_PNPM_PEER_DEP_ISSUES] Unmet peer dependencies"),
+        "stdout:\n{stdout}",
+    );
+    assert!(stdout.contains("unmet peer @pnpm.e2e/foo"), "stdout:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
 /// A `--filter`ed install acts only on the projects it selected, so its
 /// verdict covers only those. The lockfile still holds the unselected
 /// importers, and an unrelated project's unmet peer must not fail a run
