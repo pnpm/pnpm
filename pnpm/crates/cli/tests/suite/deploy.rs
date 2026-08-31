@@ -634,13 +634,13 @@ fn shared_lockfile_deploy_refuses_a_linked_workspace_package_with_an_ambiguous_p
         .expect("run pacquet deploy");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
+    // The rendered wording is shared with the TypeScript CLI's
+    // ERR_PNPM_DEPLOY_AMBIGUOUS_PEER; keep the two in step.
     for expected in [
         "ERR_PNPM_DEPLOY_AMBIGUOUS_PEER",
-        "lib",
-        "@pnpm.e2e/peer-a",
-        "1.0.0",
-        "1.0.1",
-        "injectWorkspacePackages",
+        "Workspace package 'lib' declares a peer dependency on '@pnpm.e2e/peer-a'",
+        "more than one version (1.0.0, 1.0.1)",
+        r#"Set "injectWorkspacePackages" to true"#,
     ] {
         assert!(stderr.contains(expected), "stderr should mention {expected}:\n{stderr}");
     }

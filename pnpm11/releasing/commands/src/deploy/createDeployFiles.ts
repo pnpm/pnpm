@@ -279,6 +279,9 @@ function bindSingletonPeers (
 ): void {
   if (linkedWorkspaceProjects.size === 0) return
 
+  // Keyed by the resolved dependency path rather than the reference that
+  // spelled it, so an npm-aliased edge and a plain one that name the same
+  // package count once.
   const references = new Map<string, Set<string>>()
   const collect = (dependencies: ResolvedDependencies | undefined) => {
     for (const [alias, reference] of Object.entries(dependencies ?? {})) {
@@ -288,7 +291,7 @@ function bindSingletonPeers (
       if (name == null) continue
       let referencesOfName = references.get(name)
       if (referencesOfName == null) references.set(name, referencesOfName = new Set())
-      referencesOfName.add(reference)
+      referencesOfName.add(depPath.slice(name.length + 1))
     }
   }
   collect(importer.dependencies)

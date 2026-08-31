@@ -963,6 +963,9 @@ fn bind_singleton_peers(
     }
     let Some(snapshots) = lockfile.snapshots.as_ref() else { return Ok(()) };
 
+    // Keyed by the resolved snapshot key rather than the reference that spelled
+    // it, so an npm-aliased edge and a plain one that name the same package
+    // count once.
     let mut candidates: HashMap<PkgName, HashSet<PkgNameVerPeer>> = HashMap::new();
     let mut record = |key: PkgNameVerPeer| {
         candidates.entry(key.name.clone()).or_default().insert(key);
@@ -1014,7 +1017,8 @@ fn bind_singleton_peers(
             // unresolved, exactly as it is in the workspace this deploy was
             // taken from.
             let Some(resolutions) = candidates.get(peer) else { continue };
-            let mut versions = resolutions.iter().map(ToString::to_string).collect::<Vec<_>>();
+            let mut versions =
+                resolutions.iter().map(|key| key.suffix.to_string()).collect::<Vec<_>>();
             if versions.len() > 1 {
                 versions.sort();
                 return Err(DeployError::AmbiguousPeer {
