@@ -6,6 +6,7 @@ import { assertProject } from '@pnpm/assert-project'
 import { install } from '@pnpm/installing.commands'
 import { preparePackages } from '@pnpm/prepare'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from './utils/index.js'
 
@@ -163,6 +164,182 @@ test('legacy deploy injects workspace dependencies that the shared lockfile link
   expect(fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))).toBe(
     path.join(deployDir, 'node_modules/.pnpm/project-2@file+project-2/node_modules/project-2')
   )
+})
+
+test('native deploy creates a dedicated lockfile from linked workspace dependencies', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'project-3': 'workspace:*',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  })
+  expect(assertProject(process.cwd()).readLockfile().importers['project-1'].dependencies!['project-2'].version).toBe('link:../project-2')
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const virtualStoreDir = `${path.join(deployDir, 'node_modules/.pnpm')}${path.sep}`
+  expect(assertProject(deployDir).readLockfile().importers['.'].dependencies!['project-2'].version).toMatch(/^project-2@file:/)
+
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  expect(deployedDependencyDir.startsWith(virtualStoreDir)).toBeTruthy()
+  const deployedDependencyModulesDir = path.dirname(deployedDependencyDir)
+  expect(fs.existsSync(path.join(deployedDependencyModulesDir, 'is-positive'))).toBeTruthy()
+  expect(fs.realpathSync(path.join(deployedDependencyModulesDir, 'project-3')).startsWith(virtualStoreDir)).toBeTruthy()
+})
+
+test('native deploy binds a linked workspace package peer to the deployed resolution', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      // The workspace resolves this peer from project-2's own devDependencies,
+      // which the production deploy leaves behind.
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+      devDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(fs.existsSync(peerDir)).toBeTruthy()
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
+test('native deploy refuses a linked workspace package whose peer resolves to more than one version', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        'project-3': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '*',
+      },
+    },
+    {
+      // Puts a second resolution of the peer into the deployed graph.
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await expect(
+    deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+  ).rejects.toThrow(/project-2.*@pnpm\.e2e\/peer-a.*more than one version \(1\.0\.0, 1\.0\.1\)/)
 })
 
 test('deploy in workspace with shared-workspace-lockfile=false', async () => {

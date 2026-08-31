@@ -2,6 +2,7 @@ import path from 'node:path'
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type {
   DirectoryResolution,
   LockfileObject,
@@ -94,6 +95,7 @@ export function createDeployFiles ({
     })
   }
 
+  const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
@@ -107,6 +109,8 @@ export function createDeployFiles ({
     })
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
+    const manifest = allProjects.find(project => project.rootDirRealPath === projectRootDirRealPath)?.manifest
+    if (manifest) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
   for (const field of DEPENDENCIES_FIELD) {
@@ -140,6 +144,7 @@ export function createDeployFiles ({
     targetPackageSnapshots,
     include
   )
+  bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
   const result: DeployFiles = {
     lockfile: {
@@ -257,6 +262,60 @@ function filterDeployPackageSnapshots (
       return [depPath, snapshot]
     })
   ) as PackageSnapshots
+}
+
+/**
+ * A linked workspace package has no package snapshot in the shared lockfile,
+ * so the importer its deployed snapshot is synthesized from carries no peer
+ * bindings. Bind each still-unresolved peer to the deployed graph's own
+ * resolution while that resolution is unambiguous, and refuse when it is not:
+ * picking between candidates is precisely the decision that injecting the
+ * package would have made, and it cannot be recovered afterwards.
+ */
+function bindSingletonPeers (
+  importer: ProjectSnapshot,
+  packages: PackageSnapshots,
+  linkedWorkspaceProjects: Map<DepPath, ProjectManifest>
+): void {
+  if (linkedWorkspaceProjects.size === 0) return
+
+  const references = new Map<string, Set<string>>()
+  const collect = (dependencies: ResolvedDependencies | undefined) => {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const depPath = dp.refToRelative(reference, alias)
+      if (depPath == null) continue
+      const { name } = dp.parse(depPath)
+      if (name == null) continue
+      let referencesOfName = references.get(name)
+      if (referencesOfName == null) references.set(name, referencesOfName = new Set())
+      referencesOfName.add(reference)
+    }
+  }
+  collect(importer.dependencies)
+  collect(importer.devDependencies)
+  collect(importer.optionalDependencies)
+  for (const snapshot of Object.values(packages)) {
+    collect(snapshot.dependencies)
+    collect(snapshot.optionalDependencies)
+  }
+
+  for (const [depPath, manifest] of linkedWorkspaceProjects) {
+    const snapshot = packages[depPath]
+    if (snapshot == null) continue
+    for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
+      if (snapshot.dependencies?.[peerName] != null) continue
+      const candidates = references.get(peerName)
+      // A peer the deployed graph does not provide at all stays unresolved,
+      // exactly as it is in the workspace this deploy was taken from.
+      if (candidates == null) continue
+      if (candidates.size > 1) {
+        throw new PnpmError('DEPLOY_AMBIGUOUS_PEER', `Workspace package '${manifest.name ?? depPath}' declares a peer dependency on '${peerName}', which resolves to more than one version (${Array.from(candidates).sort().join(', ')}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to.`, {
+          hint: 'Set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.',
+        })
+      }
+      snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
+    }
+  }
 }
 
 interface ConvertOptions {
