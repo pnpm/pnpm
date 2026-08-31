@@ -208,6 +208,15 @@ fn generate_sh_shim_uses_absolute_target_when_no_common_prefix() {
         body.contains(r#""/abs/elsewhere/cli""#),
         "absolute-target branch must skip $basedir prefix, body:\n{body}",
     );
+
+    let context_aware_body =
+        generate_sh_shim(target, shim, Some(&runtime), &[], ShimStyle::ContextAware);
+    assert!(
+        context_aware_body.contains(
+            r#"exec "$dispatcher" --shim 'local-shim' "$dispatcher_basedir/"'local-shim' "/abs/elsewhere/cli" -- "$@""#,
+        ),
+        "context-aware dispatch must skip $dispatcher_basedir for an absolute target, body:\n{context_aware_body}",
+    );
 }
 
 #[test]
