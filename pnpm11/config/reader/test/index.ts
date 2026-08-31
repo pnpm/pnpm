@@ -5927,6 +5927,47 @@ test('getConfig() resolves the canonical sideEffectsCache declaration', async ()
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme', packages: ['native-addon'] })
 })
 
+test('getConfig() lets a command-line boolean replace a declared sideEffectsCache object', async () => {
+  const resolveWith = async (declared: object, cliValue: boolean): Promise<Config> => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCache: declared })
+    const { config } = await getConfig({
+      cliOptions: { 'side-effects-cache': cliValue },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return config
+  }
+
+  const disabled = await resolveWith({ read: true, write: true, remote: { org: 'acme' } }, false)
+  expect(disabled.sideEffectsCacheRead).toBe(false)
+  expect(disabled.sideEffectsCacheWrite).toBe(false)
+  // The boolean says nothing about the remote tier, so the object's survives it.
+  expect(disabled.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
+
+  const enabled = await resolveWith({ read: false, write: false }, true)
+  expect(enabled.sideEffectsCacheRead).toBe(true)
+  expect(enabled.sideEffectsCacheWrite).toBe(true)
+})
+
+test('getConfig() lets PNPM_CONFIG_SIDE_EFFECTS_CACHE replace a declared sideEffectsCache object', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { read: true, write: true, remote: { org: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: { PNPM_CONFIG_SIDE_EFFECTS_CACHE: 'false' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(false)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
+})
+
 test('getConfig() defaults read and write when only the remote tier is declared', async () => {
   // Naming the remote tier says nothing about the local one, and the local one
   // was on by default before this setting grew an object form. Reading `remote`

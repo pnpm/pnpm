@@ -1,9 +1,10 @@
 use super::{WorkspaceSettings, parse_json_or_string, parse_tri_array};
 use crate::{
-    ColorMode, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol, ScriptsPrependNodePath,
-    TrustPolicy, VirtualStoreType, api::EnvVar,
+    ColorMode, Config, NodeLinker, NodePackageMapType, SaveWorkspaceProtocol,
+    ScriptsPrependNodePath, TrustPolicy, VirtualStoreType, api::EnvVar,
 };
 use pretty_assertions::assert_eq;
+use std::path::Path;
 
 #[test]
 fn bool_env_var_only_accepts_lowercase_true_false() {
@@ -270,4 +271,36 @@ fn virtual_store_type_env_var_parses_its_two_values() {
         Some(VirtualStoreType::Project),
     );
     assert_eq!(WorkspaceSettings::from_pnpm_config_env::<EnvNonsense>().virtual_store_type, None);
+}
+
+/// The environment can only spell the boolean, so it reaches the same
+/// shorthand arm a yaml layer's boolean does: the object form's gates give way
+/// to it and the remote tier it says nothing about survives.
+#[test]
+fn a_side_effects_cache_env_var_replaces_the_object_form() {
+    struct EnvSideEffectsCacheOff;
+    impl EnvVar for EnvSideEffectsCacheOff {
+        fn var(name: &str) -> Option<String> {
+            (name == "PNPM_CONFIG_SIDE_EFFECTS_CACHE").then(|| "false".to_owned())
+        }
+    }
+    let declared: WorkspaceSettings = serde_saphyr::from_str(
+        r"
+sideEffectsCache:
+  read: true
+  write: true
+  remote:
+    org: acme
+",
+    )
+    .unwrap();
+
+    let mut config = Config::new();
+    declared.apply_to(&mut config, Path::new("/workspace"));
+    WorkspaceSettings::from_pnpm_config_env::<EnvSideEffectsCacheOff>()
+        .apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(!config.side_effects_cache_read());
+    assert!(!config.side_effects_cache_write());
+    assert_eq!(config.remote_side_effects_cache.expect("shared cache config").org, "acme");
 }

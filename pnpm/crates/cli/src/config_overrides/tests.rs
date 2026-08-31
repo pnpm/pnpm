@@ -3,7 +3,7 @@ use super::{
 };
 use pnpm_config::{
     ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker,
-    PackageImportMethod, PmOnFail, RuntimeOnFail, TrustPolicy,
+    PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail, TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
@@ -746,6 +746,34 @@ fn a_boolean_setting_claims_the_next_token_only_when_it_spells_a_boolean() {
         let mut config = Config::default();
         overrides.apply(&mut config, Path::new("/workspace"));
         assert_eq!(config.side_effects_cache, expected);
+    }
+}
+
+#[test]
+fn a_side_effects_cache_flag_replaces_the_object_form_and_keeps_its_remote_tier() {
+    for (flag, declared_gates, expected) in
+        [("--no-side-effects-cache", true, false), ("--side-effects-cache", false, true)]
+    {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", "install", flag]));
+        assert_eq!(remaining, argv(["pacquet", "install"]));
+
+        let mut config = Config {
+            side_effects_cache_read_setting: Some(declared_gates),
+            side_effects_cache_write_setting: Some(declared_gates),
+            remote_side_effects_cache: Some(RemoteSideEffectsCacheSettings {
+                org: "acme".to_string(),
+                ..RemoteSideEffectsCacheSettings::default()
+            }),
+            ..Config::default()
+        };
+        overrides.apply(&mut config, Path::new("/workspace"));
+
+        assert_eq!(config.side_effects_cache_read(), expected);
+        assert_eq!(config.side_effects_cache_write(), expected);
+        assert_eq!(
+            config.remote_side_effects_cache.map(|remote| remote.org),
+            Some("acme".to_string()),
+        );
     }
 }
 

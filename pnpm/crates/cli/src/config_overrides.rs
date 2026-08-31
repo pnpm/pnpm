@@ -580,7 +580,7 @@ impl ConfigOverrides {
             config.explicit_settings.insert("strictPeerDependencies".to_string(), value.into());
         }
         if let Some(value) = self.side_effects_cache {
-            config.side_effects_cache = value;
+            config.apply_side_effects_cache_shorthand(value);
             config.explicit_settings.insert("sideEffectsCache".to_string(), value.into());
         }
         if let Some(value) = self.side_effects_cache_readonly {

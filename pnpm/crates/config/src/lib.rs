@@ -2772,6 +2772,21 @@ impl Config {
         registries
     }
 
+    /// Apply a boolean `sideEffectsCache` declaration, which turns the
+    /// local read and write gates on or off together.
+    ///
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer the object form's
+    /// fields, so a layer spelling the setting as a boolean has to clear
+    /// what an earlier layer's object left behind to beat it. The remote
+    /// tier is a separate declaration the boolean says nothing about, so
+    /// it survives untouched.
+    pub fn apply_side_effects_cache_shorthand(&mut self, enabled: bool) {
+        self.side_effects_cache = enabled;
+        self.side_effects_cache_read_setting = None;
+        self.side_effects_cache_write_setting = None;
+    }
+
     /// Whether the install should consult the side-effects cache
     /// (`sideEffectsCacheRead = sideEffectsCache ?? sideEffectsCacheReadonly`).
     ///

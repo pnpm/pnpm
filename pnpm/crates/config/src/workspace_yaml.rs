@@ -2109,12 +2109,7 @@ impl WorkspaceSettings {
         // supplies the signing key, and neither may drop the other's fields.
         match self.side_effects_cache {
             Some(SideEffectsCacheSetting::Enabled(enabled)) => {
-                config.side_effects_cache = enabled;
-                // A later layer saying `sideEffectsCache: false` has to beat an
-                // earlier layer's object, and the helpers prefer these when set,
-                // so the shorthand must clear what the object left behind.
-                config.side_effects_cache_read_setting = None;
-                config.side_effects_cache_write_setting = None;
+                config.apply_side_effects_cache_shorthand(enabled);
             }
             Some(SideEffectsCacheSetting::Settings(settings)) => {
                 config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));
