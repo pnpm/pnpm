@@ -213,7 +213,7 @@ pub fn warm_deps_state_cache<'a, Key>(
     }
 }
 
-/// Return every graph node that is, or transitively depends on, a node
+/// Return every node that is, or transitively depends on, a node
 /// in `built_dep_paths`.
 ///
 /// The result controls whether [`crate::calc_graph_node_hash`] includes
@@ -232,26 +232,26 @@ where
         return HashSet::new();
     }
 
-    let mut parents_by_child: HashMap<Key, Vec<Key>> = HashMap::new();
+    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
     for (parent, node) in graph {
         for child in node.children.values() {
-            parents_by_child.entry(child.clone()).or_default().push(parent.clone());
+            parents_by_child.entry(child).or_default().push(parent);
         }
     }
 
-    let mut build_required = built_dep_paths.clone();
-    let mut pending: Vec<Key> = built_dep_paths.iter().cloned().collect();
+    let mut build_required: HashSet<&Key> = built_dep_paths.iter().collect();
+    let mut pending: Vec<&Key> = built_dep_paths.iter().collect();
     while let Some(child) = pending.pop() {
-        let Some(parents) = parents_by_child.get(&child) else {
+        let Some(parents) = parents_by_child.get(child) else {
             continue;
         };
         for parent in parents {
-            if build_required.insert(parent.clone()) {
-                pending.push(parent.clone());
+            if build_required.insert(parent) {
+                pending.push(parent);
             }
         }
     }
-    build_required
+    build_required.into_iter().cloned().collect()
 }
 
 #[cfg(test)]

@@ -280,14 +280,11 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   pkgMetaIterator: PkgMetaIterator<T>,
   opts: GraphNodeHashOptions = {}
 ): IterableIterator<HashedDepPath<T>> {
-  let builtDepPaths: Set<DepPath> | undefined
-  let buildRequiredCache: Record<string, boolean> | undefined
+  let buildRequiredDepPaths: Set<DepPath> | undefined
   let entries: Iterable<T>
   if (opts.allowBuild != null) {
     const pkgMetaList = Array.from(pkgMetaIterator)
-    builtDepPaths = computeBuiltDepPaths(pkgMetaList, opts.allowBuild)
-    buildRequiredCache = {}
-    prepareBuildRequiredCache(graph, builtDepPaths, buildRequiredCache)
+    buildRequiredDepPaths = computeBuildRequiredDepPaths(graph, computeBuiltDepPaths(pkgMetaList, opts.allowBuild))
     entries = pkgMetaList
   } else {
     entries = pkgMetaIterator
@@ -295,8 +292,7 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
   const ctx = {
     graph,
     cache: {},
-    builtDepPaths,
-    buildRequiredCache,
+    buildRequiredDepPaths,
     supportedArchitectures: opts.supportedArchitectures,
     nodeVersion: opts.nodeVersion,
     lockfileDir: opts.lockfileDir,
@@ -310,11 +306,11 @@ export function * iterateHashedGraphNodes<T extends PkgMeta> (
 }
 
 export function calcGraphNodeHash<T extends PkgMeta> (
-  { graph, cache, builtDepPaths, buildRequiredCache, supportedArchitectures, nodeVersion, lockfileDir }: {
+  { graph, cache, buildRequiredDepPaths, supportedArchitectures, nodeVersion, lockfileDir }: {
     graph: DepsGraph<DepPath>
     cache: DepsStateCache
-    builtDepPaths?: Set<DepPath>
-    buildRequiredCache?: Record<string, boolean>
+    /** See {@link computeBuildRequiredDepPaths}. */
+    buildRequiredDepPaths?: Set<DepPath>
     supportedArchitectures?: SupportedArchitectures
     /** See {@link GraphNodeHashOptions.nodeVersion}. */
     nodeVersion?: string
@@ -324,17 +320,12 @@ export function calcGraphNodeHash<T extends PkgMeta> (
   pkgMeta: T
 ): string {
   const { name, version, depPath } = pkgMeta
-  // When builtDepPaths is provided (derived from the allowBuilds config),
-  // we only include the engine name for packages that are allowed to build
-  // or transitively depend on a package that is allowed to build.
+  // When buildRequiredDepPaths is provided (derived from the allowBuilds
+  // config), we only include the engine name for packages that are allowed
+  // to build or transitively depend on a package that is allowed to build.
   // This makes GVS hashes engine-agnostic for pure-JS packages,
   // so they survive Node.js upgrades and architecture changes.
-  let includeEngine = true
-  if (builtDepPaths !== undefined) {
-    buildRequiredCache ??= {}
-    prepareBuildRequiredCache(graph, builtDepPaths, buildRequiredCache)
-    includeEngine = buildRequiredCache[depPath] === true
-  }
+  const includeEngine = buildRequiredDepPaths === undefined || buildRequiredDepPaths.has(depPath)
   // A snapshot that declares `engines.runtime` carries the desugared
   // `node@runtime:<version>` pin as a child; that's the Node the bin
   // linker spawns for its lifecycle scripts, so it has to drive the
@@ -507,34 +498,35 @@ function computeBuiltDepPaths (
   return builtDepPaths
 }
 
-const BUILD_REQUIRED_CACHE_READY = Symbol('buildRequiredCacheReady')
-
-type PreparedBuildRequiredCache = Record<string, boolean> & {
-  [BUILD_REQUIRED_CACHE_READY]?: true
-}
-
-function prepareBuildRequiredCache (
+/**
+ * Expand `builtDepPaths` to every node that is, or transitively depends
+ * on, one of them.
+ *
+ * The result gates the engine string in {@link calcGraphNodeHash}: only a
+ * package that may run a build script — or that depends on one — keeps the
+ * engine in its GVS hash. It is computed as one graph-wide reverse closure,
+ * so a package inside a dependency cycle gets the same answer no matter
+ * which node the hasher reaches it from.
+ */
+export function computeBuildRequiredDepPaths (
   graph: DepsGraph<DepPath>,
-  builtDepPaths: Set<DepPath>,
-  cache: Record<string, boolean>
-): void {
-  const preparedCache = cache as PreparedBuildRequiredCache
-  if (preparedCache[BUILD_REQUIRED_CACHE_READY] === true) return
-  if (builtDepPaths.size === 0) {
-    preparedCache[BUILD_REQUIRED_CACHE_READY] = true
-    return
-  }
+  builtDepPaths: Set<DepPath>
+): Set<DepPath> {
+  const buildRequiredDepPaths = new Set(builtDepPaths)
+  if (builtDepPaths.size === 0) return buildRequiredDepPaths
 
   const parentsByChild = new Map<DepPath, DepPath[]>()
   for (const parent of Object.keys(graph) as DepPath[]) {
     for (const child of Object.values(graph[parent].children)) {
-      const parents = parentsByChild.get(child) ?? []
-      parents.push(parent)
-      parentsByChild.set(child, parents)
+      const parents = parentsByChild.get(child)
+      if (parents == null) {
+        parentsByChild.set(child, [parent])
+      } else {
+        parents.push(parent)
+      }
     }
   }
 
-  const buildRequiredDepPaths = new Set(builtDepPaths)
   const pending = Array.from(builtDepPaths)
   while (pending.length > 0) {
     const child = pending.pop()!
@@ -545,10 +537,7 @@ function prepareBuildRequiredCache (
       }
     }
   }
-  for (const depPath of buildRequiredDepPaths) {
-    cache[depPath] = true
-  }
-  preparedCache[BUILD_REQUIRED_CACHE_READY] = true
+  return buildRequiredDepPaths
 }
 
 function lockfileDepsToGraphChildren (

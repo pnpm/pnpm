@@ -276,9 +276,9 @@ impl VirtualStoreLayout {
         let mut cache: DepsStateCache<String> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
-        // memoizes into `cache`, and for a
-        // snapshot inside a dependency cycle the digest that lands there
-        // depends on which snapshot the walk reached it from.
+        // memoizes into `cache`, and for a snapshot inside a dependency
+        // cycle the digest that lands there depends on which snapshot the
+        // walk reached it from.
         for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
             // Per-snapshot engine resolution: a snapshot that declares
             // its own `engines.runtime` carries the desugared
