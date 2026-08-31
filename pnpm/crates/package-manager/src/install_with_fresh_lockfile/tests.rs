@@ -265,18 +265,33 @@ fn an_aliased_workspace_dependency_resolves_through_its_specifier() {
     );
 }
 
-/// A `link:` target outside the workspace has a manifest the report's
-/// walk still reads, so it counts without being inspectable here.
+/// A `link:` target that is not a workspace project counts either way:
+/// the report's walk reads its manifest when it resolves inside the
+/// lockfile directory, and a symlink decides whether one that escapes
+/// lexically still does.
 #[test]
-fn a_link_outside_the_workspace_is_treated_as_peer_declaring() {
-    assert_eq!(
-        linked_peer_consumers(&[
-            (".", serde_json::json!({ "name": "root" })),
-            (
-                "packages/app",
-                serde_json::json!({ "name": "app", "dependencies": { "vendored": "link:../../vendored" } }),
-            ),
-        ]),
-        vec!["packages/app".to_string()],
-    );
+fn a_link_to_a_non_project_target_is_treated_as_peer_declaring() {
+    let inside = linked_peer_consumers(&[
+        (".", serde_json::json!({ "name": "root" })),
+        (
+            "packages/app",
+            serde_json::json!({
+                "name": "app",
+                "dependencies": { "vendored": "link:../../vendor/thing" },
+            }),
+        ),
+    ]);
+    assert_eq!(inside, vec!["packages/app".to_string()]);
+
+    let escaping = linked_peer_consumers(&[
+        (".", serde_json::json!({ "name": "root" })),
+        (
+            "packages/app",
+            serde_json::json!({
+                "name": "app",
+                "dependencies": { "vendored": "link:../../../outside" },
+            }),
+        ),
+    ]);
+    assert_eq!(escaping, vec!["packages/app".to_string()]);
 }

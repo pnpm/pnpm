@@ -2002,8 +2002,10 @@ fn importers_consuming_linked_peers(
                 } else {
                     continue;
                 };
-            // A target outside the workspace has a manifest the walk
-            // still reads, so it counts without being inspectable here.
+            // Not a workspace project, so its peers are unknown here.
+            // The walk reads such a manifest when the target resolves
+            // inside the lockfile directory and skips one that escapes;
+            // symlinks decide which, so both count.
             let declares = linked_id.as_deref().is_none_or(|linked_id| {
                 peer_declaring_ids.contains(linked_id)
                     || !importer_manifests.contains_key(linked_id)
