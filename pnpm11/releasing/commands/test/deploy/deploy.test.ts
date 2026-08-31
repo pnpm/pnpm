@@ -288,6 +288,58 @@ test('native deploy binds a linked workspace package peer to the deployed resolu
   expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
 })
 
+// Deploy does not adjudicate peer ranges. Injecting the package binds the
+// consumer's version even when it falls outside the declared range - pnpm
+// treats that as a resolution-time warning - so the non-injected path binds it
+// too rather than inventing a stricter rule for linked packages.
+test('native deploy binds a linked workspace package peer that falls outside the declared range', async () => {
+  preparePackages([
+    {
+      location: '.',
+      package: {
+        name: 'root',
+        version: '1.0.0',
+        private: true,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'project-2': 'workspace:*',
+        '@pnpm.e2e/peer-a': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      peerDependencies: {
+        '@pnpm.e2e/peer-a': '1.0.1',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project-1' }])
+  const opts = {
+    ...DEFAULT_OPTS,
+    allProjects,
+    autoInstallPeers: false,
+    dir: process.cwd(),
+    injectWorkspacePackages: false,
+    lockfileDir: process.cwd(),
+    sharedWorkspaceLockfile: true,
+    workspaceDir: process.cwd(),
+  }
+
+  await install.handler(opts)
+  await deploy.handler({ ...opts, production: true, recursive: true, selectedProjectsGraph }, ['deploy'])
+
+  const deployDir = path.resolve('deploy')
+  const deployedDependencyDir = fs.realpathSync(path.join(deployDir, 'node_modules/project-2'))
+  const peerDir = path.join(path.dirname(deployedDependencyDir), '@pnpm.e2e/peer-a')
+  expect(loadJsonFileSync<{ version: string }>(path.join(peerDir, 'package.json')).version).toBe('1.0.0')
+})
+
 test('native deploy refuses a linked workspace package whose peer resolves to more than one version', async () => {
   preparePackages([
     {
