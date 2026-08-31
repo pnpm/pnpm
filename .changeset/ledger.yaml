@@ -1668,6 +1668,10 @@
   dir: pnpr/npm/pnpr
   intents:
     - pnpr-hoist-readme
+"@pnpm/pnpr@0.1.0-alpha.10":
+  dir: pnpr/npm/pnpr
+  intents:
+    - artifact-publications-expire
 "@pnpm/pnpr@0.1.0-alpha.2":
   dir: pnpr/npm/pnpr
   intents:
@@ -3477,6 +3481,36 @@ pacquet@12.1.0:
     - wild-buttons-repeat
     - windows-console-ansi-colors
     - workspace-task-orchestration
+pacquet@12.2.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - audit-fix-bare-flag-and-save-exact
+    - authenticated-node-mirrors
+    - calm-jobs-survive
+    - calm-links-share
+    - calm-lockfiles-share
+    - curvy-ravens-pack
+    - deploy-singleton-peers
+    - fix-cyclic-build-hashes
+    - fix-gvs-shim-chmod-race
+    - fix-pwsh-native-shim
+    - fix-wsl2-context-shims
+    - fresh-plums-stay-local
+    - friendly-catalog-peers
+    - global-dirs-from-the-global-config-file
+    - hoisted-linker-added-counter
+    - optional-peer-hoist-skips-a-rejected-root-pin
+    - parallel-regexp-scripts
+    - peer-report-candidate-scope
+    - quick-mice-discover
+    - rare-wolves-matter
+    - retry-windows-staging-swaps
+    - side-effects-cache-cli-override
+    - spicy-donuts-discover
+    - steady-peers-settle
+    - tidy-pandas-browse
+    - utf8-env-literals
+    - workspace-protocol-catalogs
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:

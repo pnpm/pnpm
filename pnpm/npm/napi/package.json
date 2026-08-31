@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/napi",
   "private": true,
-  "version": "12.1.0",
+  "version": "12.2.0",
   "description": "Node.js addon bindings for the pnpm v12 Rust engine (pacquet)",
   "keywords": [
     "pnpm",
