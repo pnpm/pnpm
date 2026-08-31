@@ -20,21 +20,30 @@ use crate::InstallError;
 /// resolved. `None` — every install that skipped resolution — reports
 /// nothing.
 ///
+/// `peer_issue_importer_ids` is the resolution's own verdict: the
+/// importers it left an issue under. Only those are walked, so a
+/// workspace the resolution found clean costs nothing here. The
+/// lockfile stays the report's source — it carries the resolved
+/// versions the resolver's parent chains leave out.
+///
 /// `installed_importer_ids` scopes the verdict to the projects this run
 /// acted on. A `--filter`ed install leaves every unselected importer in
 /// the lockfile untouched, and pnpm reports only on the projects that
 /// took part in the resolution.
 pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     resolved_lockfile: Option<&Lockfile>,
+    peer_issue_importer_ids: &HashSet<String>,
     installed_importer_ids: &HashSet<String>,
     lockfile_dir: &Path,
     config: &Config,
 ) -> Result<(), InstallError> {
     let Some(lockfile) = resolved_lockfile else { return Ok(()) };
-    let mut importer_ids: Vec<String> = lockfile
-        .importers
-        .keys()
-        .filter(|importer_id| installed_importer_ids.contains(*importer_id))
+    let mut importer_ids: Vec<String> = peer_issue_importer_ids
+        .iter()
+        .filter(|importer_id| {
+            installed_importer_ids.contains(*importer_id)
+                && lockfile.importers.contains_key(*importer_id)
+        })
         .cloned()
         .collect();
     importer_ids.sort();
@@ -62,3 +71,6 @@ pub(crate) fn report_peer_dependency_issues<Reporter: pnpm_reporter::Reporter>(
     }));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;

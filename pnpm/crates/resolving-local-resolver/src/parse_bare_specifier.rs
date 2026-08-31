@@ -311,7 +311,11 @@ fn strip_tilde_prefix(spec: &str) -> Option<&str> {
     spec.strip_prefix("~/")
 }
 
-fn is_tarball_filename(bare: &str) -> bool {
+/// Whether a local specifier names a package tarball rather than a
+/// directory. A `file:` specifier resolves to one or the other, and only
+/// the directory form becomes a `link:` entry in the lockfile.
+#[must_use]
+pub fn is_tarball_filename(bare: &str) -> bool {
     let lower = bare.to_ascii_lowercase();
     lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
 }

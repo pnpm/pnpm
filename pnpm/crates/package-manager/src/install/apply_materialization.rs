@@ -18,6 +18,7 @@ struct ResolveOnlyCompletionInputs<'a> {
     dry_run: bool,
     peer_issues_sink_is_none: bool,
     existing_wanted_lockfile: Option<&'a Lockfile>,
+    peer_issue_importer_ids: &'a HashSet<String>,
     fresh_lockfile: Option<&'a Lockfile>,
     prefix: &'a str,
     config: &'static Config,
@@ -50,6 +51,7 @@ fn complete_resolve_only<Reporter: self::Reporter>(
     if inputs.peer_issues_sink_is_none {
         report_peer_dependency_issues::<Reporter>(
             inputs.fresh_lockfile,
+            inputs.peer_issue_importer_ids,
             inputs.installed_importer_ids,
             inputs.workspace_root,
             inputs.config,
@@ -594,6 +596,7 @@ struct ReportInstallCompletionInputs<'a> {
     /// resolution — which is what decides whether peer-dependency
     /// issues are reported at all.
     resolved_lockfile: Option<&'a Lockfile>,
+    peer_issue_importer_ids: &'a HashSet<String>,
     installed_importer_ids: &'a HashSet<String>,
 }
 
@@ -608,6 +611,7 @@ fn report_install_completion<Reporter: self::Reporter>(
         ignored_builds,
         verified_file_integrity_baseline,
         resolved_lockfile,
+        peer_issue_importer_ids,
         installed_importer_ids,
     } = inputs;
     // Reported before the summary and before the ignored-builds
@@ -615,6 +619,7 @@ fn report_install_completion<Reporter: self::Reporter>(
     // the install, first among the ways it can still fail.
     report_peer_dependency_issues::<Reporter>(
         resolved_lockfile,
+        peer_issue_importer_ids,
         installed_importer_ids,
         workspace_root,
         config,
@@ -713,6 +718,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) dry_run: bool,
     pub(super) peer_issues_sink_is_none: bool,
     pub(super) existing_wanted_lockfile: Option<&'a Lockfile>,
+    pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
     pub(super) prefix: String,
     pub(super) lockfile: Option<&'a Lockfile>,
@@ -756,6 +762,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         dry_run,
         peer_issues_sink_is_none,
         existing_wanted_lockfile,
+        peer_issue_importer_ids,
         fresh_lockfile,
         prefix,
         lockfile,
@@ -803,6 +810,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         dry_run,
         peer_issues_sink_is_none,
         existing_wanted_lockfile,
+        peer_issue_importer_ids: &peer_issue_importer_ids,
         fresh_lockfile: fresh_lockfile.as_ref(),
         prefix: &prefix,
         config,
@@ -911,6 +919,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         ignored_builds,
         verified_file_integrity_baseline,
         resolved_lockfile: fresh_lockfile.as_ref(),
+        peer_issue_importer_ids: &peer_issue_importer_ids,
         installed_importer_ids,
     })
 }

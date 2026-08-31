@@ -701,6 +701,12 @@ pub struct InstallWithFreshLockfileResult {
     /// see [`crate::collect_injected_deps`]. Empty on the
     /// `lockfile_only` path, which never materializes.
     pub injected_deps: BTreeMap<String, Vec<String>>,
+    /// Importers the resolution left a peer-dependency issue under.
+    /// Install completion renders its report from
+    /// [`Self::wanted_lockfile`] — which carries the resolved versions
+    /// the resolver's parent chains leave out — but walks only these
+    /// importers.
+    pub peer_issue_importer_ids: HashSet<String>,
     /// `Some` when the install resolved a graph that was written to
     /// `pnpm-lock.yaml`; `None` when the write was skipped (today: only
     /// `config.lockfile=false`). The caller mirrors the same gate when
@@ -1193,6 +1199,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
         }
         let total_nodes = workspace_result.peers.graph.len();
+        let mut peer_issue_importer_ids: HashSet<String> =
+            workspace_result.peers.peer_dependency_issues_by_importer.keys().cloned().collect();
+        peer_issue_importer_ids
+            .extend(importers_consuming_linked_peers(&importer_manifests, lockfile_dir));
         // Hand the per-importer issues to the programmatic caller
         // before the graph is consumed below.
         if let Some(sink) = &peer_issues_sink {
@@ -1306,6 +1316,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             }
             return finish_lockfile_only::<Reporter>(LockfileOnlyOptions {
                 built_lockfile,
+                peer_issue_importer_ids,
                 config,
                 lockfile_dir,
                 requester,
@@ -1766,6 +1777,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             hoisted_dependencies,
             hoisted_locations,
             injected_deps,
+            peer_issue_importer_ids,
             wanted_lockfile,
             can_record_lockfile_verification,
             ignored_builds,
@@ -1927,8 +1939,102 @@ fn build_extra_env(
     env
 }
 
+/// Importers whose linked workspace dependency declares
+/// `peerDependencies`.
+///
+/// The lockfile walk that renders the report reads a linked project's
+/// manifest and checks its peers against the *consuming* importer's
+/// dependencies. Peer resolution has no counterpart for that check — a
+/// `link:` node's own peers are the linked importer's business — so
+/// these importers never reach
+/// `peer_dependency_issues_by_importer` and have to join the report's
+/// candidate set on their own. Only the direct consumer is needed: it
+/// is the importer whose dependencies the check compares against.
+///
+/// Answered from the manifests the install already parsed, so a
+/// workspace whose projects declare no peers costs one pass over the
+/// declared dependencies and no I/O. Over-approximates — a
+/// `workspace:` dependency the lockfile records as an injected
+/// directory rather than a link still counts, as does a target this
+/// cannot name — which only widens the walk.
+fn importers_consuming_linked_peers(
+    importer_manifests: &BTreeMap<String, &PackageManifest>,
+    lockfile_dir: &Path,
+) -> HashSet<String> {
+    let declares_peers = |manifest: &PackageManifest| {
+        manifest
+            .value()
+            .get("peerDependencies")
+            .and_then(serde_json::Value::as_object)
+            .is_some_and(|peers| !peers.is_empty())
+    };
+    let peer_declaring_ids: HashSet<&str> = importer_manifests
+        .iter()
+        .filter(|(_, manifest)| declares_peers(manifest))
+        .map(|(importer_id, _)| importer_id.as_str())
+        .collect();
+    fn project_name(manifest: &PackageManifest) -> Option<&str> {
+        manifest.value().get("name")?.as_str()
+    }
+    let peer_declaring_names: HashSet<&str> = importer_manifests
+        .values()
+        .filter(|manifest| declares_peers(manifest))
+        .filter_map(|manifest| project_name(manifest))
+        .collect();
+    let project_names: HashSet<&str> =
+        importer_manifests.values().filter_map(|manifest| project_name(manifest)).collect();
+
+    let mut consumers = HashSet::new();
+    for (importer_id, manifest) in importer_manifests {
+        let importer_dir = lockfile_dir.join(importer_id);
+        let groups = [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+        for (entry_key, bare_specifier) in manifest.dependencies(groups) {
+            // A target whose peers are unknown here counts. The walk
+            // reads such a manifest when it resolves inside the lockfile
+            // directory and skips one that escapes; symlinks decide
+            // which, so both count.
+            let declares = if let Some(spec) =
+                pnpm_workspace_spec::WorkspaceSpec::parse(bare_specifier)
+            {
+                // `workspace:<name>@<range>` names the project it links
+                // to; the bare form takes that name from the entry key.
+                // The range picks among the projects sharing that name,
+                // so any one of them declaring a peer counts — reaching
+                // for the picked version would duplicate
+                // `resolve_workspace_range` to narrow an answer that is
+                // only ever "walk this importer too".
+                let linked_name = spec.alias.as_deref().unwrap_or(entry_key);
+                peer_declaring_names.contains(linked_name) || !project_names.contains(linked_name)
+            } else if let Some(relative) = bare_specifier.strip_prefix("link:").or_else(|| {
+                // Only `file:` reads the name: it resolves to a package
+                // when that names a tarball, and only its directory form
+                // becomes the `link:` entry the walk inspects. A `link:`
+                // is a directory whatever it is called.
+                bare_specifier
+                    .strip_prefix("file:")
+                    .filter(|_| !pnpm_resolving_local_resolver::is_tarball_filename(bare_specifier))
+            }) {
+                let linked_id = pnpm_workspace::importer_id_from_root_dir(
+                    lockfile_dir,
+                    &importer_dir.join(relative),
+                );
+                peer_declaring_ids.contains(linked_id.as_str())
+                    || !importer_manifests.contains_key(&linked_id)
+            } else {
+                continue;
+            };
+            if declares {
+                consumers.insert(importer_id.clone());
+                break;
+            }
+        }
+    }
+    consumers
+}
+
 struct LockfileOnlyOptions<'a> {
     built_lockfile: Lockfile,
+    peer_issue_importer_ids: HashSet<String>,
     config: &'a Config,
     lockfile_dir: &'a Path,
     requester: &'a str,
@@ -1965,6 +2071,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
 ) -> Result<InstallWithFreshLockfileResult, InstallWithFreshLockfileError> {
     let LockfileOnlyOptions {
         built_lockfile,
+        peer_issue_importer_ids,
         config,
         lockfile_dir,
         requester,
@@ -2005,6 +2112,7 @@ async fn finish_lockfile_only<Reporter: self::Reporter>(
         hoisted_dependencies: HoistedDependencies::new(),
         hoisted_locations: BTreeMap::new(),
         injected_deps: BTreeMap::new(),
+        peer_issue_importer_ids,
         wanted_lockfile,
         can_record_lockfile_verification,
         ignored_builds: Vec::new(),
