@@ -1,3 +1,5 @@
+import { isIP } from 'node:net'
+
 import { fetchShasumsFileCached, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
 import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
@@ -363,7 +365,7 @@ function getSecureAuthHeader (getAuthHeader: GetAuthHeader | undefined, url: str
 }
 
 function isLoopbackHost (hostname: string): boolean {
-  return hostname === 'localhost' || hostname === '[::1]' || hostname.startsWith('127.')
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 function isRedirectStatus (status: number): boolean {

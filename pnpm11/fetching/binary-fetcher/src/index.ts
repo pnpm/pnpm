@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises'
+import { isIP } from 'node:net'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -112,8 +113,12 @@ function getSecureNodeMirrorAuthHeader (
   const authHeaderValue = getAuthHeader?.(url)
   if (authHeaderValue == null || packageName !== 'node') return authHeaderValue
   const parsed = new URL(url)
-  if (parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || parsed.hostname.startsWith('127.')) return authHeaderValue
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
   return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 export interface AssetInfo {

@@ -75,8 +75,10 @@ test('resolveNodeRuntime() authenticates release index and SHASUMS requests with
   }
 })
 
-test('resolveNodeRuntime() omits credentials for a remote HTTP mirror', async () => {
-  const mirror = 'http://node.example/download/rc/'
+test.each([
+  'http://node.example/download/rc/',
+  'http://127.attacker.example/download/rc/',
+])('resolveNodeRuntime() omits credentials for remote HTTP mirror %s', async (mirror) => {
   const requests: Array<{ url: string, authHeaderValue?: string }> = []
   const httpFetch: FetchFromRegistry = async (url, opts) => {
     requests.push({ url, authHeaderValue: opts?.authHeaderValue })

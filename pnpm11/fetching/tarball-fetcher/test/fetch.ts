@@ -747,15 +747,19 @@ test('does not require package name for tarball auth lookup', async () => {
   expect(calls).toContainEqual({ uri: resolution.tarball, pkgName: undefined })
 })
 
-test('does not send Node.js mirror credentials over remote HTTP', async () => {
+test.each([
+  ['http://example.com', undefined],
+  ['http://127.attacker.example', undefined],
+  ['http://127.0.0.1', 'Bearer mirror-token'],
+])('selects secure Node.js mirror auth for %s', async (origin, expectedAuthHeaderValue) => {
   const tarballContent = fs.readFileSync(tarballPath)
-  const mockPool = mockAgent.get(registry)
+  const mockPool = mockAgent.get(origin)
 
   mockPool.intercept({
     path: '/download/node.tgz',
     method: 'GET',
     headers: headers => {
-      expect(headers.authorization).toBeUndefined()
+      expect(headers.authorization).toBe(expectedAuthHeaderValue)
       return true
     },
   }).reply(200, tarballContent, {
@@ -771,7 +775,7 @@ test('does not send Node.js mirror credentials over remote HTTP', async () => {
       retries: 1,
     },
   })
-  const url = `${registry}/download/node.tgz`
+  const url = `${origin}/download/node.tgz`
 
   const index = await download(url, {
     getAuthHeaderByURI: () => 'Bearer mirror-token',

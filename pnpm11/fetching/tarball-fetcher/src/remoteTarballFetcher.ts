@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http'
+import { isIP } from 'node:net'
 import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
@@ -239,8 +240,12 @@ function getSecureNodeMirrorAuthHeader (
 ): string | undefined {
   if (authHeaderValue == null || appendedPackageName !== 'node') return authHeaderValue
   const parsed = new URL(url)
-  if (parsed.protocol === 'https:' || parsed.hostname === 'localhost' || parsed.hostname === '[::1]' || parsed.hostname.startsWith('127.')) return authHeaderValue
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
   return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
 }
 
 // Per RFC 9110 §8.4, Content-Encoding is a comma-separated list of codings.

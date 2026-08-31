@@ -679,12 +679,20 @@ impl<'a> ParsedUrl<'a> {
             Some((user_info, host_port)) => (Some(user_info), host_port),
             None => (None, authority),
         };
-        let (host, port) = match host_port.rsplit_once(':') {
-            // Skip IPv6 brackets. Pnpm doesn't handle them either, and
-            // no npm registry we care about uses them. Documenting the
-            // limit here rather than silently misparsing.
-            Some((host, port)) if !host.contains('[') => (host, Some(port)),
-            _ => (host_port, None),
+        let (host, port) = if host_port.starts_with('[') {
+            match host_port.find(']') {
+                Some(closing_bracket) => {
+                    let host = &host_port[..=closing_bracket];
+                    let port = host_port[closing_bracket + 1..].strip_prefix(':');
+                    (host, port)
+                }
+                None => (host_port, None),
+            }
+        } else {
+            match host_port.rsplit_once(':') {
+                Some((host, port)) => (host, Some(port)),
+                None => (host_port, None),
+            }
         };
         Some(ParsedUrl { scheme, user_info, host, port, path })
     }

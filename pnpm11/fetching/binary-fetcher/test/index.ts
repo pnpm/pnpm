@@ -376,6 +376,8 @@ describe('createBinaryFetcher', () => {
   it.each([
     ['https://mirror.example/node.zip', 'Bearer mirror-token'],
     ['http://mirror.example/node.zip', undefined],
+    ['http://127.attacker.example/node.zip', undefined],
+    ['http://127.0.0.1/node.zip', 'Bearer mirror-token'],
   ])('selects secure Node.js mirror auth for %s', async (url, expectedAuthHeaderValue) => {
     const fetch = ((_url: string, opts?: { authHeaderValue?: string }) => {
       expect(opts?.authHeaderValue).toBe(expectedAuthHeaderValue)
