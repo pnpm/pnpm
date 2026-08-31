@@ -112,7 +112,10 @@ async fn update_config_can_set_extra_env() {
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
-    assert!(config.extra_env.is_empty());
+    // `current::<Host>` reads the developer's real global config, which
+    // may seed `extra_env` (a global virtual store adds `NODE_PATH`), so
+    // assert only on the entry the hook adds.
+    assert_eq!(config.extra_env.get("npm_config_nodedir"), None);
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path())
         .await
