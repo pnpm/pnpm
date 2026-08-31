@@ -28,42 +28,46 @@ fn make_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> Strin
 }
 
 #[cfg(target_os = "windows")]
-fn make_long_lived_detached_node_script(pid_path: &Path) -> String {
-    let pid_path_json = serde_json::to_string(&pid_path.to_string_lossy()).expect("quote PID path");
+fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
+    let ready_path_json =
+        serde_json::to_string(&ready_path.to_string_lossy()).expect("quote ready path");
     let detached_script = format!(
-        "const fs = require('fs'); fs.writeFileSync({pid_path_json}, String(process.pid)); setTimeout(() => {{}}, 60000)",
+        "const fs = require('fs'); const socket = require('net').createConnection({{ host: '127.0.0.1', port: {port} }}, () => fs.writeFileSync({ready_path_json}, 'ready')); socket.on('data', () => process.exit(0))",
     );
     let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
     format!(
-        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); while (!fs.existsSync({pid_path_json})) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); process.exit(1)",
+        "const {{ spawn }} = require('child_process'); const fs = require('fs'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); const deadline = Date.now() + 10000; while (!fs.existsSync({ready_path_json}) && Date.now() < deadline) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10); process.exit(fs.existsSync({ready_path_json}) ? 1 : 42)",
     )
 }
 
 #[cfg(target_os = "windows")]
-fn assert_process_exits(pid: u32) {
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, WAIT_OBJECT_0, WAIT_TIMEOUT},
-        System::Threading::{
-            OpenProcess, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, TerminateProcess,
-            WaitForSingleObject,
-        },
-    };
+fn assert_connection_closes(mut connection: std::net::TcpStream) {
+    use std::io::{ErrorKind, Read, Write};
 
-    // SAFETY: the PID came from the detached child. A non-null handle is valid
-    // until it is closed below, and the requested access rights only wait for
-    // or terminate that child if the regression leaves it running.
-    unsafe {
-        let process = OpenProcess(PROCESS_SYNCHRONIZE | PROCESS_TERMINATE, 0, pid);
-        if process.is_null() {
-            return;
+    connection
+        .set_read_timeout(Some(Duration::from_secs(10)))
+        .expect("set detached child connection timeout");
+    let mut byte = [0];
+    let process_exited = match connection.read(&mut byte) {
+        Ok(0) => true,
+        Ok(_) => false,
+        Err(err)
+            if matches!(
+                err.kind(),
+                ErrorKind::BrokenPipe
+                    | ErrorKind::ConnectionAborted
+                    | ErrorKind::ConnectionReset
+                    | ErrorKind::NotConnected,
+            ) =>
+        {
+            true
         }
-        let wait = WaitForSingleObject(process, 10_000);
-        if wait == WAIT_TIMEOUT {
-            TerminateProcess(process, 1);
-            WaitForSingleObject(process, 10_000);
-        }
-        CloseHandle(process);
-        assert_eq!(wait, WAIT_OBJECT_0, "the detached process should be cleaned up");
+        Err(err) if matches!(err.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) => false,
+        Err(err) => panic!("read detached child connection: {err}"),
+    };
+    if !process_exited {
+        let _ = connection.write_all(b"exit");
+        panic!("the detached process should be cleaned up");
     }
 }
 
@@ -219,22 +223,40 @@ fn exec_preserves_a_detached_process_after_success() {
 #[cfg(target_os = "windows")]
 #[test]
 fn exec_cleans_up_a_detached_process_after_failure() {
-    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let pid_path = workspace.join("detached-pid.txt");
+    use std::{io::ErrorKind, net::TcpListener};
 
-    pacquet
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let ready_path = workspace.join("detached-ready.txt");
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("listen for detached child");
+    listener.set_nonblocking(true).expect("set listener nonblocking");
+    let port = listener.local_addr().expect("read listener address").port();
+
+    let mut pacquet_process = pacquet
         .with_arg("exec")
         .with_arg("node")
         .with_arg("-e")
-        .with_arg(make_long_lived_detached_node_script(&pid_path))
-        .assert()
-        .failure();
+        .with_arg(make_connected_detached_node_script(&ready_path, port))
+        .spawn()
+        .expect("spawn pacquet exec");
 
-    let pid = fs::read_to_string(&pid_path)
-        .expect("read detached process PID")
-        .parse()
-        .expect("parse detached process PID");
-    assert_process_exits(pid);
+    let deadline = Instant::now() + Duration::from_secs(12);
+    let connection = loop {
+        match listener.accept() {
+            Ok((connection, _)) => break connection,
+            Err(err) if err.kind() == ErrorKind::WouldBlock && Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) if err.kind() == ErrorKind::WouldBlock => {
+                let _ = pacquet_process.kill();
+                let _ = pacquet_process.wait();
+                panic!("the detached process did not connect before the deadline");
+            }
+            Err(err) => panic!("accept detached child connection: {err}"),
+        }
+    };
+    let status = pacquet_process.wait().expect("wait for pacquet exec");
+    assert_eq!(status.code(), Some(1), "the fixture must reach its intentional failure");
+    assert_connection_closes(connection);
 
     drop(root);
 }
