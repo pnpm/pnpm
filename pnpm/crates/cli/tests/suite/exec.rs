@@ -1,9 +1,12 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
-
-#[cfg(unix)]
-use std::fs;
+use std::{
+    fs,
+    path::Path,
+    thread,
+    time::{Duration, Instant},
+};
 
 #[cfg(unix)]
 fn write_executable(path: &std::path::Path, body: &str) {
@@ -12,6 +15,16 @@ fn write_executable(path: &std::path::Path, body: &str) {
     let mut perms = fs::metadata(path).expect("stat executable").permissions();
     perms.set_mode(0o755);
     fs::set_permissions(path, perms).expect("chmod executable");
+}
+
+fn spawn_detached_node_script(marker_path: &Path, parent_exit_code: i32) -> String {
+    let marker_json = serde_json::to_string(&marker_path.to_string_lossy()).expect("quote marker");
+    let detached_script =
+        format!("setTimeout(() => require('fs').writeFileSync({marker_json}, 'survived'), 500)");
+    let detached_script_json = serde_json::to_string(&detached_script).expect("quote script");
+    format!(
+        "const {{ spawn }} = require('child_process'); const child = spawn(process.execPath, ['-e', {detached_script_json}], {{ detached: true, stdio: 'ignore' }}); child.unref(); process.exit({parent_exit_code})",
+    )
 }
 
 /// `pacquet exec <command>` resolves the command against the project's
@@ -135,6 +148,55 @@ fn exec_shell_mode_preserves_embedded_quotes() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(output.status.success(), "shell-mode command must exit 0, got: {output:?}");
     assert!(stdout.contains("shell-quote-ok"), "embedded quotes must survive; stdout: {stdout:?}");
+
+    drop(root);
+}
+
+#[test]
+fn exec_preserves_a_detached_process_after_success() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("detached-marker.txt");
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("node")
+        .with_arg("-e")
+        .with_arg(spawn_detached_node_script(&marker_path, 0))
+        .assert()
+        .success();
+
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while !marker_path.exists() && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(50));
+    }
+    let marker_exists = marker_path.exists();
+    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
+    assert!(marker_exists, "the detached process should survive a successful pnpm exec");
+
+    drop(root);
+}
+
+#[test]
+#[cfg_attr(
+    not(target_os = "windows"),
+    ignore = "only Windows Job Objects kill detached descendants"
+)]
+fn exec_cleans_up_a_detached_process_after_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("detached-marker.txt");
+
+    pacquet
+        .with_arg("exec")
+        .with_arg("node")
+        .with_arg("-e")
+        .with_arg(spawn_detached_node_script(&marker_path, 1))
+        .assert()
+        .failure();
+
+    thread::sleep(Duration::from_secs(2));
+    let marker_exists = marker_path.exists();
+    eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
+    assert!(!marker_exists, "the detached process should be cleaned up after a failed pnpm exec");
 
     drop(root);
 }
