@@ -425,16 +425,16 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let output = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
-                run_update_config_for_packing::<DefaultReporter>(config, dir).await?;
-                args.run::<DefaultReporter>(dir, config, recursive).await?
+                let hooks = run_update_config_for_packing::<DefaultReporter>(config, dir).await?;
+                args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
             }
             ReporterType::Ndjson => {
-                run_update_config_for_packing::<NdjsonReporter>(config, dir).await?;
-                args.run::<NdjsonReporter>(dir, config, recursive).await?
+                let hooks = run_update_config_for_packing::<NdjsonReporter>(config, dir).await?;
+                args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
             }
             ReporterType::Silent => {
-                run_update_config_for_packing::<SilentReporter>(config, dir).await?;
-                args.run::<SilentReporter>(dir, config, recursive).await?
+                let hooks = run_update_config_for_packing::<SilentReporter>(config, dir).await?;
+                args.run::<SilentReporter>(dir, config, recursive, hooks).await?
             }
         };
         if !output.is_empty() {
@@ -466,8 +466,8 @@ pub(super) fn publish<'a>(
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        run_update_config_for_packing::<Reporter>(config, dir).await?;
-        args.run::<Reporter>(dir, config, recursive).await
+        let hooks = run_update_config_for_packing::<Reporter>(config, dir).await?;
+        args.run::<Reporter>(dir, config, recursive, hooks).await
     }
     if args.flags.json {
         return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
@@ -499,10 +499,12 @@ pub(super) fn stage<'a>(
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
-            run_update_config_for_packing::<Reporter>(config, dir).await?;
-        }
-        if let Some(output) = args.run::<Reporter>(dir, config, recursive).await? {
+        let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
+            run_update_config_for_packing::<Reporter>(config, dir).await?
+        } else {
+            Vec::new()
+        };
+        if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks).await? {
             let output = super::sanitize::sanitize(&output);
             if !output.is_empty() {
                 println!("{output}");
@@ -526,7 +528,7 @@ pub(super) fn stage<'a>(
 async fn run_update_config_for_packing<Reporter: pnpm_reporter::Reporter>(
     config: &mut Config,
     dir: &std::path::Path,
-) -> miette::Result<()> {
+) -> miette::Result<Vec<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>> {
     let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
     crate::config_deps::run_update_config_hooks::<Reporter>(config, &config_root).await
 }

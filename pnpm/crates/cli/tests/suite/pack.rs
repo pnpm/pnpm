@@ -42,7 +42,7 @@ fn pack_uses_embed_readme_and_manifest_obfuscation_settings() {
 }
 
 #[test]
-fn update_config_hook_catalog_is_used_when_packing() {
+fn packing_reuses_the_hooks_that_updated_config() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(
         workspace.join("package.json"),
@@ -60,7 +60,12 @@ fn update_config_hook_catalog_is_used_when_packing() {
   hooks: {
     updateConfig (config) {
       config.catalogs = { default: { 'is-odd': '3.0.1' } }
+      config.ignorePnpmfile = true
       return config
+    },
+    beforePacking (manifest) {
+      manifest.packedByHook = true
+      return manifest
     },
   },
 }
@@ -72,6 +77,7 @@ fn update_config_hook_catalog_is_used_when_packing() {
 
     let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
     assert_eq!(manifest["devDependencies"]["is-odd"], "3.0.1");
+    assert_eq!(manifest["packedByHook"], json!(true));
 
     drop(root);
 }
