@@ -95,6 +95,17 @@ export function createDeployFiles ({
     })
   }
 
+  // Indexed under both spellings of each project's directory, so the importer
+  // loop below costs one lookup per importer rather than a scan of every
+  // project: the importer path is resolved lexically, while a project directory
+  // reached through a symlink has a different real path.
+  const peerBearingProjects = new Map<string, ProjectManifest>()
+  for (const project of allProjects) {
+    if (project.manifest.peerDependencies == null) continue
+    peerBearingProjects.set(project.rootDir, project.manifest)
+    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
+  }
+
   const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
@@ -109,12 +120,8 @@ export function createDeployFiles ({
     })
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
-    // `projectRootDirRealPath` is resolved lexically, so match either spelling:
-    // a project directory reached through a symlink has a different real path.
-    const manifest = allProjects.find(project =>
-      project.rootDirRealPath === projectRootDirRealPath || project.rootDir === projectRootDirRealPath
-    )?.manifest
-    if (manifest?.peerDependencies != null) linkedWorkspaceProjects.set(depPath, manifest)
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    if (manifest != null) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
   for (const field of DEPENDENCIES_FIELD) {

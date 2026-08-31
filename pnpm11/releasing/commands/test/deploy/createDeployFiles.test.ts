@@ -3,7 +3,7 @@ import url from 'node:url'
 
 import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
-import type { DepPath, ProjectId, ProjectRootDirRealPath } from '@pnpm/types'
+import type { DepPath, ProjectId, ProjectRootDir, ProjectRootDirRealPath } from '@pnpm/types'
 
 import { createDeployFiles } from '../../src/deploy/createDeployFiles.js'
 
@@ -46,6 +46,7 @@ test('createDeployFiles keeps local tarball package names when rewriting file UR
 
   const { lockfile: deployLockfile, manifest } = createDeployFiles({
     allProjects: [{
+      rootDir: lockfileDir as ProjectRootDir,
       rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
       manifest: {
         name: 'app',
@@ -107,6 +108,7 @@ test('createDeployFiles drops optional edges of retained packages when optional 
   }
   const commonOpts = {
     allProjects: [{
+      rootDir: lockfileDir as ProjectRootDir,
       rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
       manifest: { name: 'app', version: '1.0.0' },
     }],
@@ -162,6 +164,7 @@ test('createDeployFiles drops excluded direct dependency groups from the importe
   }
   const commonOpts = {
     allProjects: [{
+      rootDir: lockfileDir as ProjectRootDir,
       rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
       manifest: { name: 'app', version: '1.0.0' },
     }],
@@ -229,6 +232,7 @@ test('createDeployFiles preserves peer-only dependencies auto-installed into an 
   const devDepPath = 'dev@1.0.0' as DepPath
   const result = createDeployFiles({
     allProjects: [{
+      rootDir: lockfileDir as ProjectRootDir,
       rootDirRealPath: lockfileDir as ProjectRootDirRealPath,
       manifest: { name: 'app', version: '1.0.0' },
     }],

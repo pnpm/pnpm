@@ -849,6 +849,14 @@ fn create_deploy_files(
             snapshots.insert(output_key, convert_snapshot(snapshot, &ctx, lockfile_dir)?);
         }
     }
+    // Indexed on the same components `same_path` compares, so the importer loop
+    // below costs one lookup per importer rather than a scan of every project.
+    let peer_bearing_projects = selected
+        .all_projects
+        .iter()
+        .filter(|project| !project.peer_dependencies.is_empty())
+        .map(|project| (comparable_path_components(&project.root_dir), project))
+        .collect::<HashMap<_, _>>();
     let mut linked_workspace_projects = HashMap::new();
     for (importer_path, project_snapshot) in &lockfile.importers {
         if importer_path == project_id {
@@ -858,11 +866,9 @@ fn create_deploy_files(
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.all_projects, None)?;
-        if let Some(project) =
-            selected.all_projects.iter().find(|project| same_path(&project.root_dir, &project_root))
-            && !project.peer_dependencies.is_empty()
+        if let Some(project) = peer_bearing_projects.get(&comparable_path_components(&project_root))
         {
-            linked_workspace_projects.insert(package_key.clone(), project.clone());
+            linked_workspace_projects.insert(package_key.clone(), (*project).clone());
         }
         snapshots.insert(
             package_key,
