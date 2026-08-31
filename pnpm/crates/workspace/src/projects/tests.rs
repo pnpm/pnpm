@@ -667,3 +667,27 @@ fn a_named_dot_directory_does_not_exempt_later_wildcards() {
     let names = find_project_names(tmp.path(), &["packages/.cache/*/lib"]);
     assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
 }
+
+/// The exemption is positional, not by name: a wildcard must not match a dot
+/// component just because the pattern names one spelled the same way.
+#[test]
+fn a_named_dot_directory_does_not_exempt_a_repeat_of_its_own_name() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/.cache/plain/lib", "plain-lib");
+    make_project(tmp.path(), "packages/.cache/.cache/lib", "repeat-lib");
+
+    let names = find_project_names(tmp.path(), &["packages/.cache/*/lib"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
+}
+
+#[test]
+fn a_named_dot_directory_does_not_exempt_a_recursive_wildcard() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), ".config/plain/lib", "plain-lib");
+    make_project(tmp.path(), ".config/.hidden/lib", "hidden-lib");
+
+    let names = find_project_names(tmp.path(), &[".config/**"]);
+    assert_eq!(names, vec!["root".to_string(), "plain-lib".to_string()]);
+}
