@@ -61,9 +61,7 @@ export async function readEnvLockfile (rootDir: string): Promise<EnvLockfile | n
 
 /**
  * Replaces the env document that leads `pnpm-lock.yaml`, preserving the main
- * document after it. Follows {@link writeLockfileDoc}'s order, for the same
- * reasons: reads may follow a symlink, an unchanged document is not rewritten,
- * and only the publication step refuses to write through a symlink.
+ * document after it. An unchanged document is not rewritten.
  */
 export async function writeEnvLockfile (rootDir: string, lockfile: EnvLockfile): Promise<void> {
   const lockfilePath = path.join(rootDir, WANTED_LOCKFILE)

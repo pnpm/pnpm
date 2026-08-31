@@ -150,7 +150,7 @@ fn write_replaces_the_env_document_of_a_lockfile_carrying_a_bom() {
     assert_eq!(extract_main_document(&raw), main_doc);
     assert!(
         !extract_main_document(&raw).contains("configDependencies: {}"),
-        "the replaced env document must not end up inside the main document"
+        "the replaced env document must not end up inside the main document",
     );
 }
 
