@@ -237,8 +237,8 @@ pub async fn fetch_verified_node_shasums_file_cached(
 
 /// Like [`fetch_verified_node_shasums_file_cached`], selecting URL-scoped
 /// authorization independently for the body and detached signature.
-/// Authenticated responses bypass the URL-keyed cache so metadata cannot cross
-/// credential boundaries.
+/// Auth-aware fetches bypass the URL-keyed cache so redirects cannot move
+/// metadata across credential boundaries.
 pub async fn fetch_verified_node_shasums_file_cached_with_auth_headers(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -261,11 +261,7 @@ async fn fetch_verified_node_shasums_file_cached_inner(
     auth_headers: Option<&AuthHeaders>,
 ) -> Result<Vec<ShasumsFileItem>, FetchVerifiedNodeShasumsError> {
     let signature_url = format!("{shasums_url}.sig");
-    let authenticated = auth_headers.is_some_and(|headers| {
-        headers.for_secure_url(shasums_url).is_some()
-            || headers.for_secure_url(&signature_url).is_some()
-    });
-    let cache_dir = if authenticated { None } else { cache_dir };
+    let cache_dir = if auth_headers.is_some() { None } else { cache_dir };
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Verified, shasums_url)
         && let Some(signature) =
             read_cached_bytes(cache_dir, ShasumsTrust::Verified, &signature_url)
@@ -294,8 +290,8 @@ pub async fn fetch_shasums_file_cached(
 }
 
 /// Like [`fetch_shasums_file_cached`], selecting URL-scoped authorization for
-/// the request. Authenticated responses bypass the URL-keyed cache so metadata
-/// cannot cross credential boundaries.
+/// the request. Auth-aware fetches bypass the URL-keyed cache so redirects
+/// cannot move metadata across credential boundaries.
 pub async fn fetch_shasums_file_cached_with_auth_headers(
     http_client: &ThrottledClient,
     shasums_url: &str,
@@ -311,9 +307,7 @@ async fn fetch_shasums_file_cached_inner(
     cache_dir: Option<&Path>,
     auth_headers: Option<&AuthHeaders>,
 ) -> Result<Vec<ShasumsFileItem>, FetchShasumsFileError> {
-    let authenticated =
-        auth_headers.is_some_and(|headers| headers.for_secure_url(shasums_url).is_some());
-    let cache_dir = if authenticated { None } else { cache_dir };
+    let cache_dir = if auth_headers.is_some() { None } else { cache_dir };
     if let Some(body) = read_cached_shasums(cache_dir, ShasumsTrust::Unverified, shasums_url) {
         return Ok(parse_shasums_file(&body));
     }
