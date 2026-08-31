@@ -69,6 +69,25 @@ fn passthrough_when_no_placeholder() {
 }
 
 #[test]
+fn preserves_utf8_literal_text() {
+    struct EnvWithValue;
+    impl EnvVar for EnvWithValue {
+        fn var(name: &str) -> Option<String> {
+            (name == "VALUE").then(|| "resolved".to_owned())
+        }
+    }
+
+    for (input, expected) in [
+        ("café/日本語", "café/日本語"),
+        ("café/${VALUE}/日本語", "café/resolved/日本語"),
+        ("café/${MISSING:-défaut}/日本語", "café/défaut/日本語"),
+        (r"café/\${VALUE}/日本語", "café/${VALUE}/日本語"),
+    ] {
+        assert_eq!(replace_clean::<EnvWithValue>(input), expected);
+    }
+}
+
+#[test]
 fn lone_dollar_is_left_alone() {
     assert_eq!(replace_clean::<NoEnv>("$ price"), "$ price");
 }
