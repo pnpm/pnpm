@@ -3,7 +3,7 @@ use std::{
     fs::{File, OpenOptions, TryLockError},
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use bytes::Bytes;
@@ -22,7 +22,7 @@ use pnpm_shared_artifact_protocol::{
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
 use sha2::{Digest as _, Sha256};
-use tokio::time::sleep;
+use tokio::time::{interval, sleep};
 
 const ARTIFACT_CACHE_DIR: &str = "shared-artifacts/v0";
 const ARTIFACT_OBJECT_PREFIX: &str = ".pnpr-artifacts/v0";
@@ -33,6 +33,20 @@ const MAX_OWNER_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
 const MAX_GLOBAL_ARTIFACT_BYTES: u64 = 10 * MAX_OWNER_ARTIFACT_BYTES;
 const MAX_ACTIVE_PUBLICATIONS: usize = 1024;
 const PUBLICATION_FINISH_RETRIES: usize = 8;
+/// How long a publication may hold its registration before reclamation treats
+/// it as gone.
+///
+/// A publication that cannot unregister itself — every retry of the write
+/// failing — would otherwise hold the gate forever, and reclamation is what
+/// gives back the scopes a failed publication claimed. The bound is far longer
+/// than a publication that is merely slow, since expiring a live one lets a
+/// collector run beside it.
+const ACTIVE_PUBLICATION_EXPIRY: Duration = Duration::from_hours(1);
+/// How often a publication says it is still working.
+///
+/// Well inside the expiry, so several renewals have to fail before a
+/// publication that is running is mistaken for one that stopped.
+const PUBLICATION_RENEWAL_INTERVAL: Duration = Duration::from_mins(5);
 const QUOTA_WRITE_RETRIES: usize = 32;
 const RECLAMATION_WAIT_RETRIES: usize = 600;
 /// A scope marker holds the envelope digest of the artifact that claimed it,
@@ -45,6 +59,14 @@ struct ArtifactUsage {
     owner_bytes: BTreeMap<String, u64>,
     #[serde(default)]
     active_publications: BTreeSet<String>,
+    /// When each publication in flight registered, so one that never
+    /// unregistered can be told from one still working.
+    ///
+    /// Beside the set rather than replacing it: a replica running an older
+    /// build shares this document, reads the set it knows, and ignores this.
+    /// One that writes drops these, and the next expiry pass stamps them again.
+    #[serde(default)]
+    active_publication_times: BTreeMap<String, u64>,
     #[serde(default)]
     reclamation_needed: bool,
     #[serde(default)]
@@ -110,6 +132,11 @@ enum SlotClaim {
 }
 
 struct PreparedPublication {
+    /// When this publication began, which is what its registration is measured
+    /// against. Taken before the registration rather than after the reads that
+    /// follow it, so a slow read cannot let the registration expire while this
+    /// still counts itself young.
+    started: std::time::Instant,
     entry: String,
     /// Identifies the artifact itself, where the slot identifies only what it is
     /// built for, so a scope marker names which artifact holds it.
@@ -178,7 +205,13 @@ impl SharedArtifactStore {
         let publication = artifact_operation_id()?;
         self.begin_publication(&publication).await?;
         let mut reclamation_needed = false;
-        let result = self.publish_active(prepared, &mut reclamation_needed).await;
+        let result = self
+            .while_renewing(
+                &publication,
+                PUBLICATION_RENEWAL_INTERVAL,
+                self.publish_active(prepared, &publication, &mut reclamation_needed),
+            )
+            .await;
         let finish = self.finish_publication(&publication, reclamation_needed).await;
         if finish.is_ok()
             && let Err(error) = self.try_reclaim_unreferenced_blobs().await
@@ -189,12 +222,65 @@ impl SharedArtifactStore {
         result
     }
 
+    /// Runs `work`, saying at intervals that the publication is still working.
+    ///
+    /// A registration is written off so that one nobody will remove stops
+    /// holding reclamation shut. Renewing keeps that from reaching a
+    /// publication that is merely slow: it takes every renewal across the
+    /// expiry failing for a live one to go quiet long enough. That is why the
+    /// recovery afterwards is not redundant — renewals can fail — but it is
+    /// what makes needing it rare rather than ordinary.
+    ///
+    /// The renewals are a branch of the select rather than a handler around it,
+    /// so `work` keeps being polled while a renewal waits. What a renewal waits
+    /// for is the lock a local usage mutation holds, and the publication holding
+    /// that lock is the one being renewed: handling renewals between polls would
+    /// leave each waiting on the other for good.
+    async fn while_renewing<Outcome>(
+        &self,
+        publication: &str,
+        between_renewals: Duration,
+        work: impl Future<Output = Outcome>,
+    ) -> Outcome {
+        let mut renewals = interval(between_renewals);
+        renewals.tick().await;
+        let renewing = async {
+            loop {
+                renewals.tick().await;
+                // A renewal that cannot be written is not fatal on its own: the
+                // expiry is several renewals wide, and the publication recovers
+                // what it lost if it is written off anyway.
+                if let Err(error) = self.renew_publication(publication).await {
+                    tracing::warn!(%error, "shared artifact publication could not renew");
+                }
+            }
+        };
+        tokio::select! {
+            outcome = work => outcome,
+            () = renewing => unreachable!("renewals stop only when the publication does"),
+        }
+    }
+
+    async fn renew_publication(&self, publication: &str) -> Result<()> {
+        self.mutate_usage(|usage| {
+            if !usage.active_publications.contains(publication) {
+                return Ok(false);
+            }
+            usage.active_publication_times.insert(publication.to_string(), registered_now());
+            Ok(true)
+        })
+        .await?;
+        Ok(())
+    }
+
     async fn publish_active(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
     ) -> Result<bool> {
-        let (stored, created) = self.publish_claimed(prepared, reclamation_needed).await;
+        let (stored, created) =
+            self.publish_claimed(prepared, publication, reclamation_needed).await;
         if stored.is_err() && !created.is_empty() {
             // The scopes stay claimed. Giving them back here cannot be ordered
             // against a publication of the same envelope, which recognises these
@@ -216,16 +302,19 @@ impl SharedArtifactStore {
     async fn publish_claimed(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
     ) -> (Result<bool>, Vec<String>) {
         let mut created = Vec::new();
-        let stored = self.publish_reserving(prepared, reclamation_needed, &mut created).await;
+        let stored =
+            self.publish_reserving(prepared, publication, reclamation_needed, &mut created).await;
         (stored, created)
     }
 
     async fn publish_reserving(
         &self,
         prepared: PreparedPublication,
+        publication: &str,
         reclamation_needed: &mut bool,
         created: &mut Vec<String>,
     ) -> Result<bool> {
@@ -236,6 +325,7 @@ impl SharedArtifactStore {
         if self.publication_is_complete(&prepared).await? {
             return Ok(false);
         }
+        let started = prepared.started;
         let mut prepared = prepared;
         let envelope_size = prepared.envelope_bytes.len() as u64;
         let owner = prepared.owner.clone();
@@ -322,7 +412,14 @@ impl SharedArtifactStore {
                 return Err(error);
             }
         }
-        let PreparedPublication { entry, envelope_bytes, variant_path, .. } = prepared;
+        let PreparedPublication {
+            entry,
+            envelope_bytes,
+            variant_path,
+            payload,
+            envelope_digest,
+            ..
+        } = prepared;
         for (path, bytes) in new_blobs {
             let size = bytes.len() as u64;
             match self.create_object(&path, bytes).await {
@@ -375,7 +472,146 @@ impl SharedArtifactStore {
         if !created && winner.is_none_or(|winner| winner != envelope_bytes) {
             return Err(RegistryError::ArtifactAlreadyPublished { owner, entry });
         }
+        if created && started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY {
+            // Long enough to have been written off, which lets reclamation run
+            // and give back scopes this publication was still holding. Its
+            // artifact is stored now, so those scopes are its own again, and
+            // taking them back is what keeps it from reaching machines nothing
+            // says it reaches.
+            // Asked for whatever the recovery finds: a collector that ran
+            // beside this publication rebuilt the usage document from what it
+            // could see, which was not yet everything this publication had
+            // written, and a recovery that gives up leaves an artifact and
+            // markers to collect.
+            *reclamation_needed = true;
+            // Registered again first, and only then does the recovery look.
+            // Being written off is what let a collector run beside this
+            // publication; registering again waits for one that is running and
+            // keeps another from starting, so what the recovery reads is still
+            // there when it returns. A check on its own could not do that.
+            if let Err(error) = self.begin_publication(publication).await {
+                // Without the registration nothing can be read and believed, so
+                // the artifact is taken out unlooked-at rather than left to
+                // stand for blobs a collector may already have taken. The
+                // scopes it holds name an artifact that is no longer there,
+                // which is what reclamation collects.
+                self.store.delete(&self.object_path(&variant_path)).await?;
+                return Err(error);
+            }
+            self.recover_after_expiry(&owner, &entry, &variant_path, &payload, &envelope_digest)
+                .await?;
+        }
         Ok(created)
+    }
+
+    /// Makes good what a publication that ran long enough to be written off may
+    /// have lost while it was running.
+    ///
+    /// Being written off lets reclamation run beside it, and reclamation
+    /// collects what nothing references — which, before this publication stored
+    /// its envelope, includes the blobs it had uploaded. An envelope naming
+    /// files that are not there is worse than no artifact, so they are read back
+    /// before the scopes are, and the artifact is taken out if any is gone.
+    ///
+    /// A scope may have gone to an artifact published while this one was
+    /// written off, and that artifact holds it. This one then has no claim on a
+    /// machine it reaches, so it takes its own artifact back out rather than
+    /// leaving two that reach it — the variant is named for constraints only an
+    /// identical artifact shares, so removing it removes nothing else's.
+    async fn recover_after_expiry(
+        &self,
+        owner: &str,
+        entry: &str,
+        variant_path: &str,
+        payload: &ArtifactPayload,
+        holder: &str,
+    ) -> Result<()> {
+        for file in &payload.manifest.added {
+            let id = blob_id(&file.integrity).map_err(|err| protocol_error(&err))?;
+            let path = format!("{owner}/blobs/{id}");
+            let Some(bytes) = self.read_object_bounded(&path, file.size).await? else {
+                self.store.delete(&self.object_path(variant_path)).await?;
+                return Err(RegistryError::Internal {
+                    reason: format!(
+                        "blob {id} of a shared artifact was collected while the publication \
+                         storing it was still running",
+                    ),
+                });
+            };
+            verify_stored_blob(&id, &file.integrity, file.size, &bytes)?;
+        }
+        let scopes = match compatibility_scopes(&payload.compatibility) {
+            CompatibilityScopes::Every => BTreeSet::from([UNIVERSAL_SCOPE.to_string()]),
+            CompatibilityScopes::These(scopes) => scopes,
+        };
+        let mut held = true;
+        let mut retaken = Vec::new();
+        for scope in &scopes {
+            if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
+                retaken.push(scope.clone());
+                continue;
+            }
+            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                held = false;
+                break;
+            }
+        }
+        // The other form of the vocabulary reaches these machines too, and a
+        // publication that took one while this was written off holds it under a
+        // key this one never claims.
+        if held {
+            held = match compatibility_scopes(&payload.compatibility) {
+                CompatibilityScopes::Every => self.tagged_scopes_are_free(owner, entry).await?,
+                CompatibilityScopes::These(_) => {
+                    self.scope_marker(owner, entry, UNIVERSAL_SCOPE, holder).await?
+                        != ScopeMarker::Another
+                }
+            };
+        }
+        if held {
+            return Ok(());
+        }
+        // The artifact goes first, and the scopes it retook after it. A store
+        // error between the two leaves markers held for an artifact that is not
+        // there, which refuses artifacts reaching those machines until
+        // reclamation drops them; the other order would leave the artifact
+        // resolvable while holding nothing, and one reaching the same machines
+        // could be published beside it.
+        self.store.delete(&self.object_path(variant_path)).await?;
+        for scope in &retaken {
+            // Only while it still names this artifact: a marker retaken here can
+            // be collected and taken by somebody else before this loop reaches
+            // it, and removing it by path alone would take that publication's
+            // claim instead.
+            if self.scope_marker(owner, entry, scope, holder).await? != ScopeMarker::Ours {
+                continue;
+            }
+            let path = self.object_path(&scope_marker_path(owner, entry, scope));
+            match self.store.delete(&path).await {
+                Ok(()) | Err(object_store::Error::NotFound { .. }) => {}
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(RegistryError::ArtifactAlreadyPublished {
+            owner: owner.to_string(),
+            entry: entry.to_string(),
+        })
+    }
+
+    /// Whether nothing holds a scope named by a tag, which is what an artifact
+    /// reaching every machine has to know: its own key says nothing about the
+    /// keys tagged artifacts take. Stops at the first, and reads no artifact.
+    async fn tagged_scopes_are_free(&self, owner: &str, entry: &str) -> Result<bool> {
+        let prefix = self.object_path(&scopes_prefix(owner, entry));
+        let mut listing = self.store.list(Some(&prefix));
+        while let Some(marker) = listing.next().await {
+            if scope_name(&marker?.location)
+                .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     pub async fn resolve(&self, username: &str, body: &[u8]) -> Result<ResolveArtifactsResponse> {
@@ -556,14 +792,8 @@ impl SharedArtifactStore {
         // than reported as already published.
         match compatibility_scopes(&publication.payload.compatibility) {
             CompatibilityScopes::Every => {
-                let prefix = self.object_path(&scopes_prefix(owner, entry));
-                let mut listing = self.store.list(Some(&prefix));
-                while let Some(marker) = listing.next().await {
-                    if scope_name(&marker?.location)
-                        .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
-                    {
-                        return Ok(false);
-                    }
+                if !self.tagged_scopes_are_free(owner, entry).await? {
+                    return Ok(false);
                 }
             }
             CompatibilityScopes::These(_) => {
@@ -591,16 +821,7 @@ impl SharedArtifactStore {
         if !self.claim_scope(owner, entry, UNIVERSAL_SCOPE, holder, created).await? {
             return Ok(false);
         }
-        let prefix = self.object_path(&scopes_prefix(owner, entry));
-        let mut listing = self.store.list(Some(&prefix));
-        while let Some(marker) = listing.next().await {
-            if scope_name(&marker?.location)
-                .is_some_and(|scope| !matches!(scope, UNIVERSAL_SCOPE | BACKFILLED_SCOPE))
-            {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        self.tagged_scopes_are_free(owner, entry).await
     }
 
     async fn claim_tagged_scopes(
@@ -695,15 +916,14 @@ impl SharedArtifactStore {
     /// would leave the scope that variant reaches unclaimed, which is the hole
     /// markers close. It runs once — an entry holding any marker is already
     /// described by them — and each read is bounded by the envelope limit.
-    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<u64> {
+    async fn backfill_scopes(&self, publication: &PreparedPublication) -> Result<()> {
         let PreparedPublication { owner, entry, .. } = publication;
         // The sentinel, not the markers: they are written one at a time and the
         // scan stops at the first store error, so a marker only says some
         // artifact was reached, while the sentinel says every one was.
-        let mut written = 0_u64;
         let done = scope_marker_path(owner, entry, BACKFILLED_SCOPE);
         if self.read_object_bounded(&done, MAX_SCOPE_MARKER_BYTES).await?.is_some() {
-            return Ok(written);
+            return Ok(());
         }
         let prefix = self.object_path(&format!("{owner}/entries/{entry}/"));
         let mut listing = self.store.list(Some(&prefix));
@@ -714,6 +934,11 @@ impl SharedArtifactStore {
                 variants.push(variant.location);
             }
         }
+        // Legacy variants can reach a scope another already reached — an overlap
+        // the markers are being written to stop. Writing the marker once rather
+        // than once per variant keeps a crowded entry from turning one backfill
+        // into a reservation and a release for each repeat.
+        let mut attempted = BTreeSet::new();
         for location in variants {
             let Some(relative) = self.relative_path(&location).map(str::to_string) else {
                 continue;
@@ -733,19 +958,55 @@ impl SharedArtifactStore {
                 CompatibilityScopes::These(scopes) => scopes,
             };
             for scope in &scopes {
-                if self
+                if !attempted.insert(scope.clone()) {
+                    continue;
+                }
+                // Reserved before it is written and kept afterwards, like every
+                // marker: these outlive the publication that writes them, and an
+                // owner over quota must not be able to write one either.
+                let bytes = digest.len() as u64;
+                self.reserve_quota(owner, bytes).await?;
+                match self
                     .create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
-                    .await?
+                    .await
                 {
-                    written += digest.len() as u64;
+                    Ok(true) => {}
+                    Ok(false) => self.release_uncommitted(owner, bytes, 0).await?,
+                    Err(error) => {
+                        // A store error says nothing about whether the marker
+                        // landed, so what is charged is settled by looking
+                        // rather than assumed. Only a marker this write put
+                        // there stays charged: one that is not there is nobody's
+                        // to pay for, and one holding another digest is charged
+                        // to whoever wrote it. A read that fails too leaves the
+                        // charge standing, since letting storage outgrow a quota
+                        // is the worse way to be wrong.
+                        if self.scope_marker(owner, entry, scope, &digest).await?
+                            != ScopeMarker::Ours
+                        {
+                            self.release_uncommitted(owner, bytes, 0).await?;
+                        }
+                        return Err(error);
+                    }
                 }
             }
         }
         self.create_object(&done, Vec::new()).await?;
-        Ok(written)
+        Ok(())
+    }
+
+    /// Settles which publications are still in flight, and writes that down.
+    ///
+    /// Deciding it inside the pass that goes on to refuse something would leave
+    /// the decision unwritten whenever the refusal happens, so a registration
+    /// nobody keeps would be re-stamped on every read and outlive every pass.
+    async fn expire_publications(&self) -> Result<()> {
+        self.mutate_usage(|usage| Ok(expire_stranded_publications(usage))).await?;
+        Ok(())
     }
 
     async fn begin_publication(&self, publication: &str) -> Result<()> {
+        self.expire_publications().await?;
         for _ in 0..RECLAMATION_WAIT_RETRIES {
             let begun = match self
                 .mutate_usage(|usage| {
@@ -758,11 +1019,14 @@ impl SharedArtifactStore {
                                 .to_string(),
                         });
                     }
-                    if !usage.active_publications.insert(publication.to_string()) {
-                        return Err(RegistryError::Internal {
-                            reason: "shared artifact publication is already active".to_string(),
-                        });
-                    }
+                    // Already registered is not a fault: a publication written
+                    // off while it was still working registers again before it
+                    // looks at what it may have lost, and may find its own
+                    // registration still there.
+                    usage.active_publications.insert(publication.to_string());
+                    usage
+                        .active_publication_times
+                        .insert(publication.to_string(), registered_now());
                     Ok(true)
                 })
                 .await
@@ -790,12 +1054,12 @@ impl SharedArtifactStore {
         for attempt in 0..PUBLICATION_FINISH_RETRIES {
             let finished = self
                 .mutate_usage(|usage| {
-                    if !usage.active_publications.remove(publication) {
-                        return Err(RegistryError::Internal {
-                            reason: "shared artifact publication is not registered as active"
-                                .to_string(),
-                        });
-                    }
+                    // A registration missing here is not a fault: an expiry pass
+                    // can write one off. What must not be lost is the request to
+                    // reclaim, since the scopes a failed publication claimed come
+                    // back only that way.
+                    usage.active_publications.remove(publication);
+                    usage.active_publication_times.remove(publication);
                     usage.reclamation_needed |= reclamation_needed;
                     Ok(true)
                 })
@@ -810,7 +1074,13 @@ impl SharedArtifactStore {
                 }
                 Err(error) => {
                     let retry_error = match self.load_usage().await {
-                        Ok((usage, _)) if !usage.active_publications.contains(publication) => {
+                        // Gone, and the reclamation this publication asked for
+                        // already recorded: whether this attempt wrote that or
+                        // an earlier one did, there is nothing left to do.
+                        Ok((usage, _))
+                            if !usage.active_publications.contains(publication)
+                                && (!reclamation_needed || usage.reclamation_needed) =>
+                        {
                             return Ok(());
                         }
                         Ok(_) => error,
@@ -827,9 +1097,13 @@ impl SharedArtifactStore {
     }
 
     async fn try_reclaim_unreferenced_blobs(&self) -> Result<()> {
+        self.expire_publications().await?;
         let reclamation = artifact_operation_id()?;
         let acquired = match self
             .mutate_usage(|usage| {
+                // Dropped here rather than merely disregarded, so that the
+                // check on completion sees a publication that started during
+                // this run rather than one this run decided to ignore.
                 if !usage.reclamation_needed
                     || !usage.active_publications.is_empty()
                     || usage.reclamation.is_some()
@@ -1244,9 +1518,11 @@ fn prepare_publication(
     // Named for what the artifact is *for* rather than what it is, so that one
     // input key and one set of compatibility constraints admit one artifact.
     let slot = compatibility_slot(&payload.compatibility);
+    let started = std::time::Instant::now();
     let envelope_digest = request.envelope.digest().map_err(|err| protocol_error(&err))?;
     let variant_path = format!("{owner}/entries/{entry}/{slot}.json");
     Ok(PreparedPublication {
+        started,
         payload,
         uploads: validated.blobs,
         owner,
@@ -1381,6 +1657,46 @@ fn quota_write_retry_delay(attempt: usize) -> Duration {
     let mut random = [0_u8; 1];
     let jitter = if getrandom::fill(&mut random).is_ok() { u64::from(random[0]) % base } else { 0 };
     Duration::from_millis(base + jitter)
+}
+
+fn registered_now() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
+}
+
+/// Drops publications that registered longer ago than a publication can
+/// plausibly take, reporting whether it changed anything.
+///
+/// A publication with no registration time was registered by a replica that
+/// does not keep them, so it is stamped now rather than written off: it may be
+/// in flight, and expiring a live publication lets a collector run beside it.
+/// The stamp is what a later pass measures against, which is why the caller
+/// persists this whether or not anything was dropped.
+fn expire_stranded_publications(usage: &mut ArtifactUsage) -> bool {
+    let now = registered_now();
+    let expiry = now.saturating_sub(ACTIVE_PUBLICATION_EXPIRY.as_secs());
+    let before = usage.active_publications.len();
+    let times = std::mem::take(&mut usage.active_publication_times);
+    let mut stamped = false;
+    usage.active_publication_times = usage
+        .active_publications
+        .iter()
+        .map(|publication| {
+            let registered = times.get(publication).copied().unwrap_or_else(|| {
+                stamped = true;
+                now
+            });
+            (publication.clone(), registered)
+        })
+        .collect();
+    usage
+        .active_publications
+        .retain(|publication| usage.active_publication_times[publication] > expiry);
+    usage
+        .active_publication_times
+        .retain(|publication, _| usage.active_publications.contains(publication));
+    stamped
+        || usage.active_publications.len() != before
+        || times.len() != usage.active_publication_times.len()
 }
 
 fn artifact_operation_id() -> Result<String> {
