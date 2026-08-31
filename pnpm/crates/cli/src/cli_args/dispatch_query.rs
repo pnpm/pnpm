@@ -529,7 +529,13 @@ async fn run_update_config_for_packing<Reporter: pnpm_reporter::Reporter>(
     config: &mut Config,
     dir: &std::path::Path,
 ) -> miette::Result<Vec<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>> {
-    let config_root = config.workspace_dir.clone().unwrap_or_else(|| dir.to_path_buf());
+    let config_root = config.root_project_manifest_dir(dir).to_path_buf();
+    crate::config_deps::install_config_deps::<Reporter>(
+        config,
+        &config_root,
+        config.frozen_lockfile.unwrap_or(false),
+    )
+    .await?;
     crate::config_deps::run_update_config_hooks::<Reporter>(config, &config_root).await
 }
 

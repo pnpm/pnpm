@@ -8,7 +8,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use serde_json::json;
 use std::{fs, path::Path};
 
@@ -80,6 +80,68 @@ fn packing_reuses_the_hooks_that_updated_config() {
     assert_eq!(manifest["packedByHook"], json!(true));
 
     drop(root);
+}
+
+#[test]
+fn external_lockfile_dir_supplies_packing_hooks() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "pkg",
+            "version": "1.0.0",
+            "dependencies": { "is-odd": "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfileDir: ..\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        r"module.exports = {
+  hooks: {
+    updateConfig (config) {
+      config.catalogs = { default: { 'is-odd': '3.0.1' } }
+      return config
+    },
+  },
+}
+",
+    )
+    .expect("write lockfile-root pnpmfile");
+
+    pacquet.with_arg("pack").assert().success();
+
+    let manifest = read_manifest_from_tarball(&workspace.join("pkg-1.0.0.tgz"));
+    assert_eq!(manifest["dependencies"]["is-odd"], "3.0.1");
+
+    drop(root);
+}
+
+#[test]
+fn pack_installs_config_dependencies_before_loading_hooks() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "pkg", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
+    fs::write(workspace_yaml, settings).expect("write configDependencies");
+
+    pacquet.with_arg("pack").assert().success();
+
+    assert!(
+        workspace.join("node_modules/.pnpm-config/@pnpm/plugin-pnpmfile/pnpmfile.cjs").is_file(),
+        "pack must materialize config dependencies before loading their hooks",
+    );
+
+    drop((root, mock_instance));
 }
 
 /// A `beforePacking` hook that deletes `devDependencies` and stamps a
