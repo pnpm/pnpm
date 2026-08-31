@@ -484,7 +484,7 @@ jobs:
         id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           # Draft so a maintainer publishes it deliberately, like the Rust and
           # pnpr releases: the repository uses immutable releases, so a
@@ -1080,7 +1080,7 @@ jobs:
         # publishes it deliberately. `make_latest: false` keeps a published v12
         # prerelease from stealing the "Latest" badge from the stable v11
         # line.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
@@ -1142,7 +1142,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2
         with:
           tool: cross
 
@@ -1572,7 +1572,7 @@ jobs:
         # byte-for-byte as attested there. Draft so a maintainer publishes it
         # deliberately; `make_latest: false` keeps a pnpr release off the
         # repository's "Latest" badge, which tracks the stable pnpm CLI.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}
