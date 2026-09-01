@@ -2,7 +2,7 @@ name: RPM
 
 # Packages the released standalone Linux x64 build as an RPM for RED OS 8 and
 # other RHEL 8 derivatives, together with a dnf repository that installs it on
-# hosts with no network access to pnpm.io or github.com.
+# hosts with no network access at all.
 #
 # The artifacts are not attached to the GitHub release: releases here are
 # immutable once published, so nothing can be added to them afterwards. Grab
@@ -26,6 +26,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
+      # `gh attestation verify` reads the release tarball's build provenance.
+      attestations: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,25 +55,43 @@ jobs:
           esac
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Install packaging tools
+      - name: Download the release tarball and verify its provenance
+        # The release workflow attests every archive it uploads. Verifying here
+        # is what keeps a substituted tarball from being republished as an
+        # official RPM, which no later check would catch.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm createrepo-c
+          set -eu
+          gh release download "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
+            --pattern pnpm-linux-x64.tar.gz --output pnpm-linux-x64.tar.gz
+          gh attestation verify pnpm-linux-x64.tar.gz --repo "$GITHUB_REPOSITORY"
 
       - name: Build the RPM and the dnf repository
-        env:
-          VERSION: ${{ steps.meta.outputs.version }}
-        run: packaging/rpm/build.sh "$VERSION"
-
-      - name: Install it the way RED OS 8 will
-        # AlmaLinux 8 is the closest public stand-in for RED OS 8: same RHEL 8
-        # base, same glibc 2.28, same rpm 4.14.
+        # Built inside RHEL 8 rather than on the runner: the repository has to
+        # carry the runtime dependencies the target is missing, and only a RHEL 8
+        # system can tell dnf which those are.
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          docker run --rm -e VERSION -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" almalinux:8 bash -euc '
+          docker run --rm -e VERSION -v "$PWD:/src" -w /src almalinux:8 bash -euc '
+            dnf install -y -q rpm-build createrepo_c dnf-plugins-core binutils tar
+            packaging/rpm/build.sh "$VERSION" pnpm-linux-x64.tar.gz
+          '
+
+      - name: Install it the way an offline RED OS 8 host will
+        # AlmaLinux 8 is the closest public stand-in for RED OS 8: same RHEL 8
+        # base, same glibc 2.28, same rpm 4.14. `--network none` and the
+        # disabled distribution repositories are the point of the test — they
+        # are what proves the repository needs nothing but itself.
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker run --rm --network none -e VERSION \
+            -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" almalinux:8 bash -euc '
             cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
-            dnf install -y pnpm
+            dnf install -y --disablerepo="*" --enablerepo=pnpm pnpm
             installed=$(pnpm --version)
             test "$installed" = "$VERSION" || {
               echo "pnpm version mismatch: expected $VERSION, got $installed" >&2

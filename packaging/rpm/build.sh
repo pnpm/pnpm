@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 
 # Build the pnpm RPM for RED OS 8 (and any other RHEL 8 derivative) from a
-# released standalone Linux x64 tarball, plus a dnf repository that can be
-# copied into an image with no network access to pnpm.io.
+# released standalone Linux x64 tarball, plus a dnf repository that installs on
+# a host with no network access at all.
 #
 #   packaging/rpm/build.sh <version> [pnpm-linux-x64.tar.gz]
+#
+# Run this on RHEL 8 or a derivative — see packaging/rpm/README.md for the
+# container invocation. The runtime dependencies bundled into the repository are
+# the ones missing from the system that builds it, so building elsewhere yields
+# a repository that cannot install offline.
 #
 # Outputs into $OUT_DIR (default dist/rpm):
 #   pnpm-<version>-1.x86_64.rpm
 #   repo/                                    dnf repository (repodata + pnpm.repo)
 #   pnpm-<version>-redos8-x86_64-repo.tar.gz the same repository, packed
 #
-# Requires: rpmbuild, createrepo_c, binutils, curl, tar.
+# Requires: rpmbuild, createrepo_c, dnf, binutils, curl, tar.
 
 set -euo pipefail
 
@@ -62,8 +67,18 @@ rpmbuild -bb "$spec_dir/pnpm.spec" \
 rpm_file=$(find "$work/RPMS/x86_64" -name '*.rpm' -print -quit)
 test -n "$rpm_file"
 
-rm -rf "${out_dir:?}/repo"
+mkdir -p "$out_dir"
+rm -rf "${out_dir:?}/repo" "$out_dir"/*.rpm "$out_dir"/*.tar.gz
 mkdir -p "$out_dir/repo"
+
+# The offline target resolves the package's Requires against its own installed
+# packages and nothing else, so whatever this system is missing has to travel in
+# the repository. Downloading through the package itself is what makes dnf name
+# them; `--resolve` on the dependency names would drag in every architecture's
+# build of each.
+dnf install -y --downloadonly --destdir="$work/deps" "$rpm_file"
+find "$work/deps" -name '*.rpm' ! -name 'pnpm-*' -exec cp {} "$out_dir/repo/" \;
+
 cp "$rpm_file" "$out_dir/"
 cp "$rpm_file" "$out_dir/repo/"
 cat > "$out_dir/repo/pnpm.repo" <<'EOF'
