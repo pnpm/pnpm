@@ -615,14 +615,12 @@ where
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
     //
-    // A context-aware `node` is the exception on Unix: the whole point of
-    // the global bin dir's shims is that bare `node` can defer to a
-    // project-local version, which a symlink cannot do, so the global
-    // `node` gets a dispatch shim like every other bin. This low-level linker
-    // keeps the Windows hardlink because replacing `node.exe` with a script
-    // would break tools that spawn it without a shell; the global CLI linker
-    // subsequently replaces it with the native dispatcher after recording
-    // the original executable as its fallback target.
+    // A context-aware `node` cannot remain a symlink to the target because it
+    // must be able to defer to a project-local version. This low-level linker
+    // has no access to the CLI executable used as the native dispatcher, so it
+    // emits the Unix dispatch shim here and keeps the Windows hardlink. The
+    // global CLI linker replaces either entry with the native dispatcher after
+    // recording the original executable as its fallback target.
     if is_node_bin_name(shim_path)
         && (style == ShimStyle::Direct || cfg!(windows))
         && link_node_bin(target_path, shim_path)?

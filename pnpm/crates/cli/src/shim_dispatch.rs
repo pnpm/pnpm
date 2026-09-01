@@ -3,9 +3,12 @@
 //! Selected bins pnpm links into the global bin dir invoke the adjacent
 //! protocol-versioned executable with
 //! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pnpm_cmd_shim::ShimStyle`). The `globalShims` record decides which
-//! providing packages are eligible; the managed runtimes are enabled by
-//! default. For a runtime pin, the dispatcher reads the project's
+//! `pnpm_cmd_shim::ShimStyle`). The global `node` entry is the same native
+//! executable under its launch name, with the fallback target stored beside
+//! it, so Node inherits environment entries that a shell shim may discard.
+//! The `globalShims` record decides which providing packages are eligible;
+//! the managed runtimes are enabled by default. For a runtime pin, the
+//! dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, materializes the release in
 //! pnpm's global virtual store, and executes it directly — never through
 //! the project's `node_modules/.bin`. A publisher-signature-verified
@@ -47,19 +50,19 @@ use std::{
 };
 
 mod identity;
+mod native_node;
 pub(crate) mod runtime_env;
 mod trust;
+
 #[cfg(windows)]
-mod windows;
+pub(super) use native_node::system_powershell_path;
+pub(crate) use native_node::{install_native_node_dispatcher, native_node_dispatcher_is_installed};
+pub(crate) use runtime_env::materialize_runtime;
 
 use identity::{declared_package, local_bin_identity, provider_of_target};
-pub(crate) use runtime_env::materialize_runtime;
+use native_node::try_native_node_dispatch;
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use trust::is_trusted;
-#[cfg(windows)]
-use windows::try_windows_node_dispatch;
-#[cfg(windows)]
-pub(crate) use windows::{install_windows_node_dispatcher, windows_node_dispatcher_is_installed};
 
 /// Environment variable that short-circuits the dispatcher to the global
 /// target: a user-facing kill switch, and the recursion guard for the
@@ -86,13 +89,11 @@ pub(crate) fn refresh_existing_dispatcher(
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     }
-    #[cfg(windows)]
     let node_dispatcher = {
-        let node = global_bin_dir.join("node.exe");
+        let node = global_bin_dir.join(format!("node{}", std::env::consts::EXE_SUFFIX));
         same_file::is_same_file(&destination, &node).unwrap_or(false).then_some(node)
     };
     install_dispatcher_from(source, &destination)?;
-    #[cfg(windows)]
     if let Some(node_dispatcher) = node_dispatcher {
         install_dispatcher_from(source, &node_dispatcher)?;
     }
@@ -121,8 +122,7 @@ pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
     if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
         return Some(dispatch(&argv[2..]));
     }
-    #[cfg(windows)]
-    if let Some(result) = try_windows_node_dispatch(argv) {
+    if let Some(result) = try_native_node_dispatch(argv) {
         return Some(result);
     }
     None
@@ -733,7 +733,7 @@ fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::i
     // directly.
     let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
     let mut command = if extension.eq_ignore_ascii_case("ps1") {
-        let mut command = Command::new(windows::system_powershell_path()?);
+        let mut command = Command::new(system_powershell_path()?);
         command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(program);
         command
     } else {

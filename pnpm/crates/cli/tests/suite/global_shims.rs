@@ -166,6 +166,37 @@ fn missing_global_target_reports_not_found() {
     assert_eq!(output.get_output().status.code(), Some(127));
 }
 
+#[cfg(unix)]
+#[test]
+fn native_node_dispatcher_preserves_non_shell_identifier_environment_variables() {
+    use std::os::unix::ffi::OsStrExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let global_bin = root.path().join("global-bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    fs::copy(Command::cargo_bin("pnpm").unwrap().get_program(), global_bin.join("node")).unwrap();
+    fs::write(
+        global_bin.join(".pnpm-shim-v1-node-target"),
+        Path::new("/usr/bin/env").as_os_str().as_bytes(),
+    )
+    .unwrap();
+
+    let output = Command::new(global_bin.join("node"))
+        .args(["printenv", "TEST-VAR"])
+        .current_dir(root.path())
+        .env("TEST-VAR", "123")
+        .env("PNPM_HOME", root.path().join("pnpm-home"))
+        .env("XDG_STATE_HOME", root.path().join("state"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert_eq!(stdout.trim(), "123");
+}
+
 /// A project that pins Node.js gets the pinned version fetched into the
 /// global virtual store instead of using the project `.bin` or global target.
 #[cfg(unix)]
