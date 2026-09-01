@@ -23,8 +23,16 @@
 //!
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
+use rayon::prelude::*;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
+
+/// Entry count from which a map's independent per-entry work (deep key
+/// sorting, block rendering) fans out across the rayon pool. Small maps
+/// stay serial — the fan-out has fixed cost, and only the
+/// thousands-of-entries `importers:` / `packages:` / `snapshots:`
+/// sections of a large workspace repay it.
+const PARALLEL_ENTRY_THRESHOLD: usize = 64;
 
 /// Keys whose collection value always renders on a single line (flow style).
 /// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
@@ -136,8 +144,20 @@ fn priority_cmp(priority: &[&str], left: &str, right: &str) -> Ordering {
     }
 }
 
-fn map_values(map: Map<String, Value>, transform: impl Fn(Value) -> Value) -> Map<String, Value> {
-    map.into_iter().map(|(key, value)| (key, transform(value))).collect()
+fn map_values(
+    map: Map<String, Value>,
+    transform: impl Fn(Value) -> Value + Sync,
+) -> Map<String, Value> {
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        return map.into_iter().map(|(key, value)| (key, transform(value))).collect();
+    }
+    map.into_iter()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|(key, value)| (key, transform(value)))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn sort_direct_keys(map: Map<String, Value>) -> Map<String, Value> {
@@ -262,28 +282,46 @@ fn write_block_mapping(
     compact: bool,
     double_line: bool,
 ) -> String {
-    let mut result = String::new();
-    for (key, value) in map {
-        if !compact || !result.is_empty() {
-            result.push_str(&next_line(level, double_line));
-        }
+    if map.is_empty() {
+        return "{}".to_string();
+    }
+    // Each entry's rendering depends only on its own key and value, so
+    // a large map fans its entries out across the rayon pool; the
+    // serial stitch below is the only order-dependent part (the first
+    // entry of a compact block omits its leading newline).
+    let entries: Vec<(&String, &Value)> = map.iter().collect();
+    let render_entry = |(key, value): &(&String, &Value)| -> String {
+        let mut entry = String::new();
         let rendered_key = write_scalar(key, level + 1, true, true);
         let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
         if explicit_pair {
-            result.push_str("? ");
-            result.push_str(&rendered_key);
-            result.push_str(&next_line(level, false));
+            entry.push_str("? ");
+            entry.push_str(&rendered_key);
+            entry.push_str(&next_line(level, false));
         } else {
-            result.push_str(&rendered_key);
+            entry.push_str(&rendered_key);
         }
         let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
-        result.push(':');
+        entry.push(':');
         if !rendered.starts_with('\n') {
-            result.push(' ');
+            entry.push(' ');
         }
-        result.push_str(&rendered);
+        entry.push_str(&rendered);
+        entry
+    };
+    let rendered_entries: Vec<String> = if entries.len() < PARALLEL_ENTRY_THRESHOLD {
+        entries.iter().map(render_entry).collect()
+    } else {
+        entries.par_iter().map(render_entry).collect()
+    };
+    let mut result = String::new();
+    for (index, entry) in rendered_entries.iter().enumerate() {
+        if !compact || index > 0 {
+            result.push_str(&next_line(level, double_line));
+        }
+        result.push_str(entry);
     }
-    if result.is_empty() { "{}".to_string() } else { result }
+    result
 }
 
 fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
