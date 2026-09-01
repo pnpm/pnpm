@@ -37,7 +37,7 @@ pub(crate) fn importer_rel_dir<'dir>(
 }
 
 /// Express a lockfile-root-relative `target` relative to the importer
-/// at `importer_rel_dir`. `None` for a target that is absolute or
+/// at [`importer_rel_dir`]. `None` for a target that is absolute or
 /// carries dot components.
 pub(crate) fn target_relative_to_importer(
     target: &Path,
