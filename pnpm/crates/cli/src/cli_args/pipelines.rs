@@ -227,8 +227,10 @@ fn select_workspace_projects_with_cycles(
         // the rebuild. A `--filter` / `--filter-prod` selection reorders
         // the nodes (and prod-prunes some edges), so the install keeps
         // its own search there.
-        let workspace_cycles =
-            (selection.all.is_none() && !cfg.ignore_workspace_cycles).then(|| {
+        let workspace_cycles = (precompute_workspace_cycles
+            && selection.all.is_none()
+            && !cfg.ignore_workspace_cycles)
+            .then(|| {
                 pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
             });
         let project_dependencies = if recursive_sort {
