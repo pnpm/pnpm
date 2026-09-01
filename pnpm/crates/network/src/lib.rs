@@ -366,11 +366,13 @@ impl ThrottledClient {
     /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
     /// default.
     ///
-    /// DNS resolution is platform-specific. macOS uses its native
-    /// `getaddrinfo` resolver because Hickory misses scoped resolver
-    /// routing used by VPNs. A four-request cap matches Node's libuv DNS
-    /// pool and prevents concurrent calls from overwhelming
-    /// `mDNSResponder`. Other platforms keep Hickory's async resolver.
+    /// DNS resolution is platform-specific. macOS and Windows use the
+    /// native `getaddrinfo` resolver: Hickory misses the scoped resolver
+    /// routing VPNs use on macOS, and its wildcard UDP binds trip Windows
+    /// Defender Firewall prompts. A process-wide four-lookup cap, shared
+    /// by every client, matches Node's libuv DNS pool and keeps
+    /// concurrent calls from overwhelming `mDNSResponder`. Other
+    /// platforms keep Hickory's async resolver.
     #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
