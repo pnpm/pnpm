@@ -13,11 +13,13 @@ fn relocate(tokens: &[&str]) -> Vec<String> {
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
+    try_parse(tokens).expect("parses after relocation")
+}
+
+fn try_parse(tokens: &[&str]) -> Result<CliArgs, clap::Error> {
     let cmd = with_boolean_negations(CliArgs::command());
     let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
-    cmd.try_get_matches_from(argv)
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-        .expect("parses after relocation")
+    cmd.try_get_matches_from(argv).and_then(|matches| CliArgs::from_arg_matches(&matches))
 }
 
 #[test]
@@ -135,11 +137,16 @@ fn unknown_options_before_a_subcommand_stay_in_place() {
         ["pnpm", "-z", "exec", "echo"],
         ["pnpm", "--zzz", "exec", "echo"],
         ["pnpm", "-rz", "exec", "echo"],
+        ["pnpm", "-zP", "exec", "echo"],
     ] {
         assert_eq!(
             relocate(&argv),
             argv,
             "an option no grammar defines must reach clap as a top-level error, not as exec's command",
+        );
+        assert!(
+            try_parse(&argv).is_err(),
+            "clap must reject the unknown option instead of exec running it: {argv:?}",
         );
     }
 }

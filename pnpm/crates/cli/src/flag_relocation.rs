@@ -148,18 +148,28 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
             // A cluster is judged by every short it stacks, not by its
             // first one: `-ro dist` mixes the global `-r` with
             // `pack-app`'s `-o`, and the whole token has to travel for
-            // clap to see the option its subcommand owns.
-            let mut belongs_to_subcommand = false;
+            // clap to see the option its subcommand owns. One short no
+            // grammar defines pins the whole cluster, since moving it
+            // would hand the unknown short to the subcommand too.
+            let mut has_subcommand_short = false;
+            let mut has_unknown_short = false;
             let consumes_value = short_cluster_consumes_value(rest, |short| {
                 if let Some(consumes_value) = top_level.short_consumes_value(short) {
                     return Some(consumes_value);
                 }
-                let consumes_value = subcommand_union.short_consumes_value(short);
-                belongs_to_subcommand |= consumes_value.is_some();
-                consumes_value
+                match subcommand_union.short_consumes_value(short) {
+                    Some(consumes_value) => {
+                        has_subcommand_short = true;
+                        Some(consumes_value)
+                    }
+                    None => {
+                        has_unknown_short = true;
+                        None
+                    }
+                }
             });
             let width = token_width(consumes_value, false);
-            if belongs_to_subcommand {
+            if has_subcommand_short && !has_unknown_short {
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
