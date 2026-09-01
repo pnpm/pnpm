@@ -35,6 +35,7 @@
   "type": "module",
   "scripts": {
     "preinstall": "node install.js",
+    "postinstall": "node install.js",
     "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
   },
   "engines": {
