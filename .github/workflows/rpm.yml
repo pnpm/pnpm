@@ -19,6 +19,11 @@ on:
 
 permissions: {}
 
+env:
+  # Refresh periodically: resolve with
+  #   docker buildx imagetools inspect almalinux:8 --format '{{.Manifest.Digest}}'
+  RHEL8_IMAGE: almalinux:8@sha256:4a87d2615a770506e204c27d6248ac97f4df67f4e41e2e9c47c81f0ed0be98cb
+
 jobs:
   build:
     name: Build
@@ -28,7 +33,6 @@ jobs:
       contents: read
       # `gh attestation verify` reads the release tarball's build provenance.
       attestations: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,7 +70,8 @@ jobs:
           set -eu
           gh release download "v${VERSION}" --repo "$GITHUB_REPOSITORY" \
             --pattern pnpm-linux-x64.tar.gz --output pnpm-linux-x64.tar.gz
-          gh attestation verify pnpm-linux-x64.tar.gz --repo "$GITHUB_REPOSITORY"
+          gh attestation verify pnpm-linux-x64.tar.gz --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
 
       - name: Build the RPM and the dnf repository
         # Built inside RHEL 8 rather than on the runner: the repository has to
@@ -75,7 +80,7 @@ jobs:
         env:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          docker run --rm -e VERSION -v "$PWD:/src" -w /src almalinux:8 bash -euc '
+          docker run --rm -e VERSION -v "$PWD:/src" -w /src "$RHEL8_IMAGE" bash -euc '
             dnf install -y -q rpm-build createrepo_c dnf-plugins-core binutils tar
             packaging/rpm/build.sh "$VERSION" pnpm-linux-x64.tar.gz
           '
@@ -89,7 +94,7 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           docker run --rm --network none -e VERSION \
-            -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" almalinux:8 bash -euc '
+            -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" "$RHEL8_IMAGE" bash -euc '
             cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
             dnf install -y --disablerepo="*" --enablerepo=pnpm pnpm
             installed=$(pnpm --version)

@@ -31,6 +31,7 @@ Copy the repository tarball into the image and unpack it at the path its
 
 ```sh
 tar xzf pnpm-11.25.0-redos8-x86_64-repo.tar.gz -C /tmp
+rm -rf /opt/pnpm-repo
 mv /tmp/repo /opt/pnpm-repo
 cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
 dnf install -y --disablerepo='*' --enablerepo=pnpm pnpm
