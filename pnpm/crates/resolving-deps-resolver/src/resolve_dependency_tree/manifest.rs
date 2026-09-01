@@ -42,13 +42,17 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     let raw_id = result.id.as_str();
     if let Some(target) = raw_id.strip_prefix("link:") {
         let target = std::path::Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
-        };
-        let relative_target =
-            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target);
+        let rel_space_target =
+            crate::link_target::importer_rel_dir(&ctx.base_opts.project_dir, &ctx.lockfile_dir)
+                .and_then(|rel| crate::link_target::target_relative_to_lockfile_root(target, rel));
+        let relative_target = rel_space_target.unwrap_or_else(|| {
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+            };
+            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target)
+        });
         let relative_target = relative_target.display().to_string().replace('\\', "/");
         let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
         return Ok(format!("link:{relative_target}"));
