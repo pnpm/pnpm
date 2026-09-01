@@ -125,10 +125,11 @@ fn a_large_section_renders_identically_through_the_parallel_path() {
         .collect(),
     ));
 
+    use std::fmt::Write;
     let mut expected = String::from("lockfileVersion: '9.0'\n\npackages:\n");
     for index in 0..count {
-        expected
-            .push_str(&format!("\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n"));
+        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n")
+            .expect("write to a String is infallible");
     }
     assert_eq!(yaml, expected);
 }
