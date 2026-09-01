@@ -1,10 +1,9 @@
 //! Ports `getUpdateChoices()` from
 //! `pnpm11/installing/commands/test/update/getUpdateChoices.test.ts`.
 //!
-//! The rendered padding is pacquet's own — pnpm lays its table out with
-//! `@zkochan/table` and fixed column widths — so these assert the shape
-//! the user sees: which groups appear, in what order, which packages sit
-//! in each, and that every column lines up.
+//! The layout follows the column widths pnpm gives `@zkochan/table`, so
+//! these assert the shape the user sees: which groups appear, in what
+//! order, which packages sit in each, and that every column lines up.
 
 use super::{ChoiceGroup, column_widths, pad_row, update_choices};
 use crate::cli_args::outdated::OutdatedPackage;
@@ -183,6 +182,64 @@ fn columns_line_up_within_a_group() {
 
     let offsets = arrow_offsets(&groups[0]);
     assert_eq!(offsets[0], offsets[1]);
+}
+
+/// Each group is laid out on its own, so it is the minimum column widths
+/// that keep the `❯` of one group under the `❯` of the next when their
+/// names and versions differ in length — the misalignment the user sees
+/// otherwise, since the groups sit one above the other in the prompt.
+#[test]
+fn columns_line_up_across_groups() {
+    let packages = [
+        pkg(
+            "a-very-long-package-name",
+            "a-very-long-package-name",
+            "0.10.3",
+            "0.10.5",
+            DependencyGroup::Prod,
+        ),
+        pkg("b", "b", "1.0.0", "2.0.0", DependencyGroup::Dev),
+    ];
+
+    let groups = update_choices(&packages.iter().collect::<Vec<_>>(), false);
+
+    assert_eq!(groups.len(), 2);
+    assert_eq!(arrow_offsets(&groups[0]), arrow_offsets(&groups[1]));
+}
+
+/// The header row is padded like the rows under it, so each column's
+/// title starts where the column does — `Current` being right-aligned,
+/// its title ends where its cells do.
+#[test]
+fn the_header_row_lines_up_with_its_rows() {
+    let mut package = pkg("a", "a", "1.0.0", "2.0.0", DependencyGroup::Prod);
+    package.homepage = Some("https://example.test/".to_string());
+    package.workspace = Some("web".to_string());
+
+    let groups = update_choices(&[&package], true);
+
+    let header = &groups[0].rows[0].label;
+    let row = &groups[0].rows[1].label;
+    assert_eq!(
+        column_of(header, "Current") + "Current".len(),
+        column_of(row, "1.0.0") + "1.0.0".len(),
+        "Current is out of line:\n{header}\n{row}",
+    );
+    for (title, cell) in
+        [("Target", "2.0.0"), ("Workspace", "web"), ("URL", "https://example.test/")]
+    {
+        assert_eq!(
+            column_of(header, title),
+            column_of(row, cell),
+            "{title} is out of line:\n{header}\n{row}",
+        );
+    }
+}
+
+/// The terminal column `text` starts at in `line`.
+fn column_of(line: &str, text: &str) -> usize {
+    let start = line.find(text).unwrap_or_else(|| panic!("{text:?} is missing from {line:?}"));
+    measure_text_width(&line[..start])
 }
 
 /// Padding is counted in terminal columns rather than in `char`s, so a

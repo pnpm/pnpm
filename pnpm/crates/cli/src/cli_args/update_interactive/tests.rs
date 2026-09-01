@@ -1,10 +1,13 @@
-use super::{InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices};
+use super::{
+    InteractiveUpdateProject, PromptRow, UpdatePrompt, collect_choices, dependencies_prompt_message,
+};
 use crate::cli_args::update::UpdateArgs;
 use clap::Parser;
 use pnpm_config::Config;
 use pnpm_lockfile::Lockfile;
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_reporter::{GlobalLog, LogEvent, LogLevel, Reporter, SilentReporter};
 use pnpm_testing_utils::registry::TestRegistry;
 use serde_json::{Value, json};
 use std::{
@@ -492,9 +495,15 @@ struct SeenPrompt {
     rows: Vec<(String, Option<String>)>,
 }
 
+/// How a test answers one prompt: the packages to check, or Ctrl-C.
+enum ScriptedAnswer {
+    Check(Vec<String>),
+    Cancel,
+}
+
 struct PromptScript {
-    /// The packages to check, one entry per prompt, in call order.
-    answers: VecDeque<Vec<String>>,
+    /// One entry per prompt, in call order.
+    answers: VecDeque<ScriptedAnswer>,
     seen: Vec<SeenPrompt>,
 }
 
@@ -533,7 +542,12 @@ impl ScriptedPrompts {
     /// the way the upstream suite resolves its `@inquirer/prompts` mock.
     fn answer_next(&self, packages: &[&str]) {
         let answer = packages.iter().map(|package| (*package).to_string()).collect();
-        self.claimed().answers.push_back(answer);
+        self.claimed().answers.push_back(ScriptedAnswer::Check(answer));
+    }
+
+    /// Leave the next prompt with Ctrl-C.
+    fn cancel_next(&self) {
+        self.claimed().answers.push_back(ScriptedAnswer::Cancel);
     }
 
     /// Take the prompts shown since the last call.
@@ -546,7 +560,7 @@ impl ScriptedPrompts {
     }
 }
 
-pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Vec<usize> {
+pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Option<Vec<usize>> {
     let mut script = script();
     let answer = script
         .answers
@@ -554,15 +568,24 @@ pub(super) fn answer_prompt(message: &str, rows: &[PromptRow]) -> Vec<usize> {
         .unwrap_or_else(|| panic!("the test scripted no answer for the prompt {message:?}"));
     script.seen.push(SeenPrompt {
         message: message.to_string(),
-        rows: rows.iter().map(|row| (row.label.clone(), row.value.clone())).collect(),
+        rows: rows
+            .iter()
+            .map(|row| match row {
+                PromptRow::Separator(text) => (text.clone(), None),
+                PromptRow::Choice { label, value, .. } => (label.clone(), Some(value.clone())),
+            })
+            .collect(),
     });
-    rows.iter()
-        .enumerate()
-        .filter(|(_, row)| {
-            row.value.as_ref().is_some_and(|value| answer.iter().any(|name| name == value))
-        })
-        .map(|(index, _)| index)
-        .collect()
+    let ScriptedAnswer::Check(answer) = answer else { return None };
+    Some(
+        rows.iter()
+            .enumerate()
+            .filter(|(_, row)| {
+                matches!(row, PromptRow::Choice { value, .. } if answer.iter().any(|name| name == value))
+            })
+            .map(|(index, _)| index)
+            .collect(),
+    )
 }
 
 /// `(package, current, target)` for every row the user could check. The
@@ -581,15 +604,19 @@ fn offered(prompt: &SeenPrompt) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// The group headings a prompt showed, in order. A heading is the row
-/// that opens a group: the one unselectable row followed by another
-/// unselectable one, the group's column header.
+/// The group headings a prompt showed, in order: the separators drawn
+/// as `── heading ──`.
 fn headings(prompt: &SeenPrompt) -> Vec<String> {
     prompt
         .rows
-        .windows(2)
-        .filter(|pair| pair[0].1.is_none() && pair[1].1.is_none())
-        .map(|pair| pair[0].0.trim().to_string())
+        .iter()
+        .filter(|(_, value)| value.is_none())
+        .filter_map(|(label, _)| {
+            console::strip_ansi_codes(label)
+                .strip_prefix("── ")?
+                .strip_suffix(" ──")
+                .map(str::to_string)
+        })
         .collect()
 }
 
@@ -651,6 +678,10 @@ impl UpdateFixture {
     }
 
     async fn update(&self, args: &[&str]) {
+        self.update_reporting::<SilentReporter>(args).await;
+    }
+
+    async fn update_reporting<Reporter: self::Reporter>(&self, args: &[&str]) {
         #[derive(Parser)]
         struct Harness {
             #[clap(flatten)]
@@ -663,7 +694,7 @@ impl UpdateFixture {
         parsed.prompt = UpdatePrompt::Scripted;
         let state = crate::State::init(self.project.join("package.json"), self.config, false)
             .expect("initialize the state");
-        parsed.run::<pnpm_reporter::SilentReporter>(state).await.expect("run pacquet update");
+        parsed.run::<Reporter>(state).await.expect("run pacquet update");
     }
 
     /// The `packages:` keys of the lockfile the last run wrote.
@@ -699,10 +730,7 @@ async fn interactively_update() {
 
     let prompts = scripted.seen();
     assert_eq!(prompts.len(), 1);
-    assert_eq!(
-        prompts[0].message,
-        "Choose which dependencies to update (space to select, enter to confirm)",
-    );
+    assert_eq!(prompts[0].message, dependencies_prompt_message());
     assert_eq!(headings(&prompts[0]), ["dependencies"]);
     assert_eq!(
         offered(&prompts[0]),
@@ -763,6 +791,41 @@ async fn interactively_update_skips_ignored_dependencies() {
     );
 }
 
+/// Ports `global interactive update leaves without an error when the
+/// prompt is canceled`, for the dependency prompt: Ctrl-C is how the
+/// user declines, so the command reports it and leaves with nothing
+/// updated and no error.
+#[tokio::test]
+async fn interactive_update_leaves_without_an_error_when_the_prompt_is_canceled() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let fixture = UpdateFixture::new();
+    fixture.write_manifest(&json!({ MULTI_A: "1.0.0" }));
+    fixture.update(&["update"]).await;
+    fixture.write_manifest(&json!({ MULTI_A: "^1.0.0" }));
+
+    let scripted = scripted_prompts();
+    scripted.cancel_next();
+    fixture.update_reporting::<RecordingReporter>(&["update", "--interactive"]).await;
+
+    assert_eq!(scripted.seen().len(), 1);
+    assert_eq!(fixture.lockfile_packages(), [format!("{MULTI_A}@1.0.0")]);
+    let events = EVENTS.lock().unwrap();
+    let canceled = events.iter().any(|event| {
+        matches!(
+            event,
+            LogEvent::Global(GlobalLog { level: LogLevel::Info, message }) if message == "Update canceled",
+        )
+    });
+    assert!(canceled, "no `Update canceled` was reported: {events:?}");
+}
+
 /// Ports `global interactive update handles an empty global directory`.
 #[tokio::test]
 async fn global_interactive_update_handles_an_empty_global_directory() {
@@ -772,9 +835,14 @@ async fn global_interactive_update_handles_an_empty_global_directory() {
     let config = Config::leak(config);
     let scripted = scripted_prompts();
 
-    let selected = super::select_global_package_groups(config, &[], true, UpdatePrompt::Scripted)
-        .await
-        .expect("select global package groups");
+    let selected = super::select_global_package_groups::<pnpm_reporter::SilentReporter>(
+        config,
+        &[],
+        true,
+        UpdatePrompt::Scripted,
+    )
+    .await
+    .expect("select global package groups");
 
     assert!(selected.is_none());
     assert!(scripted.seen().is_empty(), "an empty global directory must not prompt");

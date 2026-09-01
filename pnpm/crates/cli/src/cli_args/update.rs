@@ -460,7 +460,7 @@ impl UpdateArgs {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
         }
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
-            match crate::cli_args::update_interactive::select_global_package_groups(
+            match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
                 config,
                 &self.packages,
                 self.latest,
