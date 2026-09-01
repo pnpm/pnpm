@@ -320,8 +320,9 @@ fn transitive_dependencies(graph: &TaskGraph, anchor: &TaskNode) -> HashSet<Task
 
 /// Whether at most one script can ever be in flight, which is when output
 /// may stay inherited rather than piped: no task runs several scripts, and
-/// every script-running task lies on one dependency chain, so the graph
-/// forces them to run one after another.
+/// the scripts are held apart either by the dependency edges — every
+/// script-running task on one chain — or by the per-task concurrency
+/// limits [`schedule_tasks`] enforces.
 ///
 /// `sequenced_tasks` is [`sequence_tasks`]'s result — the proof the graph
 /// is acyclic, and the evaluation order for the longest-chain scan.
@@ -334,7 +335,7 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
         }
         script_task_count += node.scripts.len();
     }
-    if script_task_count <= 1 {
+    if script_task_count <= 1 || serialized_by_one_task_limit(graph) {
         return true;
     }
     let mut chain_length: HashMap<&TaskKey, usize> = HashMap::new();
@@ -352,6 +353,24 @@ pub fn is_serial_task_graph(graph: &TaskGraph, sequenced_tasks: &[TaskKey]) -> b
         longest_chain = longest_chain.max(length);
     }
     longest_chain == script_task_count
+}
+
+/// Whether [`schedule_tasks`]'s concurrency limits alone leave at most one
+/// script in flight: every script-running task shares a single limit group
+/// — the group is the task name — and that group admits one task at a time.
+fn serialized_by_one_task_limit(graph: &TaskGraph) -> bool {
+    let mut limited_group: Option<&str> = None;
+    for node in graph.values().filter(|node| !node.scripts.is_empty()) {
+        // `schedule_tasks` floors the declared limit at 1.
+        if node.concurrency.map(|limit| limit.max(1)) != Some(1) {
+            return false;
+        }
+        let group = limited_group.get_or_insert(node.task_name.as_str());
+        if *group != node.task_name.as_str() {
+            return false;
+        }
+    }
+    true
 }
 
 /// The task's key in the recursive summary. The task of the script the

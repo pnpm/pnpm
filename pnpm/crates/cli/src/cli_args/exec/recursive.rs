@@ -28,7 +28,8 @@ use pnpm_executor::{ProcessTracker, ScriptOutput};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace_task_scheduler::{
     ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
+    is_serial_task_graph, resume_task_graph_from, reverse_task_graph, schedule_tasks,
+    sequence_tasks,
 };
 use std::{
     collections::HashSet,
@@ -181,7 +182,7 @@ pub async fn exec_recursive(
     };
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
-    sequence_tasks(
+    let sequenced_tasks = sequence_tasks(
         &mut task_graph,
         &SequenceTasksOptions {
             workspace_dir: workspace_root,
@@ -208,7 +209,10 @@ pub async fn exec_recursive(
     );
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
-    let process_tracker = bail.then(ProcessTracker::default);
+    let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
+    let process_tracker = bail.then(|| {
+        if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() }
+    });
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
         let root = node.project.as_path();
