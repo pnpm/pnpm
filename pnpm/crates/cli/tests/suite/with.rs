@@ -93,7 +93,7 @@ fn with_forwards_subsequent_args_to_the_child_pnpm() {
 
 #[test]
 fn with_current_dispatches_the_inner_command_after_a_global_boolean_flag() {
-    for flag in ["--color", "--workspace-root", "--yes"] {
+    for flag in ["--color", "--yes"] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
@@ -107,6 +107,22 @@ fn with_current_dispatches_the_inner_command_after_a_global_boolean_flag() {
 
         drop(root);
     }
+}
+
+#[test]
+fn with_current_dispatches_after_workspace_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
+
+    let output = test_command(pacquet, root.path())
+        .with_args(["--workspace-root", "with", "current", "--version"])
+        .output()
+        .expect("run pacquet with current --version after --workspace-root");
+    dbg!(&output);
+    assert_success(&output);
+    assert_semver_like(stdout(&output).trim());
+
+    drop(root);
 }
 
 #[test]
