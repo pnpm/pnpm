@@ -3835,6 +3835,24 @@ fn resolved_minimum_release_age_treats_zero_as_disabled() {
     assert_eq!(config.resolved_minimum_release_age(), None);
 }
 
+#[test]
+fn resolved_minimum_release_age_strict_defaults_to_explicit_release_age() {
+    let mut config = Config::new();
+    assert!(!config.resolved_minimum_release_age_strict(), "built-in default is non-strict");
+
+    config.explicit_settings.insert("minimumReleaseAge".to_owned(), serde_json::json!(1440));
+    assert!(
+        config.resolved_minimum_release_age_strict(),
+        "explicit release age enables strict mode"
+    );
+
+    config.minimum_release_age_strict = Some(false);
+    assert!(!config.resolved_minimum_release_age_strict(), "explicit false takes precedence");
+
+    config.minimum_release_age_strict = Some(true);
+    assert!(config.resolved_minimum_release_age_strict(), "explicit true takes precedence");
+}
+
 const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// A project `.npmrc` redirecting the default registry still drives normal

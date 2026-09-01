@@ -2649,20 +2649,11 @@ impl Config {
     }
 
     /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Returns the user-supplied value when set, else `false`.
-    ///
-    /// pnpm flips this to `true` when the user *explicitly* set
-    /// `minimumReleaseAge`, but the "explicitly set vs default" check
-    /// relies on an `explicitlySetKeys` tracker that pacquet's config
-    /// layer doesn't have yet. Without that, distinguishing the built-in
-    /// 1440-minute default from a user-typed `minimumReleaseAge: 1440`
-    /// isn't possible, so this resolver stays conservative: explicit
-    /// `true` / `false` from yaml wins, otherwise `false`. The verifier
-    /// itself doesn't gate on this flag — it's resolver-only — so
-    /// the conservative default is dormant until pacquet grows the
-    /// resolver and the `explicitlySetKeys` mechanism alongside it.
+    /// Returns the user-supplied value when set. Otherwise it enables strict
+    /// mode when `minimumReleaseAge` was explicitly configured, matching pnpm.
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict.unwrap_or(false)
+        self.minimum_release_age_strict
+            .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
     }
 
     /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
