@@ -253,6 +253,7 @@ impl Remove<'_> {
             selected_dirs,
             install_dirs,
             active_manifest_is_standin,
+            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
         })
         .await
         .pipe(defer_ignored_builds)

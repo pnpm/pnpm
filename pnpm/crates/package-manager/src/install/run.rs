@@ -449,7 +449,19 @@ where
             && let Some(workspace_dir) = workspace_dir_opt.as_deref()
         {
             let scope = match selection.as_ref() {
-                Some(selection) => Some((selection.all_projects, Some(selection.selected_dirs))),
+                // A plan that already sequenced this very graph hands
+                // its cycle report over; the install then skips
+                // rebuilding the graph just to find them again.
+                Some(selection) => match selection.workspace_cycles {
+                    crate::PrecomputedWorkspaceCycles::Known(cycles) => {
+                        crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles)
+                            .map_err(InstallError::CyclicWorkspaceDependencies)?;
+                        None
+                    }
+                    crate::PrecomputedWorkspaceCycles::Unknown => {
+                        Some((selection.all_projects, Some(selection.selected_dirs)))
+                    }
+                },
                 // A single-project mutation (`add`, `update`, ...) has no
                 // set to cycle within; only a full install covers the
                 // whole workspace.

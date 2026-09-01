@@ -254,6 +254,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
                         selected_dirs: selection.selected_dirs.as_ref(),
                         install_dirs: selection.selected_dirs.as_ref(),
                         active_manifest_is_standin: selection.active_manifest_is_standin,
+                        workspace_cycles: pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
                     },
                     rebuild,
                 )

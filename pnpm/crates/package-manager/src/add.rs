@@ -486,6 +486,7 @@ where
                 selected_dirs,
                 install_dirs,
                 active_manifest_is_standin,
+                workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
             }),
         )
         .await

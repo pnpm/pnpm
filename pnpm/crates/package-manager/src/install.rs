@@ -248,6 +248,25 @@ pub struct WorkspaceInstallSelection<'a> {
     /// workspace root that pnpm treats as a full-install importer.
     pub install_dirs: &'a HashSet<PathBuf>,
     pub active_manifest_is_standin: bool,
+    pub workspace_cycles: PrecomputedWorkspaceCycles<'a>,
+}
+
+/// Whether the caller of a selected install already looked for
+/// dependency cycles among the selected projects.
+///
+/// A caller may pass [`Self::Known`] only when it ran
+/// [`crate::workspace_cycles`] over the very graph the install would
+/// rebuild — the same projects, in the same order, with the same graph
+/// options — so the report (its cycle order included) stays what the
+/// install's own [`crate::install_scope_cycles`] would emit.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum PrecomputedWorkspaceCycles<'a> {
+    /// It did not; the install runs its own cycle search.
+    #[default]
+    Unknown,
+    /// The cycle report for this selection; `None` — the projects are
+    /// orderable.
+    Known(Option<&'a [Vec<PathBuf>]>),
 }
 
 /// What this run does to the manifests of the projects it installs —

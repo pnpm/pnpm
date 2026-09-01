@@ -30,25 +30,29 @@ use std::{
 /// unorderable, so only cycles with more than one project are returned.
 #[must_use]
 pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBuf>>> {
-    let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
-    let included: HashSet<&Path> = dirs.iter().map(PathBuf::as_path).collect();
-    let edges: HashMap<PathBuf, Vec<PathBuf>> = graph
+    // The sequencer runs over borrowed paths: a workspace-scale graph
+    // holds tens of thousands of edges, and cloning every `PathBuf`
+    // into a throwaway map cost more than the sort itself.
+    let dirs: Vec<&Path> = graph.keys().map(PathBuf::as_path).collect();
+    let included: HashSet<&Path> = dirs.iter().copied().collect();
+    let edges: HashMap<&Path, Vec<&Path>> = graph
         .iter()
         .map(|(dir, node)| {
             let dependencies = node
                 .dependencies
                 .iter()
-                .filter(|dependency| included.contains(dependency.as_path()))
-                .cloned()
+                .map(PathBuf::as_path)
+                .filter(|dependency| included.contains(dependency))
                 .collect();
-            (dir.clone(), dependencies)
+            (dir.as_path(), dependencies)
         })
         .collect();
     let cycles = graph_sequencer(&edges, &dirs)
         .cycles
         .into_iter()
         .filter(|cycle| cycle.len() > 1)
-        .collect::<Vec<_>>();
+        .map(|cycle| cycle.into_iter().map(Path::to_path_buf).collect())
+        .collect::<Vec<Vec<PathBuf>>>();
     (!cycles.is_empty()).then_some(cycles)
 }
 

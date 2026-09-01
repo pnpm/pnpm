@@ -642,6 +642,7 @@ impl Update<'_> {
             selected_dirs,
             install_dirs,
             active_manifest_is_standin,
+            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
         };
         let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
