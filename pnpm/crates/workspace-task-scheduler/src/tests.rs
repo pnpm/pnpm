@@ -62,6 +62,17 @@ fn tasks(entries: &[(&str, Option<&[&str]>)]) -> IndexMap<String, TaskSettings> 
         .collect()
 }
 
+fn tasks_with_concurrency(entries: &[(&str, i64)]) -> IndexMap<String, TaskSettings> {
+    entries
+        .iter()
+        .map(|(name, concurrency)| {
+            let mut settings = TaskSettings::default();
+            settings.concurrency = Some(*concurrency);
+            (name.to_string(), settings)
+        })
+        .collect()
+}
+
 fn build_graph(
     projects: &[(&'static str, FakeProject)],
     task_name: &str,
@@ -268,6 +279,34 @@ fn is_serial_tells_a_chain_from_a_graph_with_independent_tasks() {
     );
     let sequenced = sequence(&mut diamond).unwrap();
     assert!(!is_serial_task_graph(&diamond, &sequenced));
+}
+
+#[test]
+fn is_serial_counts_a_task_concurrency_limit_of_one_as_serial() {
+    let settings = tasks_with_concurrency(&[("build", 1)]);
+    let mut graph = build_graph(
+        &[
+            ("a", project(&[], &["build"])),
+            ("b", project(&[], &["build"])),
+            ("c", project(&[], &["build"])),
+        ],
+        "build",
+        Some(&settings),
+    );
+    let sequenced = sequence(&mut graph).unwrap();
+    assert!(is_serial_task_graph(&graph, &sequenced));
+}
+
+#[test]
+fn is_serial_rejects_a_task_concurrency_limit_above_one() {
+    let settings = tasks_with_concurrency(&[("build", 2)]);
+    let mut graph = build_graph(
+        &[("a", project(&[], &["build"])), ("b", project(&[], &["build"]))],
+        "build",
+        Some(&settings),
+    );
+    let sequenced = sequence(&mut graph).unwrap();
+    assert!(!is_serial_task_graph(&graph, &sequenced));
 }
 
 #[test]
