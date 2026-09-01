@@ -100,6 +100,12 @@ rmdir "$marker"
     .expect("write concurrency probe");
 }
 
+fn process_group_probe() -> &'static str {
+    r#"child_group=$(ps -o pgid= -p $$ | tr -d ' ')
+parent_group=$(ps -o pgid= -p $PPID | tr -d ' ')
+printf "%s %s\n" "$child_group" "$parent_group" > ../process-groups.txt"#
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -126,6 +132,36 @@ fn recursive_run_executes_script_in_every_project() {
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
     );
+
+    drop(root);
+}
+
+#[test]
+fn filtered_run_keeps_single_script_in_foreground_process_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "version": "1.0.0",
+                    "scripts": { "prompt": process_group_probe() },
+                }),
+            ),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet.with_args(["--filter", "project-1", "run", "prompt"]).assert().success();
+
+    let groups =
+        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
+    let mut fields = groups.split_whitespace();
+    let child_group = fields.next().expect("child process group");
+    let parent_group = fields.next().expect("parent process group");
+    assert_eq!(child_group, parent_group);
 
     drop(root);
 }

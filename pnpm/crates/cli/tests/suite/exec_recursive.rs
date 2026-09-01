@@ -69,6 +69,12 @@ rmdir "$marker"
     .expect("write concurrency probe");
 }
 
+fn process_group_probe() -> &'static str {
+    r#"child_group=$(ps -o pgid= -p $$ | tr -d ' ')
+parent_group=$(ps -o pgid= -p $PPID | tr -d ' ')
+printf "%s %s\n" "$child_group" "$parent_group" > ../process-groups.txt"#
+}
+
 /// `pacquet -r exec <command>` runs the command once in every workspace
 /// project, each with cwd == its own package root — a relative `touch`
 /// lands a marker inside each package directory.
@@ -91,6 +97,26 @@ fn recursive_exec_runs_command_in_every_project() {
             "{name} should have run the command in its own directory",
         );
     }
+
+    drop(root);
+}
+
+#[test]
+fn filtered_exec_keeps_single_command_in_foreground_process_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_args(["--filter", "project-1", "exec", "sh", "-c", process_group_probe()])
+        .assert()
+        .success();
+
+    let groups =
+        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
+    let mut fields = groups.split_whitespace();
+    let child_group = fields.next().expect("child process group");
+    let parent_group = fields.next().expect("parent process group");
+    assert_eq!(child_group, parent_group);
 
     drop(root);
 }
