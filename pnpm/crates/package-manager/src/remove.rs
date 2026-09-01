@@ -43,6 +43,12 @@ pub struct Remove<'a> {
     /// skip materializing `node_modules`. Forwarded to the follow-up
     /// `Install` run. See [`Install::lockfile_only`].
     pub lockfile_only: bool,
+    /// CLI-merged `trustLockfile` forwarded to the follow-up `Install` run.
+    /// Removing the package a policy rejected is the recovery path from a
+    /// lockfile that fails verification, so `remove` has to be able to skip
+    /// that pass the same way `install` and `add` can. See
+    /// [`Install::trust_lockfile`].
+    pub trust_lockfile: bool,
 }
 
 /// The up-front validation failures of `pacquet remove`, raised before
@@ -99,6 +105,7 @@ impl Remove<'_> {
             resolved_packages,
             supported_architectures,
             lockfile_only,
+            trust_lockfile,
         } = self;
 
         validate_removable(manifest, package_names, save_type).map_err(RemoveError::Validation)?;
@@ -126,7 +133,7 @@ impl Remove<'_> {
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
+            trust_lockfile,
             update_checksums: false,
             // `pacquet remove` is a partial install (an
             // `uninstallSome` mutation), so the root project's own
@@ -194,6 +201,7 @@ impl Remove<'_> {
             resolved_packages,
             supported_architectures,
             lockfile_only,
+            trust_lockfile,
         } = self;
         let selected_indices = selected_project_indices(projects, ordered_dirs, selected_dirs);
         if selected_indices.is_empty() {
@@ -225,7 +233,7 @@ impl Remove<'_> {
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
-            trust_lockfile: config.trust_lockfile,
+            trust_lockfile,
             update_checksums: false,
             mutation: ProjectMutation::UninstallSome,
             installs_only: false,

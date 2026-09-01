@@ -161,3 +161,15 @@ no such dependencies found in \'optionalDependencies\'')
 prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
   }
 })
+
+test('rcOptionsTypes registers the supply-chain policy options', () => {
+  // Removing the entry a policy rejected is the recovery path from a lockfile
+  // that fails verification, so `remove` needs the escape hatch `install` and
+  // `add` already register.
+  const optionTypes = remove.rcOptionsTypes()
+
+  expect(optionTypes).toHaveProperty('trust-lockfile')
+  expect(optionTypes).toHaveProperty('trust-policy')
+  expect(optionTypes).toHaveProperty('trust-policy-exclude')
+  expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
+})

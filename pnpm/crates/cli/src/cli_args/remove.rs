@@ -1,6 +1,9 @@
 use crate::{
     State,
-    cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
+    cli_args::{
+        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
+        pipelines::InstallFamilySelection,
+    },
 };
 use clap::Args;
 use miette::Context;
@@ -55,6 +58,13 @@ pub struct RemoveArgs {
     /// bins.
     #[clap(short = 'g', long)]
     pub global: bool,
+    /// Skip verifying the lockfile against supply-chain policies.
+    #[clap(long = "trust-lockfile", overrides_with = "no_trust_lockfile")]
+    pub trust_lockfile: bool,
+    /// Verify the lockfile against supply-chain policies even when the
+    /// configuration trusts it.
+    #[clap(long = "no-trust-lockfile", overrides_with = "trust_lockfile")]
+    pub no_trust_lockfile: bool,
 }
 
 impl RemoveArgs {
@@ -64,6 +74,14 @@ impl RemoveArgs {
         mut state: State,
     ) -> miette::Result<()> {
         let lockfile_path = state.lockfile_path();
+        // `--trust-lockfile` / `--no-trust-lockfile` override the yaml
+        // `trustLockfile` in either direction, matching `install`. Read before
+        // `state` is borrowed mutably below.
+        let trust_lockfile = resolve_bool_override(
+            self.trust_lockfile,
+            self.no_trust_lockfile,
+            state.config.trust_lockfile,
+        );
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
         let lockfile =
@@ -82,6 +100,7 @@ impl RemoveArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: self.lockfile_only,
+            trust_lockfile,
         }
         .run::<Reporter>()
         .await
@@ -104,6 +123,14 @@ impl RemoveArgs {
             active_manifest_is_standin,
         } = selection;
         let lockfile_path = state.lockfile_path();
+        // `--trust-lockfile` / `--no-trust-lockfile` override the yaml
+        // `trustLockfile` in either direction, matching `install`. Read before
+        // `state` is borrowed mutably below.
+        let trust_lockfile = resolve_bool_override(
+            self.trust_lockfile,
+            self.no_trust_lockfile,
+            state.config.trust_lockfile,
+        );
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
         let lockfile =
@@ -122,6 +149,7 @@ impl RemoveArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: self.lockfile_only,
+            trust_lockfile,
         }
         .run_selected::<Reporter>(
             &mut projects,
