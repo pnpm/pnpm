@@ -39,7 +39,7 @@ test('fetch including only package files', async () => {
 })
 
 test('fetch package files includes bundled dependencies under a listed directory', async () => {
-  process.chdir(f.find('standalone-pkg'))
+  const packageDir = f.find('standalone-pkg')
   const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
 
   // eslint-disable-next-line
@@ -47,7 +47,7 @@ test('fetch package files includes bundled dependencies under a listed directory
     directory: '.',
     type: 'directory',
   }, {
-    lockfileDir: process.cwd(),
+    lockfileDir: packageDir,
   })
 
   expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
