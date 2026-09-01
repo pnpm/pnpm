@@ -9,7 +9,10 @@
 //! survives clap's `-v` / `--version` short-circuit and reaches both the
 //! in-process config load and any child process the command spawns.
 
-use crate::{cli_args::grammar, flag_relocation::ArgTable};
+use crate::{
+    cli_args::grammar,
+    flag_relocation::{ArgTable, short_cluster_consumes_value},
+};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::ffi::OsString;
@@ -98,17 +101,10 @@ fn option_consumes_value(token: &str) -> bool {
     if token.starts_with("--") {
         long_option_consumes_value(token)
     } else {
-        let Some(rest) = token.strip_prefix('-') else {
+        let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) else {
             return false;
         };
-        let mut chars = rest.chars();
-        let Some(short) = chars.next() else {
-            return false;
-        };
-        if chars.next().is_some() {
-            return false;
-        }
-        top_level_arity().short_consumes_value(short).unwrap_or(false)
+        short_cluster_consumes_value(rest, |short| top_level_arity().short_consumes_value(short))
     }
 }
 

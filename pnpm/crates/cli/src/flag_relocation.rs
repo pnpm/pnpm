@@ -76,14 +76,12 @@ pub(crate) fn scan_for_positional(
                 index += token_width(consumes_value, has_inline_value);
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            if let Some(consumes_value) = top_level.short_consumes_value(short) {
-                index += token_width(consumes_value && is_bare_short, false);
-            } else {
-                let consumes_value = subcommand_union.short_consumes_value(short).unwrap_or(false);
-                index += token_width(consumes_value && is_bare_short, false);
-            }
+            let consumes_value = short_cluster_consumes_value(rest, |short| {
+                top_level
+                    .short_consumes_value(short)
+                    .or_else(|| subcommand_union.short_consumes_value(short))
+            });
+            index += token_width(consumes_value, false);
         } else {
             return Some(PositionalScan::Positional(index));
         }
@@ -143,12 +141,16 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
             let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            if let Some(consumes_value) = top_level.short_consumes_value(short) {
-                index += token_width(consumes_value && is_bare_short, false);
+            if top_level.short_consumes_value(short).is_some() {
+                let consumes_value = short_cluster_consumes_value(rest, |short| {
+                    top_level.short_consumes_value(short)
+                });
+                index += token_width(consumes_value, false);
             } else {
-                let consumes_value = subcommand_union.short_consumes_value(short).unwrap_or(false);
-                let width = token_width(consumes_value && is_bare_short, false);
+                let consumes_value = short_cluster_consumes_value(rest, |short| {
+                    subcommand_union.short_consumes_value(short)
+                });
+                let width = token_width(consumes_value, false);
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
@@ -182,6 +184,26 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
 /// when the value is a separate token rather than `--flag=value` inline.
 pub(crate) fn token_width(consumes_value: bool, has_inline_value: bool) -> usize {
     if consumes_value && !has_inline_value { 2 } else { 1 }
+}
+
+/// Whether a short-option token consumes the next argv token as its
+/// value. `rest` is the token with its leading `-` stripped, and may be a
+/// cluster: clap lets boolean shorts stack ahead of a value-taking one
+/// (`-rC dir` is `-r -C dir`), and a value written against its option
+/// (`-rCdir`) leaves nothing for the next token. `arity` reports whether
+/// one short takes a value, or `None` for a short the grammar does not
+/// define, which consumes nothing.
+pub(crate) fn short_cluster_consumes_value(
+    rest: &str,
+    arity: impl Fn(char) -> Option<bool>,
+) -> bool {
+    let mut shorts = rest.chars();
+    while let Some(short) = shorts.next() {
+        if arity(short).unwrap_or(false) {
+            return shorts.as_str().is_empty();
+        }
+    }
+    false
 }
 
 /// Option-name lookup table: long / short spelling → whether the option
