@@ -366,3 +366,60 @@ fn loaded_variant_passes_through() {
     assert!(maybe.get().expect("loaded variant is infallible").is_none());
     assert!(!maybe.is_loaded_or_on_disk());
 }
+
+#[test]
+fn prefetch_hands_get_the_background_parse() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("write pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    lazy.prefetch();
+    // A second prefetch must not race or double-load.
+    lazy.prefetch();
+
+    // Wait for the background thread, then delete the file *before*
+    // the first read: the contents can only come from that thread's
+    // parse, never from an inline load.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        let finished = lazy
+            .prefetch
+            .lock()
+            .expect("prefetch slot lock")
+            .as_ref()
+            .expect("prefetch spawned a load")
+            .is_finished();
+        if finished {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "background load never finished");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
+    assert!(lazy.get().expect("prefetched load succeeds").is_some());
+    assert!(lazy.get().expect("cached load succeeds").is_some());
+}
+
+#[test]
+fn prefetch_on_a_disabled_lockfile_is_a_noop() {
+    let lazy = LazyLockfile::disabled();
+    lazy.prefetch();
+    assert!(lazy.get().expect("disabled lockfile loads as None").is_none());
+}
+
+#[test]
+fn a_failed_prefetch_is_surfaced_and_then_retried() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: [broken\n")
+        .expect("write broken pnpm-lock.yaml");
+
+    let lazy = LazyLockfile::deferred(dir.path().to_path_buf(), WantedLockfileSelection::default());
+    lazy.prefetch();
+    lazy.get().expect_err("the background parse failure must surface");
+
+    // The error is not cached: a repaired file loads on the next call.
+    fs::write(dir.path().join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
+        .expect("repair pnpm-lock.yaml");
+    assert!(lazy.get().expect("retried load succeeds").is_some());
+}

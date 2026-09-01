@@ -296,6 +296,33 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Built ahead of project discovery so a run that is certain to
+        // read the wanted lockfile parses it on a background thread
+        // while discovery walks the workspace. Certain means the fast
+        // "Already up to date" return cannot fire: it is off under
+        // `--frozen-lockfile` / `--force`, and it requires a workspace
+        // state from a previous install — a workspace with none on
+        // disk (a lockfile-only workflow never writes one) always
+        // reaches the full pipeline. A `--fix-lockfile` run reads
+        // through the separate repair loader, which this prefetch does
+        // not feed. Only the shared-lockfile arms consume this
+        // lockfile; the per-project arms load their own.
+        let lockfile = cfg
+            .shares_one_lockfile()
+            .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
+        if let Some(lockfile) = lockfile.as_ref()
+            && !args.fix_lockfile
+        {
+            let manifest_dir =
+                manifest_path.parent().expect("manifest path always has a parent dir");
+            let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
+            if frozen_lockfile
+                || cfg.force
+                || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
+            {
+                lockfile.prefetch();
+            }
+        }
         let plan = select_install_family_plan::<Reporter>(
             cfg,
             &prefix,
@@ -314,8 +341,7 @@ impl InstallPipeline {
                     return Ok(());
                 }
                 let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let state = init_shared_state(manifest_path, cfg, require_lockfile, lockfile)?;
                 Box::pin(args.run_selected::<Reporter>(state, *selection)).await
             }
             InstallFamilyPlan::Single => {
@@ -332,12 +358,26 @@ impl InstallPipeline {
                     .await;
                 }
                 let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let state = init_shared_state(manifest_path, cfg, require_lockfile, lockfile)?;
                 Box::pin(args.run::<Reporter>(state)).await
             }
         }
     }
+}
+
+/// [`State::init`], consuming the pipeline's pre-built lockfile when
+/// there is one so an already-running prefetch isn't thrown away.
+fn init_shared_state(
+    manifest_path: PathBuf,
+    config: &'static Config,
+    require_lockfile: bool,
+    lockfile: Option<pnpm_lockfile::LazyLockfile>,
+) -> miette::Result<State> {
+    match lockfile {
+        Some(lockfile) => State::init_with_lockfile(manifest_path, config, lockfile),
+        None => State::init(manifest_path, config, require_lockfile),
+    }
+    .wrap_err("initialize the state")
 }
 
 pub(crate) struct AddPipeline {
