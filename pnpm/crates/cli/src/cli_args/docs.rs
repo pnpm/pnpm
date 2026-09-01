@@ -1,6 +1,6 @@
 use clap::Args;
 use pnpm_config::Config;
-use serde_json::Value;
+use pnpm_registry::PackageVersion;
 
 /// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]
@@ -16,26 +16,19 @@ impl DocsArgs {
     }
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
-        let info = super::view::fetch_package_info(config, None, &self.package, "docs").await?;
-        Ok(documentation_url_from_info(&info))
+        let (_, manifest) =
+            super::view::fetch_package_metadata(config, None, &self.package, "docs").await?;
+        Ok(documentation_url_from_manifest(&manifest))
     }
 }
 
-fn documentation_url_from_info(info: &Value) -> String {
-    info.get("homepage")
-        .and_then(Value::as_str)
+fn documentation_url_from_manifest(manifest: &PackageVersion) -> String {
+    manifest
+        .other
+        .get("homepage")
+        .and_then(serde_json::Value::as_str)
         .filter(|homepage| is_http_url(homepage))
-        .map_or_else(
-            || {
-                format!(
-                    "https://npmx.dev/package/{}",
-                    info.get("name")
-                        .and_then(Value::as_str)
-                        .expect("selected registry manifests always have a package name"),
-                )
-            },
-            ToString::to_string,
-        )
+        .map_or_else(|| format!("https://npmx.dev/package/{}", manifest.name), ToString::to_string)
 }
 
 fn is_http_url(value: &str) -> bool {

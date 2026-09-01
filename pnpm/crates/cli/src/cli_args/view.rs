@@ -6,7 +6,7 @@
 //! field arguments, only those fields are printed; otherwise a formatted
 //! summary (or, with `--json`, the whole assembled info object) is shown.
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use chrono::{DateTime, Utc};
 use clap::Args;
@@ -93,8 +93,9 @@ impl ViewArgs {
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
-        let info =
-            fetch_package_info(config, self.registry.as_deref(), &package_spec, "view").await?;
+        let (meta, picked) =
+            fetch_package_metadata(config, self.registry.as_deref(), &package_spec, "view").await?;
+        let info = assemble_info(&meta, &picked);
 
         if !fields.is_empty() {
             return Ok(render_fields(&info, fields, self.json));
@@ -149,17 +150,14 @@ fn invalid_manifest(dir: &Path) -> ViewError {
     }
 }
 
-/// Fetch and assemble the registry info object for `package_spec`: parse the
-/// spec (rejecting non-registry protocols), fetch full metadata, pick the
-/// version satisfying the spec, then extend that version's manifest with the
-/// packument-level `versions`, `dist-tags`, and `time` fields the renderers
-/// read.
-pub(super) async fn fetch_package_info(
+/// Fetch the registry packument for `package_spec` and select the version that
+/// satisfies the spec. The caller decides how much of the result to assemble.
+pub(super) async fn fetch_package_metadata(
     config: &Config,
     registry_override: Option<&str>,
     package_spec: &str,
     command_name: &str,
-) -> miette::Result<Value> {
+) -> miette::Result<(pnpm_registry::Package, Arc<pnpm_registry::PackageVersion>)> {
     let parsed = parse_wanted_dependency(package_spec);
     let alias = parsed.alias.as_deref();
     let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
@@ -216,7 +214,7 @@ pub(super) async fn fetch_package_info(
         spec: spec.fetch_spec.clone(),
     })?;
 
-    Ok(assemble_info(&meta, &picked))
+    Ok((meta, picked))
 }
 
 /// Build the info object the renderers consume from the picked version's
