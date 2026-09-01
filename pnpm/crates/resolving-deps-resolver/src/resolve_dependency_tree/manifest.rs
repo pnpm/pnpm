@@ -45,17 +45,14 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         let rel_space_target =
             crate::link_target::importer_rel_dir(&ctx.base_opts.project_dir, &ctx.lockfile_dir)
                 .and_then(|rel| crate::link_target::target_relative_to_lockfile_root(target, rel));
-        let relative_target = match rel_space_target {
-            Some(relative_target) => relative_target,
-            None => {
-                let absolute_target = if target.is_absolute() {
-                    pnpm_fs::lexical_normalize(target)
-                } else {
-                    pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
-                };
-                pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target)
-            }
-        };
+        let relative_target = rel_space_target.unwrap_or_else(|| {
+            let absolute_target = if target.is_absolute() {
+                pnpm_fs::lexical_normalize(target)
+            } else {
+                pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+            };
+            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target)
+        });
         let relative_target = relative_target.display().to_string().replace('\\', "/");
         let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
         return Ok(format!("link:{relative_target}"));
