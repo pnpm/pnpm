@@ -58,9 +58,13 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   ], tempDir)
 
   if (process.platform === 'win32') {
-    const shim = path.join(prefix, 'pnpm.ps1')
-    assert.match(fs.readFileSync(shim, 'utf8'), /pnpm\.exe/)
-    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', shim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+    const cmdShim = path.join(prefix, 'pnpm.cmd')
+    assert.match(fs.readFileSync(cmdShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('cmd.exe', ['/d', '/s', '/c', `"${cmdShim}" --version`], { encoding: 'utf8' }), /^v\d+/)
+
+    const powershellShim = path.join(prefix, 'pnpm.ps1')
+    assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
   } else {
     assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
   }
