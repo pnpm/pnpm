@@ -54,8 +54,13 @@ check:
 
 # Run all the tests.
 test:
-  # Tests opt into CI-sensitive pnpm defaults explicitly.
-  env PNPM_CONFIG_CI=false cargo nextest run
+  #!/usr/bin/env bash
+  set -euo pipefail
+  # Tests opt into CI-sensitive pnpm defaults explicitly and must not read a
+  # contributor's global registry credentials.
+  test_config_dir="$(mktemp -d)"
+  trap 'rm -rf "$test_config_dir"' EXIT
+  env PNPM_CONFIG_CI=false XDG_CONFIG_HOME="$test_config_dir" cargo nextest run
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
