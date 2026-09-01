@@ -22,3 +22,91 @@ fn filter_log_is_ignored_with_a_warning() {
 
     drop(root);
 }
+
+const EXTRA_ENV_PNPMFILE: &str = "module.exports = { hooks: { updateConfig (config) { config.extraEnv = { ...config.extraEnv, PNPM_HOOK_MARKER: 'from-hook' }; return config } } }";
+
+/// `updateConfig` applies to `pnpm run`, not just to the install family:
+/// the settings a hook returns — `extraEnv` here — reach the environment of
+/// the script it spawns.
+#[cfg(unix)]
+#[test]
+fn update_config_applies_to_run() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    let manifest = serde_json::json!({
+        "name": "run-reads-extra-env",
+        "version": "0.0.0",
+        "scripts": {
+            "write-marker": format!(r#"printf %s "$PNPM_HOOK_MARKER" > "{}""#, marker.display()),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("run").with_arg("write-marker").assert().success();
+
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "from-hook");
+
+    drop(root);
+}
+
+/// The same for `pnpm exec`, which spawns its command through the same
+/// environment.
+#[cfg(unix)]
+#[test]
+fn update_config_applies_to_exec() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let marker = workspace.join("marker.txt");
+    fs::write(workspace.join("package.json"), r#"{"name":"exec-reads-extra-env"}"#)
+        .expect("write package.json");
+    fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
+
+    pacquet_in(&workspace)
+        .with_arg("exec")
+        .with_arg("sh")
+        .with_arg("-c")
+        .with_arg(format!(r#"printf %s "$PNPM_HOOK_MARKER" > "{}""#, marker.display()))
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "from-hook");
+
+    drop(root);
+}
+
+/// A recursive `pnpm run` applies the workspace-root hook to every
+/// project's script environment.
+#[cfg(unix)]
+#[test]
+fn update_config_applies_to_recursive_run() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{"name":"root","private":true}"#)
+        .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(workspace.join(".pnpmfile.cjs"), EXTRA_ENV_PNPMFILE).expect("write pnpmfile");
+    let project = workspace.join("packages").join("a");
+    fs::create_dir_all(&project).expect("create project dir");
+    let marker = project.join("marker.txt");
+    let manifest = serde_json::json!({
+        "name": "a",
+        "version": "0.0.0",
+        "scripts": {
+            "write-marker": format!(r#"printf %s "$PNPM_HOOK_MARKER" > "{}""#, marker.display()),
+        },
+    })
+    .to_string();
+    fs::write(project.join("package.json"), manifest).expect("write project package.json");
+
+    pacquet_in(&workspace)
+        .with_arg("--recursive")
+        .with_arg("run")
+        .with_arg("write-marker")
+        .assert()
+        .success();
+
+    assert_eq!(fs::read_to_string(&marker).expect("read marker"), "from-hook");
+
+    drop(root);
+}

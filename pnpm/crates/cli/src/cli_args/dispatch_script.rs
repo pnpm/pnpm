@@ -1,5 +1,5 @@
 use super::{
-    dispatch::{CommandFuture, RunCtx},
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
     exec::ExecArgs,
     init::InitArgs,
     pkg::PkgArgs,
@@ -81,12 +81,18 @@ pub(super) fn test<'a>(
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
     let args = with_recursive_run_options(ctx, args, config);
-    if ctx.recursive {
-        args.run_recursive(config, ctx.dir, ctx.reporter)?;
-    } else {
-        args.run(ctx.dir, config, ctx.reporter)?;
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        if recursive {
+            args.run_recursive(config, dir, reporter)
+        } else {
+            args.run(dir, config, reporter)
+        }
+    }))
 }
 
 pub(super) fn fallback<'a>(
@@ -108,25 +114,35 @@ pub(super) fn fallback<'a>(
     };
     let config = (ctx.config)()?;
     let args = with_recursive_run_options(ctx, args, config);
-    if ctx.recursive {
-        args.run_recursive(config, ctx.dir, ctx.reporter)?;
-    } else {
-        args.run_fallback(ctx.dir, config, ctx.reporter)?;
-    }
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        if recursive {
+            args.run_recursive(config, dir, reporter)
+        } else {
+            args.run_fallback(dir, config, reporter)
+        }
+    }))
 }
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
-    let config: &'static Config = (ctx.config)()?;
+    let config = (ctx.config)()?;
     let args = with_recursive_exec_options(ctx, args, config);
-    if ctx.recursive {
-        let dir = ctx.dir;
-        let reporter = ctx.reporter;
-        Ok(Box::pin(async move { args.run_recursive(config, dir, reporter).await }))
-    } else {
-        args.run(ctx.dir, config, ctx.reporter)?;
-        Ok(Box::pin(std::future::ready(Ok(()))))
-    }
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    let recursive = ctx.recursive;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let config: &'static Config = config;
+        if recursive {
+            args.run_recursive(config, dir, reporter).await
+        } else {
+            args.run(dir, config, reporter)
+        }
+    }))
 }
 
 fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
@@ -164,8 +180,14 @@ pub(super) fn stop<'a>(
     if ctx.recursive {
         run(ctx, args.into_run_args("stop", ctx.if_present))
     } else {
-        args.run("stop", ctx.if_present, ctx.dir, (ctx.config)()?, ctx.reporter)?;
-        Ok(Box::pin(std::future::ready(Ok(()))))
+        let config = (ctx.config)()?;
+        let dir = ctx.dir;
+        let reporter = ctx.reporter;
+        let if_present = ctx.if_present;
+        Ok(Box::pin(async move {
+            apply_update_config(config, dir, reporter).await?;
+            args.run("stop", if_present, dir, config, reporter)
+        }))
     }
 }
 
@@ -174,6 +196,11 @@ pub(super) fn restart<'a>(
     mut args: RestartArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     args.if_present |= ctx.if_present;
-    args.run(ctx.dir, (ctx.config)()?, ctx.reporter)?;
-    Ok(Box::pin(std::future::ready(Ok(()))))
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        args.run(dir, config, reporter)
+    }))
 }

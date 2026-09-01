@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     State,
+    config_deps::prepare_config,
     config_overrides::{
         ConfigOverrides, apply_registry_override, apply_state_dir_override,
         apply_store_dir_override,
@@ -16,8 +17,9 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
+use pnpm_default_reporter::DefaultReporter;
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
 use std::{future::Future, path::Path, pin::Pin};
 
 pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
@@ -485,6 +487,31 @@ impl CliArgs {
 
         Ok(())
     }
+}
+
+/// Install the project's config dependencies and apply their `updateConfig`
+/// pnpmfile hooks to `config` before a command spawns anything, so a hook's
+/// settings — `extraEnv` and `extraBinPaths` among them — reach the child
+/// processes the command starts. pnpm applies them once per invocation,
+/// whatever the command.
+///
+/// Every [`RunCtx::config`] call yields a fresh `Config`, so the pass has to
+/// run on the instance the handler goes on to use — it cannot be hoisted ahead
+/// of [`route`]. The install family and pack/publish apply the same pass at
+/// their own entry points, where they already hold that instance.
+pub(super) async fn apply_update_config(
+    config: &mut Config,
+    dir: &Path,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            prepare_config::<DefaultReporter>(config, dir).await?
+        }
+        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
+        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
+    };
+    Ok(())
 }
 
 /// Route a parsed [`CliCommand`] to its handler. The per-command logic lives

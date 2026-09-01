@@ -51,6 +51,7 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
+use crate::config_deps::prepare_config;
 use clap::CommandFactory;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
@@ -425,15 +426,15 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let output = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
-                let hooks = run_update_config_for_packing::<DefaultReporter>(config, dir).await?;
+                let hooks = prepare_config::<DefaultReporter>(config, dir).await?;
                 args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
             }
             ReporterType::Ndjson => {
-                let hooks = run_update_config_for_packing::<NdjsonReporter>(config, dir).await?;
+                let hooks = prepare_config::<NdjsonReporter>(config, dir).await?;
                 args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
             }
             ReporterType::Silent => {
-                let hooks = run_update_config_for_packing::<SilentReporter>(config, dir).await?;
+                let hooks = prepare_config::<SilentReporter>(config, dir).await?;
                 args.run::<SilentReporter>(dir, config, recursive, hooks).await?
             }
         };
@@ -466,7 +467,7 @@ pub(super) fn publish<'a>(
         config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        let hooks = run_update_config_for_packing::<Reporter>(config, dir).await?;
+        let hooks = prepare_config::<Reporter>(config, dir).await?;
         args.run::<Reporter>(dir, config, recursive, hooks).await
     }
     if args.flags.json {
@@ -500,7 +501,7 @@ pub(super) fn stage<'a>(
         recursive: bool,
     ) -> miette::Result<()> {
         let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
-            run_update_config_for_packing::<Reporter>(config, dir).await?
+            prepare_config::<Reporter>(config, dir).await?
         } else {
             Vec::new()
         };
@@ -523,20 +524,6 @@ pub(super) fn stage<'a>(
             Box::pin(print_output::<SilentReporter>(args, dir, config, recursive))
         }
     })
-}
-
-async fn run_update_config_for_packing<Reporter: pnpm_reporter::Reporter>(
-    config: &mut Config,
-    dir: &std::path::Path,
-) -> miette::Result<Vec<std::sync::Arc<dyn pnpm_hooks::PnpmfileHooks>>> {
-    let config_root = config.root_project_manifest_dir(dir).to_path_buf();
-    crate::config_deps::install_config_deps::<Reporter>(
-        config,
-        &config_root,
-        config.frozen_lockfile.unwrap_or(false),
-    )
-    .await?;
-    crate::config_deps::run_update_config_hooks::<Reporter>(config, &config_root).await
 }
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
