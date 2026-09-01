@@ -1,0 +1,88 @@
+name: RPM
+
+# Packages the released standalone Linux x64 build as an RPM for RED OS 8 and
+# other RHEL 8 derivatives, together with a dnf repository that installs it on
+# hosts with no network access to pnpm.io or github.com.
+#
+# The artifacts are not attached to the GitHub release: releases here are
+# immutable once published, so nothing can be added to them afterwards. Grab
+# them from this run's artifacts instead.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "pnpm version to package (without leading v)"
+        required: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve release metadata
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [ "$EVENT_NAME" = "release" ]; then
+            version="${RELEASE_TAG#v}"
+          else
+            version="${INPUT_VERSION#v}"
+          fi
+          case "$version" in
+            *[!0-9A-Za-z.+-]*) echo "invalid version: $version" >&2; exit 1 ;;
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "invalid version: $version" >&2; exit 1 ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm createrepo-c
+
+      - name: Build the RPM and the dnf repository
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: packaging/rpm/build.sh "$VERSION"
+
+      - name: Install it the way RED OS 8 will
+        # AlmaLinux 8 is the closest public stand-in for RED OS 8: same RHEL 8
+        # base, same glibc 2.28, same rpm 4.14.
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          docker run --rm -e VERSION -v "$PWD/dist/rpm/repo:/opt/pnpm-repo:ro" almalinux:8 bash -euc '
+            cp /opt/pnpm-repo/pnpm.repo /etc/yum.repos.d/
+            dnf install -y pnpm
+            installed=$(pnpm --version)
+            test "$installed" = "$VERSION" || {
+              echo "pnpm version mismatch: expected $VERSION, got $installed" >&2
+              exit 1
+            }
+          '
+
+      - name: Upload the RPM and the dnf repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pnpm-rpm-${{ steps.meta.outputs.version }}-x86_64
+          path: |
+            dist/rpm/*.rpm
+            dist/rpm/*.tar.gz
+          if-no-files-found: error
