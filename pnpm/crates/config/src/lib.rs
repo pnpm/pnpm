@@ -2648,9 +2648,20 @@ impl Config {
         }
     }
 
-    /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Returns the user-supplied value when set. Otherwise it enables strict
-    /// mode when `minimumReleaseAge` was explicitly configured, matching pnpm.
+    /// Effective value of [`Self::minimum_release_age_strict`]: the
+    /// user-supplied value when set, otherwise `true` if `minimumReleaseAge`
+    /// was explicitly configured.
+    ///
+    /// Without that default a user-set cutoff would silently fall back to an
+    /// immature version whenever no mature one satisfies the range, making the
+    /// setting look like it had no effect. The built-in 1440-minute default
+    /// stays non-strict for backward compatibility, so the two are told apart
+    /// through [`Self::explicit_settings`] rather than through the value
+    /// itself. A repository's cutoff never reaches `self-update`, which
+    /// [`WorkspaceSettings::clear_self_update_policy`] drops before the
+    /// workspace yaml is recorded there.
+    ///
+    /// [`WorkspaceSettings::clear_self_update_policy`]: crate::WorkspaceSettings::clear_self_update_policy
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
         self.minimum_release_age_strict
             .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
