@@ -67,8 +67,23 @@ impl State {
         config: &'static Config,
         require_lockfile: bool,
     ) -> Result<Self, InitStateError> {
+        let lockfile = Self::lazy_lockfile(config, &manifest_path, require_lockfile);
+        Self::init_with_lockfile(manifest_path, config, lockfile)
+    }
+
+    /// The lazy wanted lockfile [`Self::init`] would build. Split out
+    /// so a caller with work between here and the install — project
+    /// discovery above all — can build it first and start its
+    /// [`LazyLockfile::prefetch`] over that work, handing the result to
+    /// [`Self::init_with_lockfile`].
+    #[must_use]
+    pub fn lazy_lockfile(
+        config: &Config,
+        manifest_path: &Path,
+        require_lockfile: bool,
+    ) -> LazyLockfile {
         let should_load = config.lockfile || require_lockfile;
-        let lockfile = if should_load {
+        if should_load {
             manifest_path
                 .parent()
                 .expect("manifest path always has a parent dir")
@@ -77,7 +92,15 @@ impl State {
                 .pipe(|dir| LazyLockfile::deferred(dir, config.wanted_lockfile_selection()))
         } else {
             LazyLockfile::disabled()
-        };
+        }
+    }
+
+    /// [`Self::init`] with a caller-built [`Self::lazy_lockfile`].
+    pub fn init_with_lockfile(
+        manifest_path: PathBuf,
+        config: &'static Config,
+        lockfile: LazyLockfile,
+    ) -> Result<Self, InitStateError> {
         Ok(State {
             config,
             manifest: load_or_create_manifest(manifest_path, config)?,

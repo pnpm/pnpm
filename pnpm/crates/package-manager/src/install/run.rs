@@ -432,6 +432,14 @@ where
             }
         }
 
+        // Past the fast path every install flavor reads the wanted
+        // lockfile; start its read + parse on a background thread so it
+        // overlaps the cycle check below. The forced load further down
+        // joins it. (A run the pipeline knew would get here — frozen /
+        // forced — started this prefetch before project discovery, and
+        // this call is then a no-op.)
+        lockfile.prefetch();
+
         // Report the projects this install covers depending on each
         // other in a cycle — after the short-circuit above, because pnpm
         // returns from "Already up to date" before reaching its own

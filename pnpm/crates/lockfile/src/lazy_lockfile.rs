@@ -2,7 +2,11 @@ use crate::{
     LoadLockfileError, LoadedRepairLockfile, LoadedWantedLockfile, Lockfile, ProjectSnapshot,
     WantedLockfileSelection,
 };
-use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Mutex, OnceLock},
+};
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
 /// until a consumer actually needs the contents.
@@ -18,7 +22,10 @@ pub struct LazyLockfile {
     source: Option<(PathBuf, WantedLockfileSelection)>,
     cell: OnceLock<LoadedWantedLockfile>,
     fix_cell: OnceLock<LoadedRepairLockfile>,
+    prefetch: Mutex<Option<PrefetchHandle>>,
 }
+
+type PrefetchHandle = std::thread::JoinHandle<Result<LoadedWantedLockfile, LoadLockfileError>>;
 
 impl LazyLockfile {
     /// A lockfile that will be loaded from `dir` (the same source as
@@ -29,6 +36,7 @@ impl LazyLockfile {
             source: Some((dir, selection)),
             cell: OnceLock::new(),
             fix_cell: OnceLock::new(),
+            prefetch: Mutex::new(None),
         }
     }
 
@@ -37,7 +45,12 @@ impl LazyLockfile {
     /// config.
     #[must_use]
     pub fn disabled() -> Self {
-        LazyLockfile { source: None, cell: OnceLock::new(), fix_cell: OnceLock::new() }
+        LazyLockfile {
+            source: None,
+            cell: OnceLock::new(),
+            fix_cell: OnceLock::new(),
+            prefetch: Mutex::new(None),
+        }
     }
 
     /// A lockfile that is already in memory; [`Self::get`] returns it
@@ -47,7 +60,31 @@ impl LazyLockfile {
         let cell = OnceLock::new();
         cell.set(LoadedWantedLockfile { lockfile, pre_merge_importers: None })
             .expect("a fresh OnceLock accepts the first set");
-        LazyLockfile { source: None, cell, fix_cell: OnceLock::new() }
+        LazyLockfile { source: None, cell, fix_cell: OnceLock::new(), prefetch: Mutex::new(None) }
+    }
+
+    /// Start the read + parse on a background thread, so a later
+    /// [`Self::get`] finds the work done (or joins it) instead of
+    /// paying for a multi-megabyte YAML parse inline. Idempotent, and
+    /// a no-op when the lockfile is disabled or already loaded.
+    ///
+    /// Call this only on a path that is certain to need the contents:
+    /// the deferred design exists so the repeat-install fast path never
+    /// pays for the parse, and a prefetch spends that work even when
+    /// its result goes unused.
+    pub fn prefetch(&self) {
+        if self.cell.get().is_some() {
+            return;
+        }
+        let Some((dir, selection)) = self.source.clone() else { return };
+        let mut slot = match self.prefetch.lock() {
+            Ok(slot) => slot,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if slot.is_some() {
+            return;
+        }
+        *slot = Some(std::thread::spawn(move || Lockfile::load_wanted_detailed(&dir, &selection)));
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -85,6 +122,19 @@ impl LazyLockfile {
     fn load(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
         if let Some(loaded) = self.cell.get() {
             return Ok(loaded);
+        }
+        let prefetched = match self.prefetch.lock() {
+            Ok(mut slot) => slot.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        // A panicked prefetch thread falls through to the inline load,
+        // which reproduces the panic's cause as a plain error or
+        // succeeds where a transient condition has passed.
+        if let Some(handle) = prefetched
+            && let Ok(result) = handle.join()
+        {
+            let loaded = result?;
+            return Ok(self.cell.get_or_init(|| loaded));
         }
         let loaded = match self.source.as_ref() {
             Some((dir, selection)) => Lockfile::load_wanted_detailed(dir, selection)?,
@@ -153,6 +203,15 @@ impl<'a> MaybeLazyLockfile<'a> {
             MaybeLazyLockfile::Loaded(lockfile) => Ok(lockfile),
             MaybeLazyLockfile::Lazy(lazy) => lazy.get(),
             MaybeLazyLockfile::Repair(lazy) => lazy.get_for_fix_merge(),
+        }
+    }
+
+    /// See [`LazyLockfile::prefetch`], including its "only on a path
+    /// certain to need the contents" caveat. A repair load takes a
+    /// different loader, so only the plain lazy case prefetches.
+    pub fn prefetch(self) {
+        if let MaybeLazyLockfile::Lazy(lazy) = self {
+            lazy.prefetch();
         }
     }
 
