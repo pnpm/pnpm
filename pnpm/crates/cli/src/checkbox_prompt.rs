@@ -1,15 +1,9 @@
 //! A checkbox prompt shaped like `@inquirer/checkbox`, the prompt behind
-//! pnpm's interactive commands.
+//! pnpm's interactive commands, with its keys and vim bindings.
 //!
 //! The list can hold separators — a group heading, a table's column
 //! header — that are drawn but never selected: the cursor skips them and
-//! they take no part in the answer. `dialoguer::MultiSelect` has no such
-//! notion, so a heading shown through it is a checkbox that toggles
-//! nothing.
-//!
-//! The keys are `@inquirer/checkbox`'s with its vim bindings: the arrows
-//! or `j`/`k` move, space toggles, `a` toggles all, `i` inverts, a digit
-//! toggles that choice, Enter confirms, and Ctrl-C cancels.
+//! they take no part in the answer.
 
 use console::{Key, Term, measure_text_width};
 use owo_colors::{OwoColorize, Stream};
@@ -117,10 +111,10 @@ impl<Value> CheckboxPrompt<Value> {
         self
     }
 
-    /// Run the prompt on the terminal behind stdout.
+    /// Run the prompt on the terminal behind stdout, where pnpm draws it,
+    /// or behind stderr when stdout is redirected.
     ///
-    /// Fails when stdout is not a terminal or the list has no choice to
-    /// make.
+    /// Fails when neither is a terminal or the list has no choice to make.
     pub(crate) fn interact(mut self) -> io::Result<CheckboxAnswer<Value>> {
         if !self.items.iter().any(is_choice) {
             return Err(io::Error::new(
@@ -128,13 +122,13 @@ impl<Value> CheckboxPrompt<Value> {
                 "the checkbox prompt was given no choice to make",
             ));
         }
-        let term = Term::stdout();
-        if !term.is_term() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotConnected,
-                "the checkbox prompt needs a terminal on stdout",
-            ));
-        }
+        let term =
+            [Term::stdout(), Term::stderr()].into_iter().find(Term::is_term).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "the checkbox prompt needs a terminal on stdout or stderr",
+                )
+            })?;
         if self.page_size == 0 {
             self.page_size = page_size_for(&term);
         }
