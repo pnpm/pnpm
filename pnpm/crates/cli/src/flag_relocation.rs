@@ -23,7 +23,7 @@
 //! (`pnpm <script>`) keep their argv untouched, as does everything after
 //! a `--` terminator.
 
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, Command};
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsString,
@@ -223,7 +223,9 @@ impl ArgTable {
 
     fn absorb<'a, Args: IntoIterator<Item = &'a Arg>>(&mut self, args: Args) {
         for arg in args {
-            let consumes_value = matches!(arg.get_action(), ArgAction::Set | ArgAction::Append);
+            let consumes_value = arg.get_action().takes_values()
+                && arg.get_num_args().is_none_or(|range| range.takes_values())
+                && !arg.is_require_equals_set();
             for long in
                 arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
             {
