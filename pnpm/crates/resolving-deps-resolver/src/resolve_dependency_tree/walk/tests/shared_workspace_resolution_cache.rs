@@ -9,7 +9,7 @@ use std::{
 };
 
 use super::super::{canonical_workspace_resolution, render_workspace_resolution};
-use crate::resolve_dependency_tree::workspace_ctx::WantedKey;
+use crate::resolve_dependency_tree::{TreeCtx, workspace_ctx::WantedKey};
 
 fn wanted(specifier: &str) -> WantedDependency {
     WantedDependency {
@@ -27,7 +27,7 @@ fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
         wanted.injected,
         false,
         None,
-        Some(PathBuf::from(project_dir)),
+        Some(PathBuf::from(project_dir).into()),
         None,
         Vec::new(),
         None,
@@ -74,18 +74,24 @@ fn rendered_link(canonical: &ResolveResult, project_dir: &str) -> String {
 fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
     let base_wanted = wanted("workspace:^");
     let options = opts("/repo/packages/a");
+    let ctx = TreeCtx::new(options.clone());
     let shared = super::super::shared_workspace_key(
+        &ctx,
         &key(&base_wanted, "/repo/packages/a"),
         &base_wanted,
         &options,
     )
     .expect("named workspace selector is shareable");
+    let other_options =
+        ResolveOptions { project_dir: PathBuf::from("/repo/apps/b"), ..options.clone() };
+    let other_ctx = TreeCtx::new(other_options.clone());
     assert_eq!(
         shared,
         super::super::shared_workspace_key(
+            &other_ctx,
             &key(&base_wanted, "/repo/apps/b"),
             &base_wanted,
-            &ResolveOptions { project_dir: PathBuf::from("/repo/apps/b"), ..options.clone() },
+            &other_options,
         )
         .expect("consumer-independent key"),
     );
@@ -94,6 +100,7 @@ fn shares_only_named_workspace_selectors_and_ignores_project_dir() {
         let wanted = wanted(specifier);
         assert_eq!(
             super::super::shared_workspace_key(
+                &ctx,
                 &key(&wanted, "/repo/packages/a"),
                 &wanted,
                 &options
@@ -109,9 +116,21 @@ fn separates_distinct_workspace_maps() {
     let wanted = wanted("workspace:^");
     let first = opts("/repo/packages/a");
     let second = opts("/repo/apps/b");
+    let first_ctx = TreeCtx::new(first.clone());
+    let second_ctx = TreeCtx::new(second.clone());
     assert_ne!(
-        super::super::shared_workspace_key(&key(&wanted, "/repo/packages/a"), &wanted, &first),
-        super::super::shared_workspace_key(&key(&wanted, "/repo/apps/b"), &wanted, &second),
+        super::super::shared_workspace_key(
+            &first_ctx,
+            &key(&wanted, "/repo/packages/a"),
+            &wanted,
+            &first
+        ),
+        super::super::shared_workspace_key(
+            &second_ctx,
+            &key(&wanted, "/repo/apps/b"),
+            &wanted,
+            &second
+        ),
     );
 }
 

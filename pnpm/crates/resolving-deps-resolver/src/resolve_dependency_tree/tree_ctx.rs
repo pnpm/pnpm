@@ -29,11 +29,11 @@ use super::{ManifestHook, UpdateReuseScope, reuse::UpdateScope, workspace_ctx::W
 pub(super) fn project_relative_cache_scope(
     wanted: &WantedDependency,
     opts: &ResolveOptions,
-) -> Option<PathBuf> {
+) -> Option<super::workspace_ctx::PathKey> {
     (wanted.bare_specifier.as_deref().is_some_and(|spec| {
         spec.starts_with("link:") || spec.starts_with("file:") || spec.starts_with("workspace:")
     }) || (opts.always_try_workspace_packages && opts.workspace_packages.is_some()))
-    .then(|| opts.project_dir.clone())
+    .then(|| opts.project_dir.clone().into())
 }
 
 /// The directory the `file:` dependencies declared by a resolved
@@ -130,6 +130,11 @@ pub struct TreeCtx {
     /// occurrences owns a package's shared children context.
     pub(super) importer_id: String,
     pub(super) importer_order: usize,
+    /// The importer-wide slice of the shared workspace-resolution cache
+    /// key, built once here so the per-edge key construction shares it.
+    /// See [`super::workspace_ctx::WorkspaceResolutionOptionsKey`].
+    pub(super) workspace_resolution_options_key:
+        Arc<super::workspace_ctx::WorkspaceResolutionOptionsKey>,
 }
 
 impl TreeCtx {
@@ -147,6 +152,9 @@ impl TreeCtx {
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
+            workspace_resolution_options_key: Arc::new(
+                super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
+            ),
             base_opts,
             lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
@@ -170,6 +178,9 @@ impl TreeCtx {
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
+            workspace_resolution_options_key: Arc::new(
+                super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
+            ),
             base_opts,
             lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
             catalogs: Catalogs::new(),
