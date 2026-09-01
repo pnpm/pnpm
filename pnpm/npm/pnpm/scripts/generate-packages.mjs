@@ -33,7 +33,7 @@ const NOTICES_FILE = "THIRD-PARTY-NOTICES.md";
 // publish the same `files` list, so anything named there has to be copied here
 // too.
 const WRAPPER_FILES = [
-  "pnpm.exe",
+  "pnpm",
   "pn",
   "pnpx",
   "pnx",

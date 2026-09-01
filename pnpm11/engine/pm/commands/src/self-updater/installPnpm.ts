@@ -516,8 +516,7 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     if (src != null) break
   }
   if (src == null) return
-  const wrapperExecutable = fs.existsSync(path.join(wrapperDir, 'pnpm.exe')) ? 'pnpm.exe' : executable
-  const dest = path.join(wrapperDir, wrapperExecutable)
+  const dest = path.join(wrapperDir, executable)
   forceLink(src, dest)
 
   if (platform === 'win32') {
