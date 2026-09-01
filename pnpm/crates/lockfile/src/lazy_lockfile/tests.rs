@@ -377,11 +377,27 @@ fn prefetch_hands_get_the_background_parse() {
     lazy.prefetch();
     // A second prefetch must not race or double-load.
     lazy.prefetch();
-    assert!(lazy.get().expect("prefetched load succeeds").is_some());
 
-    // The parse happened on the background thread: deleting the file
-    // after the prefetch has been consumed doesn't lose the contents.
+    // Wait for the background thread, then delete the file *before*
+    // the first read: the contents can only come from that thread's
+    // parse, never from an inline load.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        let finished = lazy
+            .prefetch
+            .lock()
+            .expect("prefetch slot lock")
+            .as_ref()
+            .expect("prefetch spawned a load")
+            .is_finished();
+        if finished {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "background load never finished");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
     fs::remove_file(dir.path().join(Lockfile::FILE_NAME)).expect("remove pnpm-lock.yaml");
+    assert!(lazy.get().expect("prefetched load succeeds").is_some());
     assert!(lazy.get().expect("cached load succeeds").is_some());
 }
 

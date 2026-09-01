@@ -303,12 +303,16 @@ impl InstallPipeline {
         // `--frozen-lockfile` / `--force`, and it requires a workspace
         // state from a previous install — a workspace with none on
         // disk (a lockfile-only workflow never writes one) always
-        // reaches the full pipeline. Only the shared-lockfile arms
-        // consume this lockfile; the per-project arms load their own.
+        // reaches the full pipeline. A `--fix-lockfile` run reads
+        // through the separate repair loader, which this prefetch does
+        // not feed. Only the shared-lockfile arms consume this
+        // lockfile; the per-project arms load their own.
         let lockfile = cfg
             .shares_one_lockfile()
             .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
-        if let Some(lockfile) = lockfile.as_ref() {
+        if let Some(lockfile) = lockfile.as_ref()
+            && !args.fix_lockfile
+        {
             let manifest_dir =
                 manifest_path.parent().expect("manifest path always has a parent dir");
             let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
