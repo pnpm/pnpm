@@ -5093,6 +5093,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-resolving-parse-wanted-dependency",
  "pretty_assertions",
+ "rayon",
  "serde",
  "serde-saphyr",
  "serde_json",
