@@ -36,3 +36,13 @@ fn collapses_unanchored_absolute_join() {
 fn empty_path_is_empty() {
     assert_eq!(lexical_normalize(Path::new("")), Path::new(""));
 }
+
+/// The output is rebuilt even when there is no dot component to
+/// resolve: consumers hash and compare normalized paths, so trailing
+/// and doubled separators must not survive.
+#[test]
+fn strips_redundant_separators() {
+    assert_eq!(lexical_normalize(Path::new("foo/bar/")), Path::new("foo/bar"));
+    assert_eq!(lexical_normalize(Path::new("foo//bar")), Path::new("foo/bar"));
+    assert_eq!(lexical_normalize(Path::new("/foo//bar/")), Path::new("/foo/bar"));
+}

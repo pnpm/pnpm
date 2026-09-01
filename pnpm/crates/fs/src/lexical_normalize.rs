@@ -17,9 +17,9 @@ use std::path::{Component, Path, PathBuf};
 /// not exist yet, where [`std::fs::canonicalize`] cannot help.
 #[must_use]
 pub fn lexical_normalize(path: &Path) -> PathBuf {
-    if path.components().all(|c| !matches!(c, Component::CurDir | Component::ParentDir)) {
-        return path.to_path_buf();
-    }
+    // Always rebuilt component-by-component, never copied verbatim:
+    // besides the dot components, the rebuild also strips trailing and
+    // doubled separators, and callers compare and hash the results.
     let mut kept: Vec<Component<'_>> = Vec::new();
     for component in path.components() {
         match component {
