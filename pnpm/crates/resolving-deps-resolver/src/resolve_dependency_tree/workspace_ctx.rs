@@ -111,14 +111,8 @@ pub(super) type WantedKey = (
 /// byte comparison. That is *stricter* than component equality
 /// (`a//b` ≠ `a/b` here), which for a dedup cache can only cost an
 /// extra identical resolution, never conflate two different paths.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, derive_more::From)]
 pub(super) struct PathKey(pub(super) PathBuf);
-
-impl From<PathBuf> for PathKey {
-    fn from(path: PathBuf) -> Self {
-        PathKey(path)
-    }
-}
 
 impl PartialEq for PathKey {
     fn eq(&self, other: &Self) -> bool {
