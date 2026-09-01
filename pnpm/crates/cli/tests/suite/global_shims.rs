@@ -175,7 +175,7 @@ fn native_node_dispatcher_preserves_non_shell_identifier_environment_variables()
     let global_bin = root.path().join("global-bin");
     fs::create_dir_all(&global_bin).unwrap();
     fs::copy(Command::cargo_bin("pnpm").unwrap().get_program(), global_bin.join("node")).unwrap();
-    let printenv = which::which("printenv").unwrap();
+    let printenv = which::which("printenv").expect("the test needs `printenv` on PATH");
     fs::write(global_bin.join(".pnpm-shim-v1-node-target"), printenv.as_os_str().as_bytes())
         .unwrap();
 
