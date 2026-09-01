@@ -27,7 +27,7 @@
     "directory": "pnpm/npm/pnpm"
   },
   "bin": {
-    "pnpm": "pnpm.exe",
+    "pnpm": "pnpm",
     "pn": "pn",
     "pnpx": "pnpx",
     "pnx": "pnx"
@@ -41,7 +41,7 @@
     "node": ">=18.*"
   },
   "files": [
-    "pnpm.exe",
+    "pnpm",
     "pn",
     "pnpx",
     "pnx",

@@ -148,12 +148,7 @@ pub(super) fn assert_pnpm_runs(
 
 /// The native pnpm executable linked into an installed engine wrapper.
 pub(super) fn pnpm_executable_path(install_dir: &Path, package_name: &str) -> PathBuf {
-    let wrapper_dir = package_dir(install_dir, package_name);
-    wrapper_executable_path(&wrapper_dir, host_platform())
-}
-
-fn wrapper_executable_path(wrapper_dir: &Path, platform: &str) -> PathBuf {
-    wrapper_dir.join(if wrapper_dir.join("pnpm.exe").exists() || platform == "win32" {
+    package_dir(install_dir, package_name).join(if host_platform() == "win32" {
         "pnpm.exe"
     } else {
         "pnpm"
@@ -423,7 +418,7 @@ pub(crate) fn link_exe_platform_binary(
         })?;
     let native_source_root = native_source_trust_root(&install_real_dir, wrapper_pkg_name);
     let src = validate_native_binary_source(&src, &native_source_root)?;
-    let dest = wrapper_executable_path(&wrapper_real_dir, platform);
+    let dest = wrapper_real_dir.join(executable);
     replace_executable(&src, &dest)
         .into_diagnostic()
         .wrap_err("link the native pnpm binary into the wrapper")?;

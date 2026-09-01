@@ -89,9 +89,8 @@ fn self_update_refreshes_an_existing_v1_dispatcher_from_the_v12_engine() {
     let global_bin = root.path().join("bin");
     let install_dir = root.path().join("engine");
     fs::create_dir_all(&global_bin).unwrap();
-    let wrapper_dir = install_pnpm::package_dir(&install_dir, "pnpm");
-    fs::create_dir_all(&wrapper_dir).unwrap();
-    let executable = wrapper_dir.join("pnpm.exe");
+    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
     fs::write(&executable, b"new v12 engine").unwrap();
     let dispatcher = global_shim_dispatcher_path(&global_bin);
     fs::write(&dispatcher, b"old v12 engine").unwrap();

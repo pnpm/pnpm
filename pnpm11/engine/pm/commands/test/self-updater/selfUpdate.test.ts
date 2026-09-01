@@ -1430,10 +1430,9 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(wrapperDir, { recursive: true })
     fs.mkdirSync(platformDir, { recursive: true })
 
-    const wrapperExecutable = 'pnpm.exe'
-    fs.writeFileSync(path.join(wrapperDir, wrapperExecutable), 'This is a placeholder.')
+    fs.writeFileSync(path.join(wrapperDir, executable), 'This is a placeholder.')
     fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
-      bin: { pnpm: wrapperExecutable, pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
     }))
 
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm v12 binary"'
@@ -1441,7 +1440,7 @@ describe('linkExePlatformBinary', () => {
 
     linkExePlatformBinary(dir, 'pnpm')
 
-    const result = fs.readFileSync(path.join(wrapperDir, wrapperExecutable), 'utf8')
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
   })
 

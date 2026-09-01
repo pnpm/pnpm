@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 // Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
 // `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
-// binary so `pnpm` runs directly, no Node startup per call. The `.exe` suffix is
-// used on every platform because PowerShell cannot execute an extensionless
-// native binary through an explicit path. The placeholder makes the bin target
-// packable before preinstall replaces it; the tradeoff is no fallback when build
-// scripts are blocked (`--ignore-scripts`, pnpm/Bun default).
+// binary so `pnpm` runs directly, no Node startup per call. A placeholder (not a
+// Node launcher) is required because the Windows shim is generated from the bin
+// file and npm won't re-read package.json after preinstall; the tradeoff is no
+// fallback when build scripts are blocked (`--ignore-scripts`, pnpm/Bun default).
 //
 // `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
 // relinked); on Windows the native binary is hardlinked onto each and
@@ -64,7 +63,7 @@ function setup () {
     }
     rewriteBin(newBin)
   } else {
-    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm.exe'), 0o755)
+    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
   }
 }
 
