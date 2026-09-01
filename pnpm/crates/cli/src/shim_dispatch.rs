@@ -55,7 +55,7 @@ pub(crate) mod runtime_env;
 mod trust;
 
 #[cfg(windows)]
-pub(super) use native_node::system_powershell_path;
+use native_node::system_powershell_path;
 pub(crate) use native_node::{install_native_node_dispatcher, native_node_dispatcher_is_installed};
 pub(crate) use runtime_env::materialize_runtime;
 

@@ -595,8 +595,8 @@ where
         return ensure_target_executable::<Sys>(target_path);
     }
 
-    // The node runtime binary is special: never wrap it in a shell
-    // shim. The binary is symlinked on Unix and `node.exe` is
+    // The node runtime binary is special: a direct link never wraps it
+    // in a shell shim. The binary is symlinked on Unix and `node.exe` is
     // hardlinked on Windows.
     //
     // Two reasons this matters:

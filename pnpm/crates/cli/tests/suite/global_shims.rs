@@ -175,14 +175,12 @@ fn native_node_dispatcher_preserves_non_shell_identifier_environment_variables()
     let global_bin = root.path().join("global-bin");
     fs::create_dir_all(&global_bin).unwrap();
     fs::copy(Command::cargo_bin("pnpm").unwrap().get_program(), global_bin.join("node")).unwrap();
-    fs::write(
-        global_bin.join(".pnpm-shim-v1-node-target"),
-        Path::new("/usr/bin/env").as_os_str().as_bytes(),
-    )
-    .unwrap();
+    let printenv = which::which("printenv").unwrap();
+    fs::write(global_bin.join(".pnpm-shim-v1-node-target"), printenv.as_os_str().as_bytes())
+        .unwrap();
 
     let output = Command::new(global_bin.join("node"))
-        .args(["printenv", "TEST-VAR"])
+        .arg("TEST-VAR")
         .current_dir(root.path())
         .env("TEST-VAR", "123")
         .env("PNPM_HOME", root.path().join("pnpm-home"))
