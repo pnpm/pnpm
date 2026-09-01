@@ -760,13 +760,16 @@ fn is_redirect_status(status: reqwest::StatusCode) -> bool {
     matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308)
 }
 
+/// Caps concurrent lookups through `Inner`. Clones share the cap.
 #[cfg(any(target_os = "macos", windows, test))]
+#[derive(Clone)]
 struct CappedDnsResolver<Inner> {
     inner: Arc<Inner>,
     permits: Arc<Semaphore>,
 }
 
 #[cfg(any(target_os = "macos", windows))]
+#[derive(Clone)]
 struct NativeDnsResolver;
 
 #[cfg(any(target_os = "macos", windows))]
@@ -819,9 +822,15 @@ where
 /// per-adapter DNS settings.
 #[cfg(any(target_os = "macos", windows))]
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+    // One cap per process, like the libuv thread pool it mirrors: the
+    // redirect pair, every per-registry override, and the bundled-roots
+    // retry all draw on the same four permits.
+    static RESOLVER: LazyLock<CappedDnsResolver<NativeDnsResolver>> = LazyLock::new(|| {
+        const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+        CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY)
+    });
 
-    builder.dns_resolver(CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY))
+    builder.dns_resolver(RESOLVER.clone())
 }
 
 #[cfg(not(any(target_os = "macos", windows)))]
