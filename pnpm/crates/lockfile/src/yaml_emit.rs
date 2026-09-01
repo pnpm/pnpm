@@ -282,46 +282,56 @@ fn write_block_mapping(
     compact: bool,
     double_line: bool,
 ) -> String {
-    if map.is_empty() {
-        return "{}".to_string();
-    }
     // Each entry's rendering depends only on its own key and value, so
-    // a large map fans its entries out across the rayon pool; the
-    // serial stitch below is the only order-dependent part (the first
-    // entry of a compact block omits its leading newline).
-    let entries: Vec<(&String, &Value)> = map.iter().collect();
-    let render_entry = |(key, value): &(&String, &Value)| -> String {
-        let mut entry = String::new();
+    // a large map fans its entries out across the rayon pool and the
+    // serial stitch below applies the only order-dependent rule — the
+    // first entry of a compact block omits its leading newline. Small
+    // maps (the nested ones inside every package entry, above all)
+    // append straight into one buffer, chunk-free.
+    let render_entry_into = |result: &mut String, key: &String, value: &Value| {
         let rendered_key = write_scalar(key, level + 1, true, true);
         let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
         if explicit_pair {
-            entry.push_str("? ");
-            entry.push_str(&rendered_key);
-            entry.push_str(&next_line(level, false));
+            result.push_str("? ");
+            result.push_str(&rendered_key);
+            result.push_str(&next_line(level, false));
         } else {
-            entry.push_str(&rendered_key);
+            result.push_str(&rendered_key);
         }
         let rendered = render(value, level + 1, true, explicit_pair, Some(key), false);
-        entry.push(':');
+        result.push(':');
         if !rendered.starts_with('\n') {
-            entry.push(' ');
+            result.push(' ');
         }
-        entry.push_str(&rendered);
-        entry
-    };
-    let rendered_entries: Vec<String> = if entries.len() < PARALLEL_ENTRY_THRESHOLD {
-        entries.iter().map(render_entry).collect()
-    } else {
-        entries.par_iter().map(render_entry).collect()
+        result.push_str(&rendered);
     };
     let mut result = String::new();
-    for (index, entry) in rendered_entries.iter().enumerate() {
-        if !compact || index > 0 {
-            result.push_str(&next_line(level, double_line));
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        for (key, value) in map {
+            if !compact || !result.is_empty() {
+                result.push_str(&next_line(level, double_line));
+            }
+            render_entry_into(&mut result, key, value);
         }
-        result.push_str(entry);
+    } else {
+        let rendered_entries: Vec<String> = map
+            .iter()
+            .collect::<Vec<_>>()
+            .par_iter()
+            .map(|(key, value)| {
+                let mut entry = String::new();
+                render_entry_into(&mut entry, key, value);
+                entry
+            })
+            .collect();
+        for (index, entry) in rendered_entries.iter().enumerate() {
+            if !compact || index > 0 {
+                result.push_str(&next_line(level, double_line));
+            }
+            result.push_str(entry);
+        }
     }
-    result
+    if result.is_empty() { "{}".to_string() } else { result }
 }
 
 fn write_block_sequence(seq: &[Value], level: usize, compact: bool) -> String {
