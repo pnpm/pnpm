@@ -38,6 +38,25 @@ test('fetch including only package files', async () => {
   ])
 })
 
+test('fetch package files includes bundled dependencies under a listed directory', async () => {
+  process.chdir(f.find('standalone-pkg'))
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: process.cwd(),
+  })
+
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
+    'dist/node_modules/node-gyp/bin/node-gyp.js',
+    'package.json',
+    'pnpm',
+  ])
+})
+
 test('fetch including all files', async () => {
   process.chdir(f.find('simple-pkg'))
   const fetcher = createDirectoryFetcher()

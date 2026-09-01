@@ -321,12 +321,13 @@ test('global install of the standalone executable skips its build scripts', asyn
   expect(args).toEqual(['add', '-g', '--ignore-scripts', `file:${tmpDir}`])
 })
 
-test('the manifest written next to the standalone executable declares the module type', () => {
+test('the manifest written next to the standalone executable declares its package files', () => {
   expect(setup.standaloneManifest('pnpm.exe')).toStrictEqual({
     name: '@pnpm/exe',
     version: actualCliMeta.packageManager.version,
     type: 'module',
     bin: { pnpm: 'pnpm.exe', pn: 'pnpm.exe' },
+    files: ['pnpm.exe', 'dist/'],
   })
 })
 
