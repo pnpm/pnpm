@@ -177,14 +177,12 @@ fn link_global_bins(
         )
         .map_err(miette::Report::new)
         .wrap_err("link context-aware global package bins")?;
-        #[cfg(windows)]
-        install_windows_node_dispatcher(&context_aware, global_bin_dir, bins_to_skip)?;
+        install_native_node_dispatcher(&context_aware, global_bin_dir, bins_to_skip)?;
     }
     Ok(())
 }
 
-#[cfg(windows)]
-fn install_windows_node_dispatcher(
+fn install_native_node_dispatcher(
     packages: &[PackageBinSource],
     global_bin_dir: &Path,
     bins_to_skip: &HashSet<String>,
@@ -202,9 +200,9 @@ fn install_windows_node_dispatcher(
             .map(|command| command.path)
     });
     if let Some(target) = target {
-        crate::shim_dispatch::install_windows_node_dispatcher(global_bin_dir, &target)
+        crate::shim_dispatch::install_native_node_dispatcher(global_bin_dir, &target)
             .into_diagnostic()
-            .wrap_err("install the Windows Node.js dispatcher")?;
+            .wrap_err("install the native Node.js dispatcher")?;
     }
     Ok(())
 }

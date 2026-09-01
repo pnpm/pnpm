@@ -49,6 +49,9 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", pnpm_home)
         .with_env("PATH", path)
+        .with_env("XDG_STATE_HOME", pnpm_home.join("state-home"))
+        .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
+        .with_env("XDG_CACHE_HOME", pnpm_home.join("cache-home"))
         .without_ambient_pnpm_config()
 }
 
@@ -435,7 +438,7 @@ fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
 
 #[cfg(unix)]
 #[test]
-fn global_shims_auto_writes_context_aware_shims_for_node_runtime() {
+fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -457,10 +460,10 @@ fn global_shims_auto_writes_context_aware_shims_for_node_runtime() {
         .success();
 
     let global_bin = pnpm_home.join("bin");
-    let shim = fs::read_to_string(global_bin.join("node")).expect("read the Node.js global shim");
-    assert!(shim.contains("--shim 'node'"), "shim should dispatch, was:\n{shim}");
-    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
-    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
+    let node = global_bin.join("node");
+    assert!(same_file::is_same_file(&dispatcher, &node).unwrap());
+    assert!(global_bin.join(".pnpm-shim-v1-node-target").is_file());
 
     drop(npmrc_info);
     drop(root);

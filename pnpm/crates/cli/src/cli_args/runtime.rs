@@ -204,8 +204,7 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
     if context_aware_runtime_shim_exists(&bin_dir.join(runtime_name)) {
         return true;
     }
-    #[cfg(windows)]
-    if runtime_name == "node" && crate::shim_dispatch::windows_node_dispatcher_is_installed(bin_dir)
+    if runtime_name == "node" && crate::shim_dispatch::native_node_dispatcher_is_installed(bin_dir)
     {
         return true;
     }
