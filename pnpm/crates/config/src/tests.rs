@@ -3835,6 +3835,89 @@ fn resolved_minimum_release_age_treats_zero_as_disabled() {
     assert_eq!(config.resolved_minimum_release_age(), None);
 }
 
+/// Load a config from a workspace whose `pnpm-workspace.yaml` holds `yaml`.
+fn config_from_workspace_yaml(yaml: &str) -> Config {
+    let tmp = tempdir().expect("workspace tempdir");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml).expect("write to pnpm-workspace.yaml");
+    Config::new().current::<HostNoHome>(tmp.path()).expect("config loads")
+}
+
+#[test]
+fn the_built_in_release_age_default_leaves_strict_mode_off() {
+    let config = config_from_workspace_yaml("packages:\n  - '.'\n");
+
+    assert_eq!(config.resolved_minimum_release_age(), Some(1440));
+    assert!(!config.resolved_minimum_release_age_strict());
+}
+
+/// A cutoff the user typed turns on strict mode even when it repeats the
+/// built-in default, so the setting gates the install instead of only
+/// reporting it. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/14409>.
+#[test]
+fn an_explicit_release_age_turns_on_strict_mode() {
+    let config = config_from_workspace_yaml("minimumReleaseAge: 1440\n");
+
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert!(config.resolved_minimum_release_age_strict());
+}
+
+#[test]
+fn an_explicit_strict_setting_wins_over_the_release_age_default() {
+    let config =
+        config_from_workspace_yaml("minimumReleaseAge: 4320\nminimumReleaseAgeStrict: false\n");
+    assert!(!config.resolved_minimum_release_age_strict());
+
+    let config = config_from_workspace_yaml("minimumReleaseAgeStrict: true\n");
+    assert!(config.resolved_minimum_release_age_strict(), "strict mode stands on its own");
+}
+
+#[test]
+fn a_release_age_env_var_turns_on_strict_mode() {
+    struct HostWithReleaseAgeEnv;
+    impl EnvVar for HostWithReleaseAgeEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE" => Some("1440".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithReleaseAgeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithReleaseAgeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithReleaseAgeEnv);
+    host_current_dir!(HostWithReleaseAgeEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithReleaseAgeEnv>(tmp.path()).expect("config loads");
+
+    assert!(config.resolved_minimum_release_age_strict());
+}
+
+/// A repository must not reach strict mode for `self-update`: turning it on
+/// would let the repo refuse an immature pnpm release and pin the machine to
+/// the installed version, which is what
+/// [`WorkspaceSettings::clear_self_update_policy`] exists to prevent.
+#[test]
+fn self_update_ignores_a_workspace_release_age_for_strict_mode() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert!(!config.resolved_minimum_release_age_strict());
+}
+
 const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// A project `.npmrc` redirecting the default registry still drives normal

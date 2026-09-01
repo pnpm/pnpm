@@ -444,9 +444,14 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
     .expect("write package.json");
     // 100 years: every version the mocked registry serves is immature, so
     // the fresh resolve behind `dedupe --check` records loose-mode picks.
+    // An explicit cutoff turns strict mode on by default, which would abort
+    // the resolve before the check can report its diff.
     let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
-    fs::write(&workspace_manifest_path, "minimumReleaseAge: 52560000\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        &workspace_manifest_path,
+        "minimumReleaseAge: 52560000\nminimumReleaseAgeStrict: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     let manifest_before =
         fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
 

@@ -90,9 +90,10 @@ fn install_fails_under_huge_minimum_release_age() {
 /// TS: `minimumReleaseAge falls back to immature version when no mature
 /// version satisfies the range (non-strict mode)` (`minimumReleaseAge.ts:68`).
 /// A 100-year cutoff makes every `@pnpm.e2e/bravo-dep` version immature.
-/// Non-strict mode (pacquet's default) must fall back to the *lowest*
-/// version matching the `1.0` range — normal resolution would pick the
-/// highest, `1.0.1` — and complete the install instead of aborting.
+/// Non-strict mode must fall back to the *lowest* version matching the `1.0`
+/// range — normal resolution would pick the highest, `1.0.1` — and complete
+/// the install instead of aborting. An explicit cutoff turns strict mode on
+/// by default, so reaching non-strict mode takes an explicit opt-out.
 #[test]
 fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -100,6 +101,7 @@ fn non_strict_minimum_release_age_falls_back_when_no_mature_version_matches() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
+    append_workspace_yaml_key(&workspace, "minimumReleaseAgeStrict", false);
 
     let output =
         pacquet.with_args(["add", "@pnpm.e2e/bravo-dep@1.0"]).output().expect("spawn pacquet add");

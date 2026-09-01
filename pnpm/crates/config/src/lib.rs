@@ -2648,21 +2648,23 @@ impl Config {
         }
     }
 
-    /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Returns the user-supplied value when set, else `false`.
+    /// Effective value of [`Self::minimum_release_age_strict`]: the
+    /// user-supplied value when set, otherwise `true` if `minimumReleaseAge`
+    /// was explicitly configured.
     ///
-    /// pnpm flips this to `true` when the user *explicitly* set
-    /// `minimumReleaseAge`, but the "explicitly set vs default" check
-    /// relies on an `explicitlySetKeys` tracker that pacquet's config
-    /// layer doesn't have yet. Without that, distinguishing the built-in
-    /// 1440-minute default from a user-typed `minimumReleaseAge: 1440`
-    /// isn't possible, so this resolver stays conservative: explicit
-    /// `true` / `false` from yaml wins, otherwise `false`. The verifier
-    /// itself doesn't gate on this flag — it's resolver-only — so
-    /// the conservative default is dormant until pacquet grows the
-    /// resolver and the `explicitlySetKeys` mechanism alongside it.
+    /// Without that default a user-set cutoff would silently fall back to an
+    /// immature version whenever no mature one satisfies the range, making the
+    /// setting look like it had no effect. The built-in 1440-minute default
+    /// stays non-strict for backward compatibility, so the two are told apart
+    /// through [`Self::explicit_settings`] rather than through the value
+    /// itself. A repository's cutoff never reaches `self-update`, which
+    /// [`WorkspaceSettings::clear_self_update_policy`] drops before the
+    /// workspace yaml is recorded there.
+    ///
+    /// [`WorkspaceSettings::clear_self_update_policy`]: crate::WorkspaceSettings::clear_self_update_policy
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict.unwrap_or(false)
+        self.minimum_release_age_strict
+            .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
     }
 
     /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
