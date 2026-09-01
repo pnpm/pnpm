@@ -95,6 +95,36 @@ fn short_subcommand_flag_moves() {
 }
 
 #[test]
+fn mixed_short_cluster_moves_with_its_value() {
+    assert_eq!(
+        relocate(&["pnpm", "-ro", "dist", "pack-app"]),
+        ["pnpm", "pack-app", "-ro", "dist"],
+        "the global -r rides along so clap sees pack-app's -o after the subcommand",
+    );
+    assert_eq!(
+        relocate(&["pnpm", "-rodist", "pack-app"]),
+        ["pnpm", "pack-app", "-rodist"],
+        "an attached value keeps the cluster a single token",
+    );
+}
+
+#[test]
+fn relocated_mixed_short_cluster_parses_with_both_options_applied() {
+    let args = parse(&["pnpm", "-ro", "dist", "pack-app"]);
+    assert!(args.recursive);
+    let crate::cli_args::cli_command::CliCommand::PackApp(pack_app) = args.command else {
+        panic!("expected pack-app");
+    };
+    assert_eq!(pack_app.output_dir.as_deref(), Some("dist"));
+}
+
+#[test]
+fn global_short_cluster_stays_in_place() {
+    let argv = ["pnpm", "-rC", "project", "install"];
+    assert_eq!(relocate(&argv), argv, "every short in the cluster is top-level grammar already");
+}
+
+#[test]
 fn subcommand_alias_is_recognized() {
     assert_eq!(relocate(&["pnpm", "--prod", "i"]), ["pnpm", "i", "--prod"]);
 }

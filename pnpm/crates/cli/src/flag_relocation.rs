@@ -140,22 +140,23 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
                 index += width;
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            if top_level.short_consumes_value(short).is_some() {
-                let consumes_value = short_cluster_consumes_value(rest, |short| {
-                    top_level.short_consumes_value(short)
-                });
-                index += token_width(consumes_value, false);
-            } else {
-                let consumes_value = short_cluster_consumes_value(rest, |short| {
-                    subcommand_union.short_consumes_value(short)
-                });
-                let width = token_width(consumes_value, false);
+            // A cluster is judged by every short it stacks, not by its
+            // first one: `-ro dist` mixes the global `-r` with
+            // `pack-app`'s `-o`, and the whole token has to travel for
+            // clap to see the option its subcommand owns.
+            let mut belongs_to_subcommand = false;
+            let consumes_value = short_cluster_consumes_value(rest, |short| {
+                let top_level_arity = top_level.short_consumes_value(short);
+                belongs_to_subcommand |= top_level_arity.is_none();
+                top_level_arity.or_else(|| subcommand_union.short_consumes_value(short))
+            });
+            let width = token_width(consumes_value, false);
+            if belongs_to_subcommand {
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
-                index += width;
             }
+            index += width;
         } else {
             break;
         }
@@ -192,10 +193,11 @@ pub(crate) fn token_width(consumes_value: bool, has_inline_value: bool) -> usize
 /// (`-rC dir` is `-r -C dir`), and a value written against its option
 /// (`-rCdir`) leaves nothing for the next token. `arity` reports whether
 /// one short takes a value, or `None` for a short the grammar does not
-/// define, which consumes nothing.
+/// define, which consumes nothing; it is called for exactly the shorts
+/// clap parses as options, so a caller can classify them as it scans.
 pub(crate) fn short_cluster_consumes_value(
     rest: &str,
-    arity: impl Fn(char) -> Option<bool>,
+    mut arity: impl FnMut(char) -> Option<bool>,
 ) -> bool {
     let mut shorts = rest.chars();
     while let Some(short) = shorts.next() {
