@@ -132,7 +132,7 @@ pub struct TreeCtx {
     pub(super) importer_order: usize,
     /// The importer-wide slice of the shared workspace-resolution cache
     /// key, built once here so the per-edge key construction shares it.
-    /// See [`workspace_ctx::WorkspaceResolutionOptionsKey`].
+    /// See [`super::workspace_ctx::WorkspaceResolutionOptionsKey`].
     pub(super) workspace_resolution_options_key:
         Arc<super::workspace_ctx::WorkspaceResolutionOptionsKey>,
 }

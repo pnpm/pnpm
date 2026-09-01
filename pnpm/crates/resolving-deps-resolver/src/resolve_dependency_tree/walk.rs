@@ -1232,10 +1232,13 @@ fn shared_workspace_key(
         return None;
     }
     #[cfg(debug_assertions)]
-    debug_assert!(
-        ctx.workspace_resolution_options_key.matches_options(opts),
-        "the importer-wide workspace-resolution key must describe every edge's options",
-    );
+    {
+        let importer_key_covers_edge = ctx.workspace_resolution_options_key.matches_options(opts);
+        debug_assert!(
+            importer_key_covers_edge,
+            "the importer-wide workspace-resolution key must describe every edge's options",
+        );
+    }
     // The consumer scope is exactly what the shared key drops. Every
     // `workspace:` selector carries one, so its absence means this edge is not
     // the shape assumed here.
