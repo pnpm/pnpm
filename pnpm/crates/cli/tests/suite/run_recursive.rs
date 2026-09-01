@@ -136,6 +136,9 @@ fn recursive_run_executes_script_in_every_project() {
     drop(root);
 }
 
+/// A single filtered script cannot run alongside a sibling, so it must
+/// stay in pacquet's own process group: a child moved into its own group
+/// is stopped the moment it reads from the terminal.
 #[test]
 fn filtered_run_keeps_single_script_in_foreground_process_group() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -161,7 +164,10 @@ fn filtered_run_keeps_single_script_in_foreground_process_group() {
     let mut fields = groups.split_whitespace();
     let child_group = fields.next().expect("child process group");
     let parent_group = fields.next().expect("parent process group");
-    assert_eq!(child_group, parent_group);
+    assert_eq!(
+        child_group, parent_group,
+        "the child must share pacquet's process group to keep reading the terminal",
+    );
 
     drop(root);
 }

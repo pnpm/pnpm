@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Keep non-concurrent filtered `run` and recursive `exec` children in the foreground process group, so interactive scripts can read from the terminal instead of being stopped by `SIGTTIN` [#14397](https://github.com/pnpm/pnpm/issues/14397).
+Fixed `pnpm --filter <package> <script>` hanging when the script reads from the terminal. Scripts that cannot run alongside another script now stay in the terminal's foreground process group, so interactive prompts work again [#14397](https://github.com/pnpm/pnpm/issues/14397).

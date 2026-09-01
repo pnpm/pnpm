@@ -273,10 +273,9 @@ pub fn run_recursive(
     } else {
         usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
     };
-    // pnpm pipes unless the output cannot interleave: `--stream` off, and
-    // either one task at a time or a graph that forces the scripts to run
-    // one after another.
     let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
+    // pnpm pipes unless the output cannot interleave: `--stream` off, and
+    // the graph cannot put two scripts in flight at once.
     let inherit_output = !config.stream && !runs_concurrently;
 
     let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(

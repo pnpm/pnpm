@@ -50,7 +50,10 @@ impl RunningExecution {
 
 impl ProcessTracker {
     /// Track foreground children without moving them out of the terminal's
-    /// process group, so terminal signals continue to reach them directly.
+    /// process group, so terminal signals continue to reach them directly
+    /// and a child reading the terminal is not stopped as a background job.
+    /// In exchange, cancellation reaches each child and the descendants
+    /// found by scanning the process list, not a process group at once.
     #[must_use]
     pub fn foreground() -> Self {
         Self { state: Mutex::new(TrackerState::default()), separate_process_groups: false }
