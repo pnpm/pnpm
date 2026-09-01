@@ -55,3 +55,14 @@ fn root_importer_uses_the_empty_suffix() {
         Some(PathBuf::from("packages/lib")),
     );
 }
+
+/// Windows-only path shapes that are rooted or prefixed without being
+/// absolute must not pass the clean-absolute anchor guard.
+#[cfg(windows)]
+#[test]
+fn windows_drive_relative_and_rootless_anchors_use_the_fallback() {
+    assert_eq!(importer_rel_dir(Path::new(r"C:ws\root\app"), Path::new(r"C:ws\root")), None);
+    assert_eq!(importer_rel_dir(Path::new(r"\ws\root\app"), Path::new(r"\ws\root")), None);
+    assert_eq!(target_relative_to_lockfile_root(Path::new(r"\abs\target"), Path::new("app")), None);
+    assert_eq!(target_relative_to_lockfile_root(Path::new(r"C:abs"), Path::new("app")), None);
+}

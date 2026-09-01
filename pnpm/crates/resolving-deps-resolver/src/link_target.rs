@@ -73,9 +73,11 @@ pub(crate) fn target_relative_to_lockfile_root(
 }
 
 fn is_clean_absolute(path: &Path) -> bool {
-    let mut components = path.components();
-    matches!(components.next(), Some(Component::RootDir | Component::Prefix(_)))
-        && components.all(|c| matches!(c, Component::Normal(_) | Component::RootDir))
+    // `is_absolute` carries the platform rules — on Windows it demands
+    // a prefix *and* a root, rejecting drive-relative `C:foo` and
+    // rootless `\foo` alike.
+    path.is_absolute()
+        && path.components().all(|c| !matches!(c, Component::CurDir | Component::ParentDir))
 }
 
 fn all_normal(path: &Path) -> bool {
