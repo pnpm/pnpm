@@ -4,7 +4,7 @@ name: Cancel Unapproved Workflows
 # not apply to them. Sweep from the trusted default branch instead.
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 permissions:
@@ -33,7 +33,7 @@ jobs:
             -f status=action_required \
             -f "created=<=$cutoff" \
             -f per_page=100 \
-            --jq '.workflow_runs[].id' |
+            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id' |
           while IFS= read -r run_id; do
             conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
             if [ "$conclusion" != action_required ]; then
