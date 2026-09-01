@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use pnpm_config::PeerDependencyRules;
 
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, filter_peer_issues,
-    format_range, intersect_multiple_ranges, merge_missing_peers, normalize_version_str,
-    parse_allowed_versions, path_is_within, satisfies,
+    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
+    filter_peer_issues, format_range, intersect_multiple_ranges, merge_missing_peers,
+    normalize_version_str, parse_allowed_versions, satisfies,
 };
 
 fn have_common_version(version_ranges: &[String]) -> bool {
@@ -535,12 +535,12 @@ fn test_path_is_within() {
     let sub = base.join("foo");
     std::fs::create_dir(&sub).unwrap();
 
-    assert!(path_is_within(&sub, base));
-    assert!(path_is_within(base, base));
+    assert!(canonical_path_within(&sub, base).is_some());
+    assert!(canonical_path_within(base, base).is_some());
 
     let outside = base.join("../bar");
-    assert!(!path_is_within(&outside, base));
+    assert!(canonical_path_within(&outside, base).is_none());
 
     let absolute_outside = std::path::Path::new("/etc");
-    assert!(!path_is_within(absolute_outside, base));
+    assert!(canonical_path_within(absolute_outside, base).is_none());
 }

@@ -30,7 +30,10 @@ use pnpm_catalogs_resolver::{
 };
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
-use pnpm_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
+    SnapshotEntry,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::get_peer_version_range;
@@ -221,23 +224,20 @@ pub fn check_peer_dependencies_of_importers(
     Ok(result)
 }
 
-fn path_is_within(path: &Path, base: &Path) -> bool {
+fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
     let (Ok(canonical_path), Ok(canonical_base)) =
         (dunce::canonicalize(path), dunce::canonicalize(base))
     else {
-        return false;
+        return None;
     };
-    canonical_path.starts_with(&canonical_base)
+    canonical_path.starts_with(&canonical_base).then_some(canonical_path)
 }
 
 /// `base_dir` is the directory the `link:` target is relative to — the
 /// importer's directory for importer dependencies, the lockfile directory for
 /// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
 fn resolve_link_version(base_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<String> {
-    let target_dir = base_dir.join(link_target);
-    if !path_is_within(&target_dir, lockfile_dir) {
-        return None;
-    }
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
 }
@@ -249,7 +249,8 @@ fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
 /// A workspace package an importer reaches through `link:`, whose own
 /// `peerDependencies` the importer has to satisfy.
 struct LinkedPackagePeers<'a> {
-    importer: &'a pnpm_lockfile::ProjectSnapshot,
+    importer: &'a ProjectSnapshot,
+    linked_importer: Option<&'a ProjectSnapshot>,
     importer_dir: &'a Path,
     lockfile_dir: &'a Path,
     manifest: &'a PackageManifest,
@@ -264,6 +265,7 @@ fn check_linked_package_peers(
 ) -> Result<(), CatalogResolutionError> {
     let LinkedPackagePeers {
         importer,
+        linked_importer,
         importer_dir,
         lockfile_dir,
         manifest,
@@ -294,16 +296,9 @@ fn check_linked_package_peers(
             .unwrap_or(false);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let resolved_ref = importer
-            .dependencies
-            .as_ref()
-            .and_then(|deps| deps.get(&peer_pkg_name))
-            .or_else(|| {
-                importer.dev_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
-            })
-            .or_else(|| {
-                importer.optional_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
-            });
+        let resolved_ref = project_dependency(importer, &peer_pkg_name).or_else(|| {
+            linked_importer.and_then(|importer| project_dependency(importer, &peer_pkg_name))
+        });
 
         match resolved_ref {
             Some(spec) => {
@@ -345,6 +340,18 @@ fn check_linked_package_peers(
         }
     }
     Ok(())
+}
+
+fn project_dependency<'a>(
+    importer: &'a ProjectSnapshot,
+    name: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(name))
+        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
+        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
 }
 
 fn resolve_peer_range(
@@ -395,10 +402,11 @@ fn collect_initial_keys(
                 // dependency: the version, the peer check, and the
                 // recursion all need the same two answers, and this walk
                 // now runs on the install path.
-                let linked_dir = importer_dir.join(link_target);
-                if !path_is_within(&linked_dir, context.lockfile_dir) {
+                let Some(linked_dir) =
+                    canonical_path_within(&importer_dir.join(link_target), context.lockfile_dir)
+                else {
                     continue;
-                }
+                };
                 let linked_manifest =
                     PackageManifest::from_path(linked_dir.join("package.json")).ok();
                 let linked_version = linked_manifest
@@ -409,9 +417,14 @@ fn collect_initial_keys(
                 next_parents
                     .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
 
+                let linked_importer_id =
+                    pnpm_workspace::importer_id_from_root_dir(context.lockfile_dir, &linked_dir);
+                let linked_importer = context.lockfile.importers.get(&linked_importer_id);
+
                 if let Some(linked_manifest) = &linked_manifest {
                     check_linked_package_peers(LinkedPackagePeers {
                         importer,
+                        linked_importer,
                         importer_dir: &importer_dir,
                         lockfile_dir: context.lockfile_dir,
                         manifest: linked_manifest,
@@ -422,8 +435,6 @@ fn collect_initial_keys(
                     })?;
                 }
 
-                let linked_importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(context.lockfile_dir, &linked_dir);
                 collect_initial_keys(
                     &linked_importer_id,
                     context,
