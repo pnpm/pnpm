@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, builder::BoolishValueParser};
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
 use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
@@ -45,7 +45,7 @@ struct Args {
 
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
     /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
-    #[arg(long, env = "PNPR_OSV")]
+    #[arg(long, env = "PNPR_OSV", value_parser = BoolishValueParser::new())]
     osv: bool,
 
     /// Path to the local OSV npm database zip or extracted JSON directory.
@@ -56,18 +56,18 @@ struct Args {
     /// unpublish, dist-tag, search) on this tier. Without the flag the
     /// surface is served whenever the loaded config declares at least one
     /// registry under `registries:`.
-    #[arg(long, env = "PNPR_DISABLE_REGISTRY")]
+    #[arg(long, env = "PNPR_DISABLE_REGISTRY", value_parser = BoolishValueParser::new())]
     disable_registry: bool,
 
     /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
     /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
     /// loaded config.
-    #[arg(long, env = "PNPR_DISABLE_RESOLVER")]
+    #[arg(long, env = "PNPR_DISABLE_RESOLVER", value_parser = BoolishValueParser::new())]
     disable_resolver: bool,
 
     /// Disable the signed shared-artifact surface. Overrides
     /// `artifacts.enabled` from the loaded config.
-    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS")]
+    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS", value_parser = BoolishValueParser::new())]
     disable_artifacts: bool,
 }
 
