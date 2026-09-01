@@ -93,7 +93,8 @@ impl ViewArgs {
         };
         let fields = self.params.get(1..).unwrap_or(&[]);
 
-        let info = fetch_package_info(config, self.registry.as_deref(), &package_spec).await?;
+        let info =
+            fetch_package_info(config, self.registry.as_deref(), &package_spec, "view").await?;
 
         if !fields.is_empty() {
             return Ok(render_fields(&info, fields, self.json));
@@ -153,10 +154,11 @@ fn invalid_manifest(dir: &Path) -> ViewError {
 /// version satisfying the spec, then extend that version's manifest with the
 /// packument-level `versions`, `dist-tags`, and `time` fields the renderers
 /// read.
-async fn fetch_package_info(
+pub(super) async fn fetch_package_info(
     config: &Config,
     registry_override: Option<&str>,
     package_spec: &str,
+    command_name: &str,
 ) -> miette::Result<Value> {
     let parsed = parse_wanted_dependency(package_spec);
     let alias = parsed.alias.as_deref();
@@ -180,7 +182,7 @@ async fn fetch_package_info(
         &config.network_settings(),
     )
     .into_diagnostic()
-    .wrap_err("create the network client for view")?;
+    .wrap_err_with(|| format!("create the network client for {command_name}"))?;
     let outcome = fetch_full_metadata(
         &spec.name,
         &FetchFullMetadataOptions {

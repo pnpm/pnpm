@@ -1,13 +1,6 @@
 use clap::Args;
-use miette::{Context, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_package_manifest::PackageManifest;
-use pnpm_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
-    pick_registry_for_package,
-};
-use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use serde_json::Value;
 
 /// Open the documentation page of a package in a browser.
 #[derive(Debug, Args)]
@@ -18,57 +11,31 @@ pub struct DocsArgs {
 
 impl DocsArgs {
     pub async fn run(self, config: &Config) -> miette::Result<()> {
-        let raw_spec = &self.package;
-
-        let parsed = parse_wanted_dependency(raw_spec);
-        let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-        let bare = parsed.bare_specifier.as_deref().unwrap_or("latest");
-        let (resolved_name, _range) = PackageManifest::resolve_registry_dependency(name, bare);
-
-        let http_client = ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &config.network_settings(),
-        )
-        .into_diagnostic()
-        .wrap_err("create the network client for docs")?;
-        let registries: std::collections::HashMap<String, String> =
-            config.resolved_registries().into_iter().collect();
-        let registry = pick_registry_for_package(&registries, resolved_name, Some(bare));
-
-        let outcome = fetch_full_metadata(
-            resolved_name,
-            &FetchFullMetadataOptions {
-                registry: &registry,
-                http_client: &http_client,
-                auth_headers: &config.auth_headers,
-                full_metadata: true,
-                etag: None,
-                modified: None,
-                retry_opts: RetryOpts::default(),
-            },
-        )
-        .await
-        .into_diagnostic()
-        .wrap_err_with(|| format!("fetch package info for {raw_spec}"))?;
-
-        let package = match outcome {
-            FetchFullMetadataOutcome::Modified(pkg) => *pkg,
-            FetchFullMetadataOutcome::NotModified => {
-                miette::bail!("registry returned 304 Not Modified unexpectedly")
-            }
-        };
-
-        let fallback = || format!("https://npmx.dev/package/{}", package.name);
-        let url = package
-            .homepage
-            .as_deref()
-            .filter(|s| is_http_url(s))
-            .map_or_else(fallback, ToString::to_string);
-
+        let url = self.documentation_url(config).await?;
         open_url(&url)
     }
+
+    async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
+        let info = super::view::fetch_package_info(config, None, &self.package, "docs").await?;
+        Ok(documentation_url_from_info(&info))
+    }
+}
+
+fn documentation_url_from_info(info: &Value) -> String {
+    info.get("homepage")
+        .and_then(Value::as_str)
+        .filter(|homepage| is_http_url(homepage))
+        .map_or_else(
+            || {
+                format!(
+                    "https://npmx.dev/package/{}",
+                    info.get("name")
+                        .and_then(Value::as_str)
+                        .expect("selected registry manifests always have a package name"),
+                )
+            },
+            ToString::to_string,
+        )
 }
 
 fn is_http_url(value: &str) -> bool {
