@@ -157,7 +157,20 @@ fn applies_several_hunks_against_the_same_baseline() {
 
 #[test]
 fn applies_several_zero_context_insertions_against_the_same_baseline() {
-    let original = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\n";
+    let original = text_block_fnl! {
+        "a"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+    };
     let patch = text_block_fnl! {
         "--- a/file.txt"
         "+++ b/file.txt"
@@ -170,14 +183,45 @@ fn applies_several_zero_context_insertions_against_the_same_baseline() {
         "@@ -12,0 +16 @@"
         "+END"
     };
+    let expected = text_block_fnl! {
+        "START"
+        "a"
+        "A"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "F"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+        "END"
+    };
     let after = applied(original, patch);
     eprintln!("{after}");
-    assert_eq!(after, "START\na\nA\nb\nc\nd\ne\nf\nF\ng\nh\ni\nj\nk\nl\nEND\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
 fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
-    let original = "a\nb\nc\nd\ne\nf\ng\nh\ni\nj\nk\nl\n";
+    let original = text_block_fnl! {
+        "a"
+        "b"
+        "c"
+        "d"
+        "e"
+        "f"
+        "g"
+        "h"
+        "i"
+        "j"
+        "k"
+        "l"
+    };
     let patch = text_block_fnl! {
         "--- a/file.txt"
         "+++ b/file.txt"
@@ -199,7 +243,24 @@ fn applies_zero_context_insertions_after_deletion_and_replacement_shifts() {
         "@@ -12,0 +15 @@"
         "+END"
     };
+    let expected = text_block_fnl! {
+        "c"
+        "C"
+        "d"
+        "E1"
+        "E2"
+        "f"
+        "g"
+        "G1"
+        "G2"
+        "h"
+        "i"
+        "J"
+        "k"
+        "l"
+        "END"
+    };
     let after = applied(original, patch);
     eprintln!("{after}");
-    assert_eq!(after, "c\nC\nd\nE1\nE2\nf\ng\nG1\nG2\nh\ni\nJ\nk\nl\nEND\n");
+    assert_eq!(after, expected);
 }

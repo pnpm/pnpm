@@ -54,19 +54,23 @@ fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     path
 }
 
+/// The single-file header [`applied_hunk`] prepends to every hunk it is given.
+const FILE_TXT_PATCH_HEADER: &str = text_block_fnl! {
+    "diff --git a/file.txt b/file.txt"
+    "--- a/file.txt"
+    "+++ b/file.txt"
+};
+
 /// Apply a patch whose sole file operation is `hunk` against a `file.txt`
-/// holding `original`, and return what the file holds afterwards. The
-/// `diff --git` header the hunk needs is supplied here so a caller only
-/// spells out the coordinates under test.
+/// holding `original`, and return what the file holds afterwards.
+/// [`FILE_TXT_PATCH_HEADER`] is supplied here so a caller only spells out the
+/// coordinates under test.
 fn applied_hunk(original: &str, hunk: &str) -> String {
     let patched = tempdir().unwrap();
     let target = patched.path().join("file.txt");
     fs::write(&target, original).unwrap();
     let patch_dir = tempdir().unwrap();
-    let patch = write_patch(
-        patch_dir.path(),
-        &format!("diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n{hunk}"),
-    );
+    let patch = write_patch(patch_dir.path(), &format!("{FILE_TXT_PATCH_HEADER}{hunk}"));
 
     apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
 
@@ -193,16 +197,15 @@ fn applies_a_zero_context_insertion_at_the_end_of_the_file() {
     assert_eq!(applied_hunk(original, hunk), expected);
 }
 
-/// The CRLF fixtures stay escaped literals: a text block joins its lines with
-/// `\n`, so the endings under test would have to hide as trailing `\r` inside
-/// the quotes.
 #[test]
 fn applies_a_zero_context_insertion_to_a_crlf_file() {
+    let original = concat!("one\r\n", "two\r\n");
     let hunk = text_block_fnl! {
         "@@ -1,0 +2 @@"
         "+added"
     };
-    assert_eq!(applied_hunk("one\r\ntwo\r\n", hunk), "one\r\nadded\ntwo\r\n");
+    let expected = concat!("one\r\n", "added\n", "two\r\n");
+    assert_eq!(applied_hunk(original, hunk), expected);
 }
 
 #[test]
