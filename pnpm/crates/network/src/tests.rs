@@ -13,8 +13,8 @@
 
 use super::{
     CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
-    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, origin_of,
-    parse_proxy_url,
+    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, bundled_root_certs,
+    origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -531,11 +531,15 @@ async fn from_clients_uses_the_supplied_no_redirect_configuration() {
         .create_async()
         .await;
     let final_mock = registry.mock("GET", "/final").expect(0).create_async().await;
+    // Bundled roots only: a sibling test may have pointed `SSL_CERT_FILE` at
+    // an empty bundle, which makes a platform-verifier client unbuildable.
     let client = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("ordinary-client")
         .build()
         .expect("build ordinary client");
     let client_without_redirects = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("strict-client")
         .redirect(reqwest::redirect::Policy::none())
         .build()

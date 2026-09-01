@@ -27,9 +27,9 @@ pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use reqwest::dns::Addrs;
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 use reqwest::dns::{Name, Resolve, Resolving};
 use reqwest::{
     Certificate, Client, Identity, Proxy,
@@ -760,16 +760,16 @@ fn is_redirect_status(status: reqwest::StatusCode) -> bool {
     matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308)
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 struct CappedDnsResolver<Inner> {
     inner: Arc<Inner>,
     permits: Arc<Semaphore>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 struct NativeDnsResolver;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 impl Resolve for NativeDnsResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
@@ -782,14 +782,14 @@ impl Resolve for NativeDnsResolver {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
         Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", windows, test))]
 impl<Inner> Resolve for CappedDnsResolver<Inner>
 where
     Inner: Resolve + 'static,
@@ -805,14 +805,26 @@ where
     }
 }
 
-#[cfg(target_os = "macos")]
+/// Resolve through the platform's `getaddrinfo`, capped at Node's libuv
+/// thread-pool width so `mDNSResponder` is not overloaded.
+///
+/// macOS needs the system resolver for its scoped/supplemental resolver
+/// graph (VPN split DNS), which Hickory does not read. Windows needs it
+/// because Hickory sends every query from a freshly bound wildcard UDP
+/// socket, and Windows Defender Firewall treats that bind as a listener:
+/// it prompts the user to allow `pnpm.exe`, keyed on the executable's
+/// path, so every newly installed engine prompts again
+/// (pnpm/pnpm#14405). `getaddrinfo` hands the query to the Dnscache
+/// service and binds nothing in this process, and it also honors NRPT and
+/// per-adapter DNS settings.
+#[cfg(any(target_os = "macos", windows))]
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
 
     builder.dns_resolver(CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY))
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     builder.hickory_dns(true)
 }
