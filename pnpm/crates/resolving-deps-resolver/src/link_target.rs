@@ -51,13 +51,18 @@ pub(crate) fn target_relative_to_importer(
 
 /// Express an importer-relative `target` (which typically climbs out
 /// of the importer via `..` components) relative to the lockfile root.
-/// `None` for an absolute target, or one that still escapes the
+/// `None` for a target that carries a root or prefix component — on
+/// Windows a rooted `\abs` path is not `is_absolute`, yet `join` would
+/// silently replace the base with it — or one that still escapes the
 /// lockfile root after normalization.
 pub(crate) fn target_relative_to_lockfile_root(
     target: &Path,
     importer_rel_dir: &Path,
 ) -> Option<PathBuf> {
-    if target.is_absolute() {
+    if !target
+        .components()
+        .all(|c| matches!(c, Component::Normal(_) | Component::ParentDir | Component::CurDir))
+    {
         return None;
     }
     let normalized = pnpm_fs::lexical_normalize(&importer_rel_dir.join(target));
