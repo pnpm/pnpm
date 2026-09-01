@@ -255,11 +255,11 @@ pub struct WorkspaceInstallSelection<'a> {
 /// dependency cycles among the selected projects.
 ///
 /// A caller may pass [`Self::Known`] only when it ran
-/// [`crate::workspace_cycles`] over the very graph the install would
+/// [`fn@crate::workspace_cycles`] over the very graph the install would
 /// rebuild — the same projects, in the same order, with the same graph
 /// options — so the report (its cycle order included) stays what the
 /// install's own [`crate::install_scope_cycles`] would emit.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub enum PrecomputedWorkspaceCycles<'a> {
     /// It did not; the install runs its own cycle search.
     #[default]
