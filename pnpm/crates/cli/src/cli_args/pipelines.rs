@@ -374,7 +374,6 @@ fn init_shared_state(
         None => State::init(manifest_path, config, require_lockfile),
     }
     .wrap_err("initialize the state")
-    .map_err(Into::into)
 }
 
 pub(crate) struct AddPipeline {
