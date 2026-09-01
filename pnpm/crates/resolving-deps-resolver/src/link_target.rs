@@ -59,10 +59,9 @@ pub(crate) fn target_relative_to_lockfile_root(
     target: &Path,
     importer_rel_dir: &Path,
 ) -> Option<PathBuf> {
-    if !target
-        .components()
-        .all(|c| matches!(c, Component::Normal(_) | Component::ParentDir | Component::CurDir))
-    {
+    if !target.components().all(|component| {
+        matches!(component, Component::Normal(_) | Component::ParentDir | Component::CurDir)
+    }) {
         return None;
     }
     let normalized = pnpm_fs::lexical_normalize(&importer_rel_dir.join(target));
@@ -77,11 +76,13 @@ fn is_clean_absolute(path: &Path) -> bool {
     // a prefix *and* a root, rejecting drive-relative `C:foo` and
     // rootless `\foo` alike.
     path.is_absolute()
-        && path.components().all(|c| !matches!(c, Component::CurDir | Component::ParentDir))
+        && path
+            .components()
+            .all(|component| !matches!(component, Component::CurDir | Component::ParentDir))
 }
 
 fn all_normal(path: &Path) -> bool {
-    path.components().all(|c| matches!(c, Component::Normal(_)))
+    path.components().all(|component| matches!(component, Component::Normal(_)))
 }
 
 #[cfg(test)]
