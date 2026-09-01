@@ -3511,6 +3511,10 @@ pacquet@12.2.0:
     - tidy-pandas-browse
     - utf8-env-literals
     - workspace-protocol-catalogs
+pacquet@12.2.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - restore-extensionless-pnpm-bin
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
