@@ -118,7 +118,6 @@ fn with_current_dispatches_after_workspace_root() {
         .with_args(["--workspace-root", "with", "current", "--version"])
         .output()
         .expect("run pacquet with current --version after --workspace-root");
-    dbg!(&output);
     assert_success(&output);
     assert_semver_like(stdout(&output).trim());
 
