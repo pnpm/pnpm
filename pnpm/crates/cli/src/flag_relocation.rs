@@ -157,15 +157,12 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
                 if let Some(consumes_value) = top_level.short_consumes_value(short) {
                     return Some(consumes_value);
                 }
-                match subcommand_union.short_consumes_value(short) {
-                    Some(consumes_value) => {
-                        has_subcommand_short = true;
-                        Some(consumes_value)
-                    }
-                    None => {
-                        has_unknown_short = true;
-                        None
-                    }
+                if let Some(consumes_value) = subcommand_union.short_consumes_value(short) {
+                    has_subcommand_short = true;
+                    Some(consumes_value)
+                } else {
+                    has_unknown_short = true;
+                    None
                 }
             });
             let width = token_width(consumes_value, false);
