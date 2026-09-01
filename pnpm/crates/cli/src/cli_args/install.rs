@@ -878,6 +878,10 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         return Err(FrozenStoreIncompatibleWithPnpr.into());
     }
 
+    let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
+        state.manifest.path().parent().expect("manifest path always has a parent dir")
+    });
+
     // Borrowed from the shared state, not cloned: the frozen branch
     // below never needs an owned lockfile, so the exchange-free paths
     // pay no deep copy. The server-exchange paths clone at the point a
@@ -885,11 +889,31 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let previous_wanted: Option<&Lockfile> = if link.use_state_lockfile {
         let loaded =
             if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
-        loaded.map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+        match loaded {
+            Ok(lockfile) => lockfile,
+            Err(error) if !link.frozen_lockfile => {
+                <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
+                    pnpm_reporter::PnpmLog {
+                        level: pnpm_reporter::LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            lockfile_dir.display(),
+                        ),
+                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                    },
+                ));
+                None
+            }
+            Err(error) => {
+                return Err(miette::Report::new(error).wrap_err("load the lockfile"));
+            }
+        }
     } else {
         None
     };
-    let merge_wanted = if link.fix_lockfile && link.use_state_lockfile {
+    let merge_wanted = if previous_wanted.is_none() {
+        None
+    } else if link.fix_lockfile && link.use_state_lockfile {
         MaybeLazyLockfile::Repair(&state.lockfile).get_for_merge().map_err(|err| {
             miette::Report::new(err).wrap_err("load the lockfile for filtered merge")
         })?
@@ -974,9 +998,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         PnprBenchmarkRegistryOverride::resolve_registry,
     );
 
-    let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    });
     let pnpmfile_hook = if state.config.ignore_pnpmfile {
         None
     } else {
