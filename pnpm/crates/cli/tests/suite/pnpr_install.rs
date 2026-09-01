@@ -438,16 +438,19 @@ fn install_via_pnpr_links_node_modules() {
     drop((root, mock_instance));
 }
 
+/// A wanted lockfile left with Git conflict markers: unreadable as YAML,
+/// and the state a non-frozen install is expected to regenerate from the
+/// manifests instead of failing on.
+const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
+    "<<<<<<< HEAD"
+    "lockfileVersion: '9.0'"
+    "======="
+    "lockfileVersion: '9.0'"
+    ">>>>>>> branch"
+};
+
 #[test]
 fn install_via_pnpr_replaces_a_conflicted_lockfile() {
-    const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
-        "<<<<<<< HEAD"
-        "lockfileVersion: '9.0'"
-        "======="
-        "lockfileVersion: '9.0'"
-        ">>>>>>> branch"
-    };
-
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
@@ -462,11 +465,30 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
     fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
         .expect("write conflicted lockfile");
 
-    pacquet
+    let output = pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
-        .with_args(["install", "--pnpr-server", &pnpr_url])
-        .assert()
-        .success();
+        .with_args(["--reporter=ndjson", "install", "--pnpr-server", &pnpr_url])
+        .output()
+        .expect("run install with the conflicted lockfile");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    assert!(output.status.success(), "install must ignore the conflicted lockfile:\n{combined}");
+    assert!(
+        combined
+            .lines()
+            .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+            .any(|event| {
+                event["name"] == "pnpm"
+                    && event["level"] == "warn"
+                    && event["message"]
+                        .as_str()
+                        .is_some_and(|message| message.starts_with("Ignoring broken lockfile at "))
+            }),
+        "expected pnpm warning for the ignored wanted lockfile; got:\n{combined}",
+    );
 
     let lockfile = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
@@ -481,6 +503,56 @@ fn install_via_pnpr_replaces_a_conflicted_lockfile() {
         .success();
     let repaired = read_workspace_lockfile(&workspace);
     assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
+
+    drop((root, mock_instance));
+}
+
+/// The strict half of the contract that
+/// `install_via_pnpr_replaces_a_conflicted_lockfile` covers: regenerating an
+/// unreadable wanted lockfile is scoped to non-frozen installs, because a
+/// frozen one promises to install exactly what the lockfile pins. Dropping
+/// that scope would let `--frozen-lockfile` silently re-resolve from the
+/// manifests, so pin the refusal here too.
+#[test]
+fn a_conflicted_lockfile_fails_a_frozen_install_via_pnpr() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
+        .expect("write conflicted lockfile");
+
+    let output = pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--frozen-lockfile", "--pnpr-server", &pnpr_url])
+        .output()
+        .expect("run the frozen install with the conflicted lockfile");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+
+    assert!(!output.status.success(), "a conflicted lockfile must fail a frozen install");
+    assert!(
+        combined.contains("ERR_PNPM_BROKEN_LOCKFILE"),
+        "expected the broken-lockfile error code; got:\n{combined}",
+    );
+    assert!(
+        !combined.contains("Ignoring broken lockfile at "),
+        "a frozen install must not fall back to regenerating; got:\n{combined}",
+    );
+    assert!(
+        !workspace.join("node_modules/@foo/no-deps").exists(),
+        "the refused install must not link any dependency",
+    );
 
     drop((root, mock_instance));
 }
