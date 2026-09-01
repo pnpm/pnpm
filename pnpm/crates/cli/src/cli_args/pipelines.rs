@@ -369,7 +369,7 @@ impl InstallPipeline {
         let lockfile = cfg
             .shares_one_lockfile()
             .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
-        let certain_full_install = {
+        let certain_full_install = cfg.shares_one_lockfile() && {
             let manifest_dir =
                 manifest_path.parent().expect("manifest path always has a parent dir");
             let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
