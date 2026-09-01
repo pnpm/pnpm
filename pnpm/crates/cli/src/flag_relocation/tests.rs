@@ -130,6 +130,21 @@ fn subcommand_alias_is_recognized() {
 }
 
 #[test]
+fn unknown_options_before_a_subcommand_stay_in_place() {
+    for argv in [
+        ["pnpm", "-z", "exec", "echo"],
+        ["pnpm", "--zzz", "exec", "echo"],
+        ["pnpm", "-rz", "exec", "echo"],
+    ] {
+        assert_eq!(
+            relocate(&argv),
+            argv,
+            "an option no grammar defines must reach clap as a top-level error, not as exec's command",
+        );
+    }
+}
+
+#[test]
 fn external_command_argv_is_untouched() {
     let argv = ["pnpm", "--ignore-scripts", "some-script"];
     assert_eq!(relocate(&argv), argv, "not a subcommand → script argv must not be reshaped");

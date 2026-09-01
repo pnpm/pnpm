@@ -11,10 +11,14 @@
 //! subcommand.
 //!
 //! [`relocate_pre_subcommand_flags`] closes the gap in argv space:
-//! option tokens that appear before the subcommand and are not part of
-//! the top-level grammar move to directly after the subcommand token
-//! (relative order preserved), so clap parses them with the subcommand's
-//! grammar exactly as if they had been written there. Whether a moved
+//! option tokens that appear before the subcommand and belong to a
+//! subcommand's grammar rather than the top-level one move to directly
+//! after the subcommand token (relative order preserved), so clap parses
+//! them with the subcommand's grammar exactly as if they had been
+//! written there. An option no grammar defines stays where it is, so
+//! clap reports it against the top-level command the way nopt does,
+//! instead of a `trailing_var_arg` command such as `exec` taking it for
+//! the command to run. Whether a moved
 //! option consumes the following token as its value is decided from the
 //! union of every subcommand's arg table; on an arity conflict between
 //! subcommands the option is treated as boolean so a subcommand name is
@@ -131,13 +135,14 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
                 rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
             if let Some(consumes_value) = top_level.long_consumes_value(name) {
                 index += token_width(consumes_value, has_inline_value);
-            } else {
-                let consumes_value = subcommand_union.long_consumes_value(name).unwrap_or(false);
+            } else if let Some(consumes_value) = subcommand_union.long_consumes_value(name) {
                 let width = token_width(consumes_value, has_inline_value);
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
                 index += width;
+            } else {
+                index += token_width(false, has_inline_value);
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
             // A cluster is judged by every short it stacks, not by its
@@ -146,9 +151,12 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
             // clap to see the option its subcommand owns.
             let mut belongs_to_subcommand = false;
             let consumes_value = short_cluster_consumes_value(rest, |short| {
-                let top_level_arity = top_level.short_consumes_value(short);
-                belongs_to_subcommand |= top_level_arity.is_none();
-                top_level_arity.or_else(|| subcommand_union.short_consumes_value(short))
+                if let Some(consumes_value) = top_level.short_consumes_value(short) {
+                    return Some(consumes_value);
+                }
+                let consumes_value = subcommand_union.short_consumes_value(short);
+                belongs_to_subcommand |= consumes_value.is_some();
+                consumes_value
             });
             let width = token_width(consumes_value, false);
             if belongs_to_subcommand {
