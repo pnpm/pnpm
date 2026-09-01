@@ -381,7 +381,7 @@ fn prefetch_hands_get_the_background_parse() {
     // Wait for the background thread, then delete the file *before*
     // the first read: the contents can only come from that thread's
     // parse, never from an inline load.
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     loop {
         let finished = lazy
             .prefetch
