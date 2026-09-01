@@ -107,7 +107,9 @@ fn applies_an_insertion_with_context_on_both_sides() {
         "added"
         "two"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -125,7 +127,9 @@ fn applies_a_zero_context_insertion_at_the_start_of_the_file() {
         "one"
         "two"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -152,7 +156,9 @@ fn applies_a_zero_context_insertion_after_the_first_line() {
         "added"
         "two"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -176,7 +182,9 @@ fn applies_a_multi_line_zero_context_insertion_in_the_middle_of_the_file() {
         "three"
         "four"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -194,7 +202,9 @@ fn applies_a_zero_context_insertion_at_the_end_of_the_file() {
         "two"
         "added"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -205,7 +215,9 @@ fn applies_a_zero_context_insertion_to_a_crlf_file() {
         "+added"
     };
     let expected = concat!("one\r\n", "added\n", "two\r\n");
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -223,7 +235,9 @@ fn applies_a_zero_context_insertion_to_a_file_without_a_final_newline() {
         "added"
         "two"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
@@ -242,7 +256,9 @@ fn applies_a_zero_context_insertion_that_ends_the_file_without_a_newline() {
         "two"
         "added"
     };
-    assert_eq!(applied_hunk(original, hunk), expected);
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
 }
 
 #[test]
