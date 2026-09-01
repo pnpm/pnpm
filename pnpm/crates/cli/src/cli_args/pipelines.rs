@@ -133,9 +133,16 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     manifest_path: &Path,
     recursive_sort: bool,
     auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
 ) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) =
-        select_workspace_projects(cfg, prefix, manifest_path, recursive_sort, auto_exclude_root)?
+    let Some(selection) = select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        precompute_workspace_cycles,
+    )?
     else {
         return Ok(InstallFamilyPlan::Single);
     };
@@ -164,6 +171,29 @@ pub(crate) fn select_workspace_projects(
     manifest_path: &Path,
     recursive_sort: bool,
     auto_exclude_root: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        false,
+    )
+}
+
+/// [`select_workspace_projects`], optionally running the install's
+/// workspace-cycle search over the selection graph while it is still in
+/// hand. Callers pass `true` only for a run that is certain to reach
+/// the cycle check — the "Already up to date" fast path returns before
+/// it, and a search it never reads would tax exactly that path.
+fn select_workspace_projects_with_cycles(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
 ) -> miette::Result<Option<InstallFamilySelection>> {
     if !cfg.recursive {
         return Ok(None);
@@ -337,18 +367,19 @@ impl InstallPipeline {
         let lockfile = cfg
             .shares_one_lockfile()
             .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
-        if let Some(lockfile) = lockfile.as_ref()
-            && !args.fix_lockfile
-        {
+        let certain_full_install = {
             let manifest_dir =
                 manifest_path.parent().expect("manifest path always has a parent dir");
             let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
-            if frozen_lockfile
+            frozen_lockfile
                 || cfg.force
                 || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
-            {
-                lockfile.prefetch();
-            }
+        };
+        if let Some(lockfile) = lockfile.as_ref()
+            && !args.fix_lockfile
+            && certain_full_install
+        {
+            lockfile.prefetch();
         }
         let plan = select_install_family_plan::<Reporter>(
             cfg,
@@ -356,6 +387,7 @@ impl InstallPipeline {
             &manifest_path,
             recursive_sort,
             false,
+            certain_full_install,
         )?;
         match plan {
             InstallFamilyPlan::PerProject(project_dependencies) => {
@@ -457,6 +489,7 @@ impl AddPipeline {
                 &manifest_path,
                 recursive_sort,
                 true,
+                false,
             )?
         };
         match plan {
@@ -539,6 +572,7 @@ impl UpdatePipeline {
             &prefix,
             &manifest_path,
             recursive_sort,
+            false,
             false,
         )?;
         // An empty selection has nothing to update, and — like the shared
@@ -642,6 +676,7 @@ impl RemovePipeline {
             &prefix,
             &manifest_path,
             recursive_sort,
+            false,
             false,
         )?;
         match plan {
