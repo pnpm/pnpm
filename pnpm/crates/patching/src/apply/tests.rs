@@ -232,7 +232,7 @@ fn applies_a_zero_context_insertion_that_ends_the_file_without_a_newline() {
     let hunk = text_block_fnl! {
         "@@ -2,0 +3 @@"
         "+added"
-        "\\ No newline at end of file"
+        r"\ No newline at end of file"
     };
     let expected = text_block! {
         "one"
@@ -247,7 +247,7 @@ fn applies_a_zero_context_insertion_without_a_newline_to_an_empty_file() {
     let hunk = text_block_fnl! {
         "@@ -0,0 +1 @@"
         "+added"
-        "\\ No newline at end of file"
+        r"\ No newline at end of file"
     };
     assert_eq!(applied_hunk("", hunk), "added");
 }
