@@ -94,12 +94,45 @@ pub(super) type WantedKey = (
     Option<bool>,
     bool,
     Option<DateTime<Utc>>,
-    Option<PathBuf>,
+    Option<PathKey>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<String>)>,
     Option<String>,
     bool,
 );
+
+/// A path slot of a resolver cache key.
+///
+/// `Path`'s own `Hash` and `Eq` walk the path component by component,
+/// and the per-edge key lookups made that walk one of the hottest
+/// spots of a large workspace's resolution. The paths that reach these
+/// keys come from one canonical config-derived source per importer, so
+/// this wrapper compares and hashes the underlying `OsStr` — a plain
+/// byte comparison. That is *stricter* than component equality
+/// (`a//b` ≠ `a/b` here), which for a dedup cache can only cost an
+/// extra identical resolution, never conflate two different paths.
+#[derive(Debug, Clone)]
+pub(super) struct PathKey(pub(super) PathBuf);
+
+impl From<PathBuf> for PathKey {
+    fn from(path: PathBuf) -> Self {
+        PathKey(path)
+    }
+}
+
+impl PartialEq for PathKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_os_str() == other.0.as_os_str()
+    }
+}
+
+impl Eq for PathKey {}
+
+impl Hash for PathKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        self.0.as_os_str().hash(state);
+    }
+}
 
 /// A wanted dependency key without its consumer directory, plus the resolver
 /// inputs that may vary between importers.
@@ -107,29 +140,37 @@ pub(super) type WantedKey = (
 pub(super) struct SharedWorkspaceWantedKey {
     wanted: WantedKey,
     previous_specifier: Option<String>,
-    resolve_options: WorkspaceResolutionOptionsKey,
+    // Behind an `Arc` because the fields are invariant per importer
+    // (see [`WorkspaceResolutionOptionsKey`]) while a key is built per
+    // dependency edge; the derived `Hash`/`Eq` see through the `Arc`,
+    // so keys built by different importers still match by value.
+    resolve_options: Arc<WorkspaceResolutionOptionsKey>,
 }
 
 impl SharedWorkspaceWantedKey {
     pub(super) fn new(
         wanted: WantedKey,
         previous_specifier: Option<String>,
-        resolve_options: &ResolveOptions,
+        resolve_options: &Arc<WorkspaceResolutionOptionsKey>,
     ) -> Self {
-        Self {
-            wanted,
-            previous_specifier,
-            resolve_options: WorkspaceResolutionOptionsKey::new(resolve_options),
-        }
+        Self { wanted, previous_specifier, resolve_options: Arc::clone(resolve_options) }
     }
 }
 
 /// Resolver inputs that can change a named workspace resolution independently
 /// of the consuming project directory.
+///
+/// Every field is invariant across the [`ResolveOptions`] variants one
+/// importer's walk hands the resolver — the depth split changes only
+/// the version pick, and the per-edge overrides change only
+/// `project_dir` / `current_pkg` / the overlay — so [`TreeCtx`] builds
+/// this once per importer and every edge shares it.
+/// [`Self::matches_options`] backs the debug assertion pinning that
+/// invariance.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct WorkspaceResolutionOptionsKey {
+pub(super) struct WorkspaceResolutionOptionsKey {
     workspace_packages: Option<WorkspacePackagesKey>,
-    lockfile_dir: PathBuf,
+    lockfile_dir: PathKey,
     default_tag: Option<String>,
     inject_workspace_packages: bool,
     calc_specifier: bool,
@@ -138,16 +179,24 @@ struct WorkspaceResolutionOptionsKey {
 }
 
 impl WorkspaceResolutionOptionsKey {
-    fn new(options: &ResolveOptions) -> Self {
+    pub(super) fn new(options: &ResolveOptions) -> Self {
         Self {
             workspace_packages: options.workspace_packages.as_ref().map(WorkspacePackagesKey::new),
-            lockfile_dir: options.lockfile_dir.clone(),
+            lockfile_dir: PathKey(options.lockfile_dir.clone()),
             default_tag: options.default_tag.clone(),
             inject_workspace_packages: options.inject_workspace_packages,
             calc_specifier: options.calc_specifier,
             range_spec_style_discriminant: options.range_spec_style.map(|style| style as u8),
             save_workspace_protocol_discriminant: options.save_workspace_protocol as u8,
         }
+    }
+
+    /// Whether the importer-wide key still describes `options` — the
+    /// per-importer invariance the shared cache relies on, asserted at
+    /// the key's use site in debug builds.
+    #[cfg(debug_assertions)]
+    pub(super) fn matches_options(&self, options: &ResolveOptions) -> bool {
+        *self == Self::new(options)
     }
 }
 

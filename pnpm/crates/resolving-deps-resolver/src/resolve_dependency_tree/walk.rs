@@ -1222,6 +1222,7 @@ fn render_workspace_resolution(
 /// Remove the consumer directory from a named `workspace:` request while
 /// retaining every other input the explicit workspace resolver reads.
 fn shared_workspace_key(
+    ctx: &TreeCtx,
     cache_key: &WantedKey,
     wanted: &WantedDependency,
     opts: &ResolveOptions,
@@ -1230,12 +1231,21 @@ fn shared_workspace_key(
     if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
         return None;
     }
+    #[cfg(debug_assertions)]
+    debug_assert!(
+        ctx.workspace_resolution_options_key.matches_options(opts),
+        "the importer-wide workspace-resolution key must describe every edge's options",
+    );
     // The consumer scope is exactly what the shared key drops. Every
     // `workspace:` selector carries one, so its absence means this edge is not
     // the shape assumed here.
     let mut wanted_key = cache_key.clone();
     wanted_key.6.take()?;
-    Some(SharedWorkspaceWantedKey::new(wanted_key, wanted.prev_specifier.clone(), opts))
+    Some(SharedWorkspaceWantedKey::new(
+        wanted_key,
+        wanted.prev_specifier.clone(),
+        &ctx.workspace_resolution_options_key,
+    ))
 }
 
 /// Look the wanted edge up in the per-wanted dedup cache or run the resolver
@@ -1290,7 +1300,7 @@ where
     let shared_workspace_key = ctx
         .workspace
         .share_workspace_resolutions
-        .then(|| shared_workspace_key(&cache_key, wanted, opts))
+        .then(|| shared_workspace_key(ctx, &cache_key, wanted, opts))
         .flatten();
     let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
         lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted).get(key).map(Arc::clone)
