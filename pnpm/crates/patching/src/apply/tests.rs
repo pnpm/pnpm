@@ -54,6 +54,25 @@ fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     path
 }
 
+/// Apply a patch whose sole file operation is `hunk` against a `file.txt`
+/// holding `original`, and return what the file holds afterwards. The
+/// `diff --git` header the hunk needs is supplied here so a caller only
+/// spells out the coordinates under test.
+fn applied_hunk(original: &str, hunk: &str) -> String {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("file.txt");
+    fs::write(&target, original).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        &format!("diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n{hunk}"),
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    fs::read_to_string(&target).unwrap()
+}
+
 #[test]
 fn applies_modify_against_existing_file() {
     let patched = tempdir().unwrap();
@@ -68,54 +87,62 @@ fn applies_modify_against_existing_file() {
 }
 
 #[test]
-fn applies_insertions_with_and_without_context() {
-    for (name, original, hunk, expected) in [
-        (
-            "context on both sides",
-            "one\ntwo\n",
-            "@@ -1,2 +1,3 @@\n one\n+added\n two\n",
-            "one\nadded\ntwo\n",
-        ),
-        ("bof", "one\ntwo\n", "@@ -0,0 +1 @@\n+added\n", "added\none\ntwo\n"),
-        ("empty file", "", "@@ -0,0 +1 @@\n+added\n", "added\n"),
-        ("after line one", "one\ntwo\n", "@@ -1,0 +2 @@\n+added\n", "one\nadded\ntwo\n"),
-        (
-            "middle",
-            "one\ntwo\nthree\nfour\n",
-            "@@ -2,0 +3,2 @@\n+first\n+second\n",
-            "one\ntwo\nfirst\nsecond\nthree\nfour\n",
-        ),
-        ("eof", "one\ntwo\n", "@@ -2,0 +3 @@\n+added\n", "one\ntwo\nadded\n"),
-        ("crlf", "one\r\ntwo\r\n", "@@ -1,0 +2 @@\n+added\n", "one\r\nadded\ntwo\r\n"),
-        ("no final newline", "one\ntwo", "@@ -1,0 +2 @@\n+added\n", "one\nadded\ntwo"),
-        (
-            "inserted eof without newline",
-            "one\ntwo\n",
-            "@@ -2,0 +3 @@\n+added\n\\ No newline at end of file\n",
-            "one\ntwo\nadded",
-        ),
-        (
-            "empty file without newline",
-            "",
-            "@@ -0,0 +1 @@\n+added\n\\ No newline at end of file\n",
-            "added",
-        ),
-    ] {
-        let patched = tempdir().unwrap();
-        let target = patched.path().join("file.txt");
-        fs::write(&target, original).unwrap();
-        let patch_dir = tempdir().unwrap();
-        let patch = write_patch(
-            patch_dir.path(),
-            &format!("diff --git a/file.txt b/file.txt\n--- a/file.txt\n+++ b/file.txt\n{hunk}"),
-        );
+fn applies_an_insertion_with_context_on_both_sides() {
+    assert_eq!(
+        applied_hunk("one\ntwo\n", "@@ -1,2 +1,3 @@\n one\n+added\n two\n"),
+        "one\nadded\ntwo\n"
+    );
+}
 
-        apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+#[test]
+fn applies_a_zero_context_insertion_at_the_start_of_the_file() {
+    assert_eq!(applied_hunk("one\ntwo\n", "@@ -0,0 +1 @@\n+added\n"), "added\none\ntwo\n");
+}
 
-        let after = fs::read(&target).unwrap();
-        eprintln!("{name}: {:?}", String::from_utf8_lossy(&after));
-        assert_eq!(after, expected.as_bytes(), "{name}");
-    }
+#[test]
+fn applies_a_zero_context_insertion_to_an_empty_file() {
+    assert_eq!(applied_hunk("", "@@ -0,0 +1 @@\n+added\n"), "added\n");
+}
+
+#[test]
+fn applies_a_zero_context_insertion_after_the_first_line() {
+    assert_eq!(applied_hunk("one\ntwo\n", "@@ -1,0 +2 @@\n+added\n"), "one\nadded\ntwo\n");
+}
+
+#[test]
+fn applies_a_multi_line_zero_context_insertion_in_the_middle_of_the_file() {
+    assert_eq!(
+        applied_hunk("one\ntwo\nthree\nfour\n", "@@ -2,0 +3,2 @@\n+first\n+second\n"),
+        "one\ntwo\nfirst\nsecond\nthree\nfour\n",
+    );
+}
+
+#[test]
+fn applies_a_zero_context_insertion_at_the_end_of_the_file() {
+    assert_eq!(applied_hunk("one\ntwo\n", "@@ -2,0 +3 @@\n+added\n"), "one\ntwo\nadded\n");
+}
+
+#[test]
+fn applies_a_zero_context_insertion_to_a_crlf_file() {
+    assert_eq!(applied_hunk("one\r\ntwo\r\n", "@@ -1,0 +2 @@\n+added\n"), "one\r\nadded\ntwo\r\n");
+}
+
+#[test]
+fn applies_a_zero_context_insertion_to_a_file_without_a_final_newline() {
+    assert_eq!(applied_hunk("one\ntwo", "@@ -1,0 +2 @@\n+added\n"), "one\nadded\ntwo");
+}
+
+#[test]
+fn applies_a_zero_context_insertion_that_ends_the_file_without_a_newline() {
+    assert_eq!(
+        applied_hunk("one\ntwo\n", "@@ -2,0 +3 @@\n+added\n\\ No newline at end of file\n"),
+        "one\ntwo\nadded",
+    );
+}
+
+#[test]
+fn applies_a_zero_context_insertion_without_a_newline_to_an_empty_file() {
+    assert_eq!(applied_hunk("", "@@ -0,0 +1 @@\n+added\n\\ No newline at end of file\n"), "added");
 }
 
 #[test]
