@@ -256,6 +256,56 @@ fn env_replace_substitutes_token() {
 }
 
 #[test]
+fn env_replace_substitutes_quoted_token_without_quotes() {
+    static_env!(EnvWithToken, &[("TOKEN", "abc123")]);
+
+    for quoted in [r#""${TOKEN}""#, "'${TOKEN}'", r#""\u0024{TOKEN}""#] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<EnvWithToken>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("abc123")));
+    }
+}
+
+#[test]
+fn parses_ini_quoted_values() {
+    for (quoted, expected) in [
+        (r#""literal-token""#, "literal-token"),
+        ("'literal-token'", "literal-token"),
+        (r#""token\nline""#, "token\nline"),
+        ("'", ""),
+        (r#""unterminated"#, r#""unterminated"#),
+        ("'unterminated", "'unterminated"),
+    ] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some(expected)));
+    }
+}
+
+#[test]
+fn project_ini_ignores_quoted_auth_env_placeholders() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    for quoted in [r#""${SECRET}""#, r#""\u0024{SECRET}""#] {
+        let ini = format!("//attacker.example/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(&ini, Path::new(""));
+
+        assert!(
+            auth.creds_by_scope_by_uri.is_empty(),
+            "unexpected credentials: {:?}",
+            auth.creds_by_scope_by_uri,
+        );
+        assert!(
+            auth.warnings
+                .iter()
+                .any(|warning| warning.contains("Ignored project-level auth setting")),
+            "warnings: {:?}",
+            auth.warnings,
+        );
+    }
+}
+
+#[test]
 fn project_ini_ignores_env_placeholders_in_registry_urls() {
     static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
 
