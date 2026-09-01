@@ -556,11 +556,11 @@ fn global_add_materializes_transitive_optional_dependencies() {
 }
 
 /// `pnpm setup` installs the standalone executable through this exact
-/// command shape. The local directory's package name must be inferred
-/// without treating the `file:` selector as a registry package.
+/// command shape. Its package files include the bundled node-gyp payload,
+/// while its lifecycle scripts must remain disabled.
 #[cfg(unix)]
 #[test]
-fn global_add_accepts_ignore_scripts_for_local_directory() {
+fn global_add_installs_standalone_package_files_without_scripts() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -571,9 +571,12 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
     let package_dir = tempfile::tempdir_in(target_dir).expect("create local package");
     fs::write(
         package_dir.path().join("package.json"),
-        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "scripts": { "install": "exit 1" } }"#,
+        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "files": ["dist/"], "scripts": { "install": "exit 1" } }"#,
     )
     .expect("write local package manifest");
+    let bundled_node_gyp = package_dir.path().join("dist/node_modules/node-gyp/bin/node-gyp.js");
+    fs::create_dir_all(bundled_node_gyp.parent().unwrap()).expect("create bundled node-gyp dir");
+    fs::write(&bundled_node_gyp, "").expect("write bundled node-gyp");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
     // Pin a per-test store/cache so `add -g` cannot read from or write to the
     // developer/CI machine's default global store. The global install anchors
@@ -603,6 +606,16 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
         .with_arg(format!("file:{}", package_dir.path().display()))
         .assert()
         .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one global package group should be installed");
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read group symlink"));
+    assert!(
+        install_dir
+            .join("node_modules/@pnpm/exe/dist/node_modules/node-gyp/bin/node-gyp.js")
+            .exists(),
+        "the standalone package's bundled node-gyp must be installed",
+    );
 
     drop(root);
 }

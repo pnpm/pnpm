@@ -158,6 +158,7 @@ fn standalone_manifest(exec_name: &str) -> serde_json::Value {
         "version": PNPM_VERSION,
         "type": "module",
         "bin": { "pnpm": exec_name, "pn": exec_name },
+        "files": [exec_name, "dist/"],
     })
 }
 

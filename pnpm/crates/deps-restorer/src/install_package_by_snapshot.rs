@@ -544,13 +544,11 @@ impl InstallPackageBySnapshot<'_> {
                 // source paths into the slot / hoisted directory just
                 // like they would from a CAS-resident entry.
                 //
-                // `include_only_package_files = false` /
-                // `resolve_symlinks = false` are the defaults.
-                // Wiring those through pacquet's config surface is a
-                // follow-up; see the `resolveSymlinksInInjectedDirs`
-                // / `includeOnlyPackageFiles` plumbing tracked in the
-                // directory-fetcher PR description.
-                fetch_directory_resolution(workspace_root, dir_resolution)?
+                fetch_directory_resolution(
+                    workspace_root,
+                    dir_resolution,
+                    !config.deploy_all_files,
+                )?
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -718,11 +716,12 @@ impl InstallPackageBySnapshot<'_> {
 fn fetch_directory_resolution(
     workspace_root: &Path,
     dir_resolution: &DirectoryResolution,
+    include_only_package_files: bool,
 ) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
     let directory = lexical_normalize(&workspace_root.join(&dir_resolution.directory));
     let output = pnpm_directory_fetcher::DirectoryFetcher {
         directory,
-        include_only_package_files: false,
+        include_only_package_files,
         resolve_symlinks: false,
         allow_path_escape: false,
     }

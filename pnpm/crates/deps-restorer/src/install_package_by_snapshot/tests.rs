@@ -288,6 +288,7 @@ fn directory_resolution_rejects_symlink_escape() {
     let err = fetch_directory_resolution(
         &workspace,
         &DirectoryResolution { directory: "packages/dep".to_string() },
+        false,
     )
     .expect_err("outside symlink should be rejected");
 
