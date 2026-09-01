@@ -28,10 +28,11 @@ use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
 /// Entry count from which a map's independent per-entry work (deep key
-/// sorting, block rendering) fans out across the rayon pool. Small maps
-/// stay serial — the fan-out has fixed cost, and only the
-/// thousands-of-entries `importers:` / `packages:` / `snapshots:`
-/// sections of a large workspace repay it.
+/// sorting, block rendering) fans out across the rayon pool. In
+/// practice only a workspace's `importers:` / `packages:` /
+/// `snapshots:` sections grow past this; the small maps nested inside
+/// every package entry stay serial, where the fan-out's fixed cost
+/// would dominate.
 const PARALLEL_ENTRY_THRESHOLD: usize = 64;
 
 /// Keys whose collection value always renders on a single line (flow style).
