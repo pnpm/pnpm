@@ -54,13 +54,7 @@ check:
 
 # Run all the tests.
 test:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  # Tests opt into CI-sensitive pnpm defaults explicitly and must not read a
-  # contributor's global registry credentials.
-  test_config_dir="$(mktemp -d)"
-  trap 'rm -rf "$test_config_dir"' EXIT
-  env PNPM_CONFIG_CI=false XDG_CONFIG_HOME="$test_config_dir" cargo nextest run
+  node pnpm/scripts/run-rust-tests.mjs
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
@@ -76,8 +70,7 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
-  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
+  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
