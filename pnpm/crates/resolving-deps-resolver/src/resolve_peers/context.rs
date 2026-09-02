@@ -9,7 +9,7 @@ use crate::{
 };
 use node_semver::{Range, Version};
 use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pnpm_resolving_resolver_base::ResolveResult;
+use pnpm_resolving_resolver_base::{ResolveResult, get_peer_version_range};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     path::{Path, PathBuf},
@@ -592,16 +592,28 @@ fn peer_segment_name(segment: &str) -> Option<&str> {
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
+    let parsed_range = Range::parse(range).ok();
+    satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
+}
+
+/// [`satisfies_with_prereleases`] against a range that is already
+/// parsed. `parsed_range` must be `Range::parse(range).ok()`;
+/// [`ComparablePeerRange`] is what keeps the two in step.
+fn satisfies_with_parsed_prereleases(
+    version: &str,
+    range: &str,
+    parsed_range: Option<&Range>,
+) -> bool {
     if range == "*" {
         return true;
     }
     let Ok(parsed_version) = Version::parse(version) else {
         return version == range;
     };
-    let Ok(parsed_range) = Range::parse(range) else {
+    let Some(parsed_range) = parsed_range else {
         return version == range;
     };
-    if parsed_version.satisfies(&parsed_range) {
+    if parsed_version.satisfies(parsed_range) {
         return true;
     }
     if !parsed_version.is_prerelease() {
@@ -614,7 +626,31 @@ pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
         pre_release: Vec::new(),
         build: Vec::new(),
     };
-    base.satisfies(&parsed_range)
+    base.satisfies(parsed_range)
+}
+
+/// A peer range in the comparable form [`get_peer_version_range`]
+/// yields, paired with its parsed form so a range that many nodes
+/// declare is parsed once. Holding the two together is what keeps the
+/// parsed range in step with the text it came from.
+pub(super) struct ComparablePeerRange {
+    /// The comparable range, as peer-dependency issues quote it.
+    pub(super) text: String,
+    parsed: Option<Range>,
+}
+
+impl ComparablePeerRange {
+    pub(super) fn new(raw_range: &str) -> Self {
+        let text = get_peer_version_range(raw_range);
+        let parsed = Range::parse(&text).ok();
+        ComparablePeerRange { text, parsed }
+    }
+
+    /// Whether `version` satisfies this range, by
+    /// [`satisfies_with_prereleases`]'s rules.
+    pub(super) fn satisfies(&self, version: &str) -> bool {
+        satisfies_with_parsed_prereleases(version, &self.text, self.parsed.as_ref())
+    }
 }
 
 #[cfg(test)]
