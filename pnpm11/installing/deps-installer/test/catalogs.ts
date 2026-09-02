@@ -1492,15 +1492,19 @@ describe('add', () => {
       dependencies: {},
     }])
     const projectDir = path.join(options.lockfileDir, 'project1')
-    fs.mkdirSync(path.join(projectDir, 'local-pkg'), { recursive: true })
-    fs.writeFileSync(
-      path.join(projectDir, 'local-pkg/package.json'),
-      JSON.stringify({ name: 'local-pkg', version: '1.0.0' })
-    )
+    for (const name of ['bare-pkg', 'file-pkg']) {
+      fs.mkdirSync(path.join(projectDir, name), { recursive: true })
+      fs.writeFileSync(
+        path.join(projectDir, name, 'package.json'),
+        JSON.stringify({ name, version: '1.0.0' })
+      )
+    }
 
+    // The bare path and the explicit `file:` protocol take different branches
+    // of the shape test, so both are pinned here.
     const { updatedManifest } = await addDependenciesToPackage(
       projects['project1' as ProjectId],
-      ['./local-pkg'],
+      ['./bare-pkg', 'file:./file-pkg'],
       {
         ...options,
         dir: projectDir,
@@ -1518,7 +1522,8 @@ describe('add', () => {
     expect(updatedManifest).toEqual({
       name: 'project1',
       dependencies: {
-        'local-pkg': 'link:local-pkg',
+        'bare-pkg': 'link:bare-pkg',
+        'file-pkg': 'file:file-pkg',
       },
     })
     expect(readLockfile().catalogs).toBeUndefined()

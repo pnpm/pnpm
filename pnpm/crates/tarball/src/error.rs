@@ -2,6 +2,7 @@
 
 use derive_more::{Display, Error, From};
 use miette::Diagnostic;
+use pnpm_network::redact_url_for_display;
 use pnpm_store_dir::{StoreIndexError, WriteCasFileError};
 use std::{error::Error as StdError, io, path::PathBuf};
 use zune_inflate::errors::InflateDecodeErrors;
@@ -36,8 +37,14 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
     out
 }
 
+/// Every URL below is rendered through [`redact_url_for_display`]: a
+/// tarball URL can carry inline `user:pass@` credentials — typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest — and an
+/// error message ends up in terminal scrollback and CI logs. The field
+/// keeps the URL the request actually used; only the rendering is
+/// redacted.
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to fetch {url}: {}", walk_reqwest_chain(error))]
+#[display("Failed to fetch {}: {}", redact_url_for_display(url), walk_reqwest_chain(error))]
 pub struct NetworkError {
     pub url: String,
     /// Marked `#[error(source)]` so miette can also walk the chain on
@@ -49,14 +56,14 @@ pub struct NetworkError {
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Tarball server returned HTTP {status} for {url}")]
+#[display("Tarball server returned HTTP {status} for {}", redact_url_for_display(url))]
 pub struct HttpStatusError {
     pub url: String,
     pub status: u16,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to verify the integrity of {url}: {error}")]
+#[display("Failed to verify the integrity of {}: {error}", redact_url_for_display(url))]
 pub struct VerifyChecksumError {
     pub url: String,
     #[error(source)]
@@ -85,7 +92,8 @@ pub enum TarballError {
     /// configured.
     #[from(ignore)]
     #[display(
-        "{url} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream"
+        "{} is not allowed by this pnpr server; the operator must declare its registry as a public route or an upstream",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_REGISTRY_OFF_ALLOWLIST))]
     OffAllowlist {
@@ -153,7 +161,8 @@ pub enum TarballError {
 
     #[from(ignore)]
     #[display(
-        "Archive at {url} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)"
+        "Archive at {} advertised a Content-Length of {advertised_size} bytes, which exceeds what pnpm can allocate (either larger than `usize::MAX` on this target or memory pressure prevented a one-shot reservation)",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_TARBALL_TOO_LARGE))]
     TarballTooLarge { url: String, advertised_size: u64 },
@@ -166,7 +175,8 @@ pub enum TarballError {
     /// owner (it can't be cloned past `reqwest::Error`).
     #[from(ignore)]
     #[display(
-        "A concurrent fetch for {url} failed; this request waited on the shared mem cache and inherits the failure"
+        "A concurrent fetch for {} failed; this request waited on the shared mem cache and inherits the failure",
+        redact_url_for_display(url)
     )]
     #[diagnostic(code(ERR_PNPM_TARBALL_SIBLING_FETCH_FAILED))]
     SiblingFetchFailed { url: String },
@@ -176,7 +186,10 @@ pub enum TarballError {
     /// or whose normalized form would land outside the target
     /// directory is rejected before any bytes are written to the CAS.
     #[from(ignore)]
-    #[display("Refusing to extract zip entry {entry_path:?} from {url} — {reason}")]
+    #[display(
+        "Refusing to extract zip entry {entry_path:?} from {} — {reason}",
+        redact_url_for_display(url)
+    )]
     #[diagnostic(code(ERR_PNPM_PATH_TRAVERSAL))]
     PathTraversal { url: String, entry_path: String, reason: &'static str },
 
@@ -184,7 +197,7 @@ pub enum TarballError {
     /// crate error verbatim; pacquet does not interpret the failure
     /// mode beyond surfacing the entry path that triggered it.
     #[from(ignore)]
-    #[display("Failed to read zip archive {url}: {source}")]
+    #[display("Failed to read zip archive {}: {source}", redact_url_for_display(url))]
     #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP))]
     ReadZipArchive {
         url: String,
@@ -203,7 +216,10 @@ pub enum TarballError {
     /// the retry-classification path emits `ERR_PNPM_ZIP`
     /// rather than the tar-specific `ERR_PNPM_TARBALL_TAR`.
     #[from(ignore)]
-    #[display("Failed to read zip entry {entry_path:?} from {url}: {source}")]
+    #[display(
+        "Failed to read zip entry {entry_path:?} from {}: {source}",
+        redact_url_for_display(url)
+    )]
     #[diagnostic(code(ERR_PNPM_TARBALL_READ_ZIP_ENTRY))]
     ReadZipEntries {
         url: String,

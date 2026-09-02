@@ -5404,3 +5404,22 @@ fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
 
     drop(tempdir);
 }
+
+/// A tarball URL can carry inline `user:pass@` credentials — typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest — and every
+/// error rendering the URL lands in terminal scrollback and CI logs.
+#[test]
+fn url_bearing_errors_redact_inline_credentials() {
+    let url = "https://alice:hunter2@example.com/pkg.tgz".to_string();
+    let rendered = [
+        TarballError::HttpStatus(HttpStatusError { url: url.clone(), status: 404 }).to_string(),
+        TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX }.to_string(),
+        TarballError::SiblingFetchFailed { url: url.clone() }.to_string(),
+        TarballError::OffAllowlist { url }.to_string(),
+    ];
+    for message in rendered {
+        eprintln!("MESSAGE: {message}");
+        assert!(!message.contains("hunter2"), "the password must not be rendered: {message}");
+        assert!(message.contains("example.com/pkg.tgz"), "the host must survive: {message}");
+    }
+}

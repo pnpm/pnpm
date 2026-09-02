@@ -39,6 +39,7 @@ import {
   type DependenciesGraph,
   type DependenciesGraphNode,
   getWantedDependencies,
+  isWorkspaceLocalPathSpecifier,
   type RangeSpecStyle,
   resolveDependencies,
   type UpdateMatchingFunction,
@@ -342,6 +343,22 @@ const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
     found.resolution.specifier,
   misconfiguration: () => undefined,
   unused: () => undefined,
+}
+
+/**
+ * Whether `specifier` names a path resolved against the project that declares
+ * it — a `file:` / `link:` protocol, a bare path or tarball filename, or a
+ * `workspace:` pointing at a directory rather than a range.
+ *
+ * A catalog entry is read by every project that references it, so it cannot
+ * mean the same directory for all of them. `resolveFromCatalog` already
+ * refuses a `link:` / `file:` entry outright
+ * (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
+ * which is worse — every consumer silently resolves the relative path from its
+ * own directory. Auto-cataloging leaves all of them alone.
+ */
+function isProjectRelativePath (specifier: string): boolean {
+  return isLocalFilesystemSpecifier(specifier) || isWorkspaceLocalPathSpecifier(specifier)
 }
 
 export async function mutateModules (
@@ -1186,11 +1203,7 @@ export async function mutateModules (
           // Promoting it into a catalog rewrites the entry to `catalog:`, which
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
-          // A local path resolves against the project that declares it, so a
-          // catalog entry — shared by every project referencing it — cannot
-          // hold one. Cataloging it writes an entry the next install rejects
-          // with ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC.
-          if (wantedDep.bareSpecifier != null && isLocalFilesystemSpecifier(wantedDep.bareSpecifier)) continue
+          if (wantedDep.bareSpecifier != null && isProjectRelativePath(wantedDep.bareSpecifier)) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })

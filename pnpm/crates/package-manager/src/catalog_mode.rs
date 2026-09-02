@@ -10,6 +10,7 @@
 //!   rewritten to `catalog:` / `catalog:<name>` and, when no entry
 //!   exists yet, recorded for write-back to `pnpm-workspace.yaml`.
 
+use crate::is_workspace_local_path_specifier;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
@@ -115,12 +116,7 @@ pub(crate) fn decide_catalog_outcome(
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
-    // A local path resolves against the project that declares it, while a
-    // catalog entry is read by every project referencing it, so the two
-    // cannot name the same directory. `resolve_from_catalog` refuses such an
-    // entry (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`), so cataloging one writes
-    // an entry the next install rejects. Skip it, matching pnpm.
-    if is_local_filesystem_specifier(dep.bare_specifier) {
+    if is_project_relative_path(dep.bare_specifier) {
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 
@@ -195,6 +191,20 @@ pub(crate) fn decide_catalog_outcome(
             Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None })
         }
     }
+}
+
+/// Whether `specifier` names a path resolved against the project that
+/// declares it — a `file:` / `link:` protocol, a bare path or tarball
+/// filename, or a `workspace:` pointing at a directory rather than a range.
+///
+/// A catalog entry is read by every project that references it, so it
+/// cannot mean the same directory for all of them. The catalog resolver
+/// already refuses a `link:` / `file:` entry outright
+/// (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
+/// which is worse — every consumer silently resolves the relative path from
+/// its own directory. Auto-cataloging leaves all of them alone.
+fn is_project_relative_path(specifier: &str) -> bool {
+    is_local_filesystem_specifier(specifier) || is_workspace_local_path_specifier(specifier)
 }
 
 /// Whether the catalog entry already covers the wanted specifier, so the
