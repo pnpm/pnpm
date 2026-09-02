@@ -252,6 +252,7 @@ struct LinkedPackagePeers<'a> {
     importer: &'a ProjectSnapshot,
     linked_importer: Option<&'a ProjectSnapshot>,
     importer_dir: &'a Path,
+    linked_importer_dir: &'a Path,
     lockfile_dir: &'a Path,
     manifest: &'a PackageManifest,
     alias: &'a str,
@@ -267,6 +268,7 @@ fn check_linked_package_peers(
         importer,
         linked_importer,
         importer_dir,
+        linked_importer_dir,
         lockfile_dir,
         manifest,
         alias,
@@ -296,12 +298,16 @@ fn check_linked_package_peers(
             .unwrap_or(false);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let resolved_ref = project_dependency(importer, &peer_pkg_name).or_else(|| {
-            linked_importer.and_then(|importer| project_dependency(importer, &peer_pkg_name))
-        });
+        let resolved_ref = project_dependency(importer, &peer_pkg_name)
+            .map(|spec| (spec, importer_dir))
+            .or_else(|| {
+                linked_importer
+                    .and_then(|importer| project_dependency(importer, &peer_pkg_name))
+                    .map(|spec| (spec, linked_importer_dir))
+            });
 
         match resolved_ref {
-            Some(spec) => {
+            Some((spec, dependency_dir)) => {
                 if let Some(ver_peer) = spec.version.ver_peer() {
                     let version_str = ver_peer.version().to_string();
                     if !satisfies(&version_str, &peer_range) {
@@ -315,7 +321,7 @@ fn check_linked_package_peers(
                     }
                 } else if let Some(link_target) = spec.version.as_link_target() {
                     let found_version =
-                        resolve_link_version(importer_dir, lockfile_dir, link_target)
+                        resolve_link_version(dependency_dir, lockfile_dir, link_target)
                             .unwrap_or_else(|| format!("link:{link_target}"));
                     if !satisfies(&found_version, &peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
@@ -426,6 +432,7 @@ fn collect_initial_keys(
                         importer,
                         linked_importer,
                         importer_dir: &importer_dir,
+                        linked_importer_dir: &linked_dir,
                         lockfile_dir: context.lockfile_dir,
                         manifest: linked_manifest,
                         alias: &alias.to_string(),

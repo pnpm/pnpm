@@ -393,6 +393,61 @@ fn auto_installed_peer_of_linked_workspace_package_is_not_reported_missing() {
 }
 
 #[test]
+fn auto_installed_workspace_peer_is_resolved_from_the_linked_importer() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages:\n  - packages/**\nstrictPeerDependencies: true\nautoInstallPeers: true\nlinkWorkspacePackages: true\n",
+    )
+    .expect("write workspace manifest");
+    fs::write(workspace.join("package.json"), r#"{ "name": "root", "private": true }"#)
+        .expect("write root manifest");
+
+    let peer = workspace.join("packages/peers/foo");
+    fs::create_dir_all(&peer).expect("create the peer project");
+    fs::write(peer.join("package.json"), r#"{ "name": "@pnpm.e2e/foo", "version": "1.0.0" }"#)
+        .expect("write the peer manifest");
+
+    let lib = workspace.join("packages/lib");
+    fs::create_dir_all(&lib).expect("create the linked project");
+    fs::write(
+        lib.join("package.json"),
+        serde_json::json!({
+            "name": "lib",
+            "version": "1.0.0",
+            "peerDependencies": { "@pnpm.e2e/foo": "1.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write the linked manifest");
+
+    let app = workspace.join("packages/apps/app");
+    fs::create_dir_all(&app).expect("create the consuming project");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({
+            "name": "app",
+            "version": "1.0.0",
+            "dependencies": { "lib": "workspace:*" },
+        })
+        .to_string(),
+    )
+    .expect("write the consuming manifest");
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let lockfile = _utils::read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    assert_eq!(
+        _utils::importer_version(&lockfile, "packages/lib", "@pnpm.e2e/foo"),
+        "link:../peers/foo",
+    );
+    let _ = run_peers(&workspace, &["peers", "check", "--lockfile-only", "--json"]);
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn catalog_peer_of_a_linked_workspace_package_is_resolved() {
     assert_catalog_peer_of_workspace_package_is_resolved(false);
 }
