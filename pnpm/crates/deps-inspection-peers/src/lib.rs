@@ -224,20 +224,27 @@ pub fn check_peer_dependencies_of_importers(
     Ok(result)
 }
 
-fn canonical_path_within(path: &Path, base: &Path) -> Option<PathBuf> {
+struct CanonicalPathWithin {
+    path: PathBuf,
+    base: PathBuf,
+}
+
+fn canonical_path_within(path: &Path, base: &Path) -> Option<CanonicalPathWithin> {
     let (Ok(canonical_path), Ok(canonical_base)) =
         (dunce::canonicalize(path), dunce::canonicalize(base))
     else {
         return None;
     };
-    canonical_path.starts_with(&canonical_base).then_some(canonical_path)
+    canonical_path
+        .starts_with(&canonical_base)
+        .then_some(CanonicalPathWithin { path: canonical_path, base: canonical_base })
 }
 
 /// `base_dir` is the directory the `link:` target is relative to — the
 /// importer's directory for importer dependencies, the lockfile directory for
 /// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
 fn resolve_link_version(base_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<String> {
-    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?;
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?.path;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
 }
@@ -408,7 +415,7 @@ fn collect_initial_keys(
                 // dependency: the version, the peer check, and the
                 // recursion all need the same two answers, and this walk
                 // now runs on the install path.
-                let Some(linked_dir) =
+                let Some(CanonicalPathWithin { path: linked_dir, base: canonical_lockfile_dir }) =
                     canonical_path_within(&importer_dir.join(link_target), context.lockfile_dir)
                 else {
                     continue;
@@ -424,7 +431,7 @@ fn collect_initial_keys(
                     .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
 
                 let linked_importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(context.lockfile_dir, &linked_dir);
+                    pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &linked_dir);
                 let linked_importer = context.lockfile.importers.get(&linked_importer_id);
 
                 if let Some(linked_manifest) = &linked_manifest {

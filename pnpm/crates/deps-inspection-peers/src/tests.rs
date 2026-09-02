@@ -544,3 +544,21 @@ fn test_path_is_within() {
     let absolute_outside = std::path::Path::new("/etc");
     assert!(canonical_path_within(absolute_outside, base).is_none());
 }
+
+#[cfg(unix)]
+#[test]
+fn canonical_containment_keeps_the_root_used_for_importer_ids() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    let project = real_root.join("packages/lib");
+    std::fs::create_dir_all(&project).unwrap();
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+    let canonical = canonical_path_within(&linked_root.join("packages/lib"), &linked_root).unwrap();
+
+    assert_eq!(
+        pnpm_workspace::importer_id_from_root_dir(&canonical.base, &canonical.path),
+        "packages/lib",
+    );
+}
