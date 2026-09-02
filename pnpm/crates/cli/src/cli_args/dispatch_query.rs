@@ -10,7 +10,7 @@ use super::{
     clean::CleanArgs,
     config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
-    dispatch::{CommandFuture, RunCtx},
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
     doctor::{DoctorArgs, DoctorOutcome},
@@ -51,8 +51,9 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use crate::config_deps::prepare_config;
+use crate::{State, config_deps::prepare_config};
 use clap::CommandFactory;
+use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
@@ -88,26 +89,30 @@ pub(super) fn outdated<'a>(
             Ok(())
         }));
     }
-    let command_state = (ctx.state)(false)?;
-    macro_rules! run_outdated {
-        ($reporter:ty) => {
-            Box::pin(async move {
-                if args.run::<$reporter>(command_state).await? == OutdatedOutcome::Outdated {
-                    #[expect(
-                        clippy::exit,
-                        reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-                    )]
-                    std::process::exit(1);
-                }
-                Ok(())
-            })
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path.to_path_buf();
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let command_state =
+            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        let outcome = match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(command_state).await?
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await?,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await?,
         };
-    }
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => run_outdated!(DefaultReporter),
-        ReporterType::Ndjson => run_outdated!(NdjsonReporter),
-        ReporterType::Silent => run_outdated!(SilentReporter),
-    })
+        if outcome == OutdatedOutcome::Outdated {
+            #[expect(
+                clippy::exit,
+                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
+        Ok(())
+    }))
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
