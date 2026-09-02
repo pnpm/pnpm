@@ -32,6 +32,13 @@ fn shim_command(root: &TempDir, cwd: &Path, name: &str, target: &str) -> Command
 fn install_shim(global_bin: &Path, name: &str, target: &[u8]) -> std::path::PathBuf {
     let shim = global_bin.join(format!("{name}{}", std::env::consts::EXE_SUFFIX));
     fs::create_dir_all(global_bin).unwrap();
+    // A slot holding an earlier hard link of the executable must be cleared
+    // rather than copied over: the copy would truncate the executable itself.
+    match fs::remove_file(&shim) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => panic!("clear the shim slot at {}: {error}", shim.display()),
+    }
     let executable = assert_cmd::cargo::cargo_bin("pnpm");
     fs::hard_link(&executable, &shim)
         .or_else(|_| fs::copy(&executable, &shim).map(|_| ()))
