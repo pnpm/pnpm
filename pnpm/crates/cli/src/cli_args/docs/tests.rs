@@ -1,7 +1,8 @@
 use pnpm_config::Config;
+use pnpm_registry::PackageVersion;
 use serde_json::json;
 
-use super::{DocsArgs, is_http_url};
+use super::{DocsArgs, documentation_url_from_manifest, is_http_url};
 use crate::cli_args::view::ViewError;
 
 fn packument() -> String {
@@ -77,6 +78,40 @@ async fn requested_version_uses_its_homepage() {
 
     mock.assert_async().await;
     assert_eq!(url, "https://v1.example/docs");
+}
+
+#[tokio::test]
+async fn unversioned_spec_uses_the_latest_tag_homepage() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/is-negative")
+        .with_status(200)
+        .with_body(packument())
+        .create_async()
+        .await;
+    let args = DocsArgs { package: "is-negative".to_string() };
+
+    let url =
+        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+
+    mock.assert_async().await;
+    assert_eq!(url, "https://v2.example/docs");
+}
+
+#[test]
+fn manifest_without_http_homepage_falls_back_to_npmx() {
+    let manifest: PackageVersion = serde_json::from_value(json!({
+        "name": "@scope/is-negative",
+        "version": "1.0.0",
+        "homepage": "git+ssh://git@example.com/docs.git",
+        "dist": { "tarball": "https://registry.example/is-negative-1.0.0.tgz" }
+    }))
+    .expect("manifest must deserialize");
+
+    assert_eq!(
+        documentation_url_from_manifest(&manifest),
+        "https://npmx.dev/package/@scope/is-negative",
+    );
 }
 
 #[tokio::test]
