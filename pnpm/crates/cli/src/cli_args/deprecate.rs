@@ -5,8 +5,8 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Range;
 use pnpm_config::Config;
 use pnpm_network::{
-    RetryOpts, ThrottledClient, encode_uri_component, read_limited_body, redact_url_credentials,
-    retry_async, send_with_retry,
+    LimitedBody, RetryOpts, ThrottledClient, encode_uri_component, read_limited_body,
+    redact_url_credentials, retry_async, send_with_retry,
 };
 use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -18,7 +18,7 @@ use std::{
 };
 
 const DEPRECATION_BODY_LIMIT: usize = 10 * 1024 * 1024;
-const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
+pub(crate) const DEPRECATION_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Args)]
 pub struct DeprecateArgs {
@@ -420,28 +420,33 @@ async fn put_package_meta(
     }
 
     let action = if is_deprecate { "deprecate" } else { "undeprecate" }.to_string();
-    write_error_from_response(response, action).await
+    Err(registry_write_error(response, action).await.into())
 }
 
-pub(crate) async fn write_error_from_response(
-    response: Response,
-    action: String,
-) -> miette::Result<()> {
+/// The error a failed registry write maps to, once its body is read.
+pub(crate) async fn registry_write_error(response: Response, action: String) -> DeprecateError {
     let status = response.status();
+    match read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await {
+        Ok(body) => write_error_for_status(status, &body, action),
+        Err(source) => registry_operation_failed("reading the registry error response", source),
+    }
+}
+
+/// The error a failed registry write with an already-read `body` maps to.
+pub(crate) fn write_error_for_status(
+    status: StatusCode,
+    body: &LimitedBody,
+    action: String,
+) -> DeprecateError {
     let status_text = status.canonical_reason().unwrap_or_default().to_string();
-    let body =
-        read_limited_body(response, DEPRECATION_ERROR_BODY_LIMIT).await.map_err(|source| {
-            registry_operation_error("reading the registry error response", source)
-        })?;
-    let body = sanitize::body_display_string(&body);
+    let body = sanitize::body_display_string(body);
     if status == StatusCode::UNAUTHORIZED {
-        return Err(DeprecateError::Unauthorized { action, body }.into());
+        return DeprecateError::Unauthorized { action, body };
     }
     if status == StatusCode::FORBIDDEN {
-        return Err(DeprecateError::Forbidden { action, body }.into());
+        return DeprecateError::Forbidden { action, body };
     }
-    Err(DeprecateError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
-        .into())
+    DeprecateError::RegistryWriteFailed { action, status: status.as_u16(), status_text, body }
 }
 
 pub(crate) fn registry_operation_error<ErrorType>(
@@ -451,11 +456,20 @@ pub(crate) fn registry_operation_error<ErrorType>(
 where
     ErrorType: std::fmt::Display,
 {
+    registry_operation_failed(operation, error).into()
+}
+
+pub(crate) fn registry_operation_failed<ErrorType>(
+    operation: &'static str,
+    error: ErrorType,
+) -> DeprecateError
+where
+    ErrorType: std::fmt::Display,
+{
     DeprecateError::RegistryOperationFailed {
         operation,
         reason: redact_url_credentials(&error.to_string()),
     }
-    .into()
 }
 
 pub(crate) fn registry_for_package(context: &DeprecateContext<'_>, package_name: &str) -> String {

@@ -1,5 +1,12 @@
+import readline from 'node:readline'
+
+import { input } from '@inquirer/prompts'
 import { types as allTypes } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
+import { globalInfo, globalWarn } from '@pnpm/logger'
+import type { CreateFetchFromRegistryOptions } from '@pnpm/network.fetch'
+import { createFetchFromRegistry } from '@pnpm/network.fetch'
+import type { OtpContext, WebAuthFetchOptions } from '@pnpm/network.web-auth'
 import npa from '@pnpm/npm-package-arg'
 import { pick } from 'ramda'
 
@@ -62,4 +69,24 @@ export async function readErrorBody (response: Response): Promise<string> {
     body += '(response body truncated)'
   }
   return body
+}
+
+export const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
+  method: 'GET',
+}
+
+// `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
+// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
+// but the web-auth retry fails in custom-network environments.
+export function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
+  return {
+    Date,
+    createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
+    enquirer: { input },
+    fetch: createFetchFromRegistry(opts),
+    globalInfo,
+    globalWarn,
+    process,
+    setTimeout,
+  }
 }

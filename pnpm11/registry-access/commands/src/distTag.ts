@@ -1,25 +1,16 @@
-import readline from 'node:readline'
-
-import { input } from '@inquirer/prompts'
 import { docsUrl } from '@pnpm/cli.utils'
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
 import { PnpmError } from '@pnpm/error'
-import { globalInfo, globalWarn } from '@pnpm/logger'
 import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
-import {
-  type OtpContext,
-  SyntheticOtpError,
-  type WebAuthFetchOptions,
-  withOtpHandling,
-} from '@pnpm/network.web-auth'
+import { SyntheticOtpError, withOtpHandling } from '@pnpm/network.web-auth'
 import npa from '@pnpm/npm-package-arg'
 import { setDistTag } from '@pnpm/registry-access.client'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
 
-import { parsePackageSpec, rcOptionsTypes } from './common.js'
+import { createOtpContext, parsePackageSpec, rcOptionsTypes, WEB_AUTH_FETCH_OPTIONS } from './common.js'
 
 export { rcOptionsTypes }
 
@@ -246,31 +237,13 @@ async function deleteDistTag ({
   const body = await response.text()
   const action = `remove dist-tag "${tag}" from`
   if (response.status === 401) {
-    throw parseAuthError(body, action)
+    throw SyntheticOtpError.fromUnauthorizedBody(body) ??
+      new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${body}`)
   }
   if (response.status === 403) {
     throw new PnpmError('FORBIDDEN', `You do not have permission to ${action} this package. ${body}`)
   }
   throw new PnpmError('REGISTRY_ERROR', `Failed to ${action} package: ${response.status} ${response.statusText}. ${body}`)
-}
-
-function parseAuthError (body: string, action: string): Error {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    parsed = undefined
-  }
-  if (parsed != null && typeof parsed === 'object' && 'authUrl' in parsed && 'doneUrl' in parsed) {
-    return new SyntheticOtpError({
-      authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : undefined,
-      doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
-    })
-  }
-  if (/one-time pass/i.test(body)) {
-    return new SyntheticOtpError(undefined)
-  }
-  return new PnpmError('UNAUTHORIZED', `You must be logged in to ${action} packages. ${body}`)
 }
 
 function getAuthHeaderForRegistry (
@@ -307,24 +280,4 @@ async function fetchDistTags (
   }
 
   return await response.json() as Record<string, string>
-}
-
-const WEB_AUTH_FETCH_OPTIONS: WebAuthFetchOptions = {
-  method: 'GET',
-}
-
-// `withOtpHandling` polls `doneUrl` through `context.fetch`, so it must inherit
-// the command's proxy/TLS/`configByUri` config — otherwise the write succeeds
-// but the web-auth retry fails in custom-network environments.
-function createOtpContext (opts: CreateFetchFromRegistryOptions): OtpContext {
-  return {
-    Date,
-    createReadlineInterface: readline.createInterface.bind(null, { input: process.stdin }),
-    enquirer: { input },
-    fetch: createFetchFromRegistry(opts),
-    globalInfo,
-    globalWarn,
-    process,
-    setTimeout,
-  }
 }
