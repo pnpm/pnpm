@@ -44,5 +44,6 @@ pub use prompt_browser_open::prompt_browser_open;
 pub use web_auth_timeout_error::WebAuthTimeoutError;
 pub use with_otp_handling::{
     OtpChallenge, OtpError, OtpErrorBody, OtpNonInteractiveError, OtpSecondChallengeError,
-    OtpSession, SyntheticOtpError, WithOtpError, with_otp_handling,
+    OtpSession, SyntheticOtpError, WithOtpError, otp_challenge_from_unauthorized_body,
+    with_otp_handling,
 };

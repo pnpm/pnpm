@@ -322,16 +322,25 @@ pub(super) fn unpublish<'a>(
     args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
+    async fn print_output<Reporter: pnpm_reporter::Reporter>(
+        args: UnpublishArgs,
+        cfg: &Config,
+    ) -> miette::Result<()> {
+        if let Some(output) = args.run::<Reporter>(cfg).await? {
             let output = super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
+            if !output.is_empty() {
+                println!("{output}");
             }
-            println!("{output}");
         }
         Ok(())
-    }))
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(print_output::<DefaultReporter>(args, cfg))
+        }
+        ReporterType::Ndjson => Box::pin(print_output::<NdjsonReporter>(args, cfg)),
+        ReporterType::Silent => Box::pin(print_output::<SilentReporter>(args, cfg)),
+    })
 }
 
 pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {

@@ -192,6 +192,26 @@ export class SyntheticOtpError extends Error implements OtpError {
     this.body = body
   }
 
+  /**
+   * The challenge a `401` response body carries, or `undefined` when the body
+   * is a plain authentication failure. A JSON body with both `authUrl` and
+   * `doneUrl` is the web-based flow; a body mentioning `one-time pass` (npm's
+   * classic wording) is a classic OTP challenge.
+   */
+  static fromUnauthorizedBody (body: string): SyntheticOtpError | undefined {
+    const parsed = tryParseJson(body)
+    if (parsed != null && typeof parsed === 'object' && 'authUrl' in parsed && 'doneUrl' in parsed) {
+      return new SyntheticOtpError({
+        authUrl: typeof parsed.authUrl === 'string' ? parsed.authUrl : undefined,
+        doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
+      })
+    }
+    if (body.toLowerCase().includes('one-time pass')) {
+      return new SyntheticOtpError(undefined)
+    }
+    return undefined
+  }
+
   static fromUnknownBody (globalWarn: OtpContext['globalWarn'], body: unknown): SyntheticOtpError {
     if (body == null || typeof body !== 'object') {
       return new SyntheticOtpError(undefined)
@@ -217,6 +237,14 @@ export class SyntheticOtpError extends Error implements OtpError {
     }
 
     return new SyntheticOtpError({ authUrl, doneUrl })
+  }
+}
+
+function tryParseJson (body: string): unknown {
+  try {
+    return JSON.parse(body)
+  } catch {
+    return undefined
   }
 }
 
