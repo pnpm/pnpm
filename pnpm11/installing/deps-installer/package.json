@@ -107,6 +107,7 @@
     "@pnpm/patching.config": "workspace:*",
     "@pnpm/pkg-manifest.utils": "workspace:*",
     "@pnpm/pnpr.client": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
     "@pnpm/resolving.parse-wanted-dependency": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.controller-types": "workspace:*",

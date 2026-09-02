@@ -762,3 +762,71 @@ fn saved_dependency_specifier(manifest: &PackageManifest, name: &str) -> Option<
         PackageManifest::from_path(manifest.path().to_path_buf()).expect("reread package.json");
     dependency_specifier(&saved, name).map(str::to_string)
 }
+
+/// A signed tarball URL carries its token in the query string, which
+/// `redact_and_sanitize` keeps — and `reqwest` echoes the request URL back
+/// in its own message, so the cause has to be scrubbed as well as the
+/// specifier.
+#[test]
+fn a_tarball_error_chain_drops_url_secrets() {
+    for url in [
+        "https://example.com/pkg.tgz?token=SIGNEDSECRET",
+        "https://alice:hunter2@example.com/pkg.tgz",
+        "https://alice:hunter2@example.com/pkg.tgz?token=SIGNEDSECRET#frag",
+        // The HEAD request follows redirects, so the URL a failure names
+        // need not be the one the command was given.
+        "https://storage.example.net/blob?X-Amz-Signature=SIGNEDSECRET",
+    ] {
+        // The shape `reqwest` renders for a transport failure, whose leaf
+        // frames carry the reason and whose first frame carries the URL.
+        let rendered = super::redacted_error_chain(&std::io::Error::other(format!(
+            "error sending request for url ({url}): tcp connect error",
+        )));
+        eprintln!("RENDERED: {rendered}");
+        assert!(!rendered.contains("SIGNEDSECRET"), "query token must not survive: {rendered}");
+        assert!(!rendered.contains("hunter2"), "password must not survive: {rendered}");
+        assert!(
+            rendered.contains("example") && rendered.contains("tcp connect error"),
+            "the host and the reason must survive: {rendered}",
+        );
+    }
+}
+
+/// A password containing `?` or `#` defeats the userinfo scan — it reads the
+/// `?` as the end of the authority and leaves `user:pa?ss@host` in place —
+/// so cutting the URL there would publish the password's prefix. Such a
+/// token fails closed rather than being shortened.
+#[test]
+fn a_url_whose_userinfo_survives_the_scan_is_hidden_entirely() {
+    for url in [
+        "https://alice:hunter2?x@example.com/pkg.tgz",
+        "https://alice:hunter2#x@example.com/pkg.tgz",
+    ] {
+        let rendered = super::redacted_error_chain(&std::io::Error::other(format!(
+            "error sending request for url ({url}): tcp connect error",
+        )));
+        eprintln!("RENDERED: {rendered}");
+        assert!(!rendered.contains("hunter"), "no part of the password may survive: {rendered}");
+        assert!(rendered.contains("[hidden]"), "the URL must fail closed: {rendered}");
+        assert!(rendered.contains("tcp connect error"), "the reason must survive: {rendered}");
+    }
+}
+
+/// A `://` that no scheme precedes is not a URL authority, and a message
+/// carrying no URL at all is passed through untouched.
+#[test]
+fn url_scrubbing_leaves_non_urls_alone() {
+    for text in ["no url here at all", "why? because", "see :// for the syntax"] {
+        assert_eq!(super::strip_url_query_and_fragment(text), text);
+    }
+}
+
+/// An `@` past the authority belongs to the path or query, and must not
+/// make an otherwise safe URL fail closed.
+#[test]
+fn url_scrubbing_keeps_a_path_that_contains_an_at_sign() {
+    assert_eq!(
+        super::strip_url_query_and_fragment("GET https://host/@scope%2fpkg?to=a@b: 403"),
+        "GET https://host/@scope%2fpkg: 403",
+    );
+}

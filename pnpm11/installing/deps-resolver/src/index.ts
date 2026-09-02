@@ -73,6 +73,7 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
 interface ProjectToLink {
