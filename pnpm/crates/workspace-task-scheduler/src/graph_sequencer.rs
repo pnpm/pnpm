@@ -1,3 +1,4 @@
+use rustc_hash::FxHashMap;
 use std::{
     collections::{HashMap, VecDeque},
     hash::Hash,
@@ -142,13 +143,16 @@ where
 /// Node ↔ index mapping: every hash lookup the sort needs happens once
 /// here, and the algorithm itself runs on plain indices.
 struct Interner<'graph, Node> {
-    index_of: HashMap<&'graph Node, usize>,
+    index_of: FxHashMap<&'graph Node, usize>,
     nodes: Vec<&'graph Node>,
 }
 
 impl<'graph, Node: Eq + Hash + Clone> Interner<'graph, Node> {
     fn with_capacity(capacity: usize) -> Self {
-        Interner { index_of: HashMap::with_capacity(capacity), nodes: Vec::with_capacity(capacity) }
+        Interner {
+            index_of: FxHashMap::with_capacity_and_hasher(capacity, rustc_hash::FxBuildHasher),
+            nodes: Vec::with_capacity(capacity),
+        }
     }
 
     fn intern(&mut self, node: &'graph Node) -> usize {

@@ -4473,6 +4473,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rmp-serde",
+ "rustc-hash 2.1.2",
  "same-file",
  "serde",
  "serde-saphyr",
@@ -5113,6 +5114,7 @@ dependencies = [
  "pnpm-package-manifest",
  "pnpm-resolving-resolver-base",
  "pretty_assertions",
+ "rayon",
  "serde_json",
  "tempfile",
 ]
@@ -5999,6 +6001,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-reporter",
  "pretty_assertions",
+ "rustc-hash 2.1.2",
  "serde",
  "serde_json",
  "tokio",

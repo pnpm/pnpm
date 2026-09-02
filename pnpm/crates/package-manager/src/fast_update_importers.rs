@@ -38,8 +38,11 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
 }
 
 /// Whether the importers' records diverge from the manifests, without
-/// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed,
-/// which the resolver reports.
+/// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed
+/// (which the resolver reports) or when a changed specifier is one
+/// [`apply_importers_update`] is certain to refuse — bailing here keeps
+/// the compose from cloning a workspace-scale lockfile it would then
+/// throw away.
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
     lockfile: &Lockfile,
     manifests: &'a [(String, &'manifest PackageManifest)],
@@ -65,20 +68,28 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
         manifest_dependencies.push((importer_id, *manifest, dependencies));
     }
     let stale: Vec<String> = if prune_stale_importers {
+        let manifest_ids: HashSet<&str> =
+            manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
         lockfile
             .importers
             .keys()
-            .filter(|importer_id| !manifests.iter().any(|(id, _)| id == *importer_id))
+            .filter(|importer_id| !manifest_ids.contains(importer_id.as_str()))
             .cloned()
             .collect()
     } else {
         Vec::new()
     };
-    if !stale.is_empty()
-        || manifest_dependencies.iter().any(|(importer_id, _, dependencies)| {
-            importer_diverges(lockfile, importer_id, dependencies)
-        })
-    {
+    let mut any_diverged = false;
+    for (importer_id, _, dependencies) in &manifest_dependencies {
+        match importer_divergence(lockfile, importer_id, dependencies) {
+            ImporterDivergence::Clean => {}
+            ImporterDivergence::Absorbable => any_diverged = true,
+            // Bail before the compose clones the whole lockfile: the
+            // apply would fail on this importer regardless.
+            ImporterDivergence::NeedsResolve => return Drift::Resolve,
+        }
+    }
+    if !stale.is_empty() || any_diverged {
         Drift::Absorb(ImportersPlan {
             manifest_dependencies,
             stale,
@@ -425,13 +436,25 @@ pub(crate) fn locked_version_resolution_would_pick(
 /// under another group, a dependency the manifest no longer declares, or
 /// a manifest entry the importer does not record (which the loop turns
 /// into a fallback).
-fn importer_diverges(
+enum ImporterDivergence {
+    Clean,
+    Absorbable,
+    /// A change [`apply_importers_update`] is certain to refuse, so the
+    /// compose can go to the resolver without cloning the lockfile.
+    NeedsResolve,
+}
+
+fn importer_divergence(
     lockfile: &Lockfile,
     importer_id: &str,
     manifest_dependencies: &ManifestDependencies<'_>,
-) -> bool {
+) -> ImporterDivergence {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return !manifest_dependencies.is_empty();
+        return if manifest_dependencies.is_empty() {
+            ImporterDivergence::Clean
+        } else {
+            ImporterDivergence::Absorbable
+        };
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),
@@ -442,13 +465,33 @@ fn importer_diverges(
     .flatten()
     .flat_map(HashMap::keys)
     .any(|alias| !manifest_dependencies.contains_key(alias));
-    recorded_but_undeclared
-        || manifest_dependencies.iter().any(|(alias, (specifier, target))| {
-            let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
-                return true;
-            };
-            dependency.specifier != *specifier || recorded_in != *target
-        })
+    let mut diverged = recorded_but_undeclared;
+    for (alias, (specifier, target)) in manifest_dependencies {
+        let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
+            diverged = true;
+            continue;
+        };
+        if dependency.specifier != *specifier {
+            // The same conditions [`apply_importers_update`] holds a
+            // changed specifier to before it consults the locked
+            // versions; a specifier they reject (a `workspace:` range
+            // above all) can only resolve.
+            if Range::parse(specifier).is_err()
+                || dependency
+                    .version
+                    .ver_peer()
+                    .and_then(|ver_peer| ver_peer.version_semver())
+                    .is_none()
+            {
+                return ImporterDivergence::NeedsResolve;
+            }
+            diverged = true;
+        }
+        if recorded_in != *target {
+            diverged = true;
+        }
+    }
+    if diverged { ImporterDivergence::Absorbable } else { ImporterDivergence::Clean }
 }
 
 fn importer_dependency<'a>(
