@@ -1,7 +1,7 @@
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::EnvLockfile;
+use pnpm_lockfile::{EnvLockfile, PackageKey};
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
@@ -106,17 +106,20 @@ fn update_config_catalog_applies_to_import() {
     let env_lockfile = EnvLockfile::read(&workspace)
         .expect("read env lockfile")
         .expect("env lockfile should be present");
-    assert!(
-        env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
-            .config_dependencies
-            .contains_key("@pnpm/plugin-pnpmfile"),
-        "env document must retain the config dependency pin",
-    );
+    let config_dependency = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .config_dependencies["@pnpm/plugin-pnpmfile"];
+    let config_dependency_key: PackageKey =
+        format!("@pnpm/plugin-pnpmfile@{}", config_dependency.version)
+            .parse()
+            .expect("parse config dependency package key");
     assert!(
         env_lockfile
             .packages
-            .values()
-            .any(|package| package.resolution.checkable_integrity().is_some()),
+            .get(&config_dependency_key)
+            .expect("config dependency package must be retained")
+            .resolution
+            .checkable_integrity()
+            .is_some(),
         "env document must retain the config dependency integrity",
     );
     assert!(
