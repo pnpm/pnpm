@@ -291,7 +291,7 @@ async fn discover(root: &Path) -> miette::Result<Vec<ActionReference>> {
         {
             let original_value = uses_value.value;
             let (value, comment) = split_uses_value(original_value);
-            if let Some(local) = value.strip_prefix("./") {
+            if let Some(local) = value.strip_prefix("./").or_else(|| value.strip_prefix("$/")) {
                 if let Some(candidate) =
                     resolve_local_reference(root, &canonical_root, local).await?
                 {

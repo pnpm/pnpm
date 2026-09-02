@@ -103,6 +103,37 @@ describe('GitHub Actions dependencies', () => {
     ])
   })
 
+  test('follows self-repository references to local composite actions', async () => {
+    const dir = await fixture({
+      '.github/workflows/ci.yml': `jobs:
+  test:
+    steps:
+      - uses: $/.github/actions/setup
+`,
+      '.github/actions/setup/action.yml': `runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v4.1.0
+`,
+    })
+
+    await expect(findOutdatedGitHubActions({
+      dir,
+      readRepoRefs: async () => repoRefs([
+        ['v4.1.0', 'a'.repeat(40)],
+        ['v4.2.0', 'b'.repeat(40)],
+      ]),
+    })).resolves.toEqual([
+      {
+        current: '4.1.0',
+        homepage: 'https://github.com/actions/checkout',
+        latest: '4.2.0',
+        name: 'actions/checkout',
+        wanted: '4.2.0',
+      },
+    ])
+  })
+
   test('builds homepages from the configured server URL', async () => {
     const dir = await fixture({
       '.github/workflows/ci.yml': `jobs:
