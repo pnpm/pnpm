@@ -619,17 +619,21 @@ pub(super) fn repo<'a>(ctx: &RunCtx<'a>, args: RepoArgs) -> miette::Result<Comma
     let cfg = (ctx.config)()?;
     let dir = ctx.dir;
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(async move { args.run::<DefaultReporter>(cfg, dir).await })
-        }
-        ReporterType::Ndjson => Box::pin(async move { args.run::<NdjsonReporter>(cfg, dir).await }),
-        ReporterType::Silent => Box::pin(async move { args.run::<SilentReporter>(cfg, dir).await }),
+        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
+        }),
+        ReporterType::Ndjson => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir).await
+        }),
+        ReporterType::Silent => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir).await
+        }),
     })
 }
 
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
-    Ok(Box::pin(async move { args.run(cfg).await }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
 }
 
 pub(super) fn with<'a>(ctx: &RunCtx<'a>, args: WithArgs) -> miette::Result<CommandFuture<'a>> {

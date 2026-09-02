@@ -121,8 +121,6 @@ windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
   "Win32_System_SystemInformation",
-  "Win32_UI_Shell",
-  "Win32_UI_WindowsAndMessaging",
 ] }
 
 [target.'cfg(unix)'.dependencies]

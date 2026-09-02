@@ -5,6 +5,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -21,7 +22,7 @@ pub struct RepoArgs {
 }
 
 impl RepoArgs {
-    pub async fn run<Rep: Reporter>(
+    pub async fn run<Sys: OpenUrlAndWait, Rep: Reporter>(
         self,
         config: &Config,
         dir: &std::path::Path,
@@ -59,7 +60,7 @@ impl RepoArgs {
             urls
         };
         for url in urls {
-            match open_url(&url) {
+            match Sys::open_url_and_wait(&url) {
                 Ok(()) => {}
                 Err(e) => {
                     let redacted = redact_url(&url);
@@ -385,42 +386,6 @@ fn try_extract_fragment(raw_url: &str) -> Option<String> {
     let (_, after_hash) = raw_url.split_once('#')?;
     let fragment = after_hash.split('?').next()?;
     if fragment.is_empty() { None } else { Some(fragment.to_string()) }
-}
-
-fn open_url(url: &str) -> std::io::Result<()> {
-    #[cfg(target_os = "linux")]
-    {
-        let status = std::process::Command::new("xdg-open").arg(url).status()?;
-        if status.success() { Ok(()) } else { Err(std::io::Error::other("xdg-open failed")) }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let status = std::process::Command::new("open").arg(url).status()?;
-        if status.success() { Ok(()) } else { Err(std::io::Error::other("open failed")) }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use std::ffi::OsStr;
-        use std::os::windows::ffi::OsStrExt;
-
-        let url_wide: Vec<u16> = OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
-
-        let result = unsafe {
-            windows_sys::Win32::UI::Shell::ShellExecuteW(
-                std::ptr::null_mut(),
-                std::ptr::null(),
-                url_wide.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-            )
-        };
-        if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"))
-    }
 }
 
 fn redact_url(url: &str) -> String {

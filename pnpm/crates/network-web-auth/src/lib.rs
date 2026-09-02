@@ -14,12 +14,12 @@
 //! browser opener — as a bag of closures on a `context` object. This crate
 //! ports that seam to pacquet's convention: one `self`-less capability
 //! trait per effect ([`Clock`], [`Sleep`], [`WebAuthFetch`], [`OpenUrl`],
-//! [`EnterKeyListener`], [`PromptOtp`], and the [`StdinIsTty`] /
-//! [`StdoutIsTty`] probes), composed as bounds on a single `Sys` type
-//! parameter, with the real OS behind [`Host`] and `fn`-bound unit-struct
-//! fakes in tests. User-facing messages flow through the `R: Reporter` seam
-//! on pacquet's `pnpm:global` channel rather than a capability, matching
-//! pnpm's `globalInfo` / `globalWarn`.
+//! [`OpenUrlAndWait`], [`EnterKeyListener`], [`PromptOtp`], and the
+//! [`StdinIsTty`] / [`StdoutIsTty`] probes), composed as bounds on a single
+//! `Sys` type parameter, with the real OS behind [`Host`] and `fn`-bound
+//! unit-struct fakes in tests. User-facing messages flow through the
+//! `R: Reporter` seam on pacquet's `pnpm:global` channel rather than a
+//! capability, matching pnpm's `globalInfo` / `globalWarn`.
 
 mod capabilities;
 mod format_auth_url_message;
@@ -31,8 +31,8 @@ mod web_auth_timeout_error;
 mod with_otp_handling;
 
 pub use capabilities::{
-    Clock, EnterKeyListener, Host, OpenUrl, PromptError, PromptOtp, Sleep, StdinIsTty, StdoutIsTty,
-    WebAuthFetch, WebAuthFetchError,
+    Clock, EnterKeyListener, Host, OpenUrl, OpenUrlAndWait, PromptError, PromptOtp, Sleep,
+    StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError,
 };
 pub use format_auth_url_message::{AuthUrlMessage, format_auth_url_message};
 pub use generate_qr_code::{GenerateQrCodeError, generate_qr_code};
