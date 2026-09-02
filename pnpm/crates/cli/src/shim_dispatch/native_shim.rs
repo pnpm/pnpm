@@ -12,15 +12,13 @@
 //! A legacy shim is a shell script carrying the marker line
 //! `# pnpm-shim-style=context-aware` and a `# cmd-shim-target=` trailer,
 //! dispatching through a `.pnpm-shim-v1` executable with
-//! `--shim <name> <shim> <target> -- <args...>`. Whenever shims are
-//! written or refreshed, every legacy shim in the bin dir is migrated into
-//! this shape and the `.pnpm-shim-v1` executable is removed. A self-update
-//! run by an earlier pnpm 12 puts this executable in the dispatcher's slot
-//! without touching the legacy shims that call it, so the executable also
-//! serves their `--shim` invocations and migrates the bin dir on the first
-//! one.
+//! `--shim <name> <shim> <target> -- <args...>`. An executable installed in
+//! that dispatcher slot continues to serve the protocol and migrates the bin
+//! directory before dispatching the target.
 
 use super::{dispatch_target, trusted_shim_settings};
+use crate::cli_args::global_bin_lock::try_acquire_global_bin_lock;
+use miette::{Context as _, IntoDiagnostic as _};
 use pnpm_cmd_shim::is_safe_bin_name;
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use std::{
@@ -260,28 +258,61 @@ fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
     Ok(target)
 }
 
-/// Serve a legacy shim's `--shim` invocation: `rest` is everything after
-/// the `--shim` flag. The bin dir is migrated first, so the shim that
-/// made this launch is native by the time the target runs; a migration
-/// that fails leaves the legacy shims in place and is reported, since the
-/// launch itself does not depend on it.
+/// Serve a legacy shim's `--shim` invocation. A valid invocation identifies a
+/// shim beside the executing dispatcher. Migration is best-effort and does not
+/// prevent dispatch.
 pub(super) fn dispatch_legacy_shim(rest: &[OsString]) -> i32 {
     let Some((name, shim, target, args)) = parse_legacy_shim_argv(rest) else {
-        eprintln!(
-            "pnpm: malformed --shim invocation. Usage: pnpm --shim <name> <shim> <target> -- [args...]",
-        );
+        report_shim_error(&miette::miette!(
+            "malformed --shim invocation. Usage: pnpm --shim <name> <shim> <target> -- [args...]",
+        ));
         return 1;
     };
-    let Some(bin_dir) = shim.parent().filter(|dir| !dir.as_os_str().is_empty()) else {
-        eprintln!("pnpm: the shim path {} has no directory", shim.display());
+    let Some(bin_dir) = executing_dispatcher_bin_dir(shim) else {
+        let shim_display = shim.display();
+        report_shim_error(&miette::miette!(
+            "the legacy shim path {} is not beside the executing dispatcher",
+            shim_display,
+        ));
         return 1;
     };
-    if let Err(error) = migrate_legacy_shims(bin_dir) {
-        eprintln!("pnpm: cannot migrate the global shims in {}: {error}", bin_dir.display());
-    }
+    try_migrate_legacy_shims(&bin_dir);
     let settings = trusted_shim_settings();
-    let invocation = super::ShimInvocation { name, bin_dir, target: &target };
+    let invocation = super::ShimInvocation { name, bin_dir: &bin_dir, target: &target };
     dispatch_target(&invocation, args, &settings.shims, &settings.state_dir)
+}
+
+fn executing_dispatcher_bin_dir(shim: &Path) -> Option<PathBuf> {
+    let supplied_bin_dir = shim.parent().filter(|dir| !dir.as_os_str().is_empty())?;
+    let dispatcher = std::env::current_exe().ok()?;
+    let dispatcher_name = format!("{LEGACY_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX);
+    if dispatcher.file_name() != Some(OsStr::new(&dispatcher_name)) {
+        return None;
+    }
+    let bin_dir = dispatcher.parent()?.to_path_buf();
+    same_file::is_same_file(supplied_bin_dir, &bin_dir).unwrap_or(false).then_some(bin_dir)
+}
+
+fn try_migrate_legacy_shims(bin_dir: &Path) {
+    let lock = match try_acquire_global_bin_lock(bin_dir) {
+        Ok(Some(lock)) => lock,
+        Ok(None) => return,
+        Err(error) => {
+            report_shim_error(&error);
+            return;
+        }
+    };
+    if let Err(error) = migrate_legacy_shims(bin_dir)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("cannot migrate the global shims in {}", bin_dir.display()))
+    {
+        report_shim_error(&error);
+    }
+    drop(lock);
+}
+
+fn report_shim_error(error: &miette::Report) {
+    eprintln!("pnpm: {error:?}");
 }
 
 /// Split the machine-generated tail of a `--shim` invocation into the bin

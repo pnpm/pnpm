@@ -639,9 +639,6 @@ fn install_legacy_shim(global_bin: &Path, name: &str, target: &str) -> std::path
     shim
 }
 
-/// A shim an earlier pnpm 12 wrote keeps working after that pnpm's
-/// self-update replaced the dispatcher with this executable, and its first
-/// launch turns the whole bin dir native.
 #[cfg(unix)]
 #[test]
 fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
@@ -650,9 +647,12 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
     let global_bin = root.path().join("global-bin");
     let other = install_legacy_shim(&global_bin, "other", "pkg:other");
     let shim = install_legacy_shim(&global_bin, "tool", global_target.to_str().unwrap());
+    fs::write(project.join("node_modules/tool/cli.sh"), "#!/bin/sh\nprintf '<%s>\\n' \"$@\"\n")
+        .unwrap();
     let launch = |shim: &Path| {
         Command::new(shim)
             .without_ambient_pnpm_config()
+            .without_env("PNPM_SHIM_BYPASS")
             .with_current_dir(&project)
             .with_env("PNPM_HOME", root.path().join("pnpm-home"))
             .with_env("XDG_STATE_HOME", root.path().join("state"))
@@ -667,7 +667,7 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
 
     let first = launch(&shim);
     assert!(first.status.success(), "stderr:\n{}", String::from_utf8_lossy(&first.stderr));
-    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "local");
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "<--flag>\n<value with spaces>");
 
     let executable_len = fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len();
     for name in ["tool", "other"] {
@@ -686,10 +686,62 @@ fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
 
     let second = launch(&shim);
     assert!(second.status.success(), "stderr:\n{}", String::from_utf8_lossy(&second.stderr));
-    assert_eq!(String::from_utf8_lossy(&second.stdout).trim(), "local");
+    assert_eq!(String::from_utf8_lossy(&second.stdout).trim(), "<--flag>\n<value with spaces>");
     let unprovided = launch(&other);
     assert!(!unprovided.status.success());
     assert!(String::from_utf8_lossy(&unprovided.stderr).contains("ERR_PNPM_SHIM_NO_TARGET"));
+}
+
+#[cfg(unix)]
+#[test]
+fn legacy_dispatcher_rejects_a_shim_from_another_directory() {
+    let root = tempfile::tempdir().unwrap();
+    let dispatcher_bin = root.path().join("dispatcher-bin");
+    install_legacy_shim(&dispatcher_bin, "own", "pkg:own");
+    let foreign_bin = root.path().join("foreign-bin");
+    let foreign_shim = install_legacy_shim(&foreign_bin, "tool", "/bin/true");
+
+    let output = Command::new(dispatcher_bin.join(".pnpm-shim-v1"))
+        .arg("--shim")
+        .arg("tool")
+        .arg(&foreign_shim)
+        .arg("/bin/true")
+        .arg("--")
+        .output()
+        .unwrap();
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("legacy shim path") && stderr.contains("executing dispatcher"),
+        "stderr:\n{stderr}",
+    );
+    assert!(foreign_bin.join(".pnpm-shim-v1").exists());
+    assert!(fs::read(&foreign_shim).unwrap().starts_with(b"#!"));
+}
+
+#[cfg(unix)]
+#[test]
+fn legacy_shim_dispatches_without_waiting_for_the_migration_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let target = root.path().join("target");
+    write_script(&target, "launched");
+    let global_bin = root.path().join("global-bin");
+    let shim = install_legacy_shim(&global_bin, "tool", target.to_str().unwrap());
+    let lock_dir = global_bin.join(".pnpm-global-bin.lock");
+    fs::create_dir(&lock_dir).unwrap();
+    fs::write(lock_dir.join("owner"), "held-by-test").unwrap();
+
+    let output = Command::new(&shim)
+        .without_ambient_pnpm_config()
+        .without_env("PNPM_SHIM_BYPASS")
+        .output()
+        .unwrap();
+
+    assert!(output.status.success(), "stderr:\n{}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "launched");
+    assert!(global_bin.join(".pnpm-shim-v1").exists());
+    assert!(fs::read(&shim).unwrap().starts_with(b"#!"));
 }
 
 /// A shim an earlier pnpm 12 wrote for the package is migrated before the
