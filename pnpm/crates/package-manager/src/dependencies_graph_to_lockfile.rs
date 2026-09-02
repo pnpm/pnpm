@@ -6,6 +6,7 @@
 //! graph rather than building one merged per-depPath snapshot and
 //! fanning it out on write.
 
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use derive_more::{Display, Error};
@@ -244,31 +245,45 @@ pub fn dependencies_graph_to_lockfile(
         },
     )?;
 
-    let mut importers: HashMap<String, ProjectSnapshot> =
-        HashMap::with_capacity(importer_inputs.len());
-    for (id, input) in &importer_inputs {
-        let previous_importer = previous_importers.and_then(|imps| imps.get(id));
-        // Effective update scope for this importer, mirroring the resolver's
-        // `update_reuse_scope_for`: a global `None` (bare `update`) applies to
-        // every importer; otherwise the per-importer entry wins, falling back
-        // to the global. This is what lets a `pacquet update <name> --recursive`
-        // target the named dependency in the importer that declares it while
-        // leaving untouched importers on their global scope.
-        let effective_update_reuse_scope = if matches!(update_reuse_scope, UpdateReuseScope::None) {
-            &update_reuse_scope
-        } else {
-            update_reuse_scopes_by_importer.get(id).unwrap_or(&update_reuse_scope)
-        };
-        importers.insert(
-            id.clone(),
-            build_importer(
+    // Each importer's snapshot reads only its own input plus the shared
+    // graph, so a workspace-scale importer list fans out across the
+    // rayon pool; the serial fold below keeps the first error in
+    // importer order, like the loop it replaces.
+    let importer_results: Vec<(
+        &String,
+        Result<ProjectSnapshot, DependenciesGraphToLockfileError>,
+    )> = importer_inputs
+        .iter()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|(id, input)| {
+            let previous_importer = previous_importers.and_then(|imps| imps.get(id));
+            // Effective update scope for this importer, mirroring the resolver's
+            // `update_reuse_scope_for`: a global `None` (bare `update`) applies to
+            // every importer; otherwise the per-importer entry wins, falling back
+            // to the global. This is what lets a `pacquet update <name> --recursive`
+            // target the named dependency in the importer that declares it while
+            // leaving untouched importers on their global scope.
+            let effective_update_reuse_scope =
+                if matches!(update_reuse_scope, UpdateReuseScope::None) {
+                    &update_reuse_scope
+                } else {
+                    update_reuse_scopes_by_importer.get(id).unwrap_or(&update_reuse_scope)
+                };
+            let importer = build_importer(
                 input,
                 graph,
                 &ImporterLockfileFlags { exclude_links_from_lockfile, auto_install_peers },
                 previous_importer,
                 effective_update_reuse_scope,
-            )?,
-        );
+            );
+            (id, importer)
+        })
+        .collect();
+    let mut importers: HashMap<String, ProjectSnapshot> =
+        HashMap::with_capacity(importer_inputs.len());
+    for (id, importer) in importer_results {
+        importers.insert(id.clone(), importer?);
     }
 
     let catalog_snapshots = build_catalog_snapshots(&importers, catalogs);
@@ -698,27 +713,43 @@ fn build_packages_and_snapshots(
     optional_overrides: &HashMap<DepPath, bool>,
     sources: &PackageMetadataSources<'_>,
 ) -> Result<PackagesAndSnapshots, DependenciesGraphToLockfileError> {
-    let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
-    let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
-
-    for node in graph.values() {
-        let dep_path = node.dep_path.as_str();
-        let snapshot_key = match dep_path.parse::<PackageKey>() {
-            Ok(snapshot_key) => snapshot_key,
-            // A workspace link is the one node with no row of its own —
-            // it resolves as its own importer and pnpm writes it none
-            // either.
-            Err(_) if dep_path.starts_with("link:") => continue,
-            Err(source) => {
-                return Err(DependenciesGraphToLockfileError::UnkeyedDepPath {
+    // Every node's snapshot and metadata read only that node plus the
+    // shared inputs, so the nodes fan out across the rayon pool; the
+    // serial fold below walks them in the graph's iteration order, so
+    // the first-of-a-key metadata insert and the first error stay the
+    // ones the serial loop would have kept.
+    struct BuiltNode<'graph> {
+        node: &'graph pnpm_resolving_deps_resolver::DependenciesGraphNode,
+        snapshot_key: PackageKey,
+        snapshot: SnapshotEntry,
+    }
+    let built: Vec<Result<Option<BuiltNode<'_>>, DependenciesGraphToLockfileError>> = graph
+        .values()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|node| {
+            let dep_path = node.dep_path.as_str();
+            let snapshot_key = match dep_path.parse::<PackageKey>() {
+                Ok(snapshot_key) => Ok(snapshot_key),
+                // A workspace link is the one node with no row of its own —
+                // it resolves as its own importer and pnpm writes it none
+                // either.
+                Err(_) if dep_path.starts_with("link:") => return Ok(None),
+                Err(source) => Err(DependenciesGraphToLockfileError::UnkeyedDepPath {
                     dep_path: dep_path.to_string(),
                     source: Box::new(source),
-                });
-            }
-        };
-        let metadata_key = snapshot_key.without_peer();
+                }),
+            }?;
+            let snapshot = build_snapshot_entry(node, graph, optional_overrides);
+            Ok(Some(BuiltNode { node, snapshot_key, snapshot }))
+        })
+        .collect();
 
-        let snapshot = build_snapshot_entry(node, graph, optional_overrides);
+    let mut packages: HashMap<PackageKey, PackageMetadata> = HashMap::new();
+    let mut snapshots: HashMap<PackageKey, SnapshotEntry> = HashMap::new();
+    for built_node in built {
+        let Some(BuiltNode { node, snapshot_key, snapshot }) = built_node? else { continue };
+        let metadata_key = snapshot_key.without_peer();
         snapshots.insert(snapshot_key, snapshot);
 
         if let std::collections::hash_map::Entry::Vacant(entry) = packages.entry(metadata_key) {

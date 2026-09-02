@@ -135,6 +135,10 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// pins. `None` on the no-lockfile path. Corresponds to the
     /// `update: false` resolver mode.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// An `Arc` handle to the same document as [`Self::wanted_lockfile`],
+    /// when the loader holds one; `None` falls back to a deep copy where
+    /// the resolver needs an owned handle.
+    pub wanted_lockfile_shared: Option<Arc<Lockfile>>,
     /// Intact prior lockfile used to restore unselected projects after a
     /// filtered repair resolves against a sanitized seed.
     pub merge_wanted_lockfile: Option<&'a Lockfile>,
@@ -775,6 +779,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             workspace_packages,
             update_checksums,
             wanted_lockfile,
+            wanted_lockfile_shared,
             merge_wanted_lockfile,
             node_version,
             early_host_detection,
@@ -974,6 +979,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             None
         };
         let wanted_lockfile = fixed_wanted_lockfile.as_ref().or(wanted_lockfile);
+        // The repair copy above replaced the document, so the loader's
+        // handle no longer describes `wanted_lockfile`.
+        let wanted_lockfile_shared =
+            if fixed_wanted_lockfile.is_some() { None } else { wanted_lockfile_shared };
 
         let (preferred_versions_seed, preferred_versions_seeds_by_importer) =
             resolve::preferred_versions_seeds(
@@ -1087,6 +1096,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             config,
             catalogs: &catalogs,
             wanted_lockfile,
+            wanted_lockfile_shared: wanted_lockfile_shared.as_ref(),
             package_extensions_checksum: package_extensions_checksum.as_deref(),
             parsed_overrides: parsed_overrides.as_deref(),
             resolved_overrides: resolved_overrides.as_ref(),
@@ -1118,6 +1128,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // lockfile still pins the edges the drift does not reach (see
         // `WorkspaceResolveOptions::reuse_lockfile_subtrees`).
         let resolution_lockfile = lockfile_reuse_seed
+            .or_else(|| wanted_lockfile_shared.clone())
             .or_else(|| wanted_lockfile.map(|lockfile| Arc::new(lockfile.clone())));
 
         let phase_start = std::time::Instant::now();

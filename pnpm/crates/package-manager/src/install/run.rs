@@ -503,25 +503,29 @@ where
         // below: a load that failed leaves nothing cached, so asking later
         // would retry it and turn a lockfile this arm chose to ignore into
         // a fatal one.
-        let (lockfile, merge_wanted_lockfile, pre_merge_importers) = match lockfile_source.get() {
-            Ok(lockfile) => (
-                lockfile,
-                lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
-                lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
-            ),
-            Err(error) if !frozen_lockfile => {
-                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                    level: LogLevel::Warn,
-                    message: format!(
-                        "Ignoring broken lockfile at {}: {error}",
-                        workspace_root.display(),
-                    ),
-                    prefix: prefix.clone(),
-                }));
-                (None, None, None)
-            }
-            Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
-        };
+        let (lockfile, lockfile_shared, merge_wanted_lockfile, pre_merge_importers) =
+            match lockfile_source.get() {
+                Ok(lockfile) => (
+                    lockfile,
+                    lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source
+                        .pre_merge_importers()
+                        .map_err(InstallError::LoadWantedLockfile)?,
+                ),
+                Err(error) if !frozen_lockfile => {
+                    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                        level: LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            workspace_root.display(),
+                        ),
+                        prefix: prefix.clone(),
+                    }));
+                    (None, None, None, None)
+                }
+                Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
+            };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "load_wanted_lockfile",
@@ -1144,6 +1148,7 @@ where
             config,
             manifest,
             lockfile,
+            lockfile_shared,
             merge_wanted_lockfile,
             take_frozen_path,
             lockfile_verification_override,

@@ -5,7 +5,7 @@ use crate::{
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
@@ -58,8 +58,11 @@ impl LazyLockfile {
     #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
-        cell.set(LoadedWantedLockfile { lockfile, pre_merge_importers: None })
-            .expect("a fresh OnceLock accepts the first set");
+        cell.set(LoadedWantedLockfile {
+            lockfile: lockfile.map(Arc::new),
+            pre_merge_importers: None,
+        })
+        .expect("a fresh OnceLock accepts the first set");
         LazyLockfile { source: None, cell, fix_cell: OnceLock::new(), prefetch: Mutex::new(None) }
     }
 
@@ -92,7 +95,7 @@ impl LazyLockfile {
     /// error is returned without being cached, so a subsequent call
     /// retries — callers abort on the first error in practice.
     pub fn get(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        Ok(self.load()?.lockfile.as_ref())
+        Ok(self.load()?.lockfile.as_deref())
     }
 
     /// Load after discarding fields that a repairing resolution regenerates.
@@ -203,6 +206,19 @@ impl<'a> MaybeLazyLockfile<'a> {
             MaybeLazyLockfile::Loaded(lockfile) => Ok(lockfile),
             MaybeLazyLockfile::Lazy(lazy) => lazy.get(),
             MaybeLazyLockfile::Repair(lazy) => lazy.get_for_fix_merge(),
+        }
+    }
+
+    /// An `Arc` handle to the parsed wanted lockfile, for a consumer
+    /// that shares the document with long-lived machinery — the
+    /// resolver's lockfile-reuse seed above all — without deep-copying
+    /// a workspace-scale lockfile. `None` when no lockfile exists *or*
+    /// for the borrowed and repair variants, which hold no `Arc`;
+    /// callers fall back to cloning [`Self::get`]'s reference.
+    pub fn shared(self) -> Result<Option<Arc<Lockfile>>, LoadLockfileError> {
+        match self {
+            MaybeLazyLockfile::Lazy(lazy) => Ok(lazy.load()?.lockfile.clone()),
+            MaybeLazyLockfile::Loaded(_) | MaybeLazyLockfile::Repair(_) => Ok(None),
         }
     }
 
