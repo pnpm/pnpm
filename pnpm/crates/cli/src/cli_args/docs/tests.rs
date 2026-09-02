@@ -1,4 +1,7 @@
+use std::{io, sync::Mutex};
+
 use pnpm_config::Config;
+use pnpm_network_web_auth::OpenUrl;
 use pnpm_registry::PackageVersion;
 use serde_json::json;
 
@@ -30,6 +33,17 @@ fn packument() -> String {
 
 fn config_for(registry: &str) -> Config {
     Config { registry: format!("{registry}/"), ..Config::default() }
+}
+
+static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+struct RecordingBrowser;
+
+impl OpenUrl for RecordingBrowser {
+    fn open_url(url: &str) -> io::Result<()> {
+        OPENED_URLS.lock().unwrap().push(url.to_owned());
+        Ok(())
+    }
 }
 
 #[test]
@@ -64,6 +78,7 @@ fn test_is_http_url_spaces() {
 
 #[tokio::test]
 async fn requested_version_uses_its_homepage() {
+    OPENED_URLS.lock().unwrap().clear();
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/is-negative")
@@ -73,11 +88,10 @@ async fn requested_version_uses_its_homepage() {
         .await;
     let args = DocsArgs { package: "is-negative@1.0.0".to_string() };
 
-    let url =
-        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+    args.run::<RecordingBrowser>(&config_for(&server.url())).await.expect("docs URL must open");
 
     mock.assert_async().await;
-    assert_eq!(url, "https://v1.example/docs");
+    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://v1.example/docs"]);
 }
 
 #[tokio::test]

@@ -1,5 +1,6 @@
 use clap::Args;
 use pnpm_config::Config;
+use pnpm_network_web_auth::OpenUrl;
 use pnpm_registry::PackageVersion;
 
 /// Open the documentation page of a package in a browser.
@@ -10,9 +11,9 @@ pub struct DocsArgs {
 }
 
 impl DocsArgs {
-    pub async fn run(self, config: &Config) -> miette::Result<()> {
+    pub async fn run<Sys: OpenUrl>(self, config: &Config) -> miette::Result<()> {
         let url = self.documentation_url(config).await?;
-        open_url(&url)
+        open_url::<Sys>(&url)
     }
 
     async fn documentation_url(&self, config: &Config) -> miette::Result<String> {
@@ -39,47 +40,9 @@ fn is_http_url(value: &str) -> bool {
         .is_ok_and(|parsed| parsed.scheme() == "http" || parsed.scheme() == "https")
 }
 
-fn open_url(url: &str) -> miette::Result<()> {
-    let result = {
-        #[cfg(target_os = "linux")]
-        {
-            std::process::Command::new("xdg-open").arg(url).spawn()
-        }
-        #[cfg(target_os = "macos")]
-        {
-            std::process::Command::new("open").arg(url).spawn()
-        }
-        #[cfg(target_os = "windows")]
-        {
-            // SAFETY: ShellExecuteW invokes the default handler for the
-            // URL protocol without going through cmd, avoiding the shell
-            // metacharacter injection that `cmd /c start` is vulnerable to.
-            use std::ffi::OsStr;
-            use std::os::windows::ffi::OsStrExt;
-
-            let url_wide: Vec<u16> =
-                OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
-
-            let result = unsafe {
-                windows_sys::Win32::UI::Shell::ShellExecuteW(
-                    std::ptr::null_mut(), // hwnd
-                    std::ptr::null(),     // lpOperation (null => "open")
-                    url_wide.as_ptr(),    // lpFile
-                    std::ptr::null(),     // lpParameters
-                    std::ptr::null(),     // lpDirectory
-                    windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
-                )
-            };
-            if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
-        }
-        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-        {
-            // On unsupported platforms, just print the URL.
-            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "unsupported platform"))
-        }
-    };
-    match result {
-        Ok(_) => Ok(()),
+fn open_url<Sys: OpenUrl>(url: &str) -> miette::Result<()> {
+    match Sys::open_url(url) {
+        Ok(()) => Ok(()),
         Err(e) => {
             let redacted = url::Url::parse(url).map_or_else(
                 |_| url.to_string(),
