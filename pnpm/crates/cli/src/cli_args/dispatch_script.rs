@@ -80,13 +80,14 @@ pub(super) fn test<'a>(
 
 pub(super) fn run<'a>(ctx: &RunCtx<'a>, args: RunArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
-    let args = with_recursive_run_options(ctx, args, config);
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         let config: &'static Config = config;
+        let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
             args.run_recursive(config, dir, reporter)
         } else {
@@ -113,13 +114,14 @@ pub(super) fn fallback<'a>(
         json: false,
     };
     let config = (ctx.config)()?;
-    let args = with_recursive_run_options(ctx, args, config);
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         let config: &'static Config = config;
+        let args = with_recursive_run_options(cli_options, args, config);
         if recursive {
             args.run_recursive(config, dir, reporter)
         } else {
@@ -130,13 +132,14 @@ pub(super) fn fallback<'a>(
 
 pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<CommandFuture<'a>> {
     let config = (ctx.config)()?;
-    let args = with_recursive_exec_options(ctx, args, config);
+    let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
         apply_update_config(config, dir, reporter).await?;
         let config: &'static Config = config;
+        let args = with_recursive_exec_options(cli_options, args, config);
         if recursive {
             args.run_recursive(config, dir, reporter).await
         } else {
@@ -145,24 +148,54 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     }))
 }
 
-fn with_recursive_run_options(ctx: &RunCtx<'_>, mut args: RunArgs, config: &Config) -> RunArgs {
-    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
-    args.report_summary = ctx.recursive_report_summary;
+/// The top-level recursive flags of a `run` / `exec` invocation, copied out
+/// of [`RunCtx`] so the handler's future can merge them with `bail`, `sort`
+/// and `reverse` only after `updateConfig` has had its say on those settings.
+#[derive(Clone, Copy)]
+struct RecursiveCliOptions<'a> {
+    resume_from: Option<&'a str>,
+    report_summary: bool,
+    parallel: bool,
+    if_present: bool,
+}
+
+impl<'a> RecursiveCliOptions<'a> {
+    fn from_ctx(ctx: &RunCtx<'a>) -> Self {
+        Self {
+            resume_from: ctx.recursive_resume_from,
+            report_summary: ctx.recursive_report_summary,
+            parallel: ctx.recursive_parallel,
+            if_present: ctx.if_present,
+        }
+    }
+}
+
+fn with_recursive_run_options(
+    cli_options: RecursiveCliOptions<'_>,
+    mut args: RunArgs,
+    config: &Config,
+) -> RunArgs {
+    args.resume_from = cli_options.resume_from.map(str::to_string);
+    args.report_summary = cli_options.report_summary;
     args.no_bail = !config.bail;
     args.sort = config.sort;
     args.reverse = config.reverse;
-    args.parallel = ctx.recursive_parallel;
-    args.if_present |= ctx.if_present;
+    args.parallel = cli_options.parallel;
+    args.if_present |= cli_options.if_present;
     args
 }
 
-fn with_recursive_exec_options(ctx: &RunCtx<'_>, mut args: ExecArgs, config: &Config) -> ExecArgs {
-    args.resume_from = ctx.recursive_resume_from.map(str::to_string);
-    args.report_summary = ctx.recursive_report_summary;
+fn with_recursive_exec_options(
+    cli_options: RecursiveCliOptions<'_>,
+    mut args: ExecArgs,
+    config: &Config,
+) -> ExecArgs {
+    args.resume_from = cli_options.resume_from.map(str::to_string);
+    args.report_summary = cli_options.report_summary;
     args.no_bail = !config.bail;
     args.sort = config.sort;
     args.reverse = config.reverse;
-    args.parallel = ctx.recursive_parallel;
+    args.parallel = cli_options.parallel;
     args
 }
 
