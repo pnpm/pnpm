@@ -651,6 +651,29 @@ fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
     assert!(!dispatcher.exists());
 }
 
+/// Removing a package's shims also finds the one an earlier pnpm 12 wrote.
+#[cfg(unix)]
+#[test]
+fn removing_a_shim_migrates_the_legacy_shim_first() {
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let legacy = global_bin.join("yarn");
+    fs::write(
+        &legacy,
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
+    )
+    .unwrap();
+
+    let removed = pnpm_command(&root, &project).with_args(["shim", "rm", "yarn"]).output().unwrap();
+
+    assert!(stdout_of(&removed).contains("Removed yarn"));
+    assert!(!legacy.exists());
+    assert!(!global_bin.join(".pnpm-shim-v1-yarn-target").exists());
+}
+
 /// A `pnpm` invocation against an isolated pnpm home, for the commands
 /// that manage shims rather than dispatch through one.
 fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {

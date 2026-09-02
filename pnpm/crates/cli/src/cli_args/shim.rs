@@ -214,6 +214,8 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
         return Err(ShimError::NoPackage.into());
     }
     let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
+    // A shim an earlier release wrote is only listed once migrated.
+    migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     let mut report = String::new();
     for package in packages {
         let bins = installed_shims(bin_dir, package);

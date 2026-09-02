@@ -192,16 +192,17 @@ pub(crate) fn migrate_legacy_shims(bin_dir: &Path) -> io::Result<()> {
 /// drop the `.pnpm-shim-v1` dispatcher those shims called.
 pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Result<()> {
     let entries = match fs::read_dir(bin_dir) {
-        Ok(entries) => entries,
+        Ok(entries) => entries.collect::<io::Result<Vec<_>>>()?,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error),
     };
     for entry in entries {
-        let entry = entry?;
         let file_name = entry.file_name();
         let Some(name) = file_name.to_str().filter(|name| is_safe_bin_name(name)) else {
             continue;
         };
+        // Migrating one shim removes its Windows siblings, which the
+        // listing may still name.
         let Some(target) = legacy_shim_target(&entry.path())? else {
             continue;
         };
@@ -224,7 +225,11 @@ pub(crate) fn is_legacy_context_aware_shim(path: &Path) -> bool {
 /// that is not one. Only the shell flavor carries the markers; the
 /// Windows `.cmd` and `.ps1` siblings are removed with it.
 fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
-    let metadata = fs::symlink_metadata(path)?;
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
     // A shell shim is a few hundred bytes; the native shims and other
     // executables in the bin dir are ruled out by size without a read.
     if !metadata.is_file() || metadata.len() > MAX_LEGACY_SHIM_BYTES {
@@ -269,7 +274,8 @@ pub(super) fn try_native_dispatch(argv: &[OsString]) -> Option<i32> {
     }
     let settings = trusted_shim_settings();
     let invocation = super::ShimInvocation { name: &name, bin_dir, target: &target };
-    Some(dispatch_target(&invocation, &argv[1..], &settings.shims, &settings.state_dir))
+    let args = argv.get(1..).unwrap_or_default();
+    Some(dispatch_target(&invocation, args, &settings.shims, &settings.state_dir))
 }
 
 fn executable_path(bin_dir: &Path, name: &str) -> PathBuf {
