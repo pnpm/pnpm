@@ -800,6 +800,7 @@ impl CliCommand {
             self,
             CliCommand::Install(_)
                 | CliCommand::InstallTest(_)
+                | CliCommand::Import(_)
                 | CliCommand::List(_)
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)

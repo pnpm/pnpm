@@ -205,6 +205,17 @@ fn import_populates_metadata_cache() {
         .to_string(),
     )
     .expect("write package.json");
+    fs::write(
+        workspace.join("package-lock.json"),
+        serde_json::json!({
+            "lockfileVersion": 1,
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": { "version": "100.0.0" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package-lock.json");
 
     pacquet.with_arg("import").assert().success();
 

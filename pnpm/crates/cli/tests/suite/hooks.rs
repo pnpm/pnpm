@@ -97,6 +97,17 @@ fn update_config_catalog_applies_to_import() {
     let mut settings = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
     fs::write(workspace_yaml, settings).expect("write configDependencies");
+    fs::write(
+        workspace.join("package-lock.json"),
+        serde_json::json!({
+            "lockfileVersion": 1,
+            "dependencies": {
+                (CATALOG_DEP): { "version": "100.1.0" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package-lock.json");
 
     pacquet_in(&workspace).with_arg("import").assert().success();
 

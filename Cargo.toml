@@ -43,6 +43,7 @@ pnpm-package-manifest                  = { path = "pnpm/crates/package-manifest"
 pnpm-package-manager                   = { path = "pnpm/crates/package-manager" }
 pnpm-package-is-installable            = { path = "pnpm/crates/package-is-installable" }
 pnpm-lockfile                          = { path = "pnpm/crates/lockfile" }
+pnpm-lockfile-import                   = { path = "pnpm/crates/lockfile-import" }
 pnpm-lockfile-preferred-versions       = { path = "pnpm/crates/lockfile-preferred-versions" }
 pnpm-lockfile-verification             = { path = "pnpm/crates/lockfile-verification" }
 pnpm-modules-yaml                      = { path = "pnpm/crates/modules-yaml" }
