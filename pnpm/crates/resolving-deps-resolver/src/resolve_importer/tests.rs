@@ -13,17 +13,14 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 
-use super::{
-    ImporterLockedPeerContext, discard_changed_direct_dep_peer_context,
-    importer_locked_peer_context, merge_ranges,
-};
+use super::{importer_locked_peer_versions, merge_ranges};
 use crate::{
     DepPath, ResolveDependencyTreeError, resolve_importer,
     resolve_importer::{ResolveImporterError, ResolveImporterOptions},
 };
 
 #[test]
-fn locked_peer_context_is_recorded_by_direct_alias() {
+fn locked_peer_versions_are_recorded_for_direct_deps() {
     use pnpm_lockfile::{
         ComVer, ImporterDepVersion, Lockfile, LockfileVersion, PkgName, PkgVerPeer,
         ProjectSnapshot, ResolvedDependencySpec,
@@ -60,35 +57,9 @@ fn locked_peer_context_is_recorded_by_direct_alias() {
         extra: pnpm_lockfile::LockfileExtra::default(),
     };
 
-    let ImporterLockedPeerContext { versions, names_by_alias } =
-        importer_locked_peer_context(Some(&lockfile), "app");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "app");
 
     assert_eq!(versions["peer"], HashSet::from_iter(["2.0.0".to_string()]));
-    assert_eq!(names_by_alias["consumer"].as_ref(), &HashSet::from_iter(["peer".to_string()]));
-}
-
-#[test]
-fn changed_direct_dependency_discards_prior_peer_context() {
-    use pnpm_lockfile::PkgName;
-    use std::sync::Arc;
-
-    let mut names_by_alias = HashMap::from_iter([
-        ("changed".to_string(), Arc::new(HashSet::from_iter(["old-peer".to_string()]))),
-        ("unchanged".to_string(), Arc::new(HashSet::from_iter(["peer".to_string()]))),
-    ]);
-
-    discard_changed_direct_dep_peer_context(
-        &mut names_by_alias,
-        &HashSet::from_iter([PkgName::parse("changed").unwrap()]),
-    );
-
-    assert_eq!(
-        names_by_alias,
-        HashMap::from_iter([(
-            "unchanged".to_string(),
-            Arc::new(HashSet::from_iter(["peer".to_string()])),
-        )]),
-    );
 }
 
 #[test]
@@ -125,13 +96,11 @@ fn hashed_peer_suffix_uses_package_peer_metadata() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, names_by_alias } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
-    assert!(names_by_alias.is_empty());
 }
 
 #[test]
@@ -144,13 +113,11 @@ fn explicit_peer_suffix_uses_the_dependency_alias() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, names_by_alias } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
     );
-    assert!(names_by_alias.is_empty());
 }
 
 /// An ordinary dependency may be aliased onto the very package and
@@ -169,8 +136,7 @@ fn an_ordinary_alias_onto_a_peers_provider_does_not_rename_it() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -193,8 +159,7 @@ fn a_declared_peer_alias_outranks_a_competing_ordinary_alias() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -216,8 +181,7 @@ fn declared_peers_sharing_a_provider_each_get_their_alias_back() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([
@@ -243,8 +207,7 @@ fn a_declared_peer_does_not_consume_the_propagated_peers_segment() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([
@@ -269,8 +232,7 @@ fn competing_ordinary_aliases_do_not_rename_the_segment() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([(
@@ -295,8 +257,7 @@ fn a_linked_dependency_is_not_a_peer_provider() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["1.0.0".to_string()]))]),
@@ -315,8 +276,7 @@ fn a_hashed_peer_suffix_without_package_metadata_records_nothing() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert!(versions.is_empty());
 }
 
@@ -333,8 +293,7 @@ fn explicit_peer_suffix_of_an_undeclared_peer_is_kept() {
         )],
     );
 
-    let ImporterLockedPeerContext { versions, .. } =
-        importer_locked_peer_context(Some(&lockfile), "missing-importer");
+    let versions = importer_locked_peer_versions(Some(&lockfile), "missing-importer");
     assert_eq!(
         versions,
         HashMap::from_iter([("peer".to_string(), HashSet::from_iter(["2.0.0".to_string()]))]),
@@ -439,7 +398,7 @@ fn link_dependency(target: &str) -> pnpm_lockfile::SnapshotDepRef {
 /// list — the union `importer_locked_peer_context` folds over every
 /// snapshot.
 fn locked_peer_names(wanted_lockfile: Option<&pnpm_lockfile::Lockfile>) -> HashSet<String> {
-    importer_locked_peer_context(wanted_lockfile, "missing-importer").versions.into_keys().collect()
+    importer_locked_peer_versions(wanted_lockfile, "missing-importer").into_keys().collect()
 }
 
 struct StubResolver {

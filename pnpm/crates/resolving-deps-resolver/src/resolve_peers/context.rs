@@ -383,23 +383,6 @@ fn version_gte(left: &str, right: &str) -> bool {
     }
 }
 
-pub(super) fn scoped_hoisted_optional_parent_refs(
-    parent_refs: &ParentRefs,
-    locked_peer_names: &HashSet<String>,
-    hoisted_optional_peer_node_ids: &HashSet<NodeId>,
-) -> ParentRefs {
-    parent_refs
-        .iter()
-        .filter(|(name, parent)| {
-            parent.node_id.as_ref().is_none_or(|parent_node_id| {
-                !hoisted_optional_peer_node_ids.contains(parent_node_id)
-                    || locked_peer_names.contains(*name)
-            })
-        })
-        .map(|(name, parent)| (name.clone(), parent.clone()))
-        .collect()
-}
-
 /// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
 ///
 /// Linked top-parent `NodeIds` (whether the workspace-link arm or the

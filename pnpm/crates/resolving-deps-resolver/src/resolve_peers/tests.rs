@@ -1034,7 +1034,6 @@ fn pruned_hoisted_provider_falls_back_in_workspace_pass() {
 
     let importer = ImporterPeerInput {
         id: ".".to_string(),
-        hoisted_optional_peer_node_ids: HashSet::default(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -1100,7 +1099,6 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
     let importers = [
         ImporterPeerInput {
             id: "project-a".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1118,7 +1116,6 @@ fn workspace_importers_get_distinct_instances_for_different_peer_versions() {
         },
         ImporterPeerInput {
             id: "project-b".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "consumer".to_string(),
@@ -1187,7 +1184,6 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
     let importers = [
         ImporterPeerInput {
             id: ".".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1210,7 +1206,6 @@ fn a_shared_consumer_keeps_the_first_importers_peer_provider_variant() {
         },
         ImporterPeerInput {
             id: "app".to_string(),
-            hoisted_optional_peer_node_ids: HashSet::default(),
             direct: vec![
                 DirectDep {
                     alias: "plugin".to_string(),
@@ -1324,7 +1319,6 @@ fn linked_peer_provider_uses_root_relative_snapshot_ref_in_workspace_fallback() 
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
         id: "apps/nested/app".to_string(),
-        hoisted_optional_peer_node_ids: HashSet::default(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -1395,7 +1389,6 @@ fn workspace_internal_link_peer_keeps_its_node_id_when_exclude_links_on() {
     let consumer = NodeId::next();
     let importer = ImporterPeerInput {
         id: "apps/app".to_string(),
-        hoisted_optional_peer_node_ids: HashSet::default(),
         direct: vec![
             DirectDep {
                 alias: "consumer".to_string(),
@@ -2361,7 +2354,6 @@ fn backedge_bindings_do_not_depend_on_importer_order() {
         let importer = |id: &str, direct: Vec<DirectDep>| ImporterPeerInput {
             id: id.to_string(),
             direct,
-            hoisted_optional_peer_node_ids: HashSet::default(),
             root_dir: std::path::PathBuf::from(format!("/repo/{id}")),
             modules_dir: None,
         };
