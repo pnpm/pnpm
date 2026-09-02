@@ -59,7 +59,7 @@ pub use link_hoisted_modules::*;
 pub use link_root_component_members::*;
 pub use package_map::*;
 pub use pnp::*;
-pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, graph_sequencer};
+pub use pnpm_workspace_task_scheduler::{GraphSequencerResult, PathNode, graph_sequencer};
 pub use prune_direct_deps::*;
 pub use prune_stale_modules::*;
 pub use safe_join_modules_dir::*;

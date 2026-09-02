@@ -26,7 +26,7 @@ use crate::{
 use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::{Config, Host};
-use pnpm_package_manager::graph_sequencer;
+use pnpm_package_manager::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
@@ -251,14 +251,17 @@ fn select_workspace_projects_with_cycles(
             &project_dependencies
                 .iter()
                 .map(|(key, value)| {
-                    (key.as_path(), value.iter().map(PathBuf::as_path).collect::<Vec<_>>())
+                    (
+                        PathNode(key.as_path()),
+                        value.iter().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
+                    )
                 })
                 .collect(),
-            &project_dependencies.keys().map(PathBuf::as_path).collect::<Vec<_>>(),
+            &project_dependencies.keys().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
         )
         .order
         .into_iter()
-        .map(Path::to_path_buf)
+        .map(|node| node.0.to_path_buf())
         .collect();
         let selected_dirs: Arc<HashSet<PathBuf>> =
             Arc::new(selection.selected.keys().cloned().collect());
