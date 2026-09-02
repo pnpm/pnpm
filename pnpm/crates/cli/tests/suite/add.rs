@@ -1382,9 +1382,10 @@ fn write_json(path: &Path, value: &serde_json::Value) {
 
 /// An alias-less selector — the whole argument is the specifier, with no
 /// `<name>@` in front — names a package whose name lives only in its own
-/// manifest. Covers <https://github.com/pnpm/pnpm/issues/14437>: every such
-/// selector but a git URL used to be read as a registry package name and
-/// failed with `ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_LATEST`.
+/// manifest, so `add` reads it from the directory, the archive, or the
+/// checkout rather than from the selector.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/14437>.
 mod aliasless_selectors {
     use super::{Path, prod_spec, write_json};
     use crate::_utils::append_workspace_yaml_key;

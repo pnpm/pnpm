@@ -345,22 +345,6 @@ const pickCatalogSpecifier: CatalogResultMatcher<string | undefined> = {
   unused: () => undefined,
 }
 
-/**
- * Whether `specifier` names a path resolved against the project that declares
- * it — a `file:` / `link:` protocol, a bare path or tarball filename, or a
- * `workspace:` pointing at a directory rather than a range.
- *
- * A catalog entry is read by every project that references it, so it cannot
- * mean the same directory for all of them. `resolveFromCatalog` already
- * refuses a `link:` / `file:` entry outright
- * (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
- * which is worse — every consumer silently resolves the relative path from its
- * own directory. Auto-cataloging leaves all of them alone.
- */
-function isProjectRelativePath (specifier: string): boolean {
-  return isLocalFilesystemSpecifier(specifier) || isWorkspaceLocalPathSpecifier(specifier)
-}
-
 export async function mutateModules (
   projects: MutatedProject[],
   maybeOpts: MutateModulesOptions
@@ -1596,6 +1580,22 @@ async function runUnignoredDependencyBuilds (
     })).ignoredBuilds ?? previousIgnoredBuilds
   }
   return previousIgnoredBuilds
+}
+
+/**
+ * Whether `specifier` names a path resolved against the project that declares
+ * it — a `file:` / `link:` protocol, a bare path or tarball filename, or a
+ * `workspace:` pointing at a directory rather than a range.
+ *
+ * A catalog entry is read by every project that references it, so it cannot
+ * mean the same directory for all of them. `resolveFromCatalog` already
+ * refuses a `link:` / `file:` entry outright
+ * (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
+ * which is worse — every consumer silently resolves the relative path from its
+ * own directory. Auto-cataloging leaves all of them alone.
+ */
+function isProjectRelativePath (specifier: string): boolean {
+  return isLocalFilesystemSpecifier(specifier) || isWorkspaceLocalPathSpecifier(specifier)
 }
 
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {

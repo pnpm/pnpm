@@ -174,6 +174,15 @@ pub enum AddError {
     #[diagnostic(transparent)]
     ResolveLocal(#[error(source)] ResolveLocalError),
 
+    /// The tarball fetch itself failed. Kept as the diagnostic the fetcher
+    /// raised, so `pnpm add <url>` reports the same code an install of the
+    /// same URL does (`ERR_PNPM_TARBALL_HTTP_STATUS`, ...) rather than one
+    /// only this command can produce.
+    #[diagnostic(transparent)]
+    TarballResolve(#[error(source)] Box<pnpm_tarball::TarballError>),
+
+    /// Anything else the tarball resolver raised — a malformed URL, a
+    /// transport failure the fetcher doesn't classify.
     #[display("Failed to resolve tarball dependency {specifier:?}: {source}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_TARBALL))]
     ResolveTarball {
@@ -1116,11 +1125,13 @@ async fn resolve_aliasless_tarball(
         &pnpm_resolving_resolver_base::ResolveOptions::default(),
     )
     .await
-    // A tarball URL can carry `user:pass@` credentials, and every error
-    // here echoes it back.
-    .map_err(|source| AddError::ResolveTarball {
-        specifier: redact_and_sanitize(specifier),
-        source,
+    .map_err(|source| match source.downcast::<pnpm_tarball::TarballError>() {
+        Ok(tarball) => AddError::TarballResolve(tarball),
+        // A tarball URL can carry `user:pass@` credentials, and an
+        // unclassified error here echoes it back.
+        Err(source) => {
+            AddError::ResolveTarball { specifier: redact_and_sanitize(specifier), source }
+        }
     })?
     .ok_or_else(|| AddError::MissingPackageName { specifier: redact_and_sanitize(specifier) })?;
     let manifest_specifier =
