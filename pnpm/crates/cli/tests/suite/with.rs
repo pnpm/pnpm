@@ -92,16 +92,18 @@ fn with_forwards_subsequent_args_to_the_child_pnpm() {
 }
 
 #[test]
-fn with_current_dispatches_the_inner_command_after_a_global_boolean_flag() {
-    for flag in ["--color", "--yes"] {
+fn with_current_dispatches_the_inner_command_after_global_options() {
+    for global in [vec!["--color"], vec!["--yes"], vec!["--workspace-root"], vec!["-yC", "."]] {
         let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
         write_manifest(&workspace, &serde_json::json!({ "name": "project", "version": "1.0.0" }));
 
+        let args: Vec<&str> =
+            global.iter().copied().chain(["with", "current", "--version"]).collect();
         let output = test_command(pacquet, root.path())
-            .with_args([flag, "with", "current", "--version"])
+            .with_args(args)
             .output()
-            .expect("run pacquet with current --version after a global boolean flag");
-        dbg!(&output);
+            .expect("run pacquet with current --version after a global option");
+        dbg!(&global, &output);
         assert_success(&output);
         assert_semver_like(stdout(&output).trim());
 

@@ -44,6 +44,11 @@ fn make_connected_detached_node_script(ready_path: &Path, port: u16) -> String {
 fn assert_connection_closes(mut connection: std::net::TcpStream) {
     use std::io::{ErrorKind, Read, Write};
 
+    // A socket accepted from a non-blocking listener inherits that mode on
+    // Windows, which makes the read below return `WouldBlock` at once and
+    // the timeout moot — the assertion would race the job object's cleanup
+    // rather than wait for it.
+    connection.set_nonblocking(false).expect("set detached child connection blocking");
     connection
         .set_read_timeout(Some(Duration::from_secs(10)))
         .expect("set detached child connection timeout");
