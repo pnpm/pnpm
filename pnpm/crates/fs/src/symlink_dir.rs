@@ -355,7 +355,7 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 /// is occupied (`AlreadyExists` for files, `DirectoryNotEmpty` for
 /// dirs, `PermissionDenied` on Windows when something holds a handle
 /// to the dest), remove the destination and retry once.
-fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
+pub fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
     match fs::rename(src, dst) {
         Ok(()) => Ok(()),
         Err(error) => {

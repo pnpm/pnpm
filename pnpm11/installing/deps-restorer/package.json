@@ -49,6 +49,7 @@
     "@pnpm/deps.path": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/fs.read-modules-dir": "workspace:*",
     "@pnpm/fs.symlink-dependency": "workspace:*",
     "@pnpm/installing.linking.direct-dep-linker": "workspace:*",
     "@pnpm/installing.linking.hoist": "workspace:*",
@@ -71,7 +72,8 @@
     "path-absolute": "catalog:",
     "path-exists": "catalog:",
     "ramda": "catalog:",
-    "realpath-missing": "catalog:"
+    "realpath-missing": "catalog:",
+    "rename-overwrite": "catalog:"
   },
   "peerDependencies": {
     "@pnpm/logger": "catalog:",
