@@ -165,14 +165,7 @@ owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
-reqwest = { version = "0.13", default-features = false, features = [
-  "gzip",
-  "hickory-dns",
-  "json",
-  "rustls",
-  "socks",
-  "stream",
-] }
+reqwest = { version = "0.13", default-features = false, features = ["gzip", "json", "rustls", "socks", "stream"] }
 node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
 pathdiff = { version = "0.2.3" }
