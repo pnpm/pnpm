@@ -703,8 +703,9 @@ fn shims_can_be_added_and_removed_for_a_package_that_is_not_installed() {
 
     let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
     assert!(stdout_of(&added).contains("yarn, yarnpkg"));
-    assert!(global_bin.join("yarn").exists());
-    assert!(global_bin.join("yarnpkg").exists());
+    let exe = std::env::consts::EXE_SUFFIX;
+    assert!(global_bin.join(format!("yarn{exe}")).exists());
+    assert!(global_bin.join(format!("yarnpkg{exe}")).exists());
     let config =
         fs::read_to_string(root.path().join("config/pnpm/config.yaml")).expect("read config.yaml");
     assert!(config.contains("yarn: auto"), "{config}");
