@@ -1065,19 +1065,14 @@ async fn resolve_aliasless_local(
         current_pkg: None,
         update: LocalResolverUpdate::On,
     };
-    let scheme_resolved =
+    let mut claimed =
         resolve_from_local_scheme(&ctx, &wanted, &opts).await.map_err(AddError::ResolveLocal)?;
-    let resolved = match scheme_resolved {
-        Some(resolved) => resolved,
-        None => {
-            let path_resolved = resolve_from_local_path(&ctx, &wanted, &opts)
-                .await
-                .map_err(AddError::ResolveLocal)?;
-            match path_resolved {
-                Some(resolved) => resolved,
-                None => return Ok(None),
-            }
-        }
+    if claimed.is_none() {
+        claimed =
+            resolve_from_local_path(&ctx, &wanted, &opts).await.map_err(AddError::ResolveLocal)?;
+    }
+    let Some(resolved) = claimed else {
+        return Ok(None);
     };
     let manifest_specifier =
         resolved.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));

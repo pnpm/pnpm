@@ -1459,7 +1459,7 @@ mod aliasless_selectors {
 
         pacquet.with_args(["add", "./pkg-from-tarball-1.0.0.tgz"]).assert().success();
 
-        assert_eq!(prod_spec(&workspace, "pkg-from-tarball"), "file:pkg-from-tarball-1.0.0.tgz",);
+        assert_eq!(prod_spec(&workspace, "pkg-from-tarball"), "file:pkg-from-tarball-1.0.0.tgz");
         assert!(
             workspace.join("node_modules/pkg-from-tarball/package.json").exists(),
             "the tarball package must be installed",
