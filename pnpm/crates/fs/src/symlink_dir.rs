@@ -347,14 +347,19 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
 }
 
 /// Remove a regular file or directory that's occupying a symlink
-/// slot. Tries `remove_dir_all` first; if the target isn't a
-/// directory, falls back to `remove_file`. Both retry transient
-/// Windows file-lock errors.
+/// slot. Tries `remove_dir_all` first and unlinks a non-directory
+/// instead. Both retry transient Windows file-lock errors; the
+/// fallback is taken only when the path is not a directory, so a
+/// directory that stays locked through its retry budget fails without
+/// starting a second one.
 fn remove_occupant(path: &Path) -> io::Result<()> {
     match remove_dir_all_with_retry(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(_) => retry_transient_file_locks(|| fs::remove_file(path)),
+        Err(error) if error.kind() == io::ErrorKind::NotADirectory => {
+            retry_transient_file_locks(|| fs::remove_file(path))
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -475,9 +480,6 @@ mod windows {
 
     pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
         let staging = stage_junction(original, link)?;
-        // Serialize only the commit. The slow part — the reparse-point
-        // conversion inside `stage_junction` — already ran in parallel.
-        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         commit_staged_junction(link, &staging)
     }
 
@@ -495,19 +497,24 @@ mod windows {
     }
 
     /// Publish `staging` at `link` with an atomic rename, folding a lost race
-    /// into the `AlreadyExists` reuse signal. Runs under [`JUNCTION_COMMIT_LOCK`].
+    /// into the `AlreadyExists` reuse signal.
+    ///
+    /// A transient Windows file lock on the rename is retried, with each
+    /// attempt serialized on its own by [`attempt_commit`]: the lock is not
+    /// held while waiting, so one blocked path never stalls the other
+    /// junction commits in the process, and every attempt re-inspects the
+    /// destination first, so a race lost while waiting is reused right away
+    /// rather than retried through the budget.
     fn commit_staged_junction(link: &Path, staging: &Path) -> io::Result<()> {
-        // A worker that took the lock before us may already have committed.
-        match inspect_destination(link) {
-            Destination::Missing => {}
-            Destination::Exists => return Err(reuse_completed_destination(link, staging, "")),
-            Destination::InspectFailed(error) => {
+        let rename_error = match super::retry_transient_file_locks(|| attempt_commit(link, staging))
+        {
+            Ok(CommitAttempt::Committed) => return Ok(()),
+            Ok(CommitAttempt::DestinationTaken) => {
+                return Err(reuse_completed_destination(link, staging, ""));
+            }
+            Ok(CommitAttempt::InspectFailed(error)) => {
                 return Err(inspect_failed(link, staging, &error, ""));
             }
-        }
-
-        let rename_error = match super::rename_with_retry(staging, link) {
-            Ok(()) => return Ok(()),
             Err(error) => error,
         };
 
@@ -521,6 +528,30 @@ mod windows {
             }
             Destination::Missing => Err(discard_staging_after_rename(staging, link, rename_error)),
         }
+    }
+
+    /// Outcome of one serialized attempt to publish a staged junction.
+    enum CommitAttempt {
+        Committed,
+        /// Another worker already committed the link.
+        DestinationTaken,
+        InspectFailed(io::Error),
+    }
+
+    /// One attempt under [`JUNCTION_COMMIT_LOCK`]: inspect the destination,
+    /// then rename. Only the rename failure is returned as `Err`, so the
+    /// retry loop in [`commit_staged_junction`] never repeats a final
+    /// verdict about the destination. Serializing only the commit keeps the
+    /// slow part — the reparse-point conversion inside [`stage_junction`] —
+    /// running in parallel.
+    fn attempt_commit(link: &Path, staging: &Path) -> io::Result<CommitAttempt> {
+        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        match inspect_destination(link) {
+            Destination::Missing => {}
+            Destination::Exists => return Ok(CommitAttempt::DestinationTaken),
+            Destination::InspectFailed(error) => return Ok(CommitAttempt::InspectFailed(error)),
+        }
+        fs::rename(staging, link).map(|()| CommitAttempt::Committed)
     }
 
     /// What `symlink_metadata` reports about a would-be junction destination.

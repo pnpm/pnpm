@@ -148,6 +148,23 @@ fn force_symlink_dir_replaces_a_stale_ignored_occupant() {
 }
 
 #[test]
+fn remove_occupant_clears_files_directories_and_missing_paths() {
+    let root = tempdir().expect("create temp dir");
+    let file = root.path().join("file");
+    let dir = root.path().join("dir");
+    fs::write(&file, b"occupant").expect("seed file");
+    fs::create_dir_all(dir.join("nested")).expect("seed dir");
+    fs::write(dir.join("nested/file"), b"occupant").expect("seed nested file");
+
+    super::remove_occupant(&file).expect("remove file occupant");
+    super::remove_occupant(&dir).expect("remove dir occupant");
+    super::remove_occupant(&root.path().join("missing")).expect("missing path is not an error");
+
+    assert!(!file.exists());
+    assert!(!dir.exists());
+}
+
+#[test]
 fn rename_error_allows_destination_removal_covers_occupied_and_locked_destinations() {
     use std::io::{Error, ErrorKind};
 
