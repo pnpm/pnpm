@@ -43,11 +43,9 @@ fn an_object_marker_keeps_its_body() {
     assert_eq!(provenance.predicate_type.as_deref(), Some("https://slsa.dev/provenance/v1"));
 }
 
-/// A registry may abbreviate either marker to a bare `1`. Decoding that
-/// strictly failed the whole manifest, which then read as a version the
-/// packument never listed, leaving resolution with "no version found for
-/// the latest tag"
-/// ([pnpm/pnpm#14432](https://github.com/pnpm/pnpm/issues/14432)).
+/// A registry may abbreviate either marker to a bare `1`
+/// ([pnpm/pnpm#14432](https://github.com/pnpm/pnpm/issues/14432)); the
+/// marker still counts, and the manifest still decodes.
 #[test]
 fn a_numeric_marker_still_counts_as_present() {
     let version = parse(r#"{ "trustedPublisher": 1 }"#, r#"{ "provenance": 1 }"#);
