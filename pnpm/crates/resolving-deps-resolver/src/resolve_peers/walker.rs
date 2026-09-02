@@ -15,9 +15,9 @@ use crate::{
             merge_realize_undo,
         },
         context::{
-            CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
-            importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
-            peer_id_pair, pkg_name_version, remap_link_node_id, satisfies_with_parsed_prereleases,
+            ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
+            SharedChain, importer_relative_link_dep_path, insert_parent_ref,
+            link_node_id_as_dep_path, peer_id_pair, pkg_name_version, remap_link_node_id,
             satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
@@ -27,7 +27,6 @@ use crate::{
         AncestorIds, ChildEdge, DirectDep, PeerDep, ResolvedPackage, ResolvedTree, TreeChildren,
     },
 };
-use node_semver::Range;
 use pnpm_deps_path::{
     DepPath, PeerId, create_peer_dep_graph_hash, index_of_dep_path_suffix,
     link_path_to_peer_version,
@@ -160,7 +159,12 @@ pub(super) struct Walker<'tree> {
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
-    peer_ranges_by_raw: HashMap<String, Arc<ComparablePeerRange>>,
+    /// Raw `peerDependencies` range → its comparable form. Peer-heavy
+    /// workspaces declare the same few ranges across many nodes, so the
+    /// walk parses each distinct one once. Scoped to the walk: the
+    /// mapping is a pure function of the raw range, and nothing outside
+    /// it needs the entries.
+    comparable_peer_ranges: HashMap<String, Arc<ComparablePeerRange>>,
 }
 
 impl<'tree> Walker<'tree> {
@@ -248,18 +252,19 @@ impl<'tree> Walker<'tree> {
             canonical_backedge_nodes,
             pending_canonical_nodes: Vec::new(),
             in_canonical_drain: false,
-            peer_ranges_by_raw: HashMap::default(),
+            comparable_peer_ranges: HashMap::default(),
         }
     }
 
+    /// The cached [`ComparablePeerRange`] for `raw_range`, building it
+    /// on the first request. Shared out behind an [`Arc`] so the caller
+    /// can keep it while taking `&mut self` again.
     fn comparable_peer_range(&mut self, raw_range: &str) -> Arc<ComparablePeerRange> {
-        if let Some(range) = self.peer_ranges_by_raw.get(raw_range) {
+        if let Some(range) = self.comparable_peer_ranges.get(raw_range) {
             return Arc::clone(range);
         }
-        let text = get_peer_version_range(raw_range);
-        let parsed = Range::parse(&text).ok();
-        let range = Arc::new(ComparablePeerRange { text, parsed });
-        self.peer_ranges_by_raw.insert(raw_range.to_string(), Arc::clone(&range));
+        let range = Arc::new(ComparablePeerRange::new(raw_range));
+        self.comparable_peer_ranges.insert(raw_range.to_string(), Arc::clone(&range));
         range
     }
 
@@ -472,11 +477,6 @@ struct ChildParentRefs {
     /// lets the caller pass its own parent-context snapshot down
     /// instead of rebuilding an identical one.
     changed: bool,
-}
-
-struct ComparablePeerRange {
-    text: String,
-    parsed: Option<Range>,
 }
 
 /// The peers of one node, as [`Walker::resolve_node_peers`] resolves
@@ -1393,12 +1393,7 @@ impl Walker<'_> {
                 }
             }
             Some(parent) => {
-                if !satisfies_with_parsed_prereleases(
-                    &parent.version,
-                    &comparable_range.text,
-                    comparable_range.parsed.as_ref(),
-                ) && !self.in_canonical_drain
-                {
+                if !comparable_range.satisfies(&parent.version) && !self.in_canonical_drain {
                     let parents = self.issue_parents(chain);
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
