@@ -1,7 +1,7 @@
 ---
-"@pnpm/installing.commands": patch
-"pnpm": patch
-"pacquet": patch
+"@pnpm/installing.commands": minor
+"pnpm": minor
+"pacquet": minor
 ---
 
-`pnpm remove` now accepts `--trust-lockfile`, so a package the supply-chain policy rejects can be removed instead of failing with `Unknown option: 'trust-lockfile'`. The TypeScript CLI also accepts `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after` there, matching `pnpm install` and `pnpm add`.
+`pnpm remove` now accepts the `--trust-lockfile`, `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after` flags, matching `pnpm install` and `pnpm add`. They were previously rejected as unknown options, so these settings could only reach `pnpm remove` through `--config.<name>=<value>` or the config file. Lockfile verification itself is unchanged.
