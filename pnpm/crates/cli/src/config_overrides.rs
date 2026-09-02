@@ -98,6 +98,7 @@ fn home_relative_store_dir(store_dir: &Path) -> Option<&Path> {
 /// installed has to be ported here.
 #[derive(Debug, Default)]
 pub struct ConfigOverrides {
+    allow_unused_patches: Option<bool>,
     bail: Option<bool>,
     ci: Option<bool>,
     color: Option<ColorMode>,
@@ -221,6 +222,7 @@ impl ConfigOverrides {
 
     fn set(&mut self, key: &str, value: &str) {
         match key {
+            "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
             "bail" => self.bail = parse_bool(value),
             "ci" => self.ci = parse_bool(value),
             "color" => {
@@ -393,6 +395,10 @@ impl ConfigOverrides {
             self.http_proxy.as_deref(),
             self.no_proxy.as_deref(),
         );
+        if let Some(value) = self.allow_unused_patches {
+            config.allow_unused_patches = value;
+            config.explicit_settings.insert("allowUnusedPatches".to_string(), value.into());
+        }
         if let Some(value) = self.bail {
             config.bail = value;
         }
@@ -761,7 +767,8 @@ enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-const BARE_SETTING_FLAGS: [(&str, SettingArity); 19] = [
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 20] = [
+    ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("global-dir", SettingArity::Text),
     ("hoist", SettingArity::Boolean),

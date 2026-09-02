@@ -1657,6 +1657,43 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn legacy_deploy_honors_allow_unused_patches_overrides() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
+        "is-positive@1.0.0",
+        "is-positive@1.0.0.patch",
+        "packages:\n  - 'packages/*'\n",
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create app directory");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write app manifest");
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(
+        &workspace,
+        [
+            "--config.allow-unused-patches=true",
+            "--filter=app",
+            "deploy",
+            "--legacy",
+            "config-deploy",
+        ],
+    )
+    .assert()
+    .success();
+    pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "env-deploy"])
+        .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 /// pnpm skips patch usage validation when a first filtered install's
 /// previous wanted lockfile does not cover every resolved importer.
 #[test]

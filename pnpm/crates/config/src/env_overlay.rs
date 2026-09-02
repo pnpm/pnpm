@@ -248,6 +248,7 @@ impl WorkspaceSettings {
         json_field!(fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
+        json_field!(allow_unused_patches, "ALLOW_UNUSED_PATCHES");
         string_field!(patches_dir, "PATCHES_DIR");
         string_field!(global_pnpmfile, "GLOBAL_PNPMFILE");
         enum_field!(pnpmfile, "PNPMFILE", crate::PnpmfileSetting);
