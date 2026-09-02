@@ -11,7 +11,7 @@ mod system_runtime_version;
 
 use super::{
     cli_command::{CliArgs, CliCommand},
-    config::ConfigSubcommand,
+    config::{ConfigLocation, ConfigSubcommand},
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
         package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
@@ -63,6 +63,7 @@ pub(crate) fn pre_command_plan(
         &PreCommandInput {
             switch: SwitchInput::from_cli_args(args),
             global: is_global(&args.command),
+            skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
             syncs_env_lockfile_in_pipeline: syncs_env_lockfile_in_pipeline(&args.command),
             emit: reporter_emit(args.reporter),
@@ -85,6 +86,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
         &PreCommandInput {
             switch: SwitchInput::from_version_argv(argv),
             global: false,
+            skip_pm_handling: false,
             check_runtimes: false,
             // No install pipeline runs behind `--version`, so nothing else
             // would record the pin.
@@ -240,7 +242,8 @@ fn pre_command_plan_from_input(
             && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
     });
     let mut package_manager_to_sync = None;
-    if let Some(root_manifest) = manifest.as_ref()
+    if !input.skip_pm_handling
+        && let Some(root_manifest) = manifest.as_ref()
         && let Some(pm) = wanted_pm
     {
         let on_fail = effective_on_fail(&config, &pm);
@@ -301,6 +304,7 @@ fn pre_command_plan_from_input(
     }
 
     if input.check_runtimes
+        && !input.skip_pm_handling
         && !input.global
         && let Some(manifest) = manifest
     {
@@ -571,6 +575,7 @@ pub(crate) enum PreCommandError {
 struct PreCommandInput {
     switch: SwitchInput,
     global: bool,
+    skip_pm_handling: bool,
     check_runtimes: bool,
     syncs_env_lockfile_in_pipeline: bool,
     emit: fn(&LogEvent),
@@ -918,6 +923,15 @@ fn should_skip_command(command: &CliCommand) -> bool {
             | CliCommand::Store(_)
             | CliCommand::With(_),
     )
+}
+
+fn should_skip_pm_handling(command: &CliCommand) -> bool {
+    match command {
+        CliCommand::Config(args) => args.flags.location != Some(ConfigLocation::Project),
+        CliCommand::Get(args) => args.flags.location != Some(ConfigLocation::Project),
+        CliCommand::Set(args) => args.flags.location != Some(ConfigLocation::Project),
+        _ => false,
+    }
 }
 
 fn should_skip_command_name(command: &str) -> bool {

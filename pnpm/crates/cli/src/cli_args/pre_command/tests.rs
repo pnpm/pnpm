@@ -389,6 +389,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
             color: None,
         },
         global: false,
+        skip_pm_handling: false,
         check_runtimes: true,
         syncs_env_lockfile_in_pipeline: false,
         emit: SilentReporter::emit,
