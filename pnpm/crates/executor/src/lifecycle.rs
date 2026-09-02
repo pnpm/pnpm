@@ -1,6 +1,7 @@
 use crate::{
     extend_path::{ScriptsPrependNodePath, extend_path},
     make_env::{EnvOptions, build_env, path_value},
+    process_tracker::spawn_child,
     script_exit::ScriptExit,
     shell::{ScriptShellError, SelectedShell, select_shell},
     shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated},
@@ -405,14 +406,14 @@ fn run_in_shell<Reporter: self::Reporter>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|error| LifecycleScriptError::Spawn {
+    let mut child = spawn_child(&mut cmd, None).map_err(|error| LifecycleScriptError::Spawn {
         dep_path: opts.dep_path.to_string(),
         stage: stage.to_string(),
         source: error,
     })?;
 
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
+    let stdout = child.child_mut().stdout.take();
+    let stderr = child.child_mut().stderr.take();
 
     let target = StreamedScript { dep_path: opts.dep_path, stage, wd, emit: Reporter::emit };
     let stdout_handle = stdout.map(|stream| target.pump_stream(stream, LifecycleStdio::Stdout));
