@@ -404,30 +404,46 @@ fn extract_applies_ignore_scripts_override() {
 
 #[test]
 fn extract_applies_allow_unused_patches_override() {
-    let (overrides, remaining) =
-        ConfigOverrides::extract(argv(["pacquet", "--config.allow-unused-patches=true", "deploy"]));
-    assert_eq!(remaining, argv(["pacquet", "deploy"]));
-    let mut config = Config::default();
-    assert!(!config.allow_unused_patches);
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert!(config.allow_unused_patches);
-    assert_eq!(
-        config.explicit_settings.get("allowUnusedPatches"),
-        Some(&serde_json::Value::Bool(true)),
-    );
+    for (flag, expected) in [
+        ("--allow-unused-patches", true),
+        ("--allow-unused-patches=true", true),
+        ("--allow-unused-patches=false", false),
+        ("--allow-unused-patches=1", true),
+        ("--allow-unused-patches=0", false),
+        ("--config.allow-unused-patches=true", true),
+        ("--config.allow-unused-patches=false", false),
+        ("--config.allow-unused-patches=1", true),
+        ("--config.allow-unused-patches=0", false),
+        ("--no-allow-unused-patches", false),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "deploy"]));
+        assert_eq!(remaining, argv(["pacquet", "deploy"]));
 
-    let (overrides, _) = ConfigOverrides::extract(argv([
-        "pacquet",
-        "--config.allow-unused-patches=false",
-        "deploy",
-    ]));
-    let mut config = Config { allow_unused_patches: true, ..Config::default() };
-    overrides.apply(&mut config, Path::new("/workspace"));
-    assert!(!config.allow_unused_patches);
-    assert_eq!(
-        config.explicit_settings.get("allowUnusedPatches"),
-        Some(&serde_json::Value::Bool(false)),
-    );
+        let mut config = Config { allow_unused_patches: !expected, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.allow_unused_patches, expected);
+        assert_eq!(
+            config.explicit_settings.get("allowUnusedPatches"),
+            Some(&serde_json::Value::Bool(expected)),
+        );
+    }
+}
+
+#[test]
+fn extract_leaves_invalid_allow_unused_patches_values_for_clap() {
+    for flag in [
+        "--allow-unused-patches=yes",
+        "--allow-unused-patches=",
+        "--config.allow-unused-patches=yes",
+        "--config.allow-unused-patches=",
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", flag, "deploy"]));
+        assert_eq!(remaining, argv(["pacquet", flag, "deploy"]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(!config.explicit_settings.contains_key("allowUnusedPatches"));
+    }
 }
 
 #[test]

@@ -767,7 +767,8 @@ enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-const BARE_SETTING_FLAGS: [(&str, SettingArity); 19] = [
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 20] = [
+    ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("global-dir", SettingArity::Text),
     ("hoist", SettingArity::Boolean),
