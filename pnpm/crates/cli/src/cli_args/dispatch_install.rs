@@ -5,7 +5,7 @@ use super::{
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
-    dispatch::{CommandFuture, RunCtx},
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
     dlx::DlxArgs,
     env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
@@ -523,6 +523,7 @@ pub(super) fn rebuild<'a>(
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        apply_update_config(cfg, dir, reporter).await?;
         let recursive_sort = cfg.sort;
         let recursive_no_bail = !cfg.bail;
         args.pending = resolve_bool_override(args.pending, args.no_pending, cfg.pending);

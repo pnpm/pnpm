@@ -455,6 +455,25 @@ pub fn load_before_packing_hooks(
         .collect())
 }
 
+/// Install the project's `configDependencies` and apply the `updateConfig`
+/// pnpmfile hooks to `config`, returning the loaded hook objects. `dir` is
+/// the command's working directory; the config root is derived from it the
+/// same way the install family derives it.
+///
+/// The entry point for commands outside the install family, each of which
+/// resolves its own [`Config`]: pnpm applies `updateConfig` once per
+/// invocation, before the command runs, so a hook's settings — including
+/// `extraEnv` and `extraBinPaths` — reach every command's child processes.
+pub async fn prepare_config<Reporter: self::Reporter>(
+    config: &mut Config,
+    dir: &Path,
+) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
+    let config_root = config.root_project_manifest_dir(dir).to_path_buf();
+    install_config_deps::<Reporter>(config, &config_root, config.frozen_lockfile.unwrap_or(false))
+        .await?;
+    run_update_config_hooks::<Reporter>(config, &config_root).await
+}
+
 /// Run the `updateConfig` pnpmfile hooks contributed by config-dependency
 /// plugins and the project's own pnpmfile, applying their result to `config`.
 /// The returned handles are the same loaded hook objects that ran
