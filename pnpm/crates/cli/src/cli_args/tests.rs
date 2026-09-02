@@ -2,7 +2,7 @@ use super::{
     CliArgs,
     add::AddArgs,
     cli_command::{CliCommand, WorkspaceRootError},
-    config::ConfigLocation,
+    config::{ConfigLocation, ConfigSubcommand},
     dedupe::DedupeArgs,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
@@ -1079,54 +1079,98 @@ fn unlink_args(argv: &[&str]) -> UnlinkArgs {
 
 #[test]
 fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
-    let CliCommand::Get(get) = command(&["pacquet", "get", "store-dir"]) else {
-        panic!("expected get");
-    };
-    assert_eq!(get.args.key.as_deref(), Some("store-dir"));
+    for (alias, params) in
+        [("get", ["store-dir"].as_slice()), ("set", ["store-dir", "/tmp/store"].as_slice())]
+    {
+        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
+            for flag_before_params in [true, false] {
+                let mut argv = vec!["pacquet", alias];
+                if flag_before_params {
+                    argv.extend(flag);
+                }
+                argv.extend(params);
+                if !flag_before_params {
+                    argv.extend(flag);
+                }
 
-    let CliCommand::Set(set) = command(&["pacquet", "set", "store-dir", "/tmp/store", "--global"])
-    else {
-        panic!("expected set");
-    };
-    assert_eq!(set.args.key.as_deref(), Some("store-dir"));
-    assert_eq!(set.args.value.as_deref(), Some("/tmp/store"));
-    assert!(set.flags.global);
+                match (alias, command(&argv)) {
+                    ("get", CliCommand::Get(get)) => {
+                        assert_eq!(get.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+                        assert_eq!(get.flags.global, expected_global, "{argv:?}");
+                        assert_eq!(get.flags.location, expected_location, "{argv:?}");
+                        assert_eq!(get.flags.json, expected_json, "{argv:?}");
+                    }
+                    ("set", CliCommand::Set(set)) => {
+                        assert_eq!(set.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+                        assert_eq!(set.args.value.as_deref(), Some("/tmp/store"), "{argv:?}");
+                        assert_eq!(set.flags.global, expected_global, "{argv:?}");
+                        assert_eq!(set.flags.location, expected_location, "{argv:?}");
+                        assert_eq!(set.flags.json, expected_json, "{argv:?}");
+                    }
+                    (_, command) => panic!("expected {alias}, got {command:?}"),
+                }
+            }
+        }
+    }
 }
 
 #[test]
 fn config_flags_parse_on_either_side_of_the_subcommand() {
-    for (argv, expected_global, expected_location, expected_json) in [
-        (
-            ["pacquet", "config", "--global", "set", "registry", "https://registry.test"]
-                .as_slice(),
-            true,
-            None,
-            false,
-        ),
-        (["pacquet", "config", "-g", "get", "registry"].as_slice(), true, None, false),
-        (["pacquet", "config", "get", "registry", "--global"].as_slice(), true, None, false),
-        (
-            ["pacquet", "config", "--location", "project", "delete", "registry"].as_slice(),
-            false,
-            Some(ConfigLocation::Project),
-            false,
-        ),
-        (
-            ["pacquet", "config", "delete", "registry", "--location", "global"].as_slice(),
-            false,
-            Some(ConfigLocation::Global),
-            false,
-        ),
-        (["pacquet", "config", "--json", "list"].as_slice(), false, None, true),
-        (["pacquet", "config", "list", "--json"].as_slice(), false, None, true),
+    for subcommand in [
+        ["set", "registry", "https://registry.test"].as_slice(),
+        ["get", "registry"].as_slice(),
+        ["delete", "registry"].as_slice(),
+        ["list"].as_slice(),
     ] {
-        let CliCommand::Config(args) = command(argv) else {
-            panic!("expected config");
-        };
-        assert_eq!(args.flags.global, expected_global, "{argv:?}");
-        assert_eq!(args.flags.location, expected_location, "{argv:?}");
-        assert_eq!(args.flags.json, expected_json, "{argv:?}");
+        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
+            for flag_before_subcommand in [true, false] {
+                let mut argv = vec!["pacquet", "config"];
+                if flag_before_subcommand {
+                    argv.extend(flag);
+                }
+                argv.extend(subcommand);
+                if !flag_before_subcommand {
+                    argv.extend(flag);
+                }
+
+                let CliCommand::Config(args) = command(&argv) else {
+                    panic!("expected config");
+                };
+                assert_eq!(args.flags.global, expected_global, "{argv:?}");
+                assert_eq!(args.flags.location, expected_location, "{argv:?}");
+                assert_eq!(args.flags.json, expected_json, "{argv:?}");
+                match (subcommand[0], args.command) {
+                    ("set", ConfigSubcommand::Set(set)) => {
+                        assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
+                        assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
+                    }
+                    ("get", ConfigSubcommand::Get(get)) => {
+                        assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
+                    }
+                    ("delete", ConfigSubcommand::Delete(delete)) => {
+                        assert_eq!(delete.key.as_deref(), Some("registry"), "{argv:?}");
+                    }
+                    ("list", ConfigSubcommand::List(_)) => {}
+                    (subcommand, command) => {
+                        panic!("expected config {subcommand}, got {command:?}")
+                    }
+                }
+            }
+        }
     }
+}
+
+type ConfigFlagCase = (&'static [&'static str], bool, Option<ConfigLocation>, bool);
+
+fn config_flag_cases() -> impl Iterator<Item = ConfigFlagCase> {
+    [
+        (["--global"].as_slice(), true, None, false),
+        (["-g"].as_slice(), true, None, false),
+        (["--location", "project"].as_slice(), false, Some(ConfigLocation::Project), false),
+        (["--location", "global"].as_slice(), false, Some(ConfigLocation::Global), false),
+        (["--json"].as_slice(), false, None, true),
+    ]
+    .into_iter()
 }
 
 #[test]
