@@ -366,6 +366,7 @@ impl AddArgs {
             .save_target();
         let InstallFamilySelection {
             workspace_root: _,
+            workspace_cycles: _,
             mut projects,
             project_dependencies,
             ordered_dirs,

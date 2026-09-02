@@ -394,6 +394,7 @@ impl UpdateArgs {
         let run_package_update = !self.interactive || !package_selectors.is_empty();
         let InstallFamilySelection {
             workspace_root: _,
+            workspace_cycles: _,
             mut projects,
             project_dependencies,
             ordered_dirs,

@@ -46,6 +46,11 @@ pub(crate) struct InstallFamilySelection {
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) install_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
+    /// `Some` when the plan already ran the install's cycle search over
+    /// the same graph the install would rebuild (the unnarrowed case);
+    /// empty means the projects are orderable. `None` — the install
+    /// searches itself.
+    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -128,9 +133,16 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     manifest_path: &Path,
     recursive_sort: bool,
     auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
 ) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) =
-        select_workspace_projects(cfg, prefix, manifest_path, recursive_sort, auto_exclude_root)?
+    let Some(selection) = select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        precompute_workspace_cycles,
+    )?
     else {
         return Ok(InstallFamilyPlan::Single);
     };
@@ -160,6 +172,29 @@ pub(crate) fn select_workspace_projects(
     recursive_sort: bool,
     auto_exclude_root: bool,
 ) -> miette::Result<Option<InstallFamilySelection>> {
+    select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        false,
+    )
+}
+
+/// [`select_workspace_projects`], optionally running the install's
+/// workspace-cycle search over the selection graph while it is still in
+/// hand. Callers pass `true` only for a run that is certain to reach
+/// the cycle check — the "Already up to date" fast path returns before
+/// it, and a search it never reads would tax exactly that path.
+fn select_workspace_projects_with_cycles(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
     if !cfg.recursive {
         return Ok(None);
     }
@@ -174,7 +209,7 @@ pub(crate) fn select_workspace_projects(
             );
         }
     }
-    let (project_dependencies, ordered_dirs, selected_dirs) = {
+    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
         let selection = select_recursive_projects(
             &projects,
             cfg,
@@ -185,6 +220,19 @@ pub(crate) fn select_workspace_projects(
                 AutoExcludeRoot::Disabled
             },
         )?;
+        // Computed here only when it answers exactly what the install's
+        // own cycle search over its rebuilt graph would: an unnarrowed
+        // selection (`all` unset) is the whole graph in build order, so
+        // running the same search over it here lets the install skip
+        // the rebuild. A `--filter` / `--filter-prod` selection reorders
+        // the nodes (and prod-prunes some edges), so the install keeps
+        // its own search there.
+        let workspace_cycles = (precompute_workspace_cycles
+            && selection.all.is_none()
+            && !cfg.ignore_workspace_cycles)
+            .then(|| {
+                pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
+            });
         let project_dependencies = if recursive_sort {
             filtered_projects_dependencies(
                 &selection.selected,
@@ -197,14 +245,24 @@ pub(crate) fn select_workspace_projects(
             dirs.sort();
             dirs.into_iter().map(|dir| (dir, Vec::new())).collect()
         };
+        // Sequenced over borrowed paths: cloning a workspace-scale edge
+        // map just to sort it cost more than the sort.
         let ordered_dirs = graph_sequencer(
-            &project_dependencies.iter().map(|(key, value)| (key.clone(), value.clone())).collect(),
-            &project_dependencies.keys().cloned().collect::<Vec<_>>(),
+            &project_dependencies
+                .iter()
+                .map(|(key, value)| {
+                    (key.as_path(), value.iter().map(PathBuf::as_path).collect::<Vec<_>>())
+                })
+                .collect(),
+            &project_dependencies.keys().map(PathBuf::as_path).collect::<Vec<_>>(),
         )
-        .order;
+        .order
+        .into_iter()
+        .map(Path::to_path_buf)
+        .collect();
         let selected_dirs: Arc<HashSet<PathBuf>> =
             Arc::new(selection.selected.keys().cloned().collect());
-        (project_dependencies, ordered_dirs, selected_dirs)
+        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -233,6 +291,7 @@ pub(crate) fn select_workspace_projects(
         selected_dirs,
         install_dirs: Arc::new(install_dirs),
         active_manifest_is_standin,
+        workspace_cycles,
     }))
 }
 
@@ -310,18 +369,19 @@ impl InstallPipeline {
         let lockfile = cfg
             .shares_one_lockfile()
             .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
-        if let Some(lockfile) = lockfile.as_ref()
-            && !args.fix_lockfile
-        {
+        let certain_full_install = cfg.shares_one_lockfile() && {
             let manifest_dir =
                 manifest_path.parent().expect("manifest path always has a parent dir");
             let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
-            if frozen_lockfile
+            frozen_lockfile
                 || cfg.force
                 || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
-            {
-                lockfile.prefetch();
-            }
+        };
+        if let Some(lockfile) = lockfile.as_ref()
+            && !args.fix_lockfile
+            && certain_full_install
+        {
+            lockfile.prefetch();
         }
         let plan = select_install_family_plan::<Reporter>(
             cfg,
@@ -329,6 +389,7 @@ impl InstallPipeline {
             &manifest_path,
             recursive_sort,
             false,
+            certain_full_install,
         )?;
         match plan {
             InstallFamilyPlan::PerProject(project_dependencies) => {
@@ -430,6 +491,7 @@ impl AddPipeline {
                 &manifest_path,
                 recursive_sort,
                 true,
+                false,
             )?
         };
         match plan {
@@ -512,6 +574,7 @@ impl UpdatePipeline {
             &prefix,
             &manifest_path,
             recursive_sort,
+            false,
             false,
         )?;
         // An empty selection has nothing to update, and — like the shared
@@ -615,6 +678,7 @@ impl RemovePipeline {
             &prefix,
             &manifest_path,
             recursive_sort,
+            false,
             false,
         )?;
         match plan {

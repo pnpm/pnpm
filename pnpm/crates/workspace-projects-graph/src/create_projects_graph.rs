@@ -7,6 +7,7 @@ use node_semver::{Range, Version};
 use pnpm_fs::lexical_normalize;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
+use rayon::prelude::*;
 use std::{collections::HashMap, path::PathBuf};
 
 /// Options for [`create_projects_graph()`].
@@ -92,18 +93,31 @@ where
         link_workspace_packages: opts.link_workspace_packages,
     };
 
+    // Each importer's edges resolve against the immutable lookup
+    // tables only, so the importers fan out across the rayon pool; the
+    // per-importer unmatched lists are flattened in importer order
+    // below, keeping the reported set and its order deterministic.
+    let per_importer: Vec<(Vec<PathBuf>, Vec<Unmatched>)> = dependency_lists
+        .par_iter()
+        .enumerate()
+        .map(|(importer, dependencies)| {
+            let mut edges = Vec::new();
+            let mut unmatched = Vec::new();
+            for (dep_name, raw_spec) in dependencies {
+                if let Some(target) =
+                    resolve_edge(importer, dep_name, raw_spec, &lookups, &mut unmatched)
+                {
+                    edges.push(target);
+                }
+            }
+            (edges, unmatched)
+        })
+        .collect();
     let mut unmatched = Vec::new();
     let mut all_edges: Vec<Vec<PathBuf>> = Vec::with_capacity(count);
-    for (importer, dependencies) in dependency_lists.iter().enumerate() {
-        let mut edges = Vec::new();
-        for (dep_name, raw_spec) in dependencies {
-            if let Some(target) =
-                resolve_edge(importer, dep_name, raw_spec, &lookups, &mut unmatched)
-            {
-                edges.push(target);
-            }
-        }
+    for (edges, importer_unmatched) in per_importer {
         all_edges.push(edges);
+        unmatched.extend(importer_unmatched);
     }
 
     let mut graph: ProjectGraph<Pkg> = IndexMap::with_capacity(count);

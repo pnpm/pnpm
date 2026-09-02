@@ -721,6 +721,14 @@ fn workspace_install_selection(
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
+        workspace_cycles: selection.workspace_cycles.as_ref().map_or(
+            pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
+            |cycles| {
+                pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
+                    (!cycles.is_empty()).then_some(cycles.as_slice()),
+                )
+            },
+        ),
     }
 }
 

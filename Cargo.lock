@@ -5959,6 +5959,7 @@ dependencies = [
  "pnpm-fs",
  "pnpm-workspace-range-resolver",
  "pnpm-workspace-spec",
+ "rayon",
 ]
 
 [[package]]
