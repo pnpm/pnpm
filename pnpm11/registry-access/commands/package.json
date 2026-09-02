@@ -43,6 +43,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/registry-access.client": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "ramda": "catalog:",

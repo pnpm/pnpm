@@ -190,12 +190,12 @@ describe('unpublish: OTP challenges', () => {
     }
   })
 
-  test('a plain 401 is reported as a missing login', async () => {
+  test('a plain 401 is reported as a missing login, with its body stripped of terminal control characters', async () => {
     getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'GET', path: '/test-pkg' }).reply(200, PACKUMENT)
-    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, { error: 'unauthorized' })
+    getMockAgent().get(MOCK_REGISTRY).intercept({ method: 'DELETE', path: '/test-pkg/-rev/3-abc' }).reply(401, 'unauthorized \u001b[2J spoofed\r line')
 
     await expect(unpublish.handler({ ...OPTS, cliOptions: { force: true } }, ['test-pkg']))
-      .rejects.toMatchObject({ code: 'ERR_PNPM_UNAUTHORIZED', message: expect.stringContaining('You must be logged in to unpublish packages') })
+      .rejects.toMatchObject({ code: 'ERR_PNPM_UNAUTHORIZED', message: 'You must be logged in to unpublish packages. unauthorized [2J spoofed line' })
   })
 
   test('--otp sends the code up front under the legacy auth type', async () => {

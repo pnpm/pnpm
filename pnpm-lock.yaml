@@ -8303,6 +8303,9 @@ importers:
       '@pnpm/resolving.registry.types':
         specifier: workspace:*
         version: link:../../resolving/registry/types
+      '@pnpm/text.sanitize':
+        specifier: workspace:*
+        version: link:../../text/sanitize
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types

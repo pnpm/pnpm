@@ -426,9 +426,7 @@ async fn send_once(
                 source,
             ))
         })?;
-    if !body.truncated
-        && let Some(challenge) = otp_challenge_from_unauthorized_body(&body.bytes)
-    {
+    if let Some(challenge) = otp_challenge_from_unauthorized_body(&body.bytes) {
         return Err(UnpublishHttpError::Otp { challenge });
     }
     Err(UnpublishHttpError::Registry(write_error_for_status(

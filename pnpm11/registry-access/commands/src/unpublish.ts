@@ -5,6 +5,7 @@ import { createGetAuthHeaderByURI } from '@pnpm/network.auth-header'
 import { createFetchFromRegistry, type CreateFetchFromRegistryOptions, type FetchFromRegistry } from '@pnpm/network.fetch'
 import { createOtpSession, type OtpSession, SyntheticOtpError } from '@pnpm/network.web-auth'
 import npa from '@pnpm/npm-package-arg'
+import { sanitizeInline } from '@pnpm/text.sanitize'
 import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { renderHelp } from 'render-help'
 import semver from 'semver'
@@ -312,7 +313,7 @@ async function sendMutation (
     if (response.status !== 401) return response
     const body = await readErrorBody(response)
     throw SyntheticOtpError.fromUnauthorizedBody(body) ??
-      new PnpmError('UNAUTHORIZED', `You must be logged in to unpublish packages. ${body}`)
+      new PnpmError('UNAUTHORIZED', `You must be logged in to unpublish packages. ${sanitizeInline(body)}`)
   })
 }
 
