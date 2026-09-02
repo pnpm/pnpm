@@ -212,6 +212,43 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
 
+### Changeset style
+
+A changeset is a release note. Someone skimming the changelog for the one entry that affects them should read it once and know what changed for them. Release blog posts are assembled from these entries, so their wording is the wording users see.
+
+- **Lead with what the user sees.** The first sentence names the command, setting, or behavior that changed and how. If the mechanism matters to a user, give it a second sentence of its own. If it does not, leave it out. It belongs in the commit body.
+- **One idea per sentence.** Split any sentence a reader would have to read twice. Do not chain several changes with colons, semicolons, or a parenthetical. A performance changeset says what got faster and for whom, not which caches and hash functions changed.
+- **End with the issue link, not with the old behavior.** If the reader needs the old behavior to recognize the bug, describe it in its own past-tense sentence. Do not append "instead of ..." or "rather than ..." to every sentence.
+- **Plain punctuation.** No em dashes or en dashes. End the sentence or use a comma. A colon only introduces a list or an example. No bold or italics for emphasis. Straight quotes.
+- **Plain words.** "Use", not "leverage". "Many", not "numerous". "If", not "in the event that". Name the actor when it matters: "pnpm now reads the file", not "the file is now read". Replace "significantly faster" with the number, or drop the adverb.
+- **No reasoning.** A changeset states what pnpm does now. Design justification, "so that ..." chains, "note that", and hedging go in the commit body or the PR description.
+
+Before committing, reread the entry and ask what makes it read as generated. The usual answers are an em dash, an "instead of" tail, and a colon-joined list of internals.
+
+Before:
+
+```
+Sped up installs in large workspaces: the fast lockfile-update check no longer compares every project against every lockfile entry (or copies the whole lockfile before discovering a change needs the resolver), project ordering uses faster hashing, and the version-preference table builds in parallel [#14352](https://github.com/pnpm/pnpm/issues/14352).
+```
+
+After:
+
+```
+Sped up installs in large workspaces. The check that decides whether the lockfile needs updating no longer compares every project against every lockfile entry [#14352](https://github.com/pnpm/pnpm/issues/14352).
+```
+
+Before:
+
+```
+Fixed `pnpm run`, `pnpm exec`, `pnpm rebuild`, and the script shortcuts not loading the pnpmfile, so an `updateConfig` hook never applied to them [#14433](https://github.com/pnpm/pnpm/issues/14433). A hook's settings — `extraEnv` and `extraBinPaths` among them — now reach the scripts and commands these spawn, as they do on pnpm 11.
+```
+
+After:
+
+```
+`pnpm run`, `pnpm exec`, `pnpm rebuild`, and the script shortcuts such as `pnpm test` now load the pnpmfile, so `updateConfig` hook settings such as `extraEnv` and `extraBinPaths` reach the scripts they spawn [#14433](https://github.com/pnpm/pnpm/issues/14433).
+```
+
 ### Changesets for the Rust products
 
 The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
