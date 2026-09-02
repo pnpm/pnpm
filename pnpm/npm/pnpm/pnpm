@@ -1,4 +1,24 @@
-This is a placeholder. pnpm's native binary replaces this file during
-installation (see ./install.js). If you are reading this, the install/build
-script did not run — reinstall with build scripts enabled (e.g. allow-list
-pnpm's build under pnpm or Bun, or drop --ignore-scripts).
+# pnpm's native binary replaces this file during installation (see
+# ./install.js). If this is running, that install script did not: build
+# scripts were blocked (pnpm and Bun block them by default) or skipped
+# (`--ignore-scripts`). It hands over to the Node.js entry point, which runs
+# the installed binary — putting it in this file's place, so the next call is
+# native — or downloads one.
+#
+# Deliberately no `#!` line: npm generates the Windows shim from this file
+# before the install script rewrites it, and only a shebang-less file yields a
+# shim that still runs the native binary placed here afterwards. Shells and
+# libc run a `#!`-less executable as a `sh` script, so this must stay POSIX sh.
+self=$0
+while [ -h "$self" ]; do
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+if ! command -v node >/dev/null 2>&1; then
+  echo "pnpm's native binary was not installed: the install script that puts it in place did not run (build scripts were blocked or skipped), and Node.js, which could stand in for it, is not on PATH. Reinstall pnpm with its build scripts allowed, or install Node.js." >&2
+  exit 127
+fi
+PNPM_WRAPPER_PLACEHOLDER=1 exec node "$(dirname "$self")/bin/pnpm.mjs" "$@"

@@ -3,14 +3,18 @@
 // `./bin/pnpx.mjs` for every pnpm >=11 (see its `config.json`) and loads them
 // into its own Node.js process, which a native executable cannot be loaded into.
 //
-// Nothing else runs this file: `package.json#bin` still points at the native
-// binary, so an ordinary `npm install -g pnpm` never pays for a Node.js startup.
+// The only other way in is the `pnpm` placeholder bin, when the install script
+// that replaces it with the native binary did not run (build scripts blocked).
+// An ordinary `npm install -g pnpm` never pays for a Node.js startup:
+// `package.json#bin` points at the native binary.
 //
 // Corepack installs no dependencies and runs no lifecycle scripts, so the
 // `@pnpm/exe.<target>` package that carries the binary is absent and
 // `install.js` never ran. The binary is therefore downloaded on first use and
 // kept next to this wrapper — where the native binary also finds the `dist/`
-// payload it ships node-gyp in.
+// payload it ships node-gyp in. The placeholder's installs usually do carry
+// that package; either way, the binary this run ends up with is put in the
+// placeholder's place, as `install.js` would have, so the next call is native.
 //
 // The download itself is `get-pnpm`, the package behind https://get.pnpm.io,
 // which already knows how to verify one; it travels in that same `dist/`
@@ -24,7 +28,7 @@ import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { URL } from 'node:url'
-import { readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
+import { placeBinary, readWrapperManifest, resolveInstalledBinary, wrapperDir } from '../native-binary.mjs'
 
 // Deliberately not the `pnpm` placeholder that `install.js` overwrites: a name
 // of its own is what tells a downloaded binary apart from the placeholder.
@@ -34,8 +38,16 @@ const DOWNLOADED_BINARY = path.join(
 )
 const GET_PNPM = new URL('../dist/node_modules/get-pnpm/lib/index.js', import.meta.url)
 const DEFAULT_REGISTRY = 'https://registry.npmjs.org'
+// Set by the placeholder for this process alone; the binary's environment is
+// the caller's.
+const RUN_BY_PLACEHOLDER = process.env.PNPM_WRAPPER_PLACEHOLDER === '1'
+delete process.env.PNPM_WRAPPER_PLACEHOLDER
 
-run(await nativeBinary())
+const binary = await nativeBinary()
+if (RUN_BY_PLACEHOLDER) {
+  replacePlaceholder(binary)
+}
+run(binary)
 
 function run (binary) {
   // Ctrl-C reaches the whole foreground process group, so the binary gets its
@@ -84,6 +96,17 @@ async function nativeBinary () {
     fail(`Could not download the pnpm ${version} binary: ${err.message}`)
   }
   return DOWNLOADED_BINARY
+}
+
+/**
+ * Finish what the skipped install script would have done, so the placeholder
+ * runs only once. Best effort: a wrapper that cannot be written to (a read-only
+ * install, another user's) just keeps running through here.
+ */
+function replacePlaceholder (binary) {
+  try {
+    placeBinary(binary, path.join(wrapperDir, 'pnpm'), 0o755)
+  } catch {}
 }
 
 /**

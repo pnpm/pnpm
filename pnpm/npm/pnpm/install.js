@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
-// `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
-// binary so `pnpm` runs directly, no Node startup per call. A placeholder (not a
-// Node launcher) is required because npm generates the Windows shim before
-// preinstall and won't re-read package.json during that install pass. On a
-// global Windows install, postinstall asks npm to relink after the bin rewrite.
-// The tradeoff is no fallback when build scripts are blocked (`--ignore-scripts`,
-// pnpm/Bun default).
+// `@pnpm/exe`): replace the placeholder bins with the host's native binary so
+// `pnpm` runs directly, no Node startup per call. npm generates the Windows
+// shim before preinstall and won't re-read package.json during that install
+// pass, which is what shapes the placeholder (see the `pnpm` file); on a global
+// Windows install, postinstall asks npm to relink after the bin rewrite. When
+// build scripts are blocked (`--ignore-scripts`, the pnpm/Bun default) the
+// placeholder stays: on Unix it runs as a `sh` script that hands over to
+// `bin/pnpm.mjs`, on Windows it does not run.
 //
 // `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
 // relinked); on Windows the native binary is hardlinked onto each and
@@ -14,7 +15,7 @@
 // in the cli crate).
 //
 // Corepack runs no lifecycle scripts, so it never gets here; it enters through
-// `bin/pnpm.mjs` instead.
+// `bin/pnpm.mjs` too.
 import console from 'node:console'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
@@ -22,6 +23,7 @@ import path from 'node:path'
 import process from 'node:process'
 import {
   getBinCandidates,
+  placeBinary,
   readWrapperManifest,
   resolveInstalledBinary,
   splitBinSpecifier,
@@ -64,43 +66,24 @@ function setup () {
     for (const name of BIN_NAMES) {
       // The existing shim points at the no-ext file, so it must become the
       // binary; the `.exe` twin + bin rewrite are for shims generated later.
-      placeBinary(nativeBinary, path.join(wrapperDir, `${name}.exe`))
-      placeBinary(nativeBinary, path.join(wrapperDir, name))
+      placeBinaryOrExit(nativeBinary, path.join(wrapperDir, `${name}.exe`))
+      placeBinaryOrExit(nativeBinary, path.join(wrapperDir, name))
       newBin[name] = `${name}.exe`
     }
     rewriteBin(newBin)
   } else {
-    placeBinary(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
+    placeBinaryOrExit(nativeBinary, path.join(wrapperDir, 'pnpm'), 0o755)
   }
 }
 
 /**
- * Atomically place `nativeBinary` at `destPath` (hard link, falling back to a
- * copy across filesystems, via a temp file + rename). Exits the process on
- * failure — without the binary there is no working `pnpm`.
- *
- * @param {string} nativeBinary Absolute path to the resolved native binary.
- * @param {string} destPath Absolute path to create.
- * @param {number} [mode] chmod for the copy path only; a hard link shares the
- *   source inode (the shared store blob under pnpm), so its mode must not change.
+ * {@link placeBinary}, exiting the process on failure — without the binary
+ * there is no working `pnpm`.
  */
-function placeBinary (nativeBinary, destPath, mode) {
-  const tempPath = `${destPath}.pnpm-tmp`
+function placeBinaryOrExit (nativeBinary, destPath, mode) {
   try {
-    fs.rmSync(tempPath, { force: true })
-    let linked = false
-    try {
-      fs.linkSync(nativeBinary, tempPath)
-      linked = true
-    } catch {
-      fs.copyFileSync(nativeBinary, tempPath)
-    }
-    if (!linked && mode != null) {
-      fs.chmodSync(tempPath, mode)
-    }
-    fs.renameSync(tempPath, destPath)
+    placeBinary(nativeBinary, destPath, mode)
   } catch (err) {
-    removeFileIfPossible(tempPath)
     fail(`Could not install the pnpm binary at ${destPath}: ${err.message}`)
   }
 }
