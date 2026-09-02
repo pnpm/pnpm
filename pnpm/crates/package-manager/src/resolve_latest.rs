@@ -34,6 +34,21 @@ pub enum ResolveLatestError {
     #[display("no version found for the latest tag")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_LATEST_VERSION))]
     NoLatestVersion,
+
+    /// The `latest` tag names a version the packument lists but whose
+    /// manifest pnpm could not decode. A version that fails to decode is
+    /// skipped as if the registry never served it, so without this the
+    /// failure surfaces as an empty `latest` tag and points the user at
+    /// the wrong thing entirely.
+    ///
+    /// The guidance lives in the message rather than a `help(..)`
+    /// because every caller wraps this behind its own diagnostic code,
+    /// which drops the inner help before it reaches the terminal.
+    #[display(
+        "the registry served a manifest for {name}@{version} that pnpm could not read, so the version was skipped: {error}"
+    )]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_UNDECODABLE_LATEST_MANIFEST))]
+    UndecodableLatestManifest { name: String, version: String, error: String },
 }
 
 /// Maturity-aware picker for `latest` dist-tags (see the module docs for
@@ -122,6 +137,20 @@ impl<'a> LatestPicker<'a> {
         let pick = pick_package(&ctx, &spec, &opts)
             .await
             .map_err(|error| ResolveLatestError::Pick(Box::new(error)))?;
-        pick.picked_package.ok_or(ResolveLatestError::NoLatestVersion)
+        if let Some(picked) = pick.picked_package {
+            return Ok(picked);
+        }
+        // A `latest` the packument lists but can't decode is a registry
+        // compatibility problem, not an empty dist-tag; reporting it as
+        // `NoLatestVersion` sends the user looking for an unpublished
+        // package instead of at the manifest field pnpm choked on.
+        let Some((version, error)) = pick.meta.latest_decode_error() else {
+            return Err(ResolveLatestError::NoLatestVersion);
+        };
+        Err(ResolveLatestError::UndecodableLatestManifest {
+            name: package_name.to_string(),
+            version: version.to_string(),
+            error,
+        })
     }
 }
