@@ -440,6 +440,78 @@ fn peer_name_cycle_collapses_provider_suffixes() {
 }
 
 #[test]
+fn cached_cyclic_alias_peer_occurrences_share_a_closed_dep_path() {
+    let core_direct = NodeId::next();
+    let core_nested = NodeId::next();
+    let devtools = NodeId::next();
+    let vite_plus = NodeId::next();
+
+    let mut vite_plus_children = BTreeMap::new();
+    vite_plus_children.insert("core".to_string(), core_nested.clone());
+
+    let mut tree = ResolvedTree {
+        direct: vec![
+            DirectDep {
+                alias: "@vitejs/devtools".to_string(),
+                node_id: devtools.clone(),
+                id: "@vitejs/devtools@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "vite".to_string(),
+                node_id: core_direct.clone(),
+                id: "core@1.0.0".to_string(),
+            },
+            DirectDep {
+                alias: "vite-plus".to_string(),
+                node_id: vite_plus.clone(),
+                id: "vite-plus@1.0.0".to_string(),
+            },
+        ],
+        packages: HashMap::from_iter([
+            (
+                Arc::from("core@1.0.0".to_string()),
+                package_with_peer_dependencies(
+                    "core",
+                    "1.0.0",
+                    &[("@vitejs/devtools", "*", true)],
+                    false,
+                ),
+            ),
+            (
+                Arc::from("@vitejs/devtools@1.0.0".to_string()),
+                package("@vitejs/devtools", "1.0.0", &[("vite", "*")], false),
+            ),
+            ("vite-plus@1.0.0".into(), package("vite-plus", "1.0.0", &[], false)),
+        ]),
+        dependencies_tree: HashMap::from_iter([
+            (core_direct, tree_node("core@1.0.0", BTreeMap::new(), 0)),
+            (core_nested, tree_node("core@1.0.0", BTreeMap::new(), 1)),
+            (devtools, tree_node("@vitejs/devtools@1.0.0", BTreeMap::new(), 0)),
+            (vite_plus, tree_node("vite-plus@1.0.0", vite_plus_children, 0)),
+        ]),
+        all_peer_dep_names: HashSet::from_iter([
+            "@vitejs/devtools".to_string(),
+            "vite".to_string(),
+        ]),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::default(),
+        children_by_id: HashMap::default(),
+    };
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let vite_core = result.direct_dependencies_by_alias["vite"].clone();
+    let vite_plus_path = &result.direct_dependencies_by_alias["vite-plus"];
+    let nested_core = result.graph[vite_plus_path].children["core"].clone();
+
+    assert_eq!(nested_core, vite_core);
+    assert!(
+        result.graph.contains_key(&nested_core),
+        "every final dependency edge must resolve to a graph node: {:#?}",
+        result.graph,
+    );
+}
+
+#[test]
 fn missing_names_by_pkg_records_only_children_context_missing_peers() {
     let parent = NodeId::next();
     let child = NodeId::next();

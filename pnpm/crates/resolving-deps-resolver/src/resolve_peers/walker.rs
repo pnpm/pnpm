@@ -50,6 +50,9 @@ pub(super) struct Walker<'tree> {
     /// its descendants' peer dependencies into its own peer suffix.
     /// Indexed by `NodeId`; value's keys are peer aliases.
     pub(super) node_external_peers: HashMap<NodeId, Arc<HashMap<String, NodeId>>>,
+    /// Cache-hit occurrence → fully walked occurrence that produced the
+    /// reused peer-resolution verdict.
+    pub(super) cache_owner_by_node_id: HashMap<NodeId, NodeId>,
     /// Peers each node and its subtree declared but couldn't find.
     /// Indexed by `NodeId`; value's keys are peer aliases.
     pub(super) node_missing_peers: HashMap<NodeId, Arc<HashMap<String, MissingPeerInfo>>>,
@@ -217,6 +220,7 @@ impl<'tree> Walker<'tree> {
             missing_ancestor_pkg_ids: HashMap::default(),
             node_dep_paths,
             node_external_peers: HashMap::default(),
+            cache_owner_by_node_id: HashMap::default(),
             node_missing_peers: HashMap::default(),
             node_missing_peers_of_children: HashMap::default(),
             resolved_peer_providers_by_alias: BTreeMap::new(),
@@ -973,6 +977,7 @@ impl Walker<'_> {
                 .entry(std::sync::Arc::<str>::clone(&pkg.id).to_string())
                 .or_default()
                 .push(PeersCacheItem {
+                    owner_node_id: node_id.clone(),
                     dep_path: dep_path.clone(),
                     resolved_peers: Arc::clone(&all_resolved_peers),
                     missing_peers: Arc::clone(&all_missing_peers),

@@ -88,6 +88,14 @@ struct FinalPeerContext<'a> {
 }
 
 impl Walker<'_> {
+    /// Return the fully walked occurrence whose peer-resolution verdict
+    /// `node_id` reused. The cache hit is the same semantic node for
+    /// final depPath construction even though it remains a distinct tree
+    /// occurrence for traversal and edge labels.
+    fn cache_owner_node_id<'a>(&'a self, node_id: &'a NodeId) -> &'a NodeId {
+        self.cache_owner_by_node_id.get(node_id).unwrap_or(node_id)
+    }
+
     /// Record one walked node: its entry in the provisional
     /// depPath-keyed graph, and the [`NodeRecord`] the post-walk rebuild
     /// consumes. A discovery pass runs neither of the passes that read
@@ -295,6 +303,7 @@ impl Walker<'_> {
         final_dep_paths: &mut HashMap<NodeId, DepPath>,
         visiting: &mut HashSet<NodeId>,
     ) -> DepPath {
+        let node_id = self.cache_owner_node_id(node_id);
         if let Some(dep_path) = final_dep_paths.get(node_id) {
             return dep_path.clone();
         }
@@ -336,6 +345,7 @@ impl Walker<'_> {
         node_id: &NodeId,
         final_dep_paths: &HashMap<NodeId, DepPath>,
     ) -> DepPath {
+        let node_id = self.cache_owner_node_id(node_id);
         if let Some(dep_path) = final_dep_paths.get(node_id) {
             return dep_path.clone();
         }
@@ -357,6 +367,8 @@ impl Walker<'_> {
         final_dep_paths: &mut HashMap<NodeId, DepPath>,
         visiting: &mut HashSet<NodeId>,
     ) -> PeerId {
+        let node_id = self.cache_owner_node_id(node_id);
+        let peer_node_id = self.cache_owner_node_id(peer_node_id);
         if let NodeId::Leaf(id) = peer_node_id
             && let Some(rel) = id.strip_prefix("link:")
         {
