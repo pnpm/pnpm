@@ -161,6 +161,10 @@ impl<Value> CheckboxPrompt<Value> {
     }
 
     pub(crate) fn handle_key(&mut self, key: &Key) -> KeyOutcome {
+        // A refused Enter is answered by whatever the user does next.
+        if *key != Key::Enter {
+            self.error = None;
+        }
         match key {
             Key::Enter => {
                 if self.required && !self.checked.iter().any(|&checked| checked) {
@@ -172,10 +176,7 @@ impl<Value> CheckboxPrompt<Value> {
             Key::CtrlC => return KeyOutcome::Cancel,
             Key::ArrowUp | Key::Char('k') => self.move_active(-1),
             Key::ArrowDown | Key::Char('j') => self.move_active(1),
-            Key::Char(' ') => {
-                self.error = None;
-                self.checked[self.active] = !self.checked[self.active];
-            }
+            Key::Char(' ') => self.checked[self.active] = !self.checked[self.active],
             Key::Char('a') => {
                 let select_all = self
                     .items
@@ -208,7 +209,6 @@ impl<Value> CheckboxPrompt<Value> {
     /// Move the cursor `offset` choices, wrapping around the list and
     /// stepping over separators.
     fn move_active(&mut self, offset: isize) {
-        self.error = None;
         let len = self.items.len();
         let mut next = self.active;
         loop {

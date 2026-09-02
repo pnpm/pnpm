@@ -130,6 +130,10 @@ fn a_required_prompt_refuses_an_empty_selection() {
     press(&mut prompt, &[Key::ArrowDown]);
     assert!(!prompt.render_frame().contains("At least one"), "moving clears the error");
 
+    press(&mut prompt, &[Key::Enter, Key::Char('a')]);
+    assert!(!prompt.render_frame().contains("At least one"), "toggling all clears the error");
+    press(&mut prompt, &[Key::Char('a')]);
+
     assert_eq!(press(&mut prompt, &[Key::Char(' '), Key::Enter]), KeyOutcome::Submit);
 }
 
