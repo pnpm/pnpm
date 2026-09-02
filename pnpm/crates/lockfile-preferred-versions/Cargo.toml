@@ -16,6 +16,7 @@ pnpm-package-manifest        = { workspace = true }
 pnpm-resolving-resolver-base = { workspace = true }
 
 node-semver = { workspace = true }
+rayon       = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

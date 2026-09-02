@@ -131,17 +131,22 @@ fn sorted_dependencies<Pkg>(
     sorted: &HashSet<&Path>,
 ) -> Vec<PathBuf> {
     let mut dependencies: Vec<PathBuf> = Vec::new();
-    let mut visited: HashSet<PathBuf> = HashSet::new();
-    let mut stack: Vec<PathBuf> =
-        projects_graph.get(project_dir).map(|node| node.dependencies.clone()).unwrap_or_default();
+    // Borrowed paths and an FxHash set: this walk runs once per
+    // selected project, and cloning every visited `PathBuf` into a
+    // SipHash set dominated it on a workspace-scale graph.
+    let mut visited: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
+    let mut stack: Vec<&Path> = projects_graph
+        .get(project_dir)
+        .map(|node| node.dependencies.iter().map(PathBuf::as_path).collect())
+        .unwrap_or_default();
     while let Some(dependency_dir) = stack.pop() {
-        if dependency_dir.as_path() == project_dir || !visited.insert(dependency_dir.clone()) {
+        if dependency_dir == project_dir || !visited.insert(dependency_dir) {
             continue;
         }
-        if sorted.contains(dependency_dir.as_path()) {
-            dependencies.push(dependency_dir);
-        } else if let Some(node) = full_projects_graph.get(&dependency_dir) {
-            stack.extend(node.dependencies.iter().cloned());
+        if sorted.contains(dependency_dir) {
+            dependencies.push(dependency_dir.to_path_buf());
+        } else if let Some(node) = full_projects_graph.get(dependency_dir) {
+            stack.extend(node.dependencies.iter().map(PathBuf::as_path));
         }
     }
     dependencies
