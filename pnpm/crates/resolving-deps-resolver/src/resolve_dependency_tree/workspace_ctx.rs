@@ -1345,34 +1345,32 @@ impl WorkspaceTreeCtx {
     /// [`TreeCtx::into_resolved_tree`], which routes through here once
     /// the last `Arc<WorkspaceTreeCtx>` reference is the [`TreeCtx`]'s
     /// own.
-    pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
-        ResolvedTree {
+    pub fn into_resolved_tree(mut self, direct: Vec<DirectDep>) -> ResolvedTree {
+        let tree = ResolvedTree {
             direct,
-            packages: self.packages.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
-            dependencies_tree: self
-                .dependencies_tree
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            all_peer_dep_names: self
-                .all_peer_dep_names
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            policy_violations: self
-                .policy_violations
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            applied_patches: self
-                .applied_patches
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            children_by_id: self
-                .children_by_id
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
+            packages: take_locked(&mut self.packages),
+            dependencies_tree: take_locked(&mut self.dependencies_tree),
+            all_peer_dep_names: take_locked(&mut self.all_peer_dep_names),
+            policy_violations: take_locked(&mut self.policy_violations),
+            applied_patches: take_locked(&mut self.applied_patches),
+            children_by_id: take_locked(&mut self.children_by_id)
                 .into_iter()
                 .map(|(pkg_id, recorded)| (pkg_id, recorded.edges))
                 .collect(),
-        }
+        };
+        // The per-edge dedup caches hold an entry per resolved wanted
+        // dependency; freeing a workspace-scale map costs long enough
+        // to show up in the install's tail, and nothing reads them
+        // again, so a background thread takes the drop off the
+        // critical path.
+        let dedup_caches = (
+            take_locked(&mut self.resolved_by_wanted),
+            take_locked(&mut self.resolved_workspace_by_wanted),
+            take_locked(&mut self.resolved_workspace_final_by_wanted),
+            take_locked(&mut self.children_specs_by_id),
+        );
+        std::thread::spawn(move || drop(dedup_caches));
+        tree
     }
 }
 
@@ -1696,6 +1694,12 @@ pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_
     if rewrote_any {
         ctx.workspace.record_children_rewrite();
     }
+}
+
+/// Take a mutex-held map out of a context this thread solely owns,
+/// recovering from poisoning like every other read of these maps.
+fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
 }
 
 #[cfg(test)]
