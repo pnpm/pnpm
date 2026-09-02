@@ -15,6 +15,52 @@ const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'packag
 test('npm installs a shim that runs the native pnpm binary', (t) => {
   assert.equal(wrapperManifest.bin.pnpm, 'pnpm')
 
+  const { prefix } = installFixtureWithNpm(t, ['--dangerously-allow-all-scripts'])
+
+  if (process.platform === 'win32') {
+    const cmdShim = path.join(prefix, 'pnpm.cmd')
+    assert.match(fs.readFileSync(cmdShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('cmd.exe', ['/d', '/s', '/c', 'call', cmdShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+
+    const powershellShim = path.join(prefix, 'pnpm.ps1')
+    assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
+    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+  } else {
+    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  }
+})
+
+test('the shim runs pnpm through Node.js when npm skipped the install scripts', (t) => {
+  const { prefix, fixtureDir } = installFixtureWithNpm(t, ['--ignore-scripts'])
+  const placeholder = fs.readFileSync(path.join(fixtureDir, 'pnpm'), 'utf8')
+  const installedPlaceholder = process.platform === 'win32'
+    ? path.join(prefix, 'node_modules', 'pnpm-install-fixture', 'pnpm')
+    : path.join(prefix, 'lib', 'node_modules', 'pnpm-install-fixture', 'pnpm')
+  assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
+
+  if (process.platform === 'win32') {
+    const cmdShim = path.join(prefix, 'pnpm.cmd')
+    assert.match(execFileSync('cmd.exe', ['/d', '/s', '/c', 'call', cmdShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+    const powershellShim = path.join(prefix, 'pnpm.ps1')
+    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
+  } else {
+    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  }
+  // The shim was made from the placeholder's shebang, so the placeholder stays.
+  assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
+})
+
+/**
+ * Install the wrapper fixture globally with npm into a prefix of its own, with
+ * the host's platform package as a `file:` optional dependency. Throws when npm
+ * fails; the temp tree is removed when `t` ends.
+ *
+ * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @param {string[]} npmFlags Extra `npm install` flags, e.g. `--ignore-scripts`.
+ * @returns {{ prefix: string, fixtureDir: string }} The npm prefix the shims
+ *   landed in, and the fixture wrapper it was installed from.
+ */
+function installFixtureWithNpm (t, npmFlags) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm wrapper install-'))
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
 
@@ -30,8 +76,8 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   writeNativeFixture(path.join(nativePackageDir, binFile))
 
   const fixtureDir = path.join(tempDir, 'wrapper')
-  fs.mkdirSync(fixtureDir)
-  for (const file of ['install.js', 'native-binary.mjs', wrapperManifest.bin.pnpm]) {
+  fs.mkdirSync(path.join(fixtureDir, 'bin'), { recursive: true })
+  for (const file of ['install.js', 'native-binary.mjs', 'bin/pnpm.mjs', wrapperManifest.bin.pnpm]) {
     fs.copyFileSync(path.join(wrapperDir, file), path.join(fixtureDir, file))
   }
   fs.writeFileSync(path.join(fixtureDir, 'package.json'), JSON.stringify({
@@ -51,24 +97,13 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
     'install',
     '--global',
     '--install-links=true',
-    '--dangerously-allow-all-scripts',
+    ...npmFlags,
     '--prefix',
     prefix,
     fixtureDir,
   ], tempDir)
-
-  if (process.platform === 'win32') {
-    const cmdShim = path.join(prefix, 'pnpm.cmd')
-    assert.match(fs.readFileSync(cmdShim, 'utf8'), /pnpm\.exe/)
-    assert.match(execFileSync('cmd.exe', ['/d', '/s', '/c', 'call', cmdShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
-
-    const powershellShim = path.join(prefix, 'pnpm.ps1')
-    assert.match(fs.readFileSync(powershellShim, 'utf8'), /pnpm\.exe/)
-    assert.match(execFileSync('pwsh', ['-NoProfile', '-File', powershellShim, '--version'], { encoding: 'utf8' }), /^v\d+/)
-  } else {
-    assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
-  }
-})
+  return { prefix, fixtureDir }
+}
 
 function runNpm (args, cwd) {
   if (process.platform === 'win32') {
