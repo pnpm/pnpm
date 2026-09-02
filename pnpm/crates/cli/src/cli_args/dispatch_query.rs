@@ -8,7 +8,7 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
-    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs, ConfigSubcommand},
+    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
     dispatch::{CommandFuture, RunCtx},
     dist_tag::DistTagArgs,
@@ -571,16 +571,16 @@ pub(super) fn config<'a>(ctx: &RunCtx<'a>, args: ConfigArgs) -> miette::Result<C
 // cannot drift.
 pub(super) fn config_get<'a>(
     ctx: &RunCtx<'a>,
-    args: ConfigGetArgs,
+    args: ConfigGetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(ctx, ConfigArgs { command: ConfigSubcommand::Get(args) })
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Get(args.args) })
 }
 
 pub(super) fn config_set<'a>(
     ctx: &RunCtx<'a>,
-    args: ConfigSetArgs,
+    args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(ctx, ConfigArgs { command: ConfigSubcommand::Set(args) })
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
 }
 
 pub(super) fn not_implemented<'a>(command: &'static str) -> miette::Result<CommandFuture<'a>> {

@@ -2,6 +2,7 @@ use super::{
     CliArgs,
     add::AddArgs,
     cli_command::{CliCommand, WorkspaceRootError},
+    config::ConfigLocation,
     dedupe::DedupeArgs,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
@@ -1081,15 +1082,51 @@ fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
     let CliCommand::Get(get) = command(&["pacquet", "get", "store-dir"]) else {
         panic!("expected get");
     };
-    assert_eq!(get.key.as_deref(), Some("store-dir"));
+    assert_eq!(get.args.key.as_deref(), Some("store-dir"));
 
     let CliCommand::Set(set) = command(&["pacquet", "set", "store-dir", "/tmp/store", "--global"])
     else {
         panic!("expected set");
     };
-    assert_eq!(set.key.as_deref(), Some("store-dir"));
-    assert_eq!(set.value.as_deref(), Some("/tmp/store"));
+    assert_eq!(set.args.key.as_deref(), Some("store-dir"));
+    assert_eq!(set.args.value.as_deref(), Some("/tmp/store"));
     assert!(set.flags.global);
+}
+
+#[test]
+fn config_flags_parse_on_either_side_of_the_subcommand() {
+    for (argv, expected_global, expected_location, expected_json) in [
+        (
+            ["pacquet", "config", "--global", "set", "registry", "https://registry.test"]
+                .as_slice(),
+            true,
+            None,
+            false,
+        ),
+        (["pacquet", "config", "-g", "get", "registry"].as_slice(), true, None, false),
+        (["pacquet", "config", "get", "registry", "--global"].as_slice(), true, None, false),
+        (
+            ["pacquet", "config", "--location", "project", "delete", "registry"].as_slice(),
+            false,
+            Some(ConfigLocation::Project),
+            false,
+        ),
+        (
+            ["pacquet", "config", "delete", "registry", "--location", "global"].as_slice(),
+            false,
+            Some(ConfigLocation::Global),
+            false,
+        ),
+        (["pacquet", "config", "--json", "list"].as_slice(), false, None, true),
+        (["pacquet", "config", "list", "--json"].as_slice(), false, None, true),
+    ] {
+        let CliCommand::Config(args) = command(argv) else {
+            panic!("expected config");
+        };
+        assert_eq!(args.flags.global, expected_global, "{argv:?}");
+        assert_eq!(args.flags.location, expected_location, "{argv:?}");
+        assert_eq!(args.flags.json, expected_json, "{argv:?}");
+    }
 }
 
 #[test]
