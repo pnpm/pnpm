@@ -31,8 +31,8 @@ use pnpm_catalogs_resolver::{
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
 use pnpm_lockfile::{
-    Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencySpec,
-    SnapshotEntry,
+    Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencySpec, SnapshotEntry,
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -249,6 +249,21 @@ fn resolve_link_version(base_dir: &Path, lockfile_dir: &Path, link_target: &str)
     package_manifest_version(&manifest)
 }
 
+fn resolve_file_version(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    alias: &PkgName,
+    spec: &ResolvedDependencySpec,
+) -> Option<String> {
+    let key = spec.version.resolved_key(alias)?.without_peer();
+    let metadata = lockfile.packages.as_ref()?.get(&key)?;
+    if let Some(version) = &metadata.version {
+        return Some(version.clone());
+    }
+    let LockfileResolution::Directory(directory) = &metadata.resolution else { return None };
+    resolve_link_version(lockfile_dir, lockfile_dir, &directory.directory)
+}
+
 fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
     manifest.value().get("version").and_then(|version| version.as_str()).map(String::from)
 }
@@ -256,6 +271,7 @@ fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
 /// A workspace package an importer reaches through `link:`, whose own
 /// `peerDependencies` the importer has to satisfy.
 struct LinkedPackagePeers<'a> {
+    lockfile: &'a Lockfile,
     importer: &'a ProjectSnapshot,
     linked_importer: Option<&'a ProjectSnapshot>,
     importer_dir: &'a Path,
@@ -272,6 +288,7 @@ fn check_linked_package_peers(
     inputs: LinkedPackagePeers<'_>,
 ) -> Result<(), CatalogResolutionError> {
     let LinkedPackagePeers {
+        lockfile,
         importer,
         linked_importer,
         importer_dir,
@@ -315,30 +332,29 @@ fn check_linked_package_peers(
 
         match resolved_ref {
             Some((spec, dependency_dir)) => {
-                if let Some(ver_peer) = spec.version.ver_peer() {
-                    let version_str = ver_peer.version().to_string();
-                    if !satisfies(&version_str, &peer_range) {
-                        issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                            parents: current_parents.clone(),
-                            optional: is_optional,
-                            wanted_range: peer_range.clone(),
-                            found_version: version_str,
-                            resolved_from: Vec::new(),
-                        });
-                    }
+                let found_version = if let Some(ver_peer) = spec.version.ver_peer() {
+                    Some(ver_peer.version().to_string())
                 } else if let Some(link_target) = spec.version.as_link_target() {
-                    let found_version =
+                    Some(
                         resolve_link_version(dependency_dir, lockfile_dir, link_target)
-                            .unwrap_or_else(|| format!("link:{link_target}"));
-                    if !satisfies(&found_version, &peer_range) {
-                        issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                            parents: current_parents.clone(),
-                            optional: is_optional,
-                            wanted_range: peer_range.clone(),
-                            found_version,
-                            resolved_from: Vec::new(),
-                        });
-                    }
+                            .unwrap_or_else(|| format!("link:{link_target}")),
+                    )
+                } else {
+                    spec.version.as_file_target().map(|file_target| {
+                        resolve_file_version(lockfile, lockfile_dir, &peer_pkg_name, spec)
+                            .unwrap_or_else(|| format!("file:{file_target}"))
+                    })
+                };
+                if let Some(found_version) = found_version
+                    && !satisfies(&found_version, &peer_range)
+                {
+                    issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
+                        parents: current_parents.clone(),
+                        optional: is_optional,
+                        wanted_range: peer_range.clone(),
+                        found_version,
+                        resolved_from: Vec::new(),
+                    });
                 }
             }
             None => {
@@ -436,6 +452,7 @@ fn collect_initial_keys(
 
                 if let Some(linked_manifest) = &linked_manifest {
                     check_linked_package_peers(LinkedPackagePeers {
+                        lockfile: context.lockfile,
                         importer,
                         linked_importer,
                         importer_dir: &importer_dir,
