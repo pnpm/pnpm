@@ -1,7 +1,6 @@
-// Where the host's native pnpm binary comes from, and how it takes a
-// placeholder bin's place. Shared by the preinstall (`install.js`), which links
-// it over the placeholder bins, and by the Node.js entry (`bin/pnpm.mjs`), which
-// spawns it.
+// Where the host's native pnpm binary comes from. Shared by the preinstall
+// (`install.js`), which links it over the placeholder bins, and by the Corepack
+// entry (`bin/pnpm.mjs`), which spawns it.
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
@@ -100,41 +99,6 @@ export function readWrapperManifest () {
     throw new Error(`Expected ${manifestPath} to contain a JSON object`)
   }
   return manifest
-}
-
-/**
- * Put `nativeBinary` at `destPath`, replacing whatever is there: a hard link,
- * or a copy across filesystems, renamed into place from a temp file so a
- * placeholder hard-linked from a content-addressable store is never written
- * in place, and so concurrent callers each land a whole file.
- *
- * @param {string} nativeBinary Absolute path to the resolved native binary.
- * @param {string} destPath Absolute path to create.
- * @param {number} [mode] chmod for the copy path only; a hard link shares the
- *   source inode (the shared store blob under pnpm), so its mode must not change.
- */
-export function placeBinary (nativeBinary, destPath, mode) {
-  // Per process, so concurrent callers never share a temp file. What a crashed
-  // caller left under a reused pid is itself a hard link to a store blob, so
-  // it is removed, never written into.
-  const tempPath = `${destPath}.${process.pid}.pnpm-tmp`
-  try {
-    fs.rmSync(tempPath, { force: true })
-    try {
-      fs.linkSync(nativeBinary, tempPath)
-    } catch {
-      fs.copyFileSync(nativeBinary, tempPath, fs.constants.COPYFILE_EXCL)
-      if (mode != null) {
-        fs.chmodSync(tempPath, mode)
-      }
-    }
-    fs.renameSync(tempPath, destPath)
-  } catch (err) {
-    try {
-      fs.rmSync(tempPath, { force: true })
-    } catch {}
-    throw err
-  }
 }
 
 function detectLinuxLibc () {
