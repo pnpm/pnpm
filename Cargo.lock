@@ -5543,6 +5543,7 @@ dependencies = [
  "pipe-trait",
  "pnpm-diagnostics",
  "pnpm-network",
+ "pnpm-package-manifest",
  "pretty_assertions",
  "reqwest",
  "serde",

@@ -257,6 +257,20 @@ impl Package {
     pub fn latest(&self) -> Option<Arc<PackageVersion>> {
         self.versions.get(self.dist_tags.get("latest")?)
     }
+
+    /// The version behind `dist-tags.latest` and why its manifest
+    /// failed to decode, when the packument lists that version but
+    /// pnpm can't parse it.
+    ///
+    /// `None` covers every healthy case as well as a genuinely dangling
+    /// tag, so a caller that has already failed to resolve `latest` can
+    /// use this to tell "the registry serves a manifest pnpm can't read"
+    /// apart from "the tag points at nothing".
+    #[must_use]
+    pub fn latest_decode_error(&self) -> Option<(&str, String)> {
+        let version = self.dist_tag("latest")?;
+        Some((version, self.versions.decode_error(version)?))
+    }
 }
 
 #[cfg(test)]
