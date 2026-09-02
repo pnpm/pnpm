@@ -107,7 +107,9 @@ test('fetch a directory that has no package.json', async () => {
 
 test('fetch does not fail on package with broken symlink', async () => {
   jest.mocked(debug).mockClear()
-  process.chdir(f.find('pkg-with-broken-symlink'))
+  const dir = f.prepare('pkg-with-broken-symlink')
+  fs.symlinkSync('broken-symlink', path.join(dir, 'not-exists'))
+  process.chdir(dir)
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line

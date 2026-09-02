@@ -47,7 +47,7 @@ jobs:
         key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pnpm/**/*.rs') }}
     - name: Install Rust
       if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      uses: ./.github/actions/rustup
+      uses: $/.github/actions/rustup
       with:
         save-cache: ${{ github.ref_name == 'main' }}
         shared-key: registry-prepare
