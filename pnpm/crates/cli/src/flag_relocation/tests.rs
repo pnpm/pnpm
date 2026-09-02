@@ -152,6 +152,28 @@ fn unknown_options_before_a_subcommand_stay_in_place() {
 }
 
 #[test]
+fn options_another_command_owns_stay_in_place() {
+    for argv in [
+        ["pnpm", "-P", "exec", "echo"],
+        ["pnpm", "-rP", "exec", "echo"],
+        ["pnpm", "--node-linker=hoisted", "exec", "echo"],
+    ] {
+        assert_eq!(
+            relocate(&argv),
+            argv,
+            "`exec` does not declare the option, so it must not travel into its command vector",
+        );
+        assert!(
+            try_parse(&argv).is_err(),
+            "clap must reject the option `exec` does not declare: {argv:?}",
+        );
+    }
+    let argv = ["pnpm", "--tag", "next-11", "exec", "echo"];
+    assert_eq!(relocate(&argv), argv, "a value-taking option of another command stays whole");
+    assert!(try_parse(&argv).is_err(), "clap must reject --tag against exec");
+}
+
+#[test]
 fn external_command_argv_is_untouched() {
     let argv = ["pnpm", "--ignore-scripts", "some-script"];
     assert_eq!(relocate(&argv), argv, "not a subcommand → script argv must not be reshaped");

@@ -11,18 +11,19 @@
 //! subcommand.
 //!
 //! [`relocate_pre_subcommand_flags`] closes the gap in argv space:
-//! option tokens that appear before the subcommand and belong to a
-//! subcommand's grammar rather than the top-level one move to directly
-//! after the subcommand token (relative order preserved), so clap parses
-//! them with the subcommand's grammar exactly as if they had been
-//! written there. An option no grammar defines stays where it is, so
-//! clap reports it against the top-level command the way nopt does,
-//! instead of a `trailing_var_arg` command such as `exec` taking it for
-//! the command to run. Whether a moved
-//! option consumes the following token as its value is decided from the
-//! union of every subcommand's arg table; on an arity conflict between
-//! subcommands the option is treated as boolean so a subcommand name is
-//! never swallowed as a value. Tokens move only when the first
+//! option tokens that appear before the subcommand and belong to the
+//! invoked command's grammar rather than the top-level one move to
+//! directly after the subcommand token (relative order preserved), so
+//! clap parses them with that command's grammar exactly as if they had
+//! been written there. Ownership is decided against the invoked command
+//! alone: an option only some other command declares stays where it is,
+//! as does one no grammar defines at all, so clap reports it the way
+//! nopt does instead of a `trailing_var_arg` command such as `exec`
+//! taking it for the command to run. The scan that has yet to find the
+//! subcommand has no command to consult, so it steps over options using
+//! the union of every subcommand's arg table; on an arity conflict
+//! between subcommands the option is treated as boolean so a subcommand
+//! name is never swallowed as a value. Tokens move only when the first
 //! positional token names a real subcommand — external commands
 //! (`pnpm <script>`) keep their argv untouched, as does everything after
 //! a `--` terminator.
@@ -120,6 +121,10 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
     let Some(subcommand_index) = subcommand_index else {
         return argv;
     };
+    let Some(subcommand) = cmd.find_subcommand(&argv[subcommand_index]) else {
+        return argv;
+    };
+    let subcommand_table = ArgTable::subcommand(subcommand);
 
     // Now we must re-calculate moved_indexes, because find_positional just skipped.
     let mut index = 1;
@@ -135,7 +140,7 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
                 rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
             if let Some(consumes_value) = top_level.long_consumes_value(name) {
                 index += token_width(consumes_value, has_inline_value);
-            } else if let Some(consumes_value) = subcommand_union.long_consumes_value(name) {
+            } else if let Some(consumes_value) = subcommand_table.long_consumes_value(name) {
                 let width = token_width(consumes_value, has_inline_value);
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
@@ -148,16 +153,16 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
             // A cluster is judged by every short it stacks, not by its
             // first one: `-ro dist` mixes the global `-r` with
             // `pack-app`'s `-o`, and the whole token has to travel for
-            // clap to see the option its subcommand owns. One short no
-            // grammar defines pins the whole cluster, since moving it
-            // would hand the unknown short to the subcommand too.
+            // clap to see the option `pack-app` owns. One short the
+            // command does not declare pins the whole cluster, since
+            // moving it would hand that short to the command too.
             let mut has_subcommand_short = false;
             let mut has_unknown_short = false;
             let consumes_value = short_cluster_consumes_value(rest, |short| {
                 if let Some(consumes_value) = top_level.short_consumes_value(short) {
                     return Some(consumes_value);
                 }
-                if let Some(consumes_value) = subcommand_union.short_consumes_value(short) {
+                if let Some(consumes_value) = subcommand_table.short_consumes_value(short) {
                     has_subcommand_short = true;
                     Some(consumes_value)
                 } else {
@@ -177,7 +182,7 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
         }
     }
 
-    if moved_indexes.is_empty() || cmd.find_subcommand(&argv[subcommand_index]).is_none() {
+    if moved_indexes.is_empty() {
         return argv;
     }
 
@@ -244,11 +249,20 @@ impl ArgTable {
         table
     }
 
-    /// The union of every subcommand's args, used only to decide how
-    /// many tokens a to-be-moved option occupies.
+    /// The union of every subcommand's args. It cannot say which command
+    /// owns an option, so it serves only the scan that has yet to find the
+    /// subcommand and needs a token's width to step over it.
     pub(crate) fn subcommand_union(cmd: &Command) -> Self {
         let mut table = Self::default();
         table.absorb(cmd.get_subcommands().flat_map(Command::get_arguments));
+        table
+    }
+
+    /// One subcommand's own args, which decide whether a token written
+    /// before it belongs to the command being invoked.
+    pub(crate) fn subcommand(cmd: &Command) -> Self {
+        let mut table = Self::default();
+        table.absorb(cmd.get_arguments());
         table
     }
 
