@@ -14,10 +14,9 @@
 use crate::_utils;
 pub use _utils::*;
 
-use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, path::Path, process::Command};
+use std::{fs, path::Path};
 
 /// A project whose only dependency every policy rejects. The mocked
 /// registry's packument times are real-world (years old), so a
@@ -209,12 +208,6 @@ fn trust_lockfile_cli_flag_skips_verification() {
     drop((root, mock_instance));
 }
 
-/// A fresh `pacquet` command rooted at `workspace` (each `assert_cmd`
-/// `Command` is single-use, so sequential steps build their own).
-fn pacquet(workspace: &Path) -> Command {
-    Command::cargo_bin("pnpm").expect("find the pnpm binary").with_current_dir(workspace)
-}
-
 /// `remove` declares no clap flag for `trustLockfile`; the bare spelling
 /// reaches it as a setting. The lockfile is verified after the removal is
 /// applied to it, so the provocation keeps a second rejected entry that
@@ -240,7 +233,7 @@ fn remove_honors_the_bare_trust_lockfile_flag() {
     assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
     set_minimum_release_age(&workspace, 60 * 24 * 365 * 100);
 
-    let output = pacquet(&workspace)
+    let output = pacquet_in(&workspace)
         .with_args(["remove", "@pnpm.e2e/foo"])
         .output()
         .expect("spawn pacquet remove");
@@ -255,7 +248,7 @@ fn remove_honors_the_bare_trust_lockfile_flag() {
         "a rejected removal must not touch the manifest",
     );
 
-    let output = pacquet(&workspace)
+    let output = pacquet_in(&workspace)
         .with_args(["remove", "@pnpm.e2e/foo", "--trust-lockfile"])
         .output()
         .expect("spawn pacquet remove");
