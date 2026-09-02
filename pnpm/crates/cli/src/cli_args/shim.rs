@@ -15,10 +15,7 @@
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pnpm_cmd_shim::{
-    Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name, link_virtual_shims,
-    remove_bin, virtual_shim_package,
-};
+use pnpm_cmd_shim::{Host as CmdShimHost, get_bins_from_package_manifest, is_safe_bin_name};
 use pnpm_config::{Config, NamedShimPolicy, ShimPolicyValue};
 use pnpm_crypto_hash::create_short_hash;
 use pnpm_global::bin_slot_exists;
@@ -26,6 +23,7 @@ use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
+    ffi::OsStr,
     fmt::Write as _,
     fs,
     io::{self, Read as _},
@@ -33,8 +31,13 @@ use std::{
 };
 
 use crate::{
-    cli_args::global_bin_lock::acquire_global_bin_lock, config_deps,
+    cli_args::global_bin_lock::acquire_global_bin_lock,
+    config_deps,
     engine_pm::channel::PackageManager,
+    shim_dispatch::{
+        ShimTarget, install_native_shim, migrate_legacy_shims, native_shim_target, native_shims,
+        remove_native_shim,
+    },
 };
 
 const MAX_VIRTUAL_SHIM_METADATA_BYTES: u64 = 64 * 1024;
@@ -180,11 +183,7 @@ async fn add(
                 ShimError::BinConflict { package: package.clone(), bin: bin.clone() }.into()
             );
         }
-        // The shims are useless without the dispatcher they call into, and
-        // a user who never ran a global install has none yet.
-        crate::shim_dispatch::install_dispatcher(bin_dir)
-            .into_diagnostic()
-            .wrap_err("install the shim dispatcher")?;
+        migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
         publish_virtual_shims(&VirtualShimPublication { config, bin_dir, package, bins: &bins })?;
         writeln!(report, "Added {} for {package}", bins.join(", ")).unwrap();
     }
@@ -198,10 +197,11 @@ fn publish_virtual_shims(publication: &VirtualShimPublication<'_>) -> miette::Re
     // that replaced the public bin slot.
     set_policy(config, package, Some(ShimPolicyValue::Named(NamedShimPolicy::Auto)))?;
     record_virtual_shim_state(bin_dir, package, bins)?;
-    let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-    link_virtual_shims::<CmdShimHost>(package, &bin_refs, bin_dir)
-        .map_err(miette::Report::new)
-        .wrap_err_with(|| format!("link the {package} shims"))?;
+    for bin in bins {
+        install_native_shim(bin_dir, bin, &ShimTarget::Virtual(package.to_string()))
+            .into_diagnostic()
+            .wrap_err_with(|| format!("link the {package} shims"))?;
+    }
     Ok(())
 }
 
@@ -216,7 +216,7 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
     for package in packages {
         let bins = installed_shims(bin_dir, package);
         for bin in &bins {
-            remove_bin(&bin_dir.join(bin))
+            remove_native_shim(bin_dir, bin)
                 .into_diagnostic()
                 .wrap_err_with(|| format!("remove the {bin} shim"))?;
         }
@@ -286,40 +286,31 @@ fn taken_by_another(bin_dir: &Path, bin: &str, package: &str) -> bool {
 
 /// The bins in `bin_dir` whose shim stands for `package`.
 fn installed_shims(bin_dir: &Path, package: &str) -> Vec<String> {
-    let mut bins: Vec<String> =
-        virtual_shims(bin_dir).filter(|(_, owner)| owner == package).map(|(bin, _)| bin).collect();
-    bins.sort();
-    bins
+    virtual_shims(bin_dir).filter(|(_, owner)| owner == package).map(|(bin, _)| bin).collect()
 }
 
-/// Every target-less shim in `bin_dir`, as `(bin name, package)`.
+/// Every target-less shim in `bin_dir`, as `(bin name, package)`, in bin
+/// name order.
 ///
-/// Active shims are read from their bodies rather than inferred from
-/// restoration state. The state only remembers an explicit opt-in while
-/// a global package occupies the public bin slot.
+/// Active shims are read from their recorded targets rather than
+/// inferred from restoration state. The state only remembers an explicit
+/// opt-in while a global package occupies the public bin slot.
 fn virtual_shims(bin_dir: &Path) -> impl Iterator<Item = (String, String)> + use<'_> {
-    fs::read_dir(bin_dir).into_iter().flatten().flatten().filter_map(|entry| {
-        let path = entry.path();
-        // The marker is what identifies a shim, not the absence of an
-        // extension: a package can publish a bin named `tool.js`. The
-        // Windows siblings carry no marker, so they are skipped by it.
-        let bin = path.file_name()?.to_str()?.to_string();
-        let package = virtual_shim_owner(&path).ok().flatten()?;
+    native_shims(bin_dir).unwrap_or_default().into_iter().filter_map(|bin| {
+        let package = virtual_shim_owner(&bin_dir.join(&bin)).ok().flatten()?;
         Some((bin, package))
     })
 }
 
+/// The package the target-less shim at `path` stands for; `None` for an
+/// installed shim, a direct shim, or an empty slot.
 pub(crate) fn virtual_shim_owner(path: &Path) -> io::Result<Option<String>> {
-    let file = match fs::File::open(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
+    let (Some(bin_dir), Some(name)) = (path.parent(), path.file_name().and_then(OsStr::to_str))
+    else {
+        return Ok(None);
     };
-    let mut bytes = Vec::new();
-    file.take(MAX_VIRTUAL_SHIM_METADATA_BYTES).read_to_end(&mut bytes)?;
-    let owner =
-        std::str::from_utf8(&bytes).ok().and_then(virtual_shim_package).map(ToString::to_string);
-    Ok(owner)
+    Ok(native_shim_target(bin_dir, name)?
+        .and_then(|target| target.virtual_package().map(str::to_string)))
 }
 
 pub(crate) fn virtual_shim_bins_to_restore(

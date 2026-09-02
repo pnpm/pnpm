@@ -98,6 +98,7 @@ rmp-serde            = { workspace = true }
 same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
+shell-words          = { workspace = true }
 ssri                 = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }

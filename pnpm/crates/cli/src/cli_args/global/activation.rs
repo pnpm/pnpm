@@ -497,6 +497,12 @@ fn remove_current_bin_slots(
     }
     for name in actual_bin_names {
         let bin_path = global_bin_dir.join(name);
+        if let Err(source) = crate::shim_dispatch::remove_native_shim(global_bin_dir, name) {
+            failures.push(ArtifactCleanupError {
+                context: format!("remove current global shim at {}", bin_path.display()),
+                source,
+            });
+        }
         if let Err(source) = remove_bin(&bin_path) {
             failures.push(ArtifactCleanupError {
                 context: format!("remove global bin at {}", bin_path.display()),
@@ -629,16 +635,9 @@ fn backup_bin_slots(
     backup_dir: &Path,
     global_bin_dir: &Path,
 ) -> miette::Result<Vec<SavedBinSlot>> {
-    let extensions: &[&str] = if cfg!(windows) { &["", ".cmd", ".ps1", ".exe"] } else { &[""] };
     let mut saved_bin_slots = Vec::new();
-    for (index, original) in actual_bin_names
-        .iter()
-        .flat_map(|name| {
-            extensions
-                .iter()
-                .map(move |extension| global_bin_dir.join(format!("{name}{extension}")))
-        })
-        .enumerate()
+    for (index, original) in
+        actual_bin_names.iter().flat_map(|name| bin_slot_paths(global_bin_dir, name)).enumerate()
     {
         let backup = backup_dir.join(index.to_string());
         if let Some(saved_bin_slot) = backup_bin_slot(original, backup)? {
@@ -646,6 +645,19 @@ fn backup_bin_slots(
         }
     }
     Ok(saved_bin_slots)
+}
+
+/// Every file a bin slot can occupy: the shell flavors cmd-shim writes and
+/// the native shim's executable and sidecar.
+fn bin_slot_paths(global_bin_dir: &Path, name: &str) -> Vec<PathBuf> {
+    let extensions: &[&str] = if cfg!(windows) { &["", ".cmd", ".ps1"] } else { &[""] };
+    let mut paths: Vec<PathBuf> = extensions
+        .iter()
+        .map(|extension| global_bin_dir.join(format!("{name}{extension}")))
+        .collect();
+    paths.extend(crate::shim_dispatch::native_shim_paths(global_bin_dir, name));
+    paths.dedup();
+    paths
 }
 
 fn backup_bin_slot(original: PathBuf, backup: PathBuf) -> miette::Result<Option<SavedBinSlot>> {
