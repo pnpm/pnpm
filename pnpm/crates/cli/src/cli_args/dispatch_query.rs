@@ -51,9 +51,8 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
-use crate::{State, config_deps::prepare_config};
+use crate::config_deps::prepare_config;
 use clap::CommandFactory;
-use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
@@ -89,14 +88,10 @@ pub(super) fn outdated<'a>(
             Ok(())
         }));
     }
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let manifest_path = ctx.manifest_path.to_path_buf();
+    let command_state = ctx.prepared_state(false);
     let reporter = ctx.reporter;
     Ok(Box::pin(async move {
-        apply_update_config(config, dir, reporter).await?;
-        let command_state =
-            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        let command_state = command_state.await?;
         let outcome = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
                 args.run::<DefaultReporter>(command_state).await?
@@ -116,11 +111,11 @@ pub(super) fn outdated<'a>(
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
-    let command_state = (ctx.state)(true)?;
+    let command_state = ctx.prepared_state(true);
     macro_rules! run_audit {
         ($reporter:ty) => {
             Box::pin(async move {
-                if args.run::<$reporter>(command_state).await? == AuditOutcome::Vulnerable {
+                if args.run::<$reporter>(command_state.await?).await? == AuditOutcome::Vulnerable {
                     #[expect(
                         clippy::exit,
                         reason = "`audit` exits non-zero when vulnerabilities are found, mirroring pnpm"
@@ -142,15 +137,16 @@ pub(super) fn list<'a>(ctx: &RunCtx<'a>, args: ListArgs) -> miette::Result<Comma
     let config = (ctx.config)()?;
     let dir = ctx.dir;
     let recursive = ctx.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        args.run(config, dir, recursive).await
+    }))
 }
 
 pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<CommandFuture<'a>> {
     args.long = true;
-    let config = (ctx.config)()?;
-    let dir = ctx.dir;
-    let recursive = ctx.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    list(ctx, args)
 }
 
 pub(super) fn licenses<'a>(
@@ -160,22 +156,30 @@ pub(super) fn licenses<'a>(
     let config = (ctx.config)()?;
     let dir = ctx.dir;
     let recursive = ctx.recursive;
-    Ok(Box::pin(async move { args.run(config, dir, recursive).await }))
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        args.run(config, dir, recursive).await
+    }))
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
-    Ok(Box::pin(args.run((ctx.state)(true)?)))
+    let command_state = ctx.prepared_state(true);
+    Ok(Box::pin(async move { args.run(command_state.await?).await }))
 }
 
 pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<CommandFuture<'a>> {
-    Ok(Box::pin(args.run((ctx.state)(true)?)))
+    let command_state = ctx.prepared_state(true);
+    Ok(Box::pin(async move { args.run(command_state.await?).await }))
 }
 
 pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
-    let cfg: &Config = (ctx.config)()?;
+    let cfg = (ctx.config)()?;
     let recursive = ctx.recursive;
     let dir = ctx.dir;
+    let reporter = ctx.reporter;
     Ok(Box::pin(async move {
+        apply_update_config(cfg, dir, reporter).await?;
         if args.run(cfg, dir, recursive)? != PeersOutcome::NoIssues {
             #[expect(
                 clippy::exit,

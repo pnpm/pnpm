@@ -131,6 +131,40 @@ fn update_config_catalog_applies_to_import() {
     drop((root, mock_instance));
 }
 
+/// `pnpm fetch` checks the lockfile against the live settings, so without the
+/// hook its config disagrees with what the install recorded and it fails with
+/// `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+#[test]
+fn update_config_catalog_applies_to_fetch() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_catalog_hook_project(&workspace);
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    pacquet_in(&workspace).with_arg("fetch").assert().success();
+
+    drop((root, mock_instance));
+}
+
+/// The read-only queries reach the hook's settings too: `why` resolves the
+/// dependency graph the hook's catalog entry decided.
+#[test]
+fn update_config_catalog_applies_to_why() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_catalog_hook_project(&workspace);
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    let output = pacquet_in(&workspace).with_args(["why", CATALOG_DEP]).assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(stdout.contains(CATALOG_DEP), "why should report the dependency:\n{stdout}");
+
+    drop((root, mock_instance));
+}
+
 /// `updateConfig` applies to `pnpm run`, not just to the install family:
 /// the settings a hook returns — `extraEnv` here — reach the environment of
 /// the script it spawns.
