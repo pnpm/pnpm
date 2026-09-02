@@ -1154,7 +1154,7 @@ where
             // lockfile, so a downstream consumer can never seed from a
             // superseded document.
             lockfile_shared: lockfile_shared.filter(|shared| {
-                lockfile.is_some_and(|lockfile| std::ptr::eq(lockfile, &**shared))
+                lockfile.is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
             }),
             merge_wanted_lockfile,
             take_frozen_path,
