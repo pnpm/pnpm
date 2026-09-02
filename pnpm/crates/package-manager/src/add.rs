@@ -1166,32 +1166,66 @@ fn redacted_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
     strip_url_query_and_fragment(&redact_and_sanitize(&frames.join(": ")))
 }
 
-/// Cut every URL in `text` at its query or fragment. A URL in error prose
-/// ends at whitespace or at one of the marks a message wraps it in, and a
-/// `://` not preceded by a scheme character is not an authority boundary.
+/// Cut every URL in `text` back to its display-safe form. A URL in error
+/// prose ends at whitespace or at one of the marks a message wraps it in,
+/// and a `://` not preceded by a scheme is not an authority boundary.
 fn strip_url_query_and_fragment(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(pos) = rest.find("://") {
-        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        let authority_start = pos + "://".len();
-        out.push_str(&rest[..authority_start]);
-        let after = &rest[authority_start..];
-        if !has_scheme {
-            rest = after;
+        // Walk back over the scheme so the whole URL token can be replaced,
+        // not just its authority onwards.
+        let scheme_start = rest[..pos]
+            .rfind(|character: char| {
+                !(character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.'))
+            })
+            .map_or(0, |index| index + 1);
+        if scheme_start == pos {
+            out.push_str(&rest[..pos + "://".len()]);
+            rest = &rest[pos + "://".len()..];
             continue;
         }
-        let end = after
-            .find(|character: char| {
-                character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
-            })
-            .unwrap_or(after.len());
-        let (token, tail) = after.split_at(end);
-        out.push_str(&token[..token.find(['?', '#']).unwrap_or(token.len())]);
+        out.push_str(&rest[..scheme_start]);
+        let token_and_tail = &rest[scheme_start..];
+        let end = url_token_len(token_and_tail);
+        let (token, tail) = token_and_tail.split_at(end);
+        out.push_str(&redact_url_token(token));
         rest = tail;
     }
     out.push_str(rest);
     out
+}
+
+/// Where the URL at the start of `text` ends: at whitespace, at one of the
+/// marks a message wraps a URL in, or at a `": "` — which cannot occur
+/// inside a URL, and is how a message punctuates the URL from what follows
+/// it (`GET <url>: 404`). Without that last case, cutting the query would
+/// swallow the message's own separator.
+fn url_token_len(text: &str) -> usize {
+    let wrapped = text
+        .find(|character: char| {
+            character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
+        })
+        .unwrap_or(text.len());
+    text.find(": ").map_or(wrapped, |punctuated| wrapped.min(punctuated))
+}
+
+/// One URL token cut at its query or fragment, or `[hidden]` when the cut
+/// would leave credential material behind.
+///
+/// A password containing `?` or `#` defeats the userinfo scan that runs
+/// before this — the scan reads the `?` as the end of the authority and
+/// leaves the whole `user:pa?ss@host` in place — so cutting there would
+/// publish the password's prefix. The authority is therefore checked on the
+/// *uncut* token: any `@` still in front of the path means the userinfo
+/// survived, and the token fails closed instead.
+fn redact_url_token(token: &str) -> String {
+    let after_scheme = token.find("://").map_or(token, |pos| &token[pos + "://".len()..]);
+    let authority = &after_scheme[..after_scheme.find('/').unwrap_or(after_scheme.len())];
+    if authority.contains('@') {
+        return "[hidden]".to_string();
+    }
+    token[..token.find(['?', '#']).unwrap_or(token.len())].to_string()
 }
 
 /// The display-safe form of an alias-less selector, which may be a local

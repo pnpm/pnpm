@@ -75,6 +75,25 @@ test('FetchError drops the query string of a signed URL', () => {
   expect(error.request.url).toBe('https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag')
 })
 
+test('FetchError hides a URL whose userinfo survives the credential scan', () => {
+  // A password containing `?` or `#` defeats the userinfo scan, so cutting
+  // the URL there would publish the password's prefix.
+  for (const url of ['https://alice:hunter2?x@example.com/pkg.tgz', 'https://alice:hunter2#x@example.com/pkg.tgz']) {
+    const error = new FetchError({ url }, { status: 404, statusText: 'Not Found' })
+    expect(error.message).toBe('GET [hidden]: Not Found - 404')
+  }
+})
+
+test('FetchError keeps a path that contains an at sign', () => {
+  const error = new FetchError(
+    { url: 'https://registry.example/@scope%2fpkg?write=true' },
+    { status: 403, statusText: 'Forbidden' }
+  )
+  // The `@` is past the authority, so it is the scope of a package name, not
+  // credential material — and the spelling is echoed, not normalized.
+  expect(error.message).toBe('GET https://registry.example/@scope%2fpkg: Forbidden - 403')
+})
+
 test('redactUrlCredentials', () => {
   // user:pass@ and user@ userinfo are stripped, regardless of scheme.
   expect(redactUrlCredentials('GET https://user:pass@host/pkg: timed out'))

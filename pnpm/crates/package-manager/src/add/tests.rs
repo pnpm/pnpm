@@ -792,6 +792,26 @@ fn a_tarball_error_chain_drops_url_secrets() {
     }
 }
 
+/// A password containing `?` or `#` defeats the userinfo scan — it reads the
+/// `?` as the end of the authority and leaves `user:pa?ss@host` in place —
+/// so cutting the URL there would publish the password's prefix. Such a
+/// token fails closed rather than being shortened.
+#[test]
+fn a_url_whose_userinfo_survives_the_scan_is_hidden_entirely() {
+    for url in [
+        "https://alice:hunter2?x@example.com/pkg.tgz",
+        "https://alice:hunter2#x@example.com/pkg.tgz",
+    ] {
+        let rendered = super::redacted_error_chain(&std::io::Error::other(format!(
+            "error sending request for url ({url}): tcp connect error",
+        )));
+        eprintln!("RENDERED: {rendered}");
+        assert!(!rendered.contains("hunter"), "no part of the password may survive: {rendered}");
+        assert!(rendered.contains("[hidden]"), "the URL must fail closed: {rendered}");
+        assert!(rendered.contains("tcp connect error"), "the reason must survive: {rendered}");
+    }
+}
+
 /// A `://` that no scheme precedes is not a URL authority, and a message
 /// carrying no URL at all is passed through untouched.
 #[test]
@@ -799,4 +819,14 @@ fn url_scrubbing_leaves_non_urls_alone() {
     for text in ["no url here at all", "why? because", "see :// for the syntax"] {
         assert_eq!(super::strip_url_query_and_fragment(text), text);
     }
+}
+
+/// An `@` past the authority belongs to the path or query, and must not
+/// make an otherwise safe URL fail closed.
+#[test]
+fn url_scrubbing_keeps_a_path_that_contains_an_at_sign() {
+    assert_eq!(
+        super::strip_url_query_and_fragment("GET https://host/@scope%2fpkg?to=a@b: 403"),
+        "GET https://host/@scope%2fpkg: 403",
+    );
 }

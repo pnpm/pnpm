@@ -81,13 +81,24 @@ export class FetchError extends PnpmError {
  * query or fragment onwards dropped — a signed tarball or registry URL
  * carries a reusable token there, which credential redaction alone keeps.
  *
+ * `[hidden]` when the cut would leave credential material behind. A password
+ * containing `?` or `#` defeats the userinfo scan — it reads the `?` as the
+ * end of the authority and leaves the whole `user:pa?ss@host` in place — so
+ * cutting there would publish the password's prefix. The authority is
+ * therefore checked before the cut, not after: any `@` still in front of the
+ * path means the userinfo survived.
+ *
  * Cuts rather than re-rendering through `URL`, unlike
  * {@link redactUrlForDisplay}: that round-trip normalizes the spelling
- * (`https://host` gains a trailing slash), and an error message should echo
- * the URL the request was given.
+ * (`https://host` gains a trailing slash, percent-escapes change case), and
+ * an error message should echo the URL the request was given.
  */
 function redactUrlSecrets (url: string): string {
-  return redactAndSanitize(url).split(/[?#]/)[0]
+  const sanitized = redactAndSanitize(url)
+  const schemeEnd = sanitized.indexOf('://')
+  const afterScheme = schemeEnd === -1 ? sanitized : sanitized.slice(schemeEnd + '://'.length)
+  if (afterScheme.split('/')[0].includes('@')) return '[hidden]'
+  return sanitized.split(/[?#]/)[0]
 }
 
 export function redactUrlCredentials (text: string): string {
