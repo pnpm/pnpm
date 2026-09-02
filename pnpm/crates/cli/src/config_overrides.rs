@@ -150,6 +150,7 @@ pub struct ConfigOverrides {
     runtime_on_fail: Option<RuntimeOnFail>,
     shared_workspace_lockfile: Option<bool>,
     strict_peer_dependencies: Option<bool>,
+    trust_lockfile: Option<bool>,
     trust_policy: Option<TrustPolicy>,
     trust_policy_exclude: Option<Vec<String>>,
     trust_policy_ignore_after: Option<u64>,
@@ -253,6 +254,7 @@ impl ConfigOverrides {
             }
             "sort" => self.sort = parse_bool(value),
             "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
+            "trust-lockfile" => self.trust_lockfile = parse_bool(value),
             "use-beta-cli" => self.use_beta_cli = parse_bool(value),
             _ => {}
         }
@@ -597,6 +599,10 @@ impl ConfigOverrides {
             config.optimistic_repeat_install = value;
             config.explicit_settings.insert("optimisticRepeatInstall".to_string(), value.into());
         }
+        if let Some(value) = self.trust_lockfile {
+            config.trust_lockfile = value;
+            config.explicit_settings.insert("trustLockfile".to_string(), value.into());
+        }
         if let Some(value) = self.trust_policy {
             config.trust_policy = value;
             config.explicit_settings.insert("trustPolicy".to_string(), setting_value(value));
@@ -767,7 +773,7 @@ enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-const BARE_SETTING_FLAGS: [(&str, SettingArity); 20] = [
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 21] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("global-dir", SettingArity::Text),
@@ -784,6 +790,7 @@ const BARE_SETTING_FLAGS: [(&str, SettingArity); 20] = [
     ("side-effects-cache", SettingArity::Boolean),
     ("side-effects-cache-readonly", SettingArity::Boolean),
     ("strict-peer-dependencies", SettingArity::Boolean),
+    ("trust-lockfile", SettingArity::Boolean),
     ("trust-policy", SettingArity::Parsed(is_enum::<TrustPolicy>)),
     ("trust-policy-exclude", SettingArity::Text),
     ("trust-policy-ignore-after", SettingArity::Parsed(is_u64)),

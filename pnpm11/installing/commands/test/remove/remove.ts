@@ -161,3 +161,15 @@ no such dependencies found in \'optionalDependencies\'')
 prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
   }
 })
+
+test('cliOptionsTypes registers the supply-chain policy options', () => {
+  // `cliOptionsTypes` is what the argv parser is fed, so it — not the
+  // `rcOptionsTypes` it happens to spread — is the contract that decides
+  // whether `pnpm remove --trust-lockfile` is rejected as an unknown option.
+  const optionTypes = remove.cliOptionsTypes()
+
+  expect(optionTypes).toHaveProperty('trust-lockfile')
+  expect(optionTypes).toHaveProperty('trust-policy')
+  expect(optionTypes).toHaveProperty('trust-policy-exclude')
+  expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
+})

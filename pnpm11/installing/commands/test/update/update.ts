@@ -700,3 +700,12 @@ describe.each(['pnpm', '@pnpm/exe', 'pnpm@12', 'my-pnpm@npm:pnpm@12'])('update -
     )
   })
 })
+
+test('cliOptionsTypes registers the supply-chain policy options', () => {
+  const optionTypes = update.cliOptionsTypes()
+
+  expect(optionTypes).toHaveProperty('trust-lockfile')
+  expect(optionTypes).toHaveProperty('trust-policy')
+  expect(optionTypes).toHaveProperty('trust-policy-exclude')
+  expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
+})
