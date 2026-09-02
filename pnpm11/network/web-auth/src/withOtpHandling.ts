@@ -206,7 +206,7 @@ export class SyntheticOtpError extends Error implements OtpError {
         doneUrl: typeof parsed.doneUrl === 'string' ? parsed.doneUrl : undefined,
       })
     }
-    if (/one-time pass/i.test(body)) {
+    if (body.toLowerCase().includes('one-time pass')) {
       return new SyntheticOtpError(undefined)
     }
     return undefined
