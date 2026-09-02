@@ -427,11 +427,12 @@ function printError (message: string, hint?: string): void {
 }
 
 /**
- * Whether to skip the packageManager/runtime handling block (both auto
- * download and warn/error checks). Global config operations do not act on
- * the project. Commands can also opt out via `skipPackageManagerCheck: true`;
- * help for those commands is skipped too so rendering it does not download
- * an older pinned pnpm that may not have the command.
+ * Returns whether the command may bypass project package-manager and runtime
+ * handling. Config command aliases bypass it unless `location` is exactly
+ * `project`; an absent or unrecognized location therefore retains config's
+ * global default. Commands marked with `skipPackageManagerCheck`, and help
+ * requests targeting those commands, also bypass it. A missing command does
+ * not.
  */
 function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location: unknown): boolean {
   if (cmd == null) return false
