@@ -403,6 +403,34 @@ fn extract_applies_ignore_scripts_override() {
 }
 
 #[test]
+fn extract_applies_allow_unused_patches_override() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.allow-unused-patches=true", "deploy"]));
+    assert_eq!(remaining, argv(["pacquet", "deploy"]));
+    let mut config = Config::default();
+    assert!(!config.allow_unused_patches);
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.allow_unused_patches);
+    assert_eq!(
+        config.explicit_settings.get("allowUnusedPatches"),
+        Some(&serde_json::Value::Bool(true)),
+    );
+
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "--config.allow-unused-patches=false",
+        "deploy",
+    ]));
+    let mut config = Config { allow_unused_patches: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.allow_unused_patches);
+    assert_eq!(
+        config.explicit_settings.get("allowUnusedPatches"),
+        Some(&serde_json::Value::Bool(false)),
+    );
+}
+
+#[test]
 fn extract_applies_default_parity_overrides() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
