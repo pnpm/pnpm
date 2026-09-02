@@ -2992,7 +2992,7 @@ fn every_importer_of_a_workspace_is_recorded() {
             }))
         })
         .collect();
-    let direct: BTreeMap<String, DepPath> = BTreeMap::from([("dep".to_string(), dep_path.clone())]);
+    let direct: BTreeMap<String, DepPath> = BTreeMap::from([("dep".to_string(), dep_path)]);
     let mut opts =
         single_importer_opts(&manifests[0].1, &graph, direct.clone(), false, false, None, None);
     opts.importers = [".", "packages/a", "packages/b"]
