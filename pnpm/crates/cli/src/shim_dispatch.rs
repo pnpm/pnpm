@@ -59,7 +59,7 @@ pub(crate) use native_shim::{
 pub(crate) use runtime_env::materialize_runtime;
 
 use identity::{local_bin_identity, provider_of_target};
-use native_shim::try_native_dispatch;
+use native_shim::{dispatch_legacy_shim, try_native_dispatch};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use trust::is_trusted;
 
@@ -68,11 +68,16 @@ use trust::is_trusted;
 /// sibling `node` shim included, inherit.
 const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 
-/// Intercept a launch under a shim name. `None` means this is pnpm itself
-/// and the regular CLI should proceed; `Some(code)` means the dispatch ran
-/// (or failed) and the process must exit with `code`. On Unix a successful
-/// dispatch never returns at all — the target is `exec`ed in place.
+/// Intercept a launch under a shim name, or a legacy shim's `--shim`
+/// invocation of the dispatcher it replaced. `None` means this is pnpm
+/// itself and the regular CLI should proceed; `Some(code)` means the
+/// dispatch ran (or failed) and the process must exit with `code`. On Unix
+/// a successful dispatch never returns at all — the target is `exec`ed in
+/// place.
 pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
+    if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
+        return Some(dispatch_legacy_shim(&argv[2..]));
+    }
     try_native_dispatch(argv)
 }
 

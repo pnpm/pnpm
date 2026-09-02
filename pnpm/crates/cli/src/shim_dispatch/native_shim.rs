@@ -11,9 +11,14 @@
 //!
 //! A legacy shim is a shell script carrying the marker line
 //! `# pnpm-shim-style=context-aware` and a `# cmd-shim-target=` trailer,
-//! dispatching through a `.pnpm-shim-v1` executable. Whenever shims are
+//! dispatching through a `.pnpm-shim-v1` executable with
+//! `--shim <name> <shim> <target> -- <args...>`. Whenever shims are
 //! written or refreshed, every legacy shim in the bin dir is migrated into
-//! this shape and the `.pnpm-shim-v1` executable is removed.
+//! this shape and the `.pnpm-shim-v1` executable is removed. A self-update
+//! run by an earlier pnpm 12 puts this executable in the dispatcher's slot
+//! without touching the legacy shims that call it, so the executable also
+//! serves their `--shim` invocations and migrates the bin dir on the first
+//! one.
 
 use super::{dispatch_target, trusted_shim_settings};
 use pnpm_cmd_shim::is_safe_bin_name;
@@ -70,7 +75,8 @@ impl ShimTarget {
         Some(ShimTarget::Installed(PathBuf::from(raw)))
     }
 
-    /// The target a legacy shell shim recorded in its trailer.
+    /// The target a legacy shell shim recorded in its trailer and passes
+    /// in its `--shim` invocation.
     fn from_legacy_marker(value: &str) -> Option<Self> {
         if let Some(package) = value.strip_prefix(VIRTUAL_TARGET_PREFIX) {
             return is_valid_old_npm_package_name(package)
@@ -252,6 +258,49 @@ fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
         .find_map(|line| line.strip_prefix(LEGACY_TARGET_MARKER))
         .and_then(ShimTarget::from_legacy_marker);
     Ok(target)
+}
+
+/// Serve a legacy shim's `--shim` invocation: `rest` is everything after
+/// the `--shim` flag. The bin dir is migrated first, so the shim that
+/// made this launch is native by the time the target runs; a migration
+/// that fails leaves the legacy shims in place and is reported, since the
+/// launch itself does not depend on it.
+pub(super) fn dispatch_legacy_shim(rest: &[OsString]) -> i32 {
+    let Some((name, shim, target, args)) = parse_legacy_shim_argv(rest) else {
+        eprintln!(
+            "pnpm: malformed --shim invocation. Usage: pnpm --shim <name> <shim> <target> -- [args...]",
+        );
+        return 1;
+    };
+    let Some(bin_dir) = shim.parent().filter(|dir| !dir.as_os_str().is_empty()) else {
+        eprintln!("pnpm: the shim path {} has no directory", shim.display());
+        return 1;
+    };
+    if let Err(error) = migrate_legacy_shims(bin_dir) {
+        eprintln!("pnpm: cannot migrate the global shims in {}: {error}", bin_dir.display());
+    }
+    let settings = trusted_shim_settings();
+    let invocation = super::ShimInvocation { name, bin_dir, target: &target };
+    dispatch_target(&invocation, args, &settings.shims, &settings.state_dir)
+}
+
+/// Split the machine-generated tail of a `--shim` invocation into the bin
+/// name, the shim's own path, its global target, and the forwarded
+/// arguments. The target slot carries what the shim's trailer would:
+/// a path, or `pkg:<package>` for a target-less shim.
+fn parse_legacy_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, ShimTarget, &[OsString])> {
+    let [name, shim, target, separator, args @ ..] = rest else {
+        return None;
+    };
+    if separator.to_str() != Some("--") {
+        return None;
+    }
+    let name = name.to_str().filter(|name| is_safe_bin_name(name))?;
+    let target = match target.to_str() {
+        Some(target) => ShimTarget::from_legacy_marker(target)?,
+        None => ShimTarget::Installed(PathBuf::from(target)),
+    };
+    Some((name, Path::new(shim), target, args))
 }
 
 /// Intercept a launch under a shim name. `None` means this is pnpm

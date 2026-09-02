@@ -26,6 +26,24 @@ fn non_shim_argv_is_not_intercepted() {
 }
 
 #[test]
+fn malformed_legacy_shim_argv_fails_instead_of_running_the_cli() {
+    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim"])), Some(1));
+    assert_eq!(try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool"])), Some(1));
+    assert_eq!(
+        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "/g/pkg/cli", "x"])),
+        Some(1),
+    );
+    assert_eq!(
+        try_dispatch(&strings(&["pnpm", "--shim", "../tool", "/g/bin/tool", "/g/pkg/cli", "--"])),
+        Some(1),
+    );
+    assert_eq!(
+        try_dispatch(&strings(&["pnpm", "--shim", "tool", "/g/bin/tool", "pkg:not valid", "--"])),
+        Some(1),
+    );
+}
+
+#[test]
 fn configured_state_dir_resolves_relative_to_the_machine_state_root() {
     let root = tempfile::tempdir().unwrap();
     let default_state_dir = root.path().join("state/pnpm");

@@ -616,6 +616,82 @@ fn native_shim_runs_the_global_executable_fallback() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
 
+/// The bin dir a self-update by an earlier pnpm 12 leaves behind: the
+/// shell shims it wrote, dispatching through a `.pnpm-shim-v1` that is now
+/// the executable under test.
+#[cfg(unix)]
+fn install_legacy_shim(global_bin: &Path, name: &str, target: &str) -> std::path::PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    fs::create_dir_all(global_bin).unwrap();
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
+    if !dispatcher.exists() {
+        fs::copy(assert_cmd::cargo::cargo_bin("pnpm"), &dispatcher).unwrap();
+    }
+    let shim = global_bin.join(name);
+    fs::write(
+        &shim,
+        format!(
+            "#!/bin/sh\nbasedir=$(dirname \"$0\")\nif [ -z \"$PNPM_SHIM_BYPASS\" ] && [ -x \"$basedir/.pnpm-shim-v1\" ]; then\n  exec \"$basedir/.pnpm-shim-v1\" --shim '{name}' \"$basedir/\"'{name}' \"{target}\" -- \"$@\"\nfi\n\"{target}\" \"$@\"\nexit $?\n# pnpm-shim-style=context-aware\n# cmd-shim-target={target}\n",
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&shim, fs::Permissions::from_mode(0o755)).unwrap();
+    shim
+}
+
+/// A shim an earlier pnpm 12 wrote keeps working after that pnpm's
+/// self-update replaced the dispatcher with this executable, and its first
+/// launch turns the whole bin dir native.
+#[cfg(unix)]
+#[test]
+fn legacy_shim_launch_dispatches_and_migrates_the_bin_dir() {
+    let root = tempfile::tempdir().unwrap();
+    let (project, global_target) = prepare_local_and_global(&root, "tool");
+    let global_bin = root.path().join("global-bin");
+    let other = install_legacy_shim(&global_bin, "other", "pkg:other");
+    let shim = install_legacy_shim(&global_bin, "tool", global_target.to_str().unwrap());
+    let launch = |shim: &Path| {
+        Command::new(shim)
+            .without_ambient_pnpm_config()
+            .with_current_dir(&project)
+            .with_env("PNPM_HOME", root.path().join("pnpm-home"))
+            .with_env("XDG_STATE_HOME", root.path().join("state"))
+            .with_env("XDG_CONFIG_HOME", root.path().join("config"))
+            .with_env("XDG_CACHE_HOME", root.path().join("cache-home"))
+            .with_env(AUTO_TRUST_ENV, "1")
+            .with_env("PNPM_CONFIG_GLOBAL_SHIMS", r#"{"tool": true}"#)
+            .with_args(["--flag", "value with spaces"])
+            .output()
+            .unwrap()
+    };
+
+    let first = launch(&shim);
+    assert!(first.status.success(), "stderr:\n{}", String::from_utf8_lossy(&first.stderr));
+    assert_eq!(String::from_utf8_lossy(&first.stdout).trim(), "local");
+
+    let executable_len = fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len();
+    for name in ["tool", "other"] {
+        assert_eq!(
+            fs::metadata(global_bin.join(name)).unwrap().len(),
+            executable_len,
+            "the legacy {name} shim must have become the executable",
+        );
+    }
+    assert_eq!(
+        fs::read(global_bin.join(".pnpm-shim-v1-tool-target")).unwrap(),
+        global_target.as_os_str().as_encoded_bytes(),
+    );
+    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-other-target")).unwrap(), b"pkg:other");
+    assert!(!global_bin.join(".pnpm-shim-v1").exists());
+
+    let second = launch(&shim);
+    assert!(second.status.success(), "stderr:\n{}", String::from_utf8_lossy(&second.stderr));
+    assert_eq!(String::from_utf8_lossy(&second.stdout).trim(), "local");
+    let unprovided = launch(&other);
+    assert!(!unprovided.status.success());
+    assert!(String::from_utf8_lossy(&unprovided.stderr).contains("ERR_PNPM_SHIM_NO_TARGET"));
+}
+
 /// A shim an earlier pnpm 12 wrote for the package is migrated before the
 /// slot check, so re-adding the package repairs it instead of reporting a
 /// conflict.
