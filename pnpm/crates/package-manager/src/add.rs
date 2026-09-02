@@ -1134,7 +1134,7 @@ async fn resolve_aliasless_tarball(
         Ok(tarball) => AddError::TarballResolve(tarball),
         Err(source) => AddError::ResolveTarball {
             specifier: redact_url_for_display(specifier),
-            reason: redacted_error_chain(source.as_ref(), specifier),
+            reason: redacted_error_chain(source.as_ref()),
         },
     })?
     .ok_or_else(|| AddError::MissingPackageName { specifier: redact_url_for_display(specifier) })?;
@@ -1144,49 +1144,51 @@ async fn resolve_aliasless_tarball(
     Ok(AliaslessDependency { package_name, manifest_specifier })
 }
 
-/// Flatten an error chain into one line, with every rendering of `url` cut
-/// back to its display-safe form.
+/// Flatten an error chain into one line, with every URL in it cut back to
+/// its display-safe form.
 ///
-/// `reqwest` echoes the request URL back in its own message, and it redacts
-/// only the userinfo — a signed tarball URL carries its token in the query
-/// string, which [`redact_and_sanitize`] keeps too. Once the credentials are
-/// stripped, the safe form is a prefix of every spelling of the same URL
-/// (raw, or normalized by the resolver), so each occurrence is truncated at
-/// the token boundary that follows it.
-fn redacted_error_chain(error: &(dyn std::error::Error + 'static), url: &str) -> String {
+/// `reqwest` echoes the request URL back in its own message and redacts
+/// only the userinfo, while a signed tarball URL carries its token in the
+/// query string — which [`redact_and_sanitize`] keeps too. The scrub is
+/// URL-agnostic rather than keyed to the specifier: the HEAD request
+/// follows redirects, so the URL a failure names may be a signed storage
+/// URL the caller never saw.
+fn redacted_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
     let mut frames = Vec::new();
     let mut current = Some(error);
     while let Some(frame) = current {
         frames.push(frame.to_string());
         current = frame.source();
     }
-    // Order is load-bearing: `redact_and_sanitize` runs first so a rendering
-    // that carries `user:pass@` loses it here, leaving a URL that starts with
-    // the safe prefix the truncation below matches on.
-    let sanitized = redact_and_sanitize(&frames.join(": "));
-    truncate_url_tokens(&sanitized, &redact_url_for_display(url))
+    // Order is load-bearing: `redact_and_sanitize` strips the `user:pass@`
+    // and the control characters, leaving each URL as a plain token for the
+    // query/fragment cut below.
+    strip_url_query_and_fragment(&redact_and_sanitize(&frames.join(": ")))
 }
 
-/// Replace every token in `text` that starts with `safe_url` by `safe_url`
-/// alone, dropping whatever query, fragment, or trailing path the rendering
-/// carried. A URL in error prose ends at whitespace or one of the
-/// punctuation marks a message wraps it in.
-fn truncate_url_tokens(text: &str, safe_url: &str) -> String {
-    if safe_url.is_empty() {
-        return text.to_string();
-    }
+/// Cut every URL in `text` at its query or fragment. A URL in error prose
+/// ends at whitespace or at one of the marks a message wraps it in, and a
+/// `://` not preceded by a scheme character is not an authority boundary.
+fn strip_url_query_and_fragment(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(start) = rest.find(safe_url) {
-        out.push_str(&rest[..start]);
-        out.push_str(safe_url);
-        let after = &rest[start + safe_url.len()..];
+    while let Some(pos) = rest.find("://") {
+        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
+        let authority_start = pos + "://".len();
+        out.push_str(&rest[..authority_start]);
+        let after = &rest[authority_start..];
+        if !has_scheme {
+            rest = after;
+            continue;
+        }
         let end = after
             .find(|character: char| {
                 character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
             })
             .unwrap_or(after.len());
-        rest = &after[end..];
+        let (token, tail) = after.split_at(end);
+        out.push_str(&token[..token.find(['?', '#']).unwrap_or(token.len())]);
+        rest = tail;
     }
     out.push_str(rest);
     out

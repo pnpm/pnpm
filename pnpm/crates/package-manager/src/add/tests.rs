@@ -773,21 +773,30 @@ fn a_tarball_error_chain_drops_url_secrets() {
         "https://example.com/pkg.tgz?token=SIGNEDSECRET",
         "https://alice:hunter2@example.com/pkg.tgz",
         "https://alice:hunter2@example.com/pkg.tgz?token=SIGNEDSECRET#frag",
+        // The HEAD request follows redirects, so the URL a failure names
+        // need not be the one the command was given.
+        "https://storage.example.net/blob?X-Amz-Signature=SIGNEDSECRET",
     ] {
         // The shape `reqwest` renders for a transport failure, whose leaf
         // frames carry the reason and whose first frame carries the URL.
-        let rendered = super::redacted_error_chain(
-            &std::io::Error::other(format!(
-                "error sending request for url ({url}): tcp connect error",
-            )),
-            url,
-        );
+        let rendered = super::redacted_error_chain(&std::io::Error::other(format!(
+            "error sending request for url ({url}): tcp connect error",
+        )));
         eprintln!("RENDERED: {rendered}");
         assert!(!rendered.contains("SIGNEDSECRET"), "query token must not survive: {rendered}");
         assert!(!rendered.contains("hunter2"), "password must not survive: {rendered}");
         assert!(
-            rendered.contains("example.com/pkg.tgz") && rendered.contains("tcp connect error"),
+            rendered.contains("example") && rendered.contains("tcp connect error"),
             "the host and the reason must survive: {rendered}",
         );
+    }
+}
+
+/// A `://` that no scheme precedes is not a URL authority, and a message
+/// carrying no URL at all is passed through untouched.
+#[test]
+fn url_scrubbing_leaves_non_urls_alone() {
+    for text in ["no url here at all", "why? because", "see :// for the syntax"] {
+        assert_eq!(super::strip_url_query_and_fragment(text), text);
     }
 }
