@@ -160,8 +160,10 @@ fn remove_occupant_clears_files_directories_and_missing_paths() {
     super::remove_occupant(&dir).expect("remove dir occupant");
     super::remove_occupant(&root.path().join("missing")).expect("missing path is not an error");
 
-    assert!(!file.exists());
-    assert!(!dir.exists());
+    for path in [&file, &dir] {
+        let error = fs::symlink_metadata(path).expect_err("occupant should be gone");
+        assert_eq!(error.kind(), std::io::ErrorKind::NotFound, "{path:?}");
+    }
 }
 
 #[test]
