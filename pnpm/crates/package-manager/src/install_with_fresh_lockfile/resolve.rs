@@ -345,9 +345,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
             // `lockfile` is `wanted_lockfile` narrowed by the filter
             // above, so the loader's handle to it reuses the parsed
             // document verbatim.
-            None => {
-                wanted_lockfile_shared.map(Arc::clone).unwrap_or_else(|| Arc::new(lockfile.clone()))
-            }
+            None => wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
         });
     }
     if !fast_override_eligible {
