@@ -27,12 +27,9 @@ pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
-#[cfg(any(target_os = "macos", windows))]
-use reqwest::dns::Addrs;
-#[cfg(any(target_os = "macos", windows, test))]
-use reqwest::dns::{Name, Resolve, Resolving};
 use reqwest::{
     Certificate, Client, Identity, Proxy,
+    dns::{Addrs, Name, Resolve, Resolving},
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
@@ -366,13 +363,10 @@ impl ThrottledClient {
     /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
     /// default.
     ///
-    /// DNS resolution is platform-specific. macOS and Windows use the
-    /// native `getaddrinfo` resolver: Hickory misses the scoped resolver
-    /// routing VPNs use on macOS, and its wildcard UDP binds trip Windows
-    /// Defender Firewall prompts. A process-wide four-lookup cap, shared
-    /// by every client, matches Node's libuv DNS pool and keeps
-    /// concurrent calls from overwhelming `mDNSResponder`. Other
-    /// platforms keep Hickory's async resolver.
+    /// Hostnames resolve through the platform's `getaddrinfo` behind a
+    /// process-wide four-lookup cap shared by every client, matching
+    /// Node's libuv DNS pool. `configure_dns` documents why no pure-Rust
+    /// resolver is used on any platform.
     #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
@@ -763,18 +757,15 @@ fn is_redirect_status(status: reqwest::StatusCode) -> bool {
 }
 
 /// Caps concurrent lookups through `Inner`. Clones share the cap.
-#[cfg(any(target_os = "macos", windows, test))]
 #[derive(Clone)]
 struct CappedDnsResolver<Inner> {
     inner: Arc<Inner>,
     permits: Arc<Semaphore>,
 }
 
-#[cfg(any(target_os = "macos", windows))]
 #[derive(Clone)]
 struct NativeDnsResolver;
 
-#[cfg(any(target_os = "macos", windows))]
 impl Resolve for NativeDnsResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
@@ -787,14 +778,12 @@ impl Resolve for NativeDnsResolver {
     }
 }
 
-#[cfg(any(target_os = "macos", windows, test))]
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
         Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
     }
 }
 
-#[cfg(any(target_os = "macos", windows, test))]
 impl<Inner> Resolve for CappedDnsResolver<Inner>
 where
     Inner: Resolve + 'static,
@@ -813,7 +802,9 @@ where
 /// Resolve through the platform's `getaddrinfo`, capped at Node's libuv
 /// thread-pool width so `mDNSResponder` is not overloaded.
 ///
-/// macOS needs the system resolver for its scoped/supplemental resolver
+/// The system resolver is the only one that sees the whole host
+/// configuration, which is why Hickory's pure-Rust resolver is not used
+/// on any platform. macOS needs it for the scoped/supplemental resolver
 /// graph (VPN split DNS), which Hickory does not read. Windows needs it
 /// because Hickory sends every query from a freshly bound wildcard UDP
 /// socket, and Windows Defender Firewall treats that bind as a listener:
@@ -821,8 +812,12 @@ where
 /// path, so every newly installed engine prompts again
 /// (pnpm/pnpm#14405). `getaddrinfo` hands the query to the Dnscache
 /// service and binds nothing in this process, and it also honors NRPT and
-/// per-adapter DNS settings.
-#[cfg(any(target_os = "macos", windows))]
+/// per-adapter DNS settings. Linux needs it because Hickory parses
+/// `/etc/resolv.conf` itself and rejects the whole file over one option
+/// spelling glibc accepts (`no_tld_query`) or does not know yet, after
+/// which reqwest silently falls back to Google's public nameservers
+/// (pnpm/pnpm#14469). `getaddrinfo` also consults `nsswitch.conf`
+/// sources such as `nss-resolve` and `nss-mdns` that Hickory bypasses.
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     // One cap per process, like the libuv thread pool it mirrors: the
     // redirect pair, every per-registry override, and the bundled-roots
@@ -833,11 +828,6 @@ fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     });
 
     builder.dns_resolver(RESOLVER.clone())
-}
-
-#[cfg(not(any(target_os = "macos", windows)))]
-fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    builder.hickory_dns(true)
 }
 
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {

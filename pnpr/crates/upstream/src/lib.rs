@@ -23,7 +23,7 @@ use std::{
 const UPSTREAM_ERROR_BODY_LIMIT: usize = 64 * 1024;
 
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
-/// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
+/// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, capped native DNS,
 /// pool/timeout tuning, concurrency semaphore, and per-registry TLS
 /// routing if it's ever wired in later) and adds the per-upstream glue a
 /// proxy needs: building the upstream URL, applying verdaccio's
