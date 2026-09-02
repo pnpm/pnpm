@@ -1,6 +1,7 @@
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::EnvLockfile;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
@@ -63,7 +64,6 @@ fn update_config_catalog_applies_to_link() {
     fs::write(target.join("package.json"), r#"{ "name": "other-pkg", "version": "1.0.0" }"#)
         .expect("write link target manifest");
 
-    pacquet_in(&workspace).with_arg("install").assert().success();
     pacquet_in(&workspace).with_args(["link", "../other-pkg"]).assert().success();
 
     drop((root, mock_instance));
@@ -93,14 +93,37 @@ fn update_config_catalog_applies_to_import() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_catalog_hook_project(&workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
+    fs::write(workspace_yaml, settings).expect("write configDependencies");
 
     pacquet_in(&workspace).with_arg("import").assert().success();
 
     let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
+    assert!(lockfile.contains("configDependencies:"), "env document must retain config deps");
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read env lockfile")
+        .expect("env lockfile should be present");
+    assert!(
+        env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+            .config_dependencies
+            .contains_key("@pnpm/plugin-pnpmfile"),
+        "env document must retain the config dependency pin",
+    );
+    assert!(
+        env_lockfile
+            .packages
+            .values()
+            .any(|package| package.resolution.checkable_integrity().is_some()),
+        "env document must retain the config dependency integrity",
+    );
     assert!(
         lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
         "the imported lockfile should resolve the hook-provided catalog entry:\n{lockfile}",
     );
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
     drop((root, mock_instance));
 }
