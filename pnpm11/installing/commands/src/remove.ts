@@ -112,6 +112,22 @@ For options that may be used with `-r`, see "pnpm help recursive"',
             name: '--save-prod',
             shortAlias: '-P',
           },
+          {
+            description: "Fail when a package's trust level is downgraded (e.g., from a trusted publisher to provenance only or no trust evidence)",
+            name: '--trust-policy no-downgrade',
+          },
+          {
+            description: 'Exclude specific packages from trust policy checks',
+            name: '--trust-policy-exclude <package-spec>',
+          },
+          {
+            description: 'Ignore trust downgrades for packages published more than specified minutes ago',
+            name: '--trust-policy-ignore-after <minutes>',
+          },
+          {
+            description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. The pass runs against the lockfile as it exists before the removal, so this skips it for every entry',
+            name: '--trust-lockfile',
+          },
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
         ],
