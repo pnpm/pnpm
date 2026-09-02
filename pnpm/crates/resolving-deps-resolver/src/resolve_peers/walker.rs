@@ -555,10 +555,17 @@ impl Walker<'_> {
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
         let final_dep_paths = self.build_final_dep_paths();
+        let anchor = match (self.opts.project_dir.as_deref(), self.opts.lockfile_dir.as_deref()) {
+            (Some(project_dir), Some(lockfile_dir)) => {
+                crate::link_target::ImporterAnchor::new(project_dir, lockfile_dir)
+            }
+            _ => crate::link_target::ImporterAnchor::default(),
+        };
         for dep in &direct {
             let dep_path = self.final_dep_path_of(&dep.node_id, &final_dep_paths);
             let dep_path = importer_relative_link_dep_path(
                 &dep_path,
+                &anchor,
                 self.opts.lockfile_dir.as_deref(),
                 self.opts.project_dir.as_deref(),
             );

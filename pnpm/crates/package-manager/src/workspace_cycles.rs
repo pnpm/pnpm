@@ -8,7 +8,7 @@
 //! its own check in that case.
 
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_deps_restorer::graph_sequencer;
+use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
@@ -33,25 +33,25 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
     // The sequencer runs over borrowed paths: a workspace-scale graph
     // holds tens of thousands of edges, and cloning every `PathBuf`
     // into a throwaway map cost more than the sort itself.
-    let dirs: Vec<&Path> = graph.keys().map(PathBuf::as_path).collect();
-    let included: HashSet<&Path> = dirs.iter().copied().collect();
-    let edges: HashMap<&Path, Vec<&Path>> = graph
+    let dirs: Vec<PathNode<'_>> = graph.keys().map(|dir| PathNode(dir)).collect();
+    let included: HashSet<PathNode<'_>> = dirs.iter().copied().collect();
+    let edges: HashMap<PathNode<'_>, Vec<PathNode<'_>>> = graph
         .iter()
         .map(|(dir, node)| {
             let dependencies = node
                 .dependencies
                 .iter()
-                .map(PathBuf::as_path)
+                .map(|dependency| PathNode(dependency))
                 .filter(|dependency| included.contains(dependency))
                 .collect();
-            (dir.as_path(), dependencies)
+            (PathNode(dir), dependencies)
         })
         .collect();
     let cycles = graph_sequencer(&edges, &dirs)
         .cycles
         .into_iter()
         .filter(|cycle| cycle.len() > 1)
-        .map(|cycle| cycle.into_iter().map(Path::to_path_buf).collect())
+        .map(|cycle| cycle.into_iter().map(|node| node.0.to_path_buf()).collect())
         .collect::<Vec<Vec<PathBuf>>>();
     (!cycles.is_empty()).then_some(cycles)
 }

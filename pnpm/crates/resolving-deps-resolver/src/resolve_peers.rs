@@ -450,6 +450,7 @@ pub fn resolve_peers_workspace(
     // importer's direct deps.
     let final_dep_paths = walker.build_final_dep_paths();
     for importer in &importers {
+        let anchor = crate::link_target::ImporterAnchor::new(&importer.root_dir, lockfile_dir);
         let direct_by_alias: BTreeMap<String, DepPath> = importer
             .direct
             .iter()
@@ -457,6 +458,7 @@ pub fn resolve_peers_workspace(
                 let dep_path = walker.final_dep_path_of(&dep.node_id, &final_dep_paths);
                 let dep_path = importer_relative_link_dep_path(
                     &dep_path,
+                    &anchor,
                     Some(lockfile_dir),
                     Some(&importer.root_dir),
                 );

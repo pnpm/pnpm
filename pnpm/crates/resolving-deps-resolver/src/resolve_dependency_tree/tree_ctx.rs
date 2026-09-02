@@ -135,6 +135,15 @@ pub struct TreeCtx {
     /// See [`super::workspace_ctx::WorkspaceResolutionOptionsKey`].
     pub(super) workspace_resolution_options_key:
         Arc<super::workspace_ctx::WorkspaceResolutionOptionsKey>,
+    /// Importer anchor for re-rendering `link:` targets against
+    /// [`Self::lockfile_dir`], derived once here — the per-edge
+    /// `pkgIdWithPatchHash` fold reads it for every workspace edge.
+    pub(super) link_anchor: crate::link_target::ImporterAnchor,
+    /// Like [`Self::link_anchor`], but against `base_opts.lockfile_dir`
+    /// verbatim — the pair the per-edge canonical-resolution rendering
+    /// computed from, kept separate so the cache changes no behavior
+    /// even when the two lockfile-dir spellings differ.
+    pub(super) base_link_anchor: crate::link_target::ImporterAnchor,
 }
 
 impl TreeCtx {
@@ -149,14 +158,23 @@ impl TreeCtx {
         } else {
             base_opts.lockfile_dir.clone()
         };
+        let lockfile_dir = pnpm_fs::lexical_normalize(&lockfile_dir);
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             workspace_resolution_options_key: Arc::new(
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
+            link_anchor: crate::link_target::ImporterAnchor::new(
+                &base_opts.project_dir,
+                &lockfile_dir,
+            ),
+            base_link_anchor: crate::link_target::ImporterAnchor::new(
+                &base_opts.project_dir,
+                &base_opts.lockfile_dir,
+            ),
             base_opts,
-            lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
+            lockfile_dir,
             catalogs: Catalogs::new(),
             workspace: Arc::new(WorkspaceTreeCtx::default()),
             patched_dependencies: None,
@@ -175,14 +193,23 @@ impl TreeCtx {
         } else {
             base_opts.lockfile_dir.clone()
         };
+        let lockfile_dir = pnpm_fs::lexical_normalize(&lockfile_dir);
         TreeCtx {
             direct_opts: base_opts.clone(),
             subdep_opts: base_opts.clone(),
             workspace_resolution_options_key: Arc::new(
                 super::workspace_ctx::WorkspaceResolutionOptionsKey::new(&base_opts),
             ),
+            link_anchor: crate::link_target::ImporterAnchor::new(
+                &base_opts.project_dir,
+                &lockfile_dir,
+            ),
+            base_link_anchor: crate::link_target::ImporterAnchor::new(
+                &base_opts.project_dir,
+                &base_opts.lockfile_dir,
+            ),
             base_opts,
-            lockfile_dir: pnpm_fs::lexical_normalize(&lockfile_dir),
+            lockfile_dir,
             catalogs: Catalogs::new(),
             workspace,
             patched_dependencies: None,
@@ -194,6 +221,10 @@ impl TreeCtx {
     #[must_use]
     pub(crate) fn with_lockfile_dir(mut self, lockfile_dir: &Path) -> Self {
         self.lockfile_dir = pnpm_fs::lexical_normalize(lockfile_dir);
+        self.link_anchor = crate::link_target::ImporterAnchor::new(
+            &self.base_opts.project_dir,
+            &self.lockfile_dir,
+        );
         self
     }
 

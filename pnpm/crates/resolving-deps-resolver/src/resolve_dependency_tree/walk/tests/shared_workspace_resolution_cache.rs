@@ -64,10 +64,15 @@ fn directory_result(id: &str, resolved_via: &str) -> ResolveResult {
 }
 
 fn rendered_link(canonical: &ResolveResult, project_dir: &str) -> String {
-    render_workspace_resolution(canonical, Path::new(project_dir), Path::new("/repo"))
-        .id
-        .as_str()
-        .to_string()
+    render_workspace_resolution(
+        canonical,
+        &crate::link_target::ImporterAnchor::new(Path::new(project_dir), Path::new("/repo")),
+        Path::new(project_dir),
+        Path::new("/repo"),
+    )
+    .id
+    .as_str()
+    .to_string()
 }
 
 #[test]

@@ -1,8 +1,33 @@
 use rustc_hash::FxHashMap;
 use std::{
     collections::{HashMap, VecDeque},
-    hash::Hash,
+    hash::{Hash, Hasher},
+    path::Path,
 };
+
+/// A path node for [`graph_sequencer`], compared and hashed by the
+/// underlying `OsStr`'s bytes. `Path`'s own `Hash` and `Eq` walk the
+/// path component by component, and on a workspace-scale graph the
+/// interner's hashing dominated the sort. Byte equality is stricter
+/// than component equality, which for node identity can only split a
+/// node the caller spelled two ways — the callers here key their
+/// graphs by one canonical `PathBuf` per project.
+#[derive(Debug, Clone, Copy)]
+pub struct PathNode<'graph>(pub &'graph Path);
+
+impl PartialEq for PathNode<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_os_str() == other.0.as_os_str()
+    }
+}
+
+impl Eq for PathNode<'_> {}
+
+impl Hash for PathNode<'_> {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        self.0.as_os_str().hash(state);
+    }
+}
 
 /// Output of [`graph_sequencer`].
 #[derive(Debug)]

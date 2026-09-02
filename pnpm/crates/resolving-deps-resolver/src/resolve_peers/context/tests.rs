@@ -23,7 +23,12 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
 fn importer_relative_self_link_keeps_an_empty_target() {
     let workspace = Path::new("workspace");
     assert_eq!(
-        importer_relative_link_dep_path(&DepPath::from("link:."), Some(workspace), Some(workspace),),
+        importer_relative_link_dep_path(
+            &DepPath::from("link:."),
+            &crate::link_target::ImporterAnchor::new(workspace, workspace),
+            Some(workspace),
+            Some(workspace),
+        ),
         DepPath::from("link:"),
     );
 }
@@ -41,6 +46,10 @@ fn importer_relative_link_normalizes_the_project_dir() {
         assert_eq!(
             importer_relative_link_dep_path(
                 &DepPath::from("link:packages/lib"),
+                &crate::link_target::ImporterAnchor::new(
+                    Path::new(project_dir),
+                    Path::new("workspace"),
+                ),
                 Some(Path::new("workspace")),
                 Some(Path::new(project_dir)),
             ),

@@ -397,6 +397,7 @@ pub(super) fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
 
 pub(super) fn importer_relative_link_dep_path(
     dep_path: &DepPath,
+    anchor: &crate::link_target::ImporterAnchor,
     lockfile_dir: Option<&Path>,
     project_dir: Option<&Path>,
 ) -> DepPath {
@@ -407,9 +408,7 @@ pub(super) fn importer_relative_link_dep_path(
         return dep_path.clone();
     };
     let target = Path::new(target);
-    let rel_space_target = crate::link_target::importer_rel_dir(project_dir, lockfile_dir)
-        .and_then(|rel| crate::link_target::target_relative_to_importer(target, rel));
-    let relative_target = rel_space_target.unwrap_or_else(|| {
+    let relative_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
         let absolute_target = if target.is_absolute() {
             pnpm_fs::lexical_normalize(target)
         } else {

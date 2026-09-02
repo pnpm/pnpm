@@ -21,7 +21,7 @@ use std::{
 };
 
 mod graph_sequencer;
-pub use graph_sequencer::{GraphSequencerResult, graph_sequencer};
+pub use graph_sequencer::{GraphSequencerResult, PathNode, graph_sequencer};
 
 /// The stable identifier of a task: the project directory and the task
 /// (script) name. The scheduler, the summary, and the dry-run output agree

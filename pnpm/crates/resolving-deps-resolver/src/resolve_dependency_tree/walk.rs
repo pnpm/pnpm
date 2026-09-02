@@ -1187,6 +1187,7 @@ fn canonical_workspace_resolution(
 /// its manifest hooks run.
 fn render_workspace_resolution(
     canonical: &pnpm_resolving_resolver_base::ResolveResult,
+    anchor: &crate::link_target::ImporterAnchor,
     project_dir: &Path,
     lockfile_dir: &Path,
 ) -> pnpm_resolving_resolver_base::ResolveResult {
@@ -1201,9 +1202,7 @@ fn render_workspace_resolution(
     }
 
     let target = Path::new(&directory_resolution.directory);
-    let rel_space_target = crate::link_target::importer_rel_dir(project_dir, lockfile_dir)
-        .and_then(|rel| crate::link_target::target_relative_to_importer(target, rel));
-    let consumer_target = rel_space_target.unwrap_or_else(|| {
+    let consumer_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
         let absolute_target = if target.is_absolute() {
             pnpm_fs::lexical_normalize(target)
         } else {
@@ -1310,7 +1309,24 @@ where
     });
     let mut canonical_workspace = cached_workspace.clone();
     let mut result = if let Some(canonical) = cached_workspace {
-        render_workspace_resolution(&canonical, &opts.project_dir, &opts.lockfile_dir)
+        // A `workspace:` edge never runs under the per-edge project-dir
+        // override (that fires for `file:` specifiers only), so the
+        // importer-wide anchor is exactly this edge's anchor.
+        #[cfg(debug_assertions)]
+        {
+            let anchor_inputs_describe_this_edge = opts.project_dir == ctx.base_opts.project_dir
+                && opts.lockfile_dir == ctx.base_opts.lockfile_dir;
+            debug_assert!(
+                anchor_inputs_describe_this_edge,
+                "the importer-wide link anchor must describe every workspace edge",
+            );
+        }
+        render_workspace_resolution(
+            &canonical,
+            &ctx.base_link_anchor,
+            &opts.project_dir,
+            &opts.lockfile_dir,
+        )
     } else {
         let result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
         let Some(result) = result else {
