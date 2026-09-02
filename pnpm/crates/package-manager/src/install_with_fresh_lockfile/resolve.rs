@@ -223,6 +223,9 @@ pub(super) struct ReuseSeedInputs<'a> {
     pub catalogs: &'a Catalogs,
     /// The previous run's lockfile, the only reuse candidate.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// An `Arc` handle to the same document, when the loader holds one;
+    /// the reuse-verbatim path shares it instead of deep-copying.
+    pub wanted_lockfile_shared: Option<&'a Arc<Lockfile>>,
     pub package_extensions_checksum: Option<&'a str>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
@@ -264,6 +267,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         config,
         catalogs,
         wanted_lockfile,
+        wanted_lockfile_shared,
         package_extensions_checksum,
         parsed_overrides,
         resolved_overrides,
@@ -336,7 +340,13 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     };
 
     if override_settings_match {
-        return Some(Arc::new(catalog_rewrite.unwrap_or_else(|| lockfile.clone())));
+        return Some(match catalog_rewrite {
+            Some(rewritten) => Arc::new(rewritten),
+            // `lockfile` is `wanted_lockfile` narrowed by the filter
+            // above, so the loader's handle to it reuses the parsed
+            // document verbatim.
+            None => wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
+        });
     }
     if !fast_override_eligible {
         return None;

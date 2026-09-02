@@ -16,6 +16,11 @@ pub(super) struct MaterializationInputs<'a, 'install> {
     pub(super) config: &'static Config,
     pub(super) manifest: &'a PackageManifest,
     pub(super) lockfile: Option<&'a Lockfile>,
+    /// An `Arc` handle to the same document as [`Self::lockfile`], when
+    /// the lazy loader holds one. Lets the fresh path seed the resolver
+    /// without deep-copying a workspace-scale lockfile; `None` falls
+    /// back to the copy.
+    pub(super) lockfile_shared: Option<Arc<Lockfile>>,
     pub(super) merge_wanted_lockfile: Option<&'a Lockfile>,
     pub(super) take_frozen_path: bool,
     pub(super) lockfile_verification_override:
@@ -106,6 +111,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
         config,
         manifest,
         lockfile,
+        lockfile_shared,
         merge_wanted_lockfile,
         take_frozen_path,
         lockfile_verification_override,
@@ -398,6 +404,7 @@ pub(super) async fn materialize<Reporter: self::Reporter + 'static>(
             // entries keep their pins on rewrite (the `update: false`
             // mode). State 4 (no lockfile) passes `None`.
             wanted_lockfile: lockfile,
+            wanted_lockfile_shared: lockfile_shared,
             merge_wanted_lockfile,
             node_version: effective_node_version,
             early_host_detection,

@@ -11,6 +11,7 @@ use std::{
     env, fs,
     io::{self, ErrorKind},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 const DEFAULT_YAML_MAX_EVENTS: usize = 1_000_000;
@@ -132,7 +133,9 @@ impl Lockfile {
         dir: &Path,
         selection: &WantedLockfileSelection,
     ) -> Result<Option<Self>, LoadLockfileError> {
-        Ok(Self::load_wanted_detailed(dir, selection)?.lockfile)
+        Ok(Self::load_wanted_detailed(dir, selection)?
+            .lockfile
+            .map(|lockfile| Arc::try_unwrap(lockfile).unwrap_or_else(|shared| (*shared).clone())))
     }
 
     /// [`Self::load_wanted`] keeping the importers the fold started from.
@@ -147,11 +150,14 @@ impl Lockfile {
                 let pre_merge_importers = lockfile.importers.clone();
                 let merged = merge_git_branch_lockfiles(lockfile, dir)?;
                 Ok(LoadedWantedLockfile {
-                    lockfile: Some(merged),
+                    lockfile: Some(Arc::new(merged)),
                     pre_merge_importers: Some(pre_merge_importers),
                 })
             } else {
-                Ok(LoadedWantedLockfile { lockfile: Some(lockfile), pre_merge_importers: None })
+                Ok(LoadedWantedLockfile {
+                    lockfile: Some(Arc::new(lockfile)),
+                    pre_merge_importers: None,
+                })
             };
         }
         Ok(LoadedWantedLockfile::default())
@@ -288,7 +294,11 @@ mod tests;
 /// manifests. `pre_merge_importers` is `None` when no fold was attempted.
 #[derive(Debug, Default, Clone)]
 pub struct LoadedWantedLockfile {
-    pub lockfile: Option<Lockfile>,
+    /// Behind an `Arc` so a consumer that seeds long-lived machinery
+    /// (the resolver's lockfile-reuse pass above all) can share the
+    /// parsed document instead of deep-copying a workspace-scale
+    /// lockfile.
+    pub lockfile: Option<Arc<Lockfile>>,
     pub pre_merge_importers: Option<HashMap<String, ProjectSnapshot>>,
 }
 
@@ -311,6 +321,7 @@ impl LoadedRepairLockfile {
     /// reads.
     pub(crate) fn from_loaded(loaded: LoadedWantedLockfile) -> Self {
         let views = loaded.lockfile.map(|merge| {
+            let merge = Arc::try_unwrap(merge).unwrap_or_else(|shared| (*shared).clone());
             let mut seed = merge.clone();
             seed.prepare_for_fix();
             RepairLockfileViews { seed, merge }

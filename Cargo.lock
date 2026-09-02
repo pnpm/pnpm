@@ -5265,6 +5265,7 @@ dependencies = [
  "pnpm-workspace-state",
  "pnpm-workspace-task-scheduler",
  "pretty_assertions",
+ "rayon",
  "reflink-copy",
  "rustc-hash 2.1.2",
  "serde",
