@@ -64,6 +64,42 @@ pub struct PathProtocolNotSupportedError {
     pub protocol: String,
 }
 
+/// Whether a bare specifier's shape can only mean a local file or
+/// directory: the `link:` / `file:` protocols, a path-prefixed spec
+/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
+/// including drive-relative ones like `C:dir`), or a bare tarball file
+/// name.
+///
+/// Narrower than what `parse_local_path` claims, which also takes any
+/// spec containing a path separator. That shape is statically
+/// indistinguishable from a hosted-git shorthand (`user/repo`) or a
+/// named-registry alias (`gh:@scope/pkg`), and the resolver chain only
+/// gets away with claiming it by running the local resolver last.
+/// Callers that dispatch on specifier shape without that ordering ask
+/// this instead.
+#[must_use]
+pub fn is_local_filesystem_specifier(bare: &str) -> bool {
+    if bare.starts_with("link:") || bare.starts_with("file:") {
+        return true;
+    }
+    if is_filespec(bare) {
+        return true;
+    }
+    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
+    // named-registry prefix — belongs to its own resolver, tarball-shaped
+    // path or not.
+    if bare.contains(':') {
+        return false;
+    }
+    // A `#` here marks a hosted-git shorthand's committish
+    // (`user/repo#release.tgz`), not a local tarball: the protocol and
+    // path-prefixed forms already returned above.
+    if bare.contains('#') {
+        return false;
+    }
+    is_tarball_filename(bare)
+}
+
 /// Parse a wanted dep with an explicit local-scheme prefix
 /// (`link:` / `workspace:` / `file:`). Returns `Ok(None)` when the
 /// specifier doesn't carry one of those prefixes; returns

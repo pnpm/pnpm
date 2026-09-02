@@ -18,6 +18,7 @@ use pnpm_catalogs_resolver::{CatalogResolutionResult, WantedDependency, resolve_
 use pnpm_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use pnpm_config::CatalogMode;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pnpm_resolving_local_resolver::is_local_filesystem_specifier;
 
 /// Wanted dependency outside the version range defined in catalog.
 ///
@@ -111,6 +112,15 @@ pub(crate) fn decide_catalog_outcome(
     // the manifest writer; promoting it into a catalog would strand it in
     // `devDependencies`. Skip it, matching pnpm.
     if dep.bare_specifier.starts_with("runtime:") {
+        return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
+    }
+
+    // A local path resolves against the project that declares it, while a
+    // catalog entry is read by every project referencing it, so the two
+    // cannot name the same directory. `resolve_from_catalog` refuses such an
+    // entry (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`), so cataloging one writes
+    // an entry the next install rejects. Skip it, matching pnpm.
+    if is_local_filesystem_specifier(dep.bare_specifier) {
         return Ok(CatalogDecisionOutcome { decision: CatalogDecision::KeepDirect, warning: None });
     }
 

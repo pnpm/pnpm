@@ -32,6 +32,11 @@ use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, is_valid_dependen
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
+use pnpm_resolving_local_resolver::{
+    LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
+    WantedLocalDependency, is_local_filesystem_specifier, resolve_from_local_path,
+    resolve_from_local_scheme,
+};
 use pnpm_resolving_npm_resolver::{
     DeclaredSpecifiers, InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError,
     PickPackageOptions, calc_specifier_for_workspace_dep, calc_version_range,
@@ -39,11 +44,13 @@ use pnpm_resolving_npm_resolver::{
     pick_package, pick_registry_for_package, shared_packument_fetch_locker,
 };
 use pnpm_resolving_resolver_base::{GitResolveError, PreferredVersions, WorkspacePackages};
+use pnpm_resolving_tarball_resolver::{TarballFetchContext, TarballResolver};
+use pnpm_store_dir::SharedVerifiedFilesCache;
 use pnpm_tarball::MemCache;
 use pnpm_workspace_range_resolver::resolve_workspace_range;
 use pnpm_workspace_spec::WorkspaceSpec;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
 };
@@ -160,6 +167,28 @@ pub enum AddError {
     #[display("Invalid package name {name:?} in git dependency {specifier:?}")]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidGitPackageName { specifier: String, name: String },
+
+    /// Reading the directory or tarball an alias-less local selector names
+    /// failed. Kept as the diagnostic the local resolver raised, which
+    /// already names the offending path and carries its own code.
+    #[diagnostic(transparent)]
+    ResolveLocal(#[error(source)] ResolveLocalError),
+
+    #[display("Failed to resolve tarball dependency {specifier:?}: {source}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_TARBALL))]
+    ResolveTarball {
+        specifier: String,
+        #[error(source)]
+        source: pnpm_resolving_resolver_base::ResolveError,
+    },
+
+    #[display("Could not determine the package name of dependency {specifier:?}")]
+    #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
+    MissingPackageName { specifier: String },
+
+    #[display("Invalid package name {name:?} in dependency {specifier:?}")]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
+    InvalidPackageName { specifier: String, name: String },
 
     /// Resolving a `node@runtime:<spec>` selector against the Node.js
     /// release index (to pin the manifest to the picked version) failed.
@@ -836,16 +865,14 @@ async fn resolve_added_dependency<'a>(
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
-    let aliasless_git = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
-        (None, Some(specifier))
-            if pnpm_resolving_git_resolver::parse_bare_specifier(specifier).is_some() =>
-        {
-            Some(resolve_aliasless_git(specifier, config, http_client_arc).await?)
+    let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
+        (None, Some(specifier)) => {
+            resolve_aliasless_specifier(specifier, config, http_client_arc, manifest).await?
         }
         _ => None,
     };
-    let (package_name, explicit_spec) = match aliasless_git.as_ref() {
-        Some(git) => (git.package_name.as_str(), Some(git.manifest_specifier.as_str())),
+    let (package_name, explicit_spec) = match aliasless.as_ref() {
+        Some(dep) => (dep.package_name.as_str(), Some(dep.manifest_specifier.as_str())),
         None => split_name_spec(package_selector),
     };
 
@@ -979,16 +1006,163 @@ async fn resolve_added_dependency<'a>(
     })
 }
 
-struct AliaslessGitDependency {
+/// The package name and manifest specifier for an add selector that names
+/// no alias: a git URL, a remote tarball URL, or a local directory /
+/// tarball. Such a selector is the whole specifier, and the package's name
+/// lives only in its own manifest — inside the archive, the checkout, or
+/// the directory — so it has to be read from there before the manifest
+/// entry can be written.
+struct AliaslessDependency {
     package_name: String,
     manifest_specifier: String,
+}
+
+/// Resolve an alias-less add selector, or `None` to leave it to
+/// [`split_name_spec`], which reads it as a registry `<name>[@<spec>]`.
+///
+/// Dispatch order mirrors the install's resolver chain: git and the tarball
+/// URL are matched first, because the local-path detector would otherwise
+/// claim those shapes on the strength of an embedded `/` or `:`.
+async fn resolve_aliasless_specifier(
+    specifier: &str,
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+    manifest: &PackageManifest,
+) -> Result<Option<AliaslessDependency>, AddError> {
+    if pnpm_resolving_git_resolver::parse_bare_specifier(specifier).is_some() {
+        return resolve_aliasless_git(specifier, config, http_client).await.map(Some);
+    }
+    if specifier.starts_with("http:") || specifier.starts_with("https:") {
+        return resolve_aliasless_tarball(specifier, config, http_client).await.map(Some);
+    }
+    resolve_aliasless_local(specifier, manifest).await
+}
+
+/// Resolve a local directory or tarball selector by reading the package's
+/// own manifest — off disk for a directory, out of the archive for a
+/// tarball.
+///
+/// `link:` / `file:` are claimed by their scheme, everything else by path
+/// shape ([`is_local_filesystem_specifier`]).
+async fn resolve_aliasless_local(
+    specifier: &str,
+    manifest: &PackageManifest,
+) -> Result<Option<AliaslessDependency>, AddError> {
+    if !is_local_filesystem_specifier(specifier) {
+        return Ok(None);
+    }
+    let wanted = WantedLocalDependency { bare_specifier: specifier.to_string(), injected: false };
+    let ctx = LocalResolverContext { preserve_absolute_paths: false };
+    let opts = LocalResolverOptions {
+        project_dir: manifest
+            .path()
+            .parent()
+            .expect("manifest path always has a parent dir")
+            .to_path_buf(),
+        // The name and the normalized specifier are all this resolve is
+        // after, and neither is measured from the lockfile root.
+        lockfile_dir: None,
+        current_pkg: None,
+        update: LocalResolverUpdate::On,
+    };
+    let scheme_resolved =
+        resolve_from_local_scheme(&ctx, &wanted, &opts).await.map_err(AddError::ResolveLocal)?;
+    let resolved = match scheme_resolved {
+        Some(resolved) => resolved,
+        None => {
+            let path_resolved = resolve_from_local_path(&ctx, &wanted, &opts)
+                .await
+                .map_err(AddError::ResolveLocal)?;
+            match path_resolved {
+                Some(resolved) => resolved,
+                None => return Ok(None),
+            }
+        }
+    };
+    let manifest_specifier =
+        resolved.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
+    let package_name = aliasless_package_name(resolved.manifest.as_deref(), specifier)?;
+    Ok(Some(AliaslessDependency { package_name, manifest_specifier }))
+}
+
+/// Resolve a remote (non-registry) tarball URL by downloading and
+/// extracting it: a tarball's name lives in the `package.json` it bundles,
+/// and nothing in the URL is required to spell it.
+///
+/// No store-index row is written here. The install that follows re-resolves
+/// the dependency with the writer it owns, keyed by the same `pkg_id`, so a
+/// row from this pass would only duplicate that one.
+async fn resolve_aliasless_tarball(
+    specifier: &str,
+    config: &'static Config,
+    http_client: &Arc<ThrottledClient>,
+) -> Result<AliaslessDependency, AddError> {
+    let resolver = TarballResolver {
+        http_client: Arc::clone(http_client),
+        fetch_context: Some(TarballFetchContext {
+            store_dir: &config.store_dir,
+            store_index_writer: None,
+            mem_cache: None,
+            auth_headers: Arc::clone(&config.auth_headers),
+            retry_opts: crate::retry_config::retry_opts_from_config(config),
+            store_index: None,
+            verify_store_integrity: config.verify_store_integrity,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            prior_tarball_entries: Arc::new(HashMap::new()),
+        }),
+    };
+    let wanted = pnpm_resolving_resolver_base::WantedDependency {
+        bare_specifier: Some(specifier.to_string()),
+        ..pnpm_resolving_resolver_base::WantedDependency::default()
+    };
+    let result = pnpm_resolving_resolver_base::Resolver::resolve(
+        &resolver,
+        &wanted,
+        &pnpm_resolving_resolver_base::ResolveOptions::default(),
+    )
+    .await
+    // A tarball URL can carry `user:pass@` credentials, and every error
+    // here echoes it back.
+    .map_err(|source| AddError::ResolveTarball {
+        specifier: redact_and_sanitize(specifier),
+        source,
+    })?
+    .ok_or_else(|| AddError::MissingPackageName { specifier: redact_and_sanitize(specifier) })?;
+    let manifest_specifier =
+        result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
+    let package_name = aliasless_package_name(result.manifest.as_deref(), specifier)?;
+    Ok(AliaslessDependency { package_name, manifest_specifier })
+}
+
+/// The `name` an alias-less selector's own manifest declares. The name keys
+/// the project's manifest entry and names the `node_modules` directory the
+/// package is linked into, so a missing or invalid one is refused rather
+/// than guessed at.
+fn aliasless_package_name(
+    manifest: Option<&serde_json::Value>,
+    specifier: &str,
+) -> Result<String, AddError> {
+    let name = manifest
+        .and_then(|manifest| manifest.get("name"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| AddError::MissingPackageName {
+            specifier: redact_and_sanitize(specifier),
+        })?;
+    if !is_valid_dependency_alias(name) {
+        return Err(AddError::InvalidPackageName {
+            specifier: redact_and_sanitize(specifier),
+            name: name.to_string(),
+        });
+    }
+    Ok(name.to_string())
 }
 
 async fn resolve_aliasless_git(
     specifier: &str,
     config: &'static Config,
     http_client: &Arc<ThrottledClient>,
-) -> Result<AliaslessGitDependency, AddError> {
+) -> Result<AliaslessDependency, AddError> {
     let resolver = GitResolver::new(
         Arc::new(RealGitProbe::new(Arc::clone(http_client))),
         Arc::new(RealGitRunner::new()),
@@ -1034,7 +1208,7 @@ async fn resolve_aliasless_git(
     }
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
-    Ok(AliaslessGitDependency { package_name, manifest_specifier })
+    Ok(AliaslessDependency { package_name, manifest_specifier })
 }
 
 /// Resolve an explicit `add <name>@<spec>` registry specifier to the

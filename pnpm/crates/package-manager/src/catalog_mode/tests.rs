@@ -146,6 +146,20 @@ fn strict_skips_runtime_specifiers() {
 }
 
 #[test]
+fn local_filesystem_specifiers_are_never_cataloged() {
+    let catalogs = Catalogs::new();
+    for specifier in ["./localpkg", "file:./localpkg", "link:../lib", "../deps/pkg-1.0.0.tgz"] {
+        let decision = decide(CatalogMode::Prefer, &catalogs, &dep("localpkg", specifier)).unwrap();
+        assert_eq!(
+            decision,
+            CatalogDecision::KeepDirect,
+            "{specifier:?} must stay direct — a catalog entry holding it is refused with \
+             ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC",
+        );
+    }
+}
+
+#[test]
 fn reinstalling_a_catalog_dependency_reuses_the_existing_entry() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
     let dep = CatalogModeDep {

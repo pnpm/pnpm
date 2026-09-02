@@ -76,6 +76,7 @@ import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAre
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
@@ -1185,6 +1186,11 @@ export async function mutateModules (
           // Promoting it into a catalog rewrites the entry to `catalog:`, which
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
+          // A local path resolves against the project that declares it, so a
+          // catalog entry — shared by every project referencing it — cannot
+          // hold one. Cataloging it writes an entry the next install rejects
+          // with ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC.
+          if (wantedDep.bareSpecifier != null && isLocalFilesystemSpecifier(wantedDep.bareSpecifier)) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })

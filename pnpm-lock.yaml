@@ -5833,6 +5833,9 @@ importers:
       '@pnpm/pnpr.client':
         specifier: workspace:*
         version: link:../../../pnpr/client
+      '@pnpm/resolving.local-resolver':
+        specifier: workspace:*
+        version: link:../../resolving/local-resolver
       '@pnpm/resolving.parse-wanted-dependency':
         specifier: workspace:*
         version: link:../../resolving/parse-wanted-dependency
