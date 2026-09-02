@@ -3515,6 +3515,52 @@ pacquet@12.2.1:
   dir: pnpm/npm/pnpm
   intents:
     - restore-extensionless-pnpm-bin
+pacquet@12.3.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - aliasless-add-specifiers
+    - allow-unused-patches-overrides
+    - closed-cyclic-peer-cache
+    - config-flags-before-subcommand
+    - dedupe-hoisted-optional-peer-one-pass
+    - detached-children-under-node
+    - docs-selects-requested-version
+    - eager-lockfile-prefetch
+    - filter-tty-foreground
+    - fix-linked-auto-peers
+    - fix-npm-powershell-shim
+    - fix-with-current-global-flags
+    - fix-zero-context-insertions
+    - fresh-peers-compare
+    - github-actions-self-repository-refs
+    - install-help-no-node-env
+    - lean-install-overhead
+    - light-paths-relink
+    - linux-native-dns
+    - native-global-shims
+    - nimble-keys-resolve
+    - no-cataloging-of-local-paths
+    - one-graph-pass
+    - parallel-lockfile-render
+    - pnpr-broken-lockfile-recovery
+    - quiet-prompt-headings
+    - quiet-pumas-configure
+    - quoted-auth-tokens
+    - redact-tarball-error-urls
+    - remove-trust-lockfile-flags
+    - report-undecodable-latest-manifest
+    - retry-windows-isolated-links
+    - run-loads-the-pnpmfile
+    - runnable-pnpm-placeholder-bin
+    - shared-lockfile-handle
+    - strict-release-age-follows-explicit-age
+    - tender-panthers-listen
+    - tidy-browsers-open
+    - tidy-dodos-load-hooks
+    - tidy-pandas-pack
+    - tolerate-registry-trust-marker-shapes
+    - unpublish-otp-challenge
+    - windows-native-dns-firewall
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
