@@ -74,17 +74,19 @@ fn run_cli() -> miette::Result<()> {
     // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
-    let argv_with_alias = argv_with_alias_subcommand();
-    // Context-aware global shims invoke the versioned dispatcher with
-    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
-    // so this runs before any argv rewriting or clap machinery below.
-    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    // A context-aware global shim is this executable launched under the
+    // shim's name, so dispatch runs on the raw argv before any rewriting
+    // or clap machinery below: a shim named like an alias must not have
+    // the alias subcommand injected into the arguments it forwards.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv) {
         #[expect(
             clippy::exit,
             reason = "the shim dispatcher propagates the dispatched command's exit status"
         )]
         std::process::exit(exit_code);
     }
+    let argv_with_alias = argv_with_alias_subcommand(argv);
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
@@ -244,11 +246,11 @@ where
 /// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
 /// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
 /// themselves — and there `current_exe` is the only signal of the launch name.
-fn argv_with_alias_subcommand() -> Vec<OsString> {
+fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
     let exe_name =
         exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
-    inject_alias_subcommand(exe_name.as_deref(), std::env::args_os().collect())
+    inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
 /// Insert a leading `dlx` token after the program name when `exe_name` is a

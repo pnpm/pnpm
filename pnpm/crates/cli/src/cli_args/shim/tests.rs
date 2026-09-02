@@ -3,15 +3,25 @@ use super::{
     remove_virtual_shim_state, virtual_shim_bins_to_restore, virtual_shim_owner,
     virtual_shim_state_path, virtual_shims,
 };
-use pnpm_cmd_shim::{Host as CmdShimHost, link_virtual_shims, virtual_shim_package};
-use std::{collections::HashMap, fs};
+use crate::shim_dispatch::{ShimTarget, native_shim::install_native_shim_from};
+use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
+
+/// Link the target-less shims of `package` from a stand-in executable.
+fn link_virtual_shims(package: &str, bins: &[&str], bin_dir: &Path) {
+    let source = bin_dir.join(".stand-in-executable");
+    fs::create_dir_all(bin_dir).unwrap();
+    fs::write(&source, b"stand-in executable").unwrap();
+    for bin in bins {
+        install_native_shim_from(&source, bin_dir, bin, &ShimTarget::Virtual(package.to_string()))
+            .expect("link the shim");
+    }
+}
 
 #[test]
 fn a_generated_shim_names_the_package_it_stands_for() {
     let dir = tempdir().unwrap();
-    link_virtual_shims::<CmdShimHost>("yarn", &["yarn", "yarnpkg"], dir.path())
-        .expect("link the shims");
+    link_virtual_shims("yarn", &["yarn", "yarnpkg"], dir.path());
 
     let found: HashMap<String, String> = virtual_shims(dir.path()).collect();
     assert_eq!(
@@ -23,17 +33,6 @@ fn a_generated_shim_names_the_package_it_stands_for() {
     );
 }
 
-#[cfg(windows)]
-#[test]
-fn a_virtual_shim_removes_the_native_executable_flavor() {
-    let dir = tempdir().unwrap();
-    fs::write(dir.path().join("node.exe"), b"native node").unwrap();
-
-    link_virtual_shims::<CmdShimHost>("node", &["node"], dir.path()).expect("link the shim");
-
-    assert!(!dir.path().join("node.exe").exists());
-}
-
 /// A bin whose shim points at an installed target is somebody else's —
 /// removing it would break a global install.
 #[test]
@@ -41,7 +40,7 @@ fn a_shim_with_a_real_target_is_not_reported() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("tsc"), "#!/bin/sh\n# cmd-shim-target=../typescript/bin/tsc\n")
         .unwrap();
-    link_virtual_shims::<CmdShimHost>("yarn", &["yarn"], dir.path()).expect("link the shims");
+    link_virtual_shims("yarn", &["yarn"], dir.path());
 
     assert_eq!(installed_shims(dir.path(), "yarn"), ["yarn"]);
     assert!(virtual_shims(dir.path()).all(|(bin, _)| bin != "tsc"));
@@ -50,18 +49,11 @@ fn a_shim_with_a_real_target_is_not_reported() {
 #[test]
 fn only_the_named_package_s_shims_are_reported() {
     let dir = tempdir().unwrap();
-    link_virtual_shims::<CmdShimHost>("yarn", &["yarn", "yarnpkg"], dir.path()).expect("link");
-    link_virtual_shims::<CmdShimHost>("npm", &["npm", "npx"], dir.path()).expect("link");
+    link_virtual_shims("yarn", &["yarn", "yarnpkg"], dir.path());
+    link_virtual_shims("npm", &["npm", "npx"], dir.path());
 
     assert_eq!(installed_shims(dir.path(), "npm"), ["npm", "npx"]);
     assert_eq!(installed_shims(dir.path(), "typescript"), Vec::<String>::new());
-}
-
-/// The marker is the whole record, so a body that merely mentions one
-/// must not be mistaken for a shim pnpm generated.
-#[test]
-fn a_body_that_only_mentions_the_marker_is_not_a_shim() {
-    assert_eq!(virtual_shim_package("echo '# cmd-shim-target=pkg:yarn'\n"), None);
 }
 
 #[test]
@@ -152,7 +144,7 @@ fn a_global_disable_is_not_undone_by_installing_a_package_manager() {
 #[test]
 fn a_bin_name_with_an_extension_is_still_discovered() {
     let dir = tempdir().unwrap();
-    link_virtual_shims::<CmdShimHost>("tool", &["tool.js"], dir.path()).expect("link the shim");
+    link_virtual_shims("tool", &["tool.js"], dir.path());
 
     assert_eq!(installed_shims(dir.path(), "tool"), ["tool.js"]);
 }

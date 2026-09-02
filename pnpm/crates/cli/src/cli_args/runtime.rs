@@ -5,14 +5,11 @@ use crate::{
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pnpm_cmd_shim::{CONTEXT_AWARE_DISPATCHER_NAME, is_context_aware_shim};
 use pnpm_config::{Config, GlobalShims};
 use pnpm_package_manifest::{DependencyGroup, is_runtime_alias};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
-use std::{fs, io::Read as _, path::Path};
-
-const MAX_RUNTIME_SHIM_PROBE_BYTES: u64 = 64 * 1024;
+use std::path::Path;
 
 /// Manage runtimes.
 #[derive(Debug, Args)]
@@ -196,29 +193,8 @@ fn project_aware_runtime_shim_exists(config: &Config, runtime_name: &str) -> boo
     let Some(bin_dir) = config.global_bin.as_deref() else {
         return false;
     };
-    let dispatcher =
-        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX));
-    if !dispatcher.is_file() {
-        return false;
-    }
-    if context_aware_runtime_shim_exists(&bin_dir.join(runtime_name)) {
-        return true;
-    }
-    if runtime_name == "node" && crate::shim_dispatch::native_node_dispatcher_is_installed(bin_dir)
-    {
-        return true;
-    }
-    false
-}
-
-fn context_aware_runtime_shim_exists(path: &Path) -> bool {
-    let Ok(file) = fs::File::open(path) else {
-        return false;
-    };
-    let mut body = String::new();
-    file.take(MAX_RUNTIME_SHIM_PROBE_BYTES)
-        .read_to_string(&mut body)
-        .is_ok_and(|_| is_context_aware_shim(&body))
+    crate::shim_dispatch::native_shim_is_installed(bin_dir, runtime_name)
+        || crate::shim_dispatch::is_legacy_context_aware_shim(&bin_dir.join(runtime_name))
 }
 
 #[cfg(test)]

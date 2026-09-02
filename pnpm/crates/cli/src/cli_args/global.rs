@@ -28,14 +28,14 @@ use crate::{
         },
     },
     engine_pm::selector::tool_install_selector,
-    shim_dispatch::install_dispatcher,
+    shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
-    link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin as remove_cmd_shim,
+    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, choose_bins,
+    link_bins_of_packages_with_excludes, remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{
     CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
@@ -124,8 +124,8 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
         .map_err(miette::Report::new)
 }
 
-/// Link `pkgs`' bins into the global bin dir in the shim style selected
-/// by the `globalShims` record: bins of an enabled providing package get
+/// Link `pkgs`' bins into the global bin dir in the shape selected by the
+/// `globalShims` record: bins of an enabled providing package become
 /// context-aware shims, everything else gets direct shims. The runtime
 /// names only count when actually installed through the `runtime:`
 /// protocol, so an npm package that happens to be called `node` is not
@@ -156,7 +156,16 @@ fn link_global_bins(
                         .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
         })
     });
+    migrate_legacy_shims(global_bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     if !direct.is_empty() {
+        // A slot turning direct again (its package's shim switched off)
+        // must not keep the native shim, which would shadow the direct
+        // shim on Windows and hold a stale target everywhere.
+        for (command, _) in choose_bins::<CmdShimHost>(&direct, bins_to_skip) {
+            remove_native_shim(global_bin_dir, &command.name)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("remove the stale {} shim", command.name))?;
+        }
         link_bins_of_packages_with_excludes::<CmdShimHost>(
             &direct,
             global_bin_dir,
@@ -166,43 +175,10 @@ fn link_global_bins(
         .map_err(miette::Report::new)
         .wrap_err("link direct global package bins")?;
     }
-    if !context_aware.is_empty() {
-        install_dispatcher(global_bin_dir)
+    for (command, _) in choose_bins::<CmdShimHost>(&context_aware, bins_to_skip) {
+        install_native_shim(global_bin_dir, &command.name, &ShimTarget::Installed(command.path))
             .into_diagnostic()
-            .wrap_err("install the global shim dispatcher")?;
-        link_bins_of_packages_context_aware::<CmdShimHost>(
-            &context_aware,
-            global_bin_dir,
-            bins_to_skip,
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link context-aware global package bins")?;
-        install_native_node_dispatcher(&context_aware, global_bin_dir, bins_to_skip)?;
-    }
-    Ok(())
-}
-
-fn install_native_node_dispatcher(
-    packages: &[PackageBinSource],
-    global_bin_dir: &Path,
-    bins_to_skip: &HashSet<String>,
-) -> miette::Result<()> {
-    if bins_to_skip.contains("node") {
-        return Ok(());
-    }
-    let target = packages.iter().find_map(|pkg| {
-        if pkg.manifest.get("name").and_then(serde_json::Value::as_str) != Some("node") {
-            return None;
-        }
-        pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(&pkg.manifest, &pkg.location)
-            .into_iter()
-            .find(|command| command.name == "node")
-            .map(|command| command.path)
-    });
-    if let Some(target) = target {
-        crate::shim_dispatch::install_native_node_dispatcher(global_bin_dir, &target)
-            .into_diagnostic()
-            .wrap_err("install the native Node.js dispatcher")?;
+            .wrap_err_with(|| format!("install the {} shim", command.name))?;
     }
     Ok(())
 }
@@ -316,15 +292,6 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
                 return Err(error);
             }
         };
-        if !replacement_plan.shims_to_restore.is_empty()
-            && let Err(error) = install_dispatcher(&global_bin_dir)
-                .into_diagnostic()
-                .wrap_err("install the global shim dispatcher")
-        {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
-
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
@@ -492,15 +459,6 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
                 return Err(error);
             }
         };
-        if !replacement_plan.shims_to_restore.is_empty()
-            && let Err(error) = install_dispatcher(&global_bin_dir)
-                .into_diagnostic()
-                .wrap_err("install the global shim dispatcher")
-        {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
-
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
         let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
@@ -699,12 +657,6 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         &protected,
         &crate::shim_dispatch::global_shims_setting(),
     )?;
-    if !shims_to_restore.is_empty() {
-        install_dispatcher(&global_bin_dir)
-            .into_diagnostic()
-            .wrap_err("install the global shim dispatcher")?;
-    }
-
     let restored_bin_names = shims_to_restore.values().flatten().cloned().collect::<HashSet<_>>();
     let affected_bin_names = groups
         .iter()
@@ -843,10 +795,11 @@ fn restore_virtual_shims(
     global_bin_dir: &Path,
 ) -> miette::Result<()> {
     for (package, bins) in shims_to_restore {
-        let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-        link_virtual_shims::<CmdShimHost>(package, &bin_refs, global_bin_dir)
-            .map_err(miette::Report::new)
-            .wrap_err_with(|| format!("restore the {package} shims"))?;
+        for bin in bins {
+            install_native_shim(global_bin_dir, bin, &ShimTarget::Virtual(package.clone()))
+                .into_diagnostic()
+                .wrap_err_with(|| format!("restore the {package} shims"))?;
+        }
     }
     Ok(())
 }
@@ -1167,6 +1120,11 @@ struct GlobalRemovalTransaction<'a> {
 
 trait FsGlobalRemoval: FsRename {
     fn remove_bin_slot(path: &Path) -> io::Result<()> {
+        if let (Some(bin_dir), Some(name)) =
+            (path.parent(), path.file_name().and_then(std::ffi::OsStr::to_str))
+        {
+            remove_native_shim(bin_dir, name)?;
+        }
         remove_cmd_shim(path)
     }
 
