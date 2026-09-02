@@ -191,6 +191,41 @@ async fn updates_workflow_files_without_reformatting_them() {
 }
 
 #[tokio::test]
+async fn follows_self_repository_references_to_local_actions() {
+    let root = tempfile::tempdir().expect("temp directory");
+    let workflows = root.path().join(".github/workflows");
+    let action_dir = root.path().join(".github/actions/setup");
+    fs::create_dir_all(&workflows).expect("workflow directory");
+    fs::create_dir_all(&action_dir).expect("action directory");
+    fs::write(
+        workflows.join("ci.yml"),
+        "jobs:\n  test:\n    steps:\n      - uses: $/.github/actions/setup\n",
+    )
+    .expect("workflow");
+    fs::write(
+        action_dir.join("action.yml"),
+        format!(
+            "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@{SHA_V4_1_0} # v4.1.0\n",
+        ),
+    )
+    .expect("action");
+
+    let outdated = find_outdated_with_runner::<SilentReporter, _>(
+        root.path(),
+        false,
+        None,
+        "https://github.com",
+        &FakeGitRunner,
+    )
+    .await
+    .expect("outdated");
+
+    assert_eq!(outdated.len(), 1);
+    assert_eq!(outdated[0].name, "actions/checkout");
+    assert_eq!(outdated[0].latest, Version::parse("5.0.0").unwrap());
+}
+
+#[tokio::test]
 async fn compatible_outdated_stays_on_the_current_compatibility_line() {
     let root = tempfile::tempdir().expect("temp directory");
     let workflows = root.path().join(".github/workflows");

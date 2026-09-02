@@ -68,7 +68,8 @@ describe('cafs', () => {
 
   it('ignores broken symlinks when traversing subdirectories', () => {
     const storeDir = temporaryDirectory()
-    const srcDir = path.join(import.meta.dirname, 'fixtures/broken-symlink')
+    const srcDir = f.prepare('broken-symlink')
+    fs.symlinkSync('../dangling', path.join(srcDir, 'dangling'))
     const addFiles = () => createCafs(storeDir).addFilesFromDir(srcDir)
 
     const { filesIndex } = addFiles()

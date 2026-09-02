@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           shared-key: micro-benchmark
 

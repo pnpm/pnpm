@@ -123,7 +123,7 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           save-cache: ${{ github.ref_name == 'main' }}
 
@@ -254,7 +254,7 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           clippy: true
 
@@ -272,7 +272,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           docs: true
 
@@ -391,7 +391,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           fmt: true
           restore-cache: false
@@ -399,7 +399,7 @@ jobs:
       - run: cargo fmt --all -- --check
 
       - name: Install Taplo CLI
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           packages: taplo-cli@0.8.1
 
@@ -468,7 +468,7 @@ jobs:
           key: ${{ github.job }}-dylint-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('dylint.toml') }}
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           # Disable Swatinem/rust-cache: it strips `target/` aggressively
           # before saving, which would wipe the `target/dylint`
@@ -477,7 +477,7 @@ jobs:
           restore-cache: false
 
       - name: Install cargo-dylint and dylint-link
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
           # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)

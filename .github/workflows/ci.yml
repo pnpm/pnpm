@@ -112,7 +112,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-ubuntu-2404
 
@@ -120,7 +120,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-windows-2025
 
@@ -150,7 +150,7 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
@@ -186,7 +186,7 @@ jobs:
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
