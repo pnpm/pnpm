@@ -9,7 +9,7 @@ fn packument() -> String {
     json!({
         "name": "is-negative",
         "homepage": "https://latest.example/docs",
-        "dist-tags": { "latest": "2.0.0" },
+        "dist-tags": { "latest": "2.0.0", "legacy": "1.0.0" },
         "versions": {
             "1.0.0": {
                 "name": "is-negative",
@@ -96,6 +96,42 @@ async fn unversioned_spec_uses_the_latest_tag_homepage() {
 
     mock.assert_async().await;
     assert_eq!(url, "https://v2.example/docs");
+}
+
+#[tokio::test]
+async fn named_tag_uses_the_tagged_version_homepage() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/is-negative")
+        .with_status(200)
+        .with_body(packument())
+        .create_async()
+        .await;
+    let args = DocsArgs { package: "is-negative@legacy".to_string() };
+
+    let url =
+        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+
+    mock.assert_async().await;
+    assert_eq!(url, "https://v1.example/docs");
+}
+
+#[tokio::test]
+async fn semver_range_uses_the_highest_matching_version_homepage() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/is-negative")
+        .with_status(200)
+        .with_body(packument())
+        .create_async()
+        .await;
+    let args = DocsArgs { package: "is-negative@^1.0.0".to_string() };
+
+    let url =
+        args.documentation_url(&config_for(&server.url())).await.expect("docs URL must resolve");
+
+    mock.assert_async().await;
+    assert_eq!(url, "https://v1.example/docs");
 }
 
 #[test]
