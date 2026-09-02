@@ -351,6 +351,59 @@ fn peer_dependencies_installed_with_auto_install_peers() {
     drop((root, mock_instance));
 }
 
+/// A cached occurrence of an npm-aliased package in a peer cycle must
+/// reuse the fully walked occurrence's final depPath. Otherwise the
+/// lockfile points at a peer-suffixed snapshot that was never emitted,
+/// and the following frozen install cannot replay it.
+#[test]
+fn frozen_install_replays_a_cached_cyclic_alias_peer_snapshot() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "cached-cyclic-alias-peer",
+            "version": "1.0.0",
+            "devDependencies": {
+                "devtools": "npm:@pnpm.e2e/peer-a@1.0.0",
+                "vite": "npm:@pnpm.e2e/foo@1.0.0",
+                "vite-plus": "npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    write_workspace_yaml(
+        &workspace,
+        concat!(
+            "nodeLinker: hoisted\n",
+            "packageExtensions:\n",
+            "  '@pnpm.e2e/foo@1.0.0':\n",
+            "    peerDependencies:\n",
+            "      devtools: '*'\n",
+            "    peerDependenciesMeta:\n",
+            "      devtools:\n",
+            "        optional: true\n",
+            "  '@pnpm.e2e/peer-a@1.0.0':\n",
+            "    peerDependencies:\n",
+            "      vite: '*'\n",
+            "  '@pnpm.e2e/pkg-with-1-dep@100.0.0':\n",
+            "    dependencies:\n",
+            "      '@pnpm.e2e/foo': 1.0.0\n",
+        ),
+    );
+
+    pacquet.with_args(["install", "--lockfile-only", "--ignore-scripts"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn package_map_resolves_declared_hoisted_dependencies_at_runtime() {
     if node_major() < 27 {
