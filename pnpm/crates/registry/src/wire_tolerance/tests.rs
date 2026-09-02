@@ -124,9 +124,18 @@ fn a_null_marker_stays_absent() {
         parse(r#"{ "trustedPublisher": null, "approver": null }"#, r#"{ "provenance": null }"#);
 
     let npm_user = version.npm_user.as_ref();
-    assert!(npm_user.is_none_or(|user| user.trusted_publisher.is_none()));
-    assert!(npm_user.is_none_or(|user| user.approver.is_none()));
-    assert!(version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()));
+    assert!(
+        npm_user.is_none_or(|user| user.trusted_publisher.is_none()),
+        "a null trustedPublisher is not a trusted publisher",
+    );
+    assert!(
+        npm_user.is_none_or(|user| user.approver.is_none()),
+        "a null approver is not an approver",
+    );
+    assert!(
+        version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
+        "a null provenance is not a provenance attestation",
+    );
 }
 
 #[test]
@@ -198,17 +207,32 @@ fn an_unusable_advisory_count_degrades_to_absent() {
     assert_eq!(version.dist.unpacked_size, None, "an omitted unpackedSize is absent");
 }
 
-/// A count too large for a `usize` is not a count. It has to read as
-/// absent rather than clamp, since a saturating cast would hand the
-/// extractor `usize::MAX` as though the registry had reported it.
+/// A count too large for a `usize`, or a float the parser has already
+/// rounded, is not a count. It has to read as absent rather than clamp
+/// or round, since a saturating cast would hand the extractor
+/// `usize::MAX` as though the registry had reported it.
 #[test]
 fn an_out_of_range_advisory_count_does_not_clamp() {
-    for encoded in ["1e100", "1e30", "18446744073709551616", "1.8446744073709552e19"] {
+    for encoded in [
+        "1e100",
+        "1e30",
+        "18446744073709551616",
+        "1.8446744073709552e19",
+        "9007199254740993.0",
+        "9007199254740992.0",
+    ] {
         let version = parse_with(&format!(r#", "unpackedSize": {encoded}"#), "");
         assert_eq!(version.dist.unpacked_size, None, "unpackedSize {encoded} is out of range");
         let version = parse_with(&format!(r#", "fileCount": {encoded}"#), "");
         assert_eq!(version.dist.file_count, None, "fileCount {encoded} is out of range");
     }
+
+    let version = parse_with(r#", "unpackedSize": 1099511627776.0"#, "");
+    assert_eq!(
+        version.dist.unpacked_size,
+        usize::try_from(1_099_511_627_776_u64).ok(),
+        "a terabyte-scale float is still in range",
+    );
 
     let version = parse_with(&format!(r#", "unpackedSize": {}"#, usize::MAX), "");
     assert_eq!(

@@ -27,9 +27,9 @@ use serde_json::Value;
 /// reads the body, only whether the marker is there, so an unrecognized
 /// one must not cost the version.
 ///
-/// Presence is decided by [`is_truthy`], not by the field merely being
-/// set: these markers rank supply-chain trust evidence, and a value the
-/// TypeScript resolver reads as no evidence must not read as evidence
+/// Presence is decided by JavaScript truthiness, not by the field merely
+/// being set: these markers rank supply-chain trust evidence, and a value
+/// the TypeScript resolver reads as no evidence must not read as evidence
 /// here.
 pub(crate) fn deserialize_presence_marker<'de, Marker, Deser>(
     deserializer: Deser,
@@ -132,18 +132,19 @@ where
     })
 }
 
-/// A count is only a count if it survives the trip to `usize` intact.
-/// Casting a float straight across would saturate, turning a bogus
-/// `1e100` into `usize::MAX` — a number the extractor would read as a
-/// real, enormous size instead of as nothing reported. `u128` holds
-/// every in-range value, so the range check is the conversion out of it.
+/// A float only counts when it is a whole number below 2^53, the range
+/// in which `f64` holds every integer. Past that the JSON parser has
+/// already rounded the digits it was given, and casting straight across
+/// would saturate, turning a bogus `1e100` into `usize::MAX` — a size
+/// the extractor would then try to honor.
 fn integral_count(number: &serde_json::Number) -> Option<usize> {
     if let Some(exact) = number.as_u64() {
         return usize::try_from(exact).ok();
     }
+    const EXACT_FLOAT_LIMIT: f64 = (1u64 << 53) as f64;
     let float = number.as_f64()?;
-    (float.is_finite() && float >= 0.0 && float.fract() == 0.0)
-        .then_some(float as u128)
+    ((0.0..EXACT_FLOAT_LIMIT).contains(&float) && float.fract() == 0.0)
+        .then_some(float as u64)
         .and_then(|count| usize::try_from(count).ok())
 }
 

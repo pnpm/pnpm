@@ -143,17 +143,9 @@ impl<'a> LatestPicker<'a> {
         if let Some(picked) = pick.picked_package {
             return Ok(picked);
         }
-        // A `latest` the packument lists but can't decode is a registry
-        // compatibility problem, not an empty dist-tag; reporting it as
-        // `NoLatestVersion` sends the user looking for an unpublished
-        // package instead of at the manifest field pnpm choked on.
         let Some((version, error)) = pick.meta.latest_decode_error() else {
             return Err(ResolveLatestError::NoLatestVersion);
         };
-        // Both halves are the registry's text: `version` is whatever
-        // string `dist-tags.latest` held, and the decoder quotes the
-        // value it choked on. Neither reaches the terminal able to carry
-        // its own line breaks or escape sequences.
         Err(ResolveLatestError::UndecodableLatestManifest {
             name: package_name.to_string(),
             version: redact_and_sanitize(version),
