@@ -162,11 +162,11 @@ prod-dep-1, prod-dep-2, optional-dep-1, optional-dep-2')
   }
 })
 
-test('rcOptionsTypes registers the supply-chain policy options', () => {
-  // Removing the entry a policy rejected is the recovery path from a lockfile
-  // that fails verification, so `remove` needs the escape hatch `install` and
-  // `add` already register.
-  const optionTypes = remove.rcOptionsTypes()
+test('cliOptionsTypes registers the supply-chain policy options', () => {
+  // `cliOptionsTypes` is what the argv parser is fed, so it — not the
+  // `rcOptionsTypes` it happens to spread — is the contract that decides
+  // whether `pnpm remove --trust-lockfile` is rejected as an unknown option.
+  const optionTypes = remove.cliOptionsTypes()
 
   expect(optionTypes).toHaveProperty('trust-lockfile')
   expect(optionTypes).toHaveProperty('trust-policy')
