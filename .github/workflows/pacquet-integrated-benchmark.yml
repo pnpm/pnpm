@@ -225,7 +225,7 @@ jobs:
         continue-on-error: true
 
       - name: Install Rust Toolchain
-        uses: $/.github/actions/rustup
+        uses: ./.github/actions/rustup
         with:
           shared-key: integrated-benchmark
           restore-cache: false # it's insufficient
@@ -248,7 +248,7 @@ jobs:
         continue-on-error: true
 
       - name: Install hyperfine
-        uses: $/.github/actions/binstall
+        uses: ./.github/actions/binstall
         with:
           packages: hyperfine@1.18.0
 

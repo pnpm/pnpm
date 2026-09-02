@@ -1,0 +1,10 @@
+rules:
+  # GitHub's `$/` self-repository form makes the runner download the whole
+  # repository as an action archive at job setup, and that download fails on
+  # the broken-symlink test fixtures this repository commits on purpose
+  # (e.g. pnpm11/store/cafs/test/fixtures/broken-symlink). Workspace-relative
+  # `./.github/...` references are used instead. None of the privileged
+  # (pull_request_target) workflows use a local action, so no workflow can
+  # load an action from an untrusted checkout.
+  self-repository:
+    disable: true

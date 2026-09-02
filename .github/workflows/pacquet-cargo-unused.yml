@@ -24,7 +24,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: $/.github/actions/rustup
+        uses: ./.github/actions/rustup
 
       - name: Install cargo-unused-features
         uses: taiki-e/install-action@1ed6d7be6168f6c9046541087ff549b6bc581fdf # v2.87.2

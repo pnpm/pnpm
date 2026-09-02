@@ -611,7 +611,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: $/.github/actions/rust-release-target
+        uses: ./.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
@@ -724,7 +724,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: $/.github/actions/rust-release-target
+        uses: ./.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
