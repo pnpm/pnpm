@@ -87,6 +87,7 @@ fn config_set_checks_the_package_manager_when_writing_project_configuration() {
         .output()
         .expect("run pacquet config set");
     let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
     assert!(!output.status.success(), "unexpected success: {stderr}");
     assert!(stderr.contains("This project is configured to use yarn"), "stderr={stderr}");
 
