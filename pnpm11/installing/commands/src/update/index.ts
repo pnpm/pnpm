@@ -78,6 +78,10 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache-readonly',
     'side-effects-cache',
     'store-dir',
+    'trust-lockfile',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
     'unsafe-perm',
   ], allTypes)
 }
