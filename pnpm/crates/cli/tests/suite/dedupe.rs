@@ -484,8 +484,9 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
     drop((root, mock_instance));
 }
 
-/// A lockfile written before optional peers were hoisted records no
-/// `(peer)` segment for a peer that only a sibling's subtree provides.
+/// A lockfile whose snapshot keys carry no `(peer)` segment for an
+/// optional peer that only a sibling's subtree provides — the shape
+/// pnpm 11 writes for this graph — must be re-keyed completely.
 /// The graph mirrors pnpm/pnpm#14455: `optional-peer-c-consumer` and its
 /// auto-installed peer both reach `optional-peer-c-host`, whose optional
 /// `peer-c` is provided by `abc-regular-deps`. One `dedupe` pass must
