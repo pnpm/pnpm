@@ -8,27 +8,40 @@ const RETRY_BUDGET: Duration = Duration::from_mins(1);
 #[cfg(any(windows, test))]
 const RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
+pub(crate) const ERROR_SHARING_VIOLATION: i32 = 32;
+pub(crate) const ERROR_LOCK_VIOLATION: i32 = 33;
+
 /// Rename a filesystem entry, retrying transient Windows file-lock errors.
+///
+/// Antivirus and indexer scans briefly hold Windows paths open, failing an
+/// unlucky rename or removal with an access-denied, sharing-violation, or
+/// busy error that clears moments later. Such errors are retried with a
+/// bounded backoff for up to one minute before the last one is returned.
+/// On Unix the operation runs exactly once: the equivalent error kinds
+/// there usually mean a permanent permissions or mount-point problem, so
+/// retrying would only delay the failure.
 pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
-    #[cfg(windows)]
-    {
-        retry_fs_operation(|| fs::rename(src, dst), is_transient_file_lock_error)
-    }
-    #[cfg(not(windows))]
-    {
-        fs::rename(src, dst)
-    }
+    retry_transient_file_locks(|| fs::rename(src, dst))
 }
 
-/// Remove a directory tree, retrying transient Windows file-lock errors.
+/// Remove a directory tree with the retry policy of [`rename_with_retry`].
 pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::remove_dir_all(path))
+}
+
+/// Run a filesystem operation with the retry policy of [`rename_with_retry`];
+/// [`is_transient_file_lock_error`] decides which failures are retried.
+pub(crate) fn retry_transient_file_locks<Value>(
+    operation: impl FnMut() -> io::Result<Value>,
+) -> io::Result<Value> {
     #[cfg(windows)]
     {
-        retry_fs_operation(|| fs::remove_dir_all(path), is_transient_file_lock_error)
+        retry_fs_operation(operation, is_transient_file_lock_error)
     }
     #[cfg(not(windows))]
     {
-        fs::remove_dir_all(path)
+        let mut operation = operation;
+        operation()
     }
 }
 
@@ -95,22 +108,17 @@ where
     }
 }
 
-#[cfg(any(windows, test))]
-fn is_transient_file_lock_error(
-    #[cfg_attr(not(windows), allow(unused, reason = "only inspected on Windows"))]
-    error: &io::Error,
-) -> bool {
-    // Antivirus and indexer scans can briefly hold a Windows path open. The equivalent error
-    // kinds on Unix usually mean a permanent permissions or mount-point problem, so retrying
-    // them there would only delay the failure.
-    #[cfg(windows)]
-    {
-        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
+/// Whether `error` is a transient Windows file lock in the sense of
+/// [`rename_with_retry`]: `ERROR_ACCESS_DENIED` (a directory rename blocked
+/// by an open handle below it), [`ERROR_SHARING_VIOLATION`] or
+/// [`ERROR_LOCK_VIOLATION`] (an open or delete refused by another handle's
+/// share mode), or `ERROR_BUSY`. The sharing and lock violations have no
+/// [`io::ErrorKind`] of their own, so they are matched by raw OS error.
+/// Always `false` on Unix.
+pub(crate) fn is_transient_file_lock_error(error: &io::Error) -> bool {
+    cfg!(windows)
+        && (matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
+            || matches!(error.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION)))
 }
 
 #[cfg(test)]

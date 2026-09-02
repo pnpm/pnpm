@@ -5,6 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::retry::{
+    is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
+    retry_transient_file_locks,
+};
+
 /// Create a symlink to a directory, matching the on-disk shape pnpm
 /// produces.
 ///
@@ -114,11 +119,14 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
 /// need `fs::remove_dir` to be unlinked — `remove_file` returns
 /// `ERROR_ACCESS_DENIED`. Wrapping the platform split here keeps
 /// callers free of `#[cfg]`.
+///
+/// On Windows the unlink follows the retry policy of
+/// [`crate::rename_with_retry`].
 pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     return std::fs::remove_file(link);
     #[cfg(windows)]
-    return std::fs::remove_dir(link);
+    return retry_transient_file_locks(|| std::fs::remove_dir(link));
 }
 
 /// Read the target of a directory symlink (or junction on Windows).
@@ -338,13 +346,17 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
 }
 
 /// Remove a regular file or directory that's occupying a symlink
-/// slot. Tries `remove_dir_all` first; if the target isn't a
-/// directory, falls back to `remove_file`.
+/// slot, retrying transient Windows file locks. The `remove_file`
+/// fallback is taken only on `NotADirectory`, so a directory that stays
+/// locked through its retry budget fails without starting a second one.
 fn remove_occupant(path: &Path) -> io::Result<()> {
-    match fs::remove_dir_all(path) {
+    match remove_dir_all_with_retry(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(_) => fs::remove_file(path),
+        Err(error) if error.kind() == io::ErrorKind::NotADirectory => {
+            retry_transient_file_locks(|| fs::remove_file(path))
+        }
+        Err(error) => Err(error),
     }
 }
 
@@ -354,24 +366,29 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 /// package's approach: if the rename fails because the destination
 /// is occupied (`AlreadyExists` for files, `DirectoryNotEmpty` for
 /// dirs, `PermissionDenied` on Windows when something holds a handle
-/// to the dest), remove the destination and retry once.
+/// to the dest), remove the destination and retry. A transient Windows
+/// file lock on either side is treated the same way: the destination
+/// is cleared once, then the rename itself is retried.
 fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
     match fs::rename(src, dst) {
         Ok(()) => Ok(()),
         Err(error) => {
-            let occupied = matches!(
-                error.kind(),
-                io::ErrorKind::AlreadyExists
-                    | io::ErrorKind::DirectoryNotEmpty
-                    | io::ErrorKind::PermissionDenied,
-            );
-            if !occupied {
+            if !rename_error_allows_destination_removal(&error) {
                 return Err(error);
             }
             remove_occupant(dst)?;
-            fs::rename(src, dst)
+            rename_with_retry(src, dst)
         }
     }
+}
+
+fn rename_error_allows_destination_removal(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::AlreadyExists
+            | io::ErrorKind::DirectoryNotEmpty
+            | io::ErrorKind::PermissionDenied,
+    ) || is_transient_file_lock_error(error)
 }
 
 #[cfg(windows)]
@@ -460,9 +477,6 @@ mod windows {
 
     pub(super) fn create_junction(original: &Path, link: &Path) -> io::Result<()> {
         let staging = stage_junction(original, link)?;
-        // Serialize only the commit. The slow part — the reparse-point
-        // conversion inside `stage_junction` — already ran in parallel.
-        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
         commit_staged_junction(link, &staging)
     }
 
@@ -480,19 +494,18 @@ mod windows {
     }
 
     /// Publish `staging` at `link` with an atomic rename, folding a lost race
-    /// into the `AlreadyExists` reuse signal. Runs under [`JUNCTION_COMMIT_LOCK`].
+    /// into the `AlreadyExists` reuse signal. A transient Windows file lock
+    /// on the rename is retried, one [`attempt_commit`] per try.
     fn commit_staged_junction(link: &Path, staging: &Path) -> io::Result<()> {
-        // A worker that took the lock before us may already have committed.
-        match inspect_destination(link) {
-            Destination::Missing => {}
-            Destination::Exists => return Err(reuse_completed_destination(link, staging, "")),
-            Destination::InspectFailed(error) => {
+        let rename_error = match super::retry_transient_file_locks(|| attempt_commit(link, staging))
+        {
+            Ok(CommitAttempt::Committed) => return Ok(()),
+            Ok(CommitAttempt::DestinationTaken) => {
+                return Err(reuse_completed_destination(link, staging, ""));
+            }
+            Ok(CommitAttempt::InspectFailed(error)) => {
                 return Err(inspect_failed(link, staging, &error, ""));
             }
-        }
-
-        let rename_error = match fs::rename(staging, link) {
-            Ok(()) => return Ok(()),
             Err(error) => error,
         };
 
@@ -506,6 +519,33 @@ mod windows {
             }
             Destination::Missing => Err(discard_staging_after_rename(staging, link, rename_error)),
         }
+    }
+
+    /// Outcome of one serialized attempt to publish a staged junction.
+    enum CommitAttempt {
+        Committed,
+        DestinationTaken,
+        InspectFailed(io::Error),
+    }
+
+    /// One try at publishing a staged junction under [`JUNCTION_COMMIT_LOCK`].
+    ///
+    /// Holding the lock for a single inspect-and-rename, rather than across
+    /// the retries in [`commit_staged_junction`], keeps one locked path from
+    /// stalling every other junction commit in the process and leaves the
+    /// slow part — the reparse-point conversion inside [`stage_junction`] —
+    /// running in parallel. Re-inspecting the destination on every try means
+    /// a race lost while waiting is reused rather than retried through the
+    /// budget. Only the rename failure is returned as `Err`, so the retry
+    /// never repeats a final verdict about the destination.
+    fn attempt_commit(link: &Path, staging: &Path) -> io::Result<CommitAttempt> {
+        let _commit_guard = JUNCTION_COMMIT_LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+        match inspect_destination(link) {
+            Destination::Missing => {}
+            Destination::Exists => return Ok(CommitAttempt::DestinationTaken),
+            Destination::InspectFailed(error) => return Ok(CommitAttempt::InspectFailed(error)),
+        }
+        fs::rename(staging, link).map(|()| CommitAttempt::Committed)
     }
 
     /// What `symlink_metadata` reports about a would-be junction destination.
