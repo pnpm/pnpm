@@ -1,9 +1,6 @@
 use crate::{
     State,
-    cli_args::{
-        install::resolve_bool_override, lockfile_dir::LockfileDirArg,
-        pipelines::InstallFamilySelection,
-    },
+    cli_args::{lockfile_dir::LockfileDirArg, pipelines::InstallFamilySelection},
 };
 use clap::Args;
 use miette::Context;
@@ -58,13 +55,6 @@ pub struct RemoveArgs {
     /// bins.
     #[clap(short = 'g', long)]
     pub global: bool,
-    /// Skip verifying the lockfile against supply-chain policies.
-    #[clap(long = "trust-lockfile", overrides_with = "no_trust_lockfile")]
-    pub trust_lockfile: bool,
-    /// Verify the lockfile against supply-chain policies even when the
-    /// configuration trusts it.
-    #[clap(long = "no-trust-lockfile", overrides_with = "trust_lockfile")]
-    pub no_trust_lockfile: bool,
 }
 
 impl RemoveArgs {
@@ -92,11 +82,6 @@ impl RemoveArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: self.lockfile_only,
-            trust_lockfile: resolve_bool_override(
-                self.trust_lockfile,
-                self.no_trust_lockfile,
-                config.trust_lockfile,
-            ),
         }
         .run::<Reporter>()
         .await
@@ -137,11 +122,6 @@ impl RemoveArgs {
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             lockfile_only: self.lockfile_only,
-            trust_lockfile: resolve_bool_override(
-                self.trust_lockfile,
-                self.no_trust_lockfile,
-                config.trust_lockfile,
-            ),
         }
         .run_selected::<Reporter>(
             &mut projects,

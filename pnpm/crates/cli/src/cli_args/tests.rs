@@ -10,7 +10,6 @@ use super::{
         current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
         read_manifest_json,
     },
-    remove::RemoveArgs,
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
     unlink::UnlinkArgs,
@@ -36,13 +35,6 @@ fn add_args(argv: &[&str]) -> AddArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {
         CliCommand::Add(add) => add,
         other => panic!("expected add, got {other:?}"),
-    }
-}
-
-fn remove_args(argv: &[&str]) -> RemoveArgs {
-    match CliArgs::try_parse_from(argv).expect("parses").command {
-        CliCommand::Remove(remove) => remove,
-        other => panic!("expected remove, got {other:?}"),
     }
 }
 
@@ -793,22 +785,6 @@ fn trust_lockfile_pair_resolves_last_one_wins() {
     let last_off = install_args(&["pacquet", "install", "--trust-lockfile", "--no-trust-lockfile"]);
     assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
     let last_on = install_args(&["pacquet", "install", "--no-trust-lockfile", "--trust-lockfile"]);
-    assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
-}
-
-#[test]
-fn remove_accepts_the_trust_lockfile_pair() {
-    // Removing the entry a policy rejected is the recovery path from a
-    // lockfile that fails verification, so `remove` carries the same escape
-    // hatch as `install`.
-    assert!(remove_args(&["pacquet", "remove", "foo", "--trust-lockfile"]).trust_lockfile);
-    assert!(remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile"]).no_trust_lockfile);
-
-    let last_off =
-        remove_args(&["pacquet", "remove", "foo", "--trust-lockfile", "--no-trust-lockfile"]);
-    assert!(last_off.no_trust_lockfile && !last_off.trust_lockfile, "--no wins when last");
-    let last_on =
-        remove_args(&["pacquet", "remove", "foo", "--no-trust-lockfile", "--trust-lockfile"]);
     assert!(last_on.trust_lockfile && !last_on.no_trust_lockfile, "--trust wins when last");
 }
 

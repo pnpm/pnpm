@@ -4,6 +4,6 @@
 "pacquet": minor
 ---
 
-`pnpm remove` now accepts `--trust-lockfile` and `--no-trust-lockfile`, letting a single run skip the lockfile supply-chain verification pass — or force it back on over a `trustLockfile: true` config — without editing the config file. `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after` are now accepted there too.
+`pnpm remove` now accepts `--trust-lockfile`, `--no-trust-lockfile`, `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after`, the same flags `pnpm install` and `pnpm add` take, so the supply-chain settings can be overridden for a single run. `pnpm remove` verifies the lockfile against the active policies the way `pnpm install` does, and `--trust-lockfile` skips that pass for every entry, not only the package being removed.
 
-This does not change when verification runs: the pass still checks the lockfile as it exists before the removal, so `--trust-lockfile` skips it for every entry, not only the package being removed.
+The Rust CLI now also honors `--config.trust-lockfile=<value>`, and accepts the bare `--trust-lockfile` / `--no-trust-lockfile` spelling on the commands that previously took the setting from the config file alone.

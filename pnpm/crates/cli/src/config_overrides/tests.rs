@@ -765,6 +765,46 @@ fn extract_accepts_the_install_settings_as_bare_flags() {
     assert!(!config.lockfile);
 }
 
+/// `install` declares `--trust-lockfile` itself; every other command
+/// takes the spelling from the table, so it lands on [`Config`] before
+/// the command reads `config.trust_lockfile`.
+#[test]
+fn trust_lockfile_is_a_bare_flag_where_no_command_declares_it() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "remove", "foo", "--trust-lockfile"]));
+    assert_eq!(remaining, argv(["pacquet", "remove", "foo"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.trust_lockfile);
+    assert_eq!(config.explicit_settings.get("trustLockfile"), Some(&serde_json::Value::Bool(true)));
+
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "remove", "foo", "--no-trust-lockfile"]));
+    assert_eq!(remaining, argv(["pacquet", "remove", "foo"]));
+    let mut config = Config { trust_lockfile: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.trust_lockfile);
+
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "--config.trust-lockfile=true", "update"]));
+    assert_eq!(remaining, argv(["pacquet", "update"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.trust_lockfile);
+}
+
+#[test]
+fn install_keeps_the_trust_lockfile_pair_for_clap() {
+    for flag in ["--trust-lockfile", "--no-trust-lockfile"] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(["pacquet", "install", flag]));
+        assert_eq!(remaining, argv(["pacquet", "install", flag]));
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.trust_lockfile, Config::default().trust_lockfile, "{flag}");
+    }
+}
+
 #[test]
 fn a_value_taking_setting_reads_the_next_argv_token() {
     let (overrides, remaining) =
