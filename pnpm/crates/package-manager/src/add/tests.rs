@@ -762,3 +762,32 @@ fn saved_dependency_specifier(manifest: &PackageManifest, name: &str) -> Option<
         PackageManifest::from_path(manifest.path().to_path_buf()).expect("reread package.json");
     dependency_specifier(&saved, name).map(str::to_string)
 }
+
+/// A signed tarball URL carries its token in the query string, which
+/// `redact_and_sanitize` keeps — and `reqwest` echoes the request URL back
+/// in its own message, so the cause has to be scrubbed as well as the
+/// specifier.
+#[test]
+fn a_tarball_error_chain_drops_url_secrets() {
+    for url in [
+        "https://example.com/pkg.tgz?token=SIGNEDSECRET",
+        "https://alice:hunter2@example.com/pkg.tgz",
+        "https://alice:hunter2@example.com/pkg.tgz?token=SIGNEDSECRET#frag",
+    ] {
+        // The shape `reqwest` renders for a transport failure, whose leaf
+        // frames carry the reason and whose first frame carries the URL.
+        let rendered = super::redacted_error_chain(
+            &std::io::Error::other(format!(
+                "error sending request for url ({url}): tcp connect error",
+            )),
+            url,
+        );
+        eprintln!("RENDERED: {rendered}");
+        assert!(!rendered.contains("SIGNEDSECRET"), "query token must not survive: {rendered}");
+        assert!(!rendered.contains("hunter2"), "password must not survive: {rendered}");
+        assert!(
+            rendered.contains("example.com/pkg.tgz") && rendered.contains("tcp connect error"),
+            "the host and the reason must survive: {rendered}",
+        );
+    }
+}

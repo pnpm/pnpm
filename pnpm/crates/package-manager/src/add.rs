@@ -24,7 +24,7 @@ use pnpm_config::{Config, SaveWorkspaceProtocol};
 use pnpm_engine_runtime_node_resolver::{NodeResolver, NodeResolverError};
 use pnpm_lockfile::{Lockfile, MaybeLazyLockfile};
 use pnpm_lockfile_preferred_versions::get_preferred_versions_from_lockfile_and_manifests;
-use pnpm_network::{ThrottledClient, redact_and_sanitize};
+use pnpm_network::{ThrottledClient, redact_and_sanitize, redact_url_for_display};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
@@ -183,12 +183,17 @@ pub enum AddError {
 
     /// Anything else the tarball resolver raised — a malformed URL, a
     /// transport failure the fetcher doesn't classify.
-    #[display("Failed to resolve tarball dependency {specifier:?}: {source}")]
+    ///
+    /// The cause is carried as already-redacted text rather than as an
+    /// `#[error(source)]`: `reqwest` echoes the request URL back in its own
+    /// message, and miette renders every frame of a source chain, so an
+    /// attached cause would print the URL this variant took care to redact.
+    #[display("Failed to resolve tarball dependency {specifier:?}: {reason}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_ADD_RESOLVE_TARBALL))]
     ResolveTarball {
+        #[error(not(source))]
         specifier: String,
-        #[error(source)]
-        source: pnpm_resolving_resolver_base::ResolveError,
+        reason: String,
     },
 
     #[display("Could not determine the package name of dependency {specifier:?}")]
@@ -1127,17 +1132,76 @@ async fn resolve_aliasless_tarball(
     .await
     .map_err(|source| match source.downcast::<pnpm_tarball::TarballError>() {
         Ok(tarball) => AddError::TarballResolve(tarball),
-        // A tarball URL can carry `user:pass@` credentials, and an
-        // unclassified error here echoes it back.
-        Err(source) => {
-            AddError::ResolveTarball { specifier: redact_and_sanitize(specifier), source }
-        }
+        Err(source) => AddError::ResolveTarball {
+            specifier: redact_url_for_display(specifier),
+            reason: redacted_error_chain(source.as_ref(), specifier),
+        },
     })?
-    .ok_or_else(|| AddError::MissingPackageName { specifier: redact_and_sanitize(specifier) })?;
+    .ok_or_else(|| AddError::MissingPackageName { specifier: redact_url_for_display(specifier) })?;
     let manifest_specifier =
         result.normalized_bare_specifier.unwrap_or_else(|| normalized_save_specifier(specifier));
     let package_name = aliasless_package_name(result.manifest.as_deref(), specifier)?;
     Ok(AliaslessDependency { package_name, manifest_specifier })
+}
+
+/// Flatten an error chain into one line, with every rendering of `url` cut
+/// back to its display-safe form.
+///
+/// `reqwest` echoes the request URL back in its own message, and it redacts
+/// only the userinfo — a signed tarball URL carries its token in the query
+/// string, which [`redact_and_sanitize`] keeps too. Once the credentials are
+/// stripped, the safe form is a prefix of every spelling of the same URL
+/// (raw, or normalized by the resolver), so each occurrence is truncated at
+/// the token boundary that follows it.
+fn redacted_error_chain(error: &(dyn std::error::Error + 'static), url: &str) -> String {
+    let mut frames = Vec::new();
+    let mut current = Some(error);
+    while let Some(frame) = current {
+        frames.push(frame.to_string());
+        current = frame.source();
+    }
+    // Order is load-bearing: `redact_and_sanitize` runs first so a rendering
+    // that carries `user:pass@` loses it here, leaving a URL that starts with
+    // the safe prefix the truncation below matches on.
+    let sanitized = redact_and_sanitize(&frames.join(": "));
+    truncate_url_tokens(&sanitized, &redact_url_for_display(url))
+}
+
+/// Replace every token in `text` that starts with `safe_url` by `safe_url`
+/// alone, dropping whatever query, fragment, or trailing path the rendering
+/// carried. A URL in error prose ends at whitespace or one of the
+/// punctuation marks a message wraps it in.
+fn truncate_url_tokens(text: &str, safe_url: &str) -> String {
+    if safe_url.is_empty() {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find(safe_url) {
+        out.push_str(&rest[..start]);
+        out.push_str(safe_url);
+        let after = &rest[start + safe_url.len()..];
+        let end = after
+            .find(|character: char| {
+                character.is_whitespace() || matches!(character, ')' | ']' | '"' | '\'')
+            })
+            .unwrap_or(after.len());
+        rest = &after[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The display-safe form of an alias-less selector, which may be a local
+/// path or a URL. A URL loses its credentials, query, and fragment; a path
+/// is only stripped of control characters, since it carries no secret and
+/// naming it is the whole point of the message.
+fn redact_specifier_for_display(specifier: &str) -> String {
+    if specifier.starts_with("http:") || specifier.starts_with("https:") {
+        redact_url_for_display(specifier)
+    } else {
+        redact_and_sanitize(specifier)
+    }
 }
 
 /// The `name` an alias-less selector's own manifest declares. The name keys
@@ -1153,11 +1217,11 @@ fn aliasless_package_name(
         .and_then(serde_json::Value::as_str)
         .filter(|name| !name.is_empty())
         .ok_or_else(|| AddError::MissingPackageName {
-            specifier: redact_and_sanitize(specifier),
+            specifier: redact_specifier_for_display(specifier),
         })?;
     if !is_valid_dependency_alias(name) {
         return Err(AddError::InvalidPackageName {
-            specifier: redact_and_sanitize(specifier),
+            specifier: redact_specifier_for_display(specifier),
             name: name.to_string(),
         });
     }
