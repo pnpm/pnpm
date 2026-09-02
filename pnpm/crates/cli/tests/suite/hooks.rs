@@ -110,3 +110,36 @@ fn update_config_applies_to_recursive_run() {
 
     drop(root);
 }
+
+/// A hook that changes an install-affecting setting must be applied before
+/// the verify-deps-before-run check compares the live settings with the ones
+/// the last install recorded. Without the hook, `pnpm run` sees the
+/// pre-hook value, reports the setting as changed, and — under
+/// `verifyDepsBeforeRun: error` — refuses to run any script at all.
+#[cfg(unix)]
+#[test]
+fn update_config_applies_before_the_verify_deps_check() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let manifest = serde_json::json!({
+        "name": "run-under-verify-deps",
+        "private": true,
+        "scripts": { "foo": "printf ran" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\nverifyDepsBeforeRun: error\n")
+        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.dedupePeers = true; return config } } }",
+    )
+    .expect("write pnpmfile");
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    let output = pacquet_in(&workspace).with_arg("run").with_arg("foo").assert().success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(stdout.contains("ran"), "the script should have run\nSTDOUT:\n{stdout}");
+
+    drop(root);
+}
