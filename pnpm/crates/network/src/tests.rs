@@ -12,9 +12,9 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    CappedDnsResolver, ForInstallsError, NativeDnsResolver, NetworkSettings, NoProxyMatcher,
-    NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
-    bundled_root_certs, origin_of, parse_proxy_url,
+    CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
+    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, bundled_root_certs,
+    origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -99,22 +99,39 @@ async fn capped_dns_resolver_limits_concurrency() {
     assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
 }
 
-/// The system resolver answers `localhost` from the host's own tables
-/// (`/etc/hosts`, or the OS's built-in mapping) on every platform, so a
-/// loopback answer proves the lookup went through `getaddrinfo` rather
-/// than through a DNS client with its own configuration.
+/// Fetches through a client built the way installs build theirs, so the
+/// request goes through the resolver `configure_dns` wires in. The
+/// server listens on a loopback IP but is addressed as `localhost`, a
+/// name the platform's `getaddrinfo` answers from the host's own tables
+/// on every OS.
 #[tokio::test]
-async fn native_dns_resolver_uses_the_system_resolver() {
-    let addresses = NativeDnsResolver
-        .resolve("localhost".parse().expect("valid DNS name"))
+async fn install_client_resolves_hostnames_through_the_system_resolver() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/by-hostname")
+        .expect(1)
+        .with_status(200)
+        .with_body("resolved")
+        .create_async()
+        .await;
+    let port = server.socket_address().port();
+
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("default install client builds");
+    let guard = client.acquire().await;
+    let resp = guard
+        .get(format!("http://localhost:{port}/by-hostname"))
+        .send()
         .await
-        .expect("localhost resolves")
-        .collect::<Vec<_>>();
-    assert!(!addresses.is_empty(), "localhost yields at least one address");
-    assert!(
-        addresses.iter().all(|address| address.ip().is_loopback()),
-        "every localhost address is loopback: {addresses:?}",
-    );
+        .expect("localhost resolves and connects");
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text().await.expect("body"), "resolved");
+    mock.assert_async().await;
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
