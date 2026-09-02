@@ -595,7 +595,7 @@ enum KeyIssueReporting {
 
 fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     match command {
-        CliCommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
+        CliCommand::Get(get) if get.args.key.is_some() => KeyIssueReporting::Skip,
         CliCommand::Config(args) => match &args.command {
             ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
             _ => KeyIssueReporting::WarnOnly,
@@ -645,12 +645,7 @@ fn is_global(command: &CliCommand) -> bool {
         CliCommand::Add(args) => args.global,
         CliCommand::ApproveBuilds(args) => args.global,
         CliCommand::Bin(args) => args.global,
-        CliCommand::Config(args) => match &args.command {
-            ConfigSubcommand::Set(args) => args.flags.global,
-            ConfigSubcommand::Get(args) => args.flags.global,
-            ConfigSubcommand::Delete(args) => args.flags.global,
-            ConfigSubcommand::List(args) => args.flags.global,
-        },
+        CliCommand::Config(args) => args.flags.global,
         CliCommand::Get(args) => args.flags.global,
         CliCommand::Set(args) => args.flags.global,
         CliCommand::Env(args) => args.global,
