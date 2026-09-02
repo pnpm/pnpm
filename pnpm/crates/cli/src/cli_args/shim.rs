@@ -170,13 +170,18 @@ async fn add(
     fs::create_dir_all(bin_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", bin_dir.display()))?;
-    // A shim an earlier release wrote for the same package is only
-    // recognized as its own once migrated, so migrate before the slot check.
+    // Registry lookups happen before the lock, so no other global-bin
+    // writer waits on the network.
+    let mut bins_by_package = Vec::with_capacity(packages.len());
+    for package in packages {
+        bins_by_package.push((package, bins_of(config, package).await?));
+    }
+    let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
+    // A legacy shim for the same package is only recognized as its own
+    // once migrated, so migrate before the slot check.
     migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     let mut report = String::new();
-    for package in packages {
-        let bins = bins_of(config, package).await?;
-        let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
+    for (package, bins) in bins_by_package {
         // A bin already in the global bin directory belongs to something
         // else — a globally installed package, or another shim. Replacing
         // it would take a working command away, and `pnpm shim rm` would
@@ -214,7 +219,7 @@ fn remove(config: &Config, bin_dir: &Path, packages: &[String]) -> miette::Resul
         return Err(ShimError::NoPackage.into());
     }
     let _global_bin_lock = acquire_global_bin_lock(bin_dir)?;
-    // A shim an earlier release wrote is only listed once migrated.
+    // A legacy shim is only listed once migrated.
     migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     let mut report = String::new();
     for package in packages {

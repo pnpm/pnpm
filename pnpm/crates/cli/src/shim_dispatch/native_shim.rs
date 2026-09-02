@@ -9,9 +9,11 @@
 //! environment untouched. The sidecar holds the raw target path (UTF-16 on
 //! Windows), or `pkg:<package>` for a shim with nothing installed behind it.
 //!
-//! Shims written by earlier pnpm 12 releases were shell scripts calling a
-//! `.pnpm-shim-v1` dispatcher executable with `--shim`. They are migrated
-//! into this shape whenever shims are written or refreshed.
+//! A legacy shim is a shell script carrying the marker line
+//! `# pnpm-shim-style=context-aware` and a `# cmd-shim-target=` trailer,
+//! dispatching through a `.pnpm-shim-v1` executable. Whenever shims are
+//! written or refreshed, every legacy shim in the bin dir is migrated into
+//! this shape and the `.pnpm-shim-v1` executable is removed.
 
 use super::{dispatch_target, trusted_shim_settings};
 use pnpm_cmd_shim::is_safe_bin_name;
@@ -96,9 +98,9 @@ pub(crate) fn install_native_shim_from(
     target: &ShimTarget,
 ) -> io::Result<()> {
     fs::create_dir_all(bin_dir)?;
-    // A shell shim from an earlier release, or a direct shim being turned
-    // context-aware, may hold the slot in the text flavors. On Unix the
-    // executable replaces the single flavor in place.
+    // A legacy shim, or a direct shim being turned context-aware, may hold
+    // the slot in the text flavors. On Unix the executable replaces the
+    // single flavor in place.
     if cfg!(windows) {
         for flavor in ["", ".cmd", ".ps1"] {
             remove_if_exists(&bin_dir.join(format!("{name}{flavor}")))?;
@@ -173,7 +175,7 @@ pub(crate) fn native_shim_paths(bin_dir: &Path, name: &str) -> [PathBuf; 2] {
     [executable_path(bin_dir, name), target_file_path(bin_dir, name)]
 }
 
-/// Republish every shim in `bin_dir` from `source`, migrating legacy shell
+/// Republish every shim in `bin_dir` from `source`, migrating legacy
 /// shims first. Self-update uses this so the shims carry the newly
 /// installed engine; a bin dir without shims stays without them.
 pub(crate) fn refresh_native_shims(source: &Path, bin_dir: &Path) -> io::Result<()> {
@@ -188,8 +190,8 @@ pub(crate) fn migrate_legacy_shims(bin_dir: &Path) -> io::Result<()> {
     migrate_legacy_shims_from(&std::env::current_exe()?, bin_dir)
 }
 
-/// Turn every shell shim an earlier pnpm 12 wrote into a native shim, then
-/// drop the `.pnpm-shim-v1` dispatcher those shims called.
+/// Turn every legacy shim into a native shim, then drop the
+/// `.pnpm-shim-v1` executable the legacy shims dispatch through.
 pub(crate) fn migrate_legacy_shims_from(source: &Path, bin_dir: &Path) -> io::Result<()> {
     let entries = match fs::read_dir(bin_dir) {
         Ok(entries) => entries.collect::<io::Result<Vec<_>>>()?,
@@ -221,8 +223,8 @@ pub(crate) fn is_legacy_context_aware_shim(path: &Path) -> bool {
     legacy_shim_target(path).is_ok_and(|target| target.is_some())
 }
 
-/// The target of the legacy shell shim at `path`, `None` for anything
-/// that is not one. Only the shell flavor carries the markers; the
+/// The target of the legacy shim at `path`, `None` for anything that is
+/// not one. Only the shell flavor carries the markers; the
 /// Windows `.cmd` and `.ps1` siblings are removed with it.
 fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
     let metadata = match fs::symlink_metadata(path) {
