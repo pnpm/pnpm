@@ -1,6 +1,7 @@
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
+use pnpm_lockfile::EnvLockfile;
 use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
@@ -18,6 +19,9 @@ impl ImportArgs {
             &state;
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let lockfile_path = dir.join("pnpm-lock.yaml");
+        let env_lockfile = EnvLockfile::read(dir)
+            .into_diagnostic()
+            .wrap_err("reading the env lockfile before import")?;
 
         let lockfile_backup = lockfile_path.with_extension("yaml.import.bak");
         let lockfile_existed = lockfile_path.exists();
@@ -102,19 +106,47 @@ impl ImportArgs {
             .wrap_err("importing dependencies")
         };
 
-        match install_result {
+        let import_result = install_result.and_then(|()| {
+            if let Some(env_lockfile) = env_lockfile {
+                env_lockfile
+                    .write(dir)
+                    .into_diagnostic()
+                    .wrap_err("preserving the env lockfile after import")?;
+            }
+            Ok(())
+        });
+
+        match import_result {
             Ok(()) => {
                 if lockfile_existed {
-                    let _ = std::fs::remove_file(&lockfile_backup);
+                    std::fs::remove_file(&lockfile_backup)
+                        .into_diagnostic()
+                        .wrap_err("removing the import lockfile backup")?;
                 }
                 Ok(())
             }
             Err(error) => {
                 if lockfile_existed {
-                    let _ = std::fs::rename(&lockfile_backup, &lockfile_path);
+                    restore_lockfile(&lockfile_path, &lockfile_backup).wrap_err_with(|| {
+                        format!("restoring pnpm-lock.yaml after import failed: {error}")
+                    })?;
                 }
                 Err(error)
             }
         }
     }
+}
+
+fn restore_lockfile(
+    lockfile_path: &std::path::Path,
+    backup_path: &std::path::Path,
+) -> miette::Result<()> {
+    if let Err(error) = std::fs::remove_file(lockfile_path)
+        && error.kind() != std::io::ErrorKind::NotFound
+    {
+        return Err(error).into_diagnostic().wrap_err("removing the failed imported lockfile");
+    }
+    std::fs::rename(backup_path, lockfile_path)
+        .into_diagnostic()
+        .wrap_err("restoring the original pnpm-lock.yaml")
 }

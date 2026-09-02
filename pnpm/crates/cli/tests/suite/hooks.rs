@@ -1,8 +1,9 @@
 use crate::_utils::pacquet_in;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::CommandTempCwd;
-use std::fs;
+use pnpm_lockfile::{EnvLockfile, PackageKey};
+use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use std::{fs, path::Path};
 
 #[test]
 fn filter_log_is_ignored_with_a_warning() {
@@ -29,6 +30,106 @@ const EXTRA_ENV_PNPMFILE: &str = "module.exports = { hooks: { updateConfig (conf
 /// [`EXTRA_ENV_PNPMFILE`] exports — in `marker.txt` next to the manifest.
 const WRITE_MARKER_SCRIPT: &str =
     r#"node -e "require('fs').writeFileSync('marker.txt', process.env.PNPM_HOOK_MARKER || '')""#;
+
+const CATALOG_DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
+
+fn write_catalog_hook_project(workspace: &Path) {
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "catalog-hook-project",
+            "version": "1.0.0",
+            "dependencies": { (CATALOG_DEP): "catalog:" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        format!(
+            "module.exports = {{ hooks: {{ updateConfig (config) {{ config.catalogs = {{ default: {{ '{CATALOG_DEP}': '^100.0.0' }} }}; return config }} }} }}",
+        ),
+    )
+    .expect("write pnpmfile");
+}
+
+#[test]
+fn update_config_catalog_applies_to_link() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_catalog_hook_project(&workspace);
+    let target = root.path().join("other-pkg");
+    fs::create_dir_all(&target).expect("create link target");
+    fs::write(target.join("package.json"), r#"{ "name": "other-pkg", "version": "1.0.0" }"#)
+        .expect("write link target manifest");
+
+    pacquet_in(&workspace).with_args(["link", "../other-pkg"]).assert().success();
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_config_catalog_applies_to_outdated() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_catalog_hook_project(&workspace);
+
+    pacquet_in(&workspace).with_arg("install").assert().success();
+    let output = pacquet_in(&workspace).with_arg("outdated").output().expect("run outdated");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(stdout.contains(CATALOG_DEP), "outdated should report the catalog dependency");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn update_config_catalog_applies_to_import() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_catalog_hook_project(&workspace);
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut settings = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
+    fs::write(workspace_yaml, settings).expect("write configDependencies");
+
+    pacquet_in(&workspace).with_arg("import").assert().success();
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(lockfile.starts_with("---\n"), "env document must lead pnpm-lock.yaml");
+    assert!(lockfile.contains("configDependencies:"), "env document must retain config deps");
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read env lockfile")
+        .expect("env lockfile should be present");
+    let config_dependency = &env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .config_dependencies["@pnpm/plugin-pnpmfile"];
+    let config_dependency_key: PackageKey =
+        format!("@pnpm/plugin-pnpmfile@{}", config_dependency.version)
+            .parse()
+            .expect("parse config dependency package key");
+    assert!(
+        env_lockfile
+            .packages
+            .get(&config_dependency_key)
+            .expect("config dependency package must be retained")
+            .resolution
+            .checkable_integrity()
+            .is_some(),
+        "env document must retain the config dependency integrity",
+    );
+    assert!(
+        lockfile.contains("@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
+        "the imported lockfile should resolve the hook-provided catalog entry:\n{lockfile}",
+    );
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+    drop((root, mock_instance));
+}
 
 /// `updateConfig` applies to `pnpm run`, not just to the install family:
 /// the settings a hook returns — `extraEnv` here — reach the environment of
