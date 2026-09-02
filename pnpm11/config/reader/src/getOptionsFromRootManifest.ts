@@ -25,6 +25,7 @@ import { map as mapValues } from 'ramda'
 import { quoteAndJoin } from './quoteAndJoin.js'
 
 export type OptionsFromRootManifest = {
+  scriptShell?: string
   allowedDeprecatedVersions?: AllowedDeprecatedVersions
   allowUnusedPatches?: boolean
   overrides?: Record<string, string>
@@ -77,6 +78,9 @@ export function getOptionsFromPnpmSettings (
   const settings: OptionsFromRootManifest = replaceEnvInSettings(pnpmSettings, {
     expandRequestDestinationEnv: opts.expandRequestDestinationEnv ?? false,
   })
+  if (manifestDir != null && settings.scriptShell != null) {
+    settings.scriptShell = resolveScriptShell(manifestDir, settings.scriptShell)
+  }
   if (settings.overrides) {
     assertValidOverrides(settings.overrides)
     if (Object.keys(settings.overrides).length === 0) {
@@ -107,6 +111,11 @@ export function getOptionsFromPnpmSettings (
   }
 
   return settings
+}
+
+function resolveScriptShell (manifestDir: string, scriptShell: string): string {
+  if (path.isAbsolute(scriptShell) || !/[\\/]/.test(scriptShell)) return scriptShell
+  return path.join(manifestDir, scriptShell)
 }
 
 /** The fields a `tasks` entry may carry. Anything else is a typo. */

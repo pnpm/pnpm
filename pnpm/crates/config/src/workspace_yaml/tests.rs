@@ -639,7 +639,9 @@ scriptShell: ./ünicode-shell
 
     assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
     assert_eq!(config.cache_dir, base.join("日本語/cache-dir"));
-    assert_eq!(config.script_shell.as_deref(), Some("./ünicode-shell"));
+    let expected_script_shell =
+        pnpm_fs::lexical_normalize(&base.join("./ünicode-shell")).to_string_lossy().into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_script_shell.as_str()));
 }
 
 #[test]
@@ -2613,6 +2615,49 @@ nodeOptions: --max-old-space-size=4096
     settings.apply_to(&mut config, Path::new("/irrelevant"));
     assert_eq!(config.script_shell.as_deref(), Some("/usr/bin/bash"));
     assert_eq!(config.node_options.as_deref(), Some("--max-old-space-size=4096"));
+}
+
+#[test]
+fn resolves_relative_script_shell_against_workspace_root() {
+    let base = Path::new("/workspace/root");
+    for script_shell in ["./scripts/shell.sh", "../scripts/shell.sh", "bash", "/usr/bin/bash"] {
+        let settings: WorkspaceSettings =
+            serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
+        let mut config = Config::new();
+        settings.apply_to(&mut config, base);
+        let expected = if script_shell == "bash" || script_shell == "/usr/bin/bash" {
+            script_shell.to_owned()
+        } else {
+            pnpm_fs::lexical_normalize(&base.join(script_shell)).to_string_lossy().into_owned()
+        };
+        assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+    }
+}
+
+#[test]
+fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("packages/nested");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(root.path().join(WORKSPACE_MANIFEST_FILENAME), "scriptShell: ./a.sh\n").unwrap();
+
+    let (manifest, settings) =
+        WorkspaceSettings::find_and_load(&nested).unwrap().expect("ancestor workspace manifest");
+    assert_eq!(manifest.parent(), Some(root.path()));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, manifest.parent().unwrap());
+    let expected = root.path().join("a.sh").to_string_lossy().into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+#[test]
+fn preserves_relative_script_shell_for_sources_without_a_workspace_root() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("scriptShell: ./scripts/shell.sh").unwrap();
+    let mut config = Config::new();
+    settings.apply_to_without_script_shell_resolution(&mut config, Path::new("/workspace/root"));
+    assert_eq!(config.script_shell.as_deref(), Some("./scripts/shell.sh"));
 }
 
 /// The tri-state distinguishes "absent" from "explicit null", matching

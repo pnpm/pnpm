@@ -3599,7 +3599,7 @@ impl Config {
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.expand_global_dir_home_prefixes::<Sys>();
-            global_settings.apply_to(&mut self, start_dir);
+            global_settings.apply_to_without_script_shell_resolution(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
                 configured_state_dir.as_deref().filter(|value| !value.is_empty())
@@ -3731,7 +3731,7 @@ impl Config {
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.expand_global_dir_home_prefixes::<Sys>();
-        env_settings.apply_to(&mut self, start_dir);
+        env_settings.apply_to_without_script_shell_resolution(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =

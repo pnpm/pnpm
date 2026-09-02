@@ -1895,6 +1895,25 @@ impl WorkspaceSettings {
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
+        self.apply_to_inner(config, base_dir, true);
+    }
+
+    /// Apply settings from a source that has no workspace root (the global
+    /// config file or `PNPM_CONFIG_*` environment variables).
+    ///
+    /// Most path-valued settings still use `base_dir` for pacquet's config
+    /// cascade, but `scriptShell` is intentionally left untouched here:
+    /// TypeScript pnpm passes `manifestDir: undefined` for these sources and
+    /// therefore only resolves a path-like shell from a workspace manifest.
+    pub(crate) fn apply_to_without_script_shell_resolution(
+        self,
+        config: &mut Config,
+        base_dir: &Path,
+    ) {
+        self.apply_to_inner(config, base_dir, false);
+    }
+
+    fn apply_to_inner(self, config: &mut Config, base_dir: &Path, resolve_script_shell_path: bool) {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
@@ -2214,7 +2233,11 @@ impl WorkspaceSettings {
             config.scripts_prepend_node_path = v;
         }
         if let Some(v) = self.script_shell {
-            config.script_shell = v;
+            config.script_shell = if resolve_script_shell_path {
+                v.map(|value| resolve_script_shell(base_dir, &value))
+            } else {
+                v
+            };
         }
         if let Some(v) = self.node_options {
             config.node_options = v;
@@ -2435,6 +2458,21 @@ fn join_home_relative(home: &Path, relative: &str) -> PathBuf {
 fn resolve(base: &Path, value: &str) -> PathBuf {
     let candidate = Path::new(value);
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
+}
+
+fn resolve_script_shell(base: &Path, value: &str) -> String {
+    let candidate = Path::new(value);
+    // Node's win32 path parser treats root-relative values (`\\foo` and
+    // `/foo`) as absolute; Rust's Windows `is_absolute` additionally
+    // requires a drive/UNC prefix. Preserve the root so Windows can supply
+    // the process drive when it executes the shell.
+    if candidate.is_absolute()
+        || cfg!(windows) && candidate.has_root()
+        || !value.contains('/') && !value.contains('\\')
+    {
+        return value.to_owned();
+    }
+    pnpm_fs::lexical_normalize(&base.join(candidate)).to_string_lossy().into_owned()
 }
 
 pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {

@@ -2857,6 +2857,75 @@ pub fn global_config_yaml_enables_gvs() {
     );
 }
 
+/// `scriptShell` is path-resolved only when it comes from the workspace
+/// manifest. Global config and `PNPM_CONFIG_*` are machine-level sources, so
+/// their path-like values stay raw just as pnpm's `manifestDir: undefined`
+/// path does. Exercise the complete `Config::current` cascade rather than the
+/// settings helper in isolation.
+#[test]
+pub fn script_shell_source_routing_matches_pnpm() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "scriptShell: ./global-shell.sh\n")
+        .expect("write global config.yaml");
+
+    let global_only = tempdir().expect("global-only project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(global_only.path());
+    assert_eq!(config.script_shell.as_deref(), Some("./global-shell.sh"));
+
+    let workspace = tempdir().expect("workspace tempdir");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: ./workspace-shell.sh\n")
+        .expect("write workspace yaml");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(workspace.path());
+    let expected_workspace_shell =
+        pnpm_fs::lexical_normalize(&workspace.path().join("workspace-shell.sh"))
+            .to_string_lossy()
+            .into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_workspace_shell.as_str()));
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_SCRIPT_SHELL", "./env-shell.sh"),
+    ]);
+    let config = load_with_fake_env(workspace.path());
+    assert_eq!(config.script_shell.as_deref(), Some("./env-shell.sh"));
+}
+
+#[test]
+pub fn workspace_script_shell_accepts_backslash_path_like_values() {
+    let workspace = tempdir().expect("workspace tempdir");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: 'scripts\\shell.cmd'\n")
+        .expect("write workspace yaml");
+
+    let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
+    let expected = pnpm_fs::lexical_normalize(&workspace.path().join("scripts\\shell.cmd"))
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+#[cfg(windows)]
+#[test]
+pub fn workspace_script_shell_preserves_windows_absolute_and_unc_paths() {
+    let workspace = tempdir().expect("workspace tempdir");
+    for script_shell in
+        [r"C:\tools\bash.exe", r"\\server\share\bash.exe", r"\tools\bash.exe", r"/tools/bash.exe"]
+    {
+        fs::write(
+            workspace.path().join("pnpm-workspace.yaml"),
+            format!("scriptShell: '{script_shell}'\n"),
+        )
+        .expect("write workspace yaml");
+
+        let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
+        assert_eq!(config.script_shell.as_deref(), Some(script_shell));
+    }
+}
+
 #[test]
 pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
     let xdg = tempdir().unwrap();
