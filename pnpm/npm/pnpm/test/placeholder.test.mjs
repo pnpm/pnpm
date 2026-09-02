@@ -59,6 +59,18 @@ describe('placeholder bin', () => {
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
   })
+
+  // A project the wrapper sits under can hold anything under the platform
+  // package's name; only what was installed with the wrapper is its binary.
+  it('does not run a platform package from an ancestor node_modules', async () => {
+    const fixture = createFixture({ installPlatformPackage: false, nestedUnder: ['node_modules', 'tool', 'node_modules'] })
+    writePlatformPackage(path.join(fixture.dir, 'node_modules'))
+
+    const result = await run(process.execPath, [fixture.placeholder, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
+    assert.doesNotMatch(result.stdout, FAKE_BINARY_OUTPUT)
+  })
 })
 
 /**
@@ -85,31 +97,39 @@ function run (command, args, env) {
 /**
  * A wrapper directory as a script-less install leaves it: the placeholder still
  * in place, and — unless told otherwise — the platform package that carries the
- * binary installed next to it, since only the scripts were skipped.
+ * binary installed in the wrapper's own `node_modules`, since only the scripts
+ * were skipped. `nestedUnder` places the wrapper that many directories below
+ * the fixture root, which then stands for a project the wrapper sits under.
  */
-function createFixture ({ installPlatformPackage = true } = {}) {
+function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-placeholder-'))
   after(() => fs.rmSync(dir, { force: true, recursive: true }))
+  const wrapperDir = path.join(dir, ...nestedUnder, nestedUnder.length > 0 ? 'pnpm' : '')
 
   for (const file of WRAPPER_FILES) {
-    fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true })
-    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(dir, file))
+    fs.mkdirSync(path.dirname(path.join(wrapperDir, file)), { recursive: true })
+    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapperDir, file))
   }
-  fs.chmodSync(path.join(dir, 'pnpm'), 0o755)
+  fs.chmodSync(path.join(wrapperDir, 'pnpm'), 0o755)
   // `type` is what makes Node.js read the extensionless placeholder as ESM.
-  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0', type: 'module' }))
+  fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0', type: 'module' }))
 
   if (installPlatformPackage) {
-    const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
-    const packageDir = path.join(dir, 'node_modules', packageName)
-    fs.mkdirSync(packageDir, { recursive: true })
-    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: packageName, version: '99.0.0' }))
-    if (IS_UNIX) {
-      fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
-    } else {
-      fs.copyFileSync(process.execPath, path.join(packageDir, binFile))
-    }
+    writePlatformPackage(path.join(wrapperDir, 'node_modules'))
   }
 
-  return { dir, placeholder: path.join(dir, 'pnpm') }
+  return { dir, placeholder: path.join(wrapperDir, 'pnpm') }
+}
+
+/** The host's `@pnpm/exe.<target>` package, carrying the stand-in binary, under `modulesDir`. */
+function writePlatformPackage (modulesDir) {
+  const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
+  const packageDir = path.join(modulesDir, packageName)
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: packageName, version: '99.0.0' }))
+  if (IS_UNIX) {
+    fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
+  } else {
+    fs.copyFileSync(process.execPath, path.join(packageDir, binFile))
+  }
 }

@@ -52,9 +52,13 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
 
 /**
  * Install the wrapper fixture globally with npm into a prefix of its own, with
- * the host's platform package as a `file:` optional dependency.
+ * the host's platform package as a `file:` optional dependency. Throws when npm
+ * fails; the temp tree is removed when `t` ends.
  *
- * @returns {{ prefix: string, fixtureDir: string }}
+ * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @param {string[]} npmFlags Extra `npm install` flags, e.g. `--ignore-scripts`.
+ * @returns {{ prefix: string, fixtureDir: string }} The npm prefix the shims
+ *   landed in, and the fixture wrapper it was installed from.
  */
 function installFixtureWithNpm (t, npmFlags) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm wrapper install-'))
