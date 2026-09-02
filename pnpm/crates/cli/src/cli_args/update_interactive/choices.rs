@@ -19,9 +19,7 @@ pub(crate) struct ChoiceRow {
     /// The rendered, column-aligned line shown in the prompt.
     pub label: String,
     /// The package name selecting this row updates. `None` marks the
-    /// group's header row, which carries no selection — pnpm renders it
-    /// as a disabled entry, and `dialoguer` has no such notion, so
-    /// [`super::prompt_for_packages`] drops it from the result instead.
+    /// group's header row, which carries no selection.
     pub value: Option<String>,
 }
 
@@ -212,14 +210,31 @@ fn column_widths(cells: &[Vec<String>]) -> Vec<usize> {
 /// of a group end at the same offset, as pnpm aligns it.
 const CURRENT_COLUMN: usize = 1;
 
+/// The least width of the `Package`, `Current`, arrow, and `Target`
+/// columns — the widths pnpm fixes them at. Every group is laid out on
+/// its own, so these are what line one group's columns up with the
+/// next's. A cell wider than the minimum widens its column rather than
+/// wrapping.
+const MIN_COLUMN_WIDTHS: [usize; 4] = [50, 15, 0, 15];
+
+/// The columns after `Target` — `Workspace` and `URL` — are set off by
+/// two more spaces than the rest, as pnpm pads them.
+const FIRST_WIDE_GAP_COLUMN: usize = 4;
+
 fn pad_row(row: &[String], widths: &[usize]) -> String {
     let mut line = String::new();
     for (index, cell) in row.iter().enumerate() {
-        if index > 0 {
+        if index >= FIRST_WIDE_GAP_COLUMN {
+            line.push_str("   ");
+        } else if index > 0 {
             line.push(' ');
         }
-        let padding =
-            widths.get(index).copied().unwrap_or_default().saturating_sub(measure_text_width(cell));
+        let width = widths
+            .get(index)
+            .copied()
+            .unwrap_or_default()
+            .max(MIN_COLUMN_WIDTHS.get(index).copied().unwrap_or_default());
+        let padding = width.saturating_sub(measure_text_width(cell));
         if index == CURRENT_COLUMN {
             line.extend(std::iter::repeat_n(' ', padding));
             line.push_str(cell);

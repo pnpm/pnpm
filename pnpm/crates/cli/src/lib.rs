@@ -1,4 +1,5 @@
 mod boolean_negations;
+mod checkbox_prompt;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
