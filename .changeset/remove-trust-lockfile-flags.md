@@ -4,4 +4,6 @@
 "pacquet": minor
 ---
 
-`pnpm remove` now accepts the `--trust-lockfile`, `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after` flags, matching `pnpm install` and `pnpm add`. They were previously rejected as unknown options, so these settings could only reach `pnpm remove` through `--config.<name>=<value>` or the config file. Lockfile verification itself is unchanged.
+`pnpm remove` now accepts `--trust-lockfile` and `--no-trust-lockfile`, letting a single run skip the lockfile supply-chain verification pass — or force it back on over a `trustLockfile: true` config — without editing the config file. `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after` are now accepted there too.
+
+This does not change when verification runs: the pass still checks the lockfile as it exists before the removal, so `--trust-lockfile` skips it for every entry, not only the package being removed.
