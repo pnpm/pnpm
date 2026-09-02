@@ -42,11 +42,9 @@ export interface PackageManagerNetworkConfig {
  * or populated later by the CLI harness (e.g. workspace filtering, hook loading).
  */
 export interface ConfigContext {
-  // -- Runtime state --
   hooks?: Hooks
   finders?: Record<string, Finder>
 
-  // -- Workspace context --
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
@@ -61,7 +59,6 @@ export interface ConfigContext {
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
 
-  // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line
   /** Keys explicitly set from workspace yaml, CLI, or env vars (not defaults). */
   explicitlySetKeys: Set<string>

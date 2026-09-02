@@ -56,8 +56,6 @@ fn tls_error_invalid_client_identity_includes_reason_in_display() {
     assert!(rendered.contains("garbage key"), "expected reason in {rendered}");
 }
 
-// --- PerRegistryTls / pick_for_url tests ---
-
 #[test]
 fn per_registry_tls_default_is_empty() {
     let tls_map = PerRegistryTls::default();

@@ -347,7 +347,7 @@ impl InstallPackageBySnapshot<'_> {
             link_concurrency_probe,
         } = self;
 
-        // TODO: skip when already exists in store?
+        // Store cache hit is handled inside DownloadTarballToStore.
         let package_id = package_key.pkg_id();
         emit_progress_resolved::<Reporter>(&package_id, requester);
 

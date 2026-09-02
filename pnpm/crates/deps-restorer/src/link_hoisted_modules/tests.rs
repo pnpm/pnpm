@@ -97,7 +97,7 @@ fn flat_layout(
     entries: &[FlatLayoutEntry<'_>],
 ) -> (DependenciesGraph, BTreeMap<PathBuf, DepHierarchy>, CasPathsByPkgId) {
     let modules = lockfile_dir.join("node_modules");
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     let mut hierarchy_children = BTreeMap::new();
     let mut cas_paths = CasPathsByPkgId::new();
     for (alias, dep_path, pkg_id, files) in entries {
@@ -153,7 +153,7 @@ fn orphan_directory_is_removed() {
     fs::write(orphan_dir.join("stale.txt"), b"old data").expect("write stale file");
     assert!(orphan_dir.exists());
 
-    let mut prev_graph = DependenciesGraph::new();
+    let mut prev_graph = DependenciesGraph::default();
     prev_graph.insert(modules.join("a"), make_node("a", "a@1.0.0", "a@1.0.0", modules.join("a")));
     prev_graph.insert(
         orphan_dir.clone(),
@@ -194,7 +194,7 @@ fn nested_hierarchy_materializes_inner_node_modules() {
     let outer_dir = modules.join("outer");
     let inner_dir = outer_dir.join("node_modules").join("inner");
 
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(
         outer_dir.clone(),
         make_node("outer", "outer@1.0.0", "outer@1.0.0", outer_dir.clone()),
@@ -246,7 +246,7 @@ fn missing_cas_for_required_dep_errors() {
     let modules = lockfile_dir.join("node_modules");
 
     let dir = modules.join("a");
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dir.clone(), make_node("a", "a@1.0.0", "a@1.0.0", dir.clone()));
 
     let mut hierarchy_children = BTreeMap::new();
@@ -286,7 +286,7 @@ fn missing_cas_for_optional_dep_skips_silently() {
     let dir = modules.join("a");
     let mut node = make_node("a", "a@1.0.0", "a@1.0.0", dir.clone());
     node.optional = true;
-    let mut graph = DependenciesGraph::new();
+    let mut graph = DependenciesGraph::default();
     graph.insert(dir.clone(), node);
 
     let mut hierarchy_children = BTreeMap::new();
@@ -355,7 +355,7 @@ fn orphan_already_removed_is_tolerated() {
     let modules = lockfile_dir.join("node_modules");
 
     let phantom_orphan = modules.join("phantom");
-    let mut prev_graph = DependenciesGraph::new();
+    let mut prev_graph = DependenciesGraph::default();
     prev_graph.insert(
         phantom_orphan.clone(),
         make_node("phantom", "phantom@1.0.0", "phantom@1.0.0", phantom_orphan),
@@ -397,7 +397,7 @@ fn hierarchy_entry_missing_from_graph_errors() {
     let mut hierarchy = BTreeMap::new();
     hierarchy.insert(lockfile_dir.clone(), DepHierarchy(hierarchy_children));
 
-    let graph = DependenciesGraph::new();
+    let graph = DependenciesGraph::default();
     let cas_paths = CasPathsByPkgId::new();
     let logged = AtomicU8::new(0);
     let opts = LinkHoistedModulesOpts {

@@ -1,9 +1,6 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { execSync } from 'node:child_process'
-
-// Background
-// ----------
 //
 // The published pnpm package contains a bundled node_modules directory at
 // dist/node_modules.
@@ -25,9 +22,6 @@ import { execSync } from 'node:child_process'
 // esbuild. This script handles other dependencies the pnpm bundle config
 // declares as "external" and resolved at runtime — node-gyp, v8-compile-cache,
 // and @reflink/reflink (all platform variants, installed via --force).
-//
-// Strategy
-// --------
 //
 // To create dist/node_modules, we'll run a pnpm deploy and move the results
 // over into the dist dir.

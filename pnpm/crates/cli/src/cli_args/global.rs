@@ -1419,8 +1419,6 @@ fn registries_with_default(config: &Config) -> Vec<(String, String)> {
     registries
 }
 
-// --- param grouping (split/resolve helpers) -------------------------------
-
 fn split_into_groups(params: &[String], base_dir: &Path) -> Vec<Vec<String>> {
     params
         .iter()

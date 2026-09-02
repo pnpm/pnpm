@@ -1218,8 +1218,6 @@ fn remove_overrides_keeps_non_string_entries_of_a_flow_style_block() {
     assert_eq!(out, "overrides: { bar: { nested: value } }\n");
 }
 
-// --- generic top-level field set/delete (pnpm config set / delete) ---
-
 fn run_update_field(
     original: Option<&str>,
     key: &str,

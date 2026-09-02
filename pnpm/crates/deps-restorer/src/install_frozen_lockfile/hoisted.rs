@@ -23,7 +23,7 @@ pub struct HoistedLinkerOutput {
     /// when non-empty.
     pub hoisted_locations: BTreeMap<String, Vec<String>>,
     /// Per-snapshot `pkgRoot` override for the build phase — snapshot
-    /// key → every directory the hoisted graph placed it in, in walker
+    /// key to every directory the hoisted graph placed it in, in walker
     /// order. `None` for the isolated linker (the layout-based lookup in
     /// `BuildModules` is used instead). See
     /// [`crate::BuildModules::pkg_roots_by_key`] for how the list is
@@ -265,7 +265,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
-    // Map snapshot key → every recorded directory, in walker order. The
+    // Map snapshot key to every recorded directory, in walker order. The
     // walker emits multiple [`crate::DependenciesGraphNode`]s with the
     // same `dep_path` when the package nests under a sibling (version
     // conflict). Postinstall scripts and the side-effects-cache key both
