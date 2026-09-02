@@ -2,7 +2,7 @@ use std::{collections::HashMap, io, sync::Mutex};
 
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_network_web_auth::OpenUrl;
+use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_reporter::SilentReporter;
 
 use super::{
@@ -71,8 +71,8 @@ async fn test_opens_repository_url_from_local_manifest() {
 
     struct RecordingBrowser;
 
-    impl OpenUrl for RecordingBrowser {
-        fn open_url(url: &str) -> io::Result<()> {
+    impl OpenUrlAndWait for RecordingBrowser {
+        fn open_url_and_wait(url: &str) -> io::Result<()> {
             OPENED_URLS.lock().unwrap().push(url.to_owned());
             Ok(())
         }

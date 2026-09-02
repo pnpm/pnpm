@@ -5,7 +5,7 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_network::{RetryOpts, ThrottledClient};
-use pnpm_network_web_auth::OpenUrl;
+use pnpm_network_web_auth::OpenUrlAndWait;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
@@ -22,7 +22,7 @@ pub struct RepoArgs {
 }
 
 impl RepoArgs {
-    pub async fn run<Sys: OpenUrl, Rep: Reporter>(
+    pub async fn run<Sys: OpenUrlAndWait, Rep: Reporter>(
         self,
         config: &Config,
         dir: &std::path::Path,
@@ -60,7 +60,7 @@ impl RepoArgs {
             urls
         };
         for url in urls {
-            match Sys::open_url(&url) {
+            match Sys::open_url_and_wait(&url) {
                 Ok(()) => {}
                 Err(e) => {
                     let redacted = redact_url(&url);
