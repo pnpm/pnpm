@@ -25,7 +25,7 @@ use std::path::{Component, Path, PathBuf};
 /// The importer-side inputs of `link:` re-anchoring, derived once per
 /// importer: its directory as a clean relative suffix of the lockfile
 /// root. The workspace root importer holds the empty suffix.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub(crate) struct ImporterAnchor {
     /// `None` — an anchor carries dot components, is not truly
     /// absolute, or the importer is not under the lockfile root — turns
