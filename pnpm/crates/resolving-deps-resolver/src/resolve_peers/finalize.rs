@@ -367,7 +367,6 @@ impl Walker<'_> {
         final_dep_paths: &mut HashMap<NodeId, DepPath>,
         visiting: &mut HashSet<NodeId>,
     ) -> PeerId {
-        let node_id = self.cache_owner_node_id(node_id);
         let peer_node_id = self.cache_owner_node_id(peer_node_id);
         if let NodeId::Leaf(id) = peer_node_id
             && let Some(rel) = id.strip_prefix("link:")
@@ -527,12 +526,17 @@ impl Walker<'_> {
     /// peers, restricted to peers that themselves carry peers — peerless
     /// peers can't close a cycle). Iterative Tarjan, returning the SCCs
     /// in reverse-topological order plus a `NodeId → SCC index` map.
+    ///
+    /// Vertices and edge targets are canonicalized through
+    /// [`Self::cache_owner_node_id`] to match the owner-keyed lookups
+    /// in [`Self::final_peer_id`]: a cycle through a cache-hit
+    /// occurrence is a cycle through its owner.
     fn peer_sccs(&self) -> (Vec<Vec<NodeId>>, HashMap<NodeId, usize>) {
         let mut participants: Vec<NodeId> = self
             .node_external_peers
             .iter()
             .filter(|(_, peers)| !peers.is_empty())
-            .map(|(node_id, _)| node_id.clone())
+            .map(|(node_id, _)| self.cache_owner_node_id(node_id).clone())
             .collect();
         participants.sort();
         participants.dedup();
@@ -543,10 +547,12 @@ impl Walker<'_> {
                 .get(node_id)
                 .into_iter()
                 .flat_map(|peers| peers.values())
+                .map(|peer| self.cache_owner_node_id(peer))
                 .filter(|peer| participant_set.contains(*peer))
                 .cloned()
                 .collect();
             out.sort();
+            out.dedup();
             out
         };
 

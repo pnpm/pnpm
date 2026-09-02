@@ -402,6 +402,12 @@ impl Walker<'_> {
         self.remember_resolved_node(node_id, &output.dep_path);
         if !self.discovery {
             if &owner_node_id != node_id {
+                let owner_is_fully_walked =
+                    !self.cache_owner_by_node_id.contains_key(&owner_node_id);
+                debug_assert!(
+                    owner_is_fully_walked,
+                    "cache owner {owner_node_id:?} of {node_id:?} is itself a cache hit",
+                );
                 self.cache_owner_by_node_id.insert(node_id.clone(), owner_node_id);
             }
             self.node_external_peers

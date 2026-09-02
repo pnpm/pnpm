@@ -1,5 +1,5 @@
 use super::{
-    ImporterPeerInput, ResolvePeersOptions,
+    ImporterPeerInput, ResolvePeersOptions, ResolvePeersResult,
     context::peer_id_pair,
     resolve_peers, resolve_peers_workspace,
     test_support::{
@@ -439,8 +439,12 @@ fn peer_name_cycle_collapses_provider_suffixes() {
     );
 }
 
-#[test]
-fn cached_cyclic_alias_peer_occurrences_share_a_closed_dep_path() {
+/// The cyclic aliased peer graph of pnpm/pnpm#14449: `vite` and the
+/// `core` nested under `vite-plus` are two occurrences of one package,
+/// so whichever is walked second reuses the first one's peer-cache
+/// verdict, and `@vitejs/devtools` closes the peer cycle. The direct
+/// dependency order decides which occurrence becomes the cache owner.
+fn cyclic_alias_peer_tree(direct_aliases: [&str; 3]) -> ResolvedTree {
     let core_direct = NodeId::next();
     let core_nested = NodeId::next();
     let devtools = NodeId::next();
@@ -449,24 +453,21 @@ fn cached_cyclic_alias_peer_occurrences_share_a_closed_dep_path() {
     let mut vite_plus_children = BTreeMap::new();
     vite_plus_children.insert("core".to_string(), core_nested.clone());
 
-    let mut tree = ResolvedTree {
-        direct: vec![
-            DirectDep {
-                alias: "@vitejs/devtools".to_string(),
-                node_id: devtools.clone(),
-                id: "@vitejs/devtools@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "vite".to_string(),
-                node_id: core_direct.clone(),
-                id: "core@1.0.0".to_string(),
-            },
-            DirectDep {
-                alias: "vite-plus".to_string(),
-                node_id: vite_plus.clone(),
-                id: "vite-plus@1.0.0".to_string(),
-            },
-        ],
+    let direct = direct_aliases
+        .into_iter()
+        .map(|alias| {
+            let (node_id, id) = match alias {
+                "@vitejs/devtools" => (&devtools, "@vitejs/devtools@1.0.0"),
+                "vite" => (&core_direct, "core@1.0.0"),
+                "vite-plus" => (&vite_plus, "vite-plus@1.0.0"),
+                _ => unreachable!("unknown direct dependency alias {alias}"),
+            };
+            DirectDep { alias: alias.to_string(), node_id: node_id.clone(), id: id.to_string() }
+        })
+        .collect();
+
+    ResolvedTree {
+        direct,
         packages: HashMap::from_iter([
             (
                 Arc::from("core@1.0.0".to_string()),
@@ -496,19 +497,54 @@ fn cached_cyclic_alias_peer_occurrences_share_a_closed_dep_path() {
         policy_violations: Vec::new(),
         applied_patches: HashSet::default(),
         children_by_id: HashMap::default(),
-    };
+    }
+}
 
-    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
-    let vite_core = result.direct_dependencies_by_alias["vite"].clone();
+/// Both `core` occurrences must share the cycle-collapsed depPath, and
+/// every edge of the result must point at an emitted graph node.
+fn assert_cyclic_alias_peer_graph_is_closed(result: &ResolvePeersResult) {
+    let vite_core = &result.direct_dependencies_by_alias["vite"];
     let vite_plus_path = &result.direct_dependencies_by_alias["vite-plus"];
-    let nested_core = result.graph[vite_plus_path].children["core"].clone();
+    let nested_core = &result.graph[vite_plus_path].children["core"];
 
     assert_eq!(nested_core, vite_core);
-    assert!(
-        result.graph.contains_key(&nested_core),
-        "every final dependency edge must resolve to a graph node: {:#?}",
-        result.graph,
+    assert_eq!(vite_core, &DepPath::from("core@1.0.0(@vitejs/devtools@1.0.0)"));
+    assert_eq!(
+        result.direct_dependencies_by_alias["@vitejs/devtools"],
+        DepPath::from("@vitejs/devtools@1.0.0(core@1.0.0)"),
     );
+    for node in result.graph.values() {
+        for (alias, child) in &node.children {
+            assert!(
+                result.graph.contains_key(child),
+                "edge {alias} of {} points at a missing graph node {child}: {:#?}",
+                node.dep_path,
+                result.graph,
+            );
+        }
+    }
+}
+
+#[test]
+fn cached_cyclic_alias_peer_occurrences_share_a_closed_dep_path() {
+    let mut tree = cyclic_alias_peer_tree(["@vitejs/devtools", "vite", "vite-plus"]);
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert_cyclic_alias_peer_graph_is_closed(&result);
+}
+
+/// Walking `vite-plus` first makes the nested `core` the cache owner
+/// and the direct `vite` the cache hit, so the peer edge of
+/// `@vitejs/devtools` targets the hit occurrence. The cycle must still
+/// be detected through the owner.
+#[test]
+fn cached_cyclic_alias_peer_occurrence_targeted_by_a_peer_collapses_the_cycle() {
+    let mut tree = cyclic_alias_peer_tree(["vite-plus", "vite", "@vitejs/devtools"]);
+
+    let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+    assert_cyclic_alias_peer_graph_is_closed(&result);
 }
 
 #[test]
