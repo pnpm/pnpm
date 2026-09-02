@@ -120,6 +120,7 @@ pub fn spawn_child<'tracker>(
         prepare_command(command);
     }
     let child = command.spawn()?;
+    crate::job_control::assign_child(&child);
     let registration = process_tracker.map(|tracker| {
         tracker.register(RunningExecution::Process {
             pid: child.id(),

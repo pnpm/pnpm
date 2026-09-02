@@ -8,7 +8,6 @@ mod executable_link;
 mod flag_relocation;
 mod github_actions;
 mod install_as_add;
-mod job_control;
 mod leading_separator;
 mod parse_boundary;
 mod path_env;
@@ -173,7 +172,7 @@ fn run_cli() -> miette::Result<()> {
         return Ok(());
     }
     // Arm Windows process-tree cleanup until the command succeeds.
-    let job_guard = job_control::setup();
+    let job_guard = pnpm_executor::arm_process_tree_cleanup();
     configure_rayon_pool();
     // `block_on` polls the command future on the calling thread, and the
     // install pipeline has a deep synchronous call chain whose stack frames
