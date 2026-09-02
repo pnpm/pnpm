@@ -1148,7 +1148,14 @@ where
             config,
             manifest,
             lockfile,
-            lockfile_shared,
+            // The dispatch above may have swapped `lockfile` for a
+            // synthesized, branch-pruned, or fast-updated document; the
+            // loader's handle is forwarded only while it still *is* the
+            // lockfile, so a downstream consumer can never seed from a
+            // superseded document.
+            lockfile_shared: lockfile_shared.filter(|shared| {
+                lockfile.is_some_and(|lockfile| std::ptr::eq(lockfile, &**shared))
+            }),
             merge_wanted_lockfile,
             take_frozen_path,
             lockfile_verification_override,

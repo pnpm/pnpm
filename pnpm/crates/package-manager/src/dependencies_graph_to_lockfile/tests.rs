@@ -2921,3 +2921,99 @@ fn unchanged_resolutions_keep_their_previous_package_metadata() {
         "a changed resolution takes the freshly served metadata",
     );
 }
+
+/// With several unkeyable nodes, the reported failure must be the first
+/// one in the graph's own iteration order — the parallel node fan-out
+/// folds its results in that order, like the serial loop it replaced.
+#[test]
+fn the_first_unkeyable_node_in_graph_order_is_the_reported_one() {
+    let mut graph: DependenciesGraph = HashMap::default();
+    for name in ["alpha", "beta"] {
+        let mut node = make_node(
+            name,
+            "1.0.0",
+            json!({ "name": name, "version": "1.0.0" }),
+            BTreeMap::new(),
+            BTreeMap::new(),
+            HashSet::default(),
+        );
+        node.dep_path = DepPath::from(format!("!broken-{name}!"));
+        assert!(
+            node.dep_path.as_str().parse::<PackageKey>().is_err(),
+            "the fixture path must not key a snapshot row",
+        );
+        graph.insert(node.dep_path.clone(), node);
+    }
+    let expected = graph
+        .values()
+        .map(|node| node.dep_path.as_str().to_string())
+        .next()
+        .expect("two nodes were inserted");
+
+    let (_tmp, manifest) = write_manifest(json!({ "name": "root", "version": "1.0.0" }));
+    let result = try_dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &graph,
+        BTreeMap::new(),
+        false,
+        false,
+        None,
+        None,
+    ));
+
+    let Err(DependenciesGraphToLockfileError::UnkeyedDepPath { dep_path, .. }) = result else {
+        panic!("an unkeyable dep path must fail the conversion");
+    };
+    assert_eq!(dep_path, expected);
+}
+
+/// A multi-importer workspace built through the parallel importer
+/// fan-out must record every importer with the entries the serial loop
+/// recorded.
+#[test]
+fn every_importer_of_a_workspace_is_recorded() {
+    let node = make_node(
+        "dep",
+        "1.0.0",
+        json!({ "name": "dep", "version": "1.0.0" }),
+        BTreeMap::new(),
+        BTreeMap::new(),
+        HashSet::default(),
+    );
+    let dep_path = node.dep_path.clone();
+    let mut graph: DependenciesGraph = HashMap::default();
+    graph.insert(dep_path.clone(), node);
+
+    let manifests: Vec<(TempDir, PackageManifest)> = ["root", "a", "b"]
+        .into_iter()
+        .map(|name| {
+            write_manifest(json!({
+                "name": name, "version": "1.0.0", "dependencies": { "dep": "^1.0.0" },
+            }))
+        })
+        .collect();
+    let direct: BTreeMap<String, DepPath> = BTreeMap::from([("dep".to_string(), dep_path.clone())]);
+    let mut opts =
+        single_importer_opts(&manifests[0].1, &graph, direct.clone(), false, false, None, None);
+    opts.importers = [".", "packages/a", "packages/b"]
+        .into_iter()
+        .zip(&manifests)
+        .map(|(id, (_, manifest))| {
+            (
+                id.to_string(),
+                ImporterLockfileInput { manifest, direct_dependencies_by_alias: direct.clone() },
+            )
+        })
+        .collect();
+
+    let lockfile = dependencies_graph_to_lockfile(opts);
+    for id in [".", "packages/a", "packages/b"] {
+        let importer = lockfile.importers.get(id).expect("every importer must be recorded");
+        let recorded = importer
+            .dependencies
+            .as_ref()
+            .and_then(|deps| deps.get(&PkgName::parse("dep").expect("parse alias")))
+            .expect("the direct dependency must be recorded");
+        assert_eq!(recorded.specifier, "^1.0.0", "importer {id}");
+    }
+}
