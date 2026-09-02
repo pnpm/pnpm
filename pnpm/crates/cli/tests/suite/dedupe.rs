@@ -535,10 +535,12 @@ fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
 
     pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
     let first_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("first pass:\n{first_pass}\nfresh resolution:\n{converged}");
     assert_eq!(first_pass, converged, "one dedupe pass must reach the fresh resolution");
 
     pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
     let second_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("second pass:\n{second_pass}");
     assert_eq!(second_pass, first_pass, "a second dedupe pass must change nothing");
 
     drop((root, mock_instance));
