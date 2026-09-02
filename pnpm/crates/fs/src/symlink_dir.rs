@@ -5,6 +5,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::retry::{
+    is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
+    retry_transient_file_locks,
+};
+
 /// Create a symlink to a directory, matching the on-disk shape pnpm
 /// produces.
 ///
@@ -114,11 +119,15 @@ pub fn is_symlink_or_junction(link: &Path) -> io::Result<bool> {
 /// need `fs::remove_dir` to be unlinked — `remove_file` returns
 /// `ERROR_ACCESS_DENIED`. Wrapping the platform split here keeps
 /// callers free of `#[cfg]`.
+///
+/// On Windows the unlink retries transient file-lock errors: an
+/// antivirus or indexer holding the reparse point open blocks
+/// `RemoveDirectoryW` for a moment.
 pub fn remove_symlink_dir(link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     return std::fs::remove_file(link);
     #[cfg(windows)]
-    return std::fs::remove_dir(link);
+    return retry_transient_file_locks(|| std::fs::remove_dir(link));
 }
 
 /// Read the target of a directory symlink (or junction on Windows).
@@ -339,12 +348,13 @@ fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string:
 
 /// Remove a regular file or directory that's occupying a symlink
 /// slot. Tries `remove_dir_all` first; if the target isn't a
-/// directory, falls back to `remove_file`.
+/// directory, falls back to `remove_file`. Both retry transient
+/// Windows file-lock errors.
 fn remove_occupant(path: &Path) -> io::Result<()> {
-    match fs::remove_dir_all(path) {
+    match remove_dir_all_with_retry(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(_) => fs::remove_file(path),
+        Err(_) => retry_transient_file_locks(|| fs::remove_file(path)),
     }
 }
 
@@ -354,24 +364,29 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 /// package's approach: if the rename fails because the destination
 /// is occupied (`AlreadyExists` for files, `DirectoryNotEmpty` for
 /// dirs, `PermissionDenied` on Windows when something holds a handle
-/// to the dest), remove the destination and retry once.
+/// to the dest), remove the destination and retry. A transient Windows
+/// file lock on either side is treated the same way: the destination
+/// is cleared once, then the rename itself is retried.
 fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
     match fs::rename(src, dst) {
         Ok(()) => Ok(()),
         Err(error) => {
-            let occupied = matches!(
-                error.kind(),
-                io::ErrorKind::AlreadyExists
-                    | io::ErrorKind::DirectoryNotEmpty
-                    | io::ErrorKind::PermissionDenied,
-            );
-            if !occupied {
+            if !rename_error_allows_destination_removal(&error) {
                 return Err(error);
             }
             remove_occupant(dst)?;
-            fs::rename(src, dst)
+            rename_with_retry(src, dst)
         }
     }
+}
+
+fn rename_error_allows_destination_removal(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::AlreadyExists
+            | io::ErrorKind::DirectoryNotEmpty
+            | io::ErrorKind::PermissionDenied,
+    ) || is_transient_file_lock_error(error)
 }
 
 #[cfg(windows)]
@@ -491,7 +506,7 @@ mod windows {
             }
         }
 
-        let rename_error = match fs::rename(staging, link) {
+        let rename_error = match super::rename_with_retry(staging, link) {
             Ok(()) => return Ok(()),
             Err(error) => error,
         };

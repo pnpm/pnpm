@@ -74,6 +74,13 @@ fn transient_file_lock_error_classifier_is_windows_specific() {
         assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "{kind:?}");
     }
 
+    // `ERROR_SHARING_VIOLATION` and `ERROR_LOCK_VIOLATION` reach callers as
+    // `Uncategorized`, so they are only recognizable by raw OS error.
+    for code in [32, 33] {
+        let error = io::Error::from_raw_os_error(code);
+        assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "os error {code}");
+    }
+
     for kind in [
         io::ErrorKind::NotFound,
         io::ErrorKind::AlreadyExists,
