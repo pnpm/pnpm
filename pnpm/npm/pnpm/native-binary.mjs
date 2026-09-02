@@ -93,7 +93,14 @@ export function resolveInstalledBinary () {
   return null
 }
 
-/** The `node_modules` nested in the wrapper, then the one holding the wrapper. */
+/**
+ * Where a platform package installed for this wrapper can be: the `node_modules`
+ * nested in the wrapper, then the one the wrapper was installed into (two levels
+ * up for the scoped `@pnpm/exe`). Neither need exist. Throws only when the
+ * wrapper's manifest is unreadable, see {@link readWrapperManifest}.
+ *
+ * @returns {string[]}
+ */
 function installedModulesDirs () {
   const { name } = readWrapperManifest()
   const segments = typeof name === 'string' ? name.split('/').length : 1

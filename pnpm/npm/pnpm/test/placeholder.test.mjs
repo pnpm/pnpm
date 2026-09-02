@@ -121,7 +121,11 @@ function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}
   return { dir, placeholder: path.join(wrapperDir, 'pnpm') }
 }
 
-/** The host's `@pnpm/exe.<target>` package, carrying the stand-in binary, under `modulesDir`. */
+/**
+ * Create the host's `@pnpm/exe.<target>` package under `modulesDir` (created if
+ * missing): a manifest and the stand-in binary — an executable `sh` script on
+ * Unix, a copy of the running node on Windows. Filesystem errors propagate.
+ */
 function writePlatformPackage (modulesDir) {
   const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
   const packageDir = path.join(modulesDir, packageName)
