@@ -120,11 +120,6 @@ pub struct ResolvePeersOptions {
     /// resolved them.
     pub hoisted_peer_provider_node_ids: HashSet<NodeId>,
 
-    /// Importer-level dependencies installed solely to satisfy optional
-    /// peers. A reused direct dependency only sees these providers when
-    /// its wanted-lockfile peer suffix recorded the same peer name.
-    pub hoisted_optional_peer_node_ids: HashSet<NodeId>,
-
     /// Final `NodeId → DepPath` map produced by a previous
     /// peer-resolution pass over the same tree
     /// ([`ResolvePeersResult::paths_by_node_id`]). `Some` activates
@@ -162,7 +157,6 @@ impl Default for ResolvePeersOptions {
             project_dir: None,
             modules_dir: None,
             hoist_missing_scope: None,
-            hoisted_optional_peer_node_ids: HashSet::default(),
             hoisted_peer_provider_node_ids: HashSet::default(),
             resolved_peer_provider_paths: None,
             collect_paths_by_node_id: false,
@@ -269,7 +263,6 @@ pub struct ResolvePeersResult {
 pub struct ImporterPeerInput {
     pub id: String,
     pub direct: Vec<DirectDep>,
-    pub hoisted_optional_peer_node_ids: HashSet<NodeId>,
     /// Absolute root of this importer. Threaded into
     /// [`ResolvePeersOptions::project_dir`] while this importer is being
     /// walked, and used to render its direct `link:` deps relative to
@@ -389,10 +382,6 @@ pub fn resolve_peers_workspace(
         // importer and encodes the correct importer-scoped target.
         walker.opts.project_dir = Some(importer.root_dir.clone());
         walker.opts.modules_dir.clone_from(&importer.modules_dir);
-        walker
-            .opts
-            .hoisted_optional_peer_node_ids
-            .clone_from(&importer.hoisted_optional_peer_node_ids);
         walker.current_provider_sources = importer_provider_sources(importer, root_importer);
         let importer_parents =
             Arc::new(if root_importer.is_some_and(|root| root.id != importer.id) {

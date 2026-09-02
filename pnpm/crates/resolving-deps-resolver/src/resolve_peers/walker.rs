@@ -18,7 +18,6 @@ use crate::{
             CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
             importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
             peer_id_pair, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
-            scoped_hoisted_optional_parent_refs,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -714,7 +713,7 @@ impl Walker<'_> {
         let fast_cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
             tree_node
-                .has_no_locked_peers()
+                .has_no_locked_peer_context()
                 .then(|| {
                     self.find_fast_hit(node_id, parent_parent_refs, &tree_node.resolved_package_id)
                 })
@@ -734,13 +733,12 @@ impl Walker<'_> {
                 },
             );
         }
-        let (pkg_id, tree_node_depth, tree_node_installable, locked_peer_names) = {
+        let (pkg_id, tree_node_depth, tree_node_installable) = {
             let tree_node = &self.tree.dependencies_tree[node_id];
             (
                 std::sync::Arc::<str>::clone(&tree_node.resolved_package_id),
                 tree_node.depth,
                 tree_node.installable,
-                tree_node.locked_peer_names().cloned(),
             )
         };
         let pkg = self.owned_package(&pkg_id);
@@ -754,7 +752,6 @@ impl Walker<'_> {
             node_id,
             &pkg,
             parent_parent_refs,
-            locked_peer_names.as_deref(),
             &provider_children,
             parent_node_ids,
         );
@@ -1031,32 +1028,22 @@ impl Walker<'_> {
     }
 
     /// Build the [`ParentRefs`] map that descendants of this node see:
-    /// the parent's view (scoped down when the node's locked peer names
-    /// exclude hoisted optional providers), plus the node's own
-    /// peer-relevant children, plus the pins the wanted lockfile locked
-    /// in. Kept behind `Arc` copy-on-write: most nodes contribute
-    /// nothing, so they pass the parent's map down by refcount instead
-    /// of cloning it — the per-node map clones dominated the walker's
-    /// CPU time on peer-heavy workspaces.
+    /// the parent's view, plus the node's own peer-relevant children,
+    /// plus the pins the wanted lockfile locked in. Kept behind `Arc`
+    /// copy-on-write: most nodes contribute nothing, so they pass the
+    /// parent's map down by refcount instead of cloning it — the
+    /// per-node map clones dominated the walker's CPU time on
+    /// peer-heavy workspaces.
     fn build_child_parent_refs(
         &self,
         node_id: &NodeId,
         pkg: &ResolvedPackage,
         parent_parent_refs: &Arc<ParentRefs>,
-        locked_peer_names: Option<&HashSet<String>>,
         provider_children: &BTreeMap<String, NodeId>,
         parent_node_ids: &SharedChain<NodeId>,
     ) -> ChildParentRefs {
-        let mut refs_changed = locked_peer_names.is_some();
-        let mut child_parent_refs = if let Some(locked_peer_names) = locked_peer_names {
-            Arc::new(scoped_hoisted_optional_parent_refs(
-                parent_parent_refs,
-                locked_peer_names,
-                &self.opts.hoisted_optional_peer_node_ids,
-            ))
-        } else {
-            Arc::clone(parent_parent_refs)
-        };
+        let mut refs_changed = false;
+        let mut child_parent_refs = Arc::clone(parent_parent_refs);
 
         let mut new_parent_refs = ParentRefs::default();
         for (alias, child_node_id) in provider_children {
