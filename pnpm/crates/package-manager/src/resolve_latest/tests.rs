@@ -26,7 +26,7 @@ fn undecodable_latest_packument(latest: &str) -> String {
                     }}
                 }}
             }}
-        }}"#
+        }}"#,
     )
 }
 

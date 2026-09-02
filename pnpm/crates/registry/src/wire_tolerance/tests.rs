@@ -11,7 +11,7 @@ fn manifest_json(npm_user: &str, attestations: &str) -> String {
                 "tarball": "https://registry/acme-1.0.0.tgz",
                 "attestations": {attestations}
             }}
-        }}"#
+        }}"#,
     )
 }
 
@@ -173,7 +173,7 @@ fn parse_with(dist_extra: &str, top_extra: &str) -> PackageVersion {
                 "tarball": "https://registry/acme-1.0.0.tgz"
                 {dist_extra}
             }}
-        }}"#
+        }}"#,
     );
     serde_json::from_str(&json).expect("deserialize manifest")
 }

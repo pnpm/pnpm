@@ -100,7 +100,7 @@ fn manifest_with(dist_extra: &str, npm_user: &str, top_extra: &str) -> String {
                 "integrity": "sha512-AAAA"
                 {dist_extra}
             }}
-        }}"#
+        }}"#,
     )
 }
 
