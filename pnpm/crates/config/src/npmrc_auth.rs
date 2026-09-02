@@ -6,6 +6,7 @@ use pnpm_network::{
     base64_encode, base64_encode_bytes, nerf_dart,
 };
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
@@ -331,7 +332,7 @@ impl NpmrcAuth {
                 continue;
             };
             let raw_key = raw_key.trim();
-            let raw_value = raw_value.trim();
+            let raw_value = decode_ini_value(raw_value.trim());
 
             // Apply ${VAR} substitution to both the key and the value.
             // Unresolved placeholders become "" and are recorded as warnings.
@@ -365,20 +366,20 @@ impl NpmrcAuth {
                 continue;
             }
             if !opts.expand_request_destination_env
-                && has_env_placeholder(raw_value)
+                && has_env_placeholder(&raw_value)
                 && is_request_destination_value_key(&key)
             {
                 auth.warn_ignored_request_destination_env(&key);
                 continue;
             }
             if !opts.expand_auth_value_env
-                && has_env_placeholder(raw_value)
+                && has_env_placeholder(&raw_value)
                 && is_auth_value_key(&key)
             {
                 auth.warn_ignored_auth_value_env(&key);
                 continue;
             }
-            let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
+            let (value, value_unresolved) = env_replace_lossy::<Sys>(&raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
             }
@@ -863,6 +864,18 @@ impl NpmrcAuth {
             .or_default()
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
+    }
+}
+
+fn decode_ini_value(value: &str) -> Cow<'_, str> {
+    if value.starts_with('\'') && value.ends_with('\'') {
+        Cow::Borrowed(
+            value.strip_prefix('\'').and_then(|value| value.strip_suffix('\'')).unwrap_or(""),
+        )
+    } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+        serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
+    } else {
+        Cow::Borrowed(value)
     }
 }
 
