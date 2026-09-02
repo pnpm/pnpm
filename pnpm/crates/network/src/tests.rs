@@ -12,9 +12,9 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
-    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, bundled_root_certs,
-    origin_of, parse_proxy_url,
+    CappedDnsResolver, ForInstallsError, NativeDnsResolver, NetworkSettings, NoProxyMatcher,
+    NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
+    bundled_root_certs, origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -97,6 +97,24 @@ async fn capped_dns_resolver_limits_concurrency() {
     }
     assert_eq!(active.load(Ordering::SeqCst), 0);
     assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
+}
+
+/// The system resolver answers `localhost` from the host's own tables
+/// (`/etc/hosts`, or the OS's built-in mapping) on every platform, so a
+/// loopback answer proves the lookup went through `getaddrinfo` rather
+/// than through a DNS client with its own configuration.
+#[tokio::test]
+async fn native_dns_resolver_uses_the_system_resolver() {
+    let addresses = NativeDnsResolver
+        .resolve("localhost".parse().expect("valid DNS name"))
+        .await
+        .expect("localhost resolves")
+        .collect::<Vec<_>>();
+    assert!(!addresses.is_empty(), "localhost yields at least one address");
+    assert!(
+        addresses.iter().all(|address| address.ip().is_loopback()),
+        "every localhost address is loopback: {addresses:?}",
+    );
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
