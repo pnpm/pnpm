@@ -227,7 +227,7 @@ mockito           = { version = "1.7.2" }
 # lesser, which made `Range::intersect` depend on argument order. Upstream
 # has not released since 2.2.0 (February 2025); drop this once it does.
 [patch.crates-io]
-node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "9d609ec2caa30448375f6a653e324fd947bb0ba1" }
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"

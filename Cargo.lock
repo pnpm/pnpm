@@ -3520,7 +3520,7 @@ dependencies = [
 [[package]]
 name = "node-semver"
 version = "2.2.0"
-source = "git+https://github.com/pnpm/node-semver-rs?rev=9d609ec2caa30448375f6a653e324fd947bb0ba1#9d609ec2caa30448375f6a653e324fd947bb0ba1"
+source = "git+https://github.com/pnpm/node-semver-rs?rev=1ae976a0023b4dec80b1a5411ccee8343f91320e#1ae976a0023b4dec80b1a5411ccee8343f91320e"
 dependencies = [
  "bytecount",
  "miette 7.6.0",
