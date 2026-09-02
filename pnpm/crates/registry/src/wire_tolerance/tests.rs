@@ -301,3 +301,49 @@ fn a_mistyped_publisher_name_keeps_the_trust_markers() {
         "the trusted publisher survives with its body intact",
     );
 }
+
+/// `dist.attestations` is a container like `_npmUser`: only the
+/// `provenance` marker inside it is read, so neither the container's own
+/// shape nor its `url` sibling may cost the version.
+#[test]
+fn an_off_shape_attestations_container_or_url_keeps_the_version() {
+    for encoded in ["1", r#""signed""#, "[]", "true"] {
+        let version = parse_with(&format!(r#", "attestations": {encoded}"#), "");
+        assert!(version.dist.attestations.is_none(), "attestations {encoded} carries no metadata");
+    }
+
+    let version = parse_with(r#", "attestations": { "provenance": {}, "url": 7 }"#, "");
+    let attestations = version.dist.attestations.as_ref().expect("an object attestations decodes");
+    assert_eq!(attestations.url, None, "a non-string url reads as absent");
+    assert!(attestations.provenance.is_some(), "the provenance marker survives a mistyped url");
+}
+
+/// A `peerDependenciesMeta` entry names a peer even when its value is not
+/// an object: the TypeScript resolver keeps the name and finds no
+/// `optional === true` inside it.
+#[test]
+fn an_off_shape_peer_meta_entry_keeps_its_name_with_optional_unset() {
+    for encoded in ["true", "1", r#""optional""#, "[]", "null"] {
+        let version = parse_with(
+            "",
+            &format!(
+                r#", "peerDependenciesMeta": {{ "react": {encoded}, "vue": {{ "optional": true }} }}"#,
+            ),
+        );
+        let meta = version.peer_dependencies_meta.as_ref().expect("the map decodes");
+        assert_eq!(meta.get("react").map(|entry| entry.optional), Some(None), "react: {encoded}");
+        assert_eq!(
+            meta.get("vue").map(|entry| entry.optional),
+            Some(Some(true)),
+            "vue keeps its flag beside react: {encoded}",
+        );
+    }
+
+    for encoded in ["1", "[]", r#""react""#] {
+        let version = parse_with("", &format!(r#", "peerDependenciesMeta": {encoded}"#));
+        assert!(
+            version.peer_dependencies_meta.is_none(),
+            "peerDependenciesMeta {encoded} has no entries",
+        );
+    }
+}

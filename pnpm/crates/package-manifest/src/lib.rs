@@ -13,6 +13,9 @@ use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 
 pub mod package_manager_spec;
+mod truthiness;
+
+pub use truthiness::is_truthy;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]

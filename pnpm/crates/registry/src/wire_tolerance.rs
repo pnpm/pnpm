@@ -14,6 +14,9 @@
 //! [`PackageDistribution::integrity`](crate::PackageDistribution), where
 //! an unusable value has to reach the install as an error.
 
+use std::collections::HashMap;
+
+use pnpm_package_manifest::is_truthy;
 use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::Value;
 
@@ -47,23 +50,6 @@ where
     Ok(Some(serde_json::from_value(value).unwrap_or_default()))
 }
 
-/// Whether a marker counts as set, under the truthiness test the
-/// TypeScript resolver's `getTrustEvidence` applies to the same fields.
-///
-/// `false`, `0`, and `""` are values a registry uses to say a marker is
-/// *not* set. Reading them as set would rank a version above what the
-/// TypeScript resolver ranks it, and `trustPolicy=no-downgrade` would
-/// stop rejecting a downgrade it is meant to catch. An object or array —
-/// empty or not — is truthy in JavaScript and stays present here.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null | Value::Bool(false) => false,
-        Value::Number(number) => number.as_f64().is_none_or(|float| float != 0.0),
-        Value::String(text) => !text.is_empty(),
-        _ => true,
-    }
-}
-
 /// Deserialize a record whose fields pnpm reads, tolerating a registry
 /// that sends something other than an object in its place.
 ///
@@ -84,6 +70,32 @@ where
         return Ok(None);
     }
     Ok(serde_json::from_value(value).ok())
+}
+
+/// Deserialize a map of records, tolerating an entry whose value is not
+/// an object as well as a container that is not a map.
+///
+/// The keys carry the signal — the TypeScript resolver reads
+/// `peerDependenciesMeta` by name to learn which peers a manifest
+/// declares — so a non-object entry keeps its key with a default record
+/// rather than costing the version. A non-object container decodes as
+/// absent, like [`deserialize_record_or_absent`].
+pub(crate) fn deserialize_record_map<'de, Record, Deser>(
+    deserializer: Deser,
+) -> Result<Option<HashMap<String, Record>>, Deser::Error>
+where
+    Record: DeserializeOwned + Default,
+    Deser: Deserializer<'de>,
+{
+    let Some(Value::Object(entries)) = Option::<Value>::deserialize(deserializer)? else {
+        return Ok(None);
+    };
+    Ok(Some(
+        entries
+            .into_iter()
+            .map(|(name, value)| (name, serde_json::from_value(value).unwrap_or_default()))
+            .collect(),
+    ))
 }
 
 /// Deserialize a descriptive string pnpm carries but never acts on,

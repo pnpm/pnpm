@@ -11,8 +11,9 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-diagnostics = { workspace = true }
-pnpm-network     = { workspace = true }
+pnpm-diagnostics      = { workspace = true }
+pnpm-network          = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 reqwest     = { workspace = true }

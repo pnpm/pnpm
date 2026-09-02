@@ -7,6 +7,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_package_manifest::is_truthy;
 use serde_json::{Map, Value};
 
 /// Failures raised while transforming a publish manifest. Both carry
@@ -46,20 +47,6 @@ fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), Transf
         }
     }
     Ok(())
-}
-
-/// Whether a JSON value is truthy under JavaScript's coercion rules, so
-/// the publish-manifest transforms gate on the same falsy set a JS
-/// `if (!value)` check would. Arrays and objects are always truthy,
-/// even when empty.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(boolean) => *boolean,
-        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
-        Value::String(string) => !string.is_empty(),
-        Value::Array(_) | Value::Object(_) => true,
-    }
 }
 
 /// Normalize a string `bin` into the object form `{ <command>: <path> }`.

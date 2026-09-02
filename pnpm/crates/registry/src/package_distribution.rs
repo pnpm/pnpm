@@ -43,14 +43,19 @@ pub struct PackageDistribution {
     /// Read by the `trustPolicy='no-downgrade'` verifier when it
     /// decides whether a version's trust evidence is weaker than
     /// an earlier-published one's.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub attestations: Option<AttestationsDist>,
 }
 
 /// Container for the attestation evidence a version exposes on its
 /// `dist.attestations` field. Right now the only value the verifier
 /// reads is `provenance`; the `url` field is the registry's link to
-/// the raw Sigstore bundle and is kept for round-trip parity.
+/// the raw Sigstore bundle and is kept for round-trip parity, decoded
+/// leniently so it cannot cost the version its provenance rank.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttestationsDist {
@@ -60,7 +65,11 @@ pub struct AttestationsDist {
         skip_serializing_if = "Option::is_none"
     )]
     pub provenance: Option<ProvenanceMeta>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub url: Option<String>,
 }
 

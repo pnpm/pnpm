@@ -36,7 +36,11 @@ pub struct PackageVersion {
         skip_serializing_if = "Option::is_none"
     )]
     pub optional_dependencies: Option<HashMap<String, String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_record_map",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub peer_dependencies_meta: Option<HashMap<String, PeerDependencyMeta>>,
 
     /// npm registry's per-version publisher metadata. When
@@ -184,7 +188,7 @@ where
 /// `peerDependenciesMeta[name]` shape from the npm registry. Only the
 /// `optional` flag is consumed by the resolver; other fields the
 /// registry may serve are ignored.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PeerDependencyMeta {
     #[serde(
