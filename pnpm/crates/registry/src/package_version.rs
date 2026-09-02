@@ -198,13 +198,22 @@ pub struct PeerDependencyMeta {
 /// `_npmUser` field on a per-version manifest. The verifier reads
 /// `approver` and `trusted_publisher` to assign the trust rank
 /// (`stagedPublish` > `trustedPublisher` > `provenance` > none).
-/// `name` / `email` are kept for round-trip parity.
+/// `name` / `email` are kept for round-trip parity, and are decoded
+/// leniently so neither can cost the version its trust rank.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NpmUser {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::wire_tolerance::deserialize_text_or_absent",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub email: Option<String>,
     #[serde(
         default,

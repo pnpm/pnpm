@@ -12,7 +12,7 @@ use crate::resolution_policy::{PickPolicy, pick_package_context};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_network::ThrottledClient;
+use pnpm_network::{ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{PackageTag, PackageVersion};
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PackumentFetchLocker, PickPackageError, PickPackageOptions,
@@ -44,6 +44,9 @@ pub enum ResolveLatestError {
     /// The guidance lives in the message rather than a `help(..)`
     /// because every caller wraps this behind its own diagnostic code,
     /// which drops the inner help before it reaches the terminal.
+    ///
+    /// `version` and `error` reproduce registry-controlled text, so both
+    /// are sanitized on the way in.
     #[display(
         "the registry served a manifest for {name}@{version} that pnpm could not read, so the version was skipped: {error}"
     )]
@@ -147,10 +150,17 @@ impl<'a> LatestPicker<'a> {
         let Some((version, error)) = pick.meta.latest_decode_error() else {
             return Err(ResolveLatestError::NoLatestVersion);
         };
+        // Both halves are the registry's text: `version` is whatever
+        // string `dist-tags.latest` held, and the decoder quotes the
+        // value it choked on. Neither reaches the terminal able to carry
+        // its own line breaks or escape sequences.
         Err(ResolveLatestError::UndecodableLatestManifest {
             name: package_name.to_string(),
-            version: version.to_string(),
-            error,
+            version: redact_and_sanitize(version),
+            error: redact_and_sanitize(&error),
         })
     }
 }
+
+#[cfg(test)]
+mod tests;

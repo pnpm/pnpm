@@ -18,14 +18,19 @@ use serde::{Deserialize, Deserializer, de::DeserializeOwned};
 use serde_json::Value;
 
 /// Deserialize a field pnpm reads for presence alone, keeping the typed
-/// body when the registry sends one and decoding any other shape as
-/// present-with-no-detail.
+/// body when the registry sends one and decoding any other truthy shape
+/// as present-with-no-detail.
 ///
 /// npm serves these markers as objects, but their body is not part of
 /// the wire contract that registries mirroring npm honor — some
 /// abbreviate a marker to a bare flag such as `1`. Nothing downstream
 /// reads the body, only whether the marker is there, so an unrecognized
 /// one must not cost the version.
+///
+/// Presence is decided by [`is_truthy`], not by the field merely being
+/// set: these markers rank supply-chain trust evidence, and a value the
+/// TypeScript resolver reads as no evidence must not read as evidence
+/// here.
 pub(crate) fn deserialize_presence_marker<'de, Marker, Deser>(
     deserializer: Deser,
 ) -> Result<Option<Marker>, Deser::Error>
@@ -36,7 +41,27 @@ where
     let Some(value) = Option::<Value>::deserialize(deserializer)? else {
         return Ok(None);
     };
+    if !is_truthy(&value) {
+        return Ok(None);
+    }
     Ok(Some(serde_json::from_value(value).unwrap_or_default()))
+}
+
+/// Whether a marker counts as set, under the truthiness test the
+/// TypeScript resolver's `getTrustEvidence` applies to the same fields.
+///
+/// `false`, `0`, and `""` are values a registry uses to say a marker is
+/// *not* set. Reading them as set would rank a version above what the
+/// TypeScript resolver ranks it, and `trustPolicy=no-downgrade` would
+/// stop rejecting a downgrade it is meant to catch. An object or array —
+/// empty or not — is truthy in JavaScript and stays present here.
+fn is_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null | Value::Bool(false) => false,
+        Value::Number(number) => number.as_f64().is_none_or(|float| float != 0.0),
+        Value::String(text) => !text.is_empty(),
+        _ => true,
+    }
 }
 
 /// Deserialize a record whose fields pnpm reads, tolerating a registry
@@ -59,6 +84,27 @@ where
         return Ok(None);
     }
     Ok(serde_json::from_value(value).ok())
+}
+
+/// Deserialize a descriptive string pnpm carries but never acts on,
+/// tolerating a registry that sends another scalar in its place.
+///
+/// These fields sit in the same record as the trust markers, and
+/// [`deserialize_record_or_absent`] decodes that record as a unit: a
+/// strict decode here would take a valid `approver` or
+/// `trustedPublisher` down with a mistyped display name, ranking the
+/// version *below* what the TypeScript resolver ranks it — which reads
+/// the markers without regard to the shape of their siblings.
+pub(crate) fn deserialize_text_or_absent<'de, Deser>(
+    deserializer: Deser,
+) -> Result<Option<String>, Deser::Error>
+where
+    Deser: Deserializer<'de>,
+{
+    Ok(Option::<Value>::deserialize(deserializer)?.and_then(|value| match value {
+        Value::String(text) => Some(text),
+        _ => None,
+    }))
 }
 
 /// Deserialize a byte/entry count the resolver treats as advisory,
@@ -86,12 +132,19 @@ where
     })
 }
 
+/// A count is only a count if it survives the trip to `usize` intact.
+/// Casting a float straight across would saturate, turning a bogus
+/// `1e100` into `usize::MAX` — a number the extractor would read as a
+/// real, enormous size instead of as nothing reported. `u128` holds
+/// every in-range value, so the range check is the conversion out of it.
 fn integral_count(number: &serde_json::Number) -> Option<usize> {
     if let Some(exact) = number.as_u64() {
         return usize::try_from(exact).ok();
     }
     let float = number.as_f64()?;
-    (float.is_finite() && float >= 0.0 && float.fract() == 0.0).then_some(float as usize)
+    (float.is_finite() && float >= 0.0 && float.fract() == 0.0)
+        .then_some(float as u128)
+        .and_then(|count| usize::try_from(count).ok())
 }
 
 /// Deserialize a flag that only counts when the registry sends a real

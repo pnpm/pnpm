@@ -87,17 +87,59 @@ fn a_marker_body_of_any_other_shape_still_counts_as_present() {
     }
 }
 
+/// Tolerating unrecognized marker shapes must not promote the shapes a
+/// registry uses to say the marker is *unset* into trust evidence. The
+/// TypeScript resolver reads these fields for truthiness, so a version
+/// carrying `false`, `0`, or `""` has no evidence in either stack and
+/// stays subject to the `no-downgrade` rejection.
 #[test]
-fn an_absent_or_null_marker_stays_absent() {
-    for marker in ["null", "{}"] {
-        let version = parse(marker, marker);
+fn a_falsy_marker_grants_no_evidence() {
+    for marker in ["false", "0", "0.0", "-0", r#""""#] {
+        let version = parse(
+            &format!(r#"{{ "trustedPublisher": {marker}, "approver": {marker} }}"#),
+            &format!(r#"{{ "provenance": {marker} }}"#),
+        );
+        let npm_user = version.npm_user.as_ref();
         assert!(
-            version.npm_user.as_ref().is_none_or(|user| user.trusted_publisher.is_none()),
-            "trustedPublisher should be absent for _npmUser {marker}",
+            npm_user.is_none_or(|user| user.trusted_publisher.is_none()),
+            "trustedPublisher of {marker} is not a trusted publisher",
+        );
+        assert!(
+            npm_user.is_none_or(|user| user.approver.is_none()),
+            "approver of {marker} is not an approver",
         );
         assert!(
             version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
-            "provenance should be absent for attestations {marker}",
+            "provenance of {marker} is not a provenance attestation",
+        );
+    }
+}
+
+/// The marker's own `null` — as opposed to a missing or null container
+/// around it — is the shape that reaches the decoder, and it means the
+/// registry named the field to say it holds nothing.
+#[test]
+fn a_null_marker_stays_absent() {
+    let version =
+        parse(r#"{ "trustedPublisher": null, "approver": null }"#, r#"{ "provenance": null }"#);
+
+    let npm_user = version.npm_user.as_ref();
+    assert!(npm_user.is_none_or(|user| user.trusted_publisher.is_none()));
+    assert!(npm_user.is_none_or(|user| user.approver.is_none()));
+    assert!(version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()));
+}
+
+#[test]
+fn an_absent_or_null_container_leaves_every_marker_absent() {
+    for container in ["null", "{}"] {
+        let version = parse(container, container);
+        assert!(
+            version.npm_user.as_ref().is_none_or(|user| user.trusted_publisher.is_none()),
+            "trustedPublisher should be absent for _npmUser {container}",
+        );
+        assert!(
+            version.dist.attestations.as_ref().is_none_or(|att| att.provenance.is_none()),
+            "provenance should be absent for attestations {container}",
         );
     }
 }
@@ -156,6 +198,26 @@ fn an_unusable_advisory_count_degrades_to_absent() {
     assert_eq!(version.dist.unpacked_size, None, "an omitted unpackedSize is absent");
 }
 
+/// A count too large for a `usize` is not a count. It has to read as
+/// absent rather than clamp, since a saturating cast would hand the
+/// extractor `usize::MAX` as though the registry had reported it.
+#[test]
+fn an_out_of_range_advisory_count_does_not_clamp() {
+    for encoded in ["1e100", "1e30", "18446744073709551616", "1.8446744073709552e19"] {
+        let version = parse_with(&format!(r#", "unpackedSize": {encoded}"#), "");
+        assert_eq!(version.dist.unpacked_size, None, "unpackedSize {encoded} is out of range");
+        let version = parse_with(&format!(r#", "fileCount": {encoded}"#), "");
+        assert_eq!(version.dist.file_count, None, "fileCount {encoded} is out of range");
+    }
+
+    let version = parse_with(&format!(r#", "unpackedSize": {}"#, usize::MAX), "");
+    assert_eq!(
+        version.dist.unpacked_size,
+        Some(usize::MAX),
+        "an exactly encoded usize::MAX is still in range",
+    );
+}
+
 /// The TypeScript resolver tests this flag with `=== true`, so only a
 /// real boolean may produce `Some(true)` here.
 #[test]
@@ -193,4 +255,27 @@ fn a_non_object_npm_user_decodes_as_absent() {
     let user = version.npm_user.as_ref().expect("an object _npmUser still decodes");
     assert_eq!(user.name.as_deref(), Some("alice"));
     assert!(user.approver.is_some());
+}
+
+/// The publisher's display fields are decoration; the markers beside
+/// them decide the version's trust rank. Decoding the record as a unit
+/// means a mistyped `name` would otherwise discard a real `approver`,
+/// weakening the rank and letting `no-downgrade` reject a version the
+/// TypeScript resolver accepts.
+#[test]
+fn a_mistyped_publisher_name_keeps_the_trust_markers() {
+    let version = parse_with(
+        "",
+        r#", "_npmUser": { "name": 1, "email": [], "approver": {}, "trustedPublisher": { "id": "github" } }"#,
+    );
+
+    let user = version.npm_user.as_ref().expect("_npmUser survives a mistyped name");
+    assert_eq!(user.name, None, "a non-string name reads as absent");
+    assert_eq!(user.email, None, "a non-string email reads as absent");
+    assert!(user.approver.is_some(), "the approver marker survives");
+    assert_eq!(
+        user.trusted_publisher.as_ref().and_then(|publisher| publisher.id.as_deref()),
+        Some("github"),
+        "the trusted publisher survives with its body intact",
+    );
 }
