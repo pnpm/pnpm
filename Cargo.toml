@@ -220,6 +220,15 @@ project-root      = { version = "0.2.2" }
 tempfile          = { version = "3.27.0" }
 mockito           = { version = "1.7.2" }
 
+# node-semver 2.2.0 parses a partial version after `<=` as an exact patch
+# bound, so `<=16` becomes `<=16.0.0-0` and rejects every 16.x. The fork
+# expands it as the X-Range npm's semver does, and fixes `Ord for Bound`
+# reporting both an inclusive and an exclusive bound on one version as the
+# lesser, which made `Range::intersect` depend on argument order. Upstream
+# has not released since 2.2.0 (February 2025); drop this once it does.
+[patch.crates-io]
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "9d609ec2caa30448375f6a653e324fd947bb0ba1" }
+
 [workspace.metadata.workspaces]
 allow_branch = "main"
 
