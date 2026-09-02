@@ -114,12 +114,16 @@ export function readWrapperManifest () {
  *   source inode (the shared store blob under pnpm), so its mode must not change.
  */
 export function placeBinary (nativeBinary, destPath, mode) {
+  // Per process, so concurrent callers never share a temp file. What a crashed
+  // caller left under a reused pid is itself a hard link to a store blob, so
+  // it is removed, never written into.
   const tempPath = `${destPath}.${process.pid}.pnpm-tmp`
   try {
+    fs.rmSync(tempPath, { force: true })
     try {
       fs.linkSync(nativeBinary, tempPath)
     } catch {
-      fs.copyFileSync(nativeBinary, tempPath)
+      fs.copyFileSync(nativeBinary, tempPath, fs.constants.COPYFILE_EXCL)
       if (mode != null) {
         fs.chmodSync(tempPath, mode)
       }

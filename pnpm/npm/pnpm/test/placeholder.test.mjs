@@ -101,8 +101,13 @@ describe('placeholder bin', () => {
 })
 
 /**
- * Run `file` the way bin shims and shells do: `exec` from a POSIX shell, which
- * falls back to running a `#!`-less file as a `sh` script.
+ * Run `file` with `args` the way bin shims and shells do: `exec` from a POSIX
+ * shell, which falls back to running a `#!`-less file as a `sh` script. `env`
+ * overrides the inherited environment. Resolves once the child has exited,
+ * with its exit status and decoded output; rejects only if it could not be
+ * spawned.
+ *
+ * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
  */
 function runThroughShell (file, args, env) {
   const child = spawn('/bin/sh', ['-c', 'exec "$0" "$@"', file, ...args], {
