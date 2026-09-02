@@ -64,6 +64,17 @@ test('FetchError strips basic-auth credentials embedded in the request URL', () 
   expect(error.message).toBe('GET https://registry.example/@scope%2fpkg: Forbidden - 403')
 })
 
+test('FetchError drops the query string of a signed URL', () => {
+  const error = new FetchError(
+    { url: 'https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag' },
+    { status: 404, statusText: 'Not Found' }
+  )
+  // A signed URL's token is reusable, so it must not reach terminal
+  // scrollback or CI logs — credential redaction alone would keep it.
+  expect(error.message).toBe('GET https://storage.example.net/pkg.tgz: Not Found - 404')
+  expect(error.request.url).toBe('https://storage.example.net/pkg.tgz?X-Amz-Signature=SIGNEDSECRET#frag')
+})
+
 test('redactUrlCredentials', () => {
   // user:pass@ and user@ userinfo are stripped, regardless of scheme.
   expect(redactUrlCredentials('GET https://user:pass@host/pkg: timed out'))

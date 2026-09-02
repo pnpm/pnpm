@@ -45,7 +45,7 @@ export class FetchError extends PnpmError {
     if (request.authHeaderValue) {
       _request.authHeaderValue = hideAuthInformation(request.authHeaderValue)
     }
-    const message = `GET ${redactUrlCredentials(request.url)}: ${response.statusText} - ${response.status}`
+    const message = `GET ${redactUrlSecrets(request.url)}: ${response.statusText} - ${response.status}`
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {
@@ -75,6 +75,21 @@ export class FetchError extends PnpmError {
  * a ReDoS vector, and the scan strips up to the **last** `@` in the authority
  * so a raw `@` inside the password (`user:p@ss@host`) doesn't leak its tail.
  */
+/**
+ * A request URL made safe to print: its `user:pass@` userinfo and control
+ * characters redacted ({@link redactAndSanitize}), then everything from the
+ * query or fragment onwards dropped — a signed tarball or registry URL
+ * carries a reusable token there, which credential redaction alone keeps.
+ *
+ * Cuts rather than re-rendering through `URL`, unlike
+ * {@link redactUrlForDisplay}: that round-trip normalizes the spelling
+ * (`https://host` gains a trailing slash), and an error message should echo
+ * the URL the request was given.
+ */
+function redactUrlSecrets (url: string): string {
+  return redactAndSanitize(url).split(/[?#]/)[0]
+}
+
 export function redactUrlCredentials (text: string): string {
   let result = ''
   let cursor = 0
