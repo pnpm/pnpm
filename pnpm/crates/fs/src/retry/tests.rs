@@ -1,6 +1,7 @@
 use super::{
-    RetryTiming, is_transient_file_lock_error, remove_dir_all_with_retry, rename_with_retry,
-    retry_fs_operation, retry_fs_operation_with_timing,
+    ERROR_LOCK_VIOLATION, ERROR_SHARING_VIOLATION, RetryTiming, is_transient_file_lock_error,
+    remove_dir_all_with_retry, rename_with_retry, retry_fs_operation,
+    retry_fs_operation_with_timing,
 };
 use std::{cell::Cell, fs, io, time::Duration};
 use tempfile::tempdir;
@@ -74,9 +75,7 @@ fn transient_file_lock_error_classifier_is_windows_specific() {
         assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "{kind:?}");
     }
 
-    // `ERROR_SHARING_VIOLATION` and `ERROR_LOCK_VIOLATION` reach callers as
-    // `Uncategorized`, so they are only recognizable by raw OS error.
-    for code in [32, 33] {
+    for code in [ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION] {
         let error = io::Error::from_raw_os_error(code);
         assert_eq!(is_transient_file_lock_error(&error), cfg!(windows), "os error {code}");
     }
