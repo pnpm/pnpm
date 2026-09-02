@@ -307,7 +307,9 @@ function findStringScalar (node: Node, key: string): Scalar<string> | null {
 /**
  * Returns the repository-relative path of a `uses:` value that points into the
  * same repository, either the workspace-relative `./` form or GitHub's
- * self-repository `$/` form.
+ * self-repository `$/` form. Returns `null` for every other value, such as an
+ * `owner/repo@ref` or `docker://` reference, which is left to
+ * `parseActionReference`.
  */
 function parseLocalReference (value: string): string | null {
   return value.startsWith('./') || value.startsWith('$/') ? value.slice(2) : null
