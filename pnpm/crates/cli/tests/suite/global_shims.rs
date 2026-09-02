@@ -616,6 +616,41 @@ fn native_shim_runs_the_global_executable_fallback() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("native-fallback"));
 }
 
+/// A shim an earlier pnpm 12 wrote for the package is migrated before the
+/// slot check, so re-adding the package repairs it instead of reporting a
+/// conflict.
+#[cfg(unix)]
+#[test]
+fn adding_a_shim_migrates_the_legacy_shim_for_the_same_package() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    let project = root.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    let global_bin = root.path().join("pnpm-home").join("bin");
+    fs::create_dir_all(&global_bin).unwrap();
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
+    fs::write(&dispatcher, "#!/bin/sh\nexit 1\n").unwrap();
+    let legacy = global_bin.join("yarn");
+    fs::write(
+        &legacy,
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
+    )
+    .unwrap();
+    fs::set_permissions(&legacy, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let added = pnpm_command(&root, &project).with_args(["shim", "add", "yarn"]).output().unwrap();
+
+    assert!(stdout_of(&added).contains("yarn, yarnpkg"));
+    assert_eq!(fs::read(global_bin.join(".pnpm-shim-v1-yarn-target")).unwrap(), b"pkg:yarn");
+    assert_eq!(
+        fs::metadata(&legacy).unwrap().len(),
+        fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len(),
+        "the legacy shell shim must have become the executable",
+    );
+    assert!(!dispatcher.exists());
+}
+
 /// A `pnpm` invocation against an isolated pnpm home, for the commands
 /// that manage shims rather than dispatch through one.
 fn pnpm_command(root: &TempDir, cwd: &Path) -> Command {

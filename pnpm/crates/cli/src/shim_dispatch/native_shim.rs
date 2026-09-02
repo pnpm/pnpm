@@ -104,8 +104,16 @@ pub(crate) fn install_native_shim_from(
             remove_if_exists(&bin_dir.join(format!("{name}{flavor}")))?;
         }
     }
-    pnpm_fs::write_atomic(&target_file_path(bin_dir, name), &target.encode())?;
-    crate::executable_link::replace_executable(source, &executable_path(bin_dir, name))
+    let target_file = target_file_path(bin_dir, name);
+    let executable = executable_path(bin_dir, name);
+    pnpm_fs::write_atomic(&target_file, &target.encode())?;
+    crate::executable_link::replace_executable(source, &executable).inspect_err(|_| {
+        // A sidecar without an executable would list as a shim; a sidecar
+        // beside an older executable is a live shim with its new target.
+        if !executable.exists() {
+            let _ = fs::remove_file(&target_file);
+        }
+    })
 }
 
 /// Remove the shim `name` and its sidecar. A missing shim is not an error.
@@ -217,7 +225,9 @@ pub(crate) fn is_legacy_context_aware_shim(path: &Path) -> bool {
 /// Windows `.cmd` and `.ps1` siblings are removed with it.
 fn legacy_shim_target(path: &Path) -> io::Result<Option<ShimTarget>> {
     let metadata = fs::symlink_metadata(path)?;
-    if !metadata.is_file() {
+    // A shell shim is a few hundred bytes; the native shims and other
+    // executables in the bin dir are ruled out by size without a read.
+    if !metadata.is_file() || metadata.len() > MAX_LEGACY_SHIM_BYTES {
         return Ok(None);
     }
     let mut bytes = Vec::new();

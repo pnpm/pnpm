@@ -170,6 +170,9 @@ async fn add(
     fs::create_dir_all(bin_dir)
         .into_diagnostic()
         .wrap_err_with(|| format!("create {}", bin_dir.display()))?;
+    // A shim an earlier release wrote for the same package is only
+    // recognized as its own once migrated, so migrate before the slot check.
+    migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     let mut report = String::new();
     for package in packages {
         let bins = bins_of(config, package).await?;
@@ -183,7 +186,6 @@ async fn add(
                 ShimError::BinConflict { package: package.clone(), bin: bin.clone() }.into()
             );
         }
-        migrate_legacy_shims(bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
         publish_virtual_shims(&VirtualShimPublication { config, bin_dir, package, bins: &bins })?;
         writeln!(report, "Added {} for {package}", bins.join(", ")).unwrap();
     }
