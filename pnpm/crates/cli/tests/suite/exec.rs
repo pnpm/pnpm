@@ -311,7 +311,7 @@ fn exec_preserves_a_detached_process_after_success_when_node_launches_pnpm() {
     eprintln!("DETACHED MARKER EXISTS: {marker_exists}");
     assert!(
         marker_exists,
-        "the detached process should survive a successful pnpm exec launched from Node"
+        "the detached process should survive a successful pnpm exec launched from Node",
     );
 
     drop(root);
