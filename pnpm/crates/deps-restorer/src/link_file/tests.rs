@@ -141,6 +141,31 @@ fn eexist_does_not_widen_non_exec_mode() {
     assert_eq!(dst_mode, 0o600, "non-exec EEXIST target must not gain exec bits");
 }
 
+/// A dangling symlink squatting at an executable entry's path must
+/// keep failing the import: the syscall reports EEXIST for the dirent,
+/// the exec-bit re-assertion opens through the symlink and gets
+/// `NotFound`, and no concurrent writer will ever heal it — unlike a
+/// target that truly vanished, whose remover writes an equivalent file.
+#[test]
+#[cfg(unix)]
+fn eexist_recovery_rejects_a_dangling_symlink_target() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dst = tmp.path().join("dst");
+    std::os::unix::fs::symlink(tmp.path().join("missing-target"), &dst).unwrap();
+
+    import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &src,
+        &dst,
+    )
+    .expect_err("a dangling symlink at the target is corruption, not a concurrent writer");
+}
+
 /// Hardlinking in the same directory on the same filesystem works on
 /// every mainstream OS the project supports.
 #[test]

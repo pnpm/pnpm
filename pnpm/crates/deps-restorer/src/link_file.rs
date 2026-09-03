@@ -253,11 +253,24 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
                 // replace it again before this chmod lands. Whoever
                 // unlinked the path writes an equivalent
                 // content-addressed file and restores its exec bit in
-                // turn, so `NotFound` means another writer finished
-                // the job — the same tolerance the bin-shim chmod
-                // applies (`chmod_tolerating_removal` in
-                // `pnpm-cmd-shim`, pnpm/pnpm#14353).
-                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                // turn, so `NotFound` with the dirent actually gone
+                // means another writer finished the job — the same
+                // tolerance the bin-shim chmod applies
+                // (`chmod_tolerating_removal` in `pnpm-cmd-shim`,
+                // pnpm/pnpm#14353). The dirent check keeps the
+                // dangling-symlink detection this recovery is
+                // responsible for: a symlink squatting at the path
+                // also opens as `NotFound`, but its dirent is still
+                // there and no concurrent writer will heal it.
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        && matches!(
+                            fs::symlink_metadata(target_link),
+                            Err(ref stat_error) if stat_error.kind() == io::ErrorKind::NotFound,
+                        ) =>
+                {
+                    Ok(())
+                }
                 Err(error) => Err(LinkFileError::Import {
                     from: source_file.to_path_buf(),
                     to: target_link.to_path_buf(),
