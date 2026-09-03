@@ -5,12 +5,16 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { linkBins } from '@pnpm/bins.linker'
+import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { STORE_VERSION } from '@pnpm/constants'
+import { iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import type { PnpmError } from '@pnpm/error'
+import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
-import { getRegisteredProjects } from '@pnpm/store.controller'
+import { getRegisteredProjects, type StoreController } from '@pnpm/store.controller'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import type { DepPath, ProjectId } from '@pnpm/types'
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 
@@ -28,10 +32,23 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall, repairStaleEngineBins } = await import('@pnpm/engine.pm.commands')
+const actualGlobalCommands = await import('@pnpm/global.commands')
+let freshNativePnpmVersion: string | undefined
+jest.unstable_mockModule('@pnpm/global.commands', () => ({
+  ...actualGlobalCommands,
+  installGlobalPackages: async (...args: Parameters<typeof actualGlobalCommands.installGlobalPackages>): Promise<void> => {
+    if (freshNativePnpmVersion == null) {
+      await actualGlobalCommands.installGlobalPackages(...args)
+      return
+    }
+    seedNativePnpmPackage(args[0].dir, freshNativePnpmVersion)
+  },
+}))
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, installPnpmToStore, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
+  freshNativePnpmVersion = undefined
   await setupMockAgent()
   getMockAgent().enableNetConnect()
 })
@@ -1723,72 +1740,143 @@ describe('assertPnpmRuns', () => {
   })
 })
 
-describe('repairStaleEngineBins', () => {
-  const platform = process.platform
-  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const libcFamily = familySync()
-  const fakeNativeBinary = Buffer.concat([Buffer.from([0x7f]), Buffer.from('ELF fake pnpm binary')])
-  const placeholder = '#!/usr/bin/env node\nconsole.log("placeholder")\n'
+describe('native pnpm shims', () => {
+  test('a fresh native install creates a launcher for the native binary', async () => {
+    const opts = prepare()
+    freshNativePnpmVersion = '12.3.1'
 
-  async function prepareEngineDir (binContent: string | Buffer) {
-    const dir = tempDir(false)
-    const pkgDir = path.join(dir, 'node_modules', 'pnpm')
-    fs.mkdirSync(pkgDir, { recursive: true })
-    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
-      name: 'pnpm',
-      version: '12.0.0',
-      bin: { pnpm: 'pnpm' },
-    }))
-    fs.writeFileSync(path.join(pkgDir, 'pnpm'), binContent)
-    const binDir = path.join(dir, 'bin')
-    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
-    return { dir, pkgDir, binDir }
-  }
+    const result = await installPnpm('12.3.1', opts)
 
-  test('regenerates a shim that would run the native binary through node', async () => {
-    const { dir, binDir } = await prepareEngineDir(placeholder)
-    const platformDir = path.join(dir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, libcFamily))
-    fs.mkdirSync(platformDir, { recursive: true })
-    fs.writeFileSync(path.join(platformDir, executable), fakeNativeBinary)
-    expect(linkExePlatformBinary(dir, 'pnpm')).toBe(true)
-    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toContain('exec node')
+    expect(result.alreadyExisted).toBe(false)
+    expectPnpmShimRunsNative(result.binDir)
+  })
+
+  test('concurrent cache hits repair a stale global launcher', async () => {
+    const opts = prepare()
+    const installDir = seedGlobalPnpm(opts, '12.3.1')
+    const binDir = await createStaleNativePnpmShim(installDir, '12.3.1')
     const unrelatedBin = path.join(binDir, 'unrelated')
     fs.writeFileSync(unrelatedBin, 'keep')
 
-    await repairStaleEngineBins(dir, 'pnpm', binDir)
+    const results = await Promise.all(Array.from({ length: 8 }, async () => installPnpm('12.3.1', opts)))
 
-    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).not.toContain('exec node')
+    expect(results.every(({ alreadyExisted }) => alreadyExisted)).toBe(true)
+    expectPnpmShimRunsNative(binDir)
     expect(fs.readFileSync(unrelatedBin, 'utf8')).toBe('keep')
+    const repairedInode = fs.statSync(path.join(binDir, 'pnpm')).ino
+    await installPnpm('12.3.1', opts)
+    expect(fs.statSync(path.join(binDir, 'pnpm')).ino).toBe(repairedInode)
   })
 
-  test('leaves the shims of a JS engine untouched', async () => {
-    const { dir, binDir } = await prepareEngineDir(placeholder)
-    const before = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
-    expect(before).toContain('exec node')
+  test('a cached native store install repairs its stale launcher', async () => {
+    const version = '12.3.1'
+    const storeDir = tempDir(false)
+    const envLockfile = createPnpmEnvLockfile(version)
+    const baseDir = pnpmGvsPath(envLockfile, version, storeDir)
+    const binDir = await createStaleNativePnpmShim(baseDir, version)
 
-    await repairStaleEngineBins(dir, 'pnpm', binDir)
+    const result = await installPnpmToStore(version, {
+      envLockfile,
+      storeController: {} as StoreController,
+      storeDir,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDirMaxLength: 120,
+      trustedKeys: [],
+    })
 
-    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toBe(before)
+    expect(result.binDir).toBe(binDir)
+    expectPnpmShimRunsNative(binDir)
   })
 
-  test('leaves the shims of a healthy native engine untouched', async () => {
-    const { dir, binDir } = await prepareEngineDir(fakeNativeBinary)
-    const before = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
-    expect(before).not.toContain('exec node')
+  test('does not migrate native launchers from before pnpm 12.3', async () => {
+    const opts = prepare()
+    const installDir = seedGlobalPnpm(opts, '12.2.0')
+    const binDir = await createStaleNativePnpmShim(installDir, '12.2.0')
+    const shimPath = path.join(binDir, 'pnpm')
+    const staleShim = fs.readFileSync(shimPath, 'utf8')
+    expect(staleShim).toContain('exec node')
 
-    await repairStaleEngineBins(dir, 'pnpm', binDir)
+    await installPnpm('12.2.0', opts)
 
-    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toBe(before)
-  })
-
-  test('recreates a missing pnpm shim', async () => {
-    const { dir, binDir } = await prepareEngineDir(fakeNativeBinary)
-    fs.rmSync(path.join(binDir, 'pnpm'))
-
-    await repairStaleEngineBins(dir, 'pnpm', binDir)
-
-    expect(fs.existsSync(path.join(binDir, 'pnpm'))).toBe(true)
-    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).not.toContain('exec node')
+    expect(fs.readFileSync(shimPath, 'utf8')).toBe(staleShim)
   })
 })
+
+function seedNativePnpmPackage (installDir: string, version: string): void {
+  const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: version } }))
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'pnpm',
+    version,
+    bin: { pnpm: 'pnpm' },
+  }))
+  fs.writeFileSync(path.join(pkgDir, 'pnpm'), '#!/usr/bin/env node\nprocess.exit(0)\n')
+
+  const platform = process.platform
+  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  const platformDir = path.join(installDir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, familySync()))
+  fs.mkdirSync(platformDir, { recursive: true })
+  fs.copyFileSync(platform === 'win32' ? process.execPath : '/usr/bin/true', path.join(platformDir, executable))
+}
+
+async function createStaleNativePnpmShim (installDir: string, version: string): Promise<string> {
+  seedNativePnpmPackage(installDir, version)
+  const binDir = path.join(installDir, 'bin')
+  await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: () => {} })
+  expect(linkExePlatformBinary(installDir, 'pnpm')).toBe(true)
+  return binDir
+}
+
+function expectPnpmShimRunsNative (binDir: string): void {
+  const shim = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
+  expect(shim).not.toContain('exec node')
+  expect(spawn.sync(path.join(binDir, 'pnpm'), ['--version']).status).toBe(0)
+}
+
+function createPnpmEnvLockfile (version: string): EnvLockfile {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        configDependencies: {},
+        packageManagerDependencies: {
+          pnpm: { specifier: version, version },
+        },
+      },
+    },
+    packages: {
+      [`pnpm@${version}`]: { resolution: { integrity: 'sha512-pnpm' } },
+    },
+    snapshots: {
+      [`pnpm@${version}`]: {},
+    },
+  } as unknown as EnvLockfile
+}
+
+function pnpmGvsPath (envLockfile: EnvLockfile, version: string, storeDir: string): string {
+  const depPath = `pnpm@${version}` as DepPath
+  const lockfile: LockfileObject = {
+    lockfileVersion: envLockfile.lockfileVersion,
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: { pnpm: version },
+        dependencies: { pnpm: version },
+      },
+    },
+    packages: {
+      [depPath]: {
+        ...envLockfile.snapshots[depPath],
+        ...envLockfile.packages[depPath],
+      },
+    },
+  }
+  const graph = lockfileToDepGraph(lockfile)
+  const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
+  const allowBuild = createAllowBuildFunction({ allowBuilds: { '@pnpm/exe': true, pnpm: true } })
+  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild })) {
+    if (pkgMeta.name === 'pnpm') return path.join(storeDir, 'links', hash)
+  }
+  throw new Error('Could not find pnpm in lockfile')
+}

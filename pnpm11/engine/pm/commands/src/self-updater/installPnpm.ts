@@ -1,4 +1,5 @@
 import type { SpawnSyncReturns } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -147,8 +148,9 @@ export async function installPnpmToStore (
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
     if (!fs.existsSync(binDir)) {
       await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
+      if (pnpmVersionNeedsShimRepair(pnpmVersion)) markPnpmShimReady(binDir)
     } else if (pnpmVersionNeedsShimRepair(pnpmVersion)) {
-      await repairStaleEngineBins(pnpmGvsPath, pkgName, binDir)
+      await ensurePnpmShimReady(pnpmGvsPath, pkgName, binDir)
     }
     return { binDir }
   }
@@ -175,6 +177,7 @@ export async function installPnpmToStore (
 
     // Now the GVS should be populated — create bins alongside the GVS entry
     await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
+    if (pnpmVersionNeedsShimRepair(pnpmVersion)) markPnpmShimReady(binDir)
 
     return { binDir }
   } finally {
@@ -233,7 +236,7 @@ async function installPnpmToGlobalDir (
   if (existingInstallDir != null) {
     const binDir = path.join(existingInstallDir, 'bin')
     if (pnpmVersionNeedsShimRepair(version)) {
-      await repairStaleEngineBins(existingInstallDir, pkgName, binDir)
+      await ensurePnpmShimReady(existingInstallDir, pkgName, binDir)
     }
     return { alreadyExisted: true, installDir: existingInstallDir, binDir }
   }
@@ -267,6 +270,7 @@ async function installPnpmToGlobalDir (
     }
 
     await linkPnpmBins(installDir, pkgName, binDir)
+    if (pnpmVersionNeedsShimRepair(version)) markPnpmShimReady(binDir)
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.
@@ -484,6 +488,20 @@ export function exePlatformPkgDirNameNext (
   return `exe.${platform}-${normalizedArch}${libcSuffix}`
 }
 
+async function linkPnpmBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
+  linkExePlatformBinary(baseDir, pkgName)
+  await relinkBinsAtomically(baseDir, binDir)
+}
+
+async function ensurePnpmShimReady (baseDir: string, pkgName: string, binDir: string): Promise<void> {
+  if (fs.existsSync(pnpmShimReadyMarker(binDir))) return
+  const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
+  if (pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) {
+    await relinkBinsAtomically(baseDir, binDir)
+  }
+  markPnpmShimReady(binDir)
+}
+
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
 // scripts are disabled during pnpm's own installs, so replicate it here — trying
 // the legacy and the newer `exe.<target>` platform-package names.
@@ -544,34 +562,36 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     wrapperPkg.bin.pnx = 'pnx.exe'
     // Temp file + rename, not in-place: package.json is hard-linked from the
     // content-addressable store, so writing in place would mutate the shared blob.
-    const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
-    try {
-      fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
-      fs.renameSync(tempPkgJsonPath, wrapperPkgJsonPath)
-    } catch (err: unknown) {
-      try {
-        fs.rmSync(tempPkgJsonPath, { force: true })
-      } catch {}
-      throw err
-    }
+    replaceFileAtomically(wrapperPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
   }
   return true
 }
 
-async function linkPnpmBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
-  if (linkExePlatformBinary(baseDir, pkgName)) {
-    // linkBins skips a shim that still points at the same path, even when that
-    // path changed from pnpm's JS placeholder to the native executable.
-    fs.rmSync(path.join(binDir, 'pnpm'), { force: true })
+async function relinkBinsAtomically (baseDir: string, binDir: string): Promise<void> {
+  const tempBinDir = path.join(
+    path.dirname(binDir),
+    `.${path.basename(binDir)}.${process.pid}.${randomUUID()}.tmp`
+  )
+  try {
+    fs.mkdirSync(tempBinDir, { recursive: true })
+    await linkBins(path.join(baseDir, 'node_modules'), tempBinDir, { warn: noop })
+    fs.mkdirSync(binDir, { recursive: true })
+    for (const entry of fs.readdirSync(tempBinDir)) {
+      fs.renameSync(path.join(tempBinDir, entry), path.join(binDir, entry))
+    }
+  } finally {
+    fs.rmSync(tempBinDir, { recursive: true, force: true })
   }
-  await linkBins(path.join(baseDir, 'node_modules'), binDir, { warn: noop })
 }
 
-/** Repairs an engine shim generated before its native binary was linked. */
-export async function repairStaleEngineBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
-  const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
-  if (!pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) return
-  await linkPnpmBins(baseDir, pkgName, binDir)
+const PNPM_SHIM_READY_MARKER = '.pnpm-shim-v1'
+
+function pnpmShimReadyMarker (binDir: string): string {
+  return path.join(binDir, PNPM_SHIM_READY_MARKER)
+}
+
+function markPnpmShimReady (binDir: string): void {
+  replaceFileAtomically(pnpmShimReadyMarker(binDir), '')
 }
 
 function pnpmVersionNeedsShimRepair (version: string): boolean {
@@ -611,15 +631,31 @@ function isShebangLessExecutable (file: string): boolean {
 }
 
 function forceLink (src: string, dest: string): void {
+  const tempDest = uniqueTempPath(dest)
   try {
-    fs.unlinkSync(dest)
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
-      throw err
-    }
+    fs.linkSync(src, tempDest)
+    fs.chmodSync(tempDest, 0o755)
+    fs.renameSync(tempDest, dest)
+  } finally {
+    fs.rmSync(tempDest, { force: true })
   }
-  fs.linkSync(src, dest)
-  fs.chmodSync(dest, 0o755)
+}
+
+function replaceFileAtomically (dest: string, content: string): void {
+  const tempDest = uniqueTempPath(dest)
+  try {
+    fs.writeFileSync(tempDest, content)
+    fs.renameSync(tempDest, dest)
+  } finally {
+    fs.rmSync(tempDest, { force: true })
+  }
+}
+
+function uniqueTempPath (dest: string): string {
+  return path.join(
+    path.dirname(dest),
+    `.${path.basename(dest)}.${process.pid}.${randomUUID()}.tmp`
+  )
 }
 
 function buildLockfileFromEnvLockfile (
