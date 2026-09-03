@@ -96,7 +96,7 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         // shapes altogether; see `PrefetchingResolver::maybe_kickoff_download`.
         let revision_addressed = matches!(
             &package.result.resolution,
-            LockfileResolution::Tarball(tarball) if tarball.revision.is_some()
+            LockfileResolution::Tarball(tarball) if tarball.revision.is_some(),
         );
         if revision_addressed
             || package_url.starts_with("file:")
