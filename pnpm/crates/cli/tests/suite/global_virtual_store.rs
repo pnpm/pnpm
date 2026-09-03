@@ -237,7 +237,22 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     assert!(gvs_root(&store_dir).is_dir(), "the GVS must survive the node_modules wipe");
 
     eprintln!("Frozen reinstall — must reattach from the warm GVS...");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let output = pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
+        .output()
+        .expect("run the frozen reinstall");
+    assert_success(&output);
+    let added: Vec<u64> = ndjson_records(&output)
+        .iter()
+        .filter(|record| record["name"] == "pnpm:stats")
+        .filter_map(|record| record["added"].as_u64())
+        .collect();
+    assert_eq!(
+        added,
+        vec![0],
+        "a wiped node_modules loses the current lockfile, but the content-addressed \
+         GVS slots are still authoritative, so nothing may be re-materialized",
+    );
 
     assert_eq!(
         hash_dirs(&version_dir),

@@ -512,6 +512,7 @@ impl CreateVirtualStore<'_> {
             allow_build_policy,
             skipped,
             link_dependencies: !is_hoisted && config.symlink,
+            force: config.force,
             is_hoisted,
             include_optional_dependencies,
             cache_keys: &mut snapshot_cache_keys,

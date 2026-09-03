@@ -1,7 +1,21 @@
-use super::{optional_children_match, optional_children_match_with};
-use crate::{CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout};
-use pnpm_lockfile::{PackageKey, PkgName, SnapshotDepRef, SnapshotEntry};
-use std::{collections::HashMap, fs, io};
+use super::{
+    SnapshotPlan, SnapshotPlanInputs, optional_children_match, optional_children_match_with,
+    plan_snapshots,
+};
+use crate::{
+    AllowBuildPolicy, CreateVirtualStoreError, SkippedSnapshots, VirtualStoreLayout,
+    create_virtual_store::SnapshotCacheKey,
+};
+use pnpm_lockfile::{
+    DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    RegistryResolution, SnapshotDepRef, SnapshotEntry,
+};
+use pnpm_reporter::SilentReporter;
+use std::{
+    collections::{HashMap, HashSet},
+    fs, io,
+    path::Path,
+};
 
 #[test]
 fn optional_child_probe_propagates_io_errors() {
@@ -99,5 +113,179 @@ fn invalid_optional_child_entries_do_not_match() {
             true,
         )
         .expect("inspect non-directory optional child"),
+    );
+}
+
+const DUMMY_SHA512: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+
+fn registry_metadata() -> PackageMetadata {
+    PackageMetadata {
+        resolution: LockfileResolution::Registry(RegistryResolution {
+            integrity: DUMMY_SHA512.parse().expect("parse integrity"),
+            revision: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    }
+}
+
+struct PlanFixture {
+    snapshots: HashMap<PackageKey, SnapshotEntry>,
+    packages: HashMap<PackageKey, PackageMetadata>,
+    layout: VirtualStoreLayout,
+}
+
+impl PlanFixture {
+    fn gvs(store_root: &Path, metadata: PackageMetadata) -> Self {
+        let snapshot_key: PackageKey = "foo@1.0.0".parse().expect("parse snapshot key");
+        let snapshots = HashMap::from([(snapshot_key.clone(), SnapshotEntry::default())]);
+        let packages = HashMap::from([(snapshot_key, metadata)]);
+        let layout = VirtualStoreLayout::global(
+            store_root.join("links"),
+            120,
+            None,
+            Some(&snapshots),
+            Some(&packages),
+            None,
+            None,
+        );
+        PlanFixture { snapshots, packages, layout }
+    }
+
+    fn snapshot_key(&self) -> &PackageKey {
+        self.snapshots.keys().next().expect("fixture holds one snapshot")
+    }
+
+    fn materialize_slot(&self) {
+        let dir = self
+            .layout
+            .slot_dir(self.snapshot_key())
+            .join("node_modules")
+            .join(self.snapshot_key().name.to_string());
+        fs::create_dir_all(dir).expect("materialize the slot's package dir");
+    }
+
+    fn plan(&self, force: bool) -> SnapshotPlan<'_> {
+        let allow_build_policy = AllowBuildPolicy::new(HashSet::new(), HashSet::new(), false);
+        let mut cache_keys = self
+            .snapshots
+            .keys()
+            .map(|snapshot_key| {
+                (
+                    snapshot_key.clone(),
+                    Ok(SnapshotCacheKey {
+                        value: Some(format!("cache-key:{snapshot_key}")),
+                        is_git_hosted: false,
+                    }),
+                )
+            })
+            .collect();
+        plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
+            snapshots: &self.snapshots,
+            packages: &self.packages,
+            current_snapshots: None,
+            current_packages: None,
+            layout: &self.layout,
+            allow_build_policy: &allow_build_policy,
+            skipped: &SkippedSnapshots::default(),
+            link_dependencies: true,
+            force,
+            is_hoisted: false,
+            include_optional_dependencies: true,
+            cache_keys: &mut cache_keys,
+        })
+        .expect("plan snapshots")
+    }
+}
+
+#[test]
+fn gvs_existing_slot_is_skipped_without_a_current_lockfile() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+    fixture.materialize_slot();
+
+    let plan = fixture.plan(false);
+
+    assert!(
+        plan.survivors.is_empty(),
+        "an existing content-addressed slot needs no re-materialization",
+    );
+    assert_eq!(plan.skipped_entries.len(), 1);
+    let (snapshot_key, _, cache_key) = &plan.skipped_entries[0];
+    assert_eq!(*snapshot_key, fixture.snapshot_key());
+    assert!(
+        cache_key.is_some(),
+        "the skipped entry must keep its cache key so its store-index rows still feed the build phase",
+    );
+}
+
+#[test]
+fn gvs_missing_slot_survives_without_a_current_lockfile() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+
+    let plan = fixture.plan(false);
+
+    assert_eq!(plan.survivors.len(), 1, "a missing slot must be materialized");
+    assert!(plan.skipped_entries.is_empty());
+}
+
+#[test]
+fn force_defeats_the_gvs_existing_slot_skip() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+    fixture.materialize_slot();
+
+    let plan = fixture.plan(true);
+
+    assert_eq!(plan.survivors.len(), 1, "--force must re-materialize an existing slot");
+}
+
+#[test]
+fn gvs_directory_resolution_is_never_skipped_by_slot_existence() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let metadata = PackageMetadata {
+        resolution: LockfileResolution::Directory(DirectoryResolution {
+            directory: "local-foo".to_string(),
+        }),
+        ..registry_metadata()
+    };
+    let fixture = PlanFixture::gvs(temp_dir.path(), metadata);
+    fixture.materialize_slot();
+
+    let plan = fixture.plan(false);
+
+    assert_eq!(
+        plan.survivors.len(),
+        1,
+        "a directory resolution's source is mutable, so its slot must be re-imported",
+    );
+}
+
+#[test]
+fn existing_slot_without_gvs_still_survives_without_a_current_lockfile() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let gvs_fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+    let fixture = PlanFixture {
+        layout: VirtualStoreLayout::legacy(temp_dir.path().join("virtual-store"), 120),
+        ..gvs_fixture
+    };
+    fixture.materialize_slot();
+
+    let plan = fixture.plan(false);
+
+    assert_eq!(
+        plan.survivors.len(),
+        1,
+        "a project-local slot is not content-addressed, so existence alone must not skip it",
     );
 }

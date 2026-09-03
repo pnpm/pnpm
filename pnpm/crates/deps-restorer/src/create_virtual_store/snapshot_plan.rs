@@ -14,25 +14,33 @@ use std::{
     path::Path,
 };
 
-pub(super) struct SnapshotPlanInputs<'a> {
+/// `'a` is the lifetime of the lockfile maps the resulting
+/// [`SnapshotPlan`] borrows from; `'b` covers the inputs the plan pass
+/// only reads while running.
+pub(super) struct SnapshotPlanInputs<'a, 'b> {
     pub snapshots: &'a HashMap<PackageKey, SnapshotEntry>,
     pub packages: &'a HashMap<PackageKey, PackageMetadata>,
     /// What the previous install materialized. `None` on a first
     /// install; when present, a snapshot whose wiring and integrity are
     /// unchanged *and* whose slot is still on disk is left alone.
-    pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub layout: &'a VirtualStoreLayout,
-    pub allow_build_policy: &'a crate::AllowBuildPolicy,
+    pub current_snapshots: Option<&'b HashMap<PackageKey, SnapshotEntry>>,
+    pub current_packages: Option<&'b HashMap<PackageKey, PackageMetadata>>,
+    pub layout: &'b VirtualStoreLayout,
+    pub allow_build_policy: &'b crate::AllowBuildPolicy,
     /// Snapshots the installability pass ruled out on this host.
-    pub skipped: &'a SkippedSnapshots,
+    pub skipped: &'b SkippedSnapshots,
     pub link_dependencies: bool,
+    /// `--force` re-materializes every slot, so both skip paths — the
+    /// current-lockfile comparison (whose `current_snapshots` the
+    /// callers already null out under force) and the global-virtual-
+    /// store existence probe — are disabled.
+    pub force: bool,
     pub is_hoisted: bool,
     pub include_optional_dependencies: bool,
     /// One derivation `Result` per lockfile snapshot, taken by the
     /// entry that keeps it. See [`super::CasPrefetch::start`], which
     /// guarantees the every-snapshot coverage.
-    pub cache_keys: &'a mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    pub cache_keys: &'b mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 }
 
 /// The snapshots to install, the ones deliberately left alone, and the
@@ -40,10 +48,10 @@ pub(super) struct SnapshotPlanInputs<'a> {
 pub(super) struct SnapshotPlan<'a> {
     /// Snapshots this install materializes.
     pub survivors: Vec<SnapshotWithCacheKey<'a>>,
-    /// Snapshots the current-lockfile check skipped. They contribute no
-    /// link work, but their store-index rows still feed the build
-    /// phase's `is_built` gate, so a warm reinstall does not re-run
-    /// approved build scripts.
+    /// Snapshots the current-lockfile check or the global-virtual-store
+    /// existence probe skipped. They contribute no link work, but their
+    /// store-index rows still feed the build phase's `is_built` gate,
+    /// so a warm reinstall does not re-run approved build scripts.
     pub skipped_entries: Vec<SnapshotWithCacheKey<'a>>,
     pub marker_rebuilds: HashSet<PackageKey>,
     pub has_git_hosted_survivor: bool,
@@ -58,9 +66,9 @@ pub(super) struct SnapshotPlan<'a> {
 /// warm batch starts rather than several seconds into it. Skipped
 /// snapshots get a lenient pass — they are not being installed, and
 /// swallowing a per-snapshot error there costs only a prefetch row.
-pub(super) fn plan_snapshots<Reporter: self::Reporter>(
-    inputs: SnapshotPlanInputs<'_>,
-) -> Result<SnapshotPlan<'_>, CreateVirtualStoreError> {
+pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
+    inputs: SnapshotPlanInputs<'a, '_>,
+) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
     let SnapshotPlanInputs {
         snapshots,
         packages,
@@ -70,6 +78,7 @@ pub(super) fn plan_snapshots<Reporter: self::Reporter>(
         allow_build_policy,
         skipped,
         link_dependencies,
+        force,
         is_hoisted,
         include_optional_dependencies,
         cache_keys,
@@ -87,10 +96,11 @@ pub(super) fn plan_snapshots<Reporter: self::Reporter>(
         .iter()
         // Reason 1: installability skip. Drop entirely.
         .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
-        // Reason 2: current-lockfile skip. Drop survivors that already
-        // match the previous install. This is a fallible fold because a
-        // warm-slot lstat error must abort the install rather than quietly
-        // converting the slot into a rebuild on every run.
+        // Reason 2: warm-slot skip. Drop survivors that already match
+        // the previous install, or whose content-addressed global-
+        // virtual-store slot already exists. This is a fallible fold
+        // because a warm-slot lstat error must abort the install rather
+        // than quietly converting the slot into a rebuild on every run.
         .try_fold(Vec::new(), |mut entries, (snapshot_key, snapshot)| {
             let current_slot_matches = (|| -> Result<bool, CreateVirtualStoreError> {
                 // The hoisted linker writes no virtual-store slot, so
@@ -98,25 +108,35 @@ pub(super) fn plan_snapshots<Reporter: self::Reporter>(
                 if is_hoisted {
                     return Ok(false);
                 }
-                let Some(current_snapshots) = current_snapshots else { return Ok(false) };
-                let Some(current_snapshot) = current_snapshots.get(snapshot_key) else {
-                    return Ok(false);
-                };
                 let wanted_metadata = packages.get(&snapshot_key.without_peer());
-                // A `file:` dependency's source is mutable, so an
-                // unchanged lockfile is no evidence its slot is current.
+                // A `file:` dependency's source is mutable, so neither
+                // an unchanged lockfile nor an existing slot is
+                // evidence its copy is current.
                 if matches!(
                     wanted_metadata.map(|meta| &meta.resolution),
                     Some(LockfileResolution::Directory(_)),
                 ) {
                     return Ok(false);
                 }
-                if !snapshot_deps_equal(current_snapshot, snapshot) {
-                    return Ok(false);
-                }
-                let current_metadata =
-                    current_packages.and_then(|p| p.get(&snapshot_key.without_peer()));
-                if !integrity_equal(current_metadata, wanted_metadata) {
+                let current_entry_unchanged = current_snapshots
+                    .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
+                    .is_some_and(|current_snapshot| {
+                        snapshot_deps_equal(current_snapshot, snapshot)
+                            && integrity_equal(
+                                current_packages.and_then(|p| p.get(&snapshot_key.without_peer())),
+                                wanted_metadata,
+                            )
+                    });
+                // A global-virtual-store slot path is content-addressed:
+                // the graph hash covers the snapshot's wiring, integrity,
+                // and engine, so an existing slot is current even when no
+                // current lockfile survives — a wiped `node_modules`
+                // takes `<virtual_store_dir>/lock.yaml` with it, and
+                // without this probe such a restore re-links every slot
+                // the store already holds (pnpm/pnpm#14510). Mirrors the
+                // GVS fast path in pnpm's `lockfileToDepGraph`.
+                let gvs_slot_is_authoritative = layout.enable_global_virtual_store() && !force;
+                if !current_entry_unchanged && !gvs_slot_is_authoritative {
                     return Ok(false);
                 }
                 let dir = layout
@@ -124,10 +144,15 @@ pub(super) fn plan_snapshots<Reporter: self::Reporter>(
                     .join("node_modules")
                     .join(snapshot_key.name.to_string());
                 if !dir.is_dir() {
-                    Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
-                        level: LogLevel::Debug,
-                        missing: dir.to_string_lossy().into_owned(),
-                    }));
+                    // Only a slot the current lockfile vouches for is
+                    // "broken" when missing; a mere GVS-existence miss is
+                    // a fresh materialization.
+                    if current_entry_unchanged {
+                        Reporter::emit(&LogEvent::BrokenModules(BrokenModulesLog {
+                            level: LogLevel::Debug,
+                            missing: dir.to_string_lossy().into_owned(),
+                        }));
+                    }
                     return Ok(false);
                 }
                 if !optional_children_match(
