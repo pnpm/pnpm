@@ -678,13 +678,26 @@ where
     assign_level_owners(ctx, seeds.iter_mut())?;
     let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
+    let mut level = 0usize;
     while !frontier.is_empty() {
+        let level_started = std::time::Instant::now();
+        let frontier_len = frontier.len();
         let seeded = frontier
             .into_iter()
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
         frontier = settle_level(ctx, seeded)?;
+        level += 1;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "resolve_level",
+            level,
+            parents = frontier_len,
+            next = frontier.len(),
+            elapsed_ms = level_started.elapsed().as_millis() as u64,
+            "phase complete"
+        );
     }
     Ok(direct)
 }
@@ -1489,15 +1502,14 @@ fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
     }
 }
 
-/// Speculatively warm a freshly-seeded node's children resolutions so
-/// their packuments download while the sibling level's barrier waits
-/// for its slowest member. Results are discarded — the real picks run
-/// in the walk phase with the level's preferred-versions overlay and
-/// hit the warm metadata caches — and errors are swallowed: a
-/// speculative fetch must never fail the install (the real resolve
-/// will surface it). Recovers the cross-level pipelining the
-/// postponed-resolution barrier otherwise serializes; pure overlap,
-/// no behavioral effect.
+/// Speculatively warm a freshly-seeded node's whole subtree so its
+/// packuments download while the level barriers wait for their
+/// slowest members. Results are discarded — the real picks run in the
+/// walk phase with the level's preferred-versions overlay and hit the
+/// warm metadata caches — and errors are swallowed: a speculative
+/// fetch must never fail the install (the real resolve will surface
+/// it). Recovers the cross-level pipelining the postponed-resolution
+/// barrier otherwise serializes; pure overlap, no behavioral effect.
 pub(super) async fn warm_children_resolutions<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -1518,25 +1530,52 @@ pub(super) async fn warm_children_resolutions<Chain>(
     if pending.is_link || !claim_children_warmup(ctx, &pending.id) {
         return;
     }
-    let Ok(specs) = extract_children(&pending.result) else { return };
-    let specs = if pending.peer_shadowed.is_empty() {
+    warm_result_children(
+        ctx,
+        resolver,
+        &pending.result,
+        &pending.peer_shadowed,
+        pending.resolves_children_through_catalogs,
+        pending.depth,
+    )
+    .await;
+}
+
+/// Warm every child of `result`, then recurse into each child the
+/// moment it resolves, so a subtree's metadata is requested as soon
+/// as its parent's arrives rather than one level per barrier. The
+/// per-package-id claim ([`claim_children_warmup`]) bounds the
+/// recursion to one visit per package across the whole walk, real
+/// seeds included, so the fan-out is the graph's size, not its path
+/// count.
+#[async_recursion]
+async fn warm_result_children<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    peer_shadowed: &HashSet<String>,
+    through_catalogs: bool,
+    depth: i32,
+) where
+    Chain: Resolver + ?Sized,
+{
+    let Ok(specs) = extract_children(result) else { return };
+    let specs = if peer_shadowed.is_empty() {
         specs
     } else {
         specs
             .into_iter()
-            .filter(|(name, _, optional, _)| *optional || !pending.peer_shadowed.contains(name))
+            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .collect()
     };
-    let specs = if let Some(catalogs) =
-        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
-    {
+    let specs = if let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) {
         let Ok(specs) = resolve_catalog_child_specs(specs, catalogs) else { return };
         specs
     } else {
         specs
     };
-    let opts = ctx.opts_for_depth(pending.depth + 1);
-    let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
+    let opts = ctx.opts_for_depth(depth + 1);
+    let declaring_dir = declaring_manifest_dir(ctx, result);
     specs
         .iter()
         .map(|(name, range, optional, injected)| {
@@ -1570,9 +1609,28 @@ pub(super) async fn warm_children_resolutions<Chain>(
                     None,
                     Vec::new(),
                     ctx.update_cache_scope(),
-                    is_update_target(ctx.update_scope(), &wanted, None, pending.depth + 1),
+                    is_update_target(ctx.update_scope(), &wanted, None, depth + 1),
                 );
-                let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
+                let Ok(child) =
+                    resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await
+                else {
+                    return;
+                };
+                let Ok(child_id) = build_pkg_id_with_patch_hash(ctx, &child).await else {
+                    return;
+                };
+                if child_id.starts_with("link:") || !claim_children_warmup(ctx, &child_id) {
+                    return;
+                }
+                warm_result_children(
+                    ctx,
+                    resolver,
+                    &child,
+                    &HashSet::default(),
+                    resolves_children_through_catalogs(&child),
+                    depth + 1,
+                )
+                .await;
             }
         })
         .pipe(future::join_all)
