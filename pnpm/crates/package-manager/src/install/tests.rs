@@ -1787,6 +1787,10 @@ async fn install_writes_workspace_state() {
 
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    pnpm_testing_utils::fs::set_mtime(
+        manifest.path(),
+        std::time::SystemTime::UNIX_EPOCH + Duration::new(1_700_000_000, 500_000),
+    );
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -1855,6 +1859,15 @@ async fn install_writes_workspace_state() {
         state.last_validated_timestamp > 0,
         "lastValidatedTimestamp should be populated, got {}",
         state.last_validated_timestamp,
+    );
+    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
+        .expect("manifest should have an mtime");
+    assert!(
+        !crate::optimistic_repeat_install::modified_at_or_after(
+            manifest_mtime,
+            state.last_validated_timestamp,
+        ),
+        "fresh install state should cover the validated manifest mtime",
     );
 
     // The state must record the project that pacquet just installed

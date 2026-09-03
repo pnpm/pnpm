@@ -114,12 +114,15 @@ pub(crate) fn validation_baseline_ms(
 ///
 /// The probe is an unnamed temporary file in the directory holding the
 /// workspace state — pnpm's own, on the volume the state write lands on
-/// — so nothing else can observe it and it needs no cleanup. `None` when
-/// it cannot be created or stat'd, leaving the caller with the
-/// mtime-derived baseline.
+/// — so nothing else can observe it and it needs no cleanup. The state
+/// directory is created first because a fresh install may be about to
+/// write it for the first time. `None` when it cannot be created or
+/// stat'd, leaving the caller with the mtime-derived baseline.
 pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
     let state_path = pnpm_workspace_state::get_file_path(workspace_root);
-    let probe = tempfile::tempfile_in(state_path.parent()?).ok()?;
+    let parent = state_path.parent()?;
+    fs::create_dir_all(parent).ok()?;
+    let probe = tempfile::tempfile_in(parent).ok()?;
     file_mtime_from_metadata(&probe.metadata().ok()?).map(|mtime| mtime.ms)
 }
 
