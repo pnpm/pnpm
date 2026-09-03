@@ -151,7 +151,6 @@ pub fn find_workspace_projects_no_check(
             message: err.to_string(),
         })
     };
-    let ignore_template = build_ignores(&mut IGNORE_PATTERNS.iter().copied())?;
     let dot_pruning_ignore_template =
         build_ignores(&mut IGNORE_PATTERNS.iter().copied().chain([DOT_COMPONENT_IGNORE_PATTERN]))?;
 
@@ -196,7 +195,6 @@ pub fn find_workspace_projects_no_check(
             match collect_pattern_manifests(
                 pattern,
                 workspace_root,
-                &ignore_template,
                 &dot_pruning_ignore_template,
                 &user_negations,
             ) {
@@ -266,7 +264,6 @@ pub fn find_workspace_projects_no_check(
 fn collect_pattern_manifests(
     pattern: &str,
     workspace_root: &Path,
-    ignore_template: &wax::Any<'_>,
     dot_pruning_ignore_template: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
@@ -276,7 +273,6 @@ fn collect_pattern_manifests(
             collect_manifests_in_children(
                 &workspace_root.join(parent),
                 workspace_root,
-                ignore_template,
                 user_negations,
                 &mut manifest_paths,
             )?;
@@ -286,7 +282,6 @@ fn collect_pattern_manifests(
             collect_literal_manifests_in(
                 &workspace_root.join(directory),
                 workspace_root,
-                ignore_template,
                 user_negations,
                 &mut manifest_paths,
             );
@@ -420,7 +415,6 @@ fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
 fn collect_manifests_in_children(
     parent: &Path,
     workspace_root: &Path,
-    built_in_ignores: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) -> Result<(), FindWorkspaceProjectsError> {
@@ -434,55 +428,43 @@ fn collect_manifests_in_children(
         {
             return Ok(());
         }
-        collect_manifests_in_child(
-            &entry.path(),
-            workspace_root,
-            built_in_ignores,
-            user_negations,
-            manifest_paths,
-        )
+        collect_candidate_manifests_in(&entry.path(), workspace_root, user_negations, manifest_paths);
+        Ok(())
     })
+}
+
+/// Record the child directory's manifest candidates without checking
+/// which exist: the read phase absorbs a candidate that is not there,
+/// so learning the answer here would pay a directory enumeration for
+/// what one failed open later reports for free.
+fn collect_candidate_manifests_in(
+    directory: &Path,
+    workspace_root: &Path,
+    user_negations: &wax::Any<'_>,
+    manifest_paths: &mut BTreeSet<PathBuf>,
+) {
+    for basename in PROJECT_MANIFEST_BASENAMES {
+        let manifest_path = directory.join(basename);
+        if !is_ignored_manifest(&manifest_path, workspace_root, user_negations) {
+            manifest_paths.insert(manifest_path);
+        }
+    }
 }
 
 fn collect_literal_manifests_in(
     directory: &Path,
     workspace_root: &Path,
-    built_in_ignores: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
     manifest_paths: &mut BTreeSet<PathBuf>,
 ) {
     for basename in PROJECT_MANIFEST_BASENAMES {
         let manifest_path = directory.join(basename);
         if manifest_path.is_file()
-            && !is_ignored_manifest(
-                &manifest_path,
-                workspace_root,
-                built_in_ignores,
-                user_negations,
-            )
+            && !is_ignored_manifest(&manifest_path, workspace_root, user_negations)
         {
             manifest_paths.insert(manifest_path);
         }
     }
-}
-
-fn collect_manifests_in_child(
-    directory: &Path,
-    workspace_root: &Path,
-    built_in_ignores: &wax::Any<'_>,
-    user_negations: &wax::Any<'_>,
-    manifest_paths: &mut BTreeSet<PathBuf>,
-) -> Result<(), FindWorkspaceProjectsError> {
-    for_each_directory_entry(directory, workspace_root, |entry| {
-        if !PROJECT_MANIFEST_BASENAMES.iter().any(|basename| entry.file_name() == *basename) {
-            return Ok(());
-        }
-        let manifest_path = entry.path();
-        if !is_ignored_manifest(&manifest_path, workspace_root, built_in_ignores, user_negations) {
-            manifest_paths.insert(manifest_path);
-        }
-        Ok(())
-    })
 }
 
 fn for_each_directory_entry(
@@ -523,11 +505,25 @@ fn workspace_walk_error(
 fn is_ignored_manifest(
     manifest_path: &Path,
     workspace_root: &Path,
-    built_in_ignores: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
 ) -> bool {
     let relative = manifest_path.strip_prefix(workspace_root).unwrap_or(manifest_path);
-    built_in_ignores.is_match(relative) || user_negations.is_match(relative)
+    has_always_ignored_component(relative) || user_negations.is_match(relative)
+}
+
+/// [`IGNORE_PATTERNS`] by hand: `**/node_modules/**` and
+/// `**/bower_components/**` hold exactly when some non-final component
+/// bears one of those names, and a manifest candidate's final component
+/// is always a manifest basename, so any-component equality answers the
+/// match without running the glob engine once per candidate.
+fn has_always_ignored_component(path: &Path) -> bool {
+    use std::path::Component;
+    path.components().any(|component| {
+        matches!(
+            component,
+            Component::Normal(name) if name == "node_modules" || name == "bower_components"
+        )
+    })
 }
 
 /// Strip the pattern's leading `../` components, walking `workspace_root`
