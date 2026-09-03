@@ -793,68 +793,92 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
 /// (`globalVirtualStore.ts:411`).
 #[test]
 fn needs_build_marker_triggers_reimport_on_next_install() {
-    let CommandTempCwd { root, workspace, npmrc_info, .. } =
-        CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    for with_installability_constraint in [false, true] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
-        &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
-    );
-    let workspace_settings = format!(
-        "{}nodeVersion: 20.0.0\nsideEffectsCache: false\n",
-        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
-    );
-    set_gvs_workspace_yaml(&workspace, &workspace_settings);
+        let dependencies = if with_installability_constraint {
+            let constraint = workspace.join("constraint");
+            fs::create_dir(&constraint).expect("create constrained dependency");
+            fs::write(
+                constraint.join("package.json"),
+                serde_json::json!({
+                    "name": "constraint",
+                    "version": "1.0.0",
+                    "engines": { "node": ">=18" },
+                })
+                .to_string(),
+            )
+            .expect("write constrained dependency manifest");
+            serde_json::json!({
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "constraint": "file:./constraint",
+            })
+        } else {
+            serde_json::json!({
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            })
+        };
+        write_manifest(&workspace, &dependencies);
+        let workspace_settings = format!(
+            "{}nodeVersion: 20.0.0\nsideEffectsCache: false\n",
+            allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
+        );
+        set_gvs_workspace_yaml(&workspace, &workspace_settings);
 
-    eprintln!("First install, with the build approved...");
-    pacquet(&workspace).with_arg("install").assert().success();
+        eprintln!("First install, with the build approved...");
+        pacquet(&workspace).with_arg("install").assert().success();
 
-    let version_dir =
-        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
-    let pkg =
-        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
-    let marker = pkg.join(".pnpm-needs-build");
-    let postinstall_artifact = pkg.join("generated-by-postinstall.js");
-    let package_manifest = pkg.join("package.json");
-    let pristine_manifest = fs::read_to_string(&package_manifest).expect("read package manifest");
-    assert!(postinstall_artifact.exists());
-    assert!(!marker.exists());
+        let version_dir =
+            pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+        let pkg = pkg_in_slot(
+            &sole_hash_dir(&version_dir),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        let marker = pkg.join(".pnpm-needs-build");
+        let postinstall_artifact = pkg.join("generated-by-postinstall.js");
+        let package_manifest = pkg.join("package.json");
+        let pristine_manifest =
+            fs::read_to_string(&package_manifest).expect("read package manifest");
+        assert!(postinstall_artifact.exists());
+        assert!(!marker.exists());
 
-    eprintln!("Simulating a crash after import but before the build...");
-    fs::write(&marker, "").expect("write the incomplete-build marker");
-    fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
-    corrupt_pristine_file(&package_manifest);
+        eprintln!("Simulating a crash after import but before the build...");
+        fs::write(&marker, "").expect("write the incomplete-build marker");
+        fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
+        corrupt_pristine_file(&package_manifest);
 
-    eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+        eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
+        pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
 
-    assert!(!marker.exists(), "the successful retry must remove the marker");
-    assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
-    assert_eq!(
-        fs::read_to_string(&package_manifest).expect("read the restored manifest"),
-        pristine_manifest,
-        "the retry must re-import pristine package files before rebuilding",
-    );
+        assert!(!marker.exists(), "the successful retry must remove the marker");
+        assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
+        assert_eq!(
+            fs::read_to_string(&package_manifest).expect("read the restored manifest"),
+            pristine_manifest,
+            "the retry must re-import pristine package files before rebuilding",
+        );
 
-    eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
-    fs::write(&marker, "").expect("write the second incomplete-build marker");
-    fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
-    fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
-    pacquet(&workspace).with_arg("install").assert().success();
+        eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
+        fs::write(&marker, "").expect("write the second incomplete-build marker");
+        fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
+        fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
+        pacquet(&workspace).with_arg("install").assert().success();
 
-    assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
-    assert!(
-        postinstall_artifact.exists(),
-        "the ordinary reinstall must not report up to date before rebuilding",
-    );
-    assert_eq!(
-        fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
-        pristine_manifest,
-        "the ordinary reinstall must re-import the package before rebuilding",
-    );
+        assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
+        assert!(
+            postinstall_artifact.exists(),
+            "the ordinary reinstall must not report up to date before rebuilding",
+        );
+        assert_eq!(
+            fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
+            pristine_manifest,
+            "the ordinary reinstall must re-import the package before rebuilding",
+        );
 
-    drop((root, mock_instance));
+        drop((root, mock_instance));
+    }
 }
 
 #[test]
