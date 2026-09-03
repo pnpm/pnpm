@@ -3561,6 +3561,12 @@ pacquet@12.3.0:
     - tolerate-registry-trust-marker-shapes
     - unpublish-otp-challenge
     - windows-native-dns-firewall
+pacquet@12.3.1:
+  dir: pnpm/npm/pnpm
+  intents:
+    - anchored-links
+    - legacy-shim-dispatch-compat
+    - quiet-install-tail
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
