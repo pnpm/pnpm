@@ -14,7 +14,7 @@ use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{get_all_files, is_symlink_or_junction},
 };
 use pnpr::TokenBackend;
 use std::{
@@ -860,8 +860,11 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
     drop((root, mock_instance));
 }
 
+/// `pnpm import` has to control the version each dependency resolves to,
+/// which the pnpr protocol cannot yet express, so it resolves locally and
+/// says so rather than silently ignoring the server.
 #[test]
-fn import_via_pnpr_server_writes_lockfile_without_linking() {
+fn import_ignores_the_pnpr_server_and_resolves_locally() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
@@ -874,18 +877,44 @@ fn import_via_pnpr_server_writes_lockfile_without_linking() {
         "dependencies": { "@foo/no-deps": "1.0.0" },
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+    fs::write(
+        workspace.join("package-lock.json"),
+        serde_json::json!({
+            "lockfileVersion": 1,
+            "dependencies": {
+                "@foo/no-deps": { "version": "1.0.0" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package-lock.json");
 
-    pacquet
+    let output = pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_arg("import")
         .with_arg("--pnpr-server")
         .with_arg(&pnpr_url)
         .assert()
-        .success();
+        .success()
+        .get_output()
+        .clone();
 
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!("the pnpr server at {pnpr_url} is not used")),
+        "import must say the pnpr server was skipped:\n{stdout}",
+    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "import must write the lockfile");
     assert!(!workspace.join("node_modules").exists(), "import must not link node_modules");
-    assert!(!store_dir.join("v11/index.db").exists(), "import must not populate the client store");
+    // The store writer task always creates an empty `v11/index.db`, so the
+    // absence of fetched package content is what says nothing was downloaded.
+    let cas_blobs: Vec<String> = get_all_files(&store_dir)
+        .into_iter()
+        .filter(|path| {
+            Path::new(path).components().any(|component| component.as_os_str() == "files")
+        })
+        .collect();
+    assert!(cas_blobs.is_empty(), "import must not fetch package content: {cas_blobs:?}");
 
     drop((root, mock_instance));
 }

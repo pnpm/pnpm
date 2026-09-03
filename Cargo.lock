@@ -4291,6 +4291,7 @@ dependencies = [
  "pnpm-hooks",
  "pnpm-injected-deps-syncer",
  "pnpm-lockfile",
+ "pnpm-lockfile-import",
  "pnpm-lockfile-verification",
  "pnpm-modules-yaml",
  "pnpm-network",
@@ -4959,6 +4960,19 @@ dependencies = [
  "tempfile",
  "text-block-macros",
  "url",
+]
+
+[[package]]
+name = "pnpm-lockfile-import"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "pnpm-resolving-resolver-base",
+ "pretty_assertions",
+ "serde_json",
+ "tempfile",
+ "yaml_serde",
 ]
 
 [[package]]
