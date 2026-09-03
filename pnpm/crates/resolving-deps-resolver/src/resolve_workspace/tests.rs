@@ -238,6 +238,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
+        finalized_package: None,
         allowed_deprecated_versions: BTreeMap::new(),
         deprecation_log: None,
         pick_lowest_direct,
@@ -3559,4 +3560,81 @@ async fn importer_waves_do_not_overlap() {
         "importers resolved concurrently: {:?}",
         overlaps.first().expect("checked non-empty"),
     );
+}
+
+/// Package ids announced as finalized, each with its child ids.
+type Announcements = Vec<(String, Vec<String>)>;
+
+/// Resolve `manifest_deps` through `table` and return every package the
+/// walk announced as finalized, in announcement order, with the child
+/// ids each announcement carried.
+async fn announced_finalized_packages(
+    manifest_deps: serde_json::Value,
+    table: HashMap<(String, String), ResolveResult>,
+) -> Announcements {
+    let (_tmp, manifest) = fake_manifest(manifest_deps);
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let importers = vec![WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let announced: Arc<Mutex<Announcements>> = Arc::new(Mutex::new(Vec::new()));
+    let mut opts = workspace_opts(false, false);
+    let sink = Arc::clone(&announced);
+    opts.finalized_package = Some(Arc::new(move |package| {
+        let children =
+            package.children.iter().map(|child| child.pkg_id.to_string()).collect::<Vec<_>>();
+        sink.lock().unwrap().push((package.pkg_id.to_string(), children));
+    }));
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(std::path::PathBuf::from("/repo"), None)
+    })
+    .await
+    .expect("resolve");
+    let announced = announced.lock().unwrap();
+    announced.clone()
+}
+
+fn table_entry(name: &str, manifest: serde_json::Value) -> ((String, String), ResolveResult) {
+    ((name.to_string(), "^1.0.0".to_string()), fake_result(name, "1.0.0", None, manifest))
+}
+
+#[tokio::test]
+async fn finalized_packages_are_announced_once_their_peer_free_subtree_settles() {
+    let announced = announced_finalized_packages(
+        serde_json::json!({ "pure": "^1.0.0", "peered": "^1.0.0" }),
+        HashMap::from_iter([
+            table_entry("pure", serde_json::json!({ "dependencies": { "leaf": "^1.0.0" } })),
+            table_entry("leaf", serde_json::json!({})),
+            table_entry(
+                "peered",
+                serde_json::json!({
+                    "dependencies": { "leaf": "^1.0.0" },
+                    "peerDependencies": { "react": "*" },
+                    "peerDependenciesMeta": { "react": { "optional": true } },
+                }),
+            ),
+        ]),
+    )
+    .await;
+    // `peered` declares a peer, so neither it nor its dep path is final;
+    // `pure` and `leaf` are, and `pure` is announced with its edge.
+    assert_eq!(
+        announced,
+        vec![
+            ("leaf@1.0.0".to_string(), vec![]),
+            ("pure@1.0.0".to_string(), vec!["leaf@1.0.0".to_string()]),
+        ],
+    );
+}
+
+#[tokio::test]
+async fn finalized_packages_include_peer_free_cycles() {
+    let announced = announced_finalized_packages(
+        serde_json::json!({ "ping": "^1.0.0" }),
+        HashMap::from_iter([
+            table_entry("ping", serde_json::json!({ "dependencies": { "pong": "^1.0.0" } })),
+            table_entry("pong", serde_json::json!({ "dependencies": { "ping": "^1.0.0" } })),
+        ]),
+    )
+    .await;
+    let ids = announced.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
+    assert_eq!(ids, ["ping@1.0.0", "pong@1.0.0"]);
 }

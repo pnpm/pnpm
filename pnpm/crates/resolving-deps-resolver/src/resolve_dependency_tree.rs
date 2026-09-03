@@ -24,6 +24,7 @@ use crate::{
 };
 
 mod catalogs;
+mod finalized;
 mod manifest;
 mod reuse;
 mod tree_ctx;
@@ -285,6 +286,36 @@ pub struct SkippedOptionalDependencyParent {
 /// the install's reporter so the resolver stays reporter-agnostic. See
 /// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
+
+/// A package whose resolution and whole dependency subtree are settled
+/// and carry no `peerDependencies`, so its lockfile dep path is its
+/// package id and its child edges are known before peers resolve. See
+/// [`crate::WorkspaceResolveOptions::finalized_package`].
+#[derive(Debug, Clone)]
+pub struct FinalizedPackage {
+    /// The package id with its patch hash: the snapshot key the
+    /// package will have in the lockfile.
+    pub pkg_id: Arc<str>,
+    pub result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
+    /// The package's resolved `dependencies` and `optionalDependencies`
+    /// edges.
+    pub children: Vec<FinalizedChild>,
+}
+
+/// One child edge of a [`FinalizedPackage`].
+#[derive(Debug, Clone)]
+pub struct FinalizedChild {
+    /// The name the child is linked under in the package's `node_modules`.
+    pub alias: String,
+    /// The child's package id, its lockfile snapshot key.
+    pub pkg_id: Arc<str>,
+    pub optional: bool,
+}
+
+/// Sink for [`FinalizedPackage`] notifications, called from the tree
+/// walk as soon as a package's subtree settles. The call must be cheap
+/// and must not block: it runs on the resolver's task between levels.
+pub type FinalizedPackageFn = Arc<dyn Fn(FinalizedPackage) + Send + Sync>;
 
 /// One deprecation notification from the tree walker: a newly-resolved
 /// package carries a non-empty `deprecated` field in its registry

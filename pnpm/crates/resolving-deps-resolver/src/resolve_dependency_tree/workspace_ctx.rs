@@ -24,8 +24,8 @@ use crate::{
 };
 
 use super::{
-    DeprecationLogFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth, UpdateReuseScope,
-    lock_recoverable, tree_ctx::TreeCtx,
+    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
+    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
 /// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
@@ -482,6 +482,21 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     pub(super) skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// Sink for finalized-package notifications. `None` skips the
+    /// per-level subtree sweep entirely. See [`FinalizedPackageFn`].
+    pub(super) finalized_package: Option<FinalizedPackageFn>,
+    /// The package ids already handed to `finalized_package`, so every
+    /// package is announced once across importers and hoist rounds.
+    pub(super) finalized_ids: Mutex<HashSet<Arc<str>>>,
+    /// Packages written or re-recorded since the last finalization
+    /// sweep: the only ones whose verdict can have changed on their own.
+    /// Maintained only while `finalized_package` is set.
+    pub(super) finalization_pending: Mutex<Vec<Arc<str>>>,
+    /// Every package whose recorded children include the key, so a
+    /// package's finalization can be propagated to the packages
+    /// depending on it. Maintained only while `finalized_package` is
+    /// set; see [`update_parent_index`].
+    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, HashSet<Arc<str>>>>,
     /// The `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
@@ -680,6 +695,10 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            finalized_package: None,
+            finalized_ids: Mutex::new(HashSet::default()),
+            finalization_pending: Mutex::new(Vec::new()),
+            parents_by_id: Mutex::new(HashMap::default()),
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
@@ -1055,6 +1074,15 @@ impl WorkspaceTreeCtx {
     /// invisible to the discovery engine's view.
     pub(super) fn record_package_write(&self, pkg_id: &str) {
         lock_recoverable(&self.sync_log).packages.push(pkg_id.to_string());
+        self.note_finalization_candidate(pkg_id);
+    }
+
+    /// Queue `pkg_id` for the next finalization sweep. See
+    /// [`Self::finalization_pending`].
+    fn note_finalization_candidate(&self, pkg_id: &str) {
+        if self.finalized_package.is_some() {
+            lock_recoverable(&self.finalization_pending).push(Arc::from(pkg_id));
+        }
     }
 
     /// See [`Self::record_package_write`].
@@ -1304,6 +1332,13 @@ impl WorkspaceTreeCtx {
         skipped_optional_log: Option<SkippedOptionalLogFn>,
     ) -> Self {
         self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the finalized-package sink. See [`FinalizedPackageFn`].
+    #[must_use]
+    pub fn with_finalized_package(mut self, finalized_package: Option<FinalizedPackageFn>) -> Self {
+        self.finalized_package = finalized_package;
         self
     }
 
@@ -1570,14 +1605,51 @@ pub(super) fn record_children(
             Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
             Some(_) => ChildrenRecording::PublishedOverStale,
         };
-        children.insert(
-            Arc::from(pkg_id.to_string()),
-            RecordedChildren { edges: Arc::new(edges), context },
-        );
+        let edges = Arc::new(edges);
+        if ctx.workspace.finalized_package.is_some() {
+            update_parent_index(
+                &mut lock_recoverable(&ctx.workspace.parents_by_id),
+                pkg_id,
+                children.get(pkg_id).map(|recorded| recorded.edges.as_slice()),
+                &edges,
+            );
+        }
+        children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
     };
     ctx.workspace.record_children_by_id_write(pkg_id);
+    ctx.workspace.note_finalization_candidate(pkg_id);
     recording
+}
+
+/// Move `pkg_id` in the reverse parent index from the children it
+/// recorded before (`previous`) to the ones it records now (`next`).
+/// Recording the same edges again is a no-op, and a child dropped
+/// from the record no longer lists `pkg_id` as a parent.
+fn update_parent_index(
+    parents_by_id: &mut HashMap<Arc<str>, HashSet<Arc<str>>>,
+    pkg_id: &str,
+    previous: Option<&[crate::resolved_tree::ChildEdge]>,
+    next: &[crate::resolved_tree::ChildEdge],
+) {
+    if previous.is_some_and(|previous| previous == next) {
+        return;
+    }
+    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
+    for edge in previous.into_iter().flatten() {
+        if kept.contains(edge.pkg_id.as_ref()) {
+            continue;
+        }
+        if let Some(parents) = parents_by_id.get_mut(&edge.pkg_id) {
+            parents.remove(pkg_id);
+            if parents.is_empty() {
+                parents_by_id.remove(&edge.pkg_id);
+            }
+        }
+    }
+    for edge in next {
+        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+    }
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
@@ -1704,3 +1776,6 @@ fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod parent_index_tests;

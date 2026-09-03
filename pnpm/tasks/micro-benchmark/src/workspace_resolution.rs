@@ -297,6 +297,7 @@ fn workspace_options() -> WorkspaceResolveOptions {
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
+        finalized_package: None,
         allowed_deprecated_versions: BTreeMap::new(),
         deprecation_log: None,
         auto_install_peers: true,

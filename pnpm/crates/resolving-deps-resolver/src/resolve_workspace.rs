@@ -141,6 +141,12 @@ pub struct WorkspaceResolveOptions {
     /// log). `None` keeps the skip behavior but drops the notification.
     pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
 
+    /// Sink told about every package whose subtree has settled peer-free,
+    /// so the install layer can materialize it into the virtual store
+    /// before peer resolution. `None` skips the sweep. See
+    /// [`crate::FinalizedPackageFn`].
+    pub finalized_package: Option<crate::FinalizedPackageFn>,
+
     /// Package-name → semver-range map from the
     /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
     /// package is deprecated and its `name@version` satisfies an entry
@@ -213,6 +219,7 @@ where
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
+        finalized_package,
         allowed_deprecated_versions,
         deprecation_log,
         pick_lowest_direct,
@@ -245,6 +252,7 @@ where
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
+            .with_finalized_package(finalized_package)
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
