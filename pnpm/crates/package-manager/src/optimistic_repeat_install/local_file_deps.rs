@@ -1,40 +1,87 @@
 //! Detecting dependency specs that point at the local filesystem.
 
 use super::{
-    CatalogResolutionResult, Catalogs, Config, IncludedDependencies, PackageManifest, PathBuf,
-    WantedDependency, resolve_from_catalog,
+    CatalogResolutionResult, Catalogs, Config, IncludedDependencies, PackageManifest, Path,
+    PathBuf, WantedDependency, file_mtime, modified_at_or_after, resolve_from_catalog,
 };
+use pnpm_resolving_local_resolver::local_tarball_path;
 
-/// Whether any project declares a dependency with a local file
-/// specifier in `dependencies`, `devDependencies`, or
-/// `optionalDependencies`. Groups excluded from the current install
-/// (per `included`) are skipped. `catalog:` specs are dereferenced
-/// through the workspace catalogs.
-pub(crate) fn has_local_file_dep(
+/// Whether any project declares a mutable local directory dependency or a
+/// local tarball that may have changed since the last successful install.
+/// Groups excluded from the current install are skipped. `catalog:` specs are
+/// dereferenced through the workspace catalogs.
+pub(crate) fn has_local_file_dep_requiring_install(
     project_manifests: &[(PathBuf, &PackageManifest)],
     included: IncludedDependencies,
     catalogs: &Catalogs,
+    last_validated_timestamp: i64,
 ) -> bool {
     let fields: [(&str, bool); 3] = [
         ("dependencies", included.dependencies),
         ("devDependencies", included.dev_dependencies),
         ("optionalDependencies", included.optional_dependencies),
     ];
-    project_manifests.iter().any(|(_, manifest)| {
+    project_manifests.iter().any(|(project_dir, manifest)| {
         fields.iter().any(|(field, group_included)| {
             *group_included
                 && manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(
                     |deps| {
                         deps.iter().any(|(alias, spec)| {
                             spec.as_str().is_some_and(|spec| {
-                                is_local_file_spec(spec)
-                                    || catalog_resolves_to_local_file(catalogs, alias, spec)
+                                local_file_dep_requires_install(
+                                    project_dir,
+                                    spec,
+                                    last_validated_timestamp,
+                                ) || catalog_local_file_dep_requires_install(
+                                    project_dir,
+                                    catalogs,
+                                    alias,
+                                    spec,
+                                    last_validated_timestamp,
+                                )
                             })
                         })
                     },
                 )
         })
     })
+}
+
+fn local_file_dep_requires_install(
+    project_dir: &Path,
+    spec: &str,
+    last_validated_timestamp: i64,
+) -> bool {
+    if !is_local_file_spec(spec) {
+        return false;
+    }
+    let Some(path) = local_tarball_path(spec, project_dir) else {
+        return true;
+    };
+    file_mtime(&path).is_none_or(|mtime| modified_at_or_after(mtime, last_validated_timestamp))
+}
+
+fn catalog_local_file_dep_requires_install(
+    project_dir: &Path,
+    catalogs: &Catalogs,
+    alias: &str,
+    spec: &str,
+    last_validated_timestamp: i64,
+) -> bool {
+    if !spec.starts_with("catalog:") {
+        return false;
+    }
+    match resolve_from_catalog(
+        catalogs,
+        &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
+    ) {
+        CatalogResolutionResult::Found(found) => local_file_dep_requires_install(
+            project_dir,
+            &found.resolution.specifier,
+            last_validated_timestamp,
+        ),
+        _ => false,
+    }
 }
 
 /// Whether a `catalog:` spec dereferences (through the workspace

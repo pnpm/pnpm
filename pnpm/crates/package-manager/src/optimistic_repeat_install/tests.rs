@@ -111,6 +111,15 @@ fn write_state_with_pnpmfiles(
     update_workspace_state(workspace_root, &state).expect("write workspace state");
 }
 
+fn validate_existing_files(workspace_root: &std::path::Path) {
+    let timestamp = backdate_existing_files(workspace_root);
+    let mut state = load_workspace_state(workspace_root)
+        .expect("read workspace state")
+        .expect("workspace state on disk");
+    state.last_validated_timestamp = timestamp;
+    update_workspace_state(workspace_root, &state).expect("refresh workspace state");
+}
+
 #[test]
 fn returns_skipped_when_a_pnpmfile_is_modified() {
     let (dir, config, manifest) =
@@ -275,10 +284,10 @@ fn returns_skipped_when_a_project_has_a_file_dependency() {
     );
 }
 
-/// Same bail for a `file:` *tarball* in any dependency group — a
-/// repacked `.tgz` bumps no manifest mtime either.
+/// A missing local tarball must reach the full install path so it can report
+/// the resolver's contextual error.
 #[test]
-fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
+fn returns_skipped_when_a_project_has_a_missing_file_tarball_dependency() {
     let (dir, config, manifest) = setup_fresh_install(
         pnpm_config::NodeLinker::Isolated,
         "root",
@@ -297,13 +306,59 @@ fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
     );
 }
 
-/// Bare local path and tarball specs resolve to local file dependencies
-/// too — same bail as `file:`, for the same reason.
+#[test]
+fn returns_up_to_date_when_a_project_has_an_unchanged_file_tarball_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+    fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
+    fs::write(dir.path().join("vendor/tar.tgz"), b"unchanged").expect("write tarball");
+    validate_existing_files(dir.path());
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn returns_skipped_when_a_project_file_tarball_changed_after_validation() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+    fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
+    let tarball = dir.path().join("vendor/tar.tgz");
+    fs::write(&tarball, b"original").expect("write tarball");
+    validate_existing_files(dir.path());
+    fs::write(&tarball, b"repacked").expect("repack tarball");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// Bare local paths resolve to local directory dependencies and stay on the
+/// full install path.
 #[test]
 fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
-    for spec in
-        ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"]
-    {
+    for spec in ["../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"] {
         let (dir, config, manifest) = setup_fresh_install(
             pnpm_config::NodeLinker::Isolated,
             "root",

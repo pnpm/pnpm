@@ -34,5 +34,5 @@ pub use local_resolver::{
 };
 pub use parse_bare_specifier::{
     PathProtocolNotSupportedError, WantedLocalDependency, is_local_filesystem_specifier,
-    is_tarball_filename,
+    is_tarball_filename, local_tarball_path,
 };
