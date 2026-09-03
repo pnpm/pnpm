@@ -1,4 +1,5 @@
 use crate::{
+    dependencies_graph_to_lockfile::manifest_publish_config,
     fast_update_compose::Drift,
     fast_update_lockfile::GraphEdits,
     fast_update_settings::{is_directory_dependency, workspace_package_names},
@@ -266,12 +267,7 @@ fn importer_from_locked_versions(
     }
     importer.specifiers = Some(specifiers);
     importer.dependencies_meta = manifest.value().get("dependenciesMeta").cloned();
-    importer.publish_directory = manifest
-        .value()
-        .get("publishConfig")
-        .and_then(|publish_config| publish_config.get("directory"))
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string);
+    (importer.publish_directory, importer.link_directory) = manifest_publish_config(manifest);
     Some(importer)
 }
 

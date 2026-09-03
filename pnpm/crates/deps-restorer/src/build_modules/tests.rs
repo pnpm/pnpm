@@ -426,6 +426,7 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
             dev_dependencies: None,
             dependencies_meta: None,
             publish_directory: None,
+            link_directory: None,
         },
     )])
 }

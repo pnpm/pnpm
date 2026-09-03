@@ -433,7 +433,7 @@ fn fresh_install_records_importer_manifest_metadata() {
         "name": "fixture",
         "version": "1.0.0",
         "dependenciesMeta": { "pkg-a": { "injected": true } },
-        "publishConfig": { "directory": "dist" },
+        "publishConfig": { "directory": "dist", "linkDirectory": false },
     }));
     let graph = DependenciesGraph::default();
 
@@ -450,6 +450,7 @@ fn fresh_install_records_importer_manifest_metadata() {
 
     assert_eq!(importer.dependencies_meta, Some(json!({ "pkg-a": { "injected": true } })));
     assert_eq!(importer.publish_directory.as_deref(), Some("dist"));
+    assert_eq!(importer.link_directory, Some(false));
 }
 
 #[test]

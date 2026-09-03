@@ -360,6 +360,42 @@ test('satisfiesPackageManifest()', () => {
   })
 
   expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+        linkDirectory: false,
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (true) doesn\'t match "publishConfig.linkDirectory" in package.json (false)',
+  })
+
+  expect(satisfiesPackageManifest(
+    {},
+    {
+      specifiers: {},
+      publishDirectory: 'dist',
+      linkDirectory: false,
+    },
+    {
+      ...DEFAULT_PKG_FIELDS,
+      publishConfig: {
+        directory: 'dist',
+      },
+    }
+  )).toStrictEqual({
+    satisfies: false,
+    detailedReason: '"linkDirectory" in the lockfile (false) doesn\'t match "publishConfig.linkDirectory" in package.json (true)',
+  })
+
+  expect(satisfiesPackageManifest(
     {
       excludeLinksFromLockfile: true,
     },

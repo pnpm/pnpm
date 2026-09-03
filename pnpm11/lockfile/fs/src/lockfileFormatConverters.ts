@@ -77,6 +77,9 @@ function normalizeLockfile (lockfile: LockfileFile): LockfileFile {
       if (importer.publishDirectory) {
         normalizedImporter.publishDirectory = importer.publishDirectory
       }
+      if (importer.linkDirectory === false) {
+        normalizedImporter.linkDirectory = false
+      }
       return normalizedImporter as LockfileFileProjectSnapshot
     }, lockfile.importers ?? {}),
   }
