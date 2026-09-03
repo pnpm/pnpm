@@ -1955,12 +1955,18 @@ mod build_workspace_state_tests {
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
+    fn config_for(workspace_root: &std::path::Path) -> Config {
+        let mut config = Config::new();
+        config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+        config
+    }
+
     /// With nothing on disk to take an mtime from, the timestamp falls
     /// back to the clock.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -1982,7 +1988,7 @@ mod build_workspace_state_tests {
     fn prefers_the_manifest_mtime_over_the_clock() {
         let dir = tempdir().unwrap();
         let manifest = write_manifest(dir.path(), "root", "1.0.0");
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -2012,7 +2018,7 @@ mod build_workspace_state_tests {
             manifest.path(),
             SystemTime::UNIX_EPOCH + Duration::new(1_600_000_000, 500_000),
         );
-        let config = Config::new();
+        let config = config_for(dir.path());
         let build = |filesystem_now_ms| {
             build_workspace_state::<FrozenClock>(
                 dir.path(),
@@ -2055,7 +2061,7 @@ mod build_workspace_state_tests {
         let project_manifests: Vec<(PathBuf, &PackageManifest)> =
             manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
 
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -2088,12 +2094,12 @@ mod build_workspace_state_tests {
     /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
     #[test]
     fn records_config_dependencies_from_config() {
-        let mut config = Config::new();
+        let dir = tempdir().unwrap();
+        let mut config = config_for(dir.path());
         config.config_dependencies = Some(BTreeMap::from([(
             "@pnpm/pacquet".to_string(),
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
         )]));
-        let dir = tempdir().unwrap();
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,

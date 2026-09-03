@@ -24,8 +24,8 @@
 //! invalidates the fast path; plugin pnpmfiles from config dependencies
 //! are covered by the `config_dependencies` comparison instead of the
 //! mtime check), and the local-file-dependency bail: mutable directory
-//! dependencies always take the full install path. Local tarballs take it
-//! only when their mtime is missing or newer than the last validation.
+//! dependencies always take the full install path. Local tarballs stay on the
+//! fast path only when their bytes match the integrity in the lockfile.
 //! Local specs introduced through `pnpm.overrides` or package extensions
 //! remain on the full path because their resolution base is graph-dependent.
 //! The local-file-dependency freshness branch of linked-package
@@ -211,15 +211,14 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         };
     }
 
-    if has_local_file_dep_requiring_install(
-        project_manifests,
-        included,
-        catalogs,
-        state.last_validated_timestamp,
-    ) {
-        return Decision::Skipped {
-            reason: "a dependency is a local file dependency and its contents may have changed",
-        };
+    match has_local_file_dep_requiring_install(check) {
+        Ok(true) => {
+            return Decision::Skipped {
+                reason: "a dependency is a local file dependency and its contents may have changed",
+            };
+        }
+        Ok(false) => {}
+        Err(reason) => return Decision::Skipped { reason },
     }
     match has_local_file_override(config, catalogs) {
         Ok(true) => {

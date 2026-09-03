@@ -1,86 +1,153 @@
 //! Detecting dependency specs that point at the local filesystem.
 
 use super::{
-    CatalogResolutionResult, Catalogs, Config, IncludedDependencies, PackageManifest, Path,
-    PathBuf, WantedDependency, file_mtime, modified_at_or_after, resolve_from_catalog,
+    CatalogResolutionResult, Catalogs, Config, DependencyGroup, IncludedDependencies, Lockfile,
+    OptimisticRepeatInstallCheck, Path, PathBuf, WantedDependency, resolve_from_catalog,
 };
+use pnpm_lockfile::{LockfileResolution, PkgName};
 use pnpm_resolving_local_resolver::local_tarball_path;
+use pnpm_workspace::importer_id_from_root_dir;
+use ssri::{Integrity, IntegrityChecker};
+use std::{borrow::Cow, fs, io::Read};
+
+struct LocalTarballDependency {
+    project_dir: PathBuf,
+    alias: String,
+    group: DependencyGroup,
+    path: PathBuf,
+}
 
 /// Whether any project declares a mutable local directory dependency or a
-/// local tarball that may have changed since the last successful install.
-/// Groups excluded from the current install are skipped. `catalog:` specs are
-/// dereferenced through the workspace catalogs.
+/// local tarball whose current bytes do not match the integrity recorded by
+/// the previous install. Groups excluded from the current install are skipped.
+/// `catalog:` specs are dereferenced through the workspace catalogs.
 pub(crate) fn has_local_file_dep_requiring_install(
-    project_manifests: &[(PathBuf, &PackageManifest)],
-    included: IncludedDependencies,
-    catalogs: &Catalogs,
-    last_validated_timestamp: i64,
-) -> bool {
-    let fields: [(&str, bool); 3] = [
-        ("dependencies", included.dependencies),
-        ("devDependencies", included.dev_dependencies),
-        ("optionalDependencies", included.optional_dependencies),
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> Result<bool, &'static str> {
+    let fields: [(&str, DependencyGroup, bool); 3] = [
+        ("dependencies", DependencyGroup::Prod, check.included.dependencies),
+        ("devDependencies", DependencyGroup::Dev, check.included.dev_dependencies),
+        ("optionalDependencies", DependencyGroup::Optional, check.included.optional_dependencies),
     ];
-    project_manifests.iter().any(|(project_dir, manifest)| {
-        fields.iter().any(|(field, group_included)| {
-            *group_included
-                && manifest.value().get(*field).and_then(|value| value.as_object()).is_some_and(
-                    |deps| {
-                        deps.iter().any(|(alias, spec)| {
-                            spec.as_str().is_some_and(|spec| {
-                                local_file_dep_requires_install(
-                                    project_dir,
-                                    spec,
-                                    last_validated_timestamp,
-                                ) || catalog_local_file_dep_requires_install(
-                                    project_dir,
-                                    catalogs,
-                                    alias,
-                                    spec,
-                                    last_validated_timestamp,
-                                )
-                            })
-                        })
-                    },
-                )
-        })
-    })
-}
-
-fn local_file_dep_requires_install(
-    project_dir: &Path,
-    spec: &str,
-    last_validated_timestamp: i64,
-) -> bool {
-    if !is_local_file_spec(spec) {
-        return false;
+    let mut tarballs = Vec::new();
+    for (project_dir, manifest) in check.project_manifests {
+        for (field, group, group_included) in fields {
+            if !group_included {
+                continue;
+            }
+            let Some(deps) = manifest.value().get(field).and_then(|value| value.as_object()) else {
+                continue;
+            };
+            for (alias, spec) in deps {
+                let Some(spec) = spec.as_str() else { continue };
+                let resolved_spec = resolve_catalog_spec(check.catalogs, alias, spec);
+                let Some(spec) = resolved_spec.as_deref() else { continue };
+                if !is_local_file_spec(spec) {
+                    continue;
+                }
+                let Some(path) = local_tarball_path(spec, project_dir) else {
+                    return Ok(true);
+                };
+                tarballs.push(LocalTarballDependency {
+                    project_dir: project_dir.clone(),
+                    alias: alias.clone(),
+                    group,
+                    path,
+                });
+            }
+        }
     }
-    let Some(path) = local_tarball_path(spec, project_dir) else {
-        return true;
+    if tarballs.is_empty() {
+        return Ok(false);
+    }
+
+    let current_lockfile;
+    let lockfile = if let Some(lockfile) = check
+        .lockfile
+        .get()
+        .map_err(|_| "the wanted lockfile cannot be loaded to verify local tarballs")?
+    {
+        lockfile
+    } else {
+        current_lockfile =
+            Lockfile::load_current_from_virtual_store_dir(&check.config.virtual_store_dir)
+                .map_err(|_| "the current lockfile cannot be loaded to verify local tarballs")?;
+        let Some(lockfile) = current_lockfile.as_ref() else { return Ok(true) };
+        lockfile
     };
-    file_mtime(&path).is_none_or(|mtime| modified_at_or_after(mtime, last_validated_timestamp))
+
+    Ok(tarballs.iter().any(|dependency| {
+        !local_tarball_matches_lockfile(check.workspace_root, lockfile, dependency)
+    }))
 }
 
-fn catalog_local_file_dep_requires_install(
-    project_dir: &Path,
+fn resolve_catalog_spec<'a>(
     catalogs: &Catalogs,
     alias: &str,
-    spec: &str,
-    last_validated_timestamp: i64,
-) -> bool {
+    spec: &'a str,
+) -> Option<Cow<'a, str>> {
     if !spec.starts_with("catalog:") {
-        return false;
+        return Some(Cow::Borrowed(spec));
     }
     match resolve_from_catalog(
         catalogs,
         &WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() },
     ) {
-        CatalogResolutionResult::Found(found) => local_file_dep_requires_install(
-            project_dir,
-            &found.resolution.specifier,
-            last_validated_timestamp,
-        ),
-        _ => false,
+        CatalogResolutionResult::Found(found) => Some(Cow::Owned(found.resolution.specifier)),
+        _ => None,
+    }
+}
+
+fn local_tarball_matches_lockfile(
+    workspace_root: &Path,
+    lockfile: &Lockfile,
+    dependency: &LocalTarballDependency,
+) -> bool {
+    let importer_id = importer_id_from_root_dir(workspace_root, &dependency.project_dir);
+    let Some(importer) = lockfile.importers.get(&importer_id) else { return false };
+    let Ok(alias) = PkgName::parse(&dependency.alias) else { return false };
+    let Some(resolved) = importer
+        .get_map_by_group(dependency.group)
+        .and_then(|dependencies| dependencies.get(&alias))
+    else {
+        return false;
+    };
+    let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
+    else {
+        return false;
+    };
+    let Some(LockfileResolution::Tarball(resolution)) = lockfile
+        .packages
+        .as_ref()
+        .and_then(|packages| packages.get(&package_key))
+        .map(|metadata| &metadata.resolution)
+    else {
+        return false;
+    };
+    let Some(integrity) = resolution.integrity.as_ref().filter(|value| !value.hashes.is_empty())
+    else {
+        return false;
+    };
+    let Some(recorded_path) = local_tarball_path(&resolution.tarball, workspace_root) else {
+        return false;
+    };
+    recorded_path == dependency.path && file_matches_integrity(&dependency.path, integrity)
+}
+
+fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
+    let Ok(mut file) = fs::File::open(path) else { return false };
+    let Ok(metadata) = file.metadata() else { return false };
+    if !metadata.is_file() {
+        return false;
+    }
+    let mut checker = IntegrityChecker::new(integrity.clone());
+    let mut buffer = vec![0_u8; 64 * 1024].into_boxed_slice();
+    loop {
+        match file.read(&mut buffer) {
+            Ok(0) => return checker.result().is_ok(),
+            Ok(read) => checker.input(&buffer[..read]),
+            Err(_) => return false,
+        }
     }
 }
 
@@ -155,9 +222,9 @@ pub(crate) fn has_local_file_package_extension(
 
 /// Whether the specifier resolves to a local directory or tarball whose
 /// contents can change without any manifest or lockfile mtime moving:
-/// the `file:` protocol, path-prefixed specs (`./`, `../`, `~/`,
+/// the `file:` protocol and path-prefixed specs (`./`, `../`, `~/`,
 /// absolute POSIX paths, and Windows drive paths including
-/// drive-relative ones like `c:dir`), and bare tarball file names.
+/// drive-relative ones like `c:dir`).
 ///
 /// Deliberately narrower than the local resolver's bare-path matching:
 /// a bare path like `user/repo` is statically indistinguishable from a
@@ -179,23 +246,7 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
     {
         return true;
     }
-    if spec.contains(':') {
-        return false;
-    }
-    if spec.contains('#') {
-        return false;
-    }
-    ends_with_ignore_ascii_case(spec, ".tgz")
-        || ends_with_ignore_ascii_case(spec, ".tar.gz")
-        || ends_with_ignore_ascii_case(spec, ".tar")
-}
-
-/// Case-insensitive (ASCII) suffix check that, unlike
-/// `spec.to_ascii_lowercase().ends_with(suffix)`, does not allocate.
-pub(crate) fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
-    let spec = spec.as_bytes();
-    let suffix = suffix.as_bytes();
-    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+    false
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive

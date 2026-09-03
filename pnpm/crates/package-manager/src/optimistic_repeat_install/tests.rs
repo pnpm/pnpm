@@ -19,6 +19,7 @@ use pnpm_workspace_state::{
     ProjectEntry, WorkspaceState, WorkspaceStateSettings, load_workspace_state,
     update_workspace_state,
 };
+use ssri::{Algorithm, IntegrityOpts};
 use std::{collections::BTreeMap, fs};
 use tempfile::tempdir;
 
@@ -66,6 +67,26 @@ fn check_with_catalogs(
     })
 }
 
+fn check_with_lockfile(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pnpm_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    lockfile: &Lockfile,
+) -> Decision {
+    check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root,
+        config,
+        node_linker,
+        included: isolated_included(),
+        supported_architectures: None,
+        project_manifests,
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(Some(lockfile)),
+        catalogs: &BTreeMap::default(),
+    })
+}
+
 fn check_workspace(
     workspace_root: &std::path::Path,
     config: &Config,
@@ -82,6 +103,29 @@ fn check_workspace(
 fn write_empty_lockfile(workspace_root: &std::path::Path) {
     fs::write(workspace_root.join(Lockfile::FILE_NAME), "lockfileVersion: '9.0'\n")
         .expect("write pnpm-lock.yaml");
+}
+
+fn write_local_tarball_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    dependency_group: &str,
+    tarball: &[u8],
+) -> Lockfile {
+    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    {dependency_group}:\n      tar:\n        specifier: file:./vendor/tar.tgz\n        version: file:vendor/tar.tgz\npackages:\n  tar@file:vendor/tar.tgz:\n    resolution: {{integrity: {integrity}, tarball: file:vendor/tar.tgz}}\nsnapshots:\n  tar@file:vendor/tar.tgz: {{}}\n",
+        ),
+    )
+    .expect("write local tarball lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load local tarball lockfile")
+        .expect("local tarball lockfile on disk");
+    lockfile
+        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .expect("write current local tarball lockfile");
+    lockfile
 }
 
 fn write_state(
@@ -203,6 +247,7 @@ fn setup_fresh_install_with_config(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    config.virtual_store_dir = config.modules_dir.join(".pnpm");
     configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
@@ -315,14 +360,22 @@ fn returns_up_to_date_when_a_project_has_an_unchanged_file_tarball_dependency() 
         r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
     );
     fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
-    fs::write(dir.path().join("vendor/tar.tgz"), b"unchanged").expect("write tarball");
+    let tarball = b"unchanged";
+    fs::write(dir.path().join("vendor/tar.tgz"), tarball).expect("write tarball");
+    let lockfile = write_local_tarball_lockfile(
+        dir.path(),
+        &config.virtual_store_dir,
+        "devDependencies",
+        tarball,
+    );
     validate_existing_files(dir.path());
 
-    let decision = check(
+    let decision = check_with_lockfile(
         dir.path(),
         config,
         pnpm_config::NodeLinker::Isolated,
         &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
     );
 
     assert_eq!(decision, Decision::UpToDate);
@@ -339,8 +392,73 @@ fn returns_skipped_when_a_project_file_tarball_changed_after_validation() {
     fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
     let tarball = dir.path().join("vendor/tar.tgz");
     fs::write(&tarball, b"original").expect("write tarball");
+    let lockfile = write_local_tarball_lockfile(
+        dir.path(),
+        &config.virtual_store_dir,
+        "dependencies",
+        b"original",
+    );
     validate_existing_files(dir.path());
     fs::write(&tarball, b"repacked").expect("repack tarball");
+
+    let decision = check_with_lockfile(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+#[test]
+fn returns_skipped_when_a_project_file_tarball_changes_without_an_mtime_change() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+    fs::create_dir_all(dir.path().join("vendor")).expect("create vendor dir");
+    let tarball = dir.path().join("vendor/tar.tgz");
+    fs::write(&tarball, b"original").expect("write tarball");
+    let modified = fs::metadata(&tarball).expect("stat tarball").modified().expect("tarball mtime");
+    let lockfile = write_local_tarball_lockfile(
+        dir.path(),
+        &config.virtual_store_dir,
+        "dependencies",
+        b"original",
+    );
+    validate_existing_files(dir.path());
+    fs::write(&tarball, b"repacked").expect("repack tarball");
+    set_mtime(&tarball, modified);
+
+    let decision = check_with_lockfile(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
+    );
+
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+#[test]
+fn returns_skipped_when_a_file_tarball_spec_points_to_a_directory() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+    fs::create_dir_all(dir.path().join("vendor/tar.tgz")).expect("create tarball-shaped dir");
+    validate_existing_files(dir.path());
 
     let decision = check(
         dir.path(),
@@ -352,6 +470,30 @@ fn returns_skipped_when_a_project_file_tarball_changed_after_validation() {
     assert!(
         matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
     );
+}
+
+#[test]
+fn returns_up_to_date_when_bare_tarball_specs_are_ambiguous() {
+    for spec in ["dependency.tgz", "user/repo.tgz"] {
+        let (dir, config, manifest) = setup_fresh_install(
+            pnpm_config::NodeLinker::Isolated,
+            "root",
+            "1.0.0",
+            &format!(r#""dependencies":{{"tar":"{spec}"}}"#),
+        );
+        let path = dir.path().join(spec);
+        fs::create_dir_all(path.parent().expect("tarball parent")).expect("create parent");
+        fs::write(path, b"local file with an ambiguous specifier").expect("write local file");
+        validate_existing_files(dir.path());
+
+        let decision = check(
+            dir.path(),
+            config,
+            pnpm_config::NodeLinker::Isolated,
+            &[(dir.path().to_path_buf(), &manifest)],
+        );
+        assert_eq!(decision, Decision::UpToDate, "specifier {spec:?}");
+    }
 }
 
 /// Bare local paths resolve to local directory dependencies and stay on the
