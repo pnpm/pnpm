@@ -1,21 +1,4 @@
-#!/usr/bin/env node
-// pnpm's native binary replaces this file during installation (see
-// ./install.js). If this is running, that install script did not — build
-// scripts were blocked (pnpm and Bun block them by default) or skipped
-// (`--ignore-scripts`) — so pnpm runs through Node.js instead: `bin/pnpm.mjs`
-// finds the installed binary, or downloads one, and spawns it.
-//
-// Package managers write bin shims after preinstall has had its chance to run,
-// so a shim made from this file's shebang exists only where the binary never
-// arrived. That is also why this file is left in place once it is running: a
-// binary put here under such a shim would be run through `node`.
-import process from 'node:process'
-
-if (process.stderr.isTTY) {
-  process.stderr.write(
-    'pnpm is running through Node.js because the script that installs its native binary was skipped. ' +
-    'Reinstall pnpm with its build scripts allowed to run the binary directly.\n'
-  )
-}
-
-await import('./bin/pnpm.mjs')
+This is a placeholder. pnpm's native binary replaces this file during
+installation (see ./install.js). If you are reading this, the install/build
+script did not run — reinstall with build scripts enabled (e.g. allow-list
+pnpm's build under pnpm or Bun, or drop --ignore-scripts).

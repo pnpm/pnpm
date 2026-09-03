@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
-// `@pnpm/exe`): replace the placeholder bins with the host's native binary so
-// `pnpm` runs directly, no Node startup per call. Package managers write bin
-// shims after preinstall, so the shims are made from the binary; where build
-// scripts are blocked (`--ignore-scripts`, the pnpm/Bun default) the
-// placeholder stays and runs pnpm through Node.js (see the `pnpm` file). npm
-// does not re-read the rewritten `bin` during the same install pass, so on a
-// global Windows install, postinstall asks it to relink.
+// `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
+// binary so `pnpm` runs directly, no Node startup per call. Keeping the
+// placeholder shebang-less prevents a shim made from it from passing the native
+// replacement to Node.js. npm does not re-read the rewritten `bin` during the
+// same global Windows install, so postinstall asks it to relink. When build
+// scripts are blocked (`--ignore-scripts`, pnpm/Bun default), the placeholder
+// remains and tells the user to reinstall with scripts enabled.
 //
 // `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
 // relinked); on Windows the native binary is hardlinked onto each and
