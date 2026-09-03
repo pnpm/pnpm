@@ -288,6 +288,35 @@ async fn reports_unreachable_when_neither_registry_can_provide_a_signature() {
 }
 
 #[tokio::test]
+async fn does_not_retry_an_unavailable_fallback_registry() {
+    let mut mirror = mockito::Server::new_async().await;
+    let mut fallback = mockito::Server::new_async().await;
+    let component = EngineComponent { registry: format!("{}/", mirror.url()), ..component() };
+    let _mirror = mock_packument(&mut mirror, "[]").await;
+    let fallback_mock =
+        fallback.mock("GET", "/pnpm").with_status(502).expect(1).create_async().await;
+    let retry_opts = RetryOpts {
+        retries: 2,
+        factor: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+    };
+    let key = signing_key();
+    let pub_b64 = public_key_b64(&key);
+    let keys = [NpmSigningKey { keyid: "SHA256:test", key: &pub_b64, expires: None }];
+    let config = Config::default();
+    let client = build_client(&config).expect("build client");
+
+    let failure =
+        find_signature_failure(&component, &fallback.url(), &keys, &client, retry_opts, &config)
+            .await
+            .expect("failure expected");
+
+    assert!(matches!(failure.category, FailureCategory::Unreachable));
+    fallback_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn reports_absent_when_a_reachable_fallback_has_no_signed_release() {
     let mut mirror = mockito::Server::new_async().await;
     let mut fallback = mockito::Server::new_async().await;
