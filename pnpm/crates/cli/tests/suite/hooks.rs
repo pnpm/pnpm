@@ -97,12 +97,16 @@ fn update_config_catalog_applies_to_import() {
     let mut settings = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
     settings.push_str("\nconfigDependencies:\n  '@pnpm/plugin-pnpmfile': 1.0.0\n");
     fs::write(workspace_yaml, settings).expect("write configDependencies");
+    // `import` needs a foreign lockfile to read. Pinning a version the
+    // hook's `^100.0.0` catalog range excludes keeps the assertion below
+    // about the catalog: an imported pin is only a preference, so it
+    // cannot pull resolution outside the range the catalog set.
     fs::write(
         workspace.join("package-lock.json"),
         serde_json::json!({
             "lockfileVersion": 1,
             "dependencies": {
-                (CATALOG_DEP): { "version": "100.1.0" },
+                (CATALOG_DEP): { "version": "101.0.0" },
             },
         })
         .to_string(),
