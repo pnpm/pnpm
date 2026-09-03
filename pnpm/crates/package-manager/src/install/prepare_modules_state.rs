@@ -7,6 +7,7 @@ use super::{
     modules_consistent_with, modules_layout_consistent_with, unapproved_recorded_ignored_builds,
     update_workspace_state, verify_lockfile_eagerly,
 };
+use crate::optimistic_repeat_install::filesystem_now_ms;
 
 pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(super) resolve_only: bool,
@@ -394,6 +395,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                 catalogs,
                 project_manifests,
                 filtered_install,
+                filesystem_now_ms(workspace_root),
             ),
         )
         .map_err(InstallError::WriteWorkspaceState)?;

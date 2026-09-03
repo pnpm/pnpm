@@ -9,7 +9,10 @@ use super::{
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
-use crate::peer_dependency_issues::report_peer_dependency_issues;
+use crate::{
+    optimistic_repeat_install::filesystem_now_ms,
+    peer_dependency_issues::report_peer_dependency_issues,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
@@ -924,6 +927,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
             &catalogs,
             &project_manifests,
             filtered_install,
+            filesystem_now_ms(&workspace_root),
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;

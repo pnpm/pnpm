@@ -381,7 +381,7 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                 // `filtered_install` forward: clearing it would claim every
                 // importer is materialized when a filtered install left the
                 // unselected ones untouched.
-                let mut new_state = crate::install::build_workspace_state::<Host>(
+                let new_state = crate::install::build_workspace_state::<Host>(
                     workspace_root,
                     config,
                     node_linker,
@@ -390,9 +390,6 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
-                );
-                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
-                    new_state.last_validated_timestamp,
                     filesystem_now,
                 );
                 if let Err(error) = update_workspace_state(workspace_root, &new_state) {
