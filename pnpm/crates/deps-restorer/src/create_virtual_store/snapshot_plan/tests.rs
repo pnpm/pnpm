@@ -302,11 +302,21 @@ fn gvs_slot_missing_a_regular_child_link_survives() {
         "a marker-complete slot missing a child link is a partial import and must be repaired",
     );
 
+    let child_link = parent_dir.parent().expect("modules dir").join("bar");
+    fs::create_dir(&child_link).expect("plant a plain directory where the child link belongs");
+    let plan = fixture.plan(false);
+    let survivor_keys: HashSet<String> =
+        plan.survivors.iter().map(|(key, _, _)| key.to_string()).collect();
+    assert!(
+        survivor_keys.contains("foo@1.0.0"),
+        "a plain directory where the child link belongs is a corrupted slot and must be repaired",
+    );
+    fs::remove_dir(&child_link).expect("remove the plain directory");
+
     let child_dir = fixture.layout.slot_dir(&child_key).join("node_modules").join("bar");
     fs::create_dir_all(&child_dir).expect("materialize the child slot");
     fs::write(child_dir.join("package.json"), "{}").expect("place the child completion marker");
-    pnpm_fs::symlink_dir(&child_dir, &parent_dir.parent().expect("modules dir").join("bar"))
-        .expect("link the child into the parent slot");
+    pnpm_fs::symlink_dir(&child_dir, &child_link).expect("link the child into the parent slot");
 
     let plan = fixture.plan(false);
     assert!(

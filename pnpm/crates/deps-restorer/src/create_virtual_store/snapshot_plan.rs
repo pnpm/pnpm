@@ -308,18 +308,40 @@ fn regular_children_match(
         else {
             return Ok(false);
         };
-        match std::fs::symlink_metadata(&child_path) {
-            Ok(_) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-            Err(error) => {
-                return Err(CreateVirtualStoreError::InspectVirtualStoreSlot {
-                    path: child_path,
-                    error,
-                });
-            }
+        if !child_link_present(&child_path)? {
+            return Ok(false);
         }
     }
     Ok(true)
+}
+
+/// Whether `child_path` holds the directory link the symlink layout
+/// writes. A plain file or directory in its place is a corrupted slot,
+/// not a link, so it does not count.
+fn child_link_present(child_path: &Path) -> Result<bool, CreateVirtualStoreError> {
+    match std::fs::symlink_metadata(child_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                return Ok(true);
+            }
+            // On Windows `symlink_dir` may have fallen back to a
+            // junction, which `is_symlink` does not report.
+            #[cfg(windows)]
+            return pnpm_fs::is_symlink_or_junction(child_path).map_err(|error| {
+                CreateVirtualStoreError::InspectVirtualStoreSlot {
+                    path: child_path.to_path_buf(),
+                    error,
+                }
+            });
+            #[cfg(not(windows))]
+            Ok(false)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(CreateVirtualStoreError::InspectVirtualStoreSlot {
+            path: child_path.to_path_buf(),
+            error,
+        }),
+    }
 }
 
 /// Kind of dirent a slot probe expects.
