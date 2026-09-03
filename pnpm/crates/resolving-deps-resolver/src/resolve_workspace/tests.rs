@@ -3621,7 +3621,7 @@ async fn finalized_packages_are_announced_once_their_peer_free_subtree_settles()
         vec![
             ("leaf@1.0.0".to_string(), vec![]),
             ("pure@1.0.0".to_string(), vec!["leaf@1.0.0".to_string()]),
-        ]
+        ],
     );
 }
 
