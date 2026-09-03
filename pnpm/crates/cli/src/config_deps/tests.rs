@@ -144,7 +144,7 @@ async fn update_config_script_shell_output_is_not_resolved_again() {
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
     let expected_manifest_shell =
         root.path().join("manifest-shell.sh").to_string_lossy().into_owned();
-    assert_eq!(config.script_shell.as_deref(), Some(expected_manifest_shell.as_str()),);
+    assert_eq!(config.script_shell.as_deref(), Some(expected_manifest_shell.as_str()));
 
     run_update_config_hooks::<SilentReporter>(&mut config, root.path())
         .await
