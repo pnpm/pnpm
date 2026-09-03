@@ -83,18 +83,15 @@ fn version_lt_compares_semver() {
     assert!(!version_lt("not-a-version", "1.0.0"));
 }
 
-/// A global bin dir holding the shim `node` published from an old engine,
-/// plus the engine a self-update installs. Returns the installed engine
-/// and the path of the shim executable.
 fn seed_shim_and_new_engine(root: &Path) -> (install_pnpm::InstallPnpmResult, std::path::PathBuf) {
     let global_bin = root.join("bin");
     let install_dir = root.join("engine");
     fs::create_dir_all(&global_bin).unwrap();
     let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
     fs::create_dir_all(executable.parent().unwrap()).unwrap();
-    fs::write(&executable, b"new v12 engine").unwrap();
+    fs::write(&executable, b"new shim engine").unwrap();
     let old_engine = root.join("old-engine");
-    fs::write(&old_engine, b"old v12 engine").unwrap();
+    fs::write(&old_engine, b"old shim engine").unwrap();
     let target = ShimTarget::Installed(root.join("node-release/bin/node"));
     install_native_shim_from(&old_engine, &global_bin, "node", &target).unwrap();
     let installed = install_pnpm::InstallPnpmResult {
@@ -106,14 +103,14 @@ fn seed_shim_and_new_engine(root: &Path) -> (install_pnpm::InstallPnpmResult, st
 }
 
 #[test]
-fn self_update_republishes_the_global_shims_from_the_v12_engine() {
+fn self_update_republishes_global_shims_from_a_compatible_engine() {
     let root = tempfile::tempdir().unwrap();
     let (installed, node) = seed_shim_and_new_engine(root.path());
     let global_bin = root.path().join("bin");
 
-    refresh_global_shims(&global_bin, &installed, "12.0.0-alpha.1").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 
-    assert_eq!(fs::read(node).unwrap(), b"new v12 engine");
+    assert_eq!(fs::read(node).unwrap(), b"new shim engine");
     assert_eq!(
         native_shim_target(&global_bin, "node").unwrap(),
         Some(ShimTarget::Installed(root.path().join("node-release/bin/node"))),
@@ -149,14 +146,14 @@ fn self_update_migrates_legacy_shell_shims() {
     fs::write(global_bin.join("direct"), "#!/bin/sh\nexec node\n# cmd-shim-target=/x/cli.js\n")
         .unwrap();
 
-    refresh_global_shims(&global_bin, &installed, "12.0.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 
-    assert_eq!(fs::read(&legacy_shim).unwrap(), b"new v12 engine");
+    assert_eq!(fs::read(&legacy_shim).unwrap(), b"new shim engine");
     assert_eq!(
         native_shim_target(&global_bin, "tool").unwrap(),
         Some(ShimTarget::Installed("/global/tool/cli.js".into())),
     );
-    assert_eq!(fs::read(&legacy_virtual).unwrap(), b"new v12 engine");
+    assert_eq!(fs::read(&legacy_virtual).unwrap(), b"new shim engine");
     assert_eq!(
         native_shim_target(&global_bin, "yarn").unwrap(),
         Some(ShimTarget::Virtual("yarn".to_string())),
@@ -177,25 +174,25 @@ fn self_update_installs_no_shim_where_none_exists() {
         already_existed: false,
     };
 
-    refresh_global_shims(&global_bin, &installed, "12.0.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 
     assert_eq!(fs::read_dir(&global_bin).unwrap().count(), 0);
 }
 
 #[test]
-fn self_update_to_pre_v12_leaves_the_global_shims_alone() {
+fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
     let root = tempfile::tempdir().unwrap();
     let (_, node) = seed_shim_and_new_engine(root.path());
     let global_bin = root.path().join("bin");
     let installed = install_pnpm::InstallPnpmResult {
         install_dir: root.path().join("legacy-engine"),
-        package_name: "@pnpm/exe",
+        package_name: "pnpm",
         already_existed: false,
     };
 
-    refresh_global_shims(&global_bin, &installed, "11.10.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.2.1").unwrap();
 
-    assert_eq!(fs::read(node).unwrap(), b"old v12 engine");
+    assert_eq!(fs::read(node).unwrap(), b"old shim engine");
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one
