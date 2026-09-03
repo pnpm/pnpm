@@ -6,6 +6,6 @@
 
 `pnpm import` in a workspace now imports every workspace project into the shared lockfile. It previously imported only the project in the current directory.
 
-`pnpm import` now fails with `ERR_PNPM_LOCKFILE_NOT_FOUND` when none of the three source lockfiles is present, and with `ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED` when it cannot parse `yarn.lock`. It previously generated a lockfile from scratch in both cases.
+`pnpm import` now fails with `ERR_PNPM_LOCKFILE_NOT_FOUND` when none of the three source lockfiles is present. It also fails with `ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED` when it cannot parse `yarn.lock`. It previously generated a lockfile from scratch in both cases.
 
 `pnpm import` always resolves locally. It warns when `--pnpr-server` or the `pnpr-server` setting is given and does not use the server.
