@@ -428,7 +428,12 @@ fn collect_manifests_in_children(
         {
             return Ok(());
         }
-        collect_candidate_manifests_in(&entry.path(), workspace_root, user_negations, manifest_paths);
+        collect_candidate_manifests_in(
+            &entry.path(),
+            workspace_root,
+            user_negations,
+            manifest_paths,
+        );
         Ok(())
     })
 }
@@ -521,7 +526,7 @@ fn has_always_ignored_component(path: &Path) -> bool {
     path.components().any(|component| {
         matches!(
             component,
-            Component::Normal(name) if name == "node_modules" || name == "bower_components"
+            Component::Normal(name) if name == "node_modules" || name == "bower_components",
         )
     })
 }
