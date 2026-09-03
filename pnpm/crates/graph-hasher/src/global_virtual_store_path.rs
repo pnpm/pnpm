@@ -14,6 +14,7 @@ use crate::{
     HashEncoding,
     dep_state::{DepsGraphNode, DepsStateCache, calc_dep_graph_hash},
     hash_object, hash_object_without_sorting,
+    object_hasher::{digest_hex, serialize_str},
 };
 use serde_json::{Value, json};
 use std::{
@@ -68,11 +69,32 @@ where
         Value::Null
     };
     let deps_hash = calc_dep_graph_hash(graph, cache, &mut HashSet::new(), dep_path);
-    let payload = match project {
-        None => json!({ "engine": engine_value, "deps": deps_hash }),
-        Some(project) => json!({ "engine": engine_value, "deps": deps_hash, "project": project }),
-    };
-    hash_object_without_sorting(&payload, HashEncoding::Hex)
+    // The same bytes `hash_object_without_sorting` would write for the
+    // payload it used to build. `serde_json` runs with `preserve_order`,
+    // so an unsorted object serializes in insertion order — `engine`,
+    // `deps`, then `project` when present.
+    let mut buf = Vec::with_capacity(256);
+    buf.extend_from_slice(b"object:");
+    buf.extend_from_slice(if project.is_some() { b"3" } else { b"2" });
+    buf.push(b':');
+    serialize_str(&mut buf, "engine");
+    buf.push(b':');
+    match &engine_value {
+        Value::String(engine) => serialize_str(&mut buf, engine),
+        _ => buf.extend_from_slice(b"Null"),
+    }
+    buf.push(b',');
+    serialize_str(&mut buf, "deps");
+    buf.push(b':');
+    serialize_str(&mut buf, &deps_hash);
+    buf.push(b',');
+    if let Some(project) = project {
+        serialize_str(&mut buf, "project");
+        buf.push(b':');
+        serialize_str(&mut buf, project);
+        buf.push(b',');
+    }
+    digest_hex(&buf)
 }
 
 /// Compute the GVS hash for a config dependency that has no children
