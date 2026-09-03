@@ -191,9 +191,7 @@ impl<'tree> Walker<'tree> {
             peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
         }
         // With no peer names in the tree, no edge can index as a
-        // provider, and rendering every edge's real name (an allocation
-        // each) would be the loop's only work — every entry stays the
-        // empty default.
+        // provider: every entry stays the empty default.
         let tree_declares_peers = !tree.all_peer_dep_names.is_empty();
         for (pkg_id, children) in &tree.children_by_id {
             if peer_provider_children_by_pkg_id.contains_key(&**pkg_id) {

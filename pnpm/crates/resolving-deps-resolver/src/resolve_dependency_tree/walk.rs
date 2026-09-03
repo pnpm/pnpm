@@ -1245,8 +1245,7 @@ fn shared_workspace_key(
     }
     // The consumer scope is exactly what the shared key drops. Every
     // `workspace:` selector carries one, so its absence means this edge is not
-    // the shape assumed here. Checked before the clone so the dropped
-    // slot's path is never copied just to be discarded.
+    // the shape assumed here.
     cache_key.6.as_ref()?;
     let wanted_key = (
         cache_key.0.clone(),

@@ -58,9 +58,6 @@ impl ImporterAnchor {
     /// target, or one that carries `..` components.
     pub(crate) fn target_relative_to_importer(&self, target: &str) -> Option<String> {
         let rel = self.rel_components.as_deref()?;
-        // Two passes over the segment split, so no segment list is
-        // collected: the first validates every segment and finds the
-        // shared prefix, the second renders the survivors.
         let segments = relative_segments(target)?;
         let mut shared = 0;
         let mut still_shared = true;
