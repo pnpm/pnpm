@@ -88,6 +88,7 @@ pub(crate) fn to_string(value: Value) -> String {
     let value = sort_lockfile_keys(value);
     let mut dump = render(&value, 0, true, true, None, false);
     dump.push('\n');
+    pnpm_fs::background_drop(value);
     dump
 }
 

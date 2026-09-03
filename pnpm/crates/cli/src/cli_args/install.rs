@@ -707,6 +707,10 @@ impl InstallArgs {
         }
         .wrap_err("installing dependencies")?;
 
+        // The state holds the parsed wanted lockfile and the resolution
+        // caches, and the selection holds every project's manifest;
+        // nothing reads them between here and exit.
+        pnpm_fs::background_drop((state, selection));
         Ok(())
     }
 }

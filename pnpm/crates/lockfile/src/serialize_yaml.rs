@@ -34,8 +34,9 @@ pub(crate) fn to_string<Document: Serialize>(
 /// scoped `name`, both order differently under a field-wise comparison than
 /// under a comparison of the concatenated string (`react-dom@1.0.0` sorts
 /// before `react@17.0.2`; `@types/node` sorts before `node`). [`Display`]
-/// renders each key exactly as it is serialized, so sorting by it reproduces
-/// the canonical byte order.
+/// renders each key exactly as it is serialized — every key type here
+/// serializes `into = "String"` via `to_string` — so the one rendering
+/// serves both the sort and the emitted key.
 pub(crate) fn sorted_map<Key, Value, Ser>(
     map: &HashMap<Key, Value>,
     serializer: Ser,
@@ -45,12 +46,12 @@ where
     Value: Serialize,
     Ser: Serializer,
 {
-    let mut entries: Vec<(String, &Key, &Value)> =
-        map.iter().map(|(key, value)| (key.to_string(), key, value)).collect();
-    entries.sort_unstable_by(|(left, ..), (right, ..)| left.cmp(right));
+    let mut entries: Vec<(String, &Value)> =
+        map.iter().map(|(key, value)| (key.to_string(), value)).collect();
+    entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     let mut map_serializer = serializer.serialize_map(Some(entries.len()))?;
-    for (_, key, value) in &entries {
-        map_serializer.serialize_entry(key, value)?;
+    for (key, value) in &entries {
+        map_serializer.serialize_entry(key.as_str(), value)?;
     }
     map_serializer.end()
 }
