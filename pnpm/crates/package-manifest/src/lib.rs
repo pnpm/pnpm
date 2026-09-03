@@ -298,9 +298,7 @@ impl PackageManifest {
         // paying a stat before every successful read.
         let rendered_path = path.display().to_string();
         PackageManifest::read_from_file(path).map_err(|error| match error {
-            PackageManifestError::Io(io_error)
-                if io_error.kind() == io::ErrorKind::NotFound =>
-            {
+            PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
                 PackageManifestError::NoImporterManifestFound(rendered_path)
             }
             other => other,
