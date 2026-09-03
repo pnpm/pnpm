@@ -810,9 +810,10 @@ fn blocked_packument_key(
         .unwrap_or_else(|| version_str.to_string())
 }
 
-/// Answer a request the guard left with no acceptable candidate, per the
-/// guard's [`GuardExhaustionPolicy`]. `fail` builds the error naming why the
-/// picker gave up, for a guard whose rejections are a hard requirement.
+/// Answer a request the picker gave up on — every matching version rejected,
+/// or the re-pick cap reached first — per the guard's
+/// [`GuardExhaustionPolicy`]. `fail` builds the error naming which of the two
+/// it was, for a guard whose rejections are a hard requirement.
 fn exhausted(
     opts: &PickFromRegistryOptions<'_>,
     first_rejected: Option<PickedFromRegistry>,
