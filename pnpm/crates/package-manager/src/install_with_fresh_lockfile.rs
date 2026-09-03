@@ -929,12 +929,15 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Slots can only be populated ahead of the lockfile where their
         // names do not depend on the whole graph (no global virtual
-        // store) and where the tarballs are prefetched into the cache
-        // the materializer waits on.
+        // store), where the tarballs are prefetched into the cache the
+        // materializer waits on, and where the link phase imports
+        // straight from the CAS: the macOS directory-clone cache serves
+        // project slots from canonical slots it populates itself.
         let early_materializer = (!lockfile_only
             && !filtered_isolated
             && !is_hoisted
             && !config.enable_global_virtual_store
+            && !pnpm_deps_restorer::DirCloneCache::eligible(config, node_linker)
             && custom_fetcher_session.is_none())
         .then(|| {
             Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
