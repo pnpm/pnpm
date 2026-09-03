@@ -407,8 +407,8 @@ pub(super) fn importer_relative_link_dep_path(
     let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
         return dep_path.clone();
     };
-    let target = Path::new(target);
     let relative_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
+        let target = Path::new(target);
         let absolute_target = if target.is_absolute() {
             pnpm_fs::lexical_normalize(target)
         } else {
@@ -418,9 +418,12 @@ pub(super) fn importer_relative_link_dep_path(
         // carrying `.` / `..` segments would consume them as real directories
         // and count the wrong number of `..` hops back out.
         let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir).unwrap_or(absolute_target)
+        pathdiff::diff_paths(&absolute_target, project_dir)
+            .unwrap_or(absolute_target)
+            .display()
+            .to_string()
+            .replace('\\', "/")
     });
-    let relative_target = relative_target.display().to_string().replace('\\', "/");
     DepPath::from(format!("link:{relative_target}"))
 }
 

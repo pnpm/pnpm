@@ -1201,17 +1201,21 @@ fn render_workspace_resolution(
         return rendered;
     }
 
-    let target = Path::new(&directory_resolution.directory);
+    let target = directory_resolution.directory.as_str();
     let consumer_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
+        let target = Path::new(target);
         let absolute_target = if target.is_absolute() {
             pnpm_fs::lexical_normalize(target)
         } else {
             pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
         };
         let project_dir = pnpm_fs::lexical_normalize(project_dir);
-        pathdiff::diff_paths(&absolute_target, project_dir).unwrap_or(absolute_target)
+        pathdiff::diff_paths(&absolute_target, project_dir)
+            .unwrap_or(absolute_target)
+            .display()
+            .to_string()
+            .replace('\\', "/")
     });
-    let consumer_target = consumer_target.display().to_string().replace('\\', "/");
     rendered.id =
         pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{consumer_target}"));
     directory_resolution.directory = consumer_target;
