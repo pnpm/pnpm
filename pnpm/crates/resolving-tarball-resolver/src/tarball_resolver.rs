@@ -230,6 +230,7 @@ impl TarballResolver {
             vec![cache_key.clone()],
             ctx.verify_store_integrity,
             Arc::clone(&ctx.verified_files_cache),
+            std::collections::HashSet::new(),
         )
         .await;
         // The bundled manifest is required to resolve the tarball's

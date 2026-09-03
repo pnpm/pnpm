@@ -624,6 +624,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
         vec![index_key.clone()],
         true,
         SharedVerifiedFilesCache::default(),
+        std::collections::HashSet::new(),
     )
     .await;
 
@@ -676,6 +677,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         vec![index_key.clone()],
         true,
         SharedVerifiedFilesCache::default(),
+        std::collections::HashSet::new(),
     )
     .await;
 
@@ -734,6 +736,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
         // which turns the row into a miss.
         true,
         SharedVerifiedFilesCache::default(),
+        std::collections::HashSet::new(),
     )
     .await;
 
@@ -793,6 +796,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         vec![index_key.clone()],
         false,
         SharedVerifiedFilesCache::default(),
+        std::collections::HashSet::new(),
     )
     .await;
 

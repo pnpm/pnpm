@@ -821,6 +821,7 @@ fn slot_link<'a>(
         force_import: false,
         needs_build_marker_source: None,
         dir_clone_cacheable: false,
+        slot_up_to_date: false,
         removed_aliases,
     }
 }
