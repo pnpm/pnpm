@@ -3567,6 +3567,25 @@ pacquet@12.3.1:
     - anchored-links
     - legacy-shim-dispatch-compat
     - quiet-install-tail
+pacquet@12.3.2:
+  dir: pnpm/npm/pnpm
+  intents:
+    - audit-fix-update-keeps-going
+    - calm-slots-rest
+    - early-materialization
+    - fix-pacquet-validated-timestamp
+    - import-keeps-foreign-lockfile-versions
+    - lean-discovery
+    - leaner-edges
+    - quick-signature-fallback
+    - quiet-teardown
+    - relink-publish-directories
+    - repair-native-pnpm-shims
+    - resolver-recursive-warmup
+    - string-space-anchors
+    - unchanged-local-tarballs
+    - update-ignore-scripts
+    - warm-gvs-restore
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
