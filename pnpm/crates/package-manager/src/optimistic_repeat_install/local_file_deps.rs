@@ -14,7 +14,8 @@ struct LocalTarballDependency {
     project_dir: PathBuf,
     alias: String,
     group: DependencyGroup,
-    path: PathBuf,
+    path: Option<PathBuf>,
+    must_be_local: bool,
 }
 
 /// Whether any project declares a mutable local directory dependency or a
@@ -45,14 +46,17 @@ pub(crate) fn has_local_file_dep_requiring_install(
                 if !is_local_file_spec(spec) {
                     continue;
                 }
-                let Some(path) = local_tarball_path(spec, project_dir) else {
+                let must_be_local = is_unambiguous_local_file_spec(spec);
+                let path = local_tarball_path(spec, project_dir);
+                if must_be_local && path.is_none() {
                     return Ok(true);
-                };
+                }
                 tarballs.push(LocalTarballDependency {
                     project_dir: project_dir.clone(),
                     alias: alias.clone(),
                     group,
                     path,
+                    must_be_local,
                 });
             }
         }
@@ -77,7 +81,7 @@ pub(crate) fn has_local_file_dep_requiring_install(
     };
 
     Ok(tarballs.iter().any(|dependency| {
-        !local_tarball_matches_lockfile(check.workspace_root, lockfile, dependency)
+        local_tarball_requires_install(check.workspace_root, lockfile, dependency)
     }))
 }
 
@@ -98,40 +102,45 @@ fn resolve_catalog_spec<'a>(
     }
 }
 
-fn local_tarball_matches_lockfile(
+fn local_tarball_requires_install(
     workspace_root: &Path,
     lockfile: &Lockfile,
     dependency: &LocalTarballDependency,
 ) -> bool {
     let importer_id = importer_id_from_root_dir(workspace_root, &dependency.project_dir);
-    let Some(importer) = lockfile.importers.get(&importer_id) else { return false };
-    let Ok(alias) = PkgName::parse(&dependency.alias) else { return false };
+    let Some(importer) = lockfile.importers.get(&importer_id) else { return true };
+    let Ok(alias) = PkgName::parse(&dependency.alias) else { return true };
     let Some(resolved) = importer
         .get_map_by_group(dependency.group)
         .and_then(|dependencies| dependencies.get(&alias))
     else {
-        return false;
+        return true;
     };
     let Some(package_key) = resolved.version.resolved_key(&alias).map(|key| key.without_peer())
     else {
-        return false;
+        return dependency.must_be_local;
     };
-    let Some(LockfileResolution::Tarball(resolution)) = lockfile
-        .packages
-        .as_ref()
-        .and_then(|packages| packages.get(&package_key))
-        .map(|metadata| &metadata.resolution)
+    let Some(metadata) = lockfile.packages.as_ref().and_then(|packages| packages.get(&package_key))
     else {
-        return false;
+        return true;
     };
+    let LockfileResolution::Tarball(resolution) = &metadata.resolution else {
+        return dependency.must_be_local;
+    };
+    if !resolution.tarball.starts_with("file:") {
+        return dependency.must_be_local;
+    }
+    let Some(recorded_path) = local_tarball_path(&resolution.tarball, workspace_root) else {
+        return true;
+    };
+    if dependency.path.as_ref().is_some_and(|path| path != &recorded_path) {
+        return true;
+    }
     let Some(integrity) = resolution.integrity.as_ref().filter(|value| !value.hashes.is_empty())
     else {
-        return false;
+        return true;
     };
-    let Some(recorded_path) = local_tarball_path(&resolution.tarball, workspace_root) else {
-        return false;
-    };
-    recorded_path == dependency.path && file_matches_integrity(&dependency.path, integrity)
+    !file_matches_integrity(&recorded_path, integrity)
 }
 
 fn file_matches_integrity(path: &Path, integrity: &Integrity) -> bool {
@@ -236,6 +245,18 @@ pub(crate) fn has_local_file_package_extension(
 /// catalog entry may hold a bare local path (the catalog resolver only
 /// bans the `workspace:`, `link:`, and `file:` protocols).
 pub(crate) fn is_local_file_spec(spec: &str) -> bool {
+    if is_unambiguous_local_file_spec(spec) {
+        return true;
+    }
+    if spec.contains([':', '#']) {
+        return false;
+    }
+    ends_with_ignore_ascii_case(spec, ".tgz")
+        || ends_with_ignore_ascii_case(spec, ".tar.gz")
+        || ends_with_ignore_ascii_case(spec, ".tar")
+}
+
+fn is_unambiguous_local_file_spec(spec: &str) -> bool {
     if spec.starts_with("file:") {
         return true;
     }
@@ -247,6 +268,12 @@ pub(crate) fn is_local_file_spec(spec: &str) -> bool {
         return true;
     }
     false
+}
+
+fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
+    let spec = spec.as_bytes();
+    let suffix = suffix.as_bytes();
+    spec.len() >= suffix.len() && spec[spec.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive

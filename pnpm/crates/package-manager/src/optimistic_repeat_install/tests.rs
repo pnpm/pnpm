@@ -128,6 +128,50 @@ fn write_local_tarball_lockfile(
     lockfile
 }
 
+fn write_bare_tarball_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    tarball: &[u8],
+) -> Lockfile {
+    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball).result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      tar:\n        specifier: dependency.tgz\n        version: file:dependency.tgz\npackages:\n  tar@file:dependency.tgz:\n    resolution: {{integrity: {integrity}, tarball: file:dependency.tgz}}\nsnapshots:\n  tar@file:dependency.tgz: {{}}\n",
+        ),
+    )
+    .expect("write bare tarball lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load bare tarball lockfile")
+        .expect("bare tarball lockfile on disk");
+    lockfile
+        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .expect("write current bare tarball lockfile");
+    lockfile
+}
+
+fn write_registry_lockfile(
+    workspace_root: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    specifier: &str,
+) -> Lockfile {
+    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(b"registry").result();
+    fs::write(
+        workspace_root.join(Lockfile::FILE_NAME),
+        format!(
+            "lockfileVersion: '9.0'\nimporters:\n  .:\n    dependencies:\n      tar:\n        specifier: {specifier}\n        version: 1.0.0\npackages:\n  tar@1.0.0:\n    resolution: {{integrity: {integrity}}}\nsnapshots:\n  tar@1.0.0: {{}}\n",
+        ),
+    )
+    .expect("write registry lockfile");
+    let lockfile = Lockfile::load_wanted_from_dir(workspace_root)
+        .expect("load registry lockfile")
+        .expect("registry lockfile on disk");
+    lockfile
+        .save_current_to_virtual_store_dir(virtual_store_dir)
+        .expect("write current registry lockfile");
+    lockfile
+}
+
 fn write_state(
     workspace_root: &std::path::Path,
     timestamp: i64,
@@ -484,16 +528,53 @@ fn returns_up_to_date_when_bare_tarball_specs_are_ambiguous() {
         let path = dir.path().join(spec);
         fs::create_dir_all(path.parent().expect("tarball parent")).expect("create parent");
         fs::write(path, b"local file with an ambiguous specifier").expect("write local file");
+        let lockfile = write_registry_lockfile(dir.path(), &config.virtual_store_dir, spec);
         validate_existing_files(dir.path());
 
-        let decision = check(
+        let decision = check_with_lockfile(
             dir.path(),
             config,
             pnpm_config::NodeLinker::Isolated,
             &[(dir.path().to_path_buf(), &manifest)],
+            &lockfile,
         );
         assert_eq!(decision, Decision::UpToDate, "specifier {spec:?}");
     }
+}
+
+#[test]
+fn verifies_a_bare_tarball_when_the_lockfile_records_a_local_resolution() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pnpm_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"tar":"dependency.tgz"}"#,
+    );
+    let tarball = dir.path().join("dependency.tgz");
+    fs::write(&tarball, b"original").expect("write bare tarball");
+    let lockfile = write_bare_tarball_lockfile(dir.path(), &config.virtual_store_dir, b"original");
+    validate_existing_files(dir.path());
+
+    let unchanged = check_with_lockfile(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
+    );
+    assert_eq!(unchanged, Decision::UpToDate);
+
+    fs::write(&tarball, b"repacked").expect("repack bare tarball");
+    let changed = check_with_lockfile(
+        dir.path(),
+        config,
+        pnpm_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+        &lockfile,
+    );
+    assert!(
+        matches!(changed, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
 }
 
 /// Bare local paths resolve to local directory dependencies and stay on the
