@@ -1116,8 +1116,9 @@ test('should throw error when trying to install a package without name', async (
 // Covers https://github.com/pnpm/pnpm/issues/1193
 test('rewrites node_modules created by npm', async () => {
   const project = prepare()
+  const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
 
-  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
+  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save', '--registry', registry])
 
   const { updatedManifest: manifest } = await install({}, testDefaults())
 
@@ -1125,7 +1126,7 @@ test('rewrites node_modules created by npm', async () => {
   expect(typeof m).toBe('function')
   project.isExecutable('.bin/rimraf')
 
-  await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save'])
+  await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save', '--registry', registry])
 
   await install(manifest, testDefaults())
 })

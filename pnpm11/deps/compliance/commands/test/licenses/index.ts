@@ -1,7 +1,9 @@
 /// <reference path="../../../../../__typings__/index.d.ts" />
+import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { stripVTControlCharacters as stripAnsi } from 'node:util'
+import { pathToFileURL } from 'node:url'
+import { promisify, stripVTControlCharacters as stripAnsi } from 'node:util'
 
 import { expect, test } from '@jest/globals'
 import { STORE_VERSION } from '@pnpm/constants'
@@ -14,6 +16,7 @@ import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects
 import { DEFAULT_OPTS } from './utils/index.js'
 
 const f = fixtures(import.meta.dirname)
+const execFileAsync = promisify(execFile)
 
 test('pnpm licenses', async () => {
   const workspaceDir = tempDir()
@@ -308,19 +311,20 @@ test('pnpm licenses should work with git protocol dep that have patches', async 
 test('pnpm licenses should work with git protocol dep that have peerDependencies', async () => {
   const workspaceDir = tempDir()
   f.copy('with-git-protocol-peer-deps', workspaceDir)
+  const manifestPath = path.join(workspaceDir, 'package.json')
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  manifest.dependencies['git-peer-dependency'] = await createGitDependencySpecifier(path.join(workspaceDir, 'git-peer-dependency'))
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, undefined, 2))
 
   const storeDir = path.join(workspaceDir, 'store')
   await install.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
-    allowBuilds: {
-      'ajv-keywords@https://codeload.github.com/ajv-validator/ajv-keywords/tar.gz/a11389b4d1934d360fb2a24dd920ec597295c8fc': true,
-    },
     pnpmHomeDir: '',
     storeDir,
   })
 
-  const { exitCode } = await licenses.handler({
+  const { output, exitCode } = await licenses.handler({
     ...DEFAULT_OPTS,
     dir: workspaceDir,
     pnpmHomeDir: '',
@@ -329,7 +333,21 @@ test('pnpm licenses should work with git protocol dep that have peerDependencies
   }, ['list'])
 
   expect(exitCode).toBe(0)
+  expect(stripAnsi(output)).toContain('git-peer-dependency')
 })
+
+async function createGitDependencySpecifier (repoDir: string): Promise<string> {
+  await execFileAsync('git', ['init', '-q', '-b', 'main'], { cwd: repoDir })
+  await execFileAsync('git', ['add', '-A'], { cwd: repoDir })
+  await execFileAsync('git', [
+    '-c', 'commit.gpgsign=false',
+    '-c', 'user.email=test@example.invalid',
+    '-c', 'user.name=Test',
+    'commit', '-q', '-m', 'init',
+  ], { cwd: repoDir })
+  const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: repoDir })
+  return `git+${pathToFileURL(repoDir).href}#${stdout.trim()}`
+}
 
 test('pnpm licenses should work git repository name containing capital letters', async () => {
   const workspaceDir = tempDir()

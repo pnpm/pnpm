@@ -1,0 +1,8 @@
+{
+  "name": "git-peer-dependency",
+  "version": "1.0.0",
+  "license": "MIT",
+  "peerDependencies": {
+    "peer-pkg": "*"
+  }
+}
