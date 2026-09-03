@@ -107,17 +107,19 @@ pub(crate) fn validation_baseline_ms(
 /// file the repeat-install check compares — the reason
 /// [`validation_baseline_ms`] cannot use the wall clock either.
 ///
-/// Read it *before* validating the contents it will later bless: a file
-/// written after the probe carries a later mtime and so still reads as
-/// modified, while one written before it is covered by the check that
-/// just passed.
+/// A repeat-install check reads it *before* validating the contents it
+/// will later bless: a file written after the probe carries a later
+/// mtime and so still reads as modified, while one written before it is
+/// covered by the check that just passed. An install reads it as it
+/// writes the workspace state, where pnpm records `Date.now()`.
 ///
 /// The probe is an unnamed temporary file in the directory holding the
 /// workspace state — pnpm's own, on the volume the state write lands on
-/// — so nothing else can observe it and it needs no cleanup. The state
-/// directory is created first because a fresh install may be about to
-/// write it for the first time. `None` when it cannot be created or
-/// stat'd, leaving the caller with the mtime-derived baseline.
+/// — so nothing else can observe it and it needs no cleanup. The
+/// directory is created first because an install may be about to write
+/// the state file for the first time. `None` when the probe cannot be
+/// created or stat'd, leaving the caller with the mtime-derived
+/// baseline.
 pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
     let state_path = pnpm_workspace_state::get_file_path(workspace_root);
     let parent = state_path.parent()?;
@@ -126,10 +128,11 @@ pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
     file_mtime_from_metadata(&probe.metadata().ok()?).map(|mtime| mtime.ms)
 }
 
-/// The `lastValidatedTimestamp` to record once a repeat-install content
-/// check has passed: `baseline_ms` — the mtimes of the files it
-/// validated, per [`validation_baseline_ms`] — raised to the filesystem
-/// clock's `now_ms`.
+/// The `lastValidatedTimestamp` to record once an install or a
+/// repeat-install content check has validated the manifests:
+/// `baseline_ms` — the mtimes of the files it validated, per
+/// [`validation_baseline_ms`] — raised to the filesystem clock's
+/// `now_ms`.
 ///
 /// `baseline_ms` on its own never converges. It is a file mtime
 /// truncated to milliseconds, and [`modified_at_or_after`] deliberately
@@ -138,7 +141,11 @@ pub(crate) fn filesystem_now_ms(workspace_root: &Path) -> Option<i64> {
 /// possibly-modified. The very file that forced this content check keeps
 /// forcing one on every later run, so the pure-mtime fast path becomes
 /// unreachable
-/// ([#13907](https://github.com/pnpm/pnpm/issues/13907)). Raising the
+/// ([#13907](https://github.com/pnpm/pnpm/issues/13907)). An install
+/// that leaves the lockfile alone records the newest manifest's mtime
+/// the same way, so on a sub-millisecond filesystem that manifest reads
+/// as modified against its own truncated mtime on every `pnpm run`
+/// ([#14486](https://github.com/pnpm/pnpm/issues/14486)). Raising the
 /// baseline to the filesystem's *now* closes that window without
 /// post-dating it into the future, which would hide an edit made in the
 /// interval it skipped over. Keeping `baseline_ms` as the floor

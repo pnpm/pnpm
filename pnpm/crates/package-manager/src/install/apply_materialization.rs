@@ -10,7 +10,7 @@ use super::{
     write_modules_manifest,
 };
 use crate::{
-    optimistic_repeat_install::{filesystem_now_ms, refreshed_validation_baseline_ms},
+    optimistic_repeat_install::filesystem_now_ms,
     peer_dependency_issues::report_peer_dependency_issues,
 };
 use pnpm_store_dir::VerifiedFileIntegrity;
@@ -916,22 +916,21 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     // Writing it after both the `.modules.yaml` and the current
     // lockfile succeed keeps the file pointing at a fully committed
     // install.
-    let mut workspace_state = build_workspace_state::<Host>(
+    update_workspace_state(
         &workspace_root,
-        config,
-        node_linker,
-        included,
-        supported_architectures.as_ref(),
-        &catalogs,
-        &project_manifests,
-        filtered_install,
-    );
-    workspace_state.last_validated_timestamp = refreshed_validation_baseline_ms(
-        workspace_state.last_validated_timestamp,
-        filesystem_now_ms(&workspace_root),
-    );
-    update_workspace_state(&workspace_root, &workspace_state)
-        .map_err(InstallError::WriteWorkspaceState)?;
+        &build_workspace_state::<Host>(
+            &workspace_root,
+            config,
+            node_linker,
+            included,
+            supported_architectures.as_ref(),
+            &catalogs,
+            &project_manifests,
+            filtered_install,
+            filesystem_now_ms(&workspace_root),
+        ),
+    )
+    .map_err(InstallError::WriteWorkspaceState)?;
 
     let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
