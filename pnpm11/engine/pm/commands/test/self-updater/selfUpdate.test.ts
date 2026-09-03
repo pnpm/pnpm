@@ -32,23 +32,10 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const actualGlobalCommands = await import('@pnpm/global.commands')
-let freshNativePnpmVersion: string | undefined
-jest.unstable_mockModule('@pnpm/global.commands', () => ({
-  ...actualGlobalCommands,
-  installGlobalPackages: async (...args: Parameters<typeof actualGlobalCommands.installGlobalPackages>): Promise<void> => {
-    if (freshNativePnpmVersion == null) {
-      await actualGlobalCommands.installGlobalPackages(...args)
-      return
-    }
-    seedNativePnpmPackage(args[0].dir, freshNativePnpmVersion)
-  },
-}))
 const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, installPnpmToStore, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
-  freshNativePnpmVersion = undefined
   await setupMockAgent()
   getMockAgent().enableNetConnect()
 })
@@ -1740,42 +1727,52 @@ describe('assertPnpmRuns', () => {
   })
 })
 
-describe('native pnpm shims', () => {
-  test('a fresh native install creates a launcher for the native binary', async () => {
-    const opts = prepare()
-    freshNativePnpmVersion = '12.3.1'
-
-    const result = await installPnpm('12.3.1', opts)
-
-    expect(result.alreadyExisted).toBe(false)
-    expectPnpmShimRunsNative(result.binDir)
-  })
-
-  test('concurrent cache hits repair a stale global launcher', async () => {
-    const opts = prepare()
-    const installDir = seedGlobalPnpm(opts, '12.3.1')
-    const binDir = await createStaleNativePnpmShim(installDir, '12.3.1')
-    const unrelatedBin = path.join(binDir, 'unrelated')
-    fs.writeFileSync(unrelatedBin, 'keep')
-
-    const results = await Promise.all(Array.from({ length: 8 }, async () => installPnpm('12.3.1', opts)))
-
-    expect(results.every(({ alreadyExisted }) => alreadyExisted)).toBe(true)
-    expectPnpmShimRunsNative(binDir)
-    expect(fs.readFileSync(unrelatedBin, 'utf8')).toBe('keep')
-    const repairedInode = fs.statSync(path.join(binDir, 'pnpm')).ino
-    await installPnpm('12.3.1', opts)
-    expect(fs.statSync(path.join(binDir, 'pnpm')).ino).toBe(repairedInode)
-  })
-
-  test('a cached native store install repairs its stale launcher', async () => {
+describe('native pnpm store bins', () => {
+  test('concurrent cache hits make the pnpm 12.3 launcher runnable without changing other bins', async () => {
     const version = '12.3.1'
     const storeDir = tempDir(false)
     const envLockfile = createPnpmEnvLockfile(version)
     const baseDir = pnpmGvsPath(envLockfile, version, storeDir)
     const binDir = await createStaleNativePnpmShim(baseDir, version)
+    if (process.platform !== 'win32') {
+      expect(spawn.sync(path.join(binDir, 'pnpm'), ['--version']).status).not.toBe(0)
+    }
+    const unrelatedBin = path.join(binDir, 'unrelated')
+    fs.writeFileSync(unrelatedBin, 'keep')
+    const opts = {
+      envLockfile,
+      storeController: {} as StoreController,
+      storeDir,
+      registriesByScope: { default: 'https://registry.npmjs.org/' },
+      virtualStoreDirMaxLength: 120,
+      trustedKeys: [],
+    }
 
-    const result = await installPnpmToStore(version, {
+    const results = await Promise.all(Array.from({ length: 8 }, async () => installPnpmToStore(version, opts)))
+
+    expect(results.every((result) => result.binDir === binDir)).toBe(true)
+    expectPnpmLauncherRuns(binDir)
+    expect(fs.readFileSync(unrelatedBin, 'utf8')).toBe('keep')
+    expect(fs.readdirSync(binDir).filter((entry) => entry.startsWith('.pnpm.'))).toEqual([])
+    if (process.platform !== 'win32') {
+      const pkgBin = path.join(baseDir, 'node_modules', 'pnpm', 'pnpm')
+      const launcherStat = fs.statSync(path.join(binDir, 'pnpm'))
+      const pkgBinStat = fs.statSync(pkgBin)
+      expect({ dev: launcherStat.dev, ino: launcherStat.ino }).toEqual({ dev: pkgBinStat.dev, ino: pkgBinStat.ino })
+    }
+  })
+
+  test('does not replace the working launcher from before pnpm 12.3', async () => {
+    const version = '12.2.1'
+    const storeDir = tempDir(false)
+    const envLockfile = createPnpmEnvLockfile(version)
+    const baseDir = pnpmGvsPath(envLockfile, version, storeDir)
+    const binDir = await createWorkingNativePnpmShim(baseDir, version)
+    const shimPath = path.join(binDir, 'pnpm')
+    const originalShim = fs.readFileSync(shimPath, 'utf8')
+    expect(originalShim).not.toContain('exec node')
+
+    await installPnpmToStore(version, {
       envLockfile,
       storeController: {} as StoreController,
       storeDir,
@@ -1784,57 +1781,8 @@ describe('native pnpm shims', () => {
       trustedKeys: [],
     })
 
-    expect(result.binDir).toBe(binDir)
-    expectPnpmShimRunsNative(binDir)
-  })
-
-  test('a failed cache repair restores a symlinked bin directory without changing its target', async () => {
-    const opts = prepare()
-    const installDir = seedGlobalPnpm(opts, '12.3.1')
-    const nativeContent = `':' //; exec /usr/bin/env node "$0" "$@"
-process.exit(0)
-`
-    const binDir = await createStaleNativePnpmShim(installDir, '12.3.1', nativeContent)
-    const binTarget = path.join(installDir, 'bin-target')
-    fs.renameSync(binDir, binTarget)
-    fs.symlinkSync(binTarget, binDir, process.platform === 'win32' ? 'junction' : 'dir')
-    const shimPath = path.join(binDir, 'pnpm')
-    const originalShim = fs.readFileSync(shimPath, 'utf8')
-    expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
-
-    const rename = fs.promises.rename.bind(fs.promises)
-    let publicationFailed = false
-    const renameSpy = jest.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
-      if (!publicationFailed && newPath === binDir) {
-        publicationFailed = true
-        throw new Error('injected publication failure')
-      }
-      await rename(oldPath, newPath)
-    })
-    try {
-      await expect(installPnpm('12.3.1', opts)).rejects.toThrow('injected publication failure')
-    } finally {
-      renameSpy.mockRestore()
-    }
-
-    expect(fs.lstatSync(binDir).isSymbolicLink()).toBe(true)
     expect(fs.readFileSync(shimPath, 'utf8')).toBe(originalShim)
-    expect(fs.readFileSync(path.join(binTarget, 'pnpm'), 'utf8')).toBe(originalShim)
-    expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
-    expect(fs.readdirSync(installDir).filter((entry) => entry.startsWith('.bin.'))).toEqual([])
-  })
-
-  test('does not migrate native launchers from before pnpm 12.3', async () => {
-    const opts = prepare()
-    const installDir = seedGlobalPnpm(opts, '12.2.0')
-    const binDir = await createStaleNativePnpmShim(installDir, '12.2.0')
-    const shimPath = path.join(binDir, 'pnpm')
-    const staleShim = fs.readFileSync(shimPath, 'utf8')
-    expect(staleShim).toContain('exec node')
-
-    await installPnpm('12.2.0', opts)
-
-    expect(fs.readFileSync(shimPath, 'utf8')).toBe(staleShim)
+    expectPnpmLauncherRuns(binDir)
   })
 })
 
@@ -1870,9 +1818,15 @@ async function createStaleNativePnpmShim (installDir: string, version: string, n
   return binDir
 }
 
-function expectPnpmShimRunsNative (binDir: string): void {
-  const shim = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
-  expect(shim).not.toContain('exec node')
+async function createWorkingNativePnpmShim (installDir: string, version: string): Promise<string> {
+  seedNativePnpmPackage(installDir, version)
+  expect(linkExePlatformBinary(installDir, 'pnpm')).toBe(true)
+  const binDir = path.join(installDir, 'bin')
+  await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: () => {} })
+  return binDir
+}
+
+function expectPnpmLauncherRuns (binDir: string): void {
   expect(spawn.sync(path.join(binDir, 'pnpm'), ['--version']).status).toBe(0)
 }
 

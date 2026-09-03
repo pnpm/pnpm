@@ -3,8 +3,6 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { setTimeout as delay } from 'node:timers/promises'
-import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
@@ -147,11 +145,13 @@ export async function installPnpmToStore (
 
   // Check if already installed in the GVS
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
-    if (!fs.existsSync(binDir)) {
-      await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
-    } else if (pnpmVersionNeedsShimRepair(pnpmVersion)) {
-      await ensurePnpmShimReady(pnpmGvsPath, pkgName, binDir)
-    }
+    await linkPnpmStoreBins({
+      baseDir: pnpmGvsPath,
+      binDir,
+      linkAllBins: !fs.existsSync(binDir),
+      pkgName,
+      version: pnpmVersion,
+    })
     return { binDir }
   }
 
@@ -176,7 +176,13 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
+    await linkPnpmStoreBins({
+      baseDir: pnpmGvsPath,
+      binDir,
+      linkAllBins: true,
+      pkgName,
+      version: pnpmVersion,
+    })
 
     return { binDir }
   } finally {
@@ -233,11 +239,7 @@ async function installPnpmToGlobalDir (
 
   const existingInstallDir = await findGlobalPnpmInstallDir(globalDir, pkgName, version)
   if (existingInstallDir != null) {
-    const binDir = path.join(existingInstallDir, 'bin')
-    if (pnpmVersionNeedsShimRepair(version)) {
-      await ensurePnpmShimReady(existingInstallDir, pkgName, binDir)
-    }
-    return { alreadyExisted: true, installDir: existingInstallDir, binDir }
+    return { alreadyExisted: true, installDir: existingInstallDir, binDir: path.join(existingInstallDir, 'bin') }
   }
 
   const installDir = createInstallDir(globalDir)
@@ -268,7 +270,8 @@ async function installPnpmToGlobalDir (
       await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
     }
 
-    await linkPnpmBins(installDir, pkgName, binDir)
+    linkExePlatformBinary(installDir, pkgName)
+    await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.
@@ -486,26 +489,6 @@ export function exePlatformPkgDirNameNext (
   return `exe.${platform}-${normalizedArch}${libcSuffix}`
 }
 
-async function linkPnpmBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
-  await withPnpmBinLock(binDir, async () => {
-    linkExePlatformBinary(baseDir, pkgName)
-    await relinkBinsAtomically(baseDir, binDir)
-  })
-}
-
-async function ensurePnpmShimReady (baseDir: string, pkgName: string, binDir: string): Promise<void> {
-  if (fs.existsSync(pnpmShimReadyMarker(binDir))) return
-  await withPnpmBinLock(binDir, async () => {
-    if (fs.existsSync(pnpmShimReadyMarker(binDir))) return
-    const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
-    if (pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) {
-      await relinkBinsAtomically(baseDir, binDir)
-    } else {
-      markPnpmShimReady(binDir)
-    }
-  })
-}
-
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
 // scripts are disabled during pnpm's own installs, so replicate it here — trying
 // the legacy and the newer `exe.<target>` platform-package names.
@@ -571,149 +554,27 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
   return true
 }
 
-async function relinkBinsAtomically (baseDir: string, binDir: string): Promise<void> {
-  const tempBinDir = path.join(
-    path.dirname(binDir),
-    `.${path.basename(binDir)}.${process.pid}.${randomUUID()}.tmp`
-  )
-  try {
-    try {
-      await fs.promises.cp(binDir, tempBinDir, { dereference: true, recursive: true })
-    } catch (err: unknown) {
-      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-      await fs.promises.mkdir(tempBinDir, { recursive: true })
-    }
-    const removalResults = await Promise.allSettled(['pnpm', 'pnpm.cmd', 'pnpm.ps1'].map(async (name) => fs.promises.rm(
-      path.join(tempBinDir, name),
-      { force: true }
-    )))
-    const removalError = removalResults.find((result) => result.status === 'rejected')
-    if (removalError?.status === 'rejected') throw removalError.reason
-    await linkBins(path.join(baseDir, 'node_modules'), tempBinDir, { warn: noop })
-    await fs.promises.writeFile(pnpmShimReadyMarker(tempBinDir), '')
-    await publishBinDir(tempBinDir, binDir)
-  } finally {
-    await fs.promises.rm(tempBinDir, { recursive: true, force: true })
+async function linkPnpmStoreBins (opts: {
+  baseDir: string
+  binDir: string
+  linkAllBins: boolean
+  pkgName: string
+  version: string
+}): Promise<void> {
+  const needsDirectBin = pnpmVersionNeedsDirectBin(opts.version)
+  const linkedNativeBinary = opts.linkAllBins || (needsDirectBin && process.platform !== 'win32')
+    ? linkExePlatformBinary(opts.baseDir, opts.pkgName)
+    : false
+  if (opts.linkAllBins) {
+    await linkBins(path.join(opts.baseDir, 'node_modules'), opts.binDir, { warn: noop })
   }
+  if (!linkedNativeBinary || process.platform === 'win32' || !needsDirectBin) return
+  const pkgDir = path.join(opts.baseDir, 'node_modules', ...opts.pkgName.split('/'))
+  forceLink(path.join(pkgDir, 'pnpm'), path.join(opts.binDir, 'pnpm'))
 }
 
-async function publishBinDir (tempBinDir: string, binDir: string): Promise<void> {
-  const backupBinDir = uniqueTempPath(binDir)
-  let hasBackup = false
-  try {
-    await fs.promises.rename(binDir, backupBinDir)
-    hasBackup = true
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
-  }
-  try {
-    await fs.promises.rename(tempBinDir, binDir)
-  } catch (publishError: unknown) {
-    if (hasBackup) {
-      try {
-        await fs.promises.rename(backupBinDir, binDir)
-      } catch (rollbackError: unknown) {
-        throw Object.assign(
-          new Error(
-            `Failed to publish pnpm bins and restore the original directory at ${binDir}. ` +
-            `Rollback error: ${String(rollbackError)}`
-          ),
-          { cause: publishError }
-        )
-      }
-    }
-    throw publishError
-  }
-  if (hasBackup) await fs.promises.rm(backupBinDir, { recursive: true, force: true })
-}
-
-const PNPM_BIN_LOCK_STALE_MS = 60_000
-
-async function withPnpmBinLock (binDir: string, action: () => Promise<void>): Promise<void> {
-  const lockDir = `${binDir}.pnpm-lock`
-  await fs.promises.mkdir(path.dirname(lockDir), { recursive: true })
-  await acquirePnpmBinLock(lockDir)
-  try {
-    await action()
-  } finally {
-    await fs.promises.rm(lockDir, { recursive: true, force: true })
-  }
-}
-
-async function acquirePnpmBinLock (lockDir: string): Promise<void> {
-  try {
-    await fs.promises.mkdir(lockDir)
-  } catch (err: unknown) {
-    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
-    await removeStalePnpmBinLock(lockDir)
-    await delay(10)
-    await acquirePnpmBinLock(lockDir)
-  }
-}
-
-async function removeStalePnpmBinLock (lockDir: string): Promise<void> {
-  let stat: fs.Stats
-  try {
-    stat = await fs.promises.lstat(lockDir)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
-    throw err
-  }
-  if (Date.now() - stat.mtimeMs < PNPM_BIN_LOCK_STALE_MS) return
-  const staleLockDir = uniqueTempPath(lockDir)
-  try {
-    await fs.promises.rename(lockDir, staleLockDir)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
-    throw err
-  }
-  await fs.promises.rm(staleLockDir, { recursive: true, force: true })
-}
-
-const PNPM_SHIM_READY_MARKER = '.pnpm-shim-v1'
-
-function pnpmShimReadyMarker (binDir: string): string {
-  return path.join(binDir, PNPM_SHIM_READY_MARKER)
-}
-
-function markPnpmShimReady (binDir: string): void {
-  replaceFileAtomically(pnpmShimReadyMarker(binDir), '')
-}
-
-function pnpmVersionNeedsShimRepair (version: string): boolean {
+function pnpmVersionNeedsDirectBin (version: string): boolean {
   return semver.gte(version, '12.3.0')
-}
-
-const MAX_SHIM_SIZE = 4 * 1024
-const NODE_MODE_SHIM_MARKER = 'exec node '
-
-function pnpmShimRunsNativeBinaryThroughNode (binDir: string, pkgDir: string): boolean {
-  const shimPath = path.join(binDir, 'pnpm')
-  const stat = fs.lstatSync(shimPath, { throwIfNoEntry: false })
-  if (stat == null) return true
-  if (!stat.isFile() || stat.size > MAX_SHIM_SIZE) return false
-  const shim = fs.readFileSync(shimPath, 'utf8')
-  if (!shim.includes(NODE_MODE_SHIM_MARKER)) return false
-  if (process.platform === 'win32') {
-    return fs.existsSync(path.join(pkgDir, 'pnpm.exe'))
-  }
-  return isShebangLessExecutable(path.join(pkgDir, 'pnpm'))
-}
-
-function isShebangLessExecutable (file: string): boolean {
-  let fd: number
-  try {
-    fd = fs.openSync(file, 'r')
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
-    throw err
-  }
-  try {
-    const buf = Buffer.alloc(2)
-    return fs.readSync(fd, buf, 0, 2, 0) === 2 && !(buf[0] === 0x23 /* # */ && buf[1] === 0x21 /* ! */)
-  } finally {
-    fs.closeSync(fd)
-  }
 }
 
 function forceLink (src: string, dest: string): void {
