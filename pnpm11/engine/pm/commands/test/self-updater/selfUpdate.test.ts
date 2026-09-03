@@ -1788,13 +1788,16 @@ describe('native pnpm shims', () => {
     expectPnpmShimRunsNative(binDir)
   })
 
-  test('a failed cache repair restores the original launcher', async () => {
+  test('a failed cache repair restores a symlinked bin directory without changing its target', async () => {
     const opts = prepare()
     const installDir = seedGlobalPnpm(opts, '12.3.1')
     const nativeContent = `':' //; exec /usr/bin/env node "$0" "$@"
 process.exit(0)
 `
     const binDir = await createStaleNativePnpmShim(installDir, '12.3.1', nativeContent)
+    const binTarget = path.join(installDir, 'bin-target')
+    fs.renameSync(binDir, binTarget)
+    fs.symlinkSync(binTarget, binDir, process.platform === 'win32' ? 'junction' : 'dir')
     const shimPath = path.join(binDir, 'pnpm')
     const originalShim = fs.readFileSync(shimPath, 'utf8')
     expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
@@ -1814,7 +1817,9 @@ process.exit(0)
       renameSpy.mockRestore()
     }
 
+    expect(fs.lstatSync(binDir).isSymbolicLink()).toBe(true)
     expect(fs.readFileSync(shimPath, 'utf8')).toBe(originalShim)
+    expect(fs.readFileSync(path.join(binTarget, 'pnpm'), 'utf8')).toBe(originalShim)
     expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
     expect(fs.readdirSync(installDir).filter((entry) => entry.startsWith('.bin.'))).toEqual([])
   })

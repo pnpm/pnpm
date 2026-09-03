@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
@@ -486,17 +487,23 @@ export function exePlatformPkgDirNameNext (
 }
 
 async function linkPnpmBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
-  linkExePlatformBinary(baseDir, pkgName)
-  await relinkBinsAtomically(baseDir, binDir)
+  await withPnpmBinLock(binDir, async () => {
+    linkExePlatformBinary(baseDir, pkgName)
+    await relinkBinsAtomically(baseDir, binDir)
+  })
 }
 
 async function ensurePnpmShimReady (baseDir: string, pkgName: string, binDir: string): Promise<void> {
   if (fs.existsSync(pnpmShimReadyMarker(binDir))) return
-  const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
-  if (pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) {
-    await relinkBinsAtomically(baseDir, binDir)
-  }
-  markPnpmShimReady(binDir)
+  await withPnpmBinLock(binDir, async () => {
+    if (fs.existsSync(pnpmShimReadyMarker(binDir))) return
+    const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
+    if (pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) {
+      await relinkBinsAtomically(baseDir, binDir)
+    } else {
+      markPnpmShimReady(binDir)
+    }
+  })
 }
 
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
@@ -571,7 +578,7 @@ async function relinkBinsAtomically (baseDir: string, binDir: string): Promise<v
   )
   try {
     try {
-      await fs.promises.cp(binDir, tempBinDir, { recursive: true })
+      await fs.promises.cp(binDir, tempBinDir, { dereference: true, recursive: true })
     } catch (err: unknown) {
       if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
       await fs.promises.mkdir(tempBinDir, { recursive: true })
@@ -602,10 +609,6 @@ async function publishBinDir (tempBinDir: string, binDir: string): Promise<void>
   try {
     await fs.promises.rename(tempBinDir, binDir)
   } catch (publishError: unknown) {
-    if (await pathExists(binDir)) {
-      if (hasBackup) await fs.promises.rm(backupBinDir, { recursive: true, force: true })
-      return
-    }
     if (hasBackup) {
       try {
         await fs.promises.rename(backupBinDir, binDir)
@@ -624,14 +627,47 @@ async function publishBinDir (tempBinDir: string, binDir: string): Promise<void>
   if (hasBackup) await fs.promises.rm(backupBinDir, { recursive: true, force: true })
 }
 
-async function pathExists (file: string): Promise<boolean> {
+const PNPM_BIN_LOCK_STALE_MS = 60_000
+
+async function withPnpmBinLock (binDir: string, action: () => Promise<void>): Promise<void> {
+  const lockDir = `${binDir}.pnpm-lock`
+  await fs.promises.mkdir(path.dirname(lockDir), { recursive: true })
+  await acquirePnpmBinLock(lockDir)
   try {
-    await fs.promises.access(file)
-    return true
+    await action()
+  } finally {
+    await fs.promises.rm(lockDir, { recursive: true, force: true })
+  }
+}
+
+async function acquirePnpmBinLock (lockDir: string): Promise<void> {
+  try {
+    await fs.promises.mkdir(lockDir)
   } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'EEXIST') throw err
+    await removeStalePnpmBinLock(lockDir)
+    await delay(10)
+    await acquirePnpmBinLock(lockDir)
+  }
+}
+
+async function removeStalePnpmBinLock (lockDir: string): Promise<void> {
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.lstat(lockDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
     throw err
   }
+  if (Date.now() - stat.mtimeMs < PNPM_BIN_LOCK_STALE_MS) return
+  const staleLockDir = uniqueTempPath(lockDir)
+  try {
+    await fs.promises.rename(lockDir, staleLockDir)
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return
+    throw err
+  }
+  await fs.promises.rm(staleLockDir, { recursive: true, force: true })
 }
 
 const PNPM_SHIM_READY_MARKER = '.pnpm-shim-v1'
