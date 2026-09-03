@@ -802,7 +802,7 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
         &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
     );
     let workspace_settings = format!(
-        "{}sideEffectsCache: false\n",
+        "{}nodeVersion: 20.0.0\nsideEffectsCache: false\n",
         allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
     );
     set_gvs_workspace_yaml(&workspace, &workspace_settings);

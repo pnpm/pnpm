@@ -157,7 +157,9 @@ pub(super) fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
 
 /// Probe the buildable or patched GVS slots this lockfile resolves to.
 /// Markers in sibling hash directories belong to other dependency graphs and
-/// cannot be recovered by materializing this one.
+/// cannot be recovered by materializing this one. The effective Node version
+/// participates only when materialization would run installability checks;
+/// constraint-free materialization keys the layout to the detected host Node.
 pub(super) fn gvs_build_marker_present(
     wanted: &Lockfile,
     config: &Config,
@@ -169,6 +171,16 @@ pub(super) fn gvs_build_marker_present(
     }
     let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
         return true;
+    };
+    let effective_node_version = match (&wanted.snapshots, &wanted.packages) {
+        (Some(snapshots), Some(packages))
+            if !config.force
+                && !snapshots.is_empty()
+                && crate::any_installability_constraint(snapshots, packages) =>
+        {
+            effective_node_version
+        }
+        _ => None,
     };
     let layout = crate::virtual_store_layout_for_lockfile(
         config,
