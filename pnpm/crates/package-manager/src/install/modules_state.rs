@@ -172,6 +172,66 @@ pub(super) fn gvs_build_marker_present(
     let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
         return true;
     };
+    let Some(snapshots) = wanted.snapshots.as_ref() else {
+        return false;
+    };
+    let eligible_snapshots = snapshots
+        .keys()
+        .filter(|snapshot_key| {
+            crate::snapshot_has_patch(snapshot_key)
+                || policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
+        })
+        .collect::<Vec<_>>();
+    let mut marker_candidate = false;
+    let mut visited_version_dirs = HashSet::new();
+    for &snapshot_key in &eligible_snapshots {
+        let metadata = wanted
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&snapshot_key.without_peer()));
+        let Some(version_dir) = crate::global_virtual_store_version_dir(
+            &config.global_virtual_store_dir,
+            snapshot_key,
+            metadata,
+        ) else {
+            return true;
+        };
+        if !visited_version_dirs.insert(version_dir.clone()) {
+            continue;
+        }
+        let hash_dirs = match std::fs::read_dir(version_dir) {
+            Ok(hash_dirs) => hash_dirs,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return true,
+        };
+        for hash_dir in hash_dirs {
+            let Ok(hash_dir) = hash_dir else {
+                return true;
+            };
+            let Ok(file_type) = hash_dir.file_type() else {
+                return true;
+            };
+            if !file_type.is_dir() {
+                continue;
+            }
+            let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+                &hash_dir.path().join("node_modules"),
+                &snapshot_key.name.to_string(),
+            ) else {
+                return true;
+            };
+            if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+                marker_candidate = true;
+                break;
+            }
+        }
+        if marker_candidate {
+            break;
+        }
+    }
+    if !marker_candidate {
+        return false;
+    }
     let effective_node_version = match (&wanted.snapshots, &wanted.packages) {
         (Some(snapshots), Some(packages))
             if !config.force
@@ -193,16 +253,8 @@ pub(super) fn gvs_build_marker_present(
     if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
         return true;
     }
-    let Some(snapshots) = wanted.snapshots.as_ref() else {
-        return false;
-    };
 
-    for snapshot_key in snapshots.keys() {
-        let can_recover = crate::snapshot_has_patch(snapshot_key)
-            || policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
-        if !can_recover {
-            continue;
-        }
+    for snapshot_key in eligible_snapshots {
         let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
             &layout.slot_dir(snapshot_key).join("node_modules"),
             &snapshot_key.name.to_string(),

@@ -404,6 +404,27 @@ pub fn virtual_store_layout_for_lockfile(
     )
 }
 
+/// Return the GVS directory containing every graph-hash slot for one snapshot.
+/// This derives only the `<scope>/<name>/<version>` prefix and does not build or
+/// hash the dependency graph.
+#[must_use]
+pub fn global_virtual_store_version_dir(
+    package_store_dir: &Path,
+    snapshot_key: &PackageKey,
+    metadata: Option<&PackageMetadata>,
+) -> Option<PathBuf> {
+    let name = snapshot_key.name.to_string();
+    let version = gvs_version_segment(metadata, &snapshot_key.suffix);
+    let candidate_slot = join_global_virtual_store_path(
+        package_store_dir,
+        &format_global_virtual_store_path(&name, &version, "candidate"),
+    );
+    if !pnpm_fs::is_subdir(package_store_dir, &candidate_slot) {
+        return None;
+    }
+    candidate_slot.parent().map(Path::to_path_buf)
+}
+
 /// Map each injected `file:` project to the virtual-store package
 /// directories its copies were materialized at.
 ///
