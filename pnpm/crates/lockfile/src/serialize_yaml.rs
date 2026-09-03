@@ -35,8 +35,8 @@ pub(crate) fn to_string<Document: Serialize>(
 /// under a comparison of the concatenated string (`react-dom@1.0.0` sorts
 /// before `react@17.0.2`; `@types/node` sorts before `node`). [`Display`]
 /// renders each key exactly as it is serialized — every key type here
-/// serializes `into = "String"` via `to_string` — so the one rendering
-/// serves both the sort and the emitted key.
+/// serializes `into = "String"` by rendering its [`Display`] form — so
+/// the one rendering serves both the sort and the emitted key.
 pub(crate) fn sorted_map<Key, Value, Ser>(
     map: &HashMap<Key, Value>,
     serializer: Ser,
