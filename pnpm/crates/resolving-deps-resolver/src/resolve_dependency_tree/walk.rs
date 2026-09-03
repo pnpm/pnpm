@@ -855,6 +855,7 @@ fn settle_level(
             &grandchild_pkg_aliases,
         ));
     }
+    super::finalized::announce_finalized_packages(ctx);
     Ok(frontier)
 }
 

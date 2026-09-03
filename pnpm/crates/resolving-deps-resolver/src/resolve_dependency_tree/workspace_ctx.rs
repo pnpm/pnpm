@@ -24,8 +24,8 @@ use crate::{
 };
 
 use super::{
-    DeprecationLogFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth, UpdateReuseScope,
-    lock_recoverable, tree_ctx::TreeCtx,
+    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
+    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
 /// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
@@ -482,6 +482,12 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     pub(super) skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// Sink for finalized-package notifications. `None` skips the
+    /// per-level subtree sweep entirely. See [`FinalizedPackageFn`].
+    pub(super) finalized_package: Option<FinalizedPackageFn>,
+    /// The package ids already handed to `finalized_package`, so every
+    /// package is announced once across importers and hoist rounds.
+    pub(super) finalized_ids: Mutex<HashSet<Arc<str>>>,
     /// The `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
@@ -680,6 +686,8 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            finalized_package: None,
+            finalized_ids: Mutex::new(HashSet::default()),
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
@@ -1304,6 +1312,13 @@ impl WorkspaceTreeCtx {
         skipped_optional_log: Option<SkippedOptionalLogFn>,
     ) -> Self {
         self.skipped_optional_log = skipped_optional_log;
+        self
+    }
+
+    /// Attach the finalized-package sink. See [`FinalizedPackageFn`].
+    #[must_use]
+    pub fn with_finalized_package(mut self, finalized_package: Option<FinalizedPackageFn>) -> Self {
+        self.finalized_package = finalized_package;
         self
     }
 

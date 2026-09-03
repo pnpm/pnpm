@@ -927,6 +927,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         })
         .await?;
 
+        // Slots can only be populated ahead of the lockfile where their
+        // names do not depend on the whole graph (no global virtual
+        // store) and where the tarballs are prefetched into the cache
+        // the materializer waits on.
+        let early_materializer = (!lockfile_only
+            && !filtered_isolated
+            && !is_hoisted
+            && !config.enable_global_virtual_store
+            && custom_fetcher_session.is_none())
+        .then(|| {
+            Arc::new(crate::early_materializer::EarlyMaterializer::<Reporter>::new(
+                config,
+                Arc::clone(&tarball_mem_cache),
+            ))
+        });
+
         // `trustPolicy='no-downgrade'` config, threaded into every
         // resolve so the npm resolver re-applies the downgrade gate to
         // freshly picked versions. `full_metadata` above is already
@@ -1154,6 +1170,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             overrides_hook,
             pnpmfile_hook,
             read_package_log,
+            finalized_package: early_materializer
+                .as_ref()
+                .map(crate::early_materializer::EarlyMaterializer::hook),
             pick_lowest_direct,
             time_based,
             published_by,
@@ -1523,6 +1542,23 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // without regressing the cold-cache or frozen-lockfile paths.
         //
         let phase_start = std::time::Instant::now();
+        if let Some(materializer) = early_materializer.as_ref() {
+            let phase_start = std::time::Instant::now();
+            let wanted = built_lockfile.snapshots.as_ref();
+            let materialized = materializer
+                .finish(
+                    |key| wanted.is_some_and(|snapshots| snapshots.contains_key(key)),
+                    logged_methods,
+                )
+                .await;
+            tracing::info!(
+                target: "pacquet::install::phase",
+                phase = "early_materialization",
+                elapsed_ms = phase_start.elapsed().as_millis() as u64,
+                materialized,
+                "phase complete",
+            );
+        }
         let CreateVirtualStoreOutput {
             package_manifests,
             // Consumed by the build phase below to drive the

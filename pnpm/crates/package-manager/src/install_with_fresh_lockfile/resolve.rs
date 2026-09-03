@@ -430,6 +430,7 @@ pub(super) struct ResolvePassInputs<'a> {
     /// `afterAllResolved` hook.
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
+    pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest_direct: bool,
     pub time_based: bool,
@@ -478,6 +479,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         overrides_hook,
         pnpmfile_hook,
         read_package_log,
+        finalized_package,
         pick_lowest_direct,
         time_based,
         published_by,
@@ -524,6 +526,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
+        finalized_package,
         pick_lowest_direct,
         time_based,
         wanted_lockfile: resolution_lockfile,
