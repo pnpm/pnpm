@@ -28,7 +28,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall, repairStaleEngineBins } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1365,7 +1365,7 @@ describe('linkExePlatformBinary', () => {
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
     fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
 
-    linkExePlatformBinary(dir)
+    expect(linkExePlatformBinary(dir)).toBe(true)
 
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
@@ -1376,7 +1376,7 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
 
     // Should not throw
-    linkExePlatformBinary(dir)
+    expect(linkExePlatformBinary(dir)).toBe(false)
   })
 
   test('does nothing when platform binary is not available', () => {
@@ -1387,7 +1387,7 @@ describe('linkExePlatformBinary', () => {
     const placeholder = 'This file intentionally left blank'
     fs.writeFileSync(path.join(exeDir, executable), placeholder)
 
-    linkExePlatformBinary(dir)
+    expect(linkExePlatformBinary(dir)).toBe(false)
 
     // Placeholder should remain unchanged
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
@@ -1720,5 +1720,75 @@ describe('assertPnpmRuns', () => {
       expect(pnpmError.code).toBe('ERR_PNPM_BROKEN_PNPM_INSTALL')
       expect(pnpmError.hint).toMatch(/currently active pnpm was left in place/)
     }
+  })
+})
+
+describe('repairStaleEngineBins', () => {
+  const platform = process.platform
+  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
+  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  const libcFamily = familySync()
+  const fakeNativeBinary = Buffer.concat([Buffer.from([0x7f]), Buffer.from('ELF fake pnpm binary')])
+  const placeholder = '#!/usr/bin/env node\nconsole.log("placeholder")\n'
+
+  async function prepareEngineDir (binContent: string | Buffer) {
+    const dir = tempDir(false)
+    const pkgDir = path.join(dir, 'node_modules', 'pnpm')
+    fs.mkdirSync(pkgDir, { recursive: true })
+    fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+      name: 'pnpm',
+      version: '12.0.0',
+      bin: { pnpm: 'pnpm' },
+    }))
+    fs.writeFileSync(path.join(pkgDir, 'pnpm'), binContent)
+    const binDir = path.join(dir, 'bin')
+    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
+    return { dir, pkgDir, binDir }
+  }
+
+  test('regenerates a shim that would run the native binary through node', async () => {
+    const { dir, binDir } = await prepareEngineDir(placeholder)
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, libcFamily))
+    fs.mkdirSync(platformDir, { recursive: true })
+    fs.writeFileSync(path.join(platformDir, executable), fakeNativeBinary)
+    expect(linkExePlatformBinary(dir, 'pnpm')).toBe(true)
+    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toContain('exec node')
+    const unrelatedBin = path.join(binDir, 'unrelated')
+    fs.writeFileSync(unrelatedBin, 'keep')
+
+    await repairStaleEngineBins(dir, 'pnpm', binDir)
+
+    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).not.toContain('exec node')
+    expect(fs.readFileSync(unrelatedBin, 'utf8')).toBe('keep')
+  })
+
+  test('leaves the shims of a JS engine untouched', async () => {
+    const { dir, binDir } = await prepareEngineDir(placeholder)
+    const before = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
+    expect(before).toContain('exec node')
+
+    await repairStaleEngineBins(dir, 'pnpm', binDir)
+
+    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toBe(before)
+  })
+
+  test('leaves the shims of a healthy native engine untouched', async () => {
+    const { dir, binDir } = await prepareEngineDir(fakeNativeBinary)
+    const before = fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')
+    expect(before).not.toContain('exec node')
+
+    await repairStaleEngineBins(dir, 'pnpm', binDir)
+
+    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).toBe(before)
+  })
+
+  test('recreates a missing pnpm shim', async () => {
+    const { dir, binDir } = await prepareEngineDir(fakeNativeBinary)
+    fs.rmSync(path.join(binDir, 'pnpm'))
+
+    await repairStaleEngineBins(dir, 'pnpm', binDir)
+
+    expect(fs.existsSync(path.join(binDir, 'pnpm'))).toBe(true)
+    expect(fs.readFileSync(path.join(binDir, 'pnpm'), 'utf8')).not.toContain('exec node')
   })
 })

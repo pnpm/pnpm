@@ -146,7 +146,9 @@ export async function installPnpmToStore (
   // Check if already installed in the GVS
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
     if (!fs.existsSync(binDir)) {
-      await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+      await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
+    } else if (pnpmVersionNeedsShimRepair(pnpmVersion)) {
+      await repairStaleEngineBins(pnpmGvsPath, pkgName, binDir)
     }
     return { binDir }
   }
@@ -172,8 +174,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    linkExePlatformBinary(pnpmGvsPath, pkgName)
-    await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+    await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
 
     return { binDir }
   } finally {
@@ -230,7 +231,11 @@ async function installPnpmToGlobalDir (
 
   const existingInstallDir = await findGlobalPnpmInstallDir(globalDir, pkgName, version)
   if (existingInstallDir != null) {
-    return { alreadyExisted: true, installDir: existingInstallDir, binDir: path.join(existingInstallDir, 'bin') }
+    const binDir = path.join(existingInstallDir, 'bin')
+    if (pnpmVersionNeedsShimRepair(version)) {
+      await repairStaleEngineBins(existingInstallDir, pkgName, binDir)
+    }
+    return { alreadyExisted: true, installDir: existingInstallDir, binDir }
   }
 
   const installDir = createInstallDir(globalDir)
@@ -261,8 +266,7 @@ async function installPnpmToGlobalDir (
       await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
     }
 
-    linkExePlatformBinary(installDir, pkgName)
-    await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
+    await linkPnpmBins(installDir, pkgName, binDir)
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.
@@ -483,9 +487,9 @@ export function exePlatformPkgDirNameNext (
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
 // scripts are disabled during pnpm's own installs, so replicate it here — trying
 // the legacy and the newer `exe.<target>` platform-package names.
-export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): void {
+export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): boolean {
   const wrapperDir = path.join(installDir, 'node_modules', ...wrapperPkgName.split('/'))
-  if (!fs.existsSync(wrapperDir)) return
+  if (!fs.existsSync(wrapperDir)) return false
   const platform = process.platform
   const arch = process.arch
   const libcFamily = familySync()
@@ -515,7 +519,7 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     }
     if (src != null) break
   }
-  if (src == null) return
+  if (src == null) return false
   const dest = path.join(wrapperDir, executable)
   forceLink(src, dest)
 
@@ -550,6 +554,59 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
       } catch {}
       throw err
     }
+  }
+  return true
+}
+
+async function linkPnpmBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
+  if (linkExePlatformBinary(baseDir, pkgName)) {
+    // linkBins skips a shim that still points at the same path, even when that
+    // path changed from pnpm's JS placeholder to the native executable.
+    fs.rmSync(path.join(binDir, 'pnpm'), { force: true })
+  }
+  await linkBins(path.join(baseDir, 'node_modules'), binDir, { warn: noop })
+}
+
+/** Repairs an engine shim generated before its native binary was linked. */
+export async function repairStaleEngineBins (baseDir: string, pkgName: string, binDir: string): Promise<void> {
+  const pkgDir = path.join(baseDir, 'node_modules', ...pkgName.split('/'))
+  if (!pnpmShimRunsNativeBinaryThroughNode(binDir, pkgDir)) return
+  await linkPnpmBins(baseDir, pkgName, binDir)
+}
+
+function pnpmVersionNeedsShimRepair (version: string): boolean {
+  return semver.gte(version, '12.3.0')
+}
+
+const MAX_SHIM_SIZE = 4 * 1024
+const NODE_MODE_SHIM_MARKER = 'exec node '
+
+function pnpmShimRunsNativeBinaryThroughNode (binDir: string, pkgDir: string): boolean {
+  const shimPath = path.join(binDir, 'pnpm')
+  const stat = fs.lstatSync(shimPath, { throwIfNoEntry: false })
+  if (stat == null) return true
+  if (!stat.isFile() || stat.size > MAX_SHIM_SIZE) return false
+  const shim = fs.readFileSync(shimPath, 'utf8')
+  if (!shim.includes(NODE_MODE_SHIM_MARKER)) return false
+  if (process.platform === 'win32') {
+    return fs.existsSync(path.join(pkgDir, 'pnpm.exe'))
+  }
+  return isShebangLessExecutable(path.join(pkgDir, 'pnpm'))
+}
+
+function isShebangLessExecutable (file: string): boolean {
+  let fd: number
+  try {
+    fd = fs.openSync(file, 'r')
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
+  }
+  try {
+    const buf = Buffer.alloc(2)
+    return fs.readSync(fd, buf, 0, 2, 0) === 2 && !(buf[0] === 0x23 /* # */ && buf[1] === 0x21 /* ! */)
+  } finally {
+    fs.closeSync(fd)
   }
 }
 
