@@ -266,7 +266,7 @@ fn probe_slot_entry(path: &Path, kind: EntryKind) -> Result<bool, CreateVirtualS
         Err(error)
             if matches!(
                 error.kind(),
-                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory,
             ) =>
         {
             Ok(false)
