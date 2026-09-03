@@ -1,4 +1,4 @@
-use super::VirtualStoreLayout;
+use super::{VirtualStoreLayout, global_virtual_store_version_dir};
 use pnpm_config::Config;
 use pnpm_lockfile::{
     DirectoryResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName,
@@ -157,6 +157,38 @@ fn slot_dir_prefixes_unscoped_with_at_slash_under_gvs() {
     let _ = slot
         .strip_prefix("/tmp/store/links/@/foo/1.0.0/")
         .expect("unscoped GVS slots live under <root>/@/<name>/<version>/<hash>");
+}
+
+#[test]
+fn gvs_version_dir_requires_exact_name_and_version_components() {
+    let root = PathBuf::from("store").join("links");
+    let scoped: PackageKey = "@scope/foo@1.2.3".parse().expect("parse scoped key");
+    let unscoped: PackageKey = "foo@1.2.3".parse().expect("parse unscoped key");
+    assert_eq!(
+        global_virtual_store_version_dir(&root, &scoped, None),
+        Some(root.join("@scope").join("foo").join("1.2.3")),
+    );
+    assert_eq!(
+        global_virtual_store_version_dir(&root, &unscoped, None),
+        Some(root.join("@").join("foo").join("1.2.3")),
+    );
+
+    for key in ["../other@1.2.3", "@scope/../other@1.2.3", r"@scope\evil/foo@1.2.3"] {
+        let key: PackageKey = key.parse().expect("parse unsafe package name");
+        assert_eq!(global_virtual_store_version_dir(&root, &key, None), None);
+    }
+
+    let registry = RegistryResolution {
+        integrity: "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            .parse()
+            .expect("parse integrity"),
+        revision: None,
+    };
+    for version in ["../@/other/1.2.3", r"..\@\other\1.2.3"] {
+        let metadata =
+            package_metadata(LockfileResolution::Registry(registry.clone()), Some(version));
+        assert_eq!(global_virtual_store_version_dir(&root, &unscoped, Some(&metadata)), None);
+    }
 }
 
 #[test]

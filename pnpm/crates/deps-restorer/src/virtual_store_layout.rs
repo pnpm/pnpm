@@ -406,7 +406,8 @@ pub fn virtual_store_layout_for_lockfile(
 
 /// Return the GVS directory containing every graph-hash slot for one snapshot.
 /// This derives only the `<scope>/<name>/<version>` prefix and does not build or
-/// hash the dependency graph.
+/// hash the dependency graph. Returns `None` when lockfile data cannot form the
+/// exact package-name and version components in that prefix.
 #[must_use]
 pub fn global_virtual_store_version_dir(
     package_store_dir: &Path,
@@ -415,6 +416,11 @@ pub fn global_virtual_store_version_dir(
 ) -> Option<PathBuf> {
     let name = snapshot_key.name.to_string();
     let version = gvs_version_segment(metadata, &snapshot_key.suffix);
+    if !pnpm_resolving_deps_resolver::is_valid_dependency_alias(&name)
+        || !is_single_gvs_path_component(&version)
+    {
+        return None;
+    }
     let candidate_slot = join_global_virtual_store_path(
         package_store_dir,
         &format_global_virtual_store_path(&name, &version, "candidate"),
@@ -532,6 +538,13 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
         Some(version) => version.to_string(),
         None => suffix.version().to_string(),
     }
+}
+
+fn is_single_gvs_path_component(value: &str) -> bool {
+    let mut components = Path::new(value).components();
+    !value.contains(['/', '\\'])
+        && matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none()
 }
 
 /// Stands in for the version of a snapshot resolved from a local
