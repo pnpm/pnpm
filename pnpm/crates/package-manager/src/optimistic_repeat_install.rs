@@ -23,14 +23,15 @@
 //! the pnpmfile branch (an added, removed, or edited workspace pnpmfile
 //! invalidates the fast path; plugin pnpmfiles from config dependencies
 //! are covered by the `config_dependencies` comparison instead of the
-//! mtime check), and the local-file-dependency bail: no tracked mtime
-//! covers the *contents* of a local file dependency (a `file:` specifier
-//! or a bare local path/tarball spec, declared directly or through a
-//! `pnpm.overrides` entry), so projects declaring one always take the
-//! full install path, which refetches those dependencies. The
-//! local-file-dependency freshness branch of linked-package verification
-//! is NOT ported here. When this function returns `Decision::Skipped` the
-//! caller proceeds with the full install path, which still has its own
+//! mtime check), and the local-file-dependency bail: mutable directory
+//! dependencies always take the full install path. Local tarballs stay on the
+//! fast path only when their bytes match the integrity in the lockfile.
+//! Local specs introduced through `pnpm.overrides` or package extensions
+//! remain on the full path because their resolution base is graph-dependent.
+//! The local-file-dependency freshness branch of linked-package
+//! verification is NOT ported here. When this function returns
+//! `Decision::Skipped` the caller proceeds with the full install path,
+//! which has its own
 //! freshness guards (`check_lockfile_freshness`, the no-op
 //! short-circuit).
 //!
@@ -56,7 +57,7 @@ pub(crate) use conflict_markers::{
 };
 pub use deps_status::{RunDepsStatus, check_deps_status_before_run};
 pub(crate) use local_file_deps::{
-    has_local_file_dep, has_local_file_override, has_local_file_package_extension,
+    has_local_file_dep_requiring_install, has_local_file_override, has_local_file_package_extension,
 };
 pub(crate) use manifest_agreement::{
     LinkedPackagesContext, ManifestStat, modified_manifests_match_lockfile, stat_manifests,
@@ -210,12 +211,14 @@ pub(crate) fn check_optimistic_repeat_install_ignoring(
         };
     }
 
-    // Unconditional here because the only caller is the install
-    // command, which always treats local file deps as outdated.
-    if has_local_file_dep(project_manifests, included, catalogs) {
-        return Decision::Skipped {
-            reason: "a dependency is a local file dependency and its contents may have changed",
-        };
+    match has_local_file_dep_requiring_install(check) {
+        Ok(true) => {
+            return Decision::Skipped {
+                reason: "a dependency is a local file dependency and its contents may have changed",
+            };
+        }
+        Ok(false) => {}
+        Err(reason) => return Decision::Skipped { reason },
     }
     match has_local_file_override(config, catalogs) {
         Ok(true) => {

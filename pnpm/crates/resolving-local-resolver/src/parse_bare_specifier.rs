@@ -356,6 +356,26 @@ pub fn is_tarball_filename(bare: &str) -> bool {
     lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
 }
 
+/// Resolve an unambiguous local tarball specifier to the regular file
+/// inspected by the local resolver. Returns `None` for directories,
+/// ambiguous bare specifiers, and non-local tarball URLs.
+#[must_use]
+pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
+    if !(bare.starts_with("file:") || is_filespec(bare)) || !is_tarball_filename(bare) {
+        return None;
+    }
+    let wanted = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+    let spec = if bare.starts_with("file:") {
+        parse_local_scheme(&wanted, project_dir, project_dir, ParseOptions::default())
+            .ok()
+            .flatten()
+    } else {
+        parse_local_path(&wanted, project_dir, project_dir, ParseOptions::default())
+    }?;
+    (matches!(spec.kind, LocalSpecKind::File) && spec.fetch_spec.is_file())
+        .then_some(spec.fetch_spec)
+}
+
 fn contains_path_sep(bare: &str) -> bool {
     bare.contains(std::path::MAIN_SEPARATOR) || bare.contains('/')
 }
