@@ -181,6 +181,16 @@ impl PlanFixture {
     }
 
     fn plan(&self, force: bool) -> SnapshotPlan<'_> {
+        self.plan_inner(false, force)
+    }
+
+    /// Plan with a current lockfile that matches the wanted one, as a
+    /// completed previous install would have recorded it.
+    fn plan_with_matching_current(&self, force: bool) -> SnapshotPlan<'_> {
+        self.plan_inner(true, force)
+    }
+
+    fn plan_inner(&self, current_matches_wanted: bool, force: bool) -> SnapshotPlan<'_> {
         let allow_build_policy = AllowBuildPolicy::new(HashSet::new(), HashSet::new(), false);
         let mut cache_keys = self
             .snapshots
@@ -198,8 +208,8 @@ impl PlanFixture {
         plan_snapshots::<SilentReporter>(SnapshotPlanInputs {
             snapshots: &self.snapshots,
             packages: &self.packages,
-            current_snapshots: None,
-            current_packages: None,
+            current_snapshots: current_matches_wanted.then_some(&self.snapshots),
+            current_packages: current_matches_wanted.then_some(&self.packages),
             layout: &self.layout,
             allow_build_policy: &allow_build_policy,
             skipped: &SkippedSnapshots::default(),
@@ -270,6 +280,25 @@ fn force_defeats_the_gvs_existing_slot_skip() {
     let plan = fixture.plan(true);
 
     assert_eq!(plan.survivors.len(), 1, "--force must re-materialize an existing slot");
+}
+
+#[test]
+fn force_defeats_the_current_lockfile_skip() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let gvs_fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+    let fixture = PlanFixture {
+        layout: VirtualStoreLayout::legacy(temp_dir.path().join("virtual-store"), 120),
+        ..gvs_fixture
+    };
+    fixture.materialize_slot();
+
+    let plan = fixture.plan_with_matching_current(true);
+
+    assert_eq!(
+        plan.survivors.len(),
+        1,
+        "--force must re-materialize even a slot the current lockfile vouches for",
+    );
 }
 
 #[test]

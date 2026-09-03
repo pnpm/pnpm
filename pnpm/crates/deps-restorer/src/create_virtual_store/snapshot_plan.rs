@@ -31,9 +31,9 @@ pub(super) struct SnapshotPlanInputs<'a, 'b> {
     pub skipped: &'b SkippedSnapshots,
     pub link_dependencies: bool,
     /// `--force` re-materializes every slot, so both skip paths — the
-    /// current-lockfile comparison (whose `current_snapshots` the
-    /// callers already null out under force) and the global-virtual-
-    /// store existence probe — are disabled.
+    /// current-lockfile comparison and the global-virtual-store
+    /// existence probe — are disabled here, whether or not the caller
+    /// also nulled out `current_snapshots`.
     pub force: bool,
     pub is_hoisted: bool,
     pub include_optional_dependencies: bool,
@@ -118,15 +118,17 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 ) {
                     return Ok(false);
                 }
-                let current_entry_unchanged = current_snapshots
-                    .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
-                    .is_some_and(|current_snapshot| {
-                        snapshot_deps_equal(current_snapshot, snapshot)
-                            && integrity_equal(
-                                current_packages.and_then(|p| p.get(&snapshot_key.without_peer())),
-                                wanted_metadata,
-                            )
-                    });
+                let current_entry_unchanged = !force
+                    && current_snapshots
+                        .and_then(|current_snapshots| current_snapshots.get(snapshot_key))
+                        .is_some_and(|current_snapshot| {
+                            snapshot_deps_equal(current_snapshot, snapshot)
+                                && integrity_equal(
+                                    current_packages
+                                        .and_then(|p| p.get(&snapshot_key.without_peer())),
+                                    wanted_metadata,
+                                )
+                        });
                 // A global-virtual-store slot path is content-addressed:
                 // the graph hash covers the snapshot's wiring, integrity,
                 // and engine, so an existing slot is current even when no
@@ -143,7 +145,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                     .slot_dir(snapshot_key)
                     .join("node_modules")
                     .join(snapshot_key.name.to_string());
-                if !dir.is_dir() {
+                if !probe_slot_entry(&dir, EntryKind::Dir)? {
                     // Only a slot the current lockfile vouches for is
                     // "broken" when missing; a mere GVS-existence miss is
                     // a fresh materialization.
@@ -169,7 +171,9 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 // which the import places last. A rare package whose file
                 // map lacks `package.json` merely re-materializes, and
                 // the import then short-circuits on its actual marker.
-                if !current_entry_unchanged && !dir.join("package.json").is_file() {
+                if !current_entry_unchanged
+                    && !probe_slot_entry(&dir.join("package.json"), EntryKind::File)?
+                {
                     return Ok(false);
                 }
                 if !optional_children_match(
@@ -240,6 +244,38 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         marker_rebuilds,
         has_git_hosted_survivor,
     })
+}
+
+/// Kind of dirent a slot probe expects.
+#[derive(Clone, Copy)]
+enum EntryKind {
+    Dir,
+    File,
+}
+
+/// Whether `path` exists as the expected kind. `NotFound` — and
+/// `NotADirectory`, a file sitting where a parent directory is
+/// expected — mean the slot is not there; any other inspection error
+/// aborts the install, per the warm-slot fold's contract.
+fn probe_slot_entry(path: &Path, kind: EntryKind) -> Result<bool, CreateVirtualStoreError> {
+    match std::fs::metadata(path) {
+        Ok(metadata) => Ok(match kind {
+            EntryKind::Dir => metadata.is_dir(),
+            EntryKind::File => metadata.is_file(),
+        }),
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            Ok(false)
+        }
+        Err(error) => Err(CreateVirtualStoreError::InspectVirtualStoreSlot {
+            path: path.to_path_buf(),
+            error,
+        }),
+    }
 }
 
 fn optional_children_match(
