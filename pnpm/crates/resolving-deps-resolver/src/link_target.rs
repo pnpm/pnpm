@@ -19,58 +19,126 @@
 //! the two computations agree component-for-component, because
 //! `diff_paths` and `lexical_normalize` are lexical: prefixing both
 //! arguments with the same clean root never changes the outcome.
+//!
+//! Each rendering returns the final `link:`-body string — the
+//! forward-slashed form every caller previously produced from the
+//! `PathBuf` via `display` + `replace` — so the per-edge cost is one
+//! pass over the target's components and a single allocation.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 
 /// The importer-side inputs of `link:` re-anchoring, derived once per
 /// importer: its directory as a clean relative suffix of the lockfile
-/// root. The workspace root importer holds the empty suffix.
+/// root, pre-split into components. The workspace root importer holds
+/// the empty suffix.
 #[derive(Debug, Default, Clone)]
 pub(crate) struct ImporterAnchor {
     /// `None` — an anchor carries dot components, is not truly
-    /// absolute, or the importer is not under the lockfile root — turns
-    /// every rendering into the caller's fallback.
-    rel_dir: Option<PathBuf>,
+    /// absolute, is not valid UTF-8, or the importer is not under the
+    /// lockfile root — turns every rendering into the caller's
+    /// fallback.
+    rel_components: Option<Vec<String>>,
 }
 
 impl ImporterAnchor {
     pub(crate) fn new(project_dir: &Path, lockfile_dir: &Path) -> Self {
         ImporterAnchor {
-            rel_dir: importer_rel_dir(project_dir, lockfile_dir).map(Path::to_path_buf),
+            rel_components: importer_rel_dir(project_dir, lockfile_dir).and_then(|rel| {
+                rel.components()
+                    .map(|component| component.as_os_str().to_str().map(str::to_owned))
+                    .collect()
+            }),
         }
     }
 
     /// Express a lockfile-root-relative `target` relative to the
-    /// importer. `None` for a disarmed anchor, or a target that is
-    /// absolute or carries dot components.
-    pub(crate) fn target_relative_to_importer(&self, target: &Path) -> Option<PathBuf> {
-        let rel_dir = self.rel_dir.as_deref()?;
-        if !all_normal(target) {
-            return None;
+    /// importer, as `diff_paths` against the importer suffix would:
+    /// climb out of the suffix past the shared prefix, then descend
+    /// into the target. `None` for a disarmed anchor, an anchored
+    /// target, or one that carries `..` components.
+    pub(crate) fn target_relative_to_importer(&self, target: &str) -> Option<String> {
+        let rel = self.rel_components.as_deref()?;
+        let mut target_segments = Vec::new();
+        for segment in relative_segments(target)? {
+            if segment == ".." {
+                return None;
+            }
+            target_segments.push(segment);
         }
-        pathdiff::diff_paths(target, rel_dir)
+        let shared = rel
+            .iter()
+            .zip(&target_segments)
+            .take_while(|(rel_name, target_name)| rel_name.as_str() == **target_name)
+            .count();
+        Some(render(
+            std::iter::repeat_n("..", rel.len() - shared)
+                .chain(target_segments[shared..].iter().copied()),
+        ))
     }
 
     /// Express an importer-relative `target` (which typically climbs
     /// out of the importer via `..` components) relative to the
-    /// lockfile root. `None` for a disarmed anchor, a target that
-    /// carries a root or prefix component — on Windows a rooted `\abs`
-    /// path is not `is_absolute`, yet `join` would silently replace the
-    /// base with it — or one that still escapes the lockfile root after
-    /// normalization.
-    pub(crate) fn target_relative_to_lockfile_root(&self, target: &Path) -> Option<PathBuf> {
-        let rel_dir = self.rel_dir.as_deref()?;
-        if !target.components().all(|component| {
-            matches!(component, Component::Normal(_) | Component::ParentDir | Component::CurDir)
-        }) {
-            return None;
+    /// lockfile root, as `lexical_normalize` over the joined suffix
+    /// would: `..` pops the nearest kept component. `None` for a
+    /// disarmed anchor, an anchored target, or one that escapes the
+    /// lockfile root. The suffix components are all normal, so the
+    /// first climb past them pins a leading `..` that nothing later
+    /// can remove.
+    pub(crate) fn target_relative_to_lockfile_root(&self, target: &str) -> Option<String> {
+        let rel = self.rel_components.as_deref()?;
+        let mut kept = rel.len();
+        let mut descended: Vec<&str> = Vec::new();
+        for segment in relative_segments(target)? {
+            if segment == ".." {
+                if descended.pop().is_none() {
+                    kept = kept.checked_sub(1)?;
+                }
+            } else {
+                descended.push(segment);
+            }
         }
-        let normalized = pnpm_fs::lexical_normalize(&rel_dir.join(target));
-        match normalized.components().next() {
-            Some(Component::ParentDir) => None,
-            _ => Some(normalized),
-        }
+        Some(render(rel[..kept].iter().map(String::as_str).chain(descended)))
     }
+}
+
+#[cfg(windows)]
+const SEPARATORS: &[char] = &['/', '\\'];
+#[cfg(not(windows))]
+const SEPARATORS: &[char] = &['/'];
+
+/// Split a relative `target` into the segments `Path::components`
+/// would yield, without the per-component `OsStr` machinery:
+/// separators collapse and `.` segments vanish (`lexical_normalize`
+/// erases a leading one too, so the two directions agree on it).
+/// `None` for an anchored target — one starting with a separator, or
+/// (on Windows) whose first segment carries a `:` and so may be a
+/// prefix — where suffix math does not apply; the caller's
+/// absolute-space fallback handles those.
+fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str>> {
+    if target.starts_with(SEPARATORS) {
+        return None;
+    }
+    #[cfg(windows)]
+    if target.split(SEPARATORS).next().is_some_and(|first| first.contains(':')) {
+        return None;
+    }
+    Some(target.split(SEPARATORS).filter(|segment| !segment.is_empty() && *segment != "."))
+}
+
+/// Join components with `/` and normalize any backslash inside one, the
+/// way the callers' former `display` + `replace('\\', "/")` pass did.
+fn render<'component>(components: impl Iterator<Item = &'component str>) -> String {
+    let mut rendered = String::new();
+    for component in components {
+        if !rendered.is_empty() {
+            rendered.push('/');
+        }
+        rendered.push_str(component);
+    }
+    if rendered.contains('\\') {
+        rendered = rendered.replace('\\', "/");
+    }
+    rendered
 }
 
 /// The importer's directory as a clean relative suffix of the lockfile

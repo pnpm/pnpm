@@ -1,6 +1,6 @@
 use super::{ImporterAnchor, importer_rel_dir};
 use pretty_assertions::assert_eq;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// An anchor that is absolute on every platform — a bare `/ws/root` is
 /// not absolute on Windows (no drive prefix), which the guards reject.
@@ -19,11 +19,13 @@ fn rel_space_matches_absolute_space() {
         assert_eq!(rel, Path::new(importer));
         let anchor = ImporterAnchor::new(&project_dir, lockfile_dir);
         for target in ["packages/lib", "packages/group/other", "tools"] {
-            let via_rel = anchor
-                .target_relative_to_importer(Path::new(target))
-                .expect("clean target renders");
-            let via_abs =
-                pathdiff::diff_paths(lockfile_dir.join(target), &project_dir).expect("diff");
+            let via_rel =
+                anchor.target_relative_to_importer(target).expect("clean target renders");
+            let via_abs = pathdiff::diff_paths(lockfile_dir.join(target), &project_dir)
+                .expect("diff")
+                .display()
+                .to_string()
+                .replace('\\', "/");
             assert_eq!(via_rel, via_abs, "importer {importer:?} target {target:?}");
 
             // And the inverse direction round-trips back to the
@@ -31,7 +33,7 @@ fn rel_space_matches_absolute_space() {
             let back = anchor
                 .target_relative_to_lockfile_root(&via_rel)
                 .expect("internal target stays under the root");
-            assert_eq!(back, PathBuf::from(target));
+            assert_eq!(back, target);
         }
     }
 }
@@ -48,17 +50,19 @@ fn guards_send_unclean_inputs_to_the_fallback() {
     );
 
     let anchor = ImporterAnchor::new(&root.join("packages/app"), root);
-    assert_eq!(anchor.target_relative_to_importer(Path::new("../outside")), None);
-    assert_eq!(anchor.target_relative_to_importer(&root.join("target")), None);
+    let abs_target = root.join("target");
+    let abs_target = abs_target.to_str().unwrap();
+    assert_eq!(anchor.target_relative_to_importer("../outside"), None);
+    assert_eq!(anchor.target_relative_to_importer(abs_target), None);
 
-    assert_eq!(anchor.target_relative_to_lockfile_root(&root.join("target")), None);
+    assert_eq!(anchor.target_relative_to_lockfile_root(abs_target), None);
     // Escapes the lockfile root: `packages/app` + `../../../outside`.
-    assert_eq!(anchor.target_relative_to_lockfile_root(Path::new("../../../outside")), None);
+    assert_eq!(anchor.target_relative_to_lockfile_root("../../../outside"), None);
 
     // A disarmed anchor renders nothing at all.
     let disarmed = ImporterAnchor::new(&root.parent().unwrap().join("other/app"), root);
-    assert_eq!(disarmed.target_relative_to_importer(Path::new("packages/lib")), None);
-    assert_eq!(disarmed.target_relative_to_lockfile_root(Path::new("packages/lib")), None);
+    assert_eq!(disarmed.target_relative_to_importer("packages/lib"), None);
+    assert_eq!(disarmed.target_relative_to_lockfile_root("packages/lib"), None);
 }
 
 #[test]
@@ -67,12 +71,12 @@ fn root_importer_uses_the_empty_suffix() {
     assert_eq!(rel, Path::new(""));
     let anchor = ImporterAnchor::new(abs_root(), abs_root());
     assert_eq!(
-        anchor.target_relative_to_importer(Path::new("packages/lib")),
-        Some(PathBuf::from("packages/lib")),
+        anchor.target_relative_to_importer("packages/lib"),
+        Some("packages/lib".to_string()),
     );
     assert_eq!(
-        anchor.target_relative_to_lockfile_root(Path::new("packages/lib")),
-        Some(PathBuf::from("packages/lib")),
+        anchor.target_relative_to_lockfile_root("packages/lib"),
+        Some("packages/lib".to_string()),
     );
 }
 
@@ -84,6 +88,6 @@ fn windows_drive_relative_and_rootless_anchors_use_the_fallback() {
     assert_eq!(importer_rel_dir(Path::new(r"C:ws\root\app"), Path::new(r"C:ws\root")), None);
     assert_eq!(importer_rel_dir(Path::new(r"\ws\root\app"), Path::new(r"\ws\root")), None);
     let anchor = ImporterAnchor::new(Path::new(r"C:\ws\root\app"), Path::new(r"C:\ws\root"));
-    assert_eq!(anchor.target_relative_to_lockfile_root(Path::new(r"\abs\target")), None);
-    assert_eq!(anchor.target_relative_to_lockfile_root(Path::new(r"C:abs")), None);
+    assert_eq!(anchor.target_relative_to_lockfile_root(r"\abs\target"), None);
+    assert_eq!(anchor.target_relative_to_lockfile_root(r"C:abs"), None);
 }
