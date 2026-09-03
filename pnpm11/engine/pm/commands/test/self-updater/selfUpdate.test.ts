@@ -1418,11 +1418,9 @@ describe('linkExePlatformBinary', () => {
     expect(result).toBe(fakeBinaryContent)
   })
 
-  test('links the pnpm v12 wrapper from its @pnpm/exe.<target> dependency', () => {
+  test('pnpm 11 version-store linking runs the pnpm v12 wrapper after installing its native binary', async () => {
     const dir = tempDir(false)
 
-    // pnpm v12 (the Rust port) is published as the unscoped `pnpm` wrapper that
-    // depends on `@pnpm/exe.<platform>-<arch>[-musl]` — the `exe.<...>` scheme.
     const nextPkgName = exePlatformPkgDirNameNext(platform, arch, libcFamily)
     const wrapperDir = path.join(dir, 'node_modules', 'pnpm')
     const platformDir = path.join(dir, 'node_modules', '@pnpm', nextPkgName)
@@ -1430,18 +1428,32 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(wrapperDir, { recursive: true })
     fs.mkdirSync(platformDir, { recursive: true })
 
-    fs.writeFileSync(path.join(wrapperDir, executable), 'This is a placeholder.')
+    fs.copyFileSync(
+      path.resolve(import.meta.dirname, '../../../../../..', 'pnpm/npm/pnpm/pnpm'),
+      path.join(wrapperDir, 'pnpm')
+    )
     fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
+      name: 'pnpm',
+      version: '12.99.0',
       bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
     }))
 
-    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm v12 binary"'
-    fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
+    const nativeBinary = path.join(platformDir, executable)
+    if (platform === 'win32') {
+      fs.copyFileSync(process.execPath, nativeBinary)
+    } else {
+      fs.writeFileSync(nativeBinary, '#!/bin/sh\necho "fake pnpm v12 binary"\n', { mode: 0o755 })
+    }
+
+    const binDir = path.join(dir, 'bin')
+    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
 
     linkExePlatformBinary(dir, 'pnpm')
+    await linkBins(path.join(dir, 'node_modules'), binDir, { warn: () => {} })
 
-    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
-    expect(result).toBe(fakeBinaryContent)
+    const result = spawn.sync(path.join(binDir, 'pnpm'), ['--version'], { encoding: 'utf8' })
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe(platform === 'win32' ? process.version : 'fake pnpm v12 binary')
   })
 
   test.each([
