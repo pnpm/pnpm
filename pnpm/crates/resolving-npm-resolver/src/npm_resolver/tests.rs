@@ -9,9 +9,10 @@ use pnpm_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pnpm_lockfile::{LockfileResolution, RegistryResolution, TarballRevision};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_resolving_resolver_base::{
-    CurrentPkg, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
-    PackageVersionGuardFuture, PkgResolutionId, ResolveOptions, Resolver, UpdateBehavior,
-    WantedDependency, WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    CurrentPkg, GuardExhaustionPolicy, LatestQuery, PackageVersionGuard,
+    PackageVersionGuardDecision, PackageVersionGuardFuture, PkgResolutionId, ResolveOptions,
+    Resolver, UpdateBehavior, WantedDependency, WorkspacePackage, WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -103,6 +104,7 @@ fn build_resolver_with_registries(
 #[derive(Debug)]
 struct RejectVersions {
     versions: HashSet<String>,
+    exhaustion_policy: GuardExhaustionPolicy,
 }
 
 impl PackageVersionGuard for RejectVersions {
@@ -115,12 +117,24 @@ impl PackageVersionGuard for RejectVersions {
             }
         })
     }
+
+    fn exhaustion_policy(&self) -> GuardExhaustionPolicy {
+        self.exhaustion_policy
+    }
+}
+
+fn guard_rejecting(
+    versions: &[&str],
+    exhaustion_policy: GuardExhaustionPolicy,
+) -> Arc<dyn PackageVersionGuard> {
+    Arc::new(RejectVersions {
+        versions: versions.iter().map(|version| (*version).to_string()).collect(),
+        exhaustion_policy,
+    })
 }
 
 fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
-    Arc::new(RejectVersions {
-        versions: versions.iter().map(|version| (*version).to_string()).collect(),
-    })
+    guard_rejecting(versions, GuardExhaustionPolicy::Fail)
 }
 
 /// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
@@ -336,6 +350,33 @@ async fn package_version_guard_blocking_every_version_errors() {
     let message = err.to_string();
     assert!(message.contains("acme"), "{message}");
     assert!(message.contains("rejected by the resolver guard"), "{message}");
+}
+
+#[tokio::test]
+async fn package_version_guard_accepting_rejected_falls_back_to_the_unguarded_pick() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock =
+        server.mock("GET", "/acme").with_status(200).with_body(PACKAGE_BODY).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let opts = ResolveOptions {
+        package_version_guard: Some(guard_rejecting(
+            &["1.0.0", "1.1.0"],
+            GuardExhaustionPolicy::AcceptRejected,
+        )),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    // The guard states a preference, so the request resolves to the version
+    // it would have picked with no guard at all.
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
 /// Packument whose `1.5.0+build` key carries a manifest `version` of

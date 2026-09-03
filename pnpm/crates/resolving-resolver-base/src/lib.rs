@@ -31,12 +31,13 @@ pub use peer_range::{get_peer_version_range, is_acceptable_peer_spec, is_valid_p
 pub use publish_time::parse_packument_timestamp;
 pub use resolve::{
     CurrentPkg, DIRECT_DEP_SELECTOR_WEIGHT, DependencyManifest, EXISTING_VERSION_SELECTOR_WEIGHT,
-    LatestInfo, LatestQuery, PackageVersionGuard, PackageVersionGuardDecision,
-    PackageVersionGuardError, PackageVersionGuardFuture, PkgResolutionId, PreferredVersions,
-    PreferredVersionsOverlay, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions,
-    ResolveResult, Resolver, SharedDependencyManifest, UpdateBehavior, VersionSelectorEntry,
-    VersionSelectorType, VersionSelectorWithWeight, VersionSelectors, WantedDependency,
-    WorkspacePackage, WorkspacePackages, WorkspacePackagesByVersion,
+    GuardExhaustionPolicy, LatestInfo, LatestQuery, PackageVersionGuard,
+    PackageVersionGuardDecision, PackageVersionGuardError, PackageVersionGuardFuture,
+    PkgResolutionId, PreferredVersions, PreferredVersionsOverlay, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, SharedDependencyManifest,
+    UpdateBehavior, VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
+    VersionSelectors, WantedDependency, WorkspacePackage, WorkspacePackages,
+    WorkspacePackagesByVersion,
 };
 pub use semver_range::{ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range};
 pub use verifier::{

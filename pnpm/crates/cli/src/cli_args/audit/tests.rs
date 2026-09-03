@@ -1,6 +1,7 @@
 use super::{
-    BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
-    PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
+    BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, MAX_PATHS_PER_FINDING,
+    PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
+    filter_ignored_advisories,
     fix::{
         InstalledPackages, PackumentPublishInfo, VulnerabilityGuard, classify_for_update,
         create_overrides, filter_advisories_for_fix, format_fix_with_update_output,
@@ -1220,6 +1221,10 @@ async fn vulnerability_guard_rejects_only_vulnerable_versions() {
 
     let allowed_other = guard.check("unrelated", "1.0.0").await.expect("guard check");
     assert_eq!(allowed_other, PackageVersionGuardDecision::Allow);
+
+    // A package with no safe version in range keeps resolving; `--fix update`
+    // reports it as remaining rather than failing the run.
+    assert_eq!(guard.exhaustion_policy(), GuardExhaustionPolicy::AcceptRejected);
 }
 
 #[test]

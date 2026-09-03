@@ -37,10 +37,11 @@ use pnpm_lockfile::{
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_and_sanitize};
 use pnpm_registry::{Package, PackageDistribution, PackageVersion, RangeSpecStyle};
 use pnpm_resolving_resolver_base::{
-    LatestInfo, LatestQuery, NoMatchingVersionError, PackageVersionGuardDecision, PkgResolutionId,
-    RegistryResponseError, RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError,
-    ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior,
-    WantedDependency, WorkspacePackages, parse_packument_timestamp,
+    GuardExhaustionPolicy, LatestInfo, LatestQuery, NoMatchingVersionError,
+    PackageVersionGuardDecision, PkgResolutionId, RegistryResponseError,
+    RegistryResponseErrorOptions, ResolutionPolicyViolation, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, UpdateBehavior, WantedDependency,
+    WorkspacePackages, parse_packument_timestamp,
 };
 use ssri::{Algorithm, Integrity};
 
@@ -699,6 +700,10 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
 ) -> Result<RegistryPick, ResolveError> {
     let mut blocked_versions = std::collections::HashSet::new();
     let mut last_rejection: Option<String> = None;
+    // The first candidate the guard turned down, i.e. the one the picker
+    // would have returned with no guard at all. Kept for the guards whose
+    // rejections are a preference rather than a requirement.
+    let mut first_rejected: Option<PickedFromRegistry> = None;
     loop {
         let pick_opts = PickPackageOptions {
             registry: opts.registry,
@@ -720,10 +725,11 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
         let Some(version) = pick_result.picked_package else {
             // No candidate left. With no prior guard rejection this is the
             // ordinary "no matching version" outcome; once the guard has
-            // rejected every match, surface that as a distinct error rather
-            // than blaming the range the user wrote.
+            // rejected every match, the guard's own policy decides, and a
+            // failure names the guard rather than blaming the range the user
+            // wrote.
             return match last_rejection {
-                Some(reason) => Err(all_versions_blocked(opts.spec, reason)),
+                Some(reason) => exhausted(&opts, first_rejected, reason),
                 None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
             };
         };
@@ -761,7 +767,7 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // already blocked, so it can't be excluded; stop rather than
                 // loop forever — every match really is blocked.
                 if !blocked_versions.insert(blocked_key) {
-                    return Err(all_versions_blocked(opts.spec, reason));
+                    return exhausted(&opts, first_rejected, reason);
                 }
                 // Each rejection re-runs the picker over the packument, so an
                 // unbounded run is O(versions²). Cap it well above any real
@@ -770,13 +776,18 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // proof every version is blocked, so report it as its own
                 // error rather than "all versions blocked".
                 if blocked_versions.len() >= GUARD_REPICK_LIMIT {
-                    return Err(Box::new(GuardRepickLimitError {
-                        name: opts.spec.name.clone(),
-                        limit: GUARD_REPICK_LIMIT,
-                        reason,
-                    }));
+                    return match accepted_fallback(&opts, first_rejected, &reason) {
+                        Some(picked) => Ok(RegistryPick::Picked(picked)),
+                        None => Err(Box::new(GuardRepickLimitError {
+                            name: opts.spec.name.clone(),
+                            limit: GUARD_REPICK_LIMIT,
+                            reason,
+                        })),
+                    };
                 }
                 last_rejection = Some(reason);
+                first_rejected
+                    .get_or_insert(PickedFromRegistry { meta: pick_result.meta, version });
             }
         }
     }
@@ -801,8 +812,41 @@ fn blocked_packument_key(
         .unwrap_or_else(|| version_str.to_string())
 }
 
-fn all_versions_blocked(spec: &RegistryPackageSpec, reason: String) -> ResolveError {
-    Box::new(AllVersionsBlockedError { name: spec.name.clone(), reason })
+/// Answer a request whose every matching version the guard rejected, per the
+/// guard's [`GuardExhaustionPolicy`]: either fail, or hand back the candidate
+/// the picker would have chosen with no guard.
+fn exhausted(
+    opts: &PickFromRegistryOptions<'_>,
+    first_rejected: Option<PickedFromRegistry>,
+    reason: String,
+) -> Result<RegistryPick, ResolveError> {
+    match accepted_fallback(opts, first_rejected, &reason) {
+        Some(picked) => Ok(RegistryPick::Picked(picked)),
+        None => Err(Box::new(AllVersionsBlockedError { name: opts.spec.name.clone(), reason })),
+    }
+}
+
+/// The pick to resolve to instead of failing, for a guard whose rejections
+/// are a preference. `None` when the guard demands a clean candidate, or
+/// when it rejected nothing and so has nothing to fall back to.
+fn accepted_fallback(
+    opts: &PickFromRegistryOptions<'_>,
+    first_rejected: Option<PickedFromRegistry>,
+    reason: &str,
+) -> Option<PickedFromRegistry> {
+    let guard = opts.package_version_guard?;
+    if guard.exhaustion_policy() != GuardExhaustionPolicy::AcceptRejected {
+        return None;
+    }
+    let picked = first_rejected?;
+    tracing::debug!(
+        target: "pnpm_resolving_npm_resolver",
+        name = %opts.spec.name,
+        version = %picked.version.version,
+        reason = %reason,
+        "every matching version was rejected by the resolver guard; keeping the unguarded pick",
+    );
+    Some(picked)
 }
 
 /// Box a picker failure for the resolver chain, restating a non-2xx registry
