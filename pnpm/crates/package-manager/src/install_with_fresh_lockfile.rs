@@ -1547,10 +1547,13 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let phase_start = std::time::Instant::now();
         if let Some(materializer) = early_materializer.as_ref() {
             let phase_start = std::time::Instant::now();
-            let wanted = built_lockfile.snapshots.as_ref();
+            let wanted = initial_materialization_lockfile.snapshots.as_ref();
             let materialized = materializer
                 .finish(
-                    |key| wanted.is_some_and(|snapshots| snapshots.contains_key(key)),
+                    |key| {
+                        wanted.is_some_and(|snapshots| snapshots.contains_key(key))
+                            && !skipped.contains(key)
+                    },
                     logged_methods,
                 )
                 .await;

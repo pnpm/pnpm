@@ -104,6 +104,10 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
         {
             return;
         }
+        // A patched package is imported and patched by the normal path.
+        if package.pkg_id.contains("(patch_hash=") {
+            return;
+        }
         let Ok(key) = package.pkg_id.parse::<PackageKey>() else { return };
         let slot_dir = self.shared.layout.slot_dir(&key);
         let virtual_node_modules_dir = slot_dir.join("node_modules");
@@ -137,8 +141,8 @@ impl<Reporter: pnpm_reporter::Reporter + 'static> EarlyMaterializer<Reporter> {
     }
 
     /// Stop scheduling, wait for the tasks in flight, and remove the
-    /// slots of packages the final lockfile does not carry. Returns the
-    /// number of slots materialized.
+    /// slots of packages the final install does not materialize.
+    /// Returns the number of slots materialized.
     pub(crate) async fn finish(
         &self,
         is_wanted: impl Fn(&PackageKey) -> bool,

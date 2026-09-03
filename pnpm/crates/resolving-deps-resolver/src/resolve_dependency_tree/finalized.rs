@@ -23,6 +23,13 @@ use crate::resolved_tree::ResolvedPackage;
 /// layer's final pass re-links every slot's edges from the lockfile,
 /// so an announcement is a head start, not a promise about edges.
 ///
+/// A verdict can only change for a package written or re-recorded
+/// since the last sweep, or for a package depending on one that just
+/// became finalized, so the sweep starts from the former and walks up
+/// the recorded parent edges from every new announcement. Over the
+/// whole walk each package is inspected once per change to itself or
+/// to a direct child, not once per level.
+///
 /// A cycle of peer-free packages is finalized as a whole: a back edge
 /// into a package still under inspection adds no package the walk has
 /// not already checked.
@@ -35,8 +42,13 @@ pub(super) fn announce_finalized_packages(ctx: &TreeCtx) {
 }
 
 fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
+    let mut worklist = std::mem::take(&mut *lock_recoverable(&ctx.workspace.finalization_pending));
+    if worklist.is_empty() {
+        return Vec::new();
+    }
     let packages = lock_recoverable(&ctx.workspace.packages);
     let children_by_id = lock_recoverable(&ctx.workspace.children_by_id);
+    let parents_by_id = lock_recoverable(&ctx.workspace.parents_by_id);
     let mut finalized_ids = lock_recoverable(&ctx.workspace.finalized_ids);
     let mut sweep = Sweep {
         packages: &packages,
@@ -45,12 +57,20 @@ fn collect_finalized(ctx: &TreeCtx) -> Vec<FinalizedPackage> {
         verdicts: HashMap::default(),
         inspecting: Vec::new(),
     };
-    let mut newly_finalized: Vec<Arc<str>> = packages
-        .keys()
-        .filter(|pkg_id| !finalized_ids.contains(*pkg_id))
-        .filter(|pkg_id| sweep.is_finalized(pkg_id))
-        .cloned()
-        .collect();
+    let mut newly_finalized: Vec<Arc<str>> = Vec::new();
+    let mut seen: HashSet<Arc<str>> = HashSet::default();
+    while let Some(pkg_id) = worklist.pop() {
+        if finalized_ids.contains(&pkg_id) || !seen.insert(Arc::clone(&pkg_id)) {
+            continue;
+        }
+        if !sweep.is_finalized(&pkg_id) {
+            continue;
+        }
+        if let Some(parents) = parents_by_id.get(&pkg_id) {
+            worklist.extend(parents.iter().cloned());
+        }
+        newly_finalized.push(pkg_id);
+    }
     // Announce in a stable order so the install layer's work queue does
     // not depend on hash-map iteration.
     newly_finalized.sort();

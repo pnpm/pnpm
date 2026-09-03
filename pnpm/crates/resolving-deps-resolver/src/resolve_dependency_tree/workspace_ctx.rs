@@ -488,6 +488,14 @@ pub struct WorkspaceTreeCtx {
     /// The package ids already handed to `finalized_package`, so every
     /// package is announced once across importers and hoist rounds.
     pub(super) finalized_ids: Mutex<HashSet<Arc<str>>>,
+    /// Packages written or re-recorded since the last finalization
+    /// sweep: the only ones whose verdict can have changed on their own.
+    /// Maintained only while `finalized_package` is set.
+    pub(super) finalization_pending: Mutex<Vec<Arc<str>>>,
+    /// Every package that recorded an edge to the key, so a package's
+    /// finalization can be propagated to the packages depending on it.
+    /// Maintained only while `finalized_package` is set.
+    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, Vec<Arc<str>>>>,
     /// The `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
@@ -688,6 +696,8 @@ impl Default for WorkspaceTreeCtx {
             skipped_optional_log: None,
             finalized_package: None,
             finalized_ids: Mutex::new(HashSet::default()),
+            finalization_pending: Mutex::new(Vec::new()),
+            parents_by_id: Mutex::new(HashMap::default()),
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
@@ -1063,6 +1073,15 @@ impl WorkspaceTreeCtx {
     /// invisible to the discovery engine's view.
     pub(super) fn record_package_write(&self, pkg_id: &str) {
         lock_recoverable(&self.sync_log).packages.push(pkg_id.to_string());
+        self.note_finalization_candidate(pkg_id);
+    }
+
+    /// Queue `pkg_id` for the next finalization sweep. See
+    /// [`Self::finalization_pending`].
+    fn note_finalization_candidate(&self, pkg_id: &str) {
+        if self.finalized_package.is_some() {
+            lock_recoverable(&self.finalization_pending).push(Arc::from(pkg_id));
+        }
     }
 
     /// See [`Self::record_package_write`].
@@ -1588,13 +1607,18 @@ pub(super) fn record_children(
             Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
             Some(_) => ChildrenRecording::PublishedOverStale,
         };
-        children.insert(
-            Arc::from(pkg_id.to_string()),
-            RecordedChildren { edges: Arc::new(edges), context },
-        );
+        let edges = Arc::new(edges);
+        if ctx.workspace.finalized_package.is_some() {
+            let mut parents = lock_recoverable(&ctx.workspace.parents_by_id);
+            for edge in edges.iter() {
+                parents.entry(Arc::clone(&edge.pkg_id)).or_default().push(Arc::from(pkg_id));
+            }
+        }
+        children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
     };
     ctx.workspace.record_children_by_id_write(pkg_id);
+    ctx.workspace.note_finalization_candidate(pkg_id);
     recording
 }
 
