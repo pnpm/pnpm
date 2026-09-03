@@ -696,7 +696,7 @@ where
             parents = frontier_len,
             next = frontier.len(),
             elapsed_ms = level_started.elapsed().as_millis() as u64,
-            "phase complete"
+            "phase complete",
         );
     }
     Ok(direct)
