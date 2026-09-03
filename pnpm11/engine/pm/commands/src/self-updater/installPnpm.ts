@@ -1,8 +1,8 @@
 import type { SpawnSyncReturns } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import util from 'node:util'
 
 import { linkBins } from '@pnpm/bins.linker'
 import { createAllowBuildFunction } from '@pnpm/building.policy'
@@ -145,13 +145,9 @@ export async function installPnpmToStore (
 
   // Check if already installed in the GVS
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
-    await linkPnpmStoreBins({
-      baseDir: pnpmGvsPath,
-      binDir,
-      linkAllBins: !fs.existsSync(binDir),
-      pkgName,
-      version: pnpmVersion,
-    })
+    if (!fs.existsSync(binDir)) {
+      await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
+    }
     return { binDir }
   }
 
@@ -176,13 +172,8 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    await linkPnpmStoreBins({
-      baseDir: pnpmGvsPath,
-      binDir,
-      linkAllBins: true,
-      pkgName,
-      version: pnpmVersion,
-    })
+    linkExePlatformBinary(pnpmGvsPath, pkgName)
+    await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
 
     return { binDir }
   } finally {
@@ -492,9 +483,9 @@ export function exePlatformPkgDirNameNext (
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
 // scripts are disabled during pnpm's own installs, so replicate it here — trying
 // the legacy and the newer `exe.<target>` platform-package names.
-export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): boolean {
+export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): void {
   const wrapperDir = path.join(installDir, 'node_modules', ...wrapperPkgName.split('/'))
-  if (!fs.existsSync(wrapperDir)) return false
+  if (!fs.existsSync(wrapperDir)) return
   const platform = process.platform
   const arch = process.arch
   const libcFamily = familySync()
@@ -524,7 +515,7 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     }
     if (src != null) break
   }
-  if (src == null) return false
+  if (src == null) return
   const dest = path.join(wrapperDir, executable)
   forceLink(src, dest)
 
@@ -549,60 +540,29 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     wrapperPkg.bin.pnx = 'pnx.exe'
     // Temp file + rename, not in-place: package.json is hard-linked from the
     // content-addressable store, so writing in place would mutate the shared blob.
-    replaceFileAtomically(wrapperPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+    const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
+    try {
+      fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+      fs.renameSync(tempPkgJsonPath, wrapperPkgJsonPath)
+    } catch (err: unknown) {
+      try {
+        fs.rmSync(tempPkgJsonPath, { force: true })
+      } catch {}
+      throw err
+    }
   }
-  return true
-}
-
-async function linkPnpmStoreBins (opts: {
-  baseDir: string
-  binDir: string
-  linkAllBins: boolean
-  pkgName: string
-  version: string
-}): Promise<void> {
-  const needsDirectBin = pnpmVersionNeedsDirectBin(opts.version)
-  const linkedNativeBinary = opts.linkAllBins || (needsDirectBin && process.platform !== 'win32')
-    ? linkExePlatformBinary(opts.baseDir, opts.pkgName)
-    : false
-  if (opts.linkAllBins) {
-    await linkBins(path.join(opts.baseDir, 'node_modules'), opts.binDir, { warn: noop })
-  }
-  if (!linkedNativeBinary || process.platform === 'win32' || !needsDirectBin) return
-  const pkgDir = path.join(opts.baseDir, 'node_modules', ...opts.pkgName.split('/'))
-  forceLink(path.join(pkgDir, 'pnpm'), path.join(opts.binDir, 'pnpm'))
-}
-
-function pnpmVersionNeedsDirectBin (version: string): boolean {
-  return semver.gte(version, '12.3.0')
 }
 
 function forceLink (src: string, dest: string): void {
-  const tempDest = uniqueTempPath(dest)
   try {
-    fs.linkSync(src, tempDest)
-    fs.chmodSync(tempDest, 0o755)
-    fs.renameSync(tempDest, dest)
-  } finally {
-    fs.rmSync(tempDest, { force: true })
+    fs.unlinkSync(dest)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') {
+      throw err
+    }
   }
-}
-
-function replaceFileAtomically (dest: string, content: string): void {
-  const tempDest = uniqueTempPath(dest)
-  try {
-    fs.writeFileSync(tempDest, content)
-    fs.renameSync(tempDest, dest)
-  } finally {
-    fs.rmSync(tempDest, { force: true })
-  }
-}
-
-function uniqueTempPath (dest: string): string {
-  return path.join(
-    path.dirname(dest),
-    `.${path.basename(dest)}.${process.pid}.${randomUUID()}.tmp`
-  )
+  fs.linkSync(src, dest)
+  fs.chmodSync(dest, 0o755)
 }
 
 function buildLockfileFromEnvLockfile (

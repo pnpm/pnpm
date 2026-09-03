@@ -5,16 +5,12 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
 import { linkBins } from '@pnpm/bins.linker'
-import { createAllowBuildFunction } from '@pnpm/building.policy'
 import { STORE_VERSION } from '@pnpm/constants'
-import { iterateHashedGraphNodes, iteratePkgMeta, lockfileToDepGraph } from '@pnpm/deps.graph-hasher'
 import type { PnpmError } from '@pnpm/error'
-import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import { prepare as prepareWithPkg, tempDir } from '@pnpm/prepare'
 import { prependDirsToPath } from '@pnpm/shell.path'
-import { getRegisteredProjects, type StoreController } from '@pnpm/store.controller'
+import { getRegisteredProjects } from '@pnpm/store.controller'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import type { DepPath, ProjectId } from '@pnpm/types'
 import spawn from 'cross-spawn'
 import { familySync } from 'detect-libc'
 
@@ -32,7 +28,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     packageManager: mockPackageManager,
   }
 })
-const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, installPnpmToStore, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, assertPnpmRuns, assertReleaseIsInstallable, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   mockPackageManager.version = '9.0.0'
@@ -1369,7 +1365,7 @@ describe('linkExePlatformBinary', () => {
     const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm binary"'
     fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
 
-    expect(linkExePlatformBinary(dir)).toBe(true)
+    linkExePlatformBinary(dir)
 
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
     expect(result).toBe(fakeBinaryContent)
@@ -1380,7 +1376,7 @@ describe('linkExePlatformBinary', () => {
     fs.mkdirSync(path.join(dir, 'node_modules'), { recursive: true })
 
     // Should not throw
-    expect(linkExePlatformBinary(dir)).toBe(false)
+    linkExePlatformBinary(dir)
   })
 
   test('does nothing when platform binary is not available', () => {
@@ -1391,7 +1387,7 @@ describe('linkExePlatformBinary', () => {
     const placeholder = 'This file intentionally left blank'
     fs.writeFileSync(path.join(exeDir, executable), placeholder)
 
-    expect(linkExePlatformBinary(dir)).toBe(false)
+    linkExePlatformBinary(dir)
 
     // Placeholder should remain unchanged
     const result = fs.readFileSync(path.join(exeDir, executable), 'utf8')
@@ -1726,152 +1722,3 @@ describe('assertPnpmRuns', () => {
     }
   })
 })
-
-describe('native pnpm store bins', () => {
-  test('concurrent cache hits make the pnpm 12.3 launcher runnable without changing other bins', async () => {
-    const version = '12.3.1'
-    const storeDir = tempDir(false)
-    const envLockfile = createPnpmEnvLockfile(version)
-    const baseDir = pnpmGvsPath(envLockfile, version, storeDir)
-    const binDir = await createStaleNativePnpmShim(baseDir, version)
-    if (process.platform !== 'win32') {
-      expect(spawn.sync(path.join(binDir, 'pnpm'), ['--version']).status).not.toBe(0)
-    }
-    const unrelatedBin = path.join(binDir, 'unrelated')
-    fs.writeFileSync(unrelatedBin, 'keep')
-    const opts = {
-      envLockfile,
-      storeController: {} as StoreController,
-      storeDir,
-      registriesByScope: { default: 'https://registry.npmjs.org/' },
-      virtualStoreDirMaxLength: 120,
-      trustedKeys: [],
-    }
-
-    const results = await Promise.all(Array.from({ length: 8 }, async () => installPnpmToStore(version, opts)))
-
-    expect(results.every((result) => result.binDir === binDir)).toBe(true)
-    expectPnpmLauncherRuns(binDir)
-    expect(fs.readFileSync(unrelatedBin, 'utf8')).toBe('keep')
-    expect(fs.readdirSync(binDir).filter((entry) => entry.startsWith('.pnpm.'))).toEqual([])
-    if (process.platform !== 'win32') {
-      const pkgBin = path.join(baseDir, 'node_modules', 'pnpm', 'pnpm')
-      const launcherStat = fs.statSync(path.join(binDir, 'pnpm'))
-      const pkgBinStat = fs.statSync(pkgBin)
-      expect({ dev: launcherStat.dev, ino: launcherStat.ino }).toEqual({ dev: pkgBinStat.dev, ino: pkgBinStat.ino })
-    }
-  })
-
-  test('does not replace the working launcher from before pnpm 12.3', async () => {
-    const version = '12.2.1'
-    const storeDir = tempDir(false)
-    const envLockfile = createPnpmEnvLockfile(version)
-    const baseDir = pnpmGvsPath(envLockfile, version, storeDir)
-    const binDir = await createWorkingNativePnpmShim(baseDir, version)
-    const shimPath = path.join(binDir, 'pnpm')
-    const originalShim = fs.readFileSync(shimPath, 'utf8')
-    expect(originalShim).not.toContain('exec node')
-
-    await installPnpmToStore(version, {
-      envLockfile,
-      storeController: {} as StoreController,
-      storeDir,
-      registriesByScope: { default: 'https://registry.npmjs.org/' },
-      virtualStoreDirMaxLength: 120,
-      trustedKeys: [],
-    })
-
-    expect(fs.readFileSync(shimPath, 'utf8')).toBe(originalShim)
-    expectPnpmLauncherRuns(binDir)
-  })
-})
-
-function seedNativePnpmPackage (installDir: string, version: string, nativeContent?: string): void {
-  const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
-  fs.mkdirSync(pkgDir, { recursive: true })
-  fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: version } }))
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
-    name: 'pnpm',
-    version,
-    bin: { pnpm: 'pnpm' },
-  }))
-  fs.writeFileSync(path.join(pkgDir, 'pnpm'), '#!/usr/bin/env node\nprocess.exit(0)\n')
-
-  const platform = process.platform
-  const arch = platform === 'win32' && process.arch === 'ia32' ? 'x86' : process.arch
-  const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  const platformDir = path.join(installDir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, familySync()))
-  fs.mkdirSync(platformDir, { recursive: true })
-  const nativePath = path.join(platformDir, executable)
-  if (nativeContent == null) {
-    fs.copyFileSync(platform === 'win32' ? process.execPath : '/usr/bin/true', nativePath)
-  } else {
-    fs.writeFileSync(nativePath, nativeContent, { mode: 0o755 })
-  }
-}
-
-async function createStaleNativePnpmShim (installDir: string, version: string, nativeContent?: string): Promise<string> {
-  seedNativePnpmPackage(installDir, version, nativeContent)
-  const binDir = path.join(installDir, 'bin')
-  await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: () => {} })
-  expect(linkExePlatformBinary(installDir, 'pnpm')).toBe(true)
-  return binDir
-}
-
-async function createWorkingNativePnpmShim (installDir: string, version: string): Promise<string> {
-  seedNativePnpmPackage(installDir, version)
-  expect(linkExePlatformBinary(installDir, 'pnpm')).toBe(true)
-  const binDir = path.join(installDir, 'bin')
-  await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: () => {} })
-  return binDir
-}
-
-function expectPnpmLauncherRuns (binDir: string): void {
-  expect(spawn.sync(path.join(binDir, 'pnpm'), ['--version']).status).toBe(0)
-}
-
-function createPnpmEnvLockfile (version: string): EnvLockfile {
-  return {
-    lockfileVersion: '9.0',
-    importers: {
-      '.': {
-        configDependencies: {},
-        packageManagerDependencies: {
-          pnpm: { specifier: version, version },
-        },
-      },
-    },
-    packages: {
-      [`pnpm@${version}`]: { resolution: { integrity: 'sha512-pnpm' } },
-    },
-    snapshots: {
-      [`pnpm@${version}`]: {},
-    },
-  } as unknown as EnvLockfile
-}
-
-function pnpmGvsPath (envLockfile: EnvLockfile, version: string, storeDir: string): string {
-  const depPath = `pnpm@${version}` as DepPath
-  const lockfile: LockfileObject = {
-    lockfileVersion: envLockfile.lockfileVersion,
-    importers: {
-      ['.' as ProjectId]: {
-        specifiers: { pnpm: version },
-        dependencies: { pnpm: version },
-      },
-    },
-    packages: {
-      [depPath]: {
-        ...envLockfile.snapshots[depPath],
-        ...envLockfile.packages[depPath],
-      },
-    },
-  }
-  const graph = lockfileToDepGraph(lockfile)
-  const pkgMetaIterator = iteratePkgMeta(lockfile, graph)
-  const allowBuild = createAllowBuildFunction({ allowBuilds: { '@pnpm/exe': true, pnpm: true } })
-  for (const { hash, pkgMeta } of iterateHashedGraphNodes(graph, pkgMetaIterator, { allowBuild })) {
-    if (pkgMeta.name === 'pnpm') return path.join(storeDir, 'links', hash)
-  }
-  throw new Error('Could not find pnpm in lockfile')
-}
