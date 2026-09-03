@@ -24,7 +24,7 @@ mod npm;
 mod yarn;
 
 pub use npm::collect_npm_lockfile_versions;
-pub use yarn::collect_yarn_lockfile_versions;
+pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
 
 /// Yarn's lockfile name, covering both yarn classic and yarn berry.
 pub const YARN_LOCKFILE_NAME: &str = "yarn.lock";
@@ -63,6 +63,14 @@ pub enum ImportLockfileError {
     )]
     YarnLockfileConflict,
 
+    #[display("Failed to parse {path:?}")]
+    #[diagnostic(code(ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED))]
+    YarnParse {
+        #[error(not(source))]
+        path: PathBuf,
+        source: yarn::YarnSyntaxError,
+    },
+
     #[display("Failed to read {path:?}")]
     Read {
         #[error(not(source))]
@@ -90,7 +98,9 @@ pub fn read_foreign_lockfile_versions(
         if contents.lines().any(|line| line.starts_with("<<<<<<<")) {
             return Err(ImportLockfileError::YarnLockfileConflict);
         }
-        collect_yarn_lockfile_versions(&contents, &mut versions);
+        collect_yarn_lockfile_versions(&contents, &mut versions).map_err(|source| {
+            ImportLockfileError::YarnParse { path: yarn_lockfile_path, source }
+        })?;
         return Ok(versions);
     }
 

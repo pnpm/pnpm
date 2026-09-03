@@ -4972,6 +4972,7 @@ dependencies = [
  "pretty_assertions",
  "serde_json",
  "tempfile",
+ "yaml_serde",
 ]
 
 [[package]]

@@ -2,12 +2,17 @@ use pretty_assertions::assert_eq;
 
 use crate::VersionsByPackageName;
 
-use super::collect_yarn_lockfile_versions;
+use super::{YarnSyntaxError, collect_yarn_lockfile_versions};
 
 fn collect(contents: &str) -> Vec<(String, Vec<String>)> {
     let mut versions = VersionsByPackageName::new();
-    collect_yarn_lockfile_versions(contents, &mut versions);
+    collect_yarn_lockfile_versions(contents, &mut versions).expect("parse yarn.lock");
     versions.into_iter().map(|(name, versions)| (name, versions.into_iter().collect())).collect()
+}
+
+fn collect_err(contents: &str) -> YarnSyntaxError {
+    let mut versions = VersionsByPackageName::new();
+    collect_yarn_lockfile_versions(contents, &mut versions).expect_err("reject the yarn.lock")
 }
 
 #[test]
@@ -36,6 +41,19 @@ fn yarn_classic() {
             ("@pnpm.e2e/pkg-with-1-dep".to_string(), vec!["100.0.0".to_string()]),
         ],
     );
+}
+
+/// A `resolved` URL carries a `#` fragment, which must not be mistaken
+/// for the start of a comment.
+#[test]
+fn a_url_fragment_is_not_a_comment() {
+    let versions = collect(
+        r#"is-positive@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/is-positive/-/is-positive-1.0.0.tgz#88009856b64a"
+"#,
+    );
+    assert_eq!(versions, vec![("is-positive".to_string(), vec!["1.0.0".to_string()])]);
 }
 
 #[test]
@@ -91,6 +109,14 @@ __metadata:
     );
 }
 
+/// YAML types an unquoted `version: 3` as a number, so reading it as a
+/// string would drop the pin.
+#[test]
+fn a_berry_version_that_looks_numeric_is_still_collected() {
+    let versions = collect("__metadata:\n  version: 6\n\n\"whole@npm:3\":\n  version: 3\n");
+    assert_eq!(versions, vec![("whole".to_string(), vec!["3".to_string()])]);
+}
+
 #[test]
 fn a_dependency_named_version_is_not_read_as_a_version() {
     let versions = collect(
@@ -103,8 +129,44 @@ fn a_dependency_named_version_is_not_read_as_a_version() {
     assert_eq!(versions, vec![("depends-on-version".to_string(), vec!["1.0.0".to_string()])]);
 }
 
+/// Yarn writes a header-only lockfile for a project with no
+/// dependencies, in both dialects. That is not a parse failure.
 #[test]
-fn an_empty_lockfile_yields_nothing() {
+fn a_lockfile_without_entries_is_valid_and_yields_nothing() {
     assert!(collect("").is_empty());
+    assert!(collect("# yarn lockfile v1\n").is_empty());
     assert!(collect("__metadata:\n  version: 6\n").is_empty());
+}
+
+#[test]
+fn a_classic_entry_key_without_a_colon_is_rejected() {
+    let error = collect_err("is-positive@^1.0.0\n  version \"1.0.0\"\n");
+    assert!(matches!(error, YarnSyntaxError::EntryKeyExpected { line: 1 }), "got {error}");
+}
+
+#[test]
+fn a_property_before_any_entry_is_rejected() {
+    let error = collect_err("# yarn lockfile v1\n  version \"1.0.0\"\n");
+    assert!(matches!(error, YarnSyntaxError::OrphanedProperty { line: 2 }), "got {error}");
+}
+
+#[test]
+fn a_valueless_classic_property_is_rejected() {
+    let error = collect_err("is-positive@^1.0.0:\n  version\n");
+    assert!(matches!(error, YarnSyntaxError::PropertyExpected { line: 2 }), "got {error}");
+}
+
+#[test]
+fn a_berry_lockfile_that_is_not_valid_yaml_is_rejected() {
+    let error = collect_err("__metadata:\n  version: 6\n \"unclosed: [\n");
+    assert!(matches!(error, YarnSyntaxError::Yaml { .. }), "got {error}");
+}
+
+#[test]
+fn a_berry_entry_that_is_not_a_mapping_is_rejected() {
+    let error = collect_err("__metadata:\n  version: 6\n\"is-positive@npm:1.0.0\":\n  - 1\n");
+    assert!(
+        matches!(&error, YarnSyntaxError::BerryEntryNotAMapping { entry } if entry == "is-positive@npm:1.0.0"),
+        "got {error}",
+    );
 }

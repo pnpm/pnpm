@@ -16,6 +16,7 @@ pnpm-resolving-resolver-base = { workspace = true }
 derive_more = { workspace = true }
 miette      = { workspace = true }
 serde_json  = { workspace = true }
+yaml_serde  = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

@@ -88,6 +88,18 @@ fn a_conflicted_yarn_lock_is_an_error() {
     assert_eq!(code_of(&error), "ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED");
 }
 
+/// A `yarn.lock` pacquet cannot parse must fail the import rather than
+/// yield no preferences, which would silently re-resolve every range.
+#[test]
+fn an_unparsable_yarn_lock_is_an_error() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    write(tmp.path(), "yarn.lock", "is-positive@^1.0.0\n  version \"1.0.0\"\n");
+
+    let error = read_foreign_lockfile_versions(tmp.path()).expect_err("malformed yarn.lock");
+    assert_eq!(code_of(&error), "ERR_PNPM_YARN_LOCKFILE_PARSE_FAILED");
+    assert!(error.to_string().contains("yarn.lock"), "got {error}");
+}
+
 #[test]
 fn an_unparsable_npm_lockfile_names_the_file() {
     let tmp = tempfile::tempdir().expect("tempdir");
