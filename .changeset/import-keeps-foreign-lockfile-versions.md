@@ -1,5 +1,5 @@
 ---
-"pacquet": minor
+"pacquet": patch
 ---
 
 `pnpm import` now keeps the versions recorded in `package-lock.json`, `npm-shrinkwrap.json`, or `yarn.lock` when it generates `pnpm-lock.yaml`. A range in `package.json`, a catalog, or an override still decides which versions are eligible, and the recorded version is preferred among them. The generated lockfile previously could pin newer versions than the source lockfile [#14476](https://github.com/pnpm/pnpm/issues/14476).
