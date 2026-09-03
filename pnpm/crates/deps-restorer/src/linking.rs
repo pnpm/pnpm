@@ -389,7 +389,15 @@ pub fn run_link_phase<Reporter: self::Reporter>(
     };
     tracing::info!(target: "pacquet::install::phase", phase = "link.write_hoist_links", elapsed_ms = phase_start.elapsed().as_millis() as u64, "phase complete");
 
-    if crate::should_write_package_map(config, node_linker) {
+    let phase_start = std::time::Instant::now();
+    // Nothing reads `.package-map.json` unless
+    // `nodeExperimentalPackageMap` is on: `package_map_path_for_execution`
+    // returns `None` without it, so `pnpm exec` / `pnpm run` never hand
+    // the map to Node. Building and writing it anyway costs every
+    // isolated install a full pass over the lockfile — 4.6 MB and ~34 ms
+    // on a 5.4k-package project.
+    if crate::should_write_package_map(config, node_linker) && config.node_experimental_package_map
+    {
         crate::package_map::write_package_map(
             sidecar_lockfile,
             &crate::package_map::PackageMapOptions {
@@ -402,6 +410,12 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         )
         .map_err(LinkPhaseError::WritePackageMap)?;
     }
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "link.package_map",
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
     if matches!(node_linker, NodeLinker::Pnp) {
         crate::write_pnp_file(sidecar_lockfile, workspace_root, config, layout, project_manifests)
             .map_err(LinkPhaseError::WritePnpFile)?;
