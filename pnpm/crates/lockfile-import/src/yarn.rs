@@ -177,9 +177,7 @@ fn split_key_and_value(content: &str) -> Option<(&str, &str)> {
     };
     let (key, value) = content.split_at(key_end);
     let value = value.trim();
-    (!value.is_empty()).then(|| {
-        (key.trim().trim_matches(QUOTES), value.trim_end_matches(':').trim_matches(QUOTES))
-    })
+    (!value.is_empty()).then(|| (key.trim().trim_matches(QUOTES), value.trim_matches(QUOTES)))
 }
 
 /// An entry's key lists every descriptor that resolved to it, comma

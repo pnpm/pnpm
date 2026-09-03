@@ -3,6 +3,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pnpm_lockfile::EnvLockfile;
 use pnpm_lockfile_import::{read_foreign_lockfile_versions, to_preferred_versions};
+use pnpm_network::redact_url_for_display;
 use pnpm_package_manager::{Install, ProjectMutation};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
@@ -29,6 +30,7 @@ impl ImportArgs {
             .wrap_err("reading the env lockfile before import")?;
 
         if let Some(pnpr_server) = self.pnpr_server.as_deref().or(config.pnpr_server.as_deref()) {
+            let pnpr_server = redact_url_for_display(pnpr_server);
             pnpm_reporter::emit_global_warning::<Reporter>(&format!(
                 r#""pnpm import" resolves dependencies locally, so the pnpr server at {pnpr_server} is not used"#,
             ));
