@@ -972,6 +972,28 @@ fn update_workspace_that_links_nothing_still_runs_project_scripts() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_ignore_scripts_skips_project_scripts() {
+    let root = TempDir::new().expect("create temp directory");
+    let workspace = root.path().to_path_buf();
+
+    fs::write(
+        workspace.join("package.json"),
+        r#"{ "name": "test-update", "version": "1.0.0",
+              "scripts": { "postinstall": "node -e \"require('fs').writeFileSync('postinstall-ran', '')\"" } }"#,
+    )
+    .expect("write package.json");
+
+    pacquet(&workspace, ["update", "--ignore-scripts"]).assert().success();
+
+    assert!(
+        !workspace.join("postinstall-ran").exists(),
+        "--ignore-scripts should skip the project's lifecycle scripts",
+    );
+
+    drop(root);
+}
+
 /// Naming a dependency that no workspace project publishes fails, since
 /// there is nothing to link it to.
 #[test]
