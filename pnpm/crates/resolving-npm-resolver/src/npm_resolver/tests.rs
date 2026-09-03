@@ -379,6 +379,76 @@ async fn package_version_guard_accepting_rejected_falls_back_to_the_unguarded_pi
     assert_eq!(result.name_ver.as_ref().expect("name_ver").suffix.to_string(), "1.1.0");
 }
 
+/// Packument with more in-range versions than the guard's re-pick cap, so a
+/// guard rejecting all of them stops at the cap rather than at genuine
+/// exhaustion.
+fn packument_with_many_versions(count: u32) -> String {
+    let versions = (0..count)
+        .map(|patch| {
+            format!(
+                r#""1.0.{patch}": {{
+            "name": "acme",
+            "version": "1.0.{patch}",
+            "dist": {{
+                "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                "shasum": "0000000000000000000000000000000000000000",
+                "tarball": "https://registry/acme-1.0.{patch}.tgz"
+            }}
+        }}"#,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n        ");
+    format!(
+        r#"{{
+    "name": "acme",
+    "dist-tags": {{ "latest": "1.0.{last}" }},
+    "modified": "2025-01-15T12:00:00.000Z",
+    "versions": {{
+        {versions}
+    }}
+}}"#,
+        last = count - 1,
+    )
+}
+
+#[tokio::test]
+async fn package_version_guard_accepting_rejected_falls_back_at_the_repick_limit() {
+    const VERSION_COUNT: u32 = 1005;
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(packument_with_many_versions(VERSION_COUNT))
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    let blocked: Vec<String> = (0..VERSION_COUNT).map(|patch| format!("1.0.{patch}")).collect();
+    let opts = ResolveOptions {
+        package_version_guard: Some(guard_rejecting(
+            &blocked.iter().map(String::as_str).collect::<Vec<_>>(),
+            GuardExhaustionPolicy::AcceptRejected,
+        )),
+        ..ResolveOptions::default()
+    };
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+
+    // The re-pick cap stops the search well before the candidates run out.
+    // A guard whose rejections are a preference must still get an answer
+    // there, not lose the whole resolve to the cap.
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().unwrap();
+    assert_eq!(
+        result.name_ver.as_ref().expect("name_ver").suffix.to_string(),
+        format!("1.0.{}", VERSION_COUNT - 1),
+    );
+}
+
 /// Packument whose `1.5.0+build` key carries a manifest `version` of
 /// `1.5.0` — i.e. the version-map key differs from the parsed manifest
 /// version, the case a malformed/malicious registry can produce.

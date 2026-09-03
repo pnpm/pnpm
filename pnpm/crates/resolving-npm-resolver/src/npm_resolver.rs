@@ -728,7 +728,9 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
             // failure names the guard rather than blaming the range the user
             // wrote.
             return match last_rejection {
-                Some(reason) => exhausted(&opts, first_rejected, reason),
+                Some(reason) => exhausted(&opts, first_rejected, reason, |name, reason| {
+                    Box::new(AllVersionsBlockedError { name, reason })
+                }),
                 None => Ok(RegistryPick::NoMatchingVersion(pick_result.meta)),
             };
         };
@@ -766,21 +768,20 @@ pub(crate) async fn pick_from_registry_with_guard<Cache: PackageMetaCache>(
                 // already blocked, so it can't be excluded; stop rather than
                 // loop forever — every match really is blocked.
                 if !blocked_versions.insert(blocked_key) {
-                    return exhausted(&opts, first_rejected, reason);
+                    return exhausted(&opts, first_rejected, reason, |name, reason| {
+                        Box::new(AllVersionsBlockedError { name, reason })
+                    });
                 }
                 // Each rejection re-runs the picker over the packument, so an
                 // unbounded run is O(versions²). Cap it well above any real
                 // run of consecutive rejected versions to bound the work a
-                // hostile packument can force. This is a safety cutoff, not
-                // proof every version is blocked: an acceptable candidate may
-                // sit below the cap, so this fails for every guard rather
-                // than settling for a rejected pick that would hide it.
+                // hostile packument can force. The cap bounds work rather
+                // than proving every version is blocked, so it carries its
+                // own error for a guard that demands a clean candidate.
                 if blocked_versions.len() >= GUARD_REPICK_LIMIT {
-                    return Err(Box::new(GuardRepickLimitError {
-                        name: opts.spec.name.clone(),
-                        limit: GUARD_REPICK_LIMIT,
-                        reason,
-                    }));
+                    return exhausted(&opts, first_rejected, reason, |name, reason| {
+                        Box::new(GuardRepickLimitError { name, limit: GUARD_REPICK_LIMIT, reason })
+                    });
                 }
                 last_rejection = Some(reason);
                 first_rejected
@@ -809,12 +810,14 @@ fn blocked_packument_key(
         .unwrap_or_else(|| version_str.to_string())
 }
 
-/// Answer a request whose every matching version the guard rejected, per the
-/// guard's [`GuardExhaustionPolicy`].
+/// Answer a request the guard left with no acceptable candidate, per the
+/// guard's [`GuardExhaustionPolicy`]. `fail` builds the error naming why the
+/// picker gave up, for a guard whose rejections are a hard requirement.
 fn exhausted(
     opts: &PickFromRegistryOptions<'_>,
     first_rejected: Option<PickedFromRegistry>,
     reason: String,
+    fail: impl FnOnce(String, String) -> ResolveError,
 ) -> Result<RegistryPick, ResolveError> {
     let accepts_rejected = opts
         .package_version_guard
@@ -830,7 +833,7 @@ fn exhausted(
             );
             Ok(RegistryPick::Picked(picked))
         }
-        None => Err(Box::new(AllVersionsBlockedError { name: opts.spec.name.clone(), reason })),
+        None => Err(fail(opts.spec.name.clone(), reason)),
     }
 }
 
