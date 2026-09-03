@@ -261,6 +261,61 @@ fn gvs_partial_slot_without_completion_marker_survives() {
 }
 
 #[test]
+fn gvs_slot_missing_a_regular_child_link_survives() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let parent_key: PackageKey = "foo@1.0.0".parse().expect("parse snapshot key");
+    let child_key: PackageKey = "bar@1.0.0".parse().expect("parse snapshot key");
+    let parent_snapshot = SnapshotEntry {
+        dependencies: Some(HashMap::from([(
+            PkgName::parse("bar").expect("parse alias"),
+            SnapshotDepRef::Plain("1.0.0".parse().expect("parse version")),
+        )])),
+        ..SnapshotEntry::default()
+    };
+    let snapshots = HashMap::from([
+        (parent_key.clone(), parent_snapshot),
+        (child_key.clone(), SnapshotEntry::default()),
+    ]);
+    let packages = HashMap::from([
+        (parent_key.clone(), registry_metadata()),
+        (child_key.clone(), registry_metadata()),
+    ]);
+    let layout = VirtualStoreLayout::global(
+        temp_dir.path().join("links"),
+        120,
+        None,
+        Some(&snapshots),
+        Some(&packages),
+        None,
+        None,
+    );
+    let fixture = PlanFixture { snapshots, packages, layout };
+    let parent_dir = fixture.layout.slot_dir(&parent_key).join("node_modules").join("foo");
+    fs::create_dir_all(&parent_dir).expect("materialize the parent slot");
+    fs::write(parent_dir.join("package.json"), "{}").expect("place the completion marker");
+
+    let plan = fixture.plan(false);
+    let survivor_keys: HashSet<String> =
+        plan.survivors.iter().map(|(key, _, _)| key.to_string()).collect();
+    assert!(
+        survivor_keys.contains("foo@1.0.0"),
+        "a marker-complete slot missing a child link is a partial import and must be repaired",
+    );
+
+    let child_dir = fixture.layout.slot_dir(&child_key).join("node_modules").join("bar");
+    fs::create_dir_all(&child_dir).expect("materialize the child slot");
+    fs::write(child_dir.join("package.json"), "{}").expect("place the child completion marker");
+    pnpm_fs::symlink_dir(&child_dir, &parent_dir.parent().expect("modules dir").join("bar"))
+        .expect("link the child into the parent slot");
+
+    let plan = fixture.plan(false);
+    assert!(
+        plan.survivors.is_empty(),
+        "with the marker and every child link present both slots are complete",
+    );
+}
+
+#[test]
 fn gvs_missing_slot_survives_without_a_current_lockfile() {
     let temp_dir = tempfile::tempdir().expect("create temp directory");
     let fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());

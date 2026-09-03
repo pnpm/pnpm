@@ -186,6 +186,25 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 )? {
                     return Ok(false);
                 }
+                // The completion marker only covers the file import: the
+                // slot's child symlinks are written concurrently with it
+                // (`rayon::join` in `CreateVirtualDirBySnapshot::run`),
+                // so a crash can leave a marker-complete slot with links
+                // missing. A current-lockfile record is only written by
+                // a completed install and so vouches for the links too;
+                // without one, probe every child the symlink layout
+                // would have created.
+                if !current_entry_unchanged
+                    && !regular_children_match(
+                        snapshot_key,
+                        snapshot,
+                        layout,
+                        skipped,
+                        link_dependencies,
+                    )?
+                {
+                    return Ok(false);
+                }
                 let needs_rebuild =
                     gvs_slot_needs_rebuild(layout, allow_build_policy, snapshot_key);
                 marker_probe_keys.insert(snapshot_key.clone());
@@ -244,6 +263,63 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         marker_rebuilds,
         has_git_hosted_survivor,
     })
+}
+
+/// Whether every child link the symlink layout would create for the
+/// snapshot's regular `dependencies` is present in the slot. Mirrors
+/// [`crate::create_symlink_layout()`]'s predicate: the slot's own name
+/// never gets a link, a `link:` child is linked only when the layout
+/// knows the lockfile dir, and a skipped target gets no link. Children
+/// the layout would not create are not required to be absent — a
+/// shared slot may carry links written by an install with a different
+/// skip set, and re-importing would not remove them, so requiring
+/// absence would re-materialize the slot on every install.
+///
+/// Presence is an lstat: the layout creates each symlink regardless of
+/// whether its target slot is materialized yet.
+fn regular_children_match(
+    snapshot_key: &PackageKey,
+    snapshot: &SnapshotEntry,
+    layout: &VirtualStoreLayout,
+    skipped: &SkippedSnapshots,
+    link_dependencies: bool,
+) -> Result<bool, CreateVirtualStoreError> {
+    if !link_dependencies {
+        return Ok(true);
+    }
+    let Some(dependencies) = snapshot.dependencies.as_ref() else {
+        return Ok(true);
+    };
+    let modules_dir = layout.slot_dir(snapshot_key).join("node_modules");
+    for (alias, dep_ref) in dependencies {
+        if alias == &snapshot_key.name {
+            continue;
+        }
+        let expected = if let Some(target) = dep_ref.resolve(alias) {
+            !skipped.contains(&target)
+        } else {
+            dep_ref.as_link_target().is_some() && layout.lockfile_dir().is_some()
+        };
+        if !expected {
+            continue;
+        }
+        let Ok(child_path) =
+            crate::safe_join_modules_dir::safe_join_modules_dir(&modules_dir, &alias.to_string())
+        else {
+            return Ok(false);
+        };
+        match std::fs::symlink_metadata(&child_path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+            Err(error) => {
+                return Err(CreateVirtualStoreError::InspectVirtualStoreSlot {
+                    path: child_path,
+                    error,
+                });
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// Kind of dirent a slot probe expects.
