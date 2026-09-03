@@ -2472,6 +2472,22 @@ fn resolve_script_shell(base: &Path, value: &str) -> String {
     {
         return value.to_owned();
     }
+    // `PathBuf::join` treats any Windows drive prefix as a replacement,
+    // including drive-relative `C:tools\\shell.cmd`. Node's
+    // `path.win32.join` keeps the workspace base for that input. Replace the
+    // drive separator with a NUL sentinel while joining: this makes it a
+    // literal component for Rust's path parser and still lets lexical
+    // normalization handle `.`/`..`; restore the separator afterwards.
+    let bytes = value.as_bytes();
+    if cfg!(windows)
+        && bytes.get(1) == Some(&b':')
+        && bytes.first().is_some_and(u8::is_ascii_alphabetic)
+    {
+        let mut joined = base.as_os_str().to_os_string();
+        joined.push(std::path::MAIN_SEPARATOR_STR);
+        joined.push(value.replacen(':', "\0", 1));
+        return pnpm_fs::lexical_normalize(Path::new(&joined)).to_string_lossy().replace('\0', ":");
+    }
     pnpm_fs::lexical_normalize(&base.join(candidate)).to_string_lossy().into_owned()
 }
 

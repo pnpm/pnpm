@@ -516,6 +516,16 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     if let Some(object) = input.as_object_mut() {
+        // Hooks receive the already merged config in TypeScript, including
+        // the workspace-root resolution of `scriptShell`. The serialized
+        // WorkspaceSettings value is the raw manifest value, so replace it
+        // with the live config value (or omit it to represent JS undefined)
+        // before invoking hooks.
+        if let Some(script_shell) = &config.script_shell {
+            object.insert("scriptShell".to_string(), Value::String(script_shell.clone()));
+        } else {
+            object.remove("scriptShell");
+        }
         if let Some(store_dir) = config.explicit_settings.get("storeDir") {
             object.insert("storeDir".to_string(), store_dir.clone());
         }
@@ -581,10 +591,20 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     );
 
     let delta = config_delta(&input, &current);
-    if delta.as_object().is_none_or(serde_json::Map::is_empty) {
+    // `config_delta` only walks keys present in the hook output, so a deleted
+    // `scriptShell` is otherwise indistinguishable from an unchanged config.
+    // Keep processing this one deletion even when the rest of the delta is
+    // empty.
+    let script_shell_deleted =
+        input.get("scriptShell").is_some() && current.get("scriptShell").is_none();
+    if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
         return Ok(hooks);
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
+    // TypeScript adopts a hook's `scriptShell` output as-is. Unlike the
+    // workspace manifest layer, an updateConfig hook has no manifestDir
+    // context, so a relative value must not be resolved a second time.
+    let changed_script_shell = delta.get("scriptShell").cloned();
     let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
     let changed_virtual_store_dir = delta.get("virtualStoreDir").cloned();
     let changed_global_virtual_store_dir = delta.get("globalVirtualStoreDir").cloned();
@@ -608,6 +628,13 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     delta_settings.apply_to(config, &base_dir);
+    if script_shell_deleted {
+        config.script_shell = None;
+    } else if let Some(value) = changed_script_shell {
+        config.script_shell = serde_json::from_value(value)
+            .into_diagnostic()
+            .wrap_err("the updateConfig hook produced an invalid scriptShell value")?;
+    }
     if let Some(extra_bin_paths) = changed_extra_bin_paths {
         config.extra_bin_paths = extra_bin_paths;
     }

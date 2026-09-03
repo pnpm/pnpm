@@ -114,7 +114,9 @@ export function getOptionsFromPnpmSettings (
 }
 
 function resolveScriptShell (manifestDir: string, scriptShell: string): string {
-  if (path.isAbsolute(scriptShell) || !/[\\/]/.test(scriptShell)) return scriptShell
+  if (path.isAbsolute(scriptShell) || (!scriptShell.includes('/') && !scriptShell.includes('\\'))) {
+    return scriptShell
+  }
   return path.join(manifestDir, scriptShell)
 }
 

@@ -2660,6 +2660,20 @@ fn preserves_relative_script_shell_for_sources_without_a_workspace_root() {
     assert_eq!(config.script_shell.as_deref(), Some("./scripts/shell.sh"));
 }
 
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+#[test]
+fn resolves_drive_relative_script_shell_against_workspace_base() {
+    // A drive-relative path has a Windows prefix but no root. Rust's
+    // PathBuf::join treats that prefix as a replacement signal, while
+    // Node's path.win32.join keeps the existing workspace base. Keep the
+    // candidate literal when appending it so both implementations agree.
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str(r"scriptShell: 'C:tools\shell.cmd'").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new(r"C:\workspace\root"));
+    assert_eq!(config.script_shell.as_deref(), Some(r"C:\workspace\root\C:tools\shell.cmd"));
+}
+
 /// The tri-state distinguishes "absent" from "explicit null", matching
 /// pnpm: an explicit `scriptShell: null` / `nodeOptions: null` clears a
 /// value inherited from global `config.yaml`, while an absent key leaves

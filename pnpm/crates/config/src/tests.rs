@@ -2902,13 +2902,13 @@ pub fn workspace_script_shell_accepts_backslash_path_like_values() {
         .expect("write workspace yaml");
 
     let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
-    let expected = pnpm_fs::lexical_normalize(&workspace.path().join("scripts\\shell.cmd"))
+    let expected = pnpm_fs::lexical_normalize(&workspace.path().join(r"scripts\shell.cmd"))
         .to_string_lossy()
         .into_owned();
     assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
 }
 
-#[cfg(windows)]
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
 #[test]
 pub fn workspace_script_shell_preserves_windows_absolute_and_unc_paths() {
     let workspace = tempdir().expect("workspace tempdir");
