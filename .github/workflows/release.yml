@@ -617,7 +617,10 @@ jobs:
           version: ${{ needs.plan.outputs.rust_version }}
 
       - name: Build with cross
-        run: cross build --locked -p pnpm-cli --bin pnpm --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
       - name: Download node-gyp payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -747,7 +750,7 @@ jobs:
           if [[ "$TARGET" == *musl* ]]; then
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
-          cross build --locked -p pnpm-napi --profile napi-release --target="$TARGET"
+          .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
@@ -1202,7 +1205,10 @@ jobs:
         run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
 
       - name: Build with cross
-        run: cross build --locked -p pnpr --bin pnpr --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
