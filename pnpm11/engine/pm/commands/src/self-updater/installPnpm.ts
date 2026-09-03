@@ -573,14 +573,16 @@ async function relinkBinsAtomically (baseDir: string, binDir: string): Promise<v
     `.${path.basename(binDir)}.${process.pid}.${randomUUID()}.tmp`
   )
   try {
-    fs.mkdirSync(tempBinDir, { recursive: true })
+    await fs.promises.mkdir(tempBinDir, { recursive: true })
     await linkBins(path.join(baseDir, 'node_modules'), tempBinDir, { warn: noop })
-    fs.mkdirSync(binDir, { recursive: true })
-    for (const entry of fs.readdirSync(tempBinDir)) {
-      fs.renameSync(path.join(tempBinDir, entry), path.join(binDir, entry))
-    }
+    await fs.promises.mkdir(binDir, { recursive: true })
+    const entries = await fs.promises.readdir(tempBinDir)
+    await Promise.all(entries.map(async (entry) => fs.promises.rename(
+      path.join(tempBinDir, entry),
+      path.join(binDir, entry)
+    )))
   } finally {
-    fs.rmSync(tempBinDir, { recursive: true, force: true })
+    await fs.promises.rm(tempBinDir, { recursive: true, force: true })
   }
 }
 
