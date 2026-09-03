@@ -190,29 +190,38 @@ impl<'tree> Walker<'tree> {
             peer_provider_children_by_pkg_id.clear();
             peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
         }
+        // With no peer names in the tree, no edge can index as a
+        // provider: every entry stays the empty default.
+        let tree_declares_peers = !tree.all_peer_dep_names.is_empty();
         for (pkg_id, children) in &tree.children_by_id {
             if peer_provider_children_by_pkg_id.contains_key(&**pkg_id) {
                 continue;
             }
             let mut providers = PeerProviderChildren::default();
-            for (edge_index, edge) in children.iter().enumerate() {
-                let Some(pkg) = tree.packages.get(&edge.pkg_id) else { continue };
-                let real_name = pkg_name_version(&pkg.result).0;
-                let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
-                let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
-                if !alias_is_peer && !real_name_is_peer {
-                    continue;
-                }
-                providers.relevant_edge_indices.push(edge_index);
-                if alias_is_peer {
-                    providers
-                        .edge_indices_by_name
-                        .entry(edge.alias.clone())
-                        .or_default()
-                        .push(edge_index);
-                }
-                if real_name_is_peer && real_name != edge.alias {
-                    providers.edge_indices_by_name.entry(real_name).or_default().push(edge_index);
+            if tree_declares_peers {
+                for (edge_index, edge) in children.iter().enumerate() {
+                    let Some(pkg) = tree.packages.get(&edge.pkg_id) else { continue };
+                    let real_name = pkg_name_version(&pkg.result).0;
+                    let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
+                    let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
+                    if !alias_is_peer && !real_name_is_peer {
+                        continue;
+                    }
+                    providers.relevant_edge_indices.push(edge_index);
+                    if alias_is_peer {
+                        providers
+                            .edge_indices_by_name
+                            .entry(edge.alias.clone())
+                            .or_default()
+                            .push(edge_index);
+                    }
+                    if real_name_is_peer && real_name != edge.alias {
+                        providers
+                            .edge_indices_by_name
+                            .entry(real_name)
+                            .or_default()
+                            .push(edge_index);
+                    }
                 }
             }
             peer_provider_children_by_pkg_id
@@ -633,6 +642,9 @@ impl Walker<'_> {
     pub(super) fn is_peer_relevant(&self, alias: &str, pkg: &ResolvedPackage) -> bool {
         if self.tree.all_peer_dep_names.contains(alias) {
             return true;
+        }
+        if self.tree.all_peer_dep_names.is_empty() {
+            return false;
         }
         let (real_name, _) = pkg_name_version(&pkg.result);
         self.tree.all_peer_dep_names.contains(&real_name)

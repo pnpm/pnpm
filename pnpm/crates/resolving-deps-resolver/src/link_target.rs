@@ -58,21 +58,22 @@ impl ImporterAnchor {
     /// target, or one that carries `..` components.
     pub(crate) fn target_relative_to_importer(&self, target: &str) -> Option<String> {
         let rel = self.rel_components.as_deref()?;
-        let mut target_segments = Vec::new();
-        for segment in relative_segments(target)? {
+        let segments = relative_segments(target)?;
+        let mut shared = 0;
+        let mut still_shared = true;
+        for segment in segments.clone() {
             if segment == ".." {
                 return None;
             }
-            target_segments.push(segment);
+            if still_shared && rel.get(shared).is_some_and(|name| name == segment) {
+                shared += 1;
+            } else {
+                still_shared = false;
+            }
         }
-        let shared = rel
-            .iter()
-            .zip(&target_segments)
-            .take_while(|(rel_name, target_name)| rel_name.as_str() == **target_name)
-            .count();
         Some(render(
-            std::iter::repeat_n("..", rel.len() - shared)
-                .chain(target_segments[shared..].iter().copied()),
+            std::iter::repeat_n("..", rel.len() - shared).chain(segments.skip(shared)),
+            3 * (rel.len() - shared) + target.len(),
         ))
     }
 
@@ -97,7 +98,10 @@ impl ImporterAnchor {
                 descended.push(segment);
             }
         }
-        Some(render(rel[..kept].iter().map(String::as_str).chain(descended)))
+        Some(render(
+            rel[..kept].iter().map(String::as_str).chain(descended),
+            rel[..kept].iter().map(|name| name.len() + 1).sum::<usize>() + target.len(),
+        ))
     }
 }
 
@@ -114,7 +118,7 @@ const SEPARATORS: &[char] = &['/'];
 /// (on Windows) whose first segment carries a `:` and so may be a
 /// prefix — where suffix math does not apply; the caller's
 /// absolute-space fallback handles those.
-fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str>> {
+fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str> + Clone> {
     if target.starts_with(SEPARATORS) {
         return None;
     }
@@ -127,8 +131,11 @@ fn relative_segments(target: &str) -> Option<impl Iterator<Item = &str>> {
 
 /// Join components with `/` and normalize any backslash inside one, the
 /// way the callers' former `display` + `replace('\\', "/")` pass did.
-fn render<'component>(components: impl Iterator<Item = &'component str>) -> String {
-    let mut rendered = String::new();
+fn render<'component>(
+    components: impl Iterator<Item = &'component str>,
+    capacity: usize,
+) -> String {
+    let mut rendered = String::with_capacity(capacity);
     for component in components {
         if !rendered.is_empty() {
             rendered.push('/');
