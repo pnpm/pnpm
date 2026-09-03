@@ -15,3 +15,6 @@ use std::thread;
 pub fn background_drop<Value: Send + 'static>(value: Value) {
     drop(thread::Builder::new().spawn(move || drop(value)));
 }
+
+#[cfg(test)]
+mod tests;

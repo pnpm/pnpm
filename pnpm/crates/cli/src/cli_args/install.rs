@@ -707,10 +707,14 @@ impl InstallArgs {
         }
         .wrap_err("installing dependencies")?;
 
-        // The state holds the parsed wanted lockfile and the resolution
-        // caches, and the selection holds every project's manifest;
-        // nothing reads them between here and exit.
-        pnpm_fs::background_drop((state, selection));
+        // The parsed wanted lockfile and the selection's project
+        // manifests are pure data nothing reads between here and exit.
+        // The resolution channel map stays out: dropping it closes its
+        // watch senders, a signal `background_drop`'s contract
+        // excludes, so it drops inline here with the rest.
+        let State { tarball_mem_cache: _, http_client: _, config: _, manifest, lockfile, .. } =
+            state;
+        pnpm_fs::background_drop((lockfile, manifest, selection));
         Ok(())
     }
 }
