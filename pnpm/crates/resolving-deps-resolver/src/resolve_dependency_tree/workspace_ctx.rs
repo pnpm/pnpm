@@ -492,10 +492,11 @@ pub struct WorkspaceTreeCtx {
     /// sweep: the only ones whose verdict can have changed on their own.
     /// Maintained only while `finalized_package` is set.
     pub(super) finalization_pending: Mutex<Vec<Arc<str>>>,
-    /// Every package that recorded an edge to the key, so a package's
-    /// finalization can be propagated to the packages depending on it.
-    /// Maintained only while `finalized_package` is set.
-    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, Vec<Arc<str>>>>,
+    /// Every package whose recorded children include the key, so a
+    /// package's finalization can be propagated to the packages
+    /// depending on it. Maintained only while `finalized_package` is
+    /// set; see [`update_parent_index`].
+    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, HashSet<Arc<str>>>>,
     /// The `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
@@ -1609,10 +1610,12 @@ pub(super) fn record_children(
         };
         let edges = Arc::new(edges);
         if ctx.workspace.finalized_package.is_some() {
-            let mut parents = lock_recoverable(&ctx.workspace.parents_by_id);
-            for edge in edges.iter() {
-                parents.entry(Arc::clone(&edge.pkg_id)).or_default().push(Arc::from(pkg_id));
-            }
+            update_parent_index(
+                &mut lock_recoverable(&ctx.workspace.parents_by_id),
+                pkg_id,
+                children.get(pkg_id).map(|recorded| recorded.edges.as_slice()),
+                &edges,
+            );
         }
         children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
@@ -1620,6 +1623,32 @@ pub(super) fn record_children(
     ctx.workspace.record_children_by_id_write(pkg_id);
     ctx.workspace.note_finalization_candidate(pkg_id);
     recording
+}
+
+/// Move `pkg_id` in the reverse parent index from the children it
+/// recorded before (`previous`) to the ones it records now (`next`).
+/// Recording the same edges again is a no-op, and a child dropped
+/// from the record no longer lists `pkg_id` as a parent.
+fn update_parent_index(
+    parents_by_id: &mut HashMap<Arc<str>, HashSet<Arc<str>>>,
+    pkg_id: &str,
+    previous: Option<&[crate::resolved_tree::ChildEdge]>,
+    next: &[crate::resolved_tree::ChildEdge],
+) {
+    for edge in previous.into_iter().flatten() {
+        if next.iter().any(|kept| kept.pkg_id == edge.pkg_id) {
+            continue;
+        }
+        if let Some(parents) = parents_by_id.get_mut(&edge.pkg_id) {
+            parents.remove(pkg_id);
+            if parents.is_empty() {
+                parents_by_id.remove(&edge.pkg_id);
+            }
+        }
+    }
+    for edge in next {
+        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+    }
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
@@ -1746,3 +1775,6 @@ fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod parent_index_tests;
