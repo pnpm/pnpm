@@ -1,6 +1,7 @@
 use crate::{
     State,
     cli_args::{
+        install::resolve_bool_override,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
@@ -148,6 +149,14 @@ pub struct UpdateArgs {
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
 
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Run lifecycle scripts even when the configuration disables them.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
+
     /// URL of a pnpr server to offload revision refresh resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
@@ -179,6 +188,11 @@ struct PatchesWithSelectorError;
 
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_scripts = resolve_bool_override(
+            self.ignore_scripts,
+            self.no_ignore_scripts,
+            config.ignore_scripts,
+        );
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         if let Some(pnpr_server) = self.pnpr_server.clone() {
             config.pnpr_server = Some(pnpr_server);
