@@ -111,6 +111,7 @@ where
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        let effective_node_version = super::effective_node_version(config, manifest);
         http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let can_prompt = prompt_eligibility_override
@@ -396,7 +397,12 @@ where
             // swallowed read error.
             let marker_safe = if gvs_build_markers_may_require_recovery(config) {
                 match lockfile.get() {
-                    Ok(Some(wanted)) => !gvs_build_marker_present(wanted, config, &workspace_root),
+                    Ok(Some(wanted)) => !gvs_build_marker_present(
+                        wanted,
+                        config,
+                        &workspace_root,
+                        effective_node_version.as_deref(),
+                    ),
                     Ok(None) => true,
                     Err(_) => false,
                 }
@@ -1119,6 +1125,7 @@ where
             save_lockfile,
             catalogs: &catalogs,
             project_manifests: &project_manifests,
+            effective_node_version: effective_node_version.as_deref(),
             prefix: &prefix,
         })
         .await?

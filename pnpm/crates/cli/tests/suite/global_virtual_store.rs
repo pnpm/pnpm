@@ -857,6 +857,52 @@ fn needs_build_marker_triggers_reimport_on_next_install() {
     drop((root, mock_instance));
 }
 
+#[test]
+fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            },
+            "scripts": {
+                "postinstall": r#"node -e "require('fs').appendFileSync('root-postinstall.txt', 'run\n')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    set_gvs_workspace_yaml(
+        &workspace,
+        &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
+    );
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let version_dir =
+        pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+    let orphan_pkg = pkg_in_slot(
+        &version_dir.join("0000000000000000000000000000000000000000000000000000000000000000"),
+        "@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    fs::create_dir_all(&orphan_pkg).expect("create orphan GVS slot");
+    fs::write(orphan_pkg.join(".pnpm-needs-build"), "").expect("write orphan build marker");
+
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    assert_eq!(
+        fs::read_to_string(workspace.join("root-postinstall.txt")).expect("read script output"),
+        "run\n",
+        "an unrelated GVS slot must not cause the root lifecycle scripts to run again",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// TS: `local directory dependency works with global virtual store`
 /// (`globalVirtualStore.ts`).
 ///

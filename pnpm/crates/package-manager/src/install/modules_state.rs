@@ -155,14 +155,14 @@ pub(super) fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
             || config.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty()))
 }
 
-/// Probe the GVS name/version directories that can contain an actionable
-/// marker for this lockfile. Hash directories are enumerated rather than
-/// recomputed because buildable slots include the runtime engine in their
-/// graph hash, which the pre-runtime fast path deliberately has not resolved.
+/// Probe the buildable or patched GVS slots this lockfile resolves to.
+/// Markers in sibling hash directories belong to other dependency graphs and
+/// cannot be recovered by materializing this one.
 pub(super) fn gvs_build_marker_present(
     wanted: &Lockfile,
     config: &Config,
     lockfile_dir: &Path,
+    effective_node_version: Option<&str>,
 ) -> bool {
     if !gvs_build_markers_may_require_recovery(config) {
         return false;
@@ -170,9 +170,9 @@ pub(super) fn gvs_build_marker_present(
     let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
         return true;
     };
-    let layout = crate::VirtualStoreLayout::new(
+    let layout = crate::virtual_store_layout_for_lockfile(
         config,
-        None,
+        effective_node_version,
         wanted.snapshots.as_ref(),
         wanted.packages.as_ref(),
         Some(&policy),
@@ -185,44 +185,20 @@ pub(super) fn gvs_build_marker_present(
         return false;
     };
 
-    let mut visited_version_dirs = HashSet::new();
     for snapshot_key in snapshots.keys() {
         let can_recover = crate::snapshot_has_patch(snapshot_key)
             || policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
         if !can_recover {
             continue;
         }
-        let Some(version_dir) = layout.slot_dir(snapshot_key).parent().map(Path::to_path_buf)
-        else {
+        let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+            &layout.slot_dir(snapshot_key).join("node_modules"),
+            &snapshot_key.name.to_string(),
+        ) else {
             return true;
         };
-        if !visited_version_dirs.insert(version_dir.clone()) {
-            continue;
-        }
-        let hash_dirs = match std::fs::read_dir(&version_dir) {
-            Ok(hash_dirs) => hash_dirs,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(_) => return true,
-        };
-        for hash_dir in hash_dirs {
-            let Ok(hash_dir) = hash_dir else {
-                return true;
-            };
-            let Ok(file_type) = hash_dir.file_type() else {
-                return true;
-            };
-            if !file_type.is_dir() {
-                continue;
-            }
-            let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
-                &hash_dir.path().join("node_modules"),
-                &snapshot_key.name.to_string(),
-            ) else {
-                return true;
-            };
-            if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-                return true;
-            }
+        if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+            return true;
         }
     }
     false

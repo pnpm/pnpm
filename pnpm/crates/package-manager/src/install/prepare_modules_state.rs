@@ -34,6 +34,7 @@ pub(super) struct PrepareModulesStateInputs<'a, 'install> {
     pub(super) save_lockfile: bool,
     pub(super) catalogs: &'a Catalogs,
     pub(super) project_manifests: &'a [(PathBuf, &'a PackageManifest)],
+    pub(super) effective_node_version: Option<&'a str>,
     pub(super) prefix: &'a str,
 }
 
@@ -73,6 +74,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
         save_lockfile,
         catalogs,
         project_manifests,
+        effective_node_version,
         prefix,
     } = inputs;
     // A no-op still refreshes workspace state so `verifyDepsBeforeRun`
@@ -321,7 +323,12 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
             // project-state input checked above. Let materialization inspect
             // buildable and patched GVS slots instead of declaring the local
             // tree complete from importer links alone.
-            && !gvs_build_marker_present(wanted_lockfile, config, workspace_root)
+            && !gvs_build_marker_present(
+                wanted_lockfile,
+                config,
+                workspace_root,
+                effective_node_version,
+            )
             // An explicit `pacquet rebuild` always re-runs the build phase,
             // so it never short-circuits here.
             && rebuild.is_none()

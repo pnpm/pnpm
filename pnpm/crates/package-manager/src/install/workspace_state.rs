@@ -118,7 +118,13 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     }
     if gvs_build_markers_may_require_recovery(config) {
         let wanted = lockfile.get().ok().flatten()?;
-        if gvs_build_marker_present(wanted, config, &lockfile_root) {
+        let effective_node_version = super::effective_node_version(config, manifest);
+        if gvs_build_marker_present(
+            wanted,
+            config,
+            &lockfile_root,
+            effective_node_version.as_deref(),
+        ) {
             return None;
         }
     }
