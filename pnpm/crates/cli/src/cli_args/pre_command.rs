@@ -11,7 +11,7 @@ mod system_runtime_version;
 
 use super::{
     cli_command::{CliArgs, CliCommand},
-    config::ConfigSubcommand,
+    config::{ConfigLocation, ConfigSubcommand},
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
         package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
@@ -63,6 +63,7 @@ pub(crate) fn pre_command_plan(
         &PreCommandInput {
             switch: SwitchInput::from_cli_args(args),
             global: is_global(&args.command),
+            skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
             syncs_env_lockfile_in_pipeline: syncs_env_lockfile_in_pipeline(&args.command),
             emit: reporter_emit(args.reporter),
@@ -85,6 +86,7 @@ pub(crate) fn pre_command_plan_for_version_flag(
         &PreCommandInput {
             switch: SwitchInput::from_version_argv(argv),
             global: false,
+            skip_pm_handling: false,
             check_runtimes: false,
             // No install pipeline runs behind `--version`, so nothing else
             // would record the pin.
@@ -219,7 +221,7 @@ fn pre_command_plan_from_input(
             .current::<Host>(&dir)
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
-    config_overrides.apply(&mut config);
+    config_overrides.apply(&mut config, &dir);
     if let Some(color) = switch.color {
         config.color = color;
     }
@@ -240,7 +242,8 @@ fn pre_command_plan_from_input(
             && pm.version.as_deref().is_some_and(|version| version_satisfies(PNPM_VERSION, version))
     });
     let mut package_manager_to_sync = None;
-    if let Some(root_manifest) = manifest.as_ref()
+    if !input.skip_pm_handling
+        && let Some(root_manifest) = manifest.as_ref()
         && let Some(pm) = wanted_pm
     {
         let on_fail = effective_on_fail(&config, &pm);
@@ -256,13 +259,13 @@ fn pre_command_plan_from_input(
                 let frozen_lockfile =
                     switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
                 if let Some(target) = switch_target(&config, &root_dir, frozen_lockfile)? {
-                    if !version_satisfies(PNPM_VERSION, &target.spec) {
+                    if target.switches_away_from_the_running_pnpm() {
                         return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
                     }
-                    // The running pnpm already satisfies the pin, so there is
-                    // nothing to switch to — but the pin still has to reach
-                    // the lockfile, which the switch would otherwise have
-                    // written on its way to the wanted version.
+                    // The running pnpm is the one the pin asks for, so there
+                    // is nothing to switch to — but the pin still has to
+                    // reach the lockfile, which the switch would otherwise
+                    // have written on its way to the wanted version.
                     package_manager_to_sync = env_lockfile_sync(
                         root_manifest,
                         &root_dir,
@@ -301,6 +304,7 @@ fn pre_command_plan_from_input(
     }
 
     if input.check_runtimes
+        && !input.skip_pm_handling
         && !input.global
         && let Some(manifest) = manifest
     {
@@ -571,6 +575,7 @@ pub(crate) enum PreCommandError {
 struct PreCommandInput {
     switch: SwitchInput,
     global: bool,
+    skip_pm_handling: bool,
     check_runtimes: bool,
     syncs_env_lockfile_in_pipeline: bool,
     emit: fn(&LogEvent),
@@ -595,7 +600,7 @@ enum KeyIssueReporting {
 
 fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
     match command {
-        CliCommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
+        CliCommand::Get(get) if get.args.key.is_some() => KeyIssueReporting::Skip,
         CliCommand::Config(args) => match &args.command {
             ConfigSubcommand::Get(get) if get.key.is_some() => KeyIssueReporting::Skip,
             _ => KeyIssueReporting::WarnOnly,
@@ -645,12 +650,7 @@ fn is_global(command: &CliCommand) -> bool {
         CliCommand::Add(args) => args.global,
         CliCommand::ApproveBuilds(args) => args.global,
         CliCommand::Bin(args) => args.global,
-        CliCommand::Config(args) => match &args.command {
-            ConfigSubcommand::Set(args) => args.flags.global,
-            ConfigSubcommand::Get(args) => args.flags.global,
-            ConfigSubcommand::Delete(args) => args.flags.global,
-            ConfigSubcommand::List(args) => args.flags.global,
-        },
+        CliCommand::Config(args) => args.flags.global,
         CliCommand::Get(args) => args.flags.global,
         CliCommand::Set(args) => args.flags.global,
         CliCommand::Env(args) => args.global,
@@ -925,6 +925,15 @@ fn should_skip_command(command: &CliCommand) -> bool {
     )
 }
 
+fn should_skip_pm_handling(command: &CliCommand) -> bool {
+    match command {
+        CliCommand::Config(args) => args.flags.location != Some(ConfigLocation::Project),
+        CliCommand::Get(args) => args.flags.location != Some(ConfigLocation::Project),
+        CliCommand::Set(args) => args.flags.location != Some(ConfigLocation::Project),
+        _ => false,
+    }
+}
+
 fn should_skip_command_name(command: &str) -> bool {
     matches!(
         command,
@@ -979,6 +988,26 @@ impl SwitchProcessState {
 struct SwitchTarget {
     spec: String,
     source: SwitchSource,
+}
+
+impl SwitchTarget {
+    /// Whether reaching the pinned pnpm means running another one.
+    ///
+    /// A resolution recorded in the env lockfile is the pnpm the project
+    /// runs, whatever else its specifier would have allowed, so that
+    /// resolution — not the specifier — answers this. Only without one does
+    /// the specifier decide: the switch resolves it, and a running pnpm the
+    /// specifier already accepts is spared the round trip. A recorded
+    /// resolution that has to be repaired is always carried out, because the
+    /// repairing write happens there.
+    fn switches_away_from_the_running_pnpm(&self) -> bool {
+        match &self.source {
+            SwitchSource::LockedEnv { version, .. } => version != PNPM_VERSION,
+            SwitchSource::Resolve { locked_version, .. } => {
+                locked_version.is_some() || !version_satisfies(PNPM_VERSION, &self.spec)
+            }
+        }
+    }
 }
 
 #[derive(Debug)]

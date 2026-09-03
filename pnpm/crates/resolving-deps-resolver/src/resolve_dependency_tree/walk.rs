@@ -9,6 +9,7 @@
 use async_recursion::async_recursion;
 use futures_util::future;
 use pipe_trait::Pipe;
+use pnpm_catalogs_types::Catalogs;
 use pnpm_lockfile::{LockfileResolution, PkgNameVerPeer, TarballRevision};
 use pnpm_resolving_resolver_base::{
     CurrentPkg, GitResolveError, NoMatchingVersionError, PreferredVersionsOverlay,
@@ -44,10 +45,11 @@ use super::{
         project_relative_cache_scope,
     },
     workspace_ctx::{
-        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, WantedKey, claim_children_owner,
-        claim_children_warmup, insert_tree_node, is_current_children_owner, lazy_children,
-        make_non_owner_nodes_lazy, record_children, recorded_children_match,
-        register_peer_dep_names, remember_node_parent_ids,
+        ChildSpec, ChildrenOwnerClaim, RecordedChildrenContext, SharedWorkspaceWantedKey,
+        WantedKey, WorkspaceFinalWantedKey, claim_children_owner, claim_children_warmup,
+        insert_tree_node, is_current_children_owner, lazy_children, make_non_owner_nodes_lazy,
+        record_children, recorded_children_match, register_peer_dep_names,
+        remember_node_parent_ids,
     },
 };
 
@@ -122,6 +124,7 @@ pub(super) struct PendingNode {
     alias: String,
     node_id: NodeId,
     is_link: bool,
+    resolves_children_through_catalogs: bool,
     parent_ancestors: Arc<Vec<String>>,
     next_ancestors: Arc<Vec<String>>,
     /// The dependency names this occurrence's own `peerDependencies`
@@ -258,7 +261,7 @@ where
     }
 
     // Memoise the per-wanted resolve. The first caller for a given
-    // `(alias, bare_specifier, optional)` runs the resolver chain and
+    // `(alias, bare_specifier, optional, injected)` runs the resolver chain and
     // stores the `Arc<ResolveResult>` on `ctx.resolved_by_wanted`;
     // every later caller for the same wanted dep clones the `Arc` and
     // skips the chain entirely. Concurrent first-callers can both miss
@@ -473,6 +476,7 @@ where
     // id is collapsed to a leaf so every reference to the same workspace
     // path shares one [`NodeId`].
     let is_link = id.starts_with("link:");
+    let resolves_children_through_catalogs = resolves_children_through_catalogs(&result);
     let is_leaf = is_link || pkg_is_leaf(&result);
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };
 
@@ -500,7 +504,11 @@ where
         let peer_dependencies = if is_link {
             BTreeMap::new()
         } else {
-            extract_peer_dependencies(&result, &peer_shadowed)
+            extract_peer_dependencies(
+                &result,
+                &peer_shadowed,
+                catalogs_for_children(ctx, resolves_children_through_catalogs),
+            )?
         };
         register_peer_dep_names(ctx, &peer_dependencies);
         ctx.workspace.record_package_write(&id);
@@ -533,6 +541,7 @@ where
         alias,
         node_id,
         is_link,
+        resolves_children_through_catalogs,
         parent_ancestors: Arc::clone(ancestor_ids),
         next_ancestors,
         peer_shadowed,
@@ -666,16 +675,29 @@ pub(super) async fn walk_from_seeds<Chain>(
 where
     Chain: Resolver + ?Sized,
 {
-    assign_level_owners(ctx, seeds.iter_mut());
+    assign_level_owners(ctx, seeds.iter_mut())?;
     let direct: Vec<DirectDep> = seeds.iter().filter_map(seeded_dep).collect();
     let mut frontier = settle_seeds(ctx, seeds, children_overlay.as_ref(), &children_pkg_aliases);
+    let mut level = 0usize;
     while !frontier.is_empty() {
+        let level_started = std::time::Instant::now();
+        let frontier_len = frontier.len();
         let seeded = frontier
             .into_iter()
             .map(|node| seed_node_children(ctx, resolver, node))
             .pipe(future::try_join_all)
             .await?;
-        frontier = settle_level(ctx, seeded);
+        frontier = settle_level(ctx, seeded)?;
+        level += 1;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "resolve_level",
+            level,
+            parents = frontier_len,
+            next = frontier.len(),
+            elapsed_ms = level_started.elapsed().as_millis() as u64,
+            "phase complete",
+        );
     }
     Ok(direct)
 }
@@ -688,7 +710,10 @@ where
 /// sorts first. Only that one claims: the losers cannot win against a
 /// standing owner either, since they do not even outrank their own
 /// level's winner.
-fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed mut NodeSeed>) {
+fn assign_level_owners<'seed>(
+    ctx: &TreeCtx,
+    seeds: impl Iterator<Item = &'seed mut NodeSeed>,
+) -> Result<(), ResolveDependencyTreeError> {
     // Linked nodes resolve their dependencies as their own importer,
     // so they never own children here.
     let mut level: Vec<&mut Box<PendingNode>> = seeds
@@ -725,9 +750,10 @@ fn assign_level_owners<'seed>(ctx: &TreeCtx, seeds: impl Iterator<Item = &'seed 
             &pending.parent_ancestors,
             peer_shadowed,
         );
-        install_owner_peer_dependencies(ctx, pending, &claim);
+        install_owner_peer_dependencies(ctx, pending, &claim)?;
         pending.claim = Some(claim);
     }
+    Ok(())
 }
 
 /// Split the package's envelope into children and peers the way its
@@ -739,20 +765,25 @@ fn install_owner_peer_dependencies(
     ctx: &TreeCtx,
     pending: &PendingNode,
     claim: &ChildrenOwnerClaim,
-) {
+) -> Result<(), ResolveDependencyTreeError> {
     if pending.is_link || !claim.owns_children {
-        return;
+        return Ok(());
     }
-    let peer_dependencies = extract_peer_dependencies(&pending.result, &claim.peer_shadowed);
+    let peer_dependencies = extract_peer_dependencies(
+        &pending.result,
+        &claim.peer_shadowed,
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs),
+    )?;
     let mut packages = lock_recoverable(&ctx.workspace.packages);
-    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return };
+    let Some(existing) = packages.get_mut(pending.id.as_str()) else { return Ok(()) };
     if existing.peer_dependencies == peer_dependencies {
-        return;
+        return Ok(());
     }
     existing.peer_dependencies = peer_dependencies.clone();
     drop(packages);
     register_peer_dep_names(ctx, &peer_dependencies);
     ctx.workspace.record_package_write(&pending.id);
+    Ok(())
 }
 
 /// Give every occurrence of a settled level its tree node, and collect
@@ -789,7 +820,7 @@ fn settle_seeds(
             insert_walked_node(ctx, &pending, children);
             continue;
         };
-        if !resolves_children_through_catalogs(&pending.result)
+        if !pending.resolves_children_through_catalogs
             && recorded_children_match(ctx, &pending.id, &children_context(ctx, &pending, &claim))
         {
             let children = lazy_children(&pending.parent_ancestors);
@@ -808,8 +839,11 @@ fn settle_seeds(
 
 /// Record what each occurrence of a seeded level resolved for its
 /// children, and settle that level's own seeds into the next frontier.
-fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode> {
-    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()));
+fn settle_level(
+    ctx: &TreeCtx,
+    mut seeded: Vec<SeededNode>,
+) -> Result<Vec<FrontierNode>, ResolveDependencyTreeError> {
+    assign_level_owners(ctx, seeded.iter_mut().flat_map(|node| node.seeds.iter_mut()))?;
     let mut frontier = Vec::new();
     for node in seeded {
         let SeededNode {
@@ -834,7 +868,8 @@ fn settle_level(ctx: &TreeCtx, mut seeded: Vec<SeededNode>) -> Vec<FrontierNode>
             &grandchild_pkg_aliases,
         ));
     }
-    frontier
+    super::finalized::announce_finalized_packages(ctx);
+    Ok(frontier)
 }
 
 /// Publish the child edges one occurrence resolved, and report the
@@ -855,7 +890,7 @@ fn record_walked_children(
         return (lazy_children(&pending.parent_ancestors), false);
     }
     let optional_by_alias: HashMap<&str, bool> =
-        child_specs.iter().map(|(name, _, optional)| (name.as_str(), *optional)).collect();
+        child_specs.iter().map(|(name, _, optional, _)| (name.as_str(), *optional)).collect();
     let mut realized: BTreeMap<String, NodeId> = BTreeMap::new();
     let mut by_id: Vec<crate::resolved_tree::ChildEdge> = Vec::new();
     for dep in seeds.iter().filter_map(seeded_dep) {
@@ -937,7 +972,7 @@ where
     let FrontierNode { pending, claim, children_overlay, children_pkg_aliases } = node;
     // Look up cached children specs first; only read the manifest on a
     // miss. The cache value is held by `Arc` so revisits clone the
-    // refcount instead of the inner `Vec<(String, String, bool)>`, and
+    // refcount instead of the inner `Vec<ChildSpec>`, and
     // it is cached unfiltered because which of the specs the package's
     // own `peerDependencies` shadow is a property of the owner
     // occurrence, not of the manifest.
@@ -958,19 +993,19 @@ where
     } else {
         child_specs
             .iter()
-            .filter(|(name, _, optional)| *optional || !peer_shadowed.contains(name))
+            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
             .cloned()
             .collect::<Vec<ChildSpec>>()
             .pipe(Arc::new)
     };
-    let child_specs = if resolves_children_through_catalogs(&pending.result) {
+    let child_specs = if let Some(catalogs) =
+        catalogs_for_children(ctx, pending.resolves_children_through_catalogs)
+    {
         child_specs
             .iter()
-            .map(|(name, range, optional)| {
-                resolve_catalog_specifier(name.clone(), range.clone(), &ctx.catalogs)
-                    .map(|(name, range)| (name, range, *optional))
-            })
-            .collect::<Result<Vec<ChildSpec>, ResolveDependencyTreeError>>()?
+            .cloned()
+            .collect::<Vec<ChildSpec>>()
+            .pipe(|specs| resolve_catalog_child_specs(specs, catalogs))?
             .pipe(Arc::new)
     } else {
         child_specs
@@ -1001,11 +1036,12 @@ where
     let next_ancestors = Arc::clone(&pending.next_ancestors);
     let seeds = child_specs
         .iter()
-        .map(|(child_name, child_range, child_optional)| {
+        .map(|(child_name, child_range, child_optional, child_injected)| {
             let mut child_wanted = WantedDependency {
                 alias: Some(child_name.clone()),
                 bare_specifier: Some(child_range.clone()),
                 optional: Some(*child_optional),
+                injected: child_injected.then_some(true),
                 ..WantedDependency::default()
             };
             let mut child_prior = prior_children_snapshot
@@ -1116,12 +1152,132 @@ fn overlay_lookup_names<'edge>(
     [alias.map(Cow::Borrowed), real_name]
 }
 
-/// Look the wanted edge up in the per-wanted dedup cache or run the
-/// resolver chain and the manifest-hook pipeline, caching the
-/// `Arc<ResolveResult>` under `cache_key`. Concurrent first-callers
-/// can both miss and resolve in parallel — the resolver's own
-/// per-cache-key fetch locker coalesces the network work, and the
-/// second `or_insert` loses the race harmlessly.
+/// Convert a workspace directory resolution into the representation shared by
+/// every importer. A `link:` target is stored relative to the lockfile root;
+/// an injected `file:` target already has that representation.
+fn canonical_workspace_resolution(
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    project_dir: &Path,
+    lockfile_dir: &Path,
+) -> Option<pnpm_resolving_resolver_base::ResolveResult> {
+    if result.resolved_via != "workspace" {
+        return None;
+    }
+    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) = &result.resolution
+    else {
+        return None;
+    };
+    if result.id.as_str().strip_prefix("file:") == Some(&directory_resolution.directory) {
+        return Some(result.clone());
+    }
+    if result.id.as_str().strip_prefix("link:") != Some(&directory_resolution.directory) {
+        return None;
+    }
+
+    let target = Path::new(&directory_resolution.directory);
+    let absolute_target = if target.is_absolute() {
+        pnpm_fs::lexical_normalize(target)
+    } else {
+        pnpm_fs::lexical_normalize(&project_dir.join(target))
+    };
+    let canonical_target = pathdiff::diff_paths(&absolute_target, lockfile_dir)
+        .unwrap_or(absolute_target)
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let mut canonical = result.clone();
+    canonical.id =
+        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{canonical_target}"));
+    let pnpm_lockfile::LockfileResolution::Directory(canonical_directory) =
+        &mut canonical.resolution
+    else {
+        unreachable!("the cloned workspace resolution remains a directory")
+    };
+    canonical_directory.directory = canonical_target;
+    Some(canonical)
+}
+
+/// Render a canonical workspace resolution for one consuming importer before
+/// its manifest hooks run.
+fn render_workspace_resolution(
+    canonical: &pnpm_resolving_resolver_base::ResolveResult,
+    anchor: &crate::link_target::ImporterAnchor,
+    project_dir: &Path,
+    lockfile_dir: &Path,
+) -> pnpm_resolving_resolver_base::ResolveResult {
+    let mut rendered = canonical.clone();
+    let pnpm_lockfile::LockfileResolution::Directory(directory_resolution) =
+        &mut rendered.resolution
+    else {
+        unreachable!("the shared workspace cache contains only directory resolutions")
+    };
+    if canonical.id.as_str().starts_with("file:") {
+        return rendered;
+    }
+
+    let target = directory_resolution.directory.as_str();
+    let consumer_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
+        let target = Path::new(target);
+        let absolute_target = if target.is_absolute() {
+            pnpm_fs::lexical_normalize(target)
+        } else {
+            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+        };
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
+        pathdiff::diff_paths(&absolute_target, project_dir)
+            .unwrap_or(absolute_target)
+            .display()
+            .to_string()
+            .replace('\\', "/")
+    });
+    rendered.id =
+        pnpm_resolving_resolver_base::PkgResolutionId::from(format!("link:{consumer_target}"));
+    directory_resolution.directory = consumer_target;
+    rendered
+}
+
+/// Remove the consumer directory from a named `workspace:` request while
+/// retaining every other input the explicit workspace resolver reads.
+fn shared_workspace_key(
+    ctx: &TreeCtx,
+    cache_key: &WantedKey,
+    wanted: &WantedDependency,
+    opts: &ResolveOptions,
+) -> Option<SharedWorkspaceWantedKey> {
+    let bare_specifier = wanted.bare_specifier.as_deref()?;
+    if !bare_specifier.starts_with("workspace:") || bare_specifier.starts_with("workspace:.") {
+        return None;
+    }
+    #[cfg(debug_assertions)]
+    {
+        let importer_key_covers_edge = ctx.workspace_resolution_options_key.matches_options(opts);
+        debug_assert!(
+            importer_key_covers_edge,
+            "the importer-wide workspace-resolution key must describe every edge's options",
+        );
+    }
+    // The consumer scope is exactly what the shared key drops. Every
+    // `workspace:` selector carries one, so its absence means this edge is not
+    // the shape assumed here.
+    let mut wanted_key = cache_key.clone();
+    wanted_key.6.take()?;
+    Some(SharedWorkspaceWantedKey::new(
+        wanted_key,
+        wanted.prev_specifier.clone(),
+        &ctx.workspace_resolution_options_key,
+    ))
+}
+
+/// Look the wanted edge up in the per-wanted dedup cache or run the resolver
+/// chain and the manifest-hook pipeline, caching the `Arc<ResolveResult>`
+/// under `cache_key`. Eligible named workspace selectors add two more layers:
+/// a canonical resolver result, shared by every importer, and a hook-processed
+/// result keyed by the `link:` this importer renders, shared only with the
+/// importers that render the same one. A second importer therefore always
+/// skips the resolver chain, and skips the hooks as well when its rendered
+/// link matches. Concurrent first-callers can both miss and resolve in parallel —
+/// the resolver's own per-cache-key fetch locker coalesces the network work,
+/// and the second `or_insert` loses the race harmlessly.
 async fn resolve_wanted_cached<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -1161,15 +1317,75 @@ where
     } else {
         opts
     };
-    let mut result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
-    let Some(result_inner) = result.as_mut() else {
-        return Err(ResolveDependencyTreeError::SpecNotSupported {
-            specifier: render_specifier(wanted),
-        });
+    let shared_workspace_key = ctx
+        .workspace
+        .share_workspace_resolutions
+        .then(|| shared_workspace_key(ctx, &cache_key, wanted, opts))
+        .flatten();
+    let cached_workspace = shared_workspace_key.as_ref().and_then(|key| {
+        lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted).get(key).map(Arc::clone)
+    });
+    let mut canonical_workspace = cached_workspace.clone();
+    let mut result = if let Some(canonical) = cached_workspace {
+        // A `workspace:` edge never runs under the per-edge project-dir
+        // override (that fires for `file:` specifiers only), so the
+        // importer-wide anchor is exactly this edge's anchor.
+        #[cfg(debug_assertions)]
+        {
+            let anchor_inputs_describe_this_edge = opts.project_dir == ctx.base_opts.project_dir
+                && opts.lockfile_dir == ctx.base_opts.lockfile_dir;
+            debug_assert!(
+                anchor_inputs_describe_this_edge,
+                "the importer-wide link anchor must describe every workspace edge",
+            );
+        }
+        render_workspace_resolution(
+            &canonical,
+            &ctx.base_link_anchor,
+            &opts.project_dir,
+            &opts.lockfile_dir,
+        )
+    } else {
+        let result = resolver.resolve(wanted, opts).await.map_err(map_resolve_error)?;
+        let Some(result) = result else {
+            return Err(ResolveDependencyTreeError::SpecNotSupported {
+                specifier: render_specifier(wanted),
+            });
+        };
+        if let Some(shared_workspace_key) = shared_workspace_key.as_ref()
+            && let Some(canonical) =
+                canonical_workspace_resolution(&result, &opts.project_dir, &opts.lockfile_dir)
+        {
+            let canonical = Arc::new(canonical);
+            canonical_workspace = Some(Arc::clone(
+                lock_recoverable(&ctx.workspace.resolved_workspace_by_wanted)
+                    .entry(shared_workspace_key.clone())
+                    .or_insert(canonical),
+            ));
+        }
+        result
     };
-    if result_inner.manifest.is_none() {
-        result_inner.manifest =
-            Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
+    let workspace_final_key = match (shared_workspace_key, canonical_workspace.as_deref()) {
+        (Some(shared_wanted), Some(canonical)) => {
+            Some(WorkspaceFinalWantedKey::new(shared_wanted, &canonical.id, &result.id))
+        }
+        _ => None,
+    };
+    if let Some(key) = workspace_final_key.as_ref()
+        && let Some(cached) = lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
+            .get(key)
+            .map(Arc::clone)
+    {
+        // Both return paths record the project-scoped entry, so the lookup at
+        // the top of this function stays authoritative: a repeat of this edge
+        // costs one lookup rather than a shared-key rebuild and a re-render.
+        lock_recoverable(&ctx.workspace.resolved_by_wanted)
+            .entry(cache_key)
+            .or_insert_with(|| Arc::clone(&cached));
+        return Ok(cached);
+    }
+    if result.manifest.is_none() {
+        result.manifest = Some(Arc::new(fallback_manifest(wanted, opts.current_pkg.as_ref())));
     }
     // Apply the configured `readPackageHook` (today:
     // `packageExtensions`) to the manifest fragment before
@@ -1177,19 +1393,19 @@ where
     // only when it modifies it, so unrelated manifests keep sharing the
     // resolver's cached `Arc`.
     if let Some(hook) = ctx.workspace.manifest_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
-        result_inner.manifest = Some(hook(manifest));
+        result.manifest = Some(hook(manifest));
     }
 
     if let Some(pnpmfile_hook) = ctx.workspace.pnpmfile_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
         let log = ctx.workspace.read_package_log.clone().unwrap_or_else(|| Arc::new(|_| {}));
-        // Directory resolutions carry their lockfile-root-relative dir so the
-        // hook can tell a workspace project's dependency instance apart from a
-        // registry manifest — see `HookContext::dir`.
-        let dir = match &result_inner.resolution {
+        // Directory resolutions carry their directory so the hook can tell a
+        // workspace project's dependency instance apart from a registry
+        // manifest — see `HookContext::dir`.
+        let dir = match &result.resolution {
             pnpm_lockfile::LockfileResolution::Directory(directory_resolution) => {
                 Some(directory_resolution.directory.clone())
             }
@@ -1201,23 +1417,27 @@ where
             .read_package((*manifest).clone(), hook_ctx)
             .await
             .map_err(ResolveDependencyTreeError::PnpmfileHook)?;
-        result_inner.manifest = Some(updated);
+        result.manifest = Some(updated);
     }
 
     // Overrides run last so a pnpmfile hook that replaced the manifest
     // cannot erase them — see `WorkspaceTreeCtx::overrides_hook`.
     if let Some(hook) = ctx.workspace.overrides_hook.as_ref()
-        && let Some(manifest) = result_inner.manifest.take()
+        && let Some(manifest) = result.manifest.take()
     {
-        result_inner.manifest = Some(hook(manifest));
+        result.manifest = Some(hook(manifest));
     }
 
-    let result = result.expect("Some-guarded above");
     // Wrap in `Arc` once so the cache, the per-id
     // `ResolvedPackage` envelope, and the later peer-resolved
     // graph node share one heap-allocated `ResolveResult`
     // instead of cloning every `String` field per occurrence.
     let result = Arc::new(result);
+    if let Some(key) = workspace_final_key {
+        lock_recoverable(&ctx.workspace.resolved_workspace_final_by_wanted)
+            .entry(key)
+            .or_insert_with(|| Arc::clone(&result));
+    }
     lock_recoverable(&ctx.workspace.resolved_by_wanted)
         .entry(cache_key)
         .or_insert_with(|| Arc::clone(&result));
@@ -1282,15 +1502,14 @@ fn map_resolve_error(err: ResolveError) -> ResolveDependencyTreeError {
     }
 }
 
-/// Speculatively warm a freshly-seeded node's children resolutions so
-/// their packuments download while the sibling level's barrier waits
-/// for its slowest member. Results are discarded — the real picks run
-/// in the walk phase with the level's preferred-versions overlay and
-/// hit the warm metadata caches — and errors are swallowed: a
-/// speculative fetch must never fail the install (the real resolve
-/// will surface it). Recovers the cross-level pipelining the
-/// postponed-resolution barrier otherwise serializes; pure overlap,
-/// no behavioral effect.
+/// Speculatively warm a freshly-seeded node's whole subtree so its
+/// packuments download while the level barriers wait for their
+/// slowest members. Results are discarded — the real picks run in the
+/// walk phase with the level's preferred-versions overlay and hit the
+/// warm metadata caches — and errors are swallowed: a speculative
+/// fetch must never fail the install (the real resolve will surface
+/// it). Recovers the cross-level pipelining the postponed-resolution
+/// barrier otherwise serializes; pure overlap, no behavioral effect.
 pub(super) async fn warm_children_resolutions<Chain>(
     ctx: &TreeCtx,
     resolver: &Chain,
@@ -1311,17 +1530,57 @@ pub(super) async fn warm_children_resolutions<Chain>(
     if pending.is_link || !claim_children_warmup(ctx, &pending.id) {
         return;
     }
-    let Ok(specs) = extract_children(&pending.result) else { return };
-    let opts = ctx.opts_for_depth(pending.depth + 1);
-    let declaring_dir = declaring_manifest_dir(ctx, &pending.result);
+    warm_result_children(
+        ctx,
+        resolver,
+        &pending.result,
+        &pending.peer_shadowed,
+        pending.resolves_children_through_catalogs,
+        pending.depth,
+    )
+    .await;
+}
+
+/// Warm the resolutions of `result`'s whole subtree. Speculative only:
+/// nothing is recorded in the tree, every package is visited at most
+/// once across the walk, and a child whose own peers shadow it is
+/// skipped the way the real seed path skips it.
+#[async_recursion]
+async fn warm_result_children<Chain>(
+    ctx: &TreeCtx,
+    resolver: &Chain,
+    result: &pnpm_resolving_resolver_base::ResolveResult,
+    peer_shadowed: &HashSet<String>,
+    through_catalogs: bool,
+    depth: i32,
+) where
+    Chain: Resolver + ?Sized,
+{
+    let Ok(specs) = extract_children(result) else { return };
+    let specs = if peer_shadowed.is_empty() {
+        specs
+    } else {
+        specs
+            .into_iter()
+            .filter(|(name, _, optional, _)| *optional || !peer_shadowed.contains(name))
+            .collect()
+    };
+    let specs = if let Some(catalogs) = catalogs_for_children(ctx, through_catalogs) {
+        let Ok(specs) = resolve_catalog_child_specs(specs, catalogs) else { return };
+        specs
+    } else {
+        specs
+    };
+    let opts = ctx.opts_for_depth(depth + 1);
+    let declaring_dir = declaring_manifest_dir(ctx, result);
     specs
         .iter()
-        .filter(|(name, _, optional)| *optional || !pending.peer_shadowed.contains(name))
-        .map(|(name, range, optional)| {
+        .map(|(name, range, optional, injected)| {
             let wanted = WantedDependency {
                 alias: Some(name.clone()),
                 bare_specifier: Some(range.clone()),
                 optional: Some(*optional),
+                injected: injected.then_some(true),
                 ..WantedDependency::default()
             };
             let opts = opts_relative_to_declaring_manifest(opts, &wanted, declaring_dir.as_deref());
@@ -1347,9 +1606,37 @@ pub(super) async fn warm_children_resolutions<Chain>(
                     None,
                     Vec::new(),
                     ctx.update_cache_scope(),
-                    is_update_target(ctx.update_scope(), &wanted, None, pending.depth + 1),
+                    is_update_target(ctx.update_scope(), &wanted, None, depth + 1),
                 );
-                let _ = resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await;
+                let Ok(child) =
+                    resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await
+                else {
+                    return;
+                };
+                // Claimed by the resolver's raw id: the patch-qualified
+                // id is only built on the real walk, whose bookkeeping
+                // decides which patches count as applied.
+                let child_id = child.id.as_str();
+                if child_id.starts_with("link:") || !claim_children_warmup(ctx, child_id) {
+                    return;
+                }
+                // The parent alias scope is not tracked speculatively;
+                // with `autoInstallPeers` off nothing is shadowed and
+                // the real walk drops the edge instead.
+                let child_peer_shadowed = peer_shadowed_dependencies(
+                    child.manifest.as_deref(),
+                    &ParentPkgAliases::root(HashSet::default()),
+                    ctx.workspace.auto_install_peers,
+                );
+                warm_result_children(
+                    ctx,
+                    resolver,
+                    &child,
+                    &child_peer_shadowed,
+                    resolves_children_through_catalogs(&child),
+                    depth + 1,
+                )
+                .await;
             }
         })
         .pipe(future::join_all)
@@ -1365,6 +1652,26 @@ fn resolves_children_through_catalogs(
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> bool {
     result.resolved_via == "workspace" && result.id.as_str().starts_with("file:")
+}
+
+fn catalogs_for_children(
+    ctx: &TreeCtx,
+    resolves_children_through_catalogs: bool,
+) -> Option<&Catalogs> {
+    (resolves_children_through_catalogs && !ctx.catalogs.is_empty()).then_some(&ctx.catalogs)
+}
+
+fn resolve_catalog_child_specs(
+    child_specs: Vec<ChildSpec>,
+    catalogs: &Catalogs,
+) -> Result<Vec<ChildSpec>, ResolveDependencyTreeError> {
+    child_specs
+        .into_iter()
+        .map(|(name, range, optional, injected)| {
+            resolve_catalog_specifier(name, range, catalogs)
+                .map(|(name, range)| (name, range, optional, injected))
+        })
+        .collect()
 }
 
 /// The install aliases one resolved level contributes to its

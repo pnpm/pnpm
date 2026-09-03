@@ -1,10 +1,58 @@
 use super::{
     AllowBuildPolicy, AtomicU8, BuildPhaseInputs, Config, DependencyGroup, HashMap, PackageKey,
-    ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout, run_build_phase,
+    ProjectSnapshot, SkippedSnapshots, StoreIndexWriter, VirtualStoreLayout,
+    resolve_snapshot_patches, run_build_phase,
 };
 use pnpm_cmd_shim::LinkBinsOptions;
+use pnpm_lockfile::{GitResolution, LockfileResolution, PackageMetadata, SnapshotEntry};
+use pnpm_patching::{ExtendedPatchInfo, PatchGroup, PatchGroupRecord};
 use pnpm_reporter::SilentReporter;
 use tempfile::tempdir;
+
+#[test]
+fn resolves_git_snapshot_patch_from_package_version() {
+    let patch = ExtendedPatchInfo {
+        hash: "abc123".to_string(),
+        patch_file_path: None,
+        key: "foo@1.0.0".to_string(),
+    };
+    let mut group = PatchGroup::default();
+    group.exact.insert("1.0.0".to_string(), patch.clone());
+    let groups = PatchGroupRecord::from([("foo".to_string(), group)]);
+    let key = "foo@git+file:///repo#0123456789012345678901234567890123456789(patch_hash=abc123)"
+        .parse::<PackageKey>()
+        .expect("parse git snapshot key");
+    let snapshots = HashMap::from([(key.clone(), SnapshotEntry::default())]);
+    let packages = HashMap::from([(
+        key.without_peer(),
+        PackageMetadata {
+            resolution: LockfileResolution::Git(GitResolution {
+                repo: "file:///repo".to_string(),
+                commit: "0123456789012345678901234567890123456789".to_string(),
+                integrity: None,
+                path: None,
+            }),
+            version: Some("1.0.0".to_string()),
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        },
+    )]);
+
+    let patches =
+        resolve_snapshot_patches(&Config::new(), Some(&groups), Some(&snapshots), Some(&packages))
+            .expect("resolve snapshot patches")
+            .expect("patches are configured");
+
+    assert_eq!(patches.get(&key.without_peer()), Some(&patch));
+}
 
 #[tokio::test]
 async fn ignored_scripts_fast_path_defers_only_materialized_snapshots() {

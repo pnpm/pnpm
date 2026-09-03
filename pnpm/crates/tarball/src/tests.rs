@@ -1,6 +1,6 @@
 use super::{
     FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
-    SharedReportedProgressKeys,
+    SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
         DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
         is_transient_error, slow_download_warning,
@@ -40,6 +40,31 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn node_runtime_downloads_do_not_send_auth_over_remote_http() {
+    let auth_headers = AuthHeaders::from_creds_map([(
+        "//mirror.example/".to_string(),
+        "Bearer mirror-token".to_string(),
+    )]);
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "http://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        ),
+        None,
+    );
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "https://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        )
+        .as_deref(),
+        Some("Bearer mirror-token"),
+    );
 }
 
 #[test]
@@ -432,6 +457,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
 
     let index = StoreIndex::open_in(store_path).unwrap();
@@ -586,6 +612,7 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -637,6 +664,7 @@ async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -691,6 +719,7 @@ async fn prefetch_cas_paths_omits_failed_integrity_entries() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -752,6 +781,7 @@ async fn prefetch_cas_paths_skips_filesystem_checks_when_verify_disabled() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -805,6 +835,7 @@ async fn falls_through_when_cafs_file_missing() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -858,6 +889,7 @@ fn seed_row_holding_another_package(store_path: &StoreDir, index_key: &str) {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(index_key, &entry).unwrap();
@@ -1015,6 +1047,7 @@ async fn falls_through_when_digest_is_malformed() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -1084,6 +1117,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -1163,6 +1197,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     let index = StoreIndex::open_in(store_path).unwrap();
     index.set(&index_key, &entry).unwrap();
@@ -5312,6 +5347,21 @@ fn tar_with_raw_entry_name(name: &[u8]) -> Vec<u8> {
     tar_bytes
 }
 
+#[test]
+fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(b"./package/package.json");
+    let (cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
+    assert_eq!(pkg_files_idx.files.keys().collect::<Vec<_>>(), vec!["package/package.json"]);
+    assert!(pkg_files_idx.manifest.is_none());
+
+    drop(tempdir);
+}
+
 /// A backslash is an ordinary filename character on Unix but a
 /// separator on Windows, and these keys travel between the two through
 /// the shared `index.db`. pnpm folds `\` to `/` before validating
@@ -5353,4 +5403,23 @@ fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
     );
 
     drop(tempdir);
+}
+
+/// A tarball URL can carry inline `user:pass@` credentials — typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest — and every
+/// error rendering the URL lands in terminal scrollback and CI logs.
+#[test]
+fn url_bearing_errors_redact_inline_credentials() {
+    let url = "https://alice:hunter2@example.com/pkg.tgz".to_string();
+    let rendered = [
+        TarballError::HttpStatus(HttpStatusError { url: url.clone(), status: 404 }).to_string(),
+        TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX }.to_string(),
+        TarballError::SiblingFetchFailed { url: url.clone() }.to_string(),
+        TarballError::OffAllowlist { url }.to_string(),
+    ];
+    for message in rendered {
+        eprintln!("MESSAGE: {message}");
+        assert!(!message.contains("hunter2"), "the password must not be rendered: {message}");
+        assert!(message.contains("example.com/pkg.tgz"), "the host must survive: {message}");
+    }
 }

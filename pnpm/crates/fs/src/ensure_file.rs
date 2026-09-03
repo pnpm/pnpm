@@ -1,3 +1,4 @@
+use crate::rename_with_retry;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
@@ -9,8 +10,10 @@ use std::{
         Mutex,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
 };
+
+#[cfg(unix)]
+use std::time::Duration;
 
 /// POSIX `EMFILE` — process has hit `RLIMIT_NOFILE`. Hardcoded
 /// instead of pulling in `libc` for a single integer that's been
@@ -467,84 +470,6 @@ pub fn create_exclusive_temp_file(
             )
         }),
     })
-}
-
-/// Total budget for retrying a rename that keeps hitting transient
-/// errors.
-const RENAME_RETRY_BUDGET: Duration = Duration::from_mins(1);
-
-/// Cap on per-iteration sleep — the backoff grows by 10 ms each loop
-/// and stops growing at 100 ms.
-const RENAME_RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
-
-/// `fs::rename` with the one retry family that actually hits pacquet
-/// in practice: Windows Defender (and other Windows antivirus / file-
-/// indexer tooling) momentarily holding the destination open, which
-/// makes the rename fail with `ERROR_ACCESS_DENIED` /
-/// `ERROR_SHARING_VIOLATION`. These surface through Rust's
-/// `io::ErrorKind` as `PermissionDenied` or `ResourceBusy`, and they
-/// clear as soon as the scan completes — a short sleep + retry
-/// recovers. Mirrors the `EPERM|EACCES|EBUSY` arm of
-/// `rename-overwrite`'s `renameOverwriteSync` (see zkochan/packages/
-/// rename-overwrite/index.js): 60-second total budget, 10 ms backoff
-/// step, 100 ms cap.
-///
-/// Other retry arms from `rename-overwrite` (`ENOTEMPTY`/`EEXIST`/
-/// `ENOTDIR` swap-rename, `ENOENT` mkdir-and-recurse, `EXDEV` copy-
-/// and-delete) don't apply to this call site: temp and target share
-/// the CAS shard dir (already pre-created by `StoreDir::init`), both
-/// are files not directories, and pacquet's CAS readers
-/// (`link_file` → `fs::hard_link` / `reflink_copy`) don't keep file
-/// handles on the target, so there's no "parallel reader sees a gap"
-/// concern that would motivate swap-rename.
-pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
-    let mut backoff = Duration::ZERO;
-    let start = Instant::now();
-
-    loop {
-        match fs::rename(src, dst) {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                if !is_transient_rename_error(&error) || start.elapsed() >= RENAME_RETRY_BUDGET {
-                    return Err(error);
-                }
-                if !backoff.is_zero() {
-                    std::thread::sleep(backoff);
-                }
-                backoff = (backoff + Duration::from_millis(10)).min(RENAME_RETRY_BACKOFF_CAP);
-            }
-        }
-    }
-}
-
-/// Classify a `rename` error as transient-retry-worthy.
-///
-/// On Windows, AV / indexer interference briefly holds the
-/// destination open and surfaces as `ERROR_ACCESS_DENIED` (→
-/// `PermissionDenied`) or `ERROR_SHARING_VIOLATION` (→
-/// `ResourceBusy`, Rust 1.84+ mapping). Both clear on their own
-/// within tens-to-hundreds of ms, which is exactly what the retry
-/// loop is for.
-///
-/// On Unix, `rename` returning `EACCES`/`EPERM` is essentially
-/// always a permanent permission issue (non-writable directory,
-/// sticky-bit conflict, `AppArmor` deny) — retrying for 60 s just
-/// stretches out the failure. `EBUSY` on Unix also tends to be
-/// permanent (mount-point conflicts). So on non-Windows the
-/// classifier is disabled and any `rename` error propagates
-/// immediately.
-fn is_transient_rename_error(
-    #[cfg_attr(not(windows), allow(unused, reason = "only inspected in the Windows branch below"))]
-    error: &io::Error,
-) -> bool {
-    #[cfg(windows)]
-    {
-        matches!(error.kind(), io::ErrorKind::PermissionDenied | io::ErrorKind::ResourceBusy)
-    }
-    #[cfg(not(windows))]
-    {
-        false
-    }
 }
 
 /// Build a unique temp path inside `dir`, of the form

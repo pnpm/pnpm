@@ -8,7 +8,6 @@ import { PnpmError } from '@pnpm/error'
 import { isPackageManagerResolved, resolvePackageManagerIntegrities } from '@pnpm/installing.env-installer'
 import { readEnvLockfile } from '@pnpm/lockfile.fs'
 import { globalWarn } from '@pnpm/logger'
-import { prependDirsToPath } from '@pnpm/shell.path'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import spawn from 'cross-spawn'
 import semver from 'semver'
@@ -34,13 +33,26 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
   let storeToUse: Awaited<ReturnType<typeof createStoreController>> | undefined
   const packageManagerConfig = getPackageManagerBootstrapConfig(config)
 
+  const wantedVersion = pm.version
+  const satisfiesPin = (version: string): boolean =>
+    semver.satisfies(version, wantedVersion, { includePrerelease: true })
+
   // Check if the env lockfile already has a resolved version that satisfies the wanted version/range.
   let pmVersion = envLockfile?.importers['.'].packageManagerDependencies?.['pnpm']?.version
+  if (pmVersion != null && !satisfiesPin(pmVersion)) {
+    pmVersion = undefined
+  }
+  // A range pin names no exact version, so the running pnpm's version is the
+  // one the project actually uses. Asking the registry instead would pin a
+  // version nobody is running and switch away from a satisfying one.
+  if (pmVersion == null && satisfiesPin(packageManager.version)) {
+    pmVersion = packageManager.version
+  }
   let freshlyResolved = false
-  if (!pmVersion || !semver.satisfies(pmVersion, pm.version, { includePrerelease: true })) {
+  if (pmVersion == null) {
     // Resolve to an exact version from the registry.
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
-    envLockfile = await resolvePackageManagerIntegrities(pm.version, {
+    envLockfile = await resolvePackageManagerIntegrities(wantedVersion, {
       envLockfile,
       registriesByScope: packageManagerConfig.registriesByScope,
       rootDir: context.rootProjectManifestDir,
@@ -52,11 +64,11 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     freshlyResolved = true
     pmVersion = envLockfile.importers['.'].packageManagerDependencies?.['pnpm']?.version
     if (!pmVersion) {
-      globalWarn(`Cannot resolve pnpm version for "${pm.version}"`)
+      globalWarn(`Cannot resolve pnpm version for "${wantedVersion}"`)
       await storeToUse.ctrl.close()
       return
     }
-  } else if (!isPackageManagerResolved(envLockfile, pmVersion)) {
+  } else if (!isPackageManagerResolved(envLockfile, pmVersion, config.frozenLockfile ? undefined : wantedVersion)) {
     storeToUse = await createStoreController({ ...config, ...context, ...packageManagerConfig })
     envLockfile = await resolvePackageManagerIntegrities(pmVersion, {
       envLockfile,
@@ -66,6 +78,7 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
       storeDir: storeToUse.dir,
       save: persistLockfile,
       frozenLockfile: config.frozenLockfile,
+      specifier: wantedVersion,
     })
     freshlyResolved = true
   }
@@ -174,12 +187,6 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
     await storeToUse.ctrl.close()
   }
 
-  const pnpmEnv = prependDirsToPath([wantedPnpmBinDir])
-  if (!pnpmEnv.updated) {
-    // We throw this error to prevent an infinite recursive call of the same pnpm version.
-    throw new VersionSwitchFail(pmVersion, wantedPnpmBinDir)
-  }
-
   // Specify the exact pnpm file path that's expected to execute to spawn.sync()
   //
   // It's not safe spawn 'pnpm' (without specifying an absolute path) and expect
@@ -193,11 +200,6 @@ export async function switchCliVersion (config: Config, context: ConfigContext):
 
   const { status, signal, error } = spawn.sync(pnpmBinPath, process.argv.slice(2), {
     stdio: 'inherit',
-    env: {
-      ...process.env,
-      [pnpmEnv.name]: pnpmEnv.value,
-      npm_config_manage_package_manager_versions: 'false',
-    },
   })
 
   if (error) {

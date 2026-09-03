@@ -11,19 +11,24 @@
 //! subcommand.
 //!
 //! [`relocate_pre_subcommand_flags`] closes the gap in argv space:
-//! option tokens that appear before the subcommand and are not part of
-//! the top-level grammar move to directly after the subcommand token
-//! (relative order preserved), so clap parses them with the subcommand's
-//! grammar exactly as if they had been written there. Whether a moved
-//! option consumes the following token as its value is decided from the
-//! union of every subcommand's arg table; on an arity conflict between
-//! subcommands the option is treated as boolean so a subcommand name is
-//! never swallowed as a value. Tokens move only when the first
+//! option tokens that appear before the subcommand and belong to the
+//! invoked command's grammar rather than the top-level one move to
+//! directly after the subcommand token (relative order preserved), so
+//! clap parses them with that command's grammar exactly as if they had
+//! been written there. Ownership is decided against the invoked command
+//! alone: an option only some other command declares stays where it is,
+//! as does one no grammar defines at all, so clap reports it the way
+//! nopt does instead of a `trailing_var_arg` command such as `exec`
+//! taking it for the command to run. The scan that has yet to find the
+//! subcommand has no command to consult, so it steps over options using
+//! the union of every subcommand's arg table; on an arity conflict
+//! between subcommands the option is treated as boolean so a subcommand
+//! name is never swallowed as a value. Tokens move only when the first
 //! positional token names a real subcommand — external commands
 //! (`pnpm <script>`) keep their argv untouched, as does everything after
 //! a `--` terminator.
 
-use clap::{Arg, ArgAction, Command};
+use clap::{Arg, Command};
 use std::{
     collections::{HashMap, HashSet},
     ffi::OsString,
@@ -76,14 +81,12 @@ pub(crate) fn scan_for_positional(
                 index += token_width(consumes_value, has_inline_value);
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            if let Some(consumes_value) = top_level.short_consumes_value(short) {
-                index += token_width(consumes_value && is_bare_short, false);
-            } else {
-                let consumes_value = subcommand_union.short_consumes_value(short).unwrap_or(false);
-                index += token_width(consumes_value && is_bare_short, false);
-            }
+            let consumes_value = short_cluster_consumes_value(rest, |short| {
+                top_level
+                    .short_consumes_value(short)
+                    .or_else(|| subcommand_union.short_consumes_value(short))
+            });
+            index += token_width(consumes_value, false);
         } else {
             return Some(PositionalScan::Positional(index));
         }
@@ -118,6 +121,10 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
     let Some(subcommand_index) = subcommand_index else {
         return argv;
     };
+    let Some(subcommand) = cmd.find_subcommand(&argv[subcommand_index]) else {
+        return argv;
+    };
+    let subcommand_table = ArgTable::subcommand(subcommand);
 
     // Now we must re-calculate moved_indexes, because find_positional just skipped.
     let mut index = 1;
@@ -133,33 +140,49 @@ pub fn relocate_pre_subcommand_flags(cmd: &Command, mut argv: Vec<OsString>) -> 
                 rest.split_once('=').map_or((rest, false), |(name, _)| (name, true));
             if let Some(consumes_value) = top_level.long_consumes_value(name) {
                 index += token_width(consumes_value, has_inline_value);
-            } else {
-                let consumes_value = subcommand_union.long_consumes_value(name).unwrap_or(false);
+            } else if let Some(consumes_value) = subcommand_table.long_consumes_value(name) {
                 let width = token_width(consumes_value, has_inline_value);
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
                 index += width;
+            } else {
+                index += token_width(false, has_inline_value);
             }
         } else if let Some(rest) = token.strip_prefix('-').filter(|rest| !rest.is_empty()) {
-            let short = rest.chars().next().expect("checked non-empty");
-            let is_bare_short = rest.chars().count() == 1;
-            if let Some(consumes_value) = top_level.short_consumes_value(short) {
-                index += token_width(consumes_value && is_bare_short, false);
-            } else {
-                let consumes_value = subcommand_union.short_consumes_value(short).unwrap_or(false);
-                let width = token_width(consumes_value && is_bare_short, false);
+            // A cluster is judged by every short it stacks, not by its
+            // first one: `-ro dist` mixes the global `-r` with
+            // `pack-app`'s `-o`, and the whole token has to travel for
+            // clap to see the option `pack-app` owns. One short the
+            // command does not declare pins the whole cluster, since
+            // moving it would hand that short to the command too.
+            let mut has_subcommand_short = false;
+            let mut has_unknown_short = false;
+            let consumes_value = short_cluster_consumes_value(rest, |short| {
+                if let Some(consumes_value) = top_level.short_consumes_value(short) {
+                    return Some(consumes_value);
+                }
+                if let Some(consumes_value) = subcommand_table.short_consumes_value(short) {
+                    has_subcommand_short = true;
+                    Some(consumes_value)
+                } else {
+                    has_unknown_short = true;
+                    None
+                }
+            });
+            let width = token_width(consumes_value, false);
+            if has_subcommand_short && !has_unknown_short {
                 for offset in 0..width.min(argv.len() - index) {
                     moved_indexes.insert(index + offset);
                 }
-                index += width;
             }
+            index += width;
         } else {
             break;
         }
     }
 
-    if moved_indexes.is_empty() || cmd.find_subcommand(&argv[subcommand_index]).is_none() {
+    if moved_indexes.is_empty() {
         return argv;
     }
 
@@ -184,6 +207,27 @@ pub(crate) fn token_width(consumes_value: bool, has_inline_value: bool) -> usize
     if consumes_value && !has_inline_value { 2 } else { 1 }
 }
 
+/// Whether a short-option token consumes the next argv token as its
+/// value. `rest` is the token with its leading `-` stripped, and may be a
+/// cluster: clap lets boolean shorts stack ahead of a value-taking one
+/// (`-rC dir` is `-r -C dir`), and a value written against its option
+/// (`-rCdir`) leaves nothing for the next token. `arity` reports whether
+/// one short takes a value, or `None` for a short the grammar does not
+/// define, which consumes nothing; it is called for exactly the shorts
+/// clap parses as options, so a caller can classify them as it scans.
+pub(crate) fn short_cluster_consumes_value(
+    rest: &str,
+    mut arity: impl FnMut(char) -> Option<bool>,
+) -> bool {
+    let mut shorts = rest.chars();
+    while let Some(short) = shorts.next() {
+        if arity(short).unwrap_or(false) {
+            return shorts.as_str().is_empty();
+        }
+    }
+    false
+}
+
 /// Option-name lookup table: long / short spelling → whether the option
 /// consumes the next argv token as its value.
 #[derive(Debug, Default)]
@@ -205,11 +249,20 @@ impl ArgTable {
         table
     }
 
-    /// The union of every subcommand's args, used only to decide how
-    /// many tokens a to-be-moved option occupies.
+    /// The union of every subcommand's args. It cannot say which command
+    /// owns an option, so it serves only the scan that has yet to find the
+    /// subcommand and needs a token's width to step over it.
     pub(crate) fn subcommand_union(cmd: &Command) -> Self {
         let mut table = Self::default();
         table.absorb(cmd.get_subcommands().flat_map(Command::get_arguments));
+        table
+    }
+
+    /// One subcommand's own args, which decide whether a token written
+    /// before it belongs to the command being invoked.
+    pub(crate) fn subcommand(cmd: &Command) -> Self {
+        let mut table = Self::default();
+        table.absorb(cmd.get_arguments());
         table
     }
 
@@ -223,7 +276,9 @@ impl ArgTable {
 
     fn absorb<'a, Args: IntoIterator<Item = &'a Arg>>(&mut self, args: Args) {
         for arg in args {
-            let consumes_value = matches!(arg.get_action(), ArgAction::Set | ArgAction::Append);
+            let consumes_value = arg.get_action().takes_values()
+                && arg.get_num_args().is_none_or(|range| range.takes_values())
+                && !arg.is_require_equals_set();
             for long in
                 arg.get_long().into_iter().chain(arg.get_all_aliases().into_iter().flatten())
             {

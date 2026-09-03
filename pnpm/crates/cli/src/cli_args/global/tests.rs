@@ -4,21 +4,23 @@ use super::{
     is_windows_drive_path, replacement_aliases, resolve_local_param,
     should_replace_existing_package, split_comma_separated, update_selectors,
 };
-use pnpm_cmd_shim::{
-    Host as CmdShimHost, PackageBinSource, link_virtual_shims, remove_bin as remove_cmd_shim,
-};
+use miette::IntoDiagnostic;
+use pnpm_cmd_shim::{Host as CmdShimHost, PackageBinSource, remove_bin as remove_cmd_shim};
 use pnpm_fs::{force_symlink_dir, remove_symlink_dir};
 use pnpm_global::GlobalPackageInfo;
 use serde_json::json;
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
 };
 use tempfile::TempDir;
 
-use crate::cli_args::shim::record_virtual_shim_state;
+use crate::{
+    cli_args::shim::record_virtual_shim_state,
+    shim_dispatch::{ShimTarget, install_native_shim, remove_native_shim},
+};
 
 struct BinRemovalFailure;
 struct HashRemovalFailure;
@@ -82,7 +84,8 @@ fn a_virtual_shim_only_yields_to_its_own_package() {
     let package_dir = root.path().join("package");
     fs::create_dir_all(&package_dir).expect("create package directory");
     fs::write(package_dir.join("cli.js"), "").expect("write package bin");
-    link_virtual_shims::<CmdShimHost>("owner", &["tool"], &bin_dir).expect("link virtual shim");
+    install_native_shim(&bin_dir, "tool", &ShimTarget::Virtual("owner".to_string()))
+        .expect("link virtual shim");
 
     let owner = PackageBinSource::new(
         package_dir.clone(),
@@ -99,6 +102,7 @@ fn a_virtual_shim_only_yields_to_its_own_package() {
         .to_string();
     assert!(error.contains(r#"project-aware shim for "owner""#), "{error}");
 
+    remove_native_shim(&bin_dir, "tool").expect("remove virtual shim");
     fs::write(bin_dir.join("tool"), "globally installed shim").expect("replace virtual shim");
     record_virtual_shim_state(&bin_dir, "owner", &["tool".to_string()])
         .expect("record restoration state");
@@ -120,9 +124,12 @@ fn bin_cleanup_failure_restores_package_commands() {
     let transaction = fixture.transaction(&cleanup);
 
     let error = commit_global_removal::<BinRemovalFailure>(&transaction, || {
-        link_virtual_shims::<CmdShimHost>("owner", &["owner"], &fixture.global_bin_dir)
-            .map_err(miette::Report::new)
-            .map(|_| ())
+        install_native_shim(
+            &fixture.global_bin_dir,
+            "owner",
+            &ShimTarget::Virtual("owner".to_string()),
+        )
+        .into_diagnostic()
     })
     .expect_err("the injected bin cleanup must fail removal");
 
@@ -138,9 +145,12 @@ fn hash_cleanup_failure_restores_package_commands() {
     let transaction = fixture.transaction(&cleanup);
 
     let error = commit_global_removal::<HashRemovalFailure>(&transaction, || {
-        link_virtual_shims::<CmdShimHost>("owner", &["owner"], &fixture.global_bin_dir)
-            .map_err(miette::Report::new)
-            .map(|_| ())
+        install_native_shim(
+            &fixture.global_bin_dir,
+            "owner",
+            &ShimTarget::Virtual("owner".to_string()),
+        )
+        .into_diagnostic()
     })
     .expect_err("the injected hash cleanup must fail removal");
 
@@ -197,7 +207,7 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ("bar".to_string(), "next".to_string()),
     ];
     assert_eq!(
-        update_selectors(&dependencies, true),
+        update_selectors(&dependencies, true, &HashMap::new()),
         vec![
             "private-linked-pkg@link:/home/user/private-linked-pkg",
             "local-tarball-pkg@file:/home/user/local-tarball-pkg.tgz",
@@ -210,9 +220,22 @@ fn latest_update_drops_the_spec_only_of_plain_version_dependencies() {
         ],
     );
     assert_eq!(
-        update_selectors(&dependencies, false),
+        update_selectors(&dependencies, false, &HashMap::new()),
         dependencies.iter().map(|(alias, spec)| format!("{alias}@{spec}")).collect::<Vec<String>>(),
     );
+}
+
+/// An update must never move a package backwards, so a pinned alias is held at
+/// the version it is already on while the rest of the group still updates.
+#[test]
+fn a_pinned_dependency_is_held_at_its_installed_version() {
+    let dependencies = vec![
+        ("prerelease".to_string(), "^2.0.0".to_string()),
+        ("stable".to_string(), "^1.0.0".to_string()),
+    ];
+    let pins = HashMap::from([("prerelease".to_string(), "2.0.0".to_string())]);
+
+    assert_eq!(update_selectors(&dependencies, true, &pins), vec!["prerelease@2.0.0", "stable"]);
 }
 
 #[test]

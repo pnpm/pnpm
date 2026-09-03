@@ -8,9 +8,13 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::Reporter;
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+};
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 use crate::{
@@ -66,37 +70,48 @@ impl RebuildArgs {
             let base_config = cfg.clone();
             let concurrency =
                 usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
-            let mut first_error = None;
-            for group in workspace_selection.ordered_groups {
-                for batch in group.chunks(concurrency) {
-                    let rebuilds = batch.iter().cloned().map(|project_dir| {
-                        let args = self.clone();
-                        let mut project_config = base_config.clone();
-                        project_config.anchor_lockfile_paths(&project_dir);
-                        async move {
-                            let project_config = Config::leak(project_config);
-                            let state =
-                                State::init(project_dir.join("package.json"), project_config, true)
-                                    .wrap_err_with(|| {
-                                        format!(
-                                            "initialize the rebuild state for {}",
-                                            project_dir.display(),
-                                        )
-                                    })?;
-                            Box::pin(args.run::<Reporter>(state, None)).await
-                        }
-                    });
-                    for result in futures_util::future::join_all(rebuilds).await {
-                        if let Err(error) = result {
-                            if !no_bail {
-                                return Err(error);
-                            }
-                            first_error.get_or_insert(error);
+            let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+            let run_node = |project_dir: PathBuf| {
+                let args = self.clone();
+                let mut project_config = base_config.clone();
+                project_config.anchor_lockfile_paths(&project_dir);
+                let first_error = &first_error;
+                async move {
+                    let result = async {
+                        let project_config = Config::leak(project_config);
+                        let state =
+                            State::init(project_dir.join("package.json"), project_config, true)
+                                .wrap_err_with(|| {
+                                    format!(
+                                        "initialize the rebuild state for {}",
+                                        project_dir.display(),
+                                    )
+                                })?;
+                        Box::pin(args.run::<Reporter>(state, None)).await
+                    }
+                    .await;
+                    match result {
+                        Ok(()) => TaskCompletion::Passed,
+                        Err(error) => {
+                            first_error
+                                .lock()
+                                .expect("rebuild error lock is not poisoned")
+                                .get_or_insert(error);
+                            TaskCompletion::Failed
                         }
                     }
                 }
-            }
-            if let Some(error) = first_error {
+            };
+            let on_node_skipped: fn(&PathBuf) = |_| {};
+            schedule_graph_async(
+                &workspace_selection.project_dependencies,
+                &ScheduleGraphAsyncOptions::new(concurrency, !no_bail, &run_node, &on_node_skipped)
+                    .continue_on_failure(no_bail),
+            )
+            .await;
+            if let Some(error) =
+                first_error.into_inner().expect("rebuild error lock is not poisoned")
+            {
                 return Err(error);
             }
             return Ok(());
@@ -234,11 +249,12 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
                 .run_selected_rebuild::<Reporter>(
                     pnpm_package_manager::WorkspaceInstallSelection {
                         all_projects: &selection.projects,
-                        ordered_groups: &selection.ordered_groups,
+                        project_dependencies: &selection.project_dependencies,
                         ordered_dirs: &selection.ordered_dirs,
                         selected_dirs: selection.selected_dirs.as_ref(),
                         install_dirs: selection.selected_dirs.as_ref(),
                         active_manifest_is_standin: selection.active_manifest_is_standin,
+                        workspace_cycles: pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
                     },
                     rebuild,
                 )

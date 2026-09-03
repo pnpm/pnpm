@@ -11,18 +11,21 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pnpm-fs               = { workspace = true }
-pnpm-network          = { workspace = true }
-pnpm-network-web-auth = { workspace = true }
-pnpm-reporter         = { workspace = true }
+pnpm-config                    = { workspace = true }
+pnpm-fs                        = { workspace = true }
+pnpm-network                   = { workspace = true }
+pnpm-network-web-auth          = { workspace = true }
+pnpm-reporter                  = { workspace = true }
+pnpm-workspace-manifest-writer = { workspace = true }
 
-derive_more = { workspace = true }
-dialoguer   = { workspace = true, features = ["password"] }
-miette      = { workspace = true }
-reqwest     = { workspace = true }
-serde_json  = { workspace = true }
-tokio       = { workspace = true, features = ["rt"] }
-url         = { workspace = true }
+derive_more  = { workspace = true }
+dialoguer    = { workspace = true, features = ["password"] }
+miette       = { workspace = true }
+reqwest      = { workspace = true }
+serde-saphyr = { workspace = true }
+serde_json   = { workspace = true }
+tokio        = { workspace = true, features = ["rt"] }
+url          = { workspace = true }
 
 [dev-dependencies]
 pnpm-network-web-auth-testing = { workspace = true }

@@ -32,6 +32,9 @@ use std::path::{Path, PathBuf};
 /// Manage the pnpm configuration files.
 #[derive(Debug, Args)]
 pub struct ConfigArgs {
+    #[clap(flatten)]
+    pub flags: ConfigFlags,
+
     #[clap(subcommand)]
     pub command: ConfigSubcommand,
 }
@@ -40,12 +43,7 @@ impl ConfigArgs {
     /// Whether `--global` / `-g` was passed, ignoring the default
     /// [`resolve_global`] applies when no location flag is given.
     pub(super) fn is_global(&self) -> bool {
-        match &self.command {
-            ConfigSubcommand::Set(args) => args.flags.global,
-            ConfigSubcommand::Get(args) => args.flags.global,
-            ConfigSubcommand::Delete(args) => args.flags.global,
-            ConfigSubcommand::List(args) => args.flags.global,
-        }
+        self.flags.global
     }
 }
 
@@ -88,26 +86,35 @@ pub enum ConfigLocation {
 pub struct ConfigSetArgs {
     pub key: Option<String>,
     pub value: Option<String>,
-    #[clap(flatten)]
-    pub flags: ConfigFlags,
 }
 
 #[derive(Debug, Args)]
 pub struct ConfigGetArgs {
     pub key: Option<String>,
-    #[clap(flatten)]
-    pub flags: ConfigFlags,
 }
 
 #[derive(Debug, Args)]
 pub struct ConfigDeleteArgs {
     pub key: Option<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigListArgs {}
+
+#[derive(Debug, Args)]
+pub struct ConfigSetAliasArgs {
+    #[clap(flatten)]
+    pub args: ConfigSetArgs,
+
     #[clap(flatten)]
     pub flags: ConfigFlags,
 }
 
 #[derive(Debug, Args)]
-pub struct ConfigListArgs {
+pub struct ConfigGetAliasArgs {
+    #[clap(flatten)]
+    pub args: ConfigGetArgs,
+
     #[clap(flatten)]
     pub flags: ConfigFlags,
 }
@@ -177,9 +184,9 @@ pub enum ConfigError {
 
 impl ConfigArgs {
     pub fn run(self, config: &Config, dir: &Path) -> miette::Result<()> {
-        match self.command {
+        let Self { flags, command } = self;
+        match command {
             ConfigSubcommand::Set(args) => {
-                let flags = args.flags;
                 let (key, value) = split_set_params(args.key, args.value, "set")?;
                 config_set(config, dir, flags, &key, Some(value))?;
             }
@@ -188,17 +195,16 @@ impl ConfigArgs {
                     .key
                     .filter(|key| !key.is_empty())
                     .ok_or_else(|| ConfigError::NoParams { subcommand: "delete".to_string() })?;
-                config_set(config, dir, args.flags, &key, None)?;
+                config_set(config, dir, flags, &key, None)?;
             }
             ConfigSubcommand::Get(args) => {
                 let output = match args.key.as_deref().filter(|key| !key.is_empty()) {
-                    Some(key) => config_get(config, args.flags, key)?,
+                    Some(key) => config_get(config, flags, key)?,
                     None => config_list(config),
                 };
                 println!("{output}");
             }
-            ConfigSubcommand::List(args) => {
-                let _ = args.flags;
+            ConfigSubcommand::List(_) => {
                 println!("{}", config_list(config));
             }
         }

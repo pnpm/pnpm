@@ -24,6 +24,7 @@ use crate::{
 };
 
 mod catalogs;
+mod finalized;
 mod manifest;
 mod reuse;
 mod tree_ctx;
@@ -286,6 +287,36 @@ pub struct SkippedOptionalDependencyParent {
 /// [`crate::WorkspaceResolveOptions::skipped_optional_log`].
 pub type SkippedOptionalLogFn = Arc<dyn Fn(SkippedOptionalDependency) + Send + Sync>;
 
+/// A package whose resolution and whole dependency subtree are settled
+/// and carry no `peerDependencies`, so its lockfile dep path is its
+/// package id and its child edges are known before peers resolve. See
+/// [`crate::WorkspaceResolveOptions::finalized_package`].
+#[derive(Debug, Clone)]
+pub struct FinalizedPackage {
+    /// The package id with its patch hash: the snapshot key the
+    /// package will have in the lockfile.
+    pub pkg_id: Arc<str>,
+    pub result: Arc<pnpm_resolving_resolver_base::ResolveResult>,
+    /// The package's resolved `dependencies` and `optionalDependencies`
+    /// edges.
+    pub children: Vec<FinalizedChild>,
+}
+
+/// One child edge of a [`FinalizedPackage`].
+#[derive(Debug, Clone)]
+pub struct FinalizedChild {
+    /// The name the child is linked under in the package's `node_modules`.
+    pub alias: String,
+    /// The child's package id, its lockfile snapshot key.
+    pub pkg_id: Arc<str>,
+    pub optional: bool,
+}
+
+/// Sink for [`FinalizedPackage`] notifications, called from the tree
+/// walk as soon as a package's subtree settles. The call must be cheap
+/// and must not block: it runs on the resolver's task between levels.
+pub type FinalizedPackageFn = Arc<dyn Fn(FinalizedPackage) + Send + Sync>;
+
 /// One deprecation notification from the tree walker: a newly-resolved
 /// package carries a non-empty `deprecated` field in its registry
 /// manifest and is not covered by `allowedDeprecatedVersions`. Mirrors
@@ -497,22 +528,31 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
 /// whose `injected` flag is `true`. This per-alias `injected` opt-in
 /// flips a workspace dep onto the hard-linked `file:` path even when the
-/// global `injectWorkspacePackages` is off. Only importer-level deps are
-/// consulted; the recursive walker does not inherit this from any
-/// resolved package's own `dependenciesMeta` — the opt-in is
-/// importer-scoped.
+/// global `injectWorkspacePackages` is off.
 pub(crate) fn importer_injected_dependency_names(manifest: &PackageManifest) -> HashSet<String> {
-    let Some(meta) =
-        manifest.value().get("dependenciesMeta").and_then(serde_json::Value::as_object)
-    else {
+    injected_dependency_names(manifest.value())
+}
+
+fn injected_dependency_names(manifest: &Value) -> HashSet<String> {
+    let Some(meta) = manifest.get("dependenciesMeta").and_then(Value::as_object) else {
         return HashSet::default();
     };
     meta.iter()
-        .filter(|(_, entry)| {
-            entry.get("injected").and_then(serde_json::Value::as_bool).unwrap_or(false)
-        })
+        .filter(|(_, entry)| dependency_meta_is_injected(entry))
         .map(|(name, _)| name.clone())
         .collect()
+}
+
+fn dependency_is_injected(manifest: &Value, name: &str) -> bool {
+    manifest
+        .get("dependenciesMeta")
+        .and_then(Value::as_object)
+        .and_then(|meta| meta.get(name))
+        .is_some_and(dependency_meta_is_injected)
+}
+
+fn dependency_meta_is_injected(meta: &Value) -> bool {
+    meta.get("injected").and_then(Value::as_bool).unwrap_or(false)
 }
 
 /// Build the importer's direct-dependency wanted specs: the manifest's

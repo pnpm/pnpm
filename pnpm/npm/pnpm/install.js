@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
 // `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
-// binary so `pnpm` runs directly, no Node startup per call. A placeholder (not a
-// Node launcher) is required because the Windows shim is generated from the bin
-// file and npm won't re-read package.json after preinstall; the tradeoff is no
-// fallback when build scripts are blocked (`--ignore-scripts`, pnpm/Bun default).
+// binary so `pnpm` runs directly, no Node startup per call. The placeholder must
+// stay shebang-less because pnpm 11 records its interpreter before installing
+// the native binary at the same path. npm's global Windows shims still target
+// the extensionless path after the `bin` rewrite, so postinstall asks npm to
+// regenerate them against `pnpm.exe`. When lifecycle scripts are blocked
+// (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and pnpm
+// cannot run.
 //
 // `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
 // relinked); on Windows the native binary is hardlinked onto each and
@@ -14,6 +17,7 @@
 // Corepack runs no lifecycle scripts, so it never gets here; it enters through
 // `bin/pnpm.mjs` instead.
 import console from 'node:console'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -27,7 +31,11 @@ import {
 
 const BIN_NAMES = ['pnpm', 'pn', 'pnpx', 'pnx']
 
-setup()
+if (process.env.npm_lifecycle_event === 'postinstall') {
+  relinkNpmWindowsShims()
+} else {
+  setup()
+}
 
 function setup () {
   // The committed manifest has no `optionalDependencies`; generate-packages.mjs
@@ -93,9 +101,7 @@ function placeBinary (nativeBinary, destPath, mode) {
     }
     fs.renameSync(tempPath, destPath)
   } catch (err) {
-    try {
-      fs.rmSync(tempPath, { force: true })
-    } catch {}
+    removeFileIfPossible(tempPath)
     fail(`Could not install the pnpm binary at ${destPath}: ${err.message}`)
   }
 }
@@ -110,9 +116,45 @@ function rewriteBin (binMap) {
     fs.writeFileSync(tempPath, JSON.stringify(pkg, null, 2))
     fs.renameSync(tempPath, pkgJsonPath)
   } catch {
-    try {
-      fs.rmSync(tempPath, { force: true })
-    } catch {}
+    removeFileIfPossible(tempPath)
+  }
+}
+
+function relinkNpmWindowsShims () {
+  const npmExecPath = process.env.npm_execpath
+  if (
+    process.platform !== 'win32' ||
+    process.env.npm_config_global !== 'true' ||
+    npmExecPath == null ||
+    path.basename(npmExecPath).toLowerCase() !== 'npm-cli.js'
+  ) {
+    return
+  }
+
+  const packageName = readWrapperManifest().name
+  if (typeof packageName !== 'string') {
+    fail('Could not determine the pnpm wrapper package name when regenerating npm shims.')
+  }
+  const result = spawnSync(process.execPath, [
+    npmExecPath,
+    'rebuild',
+    '--global',
+    '--ignore-scripts',
+    packageName,
+  ], { stdio: 'inherit' })
+  if (result.error != null) {
+    fail(`Could not regenerate the npm shims for pnpm: ${result.error.message}`)
+  }
+  if (result.status !== 0) {
+    fail('npm could not regenerate the shims for pnpm.')
+  }
+}
+
+function removeFileIfPossible (filePath) {
+  try {
+    fs.rmSync(filePath, { force: true })
+  } catch {
+    return
   }
 }
 

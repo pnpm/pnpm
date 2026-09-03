@@ -254,6 +254,8 @@ Tests must prove the changed behavior, not just execute nearby code.
   `minor` (feature / setting), `major` (breaking).
 - **One changeset per logical change.** The text is a user-facing release note — accurate and
   concise, no implementation rationale — and it must match what the code actually does.
+- **The text follows the changeset style rules** (`AGENTS.md` → Changeset style): the user-visible
+  effect first, no list of internals, no em dashes, no "instead of" tail on every sentence.
 - **pacquet-only PRs don't get changesets.**
 
 ---
@@ -326,7 +328,8 @@ For each PR, in order:
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
    no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
-8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate. (§8)
+8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate; styled
+   per `AGENTS.md`. (§8)
 9. **Parity.** pacquet equivalent handled or explicitly deferred. (§9)
 10. **Conventions.** `PnpmError`, no swallowed errors, good names, reused libraries, correct
     dependency placement, config through options. (`AGENTS.md` → Conventions)

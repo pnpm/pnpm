@@ -160,6 +160,9 @@
       "path": "../../pkg-manifest/utils"
     },
     {
+      "path": "../../resolving/local-resolver"
+    },
+    {
       "path": "../../resolving/parse-wanted-dependency"
     },
     {

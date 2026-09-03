@@ -37,7 +37,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -97,7 +97,7 @@ jobs:
     permissions: {}
     steps:
     - name: Install pnpm and Node
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -200,7 +200,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
         version: ${{ env.RELEASE_TOOL_PNPM_VERSION }}
         runtime: node@26.5.0
@@ -260,7 +260,7 @@ jobs:
     steps:
       - name: Send toot to Mastodon
         id: mastodon
-        uses: cbrgm/mastodon-github-action@7fcc3650150fc062d707eeffb50e8f7a2704fd0f # v2.2.3
+        uses: cbrgm/mastodon-github-action@9ba8763f1daa436d73fb76abbc3e8b2ac8dfa943 # v2.2.4
         with:
           message: |
             pnpm@${{ github.event.inputs.version }} is out!

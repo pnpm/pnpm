@@ -1,12 +1,14 @@
-use pnpm_cmd_shim::{CONTEXT_AWARE_DISPATCHER_NAME, generate_virtual_sh_shim};
 use pnpm_config::{Config, GlobalShims, GlobalShimsSetting};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_reporter::SilentReporter;
 use std::fs;
 use tempfile::tempdir;
 
-use super::{MAX_RUNTIME_SHIM_PROBE_BYTES, RuntimeArgs, RuntimeError, runtime_shim_hint};
-use crate::State;
+use super::{RuntimeArgs, RuntimeError, runtime_shim_hint};
+use crate::{
+    State,
+    shim_dispatch::{ShimTarget, native_shim::install_native_shim_from},
+};
 
 fn args(params: &[&str]) -> RuntimeArgs {
     RuntimeArgs {
@@ -163,30 +165,24 @@ fn local_runtime_suggests_setup_when_the_global_bin_is_unconfigured() {
 fn local_runtime_does_not_suggest_an_installed_project_aware_shim() {
     let dir = tempdir().unwrap();
     let bin_dir = dir.path();
-    let shim_path = bin_dir.join("node");
-    fs::write(&shim_path, generate_virtual_sh_shim("node", &shim_path)).unwrap();
-    fs::write(
-        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX)),
-        "dispatcher",
-    )
-    .unwrap();
+    let stand_in = dir.path().join("stand-in-executable");
+    fs::write(&stand_in, "stand-in").unwrap();
+    install_native_shim_from(&stand_in, bin_dir, "node", &ShimTarget::Virtual("node".to_string()))
+        .unwrap();
     let config = Config { global_bin: Some(bin_dir.to_path_buf()), ..Config::default() };
 
     assert_eq!(runtime_shim_hint(&config, "node", &GlobalShims::default()), None);
 }
 
+/// A shell shim from an earlier pnpm 12 still counts as project-aware
+/// until a global install migrates it.
 #[test]
-fn local_runtime_bounds_the_project_aware_shim_probe() {
+fn local_runtime_recognizes_a_legacy_project_aware_shim() {
     let dir = tempdir().unwrap();
     let bin_dir = dir.path();
-    let shim_path = bin_dir.join("node");
-    let mut shim = generate_virtual_sh_shim("node", &shim_path).into_bytes();
-    shim.resize(usize::try_from(MAX_RUNTIME_SHIM_PROBE_BYTES).unwrap(), b' ');
-    shim.push(0xff);
-    fs::write(&shim_path, shim).unwrap();
     fs::write(
-        bin_dir.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{}", std::env::consts::EXE_SUFFIX)),
-        "dispatcher",
+        bin_dir.join("node"),
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:node\n",
     )
     .unwrap();
     let config = Config { global_bin: Some(bin_dir.to_path_buf()), ..Config::default() };

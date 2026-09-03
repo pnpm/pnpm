@@ -36,9 +36,10 @@ use pnpm_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,
 };
+use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
@@ -110,6 +111,24 @@ pub struct PackOptions {
     /// storage; the caller (which has registry access) fetches the previous
     /// version's changelog and renders the new section onto it.
     pub injected_files: Vec<(String, Vec<u8>)>,
+    /// Per-invocation destination locks shared by recursive pack tasks.
+    pub output_locks: Option<Arc<PackOutputLocks>>,
+}
+
+/// Locks recursive pack destinations for the lifetime of their write phase.
+#[derive(Default)]
+pub struct PackOutputLocks {
+    by_path: tokio::sync::Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+impl PackOutputLocks {
+    async fn lock(&self, path: &Path) -> tokio::sync::OwnedMutexGuard<()> {
+        let lock = {
+            let mut by_path = self.by_path.lock().await;
+            Arc::clone(by_path.entry(lexical_normalize(path)).or_default())
+        };
+        lock.lock_owned().await
+    }
 }
 
 /// Result of packing one project.
@@ -368,6 +387,10 @@ where
     if !opts.dry_run {
         let bins = executable_sources(&publish_manifest, &manifest, &dir);
         let dest_file = dest_dir.join(&tarball_name);
+        let _output_guard = match &opts.output_locks {
+            Some(locks) => Some(locks.lock(&dest_file).await),
+            None => None,
+        };
         Sys::atomic_write(&dest_file, &mut |writer| {
             tarball::build_tarball::<Sys>(
                 writer,
@@ -565,20 +588,6 @@ fn prevent_bundled_dependencies_without_hoisted(
     Ok(())
 }
 
-/// Whether a JSON value is truthy under JavaScript's coercion rules, so
-/// the guard fires for exactly the values pnpm's `if (bundledDependencies)`
-/// check rejects — `false`, `0`, `""`, and `null`/absent are skipped,
-/// while a non-empty array, object, number, string, or `true` all fire.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(boolean) => *boolean,
-        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
-        Value::String(string) => !string.is_empty(),
-        Value::Array(_) | Value::Object(_) => true,
-    }
-}
-
 fn node_linker_str(node_linker: NodeLinker) -> &'static str {
     match node_linker {
         NodeLinker::Isolated => "isolated",
@@ -650,10 +659,27 @@ fn resolve_output(
     normalized_name: &str,
     version: &str,
 ) -> Result<(String, Option<String>), PackError> {
-    let Some(out) = &opts.out else {
-        return Ok((format!("{normalized_name}-{version}.tgz"), opts.pack_destination.clone()));
+    resolve_output_values(
+        opts.out.as_deref(),
+        opts.pack_destination.as_deref(),
+        normalized_name,
+        version,
+    )
+}
+
+fn resolve_output_values(
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+    normalized_name: &str,
+    version: &str,
+) -> Result<(String, Option<String>), PackError> {
+    let Some(out) = out else {
+        return Ok((
+            format!("{normalized_name}-{version}.tgz"),
+            pack_destination.map(str::to_owned),
+        ));
     };
-    if opts.pack_destination.is_some() {
+    if pack_destination.is_some() {
         return Err(PackError::OutAndPackDestination);
     }
     let prepared = out.replace("%s", normalized_name).replace("%v", version);
@@ -664,13 +690,30 @@ fn resolve_output(
     let Some(tarball_name) =
         prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
     else {
-        return Err(PackError::InvalidOut { out: out.clone() });
+        return Err(PackError::InvalidOut { out: out.to_owned() });
     };
     let parent =
         prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
     let pack_destination =
-        if parent.is_empty() { opts.pack_destination.clone() } else { Some(parent) };
+        if parent.is_empty() { pack_destination.map(str::to_owned) } else { Some(parent) };
     Ok((tarball_name, pack_destination))
+}
+
+/// Resolve the path a pack will write from the manifest identity and output
+/// options. Recursive callers use this before dispatch to keep projects that
+/// share a destination from packing concurrently.
+pub fn pack_output_path(
+    project_dir: &Path,
+    out: Option<&str>,
+    pack_destination: Option<&str>,
+    published_name: &str,
+    published_version: &str,
+) -> Result<PathBuf, PackError> {
+    let normalized_name = normalize_tarball_name(published_name);
+    let version = strip_build_metadata(published_version);
+    let (tarball_name, destination) =
+        resolve_output_values(out, pack_destination, &normalized_name, version)?;
+    Ok(lexical_normalize(&resolve_dest_dir(project_dir, destination.as_deref()).join(tarball_name)))
 }
 
 /// Map each packed path to `package/<path>` → absolute source, in

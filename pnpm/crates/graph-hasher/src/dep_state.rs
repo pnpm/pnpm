@@ -3,6 +3,8 @@ use indexmap::IndexMap;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
+pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
+
 /// Per-node identifier carrying everything [`calc_dep_state`] needs to
 /// hash a snapshot.
 ///
@@ -10,9 +12,9 @@ use std::collections::{HashMap, HashSet};
 /// recursive hash — `<pkgIdWithPatchHash>:<integrity>` for packages with
 /// an integrity (`registry` resolution), or
 /// `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
-/// without one (e.g. git refs). Pacquet's caller composes this
-/// before passing it in; the hasher itself is opaque to how it was
-/// computed.
+/// without one (e.g. git refs). A variations resolution uses the integrity of
+/// the selected platform variant. Pacquet's caller composes this before
+/// passing it in; the hasher itself is opaque to how it was computed.
 ///
 /// `children` maps alias → dep-graph key for the snapshot's
 /// children. Pacquet's natural input shape is the lockfile's
@@ -77,6 +79,43 @@ where
         result.push_str(&deps_hash);
     }
     if let Some(patch) = opts.patch_file_hash {
+        result.push_str(";patch=");
+        result.push_str(patch);
+    }
+    result
+}
+
+/// Compute the machine-independent lookup key for a remotely shareable
+/// dependency build.
+///
+/// Unlike [`calc_dep_state`], this key deliberately excludes the engine name.
+/// The signed artifact advertises platform compatibility separately, allowing
+/// one compatible artifact to serve more than one exact host identity.
+///
+/// `graph` must contain `dep_path`; a missing root is a caller error and
+/// panics rather than producing the same key for every missing dependency.
+/// The walk uses a private per-call cache, so the result is independent of
+/// earlier roots and platform-selected graphs. `graph` is not mutated.
+///
+/// The returned key starts with [`DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX`],
+/// followed by the recursive dependency-graph hash and, when supplied, the
+/// patch-file hash. The selected variation's source integrity is included in
+/// the graph hash through [`DepsGraphNode::full_pkg_id`].
+pub fn calc_dep_state_input_key<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    dep_path: &Key,
+    patch_file_hash: Option<&str>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
+    assert!(
+        graph.contains_key(dep_path),
+        "dependency side-effects input-key root is not present in the graph",
+    );
+    let deps_hash = calc_dep_graph_hash(graph, &mut HashMap::new(), &mut HashSet::new(), dep_path);
+    let mut result = format!("{DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX}deps={deps_hash}");
+    if let Some(patch) = patch_file_hash {
         result.push_str(";patch=");
         result.push_str(patch);
     }
@@ -174,74 +213,49 @@ pub fn warm_deps_state_cache<'a, Key>(
     }
 }
 
-/// Recursive helper used by [`crate::calc_graph_node_hash`] to decide
-/// whether a snapshot's engine string should contribute to its global-
-/// virtual-store hash.
+/// Return every node that is, or transitively depends on, a node
+/// in `built_dep_paths`.
 ///
-/// Returns `true` if `dep_path` is either in `built_dep_paths`
-/// directly, or transitively depends on a snapshot that is. The
-/// returned boolean drives whether the engine is included in
-/// [`crate::calc_graph_node_hash`] — pure-JS leaves (and their pure-JS
-/// ancestors) get `engine = null`, so their GVS hashes survive Node.js
-/// upgrades and architecture moves. Snapshots that *might* run a
-/// postinstall script keep `engine = ENGINE_NAME` so the hash
-/// partitions them by host environment.
+/// The result controls whether [`crate::calc_graph_node_hash`] includes
+/// the engine in a global-virtual-store hash. It is computed as one
+/// graph-wide fixed point so dependency cycles cannot produce different
+/// answers for different entry points.
 ///
-/// The cycle guard uses `dep_path` itself, not `node.full_pkg_id`
-/// (unlike [`calc_dep_graph_hash`]), because the same pkg id reachable
-/// through two different peer contexts is two distinct nodes — once
-/// one is mid-walk we still want to recurse into the other.
-///
-/// On cycle hit (`parents.contains(dep_path)`) the function returns
-/// `false` *without* caching. The "false in this particular cycle
-/// rotation" answer isn't the canonical one — a sibling visit might
-/// still find a builder upstream, and caching `false` here would
-/// poison the next visit at the same key. A `false` *derived* from
-/// such a hit is still cached though, so — as in
-/// [`calc_dep_graph_hash`] — the answer a cycle member settles on
-/// depends on visit order, and the caller has to supply a
-/// deterministic one.
-///
-/// `cache` is install-scoped and threaded across every snapshot
-/// visited inside one [`crate::calc_graph_node_hash`] walk. `parents`
-/// is the per-walk cycle-tracking set — callers always pass a fresh
-/// empty `HashSet`, the function inserts/removes `dep_path` around
-/// the recursion.
-pub(crate) fn transitively_requires_build<Key>(
+/// A key with no node in `graph` is kept and still marks whatever depends
+/// on it: the built set comes from the allow-build policy rather than the
+/// graph, so the two can disagree.
+#[must_use]
+pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     built_dep_paths: &HashSet<Key>,
-    cache: &mut HashMap<Key, bool>,
-    dep_path: &Key,
-    parents: &mut HashSet<Key>,
-) -> bool
+) -> HashSet<Key>
 where
     Key: Clone + Eq + std::hash::Hash,
 {
-    if let Some(&cached) = cache.get(dep_path) {
-        return cached;
+    if built_dep_paths.is_empty() {
+        return HashSet::new();
     }
-    if built_dep_paths.contains(dep_path) {
-        cache.insert(dep_path.clone(), true);
-        return true;
-    }
-    let Some(node) = graph.get(dep_path) else {
-        cache.insert(dep_path.clone(), false);
-        return false;
-    };
-    if parents.contains(dep_path) {
-        return false;
-    }
-    parents.insert(dep_path.clone());
-    let mut result = false;
-    for child in node.children.values() {
-        if transitively_requires_build(graph, built_dep_paths, cache, child, parents) {
-            result = true;
-            break;
+
+    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
+    for (parent, node) in graph {
+        for child in node.children.values() {
+            parents_by_child.entry(child).or_default().push(parent);
         }
     }
-    parents.remove(dep_path);
-    cache.insert(dep_path.clone(), result);
-    result
+
+    let mut build_required: HashSet<&Key> = built_dep_paths.iter().collect();
+    let mut pending: Vec<&Key> = built_dep_paths.iter().collect();
+    while let Some(child) = pending.pop() {
+        let Some(parents) = parents_by_child.get(child) else {
+            continue;
+        };
+        for parent in parents {
+            if build_required.insert(parent) {
+                pending.push(parent);
+            }
+        }
+    }
+    build_required.into_iter().cloned().collect()
 }
 
 #[cfg(test)]

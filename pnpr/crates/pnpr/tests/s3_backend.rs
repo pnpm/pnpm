@@ -28,7 +28,7 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
-    config.hosted_store = HostedStoreConfig::S3 { store, prefix: String::new() };
+    config.hosted_store = HostedStoreConfig::ObjectStore { store, prefix: String::new() };
     config
 }
 
@@ -228,4 +228,57 @@ fn sha1_hex(bytes: &[u8]) -> String {
         write!(acc, "{byte:02x}").unwrap();
         acc
     })
+}
+
+/// An embedder supplying its own store gives a prefix in the form a person
+/// writes it. `S3Store` concatenates the prefix onto the package name, so a
+/// raw `packages` has to be normalized on the way in — otherwise every object
+/// lands at `packagesmypkg/...` and nothing that reads by prefix finds it.
+#[tokio::test]
+async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
+    let tmp = TempDir::new().unwrap();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.public_url = "http://example.test".to_string();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    config.hosted_store = HostedStoreConfig::ObjectStore {
+        store: Arc::clone(&store),
+        // Deliberately not `/`-terminated.
+        prefix: "packages".to_string(),
+    };
+
+    let app = router(config);
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("mypkg", "1.0.0", b"fake-tarball-bytes");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/mypkg")
+                .header("content-type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let keys: Vec<String> =
+        store.list(None).map(|entry| entry.unwrap().location.to_string()).collect().await;
+    assert!(
+        keys.iter().any(|key| key.starts_with("packages/mypkg/")),
+        "objects should be keyed under `packages/`, got {keys:?}",
+    );
+    assert!(
+        !keys.iter().any(|key| key.starts_with("packagesmypkg")),
+        "an unnormalized prefix would run into the package name: {keys:?}",
+    );
+
+    // And the package still serves back through the prefixed keys.
+    let response =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
 }

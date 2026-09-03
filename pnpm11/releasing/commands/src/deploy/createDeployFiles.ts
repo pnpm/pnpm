@@ -2,6 +2,7 @@ import path from 'node:path'
 import url from 'node:url'
 
 import * as dp from '@pnpm/deps.path'
+import { PnpmError } from '@pnpm/error'
 import type {
   DirectoryResolution,
   LockfileObject,
@@ -24,7 +25,7 @@ import normalizePath from 'normalize-path'
 const DEPENDENCIES_FIELD = ['dependencies', 'devDependencies', 'optionalDependencies'] as const satisfies DependenciesField[]
 
 export interface CreateDeployFilesOptions {
-  allProjects: Array<Pick<Project, 'manifest' | 'rootDirRealPath'>>
+  allProjects: Array<Pick<Project, 'manifest' | 'rootDir' | 'rootDirRealPath'>>
   deployDir: string
   include: { [dependenciesField in DependenciesField]: boolean }
   lockfile: LockfileObject
@@ -69,6 +70,10 @@ export function createDeployFiles ({
     devDependencies: {},
     optionalDependencies: {},
   }
+  const directDependencyNames = dependencyNames(selectedProjectManifest)
+  const peerOnlyDependencies = new Set(
+    Object.keys(selectedProjectManifest.peerDependencies ?? {}).filter(name => !directDependencyNames.has(name))
+  )
 
   const targetPackageSnapshots: PackageSnapshots = {}
   for (const name in lockfile.packages) {
@@ -90,6 +95,18 @@ export function createDeployFiles ({
     })
   }
 
+  // Indexed under both spellings of each project's directory, so the importer
+  // loop below costs one lookup per importer rather than a scan of every
+  // project: the importer path is resolved lexically, while a project directory
+  // reached through a symlink has a different real path.
+  const peerBearingProjects = new Map<string, ProjectManifest>()
+  for (const project of allProjects) {
+    if (project.manifest.peerDependencies == null) continue
+    peerBearingProjects.set(project.rootDir, project.manifest)
+    peerBearingProjects.set(project.rootDirRealPath, project.manifest)
+  }
+
+  const linkedWorkspaceProjects = new Map<DepPath, ProjectManifest>()
   for (const importerPath in lockfile.importers) {
     if (importerPath === projectId) continue
     const projectSnapshot = lockfile.importers[importerPath as ProjectId]
@@ -103,17 +120,19 @@ export function createDeployFiles ({
     })
     const depPath = createFileUrlDepPath({ resolvedPath: projectRootDirRealPath }, allProjects)
     targetPackageSnapshots[depPath] = packageSnapshot
+    const manifest = peerBearingProjects.get(projectRootDirRealPath)
+    if (manifest != null) linkedWorkspaceProjects.set(depPath, manifest)
   }
 
   for (const field of DEPENDENCIES_FIELD) {
     // An excluded group's direct dependencies are left out of both the
     // deployed manifest and the deployed importer, because the graph filter
     // below drops the packages they would point at.
-    if (!include[field]) continue
     const targetDependencies = targetSnapshot[field] ?? {}
     const targetSpecifiers = targetSnapshot.specifiers
     const inputDependencies = inputSnapshot[field] ?? {}
     for (const name in inputDependencies) {
+      if (!include[field] && !peerOnlyDependencies.has(name)) continue
       const version = inputDependencies[name]
       const resolveResult = resolveLinkOrFile(version, {
         lockfileDir,
@@ -136,6 +155,7 @@ export function createDeployFiles ({
     targetPackageSnapshots,
     include
   )
+  bindSingletonPeers(targetSnapshot, deployPackageSnapshots, linkedWorkspaceProjects)
 
   const result: DeployFiles = {
     lockfile: {
@@ -155,12 +175,12 @@ export function createDeployFiles ({
       },
       packages: deployPackageSnapshots,
     },
-    manifest: {
+    manifest: omitPeersOfExcludedDependencies({
       ...selectedProjectManifest,
       dependencies: targetSnapshot.dependencies,
       devDependencies: targetSnapshot.devDependencies,
       optionalDependencies: targetSnapshot.optionalDependencies,
-    },
+    }, selectedProjectManifest, targetSnapshot),
   }
 
   if (lockfile.patchedDependencies && patchedDependencies) {
@@ -185,6 +205,33 @@ export function createDeployFiles ({
   }
 
   return result
+}
+
+function omitPeersOfExcludedDependencies (
+  manifest: ProjectManifest,
+  inputManifest: ProjectManifest,
+  targetSnapshot: ProjectSnapshot
+): ProjectManifest {
+  const includedDependencies = dependencyNames(targetSnapshot)
+  const excludedDependencies = new Set(
+    Array.from(dependencyNames(inputManifest)).filter(name => !includedDependencies.has(name))
+  )
+  if (excludedDependencies.size === 0) return manifest
+
+  return {
+    ...manifest,
+    peerDependencies: omitKeys(manifest.peerDependencies, excludedDependencies),
+    peerDependenciesMeta: omitKeys(manifest.peerDependenciesMeta, excludedDependencies),
+  }
+}
+
+function dependencyNames (source: ProjectManifest | ProjectSnapshot): Set<string> {
+  return new Set(DEPENDENCIES_FIELD.flatMap(field => Object.keys(source[field] ?? {})))
+}
+
+function omitKeys<T> (record: Record<string, T> | undefined, keys: Set<string>): Record<string, T> | undefined {
+  if (record == null) return undefined
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key)))
 }
 
 /** Takes ownership of `packages`: the retained snapshots are edited in place. */
@@ -226,6 +273,89 @@ function filterDeployPackageSnapshots (
       return [depPath, snapshot]
     })
   ) as PackageSnapshots
+}
+
+/**
+ * Resolves the peer dependencies of linked workspace packages against the
+ * deployed graph, editing the snapshots in `packages` in place.
+ *
+ * A linked workspace package has no package snapshot in the shared lockfile, so
+ * the importer its deployed snapshot is synthesized from carries no peer
+ * bindings and they cannot be recovered afterwards. A peer already bound by
+ * either dependency map, or absent from the deployed graph entirely, is left
+ * alone.
+ *
+ * @throws PnpmError DEPLOY_AMBIGUOUS_PEER when the deployed graph offers more
+ * than one resolution for a peer, since choosing between them is precisely the
+ * decision injecting the package would have made.
+ */
+function bindSingletonPeers (
+  importer: ProjectSnapshot,
+  packages: PackageSnapshots,
+  linkedWorkspaceProjects: Map<DepPath, ProjectManifest>
+): void {
+  if (linkedWorkspaceProjects.size === 0) return
+
+  // Keyed by the resolved dependency path rather than the reference that
+  // spelled it, so an npm-aliased edge and a plain one that name the same
+  // package count once.
+  const references = new Map<string, Set<string>>()
+  const collect = (dependencies: ResolvedDependencies | undefined) => {
+    for (const [alias, reference] of Object.entries(dependencies ?? {})) {
+      const depPath = dp.refToRelative(reference, alias)
+      if (depPath == null) continue
+      const { name } = dp.parse(depPath)
+      if (name == null) continue
+      let referencesOfName = references.get(name)
+      if (referencesOfName == null) references.set(name, referencesOfName = new Set())
+      referencesOfName.add(depPath.slice(name.length + 1))
+    }
+  }
+  collect(importer.dependencies)
+  collect(importer.devDependencies)
+  collect(importer.optionalDependencies)
+  for (const snapshot of Object.values(packages)) {
+    collect(snapshot.dependencies)
+    collect(snapshot.optionalDependencies)
+  }
+
+  for (const [depPath, manifest] of linkedWorkspaceProjects) {
+    const snapshot = packages[depPath]
+    if (snapshot == null) continue
+    for (const peerName of Object.keys(manifest.peerDependencies ?? {})) {
+      // Consult the manifest, not just the snapshot: the graph prune clears the
+      // optional map before this runs, so a peer the package depends on
+      // optionally is invisible in the snapshot under `--no-optional`, and
+      // binding it there would resurrect a dependency the flag excluded.
+      if (declaresDependency(manifest, peerName)) continue
+      if (declaresDependency(snapshot, peerName)) continue
+      const candidates = references.get(peerName)
+      // A peer the deployed graph does not provide at all stays unresolved,
+      // exactly as it is in the workspace this deploy was taken from.
+      if (candidates == null) continue
+      if (candidates.size > 1) {
+        throw new PnpmError('DEPLOY_AMBIGUOUS_PEER', `Workspace package '${manifest.name ?? depPath}' declares a peer dependency on '${peerName}', which resolves to more than one version (${Array.from(candidates).sort().join(', ')}) in the deployed graph. Without "injectWorkspacePackages" there is no snapshot to bind it to.`, {
+          hint: `Pin '${peerName}' to a single version with an "overrides" entry, set "injectWorkspacePackages" to true, or run "pnpm deploy" with the "--legacy" flag.`,
+        })
+      }
+      snapshot.dependencies = { ...snapshot.dependencies, [peerName]: Array.from(candidates)[0] }
+    }
+  }
+}
+
+/**
+ * Whether `source` binds `name` through one of its runtime dependency maps.
+ *
+ * Own keys only: a package may legitimately be named `constructor` or
+ * `toString`, and a plain property read would find those on `Object.prototype`
+ * and report a binding that does not exist.
+ */
+function declaresDependency (
+  source: Pick<ProjectManifest, 'dependencies' | 'optionalDependencies'> | Pick<PackageSnapshot, 'dependencies' | 'optionalDependencies'>,
+  name: string
+): boolean {
+  return (source.dependencies != null && Object.hasOwn(source.dependencies, name)) ||
+    (source.optionalDependencies != null && Object.hasOwn(source.optionalDependencies, name))
 }
 
 interface ConvertOptions {

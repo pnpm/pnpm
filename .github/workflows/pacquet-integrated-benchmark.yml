@@ -225,14 +225,14 @@ jobs:
         continue-on-error: true
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           shared-key: integrated-benchmark
           restore-cache: false # it's insufficient
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           install: false
 
@@ -248,12 +248,12 @@ jobs:
         continue-on-error: true
 
       - name: Install hyperfine
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: just
 

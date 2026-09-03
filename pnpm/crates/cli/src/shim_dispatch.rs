@@ -1,11 +1,11 @@
 //! The dispatcher behind context-aware global shims.
 //!
-//! Selected bins pnpm links into the global bin dir invoke the adjacent
-//! protocol-versioned executable with
-//! `--shim <name> <shim> <global-target> -- <args...>` (see
-//! `pnpm_cmd_shim::ShimStyle`). The `globalShims` record decides which
-//! providing packages are eligible; the managed runtimes are enabled by
-//! default. For a runtime pin, the dispatcher reads the project's
+//! A context-aware shim is the pnpm executable published under the bin's
+//! own name, with the global target recorded beside it (see
+//! [`native_shim`]). Launched under that name, pnpm dispatches instead of
+//! running the CLI: the `globalShims` record decides which providing
+//! packages are eligible, and the managed runtimes are enabled by default.
+//! For a runtime pin, the dispatcher reads the project's
 //! `devEngines.runtime` / `engines.runtime`, materializes the release in
 //! pnpm's global virtual store, and executes it directly — never through
 //! the project's `node_modules/.bin`. A publisher-signature-verified
@@ -29,7 +29,7 @@ use crate::{
     },
 };
 use derive_more::Display;
-use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
+use pnpm_cmd_shim::{Host as CmdShimHost, ScriptRuntime, search_script_runtime};
 use pnpm_config::{
     Config, GlobalShims, GlobalShimsSetting, Host, LoadWorkspaceYamlError, ShimPolicy,
     WorkspaceSettings, default_config_dir, default_pnpm_home_dir, default_state_dir,
@@ -47,130 +47,72 @@ use std::{
 };
 
 mod identity;
+pub(crate) mod native_shim;
 pub(crate) mod runtime_env;
 mod trust;
-#[cfg(windows)]
-mod windows;
 
-use identity::{declared_package, local_bin_identity, provider_of_target};
+pub(crate) use native_shim::{
+    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
+    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
+    refresh_native_shims, remove_native_shim,
+};
 pub(crate) use runtime_env::materialize_runtime;
+
+use identity::{local_bin_identity, provider_of_target};
+use native_shim::{dispatch_legacy_shim, try_native_dispatch};
 use runtime_env::{PACKAGE_MANAGER_ENVS_DIR_NAME, trusted_runtime_config};
 use trust::is_trusted;
-#[cfg(windows)]
-use windows::try_windows_node_dispatch;
-#[cfg(windows)]
-pub(crate) use windows::{install_windows_node_dispatcher, windows_node_dispatcher_is_installed};
 
 /// Environment variable that short-circuits the dispatcher to the global
-/// target: a user-facing kill switch, and the recursion guard for the
-/// children the dispatcher itself spawns.
+/// target: a user-facing kill switch that the target's own children, a
+/// sibling `node` shim included, inherit.
 const BYPASS_ENV: &str = "PNPM_SHIM_BYPASS";
 
-pub(crate) fn install_dispatcher(global_bin_dir: &Path) -> std::io::Result<()> {
-    let source = std::env::current_exe()?;
-    install_dispatcher_from(&source, &dispatcher_path(global_bin_dir))
-}
-
-/// Replace an installed v1 dispatcher with `source`, leaving a missing
-/// dispatcher absent. Self-update uses this to publish fixes from the newly
-/// installed engine without enabling context-aware shims for users who do not
-/// already have any. On Windows, a `node.exe` still linked to the old
-/// dispatcher is refreshed with it.
-pub(crate) fn refresh_existing_dispatcher(
-    source: &Path,
-    global_bin_dir: &Path,
-) -> std::io::Result<()> {
-    let destination = dispatcher_path(global_bin_dir);
-    match std::fs::symlink_metadata(&destination) {
-        Ok(_) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(error) => return Err(error),
-    }
-    #[cfg(windows)]
-    let node_dispatcher = {
-        let node = global_bin_dir.join("node.exe");
-        same_file::is_same_file(&destination, &node).unwrap_or(false).then_some(node)
-    };
-    install_dispatcher_from(source, &destination)?;
-    #[cfg(windows)]
-    if let Some(node_dispatcher) = node_dispatcher {
-        install_dispatcher_from(source, &node_dispatcher)?;
-    }
-    Ok(())
-}
-
-fn install_dispatcher_from(source: &Path, destination: &Path) -> std::io::Result<()> {
-    crate::executable_link::replace_executable(source, destination)
-}
-
-fn dispatcher_path(global_bin_dir: &Path) -> PathBuf {
-    let file_name = if cfg!(windows) {
-        format!("{CONTEXT_AWARE_DISPATCHER_NAME}.exe")
-    } else {
-        CONTEXT_AWARE_DISPATCHER_NAME.to_string()
-    };
-    global_bin_dir.join(file_name)
-}
-
-/// Intercept a `pnpm --shim ...` invocation. `None` means argv is not a
-/// shim dispatch and the regular CLI should proceed; `Some(code)` means
-/// the dispatch ran (or failed) and the process must exit with `code`.
-/// On Unix a successful dispatch never returns at all — the target is
-/// `exec`ed in place.
+/// Intercept a launch under a shim name, or a legacy shim's `--shim`
+/// invocation of the dispatcher it replaced. `None` means this is pnpm
+/// itself and the regular CLI should proceed; `Some(code)` means the
+/// dispatch ran (or failed) and the process must exit with `code`. On Unix
+/// a successful dispatch never returns at all — the target is `exec`ed in
+/// place.
 pub(crate) fn try_dispatch(argv: &[OsString]) -> Option<i32> {
     if argv.get(1).and_then(|arg| arg.to_str()) == Some("--shim") {
-        return Some(dispatch(&argv[2..]));
+        return Some(dispatch_legacy_shim(&argv[2..]));
     }
-    #[cfg(windows)]
-    if let Some(result) = try_windows_node_dispatch(argv) {
-        return Some(result);
-    }
-    None
+    try_native_dispatch(argv)
 }
 
-fn dispatch(rest: &[OsString]) -> i32 {
-    let Some((name, shim_path, global_target, args)) = parse_shim_argv(rest) else {
-        eprintln!(
-            "pnpm: malformed --shim invocation. Usage: pnpm --shim <name> <shim> <target> -- [args...]",
-        );
-        return 1;
-    };
-    let settings = trusted_shim_settings();
-    dispatch_target(
-        name,
-        Some(shim_path),
-        global_target,
-        args,
-        &settings.shims,
-        &settings.state_dir,
-    )
+/// The shim being dispatched: its bin name, the directory it lives in
+/// (where a sibling interpreter such as `node` is looked up first), and
+/// the global target it falls back to.
+struct ShimInvocation<'a> {
+    name: &'a str,
+    bin_dir: &'a Path,
+    target: &'a ShimTarget,
 }
 
 fn dispatch_target(
-    name: &str,
-    shim_path: Option<&Path>,
-    global_target: &Path,
+    shim: &ShimInvocation<'_>,
     args: &[OsString],
     shims: &GlobalShims,
     state_dir: &Path,
 ) -> i32 {
+    let ShimInvocation { name, target, .. } = *shim;
     if bypass_requested() || shims.dispatches_nothing() {
-        return run_global_fallback(shim_path, global_target, args);
+        return run_global_target(shim, args);
     }
     // Eligibility is keyed by the package the shim stands for, so an entry
     // for `typescript` covers its `tsc` bin. A shim with a global install
     // behind it takes that package from the target's manifest, which also
     // anchors the candidate match; a target-less shim declares it.
-    let provider = provider_of_target(global_target);
-    let Some(package) = declared_package(global_target)
-        .map(str::to_string)
-        .or_else(|| provider.as_ref().map(|provider| provider.name.clone()))
-    else {
-        return run_global_fallback(shim_path, global_target, args);
+    let Some(package) = (match target {
+        ShimTarget::Virtual(package) => Some(package.clone()),
+        ShimTarget::Installed(path) => provider_of_target(path).map(|provider| provider.name),
+    }) else {
+        return run_global_target(shim, args);
     };
     let policy = shims.policy(&package);
     if policy == ShimPolicy::Off {
-        return run_global_fallback(shim_path, global_target, args);
+        return run_global_target(shim, args);
     }
     let candidate = std::env::current_dir()
         .ok()
@@ -199,7 +141,7 @@ fn dispatch_target(
                     // executing code as the user — outside this gate's
                     // threat model, since a hostile repository is static.
                     if !local_bin_unchanged(&bin, name, &identity) {
-                        return run_global_fallback(shim_path, global_target, args);
+                        return run_global_target(shim, args);
                     }
                     exec_program(&bin, args)
                 }
@@ -211,7 +153,7 @@ fn dispatch_target(
                 }
             }
         }
-        _ => run_global_fallback(shim_path, global_target, args),
+        _ => run_global_target(shim, args),
     }
 }
 
@@ -230,33 +172,63 @@ fn runtime_runs_promptless(policy: ShimPolicy, name: &str, version_spec: &str) -
     }
 }
 
-/// Re-enter the generated shim with dispatch disabled so its original
-/// direct-exec body performs the fallback. This preserves the shell's exact
-/// shebang-argument parsing and interpreter lookup instead of reconstructing
-/// either from a whitespace-split string. A concurrently removed shim falls
-/// back to executing the embedded target directly.
-fn run_global_fallback(shim_path: Option<&Path>, target: &Path, args: &[OsString]) -> i32 {
-    if let Some(shim_path) = shim_path.filter(|path| path.is_file())
-        && let Ok(code) = try_exec_with_bypass(shim_path, args)
-    {
-        return code;
+/// Run the global target the way a direct cmd-shim would: a script runs
+/// under the interpreter its shebang names, taken from the bin dir when a
+/// sibling of that name is installed there (so a global tool runs on the
+/// global `node` shim) and from `PATH` otherwise; anything else executes
+/// as it is. A target-less shim has nothing to run and says so.
+fn run_global_target(shim: &ShimInvocation<'_>, args: &[OsString]) -> i32 {
+    let target = match shim.target {
+        ShimTarget::Installed(target) => target,
+        ShimTarget::Virtual(package) => {
+            eprintln!(
+                r#"ERR_PNPM_SHIM_NO_TARGET  Nothing provides {} in this project. Add {package} to it, or pin it with "packageManager" in package.json."#,
+                shim.name,
+            );
+            return 1;
+        }
+    };
+    match search_script_runtime::<CmdShimHost>(target) {
+        // `.cmd` and `.bat` targets go to `Command::new` directly (see
+        // `exec_program_with_path`) rather than through an explicit `cmd`.
+        Ok(Some(ScriptRuntime { prog: Some(prog), args: shebang_args })) if prog != "cmd" => {
+            let mut argv = split_shebang_args(&shebang_args);
+            argv.push(target.into());
+            argv.extend_from_slice(args);
+            exec_program(&interpreter_path(shim.bin_dir, &prog), &argv)
+        }
+        Ok(_) => exec_program(target, args),
+        Err(error) => {
+            eprintln!("pnpm: failed to read {}: {error}", target.display());
+            126
+        }
     }
-    // Re-entry can fail where the host cannot execute the shim itself —
-    // an extensionless sh script under MSYS, a permissions hiccup. The
-    // embedded target is still runnable directly.
-    exec_program(target, args)
 }
 
-/// Split the machine-generated tail of a `--shim` invocation (format in
-/// the module docs).
-fn parse_shim_argv(rest: &[OsString]) -> Option<(&str, &Path, &Path, &[OsString])> {
-    let [name, shim, target, separator, args @ ..] = rest else {
-        return None;
-    };
-    if separator.to_str() != Some("--") {
-        return None;
+/// Where the shebang's interpreter comes from: the bin dir's own entry
+/// when there is one, else the bare name for a `PATH` lookup. An absolute
+/// interpreter path joins to itself.
+fn interpreter_path(bin_dir: &Path, prog: &str) -> PathBuf {
+    let sibling = bin_dir.join(prog);
+    if sibling.is_file() {
+        return sibling;
     }
-    Some((name.to_str()?, Path::new(shim), Path::new(target), args))
+    if cfg!(windows) {
+        let sibling = bin_dir.join(format!("{prog}.exe"));
+        if sibling.is_file() {
+            return sibling;
+        }
+    }
+    PathBuf::from(prog)
+}
+
+/// The interpreter arguments a shebang carries, split the way the shell
+/// running a cmd-shim would split them. A line the shell could not parse
+/// (an unbalanced quote) falls back to whitespace splitting.
+fn split_shebang_args(shebang_args: &str) -> Vec<OsString> {
+    let words = shell_words::split(shebang_args)
+        .unwrap_or_else(|_| shebang_args.split_whitespace().map(str::to_string).collect());
+    words.into_iter().map(OsString::from).collect()
 }
 
 fn bypass_requested() -> bool {
@@ -697,15 +669,6 @@ fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr
     if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
 }
 
-/// Attempt to run `program` with the bypass guard set, replacing the
-/// process where the platform allows. `Err` means the program could not
-/// be started at all, so the caller may fall back to another target.
-#[cfg(unix)]
-fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::io::Error> {
-    use std::os::unix::process::CommandExt as _;
-    Err(Command::new(program).args(args).env(BYPASS_ENV, "1").exec())
-}
-
 #[cfg(windows)]
 fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr>) -> i32 {
     // `.cmd`/`.bat` targets go to `Command::new` directly: the standard
@@ -724,22 +687,6 @@ fn exec_program_with_path(program: &Path, args: &[OsString], path: Option<&OsStr
             if error.kind() == std::io::ErrorKind::NotFound { 127 } else { 126 }
         }
     }
-}
-
-/// See the Unix flavor for the contract.
-#[cfg(windows)]
-fn try_exec_with_bypass(program: &Path, args: &[OsString]) -> Result<i32, std::io::Error> {
-    // See `exec_program` for why `.cmd`/`.bat` go to `Command::new`
-    // directly.
-    let extension = program.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
-    let mut command = if extension.eq_ignore_ascii_case("ps1") {
-        let mut command = Command::new(windows::system_powershell_path()?);
-        command.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"]).arg(program);
-        command
-    } else {
-        Command::new(program)
-    };
-    command.args(args).env(BYPASS_ENV, "1").status().map(|status| status.code().unwrap_or(1))
 }
 
 #[cfg(test)]

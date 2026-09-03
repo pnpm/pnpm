@@ -68,6 +68,27 @@ fn passthrough_when_no_placeholder() {
     assert_eq!(replace_clean::<NoEnv>("plain string"), "plain string");
 }
 
+/// The scan walks `text` byte by byte, so every span it leaves
+/// untouched has to be copied back as a string slice; decoding a
+/// multi-byte character one byte at a time would mangle it.
+#[test]
+fn preserves_non_ascii_literal_text() {
+    struct EnvWithValue;
+    impl EnvVar for EnvWithValue {
+        fn var(name: &str) -> Option<String> {
+            (name == "VALUE").then(|| "resolved".to_owned())
+        }
+    }
+    assert_eq!(replace_clean::<EnvWithValue>("café/日本語"), "café/日本語");
+    assert_eq!(replace_clean::<EnvWithValue>("café/${VALUE}/日本語"), "café/resolved/日本語");
+    assert_eq!(
+        replace_clean::<EnvWithValue>("café/${MISSING:-défaut}/日本語"),
+        "café/défaut/日本語",
+    );
+    assert_eq!(replace_clean::<EnvWithValue>(r"café/\${VALUE}/日本語"), "café/${VALUE}/日本語");
+    assert_eq!(replace_clean::<EnvWithValue>("café/${OPEN/日本語"), "café/${OPEN/日本語");
+}
+
 #[test]
 fn lone_dollar_is_left_alone() {
     assert_eq!(replace_clean::<NoEnv>("$ price"), "$ price");

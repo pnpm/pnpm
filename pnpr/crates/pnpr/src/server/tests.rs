@@ -1,18 +1,20 @@
 use super::{
-    ConnectInfo, PeerAddr, bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows,
-    is_write_method, router_with_auth, token_timestamp_millis,
-};
-use crate::{
-    auth::{AuthState, TokenBackend, TokenRecord, UserStore},
-    config::Config,
-    error::{RegistryError, Result},
-    policy::{AccessList, PackageRule, PackageRules},
+    HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
+    authentication::{
+        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+    },
+    original_integrity, router_with_auth, tilde_registry, token_timestamp_millis,
 };
 use async_trait::async_trait;
 use axum::{
     body::{Body, to_bytes},
+    extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
+use pnpr_config::Config;
+use pnpr_error::{RegistryError, Result};
+use pnpr_policy::{AccessList, PackageRule, PackageRules};
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     sync::Arc,
@@ -24,6 +26,81 @@ use tower::ServiceExt;
 fn token_timestamp_millis_saturates_before_i64_conversion() {
     assert_eq!(token_timestamp_millis(42), 42_000);
     assert_eq!(token_timestamp_millis(u64::MAX), i64::MAX / 1000 * 1000);
+}
+
+#[test]
+fn original_integrity_uses_current_integrity_before_any_replacement() {
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let dist = HostedRevisionDist {
+        integrity: Some(integrity.clone()),
+        revision: RevisionField::Missing,
+        revisions: Vec::new(),
+    };
+    assert_eq!(original_integrity(&dist).unwrap().to_string(), integrity);
+}
+
+#[test]
+fn original_integrity_rejects_an_explicit_null_revision() {
+    let dist = HostedRevisionDist {
+        integrity: Some(format!("sha512-{}==", "A".repeat(86))),
+        revision: RevisionField::Present(serde_json::Value::Null),
+        revisions: Vec::new(),
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+}
+
+#[test]
+fn original_integrity_rejects_an_explicit_revision_zero() {
+    let integrity = format!("sha512-{}==", "A".repeat(86));
+    let dist = HostedRevisionDist {
+        integrity: Some(integrity.clone()),
+        revision: RevisionField::Present(serde_json::json!(0)),
+        revisions: vec![HostedRevisionRecord {
+            revision: serde_json::json!(0),
+            integrity: Some(integrity),
+        }],
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
+}
+
+#[test]
+fn original_integrity_uses_validated_revision_zero_after_replacement() {
+    let original = format!("sha512-{}==", "A".repeat(86));
+    let replacement = format!("sha512-{}Q==", "B".repeat(85));
+    let dist = HostedRevisionDist {
+        integrity: Some(replacement.clone()),
+        revision: RevisionField::Present(serde_json::json!(1)),
+        revisions: vec![
+            HostedRevisionRecord {
+                revision: serde_json::json!(0),
+                integrity: Some(original.clone()),
+            },
+            HostedRevisionRecord { revision: serde_json::json!(1), integrity: Some(replacement) },
+        ],
+    };
+    assert_eq!(original_integrity(&dist).unwrap().to_string(), original);
+}
+
+#[test]
+fn original_integrity_rejects_ambiguous_or_inconsistent_history() {
+    let original = format!("sha512-{}==", "A".repeat(86));
+    let replacement = format!("sha512-{}Q==", "B".repeat(85));
+    let dist = HostedRevisionDist {
+        integrity: Some(replacement),
+        revision: RevisionField::Present(serde_json::json!(1)),
+        revisions: vec![
+            HostedRevisionRecord {
+                revision: serde_json::json!(0),
+                integrity: Some(original.clone()),
+            },
+            HostedRevisionRecord { revision: serde_json::json!(0), integrity: Some(original) },
+            HostedRevisionRecord {
+                revision: serde_json::json!(1),
+                integrity: Some(format!("sha512-{}g==", "C".repeat(85))),
+            },
+        ],
+    };
+    assert_eq!(original_integrity(&dist).map(|integrity| integrity.to_string()), None);
 }
 
 // ---------------------------------------------------------------
@@ -222,8 +299,8 @@ async fn team_tokens_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    use crate::policy::{AccessToken, Identity};
-    use crate::registry::PackagePattern;
+    use pnpr_policy::{AccessToken, Identity};
+    use pnpr_registry::PackagePattern;
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*").unwrap(),
@@ -486,4 +563,20 @@ fn packument_last_modified_formats_the_documents_modified_time() {
         super::packument_last_modified(&serde_json::json!({"time": {"modified": "not-a-date"}}),),
         None,
     );
+}
+
+/// Every `/~<name>/` route reads its segment through this, so the two edges
+/// are worth stating once: a bare `~` names no registry and must read as an
+/// ordinary segment rather than as an empty name, and a `~` anywhere but the
+/// front is part of a package name.
+#[test]
+fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
+    assert_eq!(tilde_registry("~corp"), Some("corp"));
+    assert_eq!(tilde_registry("~a"), Some("a"));
+
+    assert_eq!(tilde_registry("~"), None, "a bare tilde names no registry");
+    assert_eq!(tilde_registry("corp"), None);
+    assert_eq!(tilde_registry(""), None);
+    assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
+    assert_eq!(tilde_registry("@scope/pkg"), None);
 }

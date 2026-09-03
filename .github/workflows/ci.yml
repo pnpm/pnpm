@@ -81,7 +81,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
     - name: Test release publication scripts
       run: |
         .github/scripts/npm-package-publication-state.test.sh
@@ -112,7 +112,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-ubuntu-2404
 
@@ -120,7 +120,7 @@ jobs:
     needs: changes
     if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
     name: TS CI / Build pnpr
-    uses: ./.github/workflows/build-pnpr.yml
+    uses: $/.github/workflows/build-pnpr.yml
     with:
       os: blacksmith-8vcpu-windows-2025
 
@@ -144,13 +144,13 @@ jobs:
             test_chunk: '1'
             test_chunk_total: '1'
             garnet: true
-          - node: '26.7.0'
+          - node: '26.8.1'
             node_major: '26'
             platform: blacksmith-8vcpu-ubuntu-2404
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
@@ -186,7 +186,7 @@ jobs:
             platform_label: windows 3/3
             test_chunk: '3'
             test_chunk_total: '3'
-    uses: ./.github/workflows/test.yml
+    uses: $/.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}

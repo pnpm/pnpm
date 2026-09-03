@@ -146,6 +146,45 @@ fn strict_skips_runtime_specifiers() {
 }
 
 #[test]
+fn project_relative_paths_are_never_cataloged() {
+    let catalogs = Catalogs::new();
+    for specifier in [
+        "./localpkg",
+        "file:./localpkg",
+        "link:../lib",
+        "../deps/pkg-1.0.0.tgz",
+        "workspace:../lib",
+        "workspace:./lib",
+    ] {
+        let decision = decide(CatalogMode::Prefer, &catalogs, &dep("localpkg", specifier)).unwrap();
+        assert_eq!(
+            decision,
+            CatalogDecision::KeepDirect,
+            "{specifier:?} resolves against the declaring project, so a catalog entry cannot \
+             mean the same directory for every consumer",
+        );
+    }
+}
+
+/// A `workspace:` range names a package, not a directory, so it stays
+/// catalogable — only the path forms are held back.
+#[test]
+fn a_workspace_range_is_still_cataloged() {
+    let catalogs = Catalogs::new();
+    let decision = decide(CatalogMode::Prefer, &catalogs, &dep("lib", "workspace:^")).unwrap();
+    assert_eq!(
+        decision,
+        CatalogDecision::Catalog {
+            manifest_specifier: "catalog:".to_string(),
+            updated_entry: Some(CatalogEntry {
+                catalog_name: "default".to_string(),
+                specifier: "workspace:^".to_string(),
+            }),
+        },
+    );
+}
+
+#[test]
 fn reinstalling_a_catalog_dependency_reuses_the_existing_entry() {
     let catalogs = catalogs(&[("default", &[("is-positive", "^1.0.0")])]);
     let dep = CatalogModeDep {

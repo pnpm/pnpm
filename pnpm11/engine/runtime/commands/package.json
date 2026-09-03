@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/engine.runtime.commands",
-  "version": "1101.0.1",
+  "version": "1101.1.0",
   "description": "pnpm commands for managing runtimes",
   "keywords": [
     "pnpm",
@@ -37,6 +37,7 @@
     "@pnpm/engine.runtime.node-resolver": "workspace:*",
     "@pnpm/error": "workspace:*",
     "@pnpm/exec.pnpm-cli-runner": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
     "@pnpm/network.fetch": "workspace:*",
     "@pnpm/types": "workspace:*",
     "render-help": "catalog:"

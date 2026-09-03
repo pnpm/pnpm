@@ -3,10 +3,11 @@ use indexmap::IndexMap;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_network::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
-    base64_encode, nerf_dart,
+    base64_encode, base64_encode_bytes, nerf_dart,
 };
 use std::{
-    collections::{BTreeMap, HashMap},
+    borrow::Cow,
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -96,12 +97,22 @@ pub(crate) struct NpmrcAuth {
     /// preserved verbatim through to [`PerRegistryTls`] construction
     /// so lookup keys stay byte-equivalent to the keys as written.
     pub tls_by_uri: HashMap<String, RegistryTls>,
-    /// Scope→URL registry routes inferred from `_auth` (`"@"` → `"default"`,
-    /// `"@org"` → that scope). Safe because the credential and its
-    /// destination host come from the same trusted value, so repo config
-    /// can't redirect the token elsewhere. Applied after workspace yaml by
+    /// Scope→URL registry routes inferred from the `_auth` **environment
+    /// variable** (`"@"` → `"default"`, `"@org"` → that scope). Safe because
+    /// the credential and its destination host come from the same trusted
+    /// value, so repo config can't redirect the token elsewhere. The
+    /// environment is the operator's channel — a CI runner pointed at a
+    /// mandated proxy — so these outrank what any config file declares.
+    /// Applied after workspace yaml by
     /// [`Self::apply_json_env_registries`].
     pub json_env_registries: BTreeMap<String, String>,
+    /// The same routes inferred from the `_auth` of the global config
+    /// **file**. That file is the user's own store rather than a mandate —
+    /// it is where `pnpm login` puts a credential — so a `registry` or
+    /// `registries` a config file declares outranks these, and they fill in
+    /// only what nothing else declares. See
+    /// [`Self::apply_json_env_registries`].
+    pub json_file_registries: BTreeMap<String, String>,
     /// Raw INI config keys (those for which
     /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
     /// substitution, captured verbatim for `pnpm config get` / `list`. This
@@ -234,7 +245,10 @@ impl NpmrcAuth {
     ) -> Result<Self, serde_json::Error> {
         let mut auth = NpmrcAuth::default();
         if let Some(global_value) = global_value {
-            auth.apply_json_auth(serde_json::from_value(global_value.clone())?);
+            auth.apply_json_auth(
+                serde_json::from_value(global_value.clone())?,
+                JsonAuthOrigin::File,
+            );
         }
         // Lowercase is the documented form; UPPER covers the all-caps shell
         // convention some CI runners apply.
@@ -242,7 +256,7 @@ impl NpmrcAuth {
             .filter(|value| !value.is_empty())
             .or_else(|| Sys::var("PNPM_CONFIG__AUTH").filter(|value| !value.is_empty()));
         if let Some(value) = env_value {
-            auth.apply_json_auth(serde_json::from_str(&value)?);
+            auth.apply_json_auth(serde_json::from_str(&value)?, JsonAuthOrigin::Env);
         }
         Ok(auth)
     }
@@ -251,7 +265,7 @@ impl NpmrcAuth {
     /// object applied after the global one overrides on conflict): each
     /// entry becomes a `//host/:_authToken` credential and an inferred
     /// registry route (see [`Self::json_env_registries`]).
-    fn apply_json_auth(&mut self, parsed: JsonAuth) {
+    fn apply_json_auth(&mut self, parsed: JsonAuth, origin: JsonAuthOrigin) {
         for (registry, scopes) in parsed.0 {
             for (scope, creds) in scopes {
                 let key = match &scope {
@@ -268,7 +282,11 @@ impl NpmrcAuth {
                     JsonAuthScope::Default => "default".to_string(),
                     JsonAuthScope::Package(scope) => scope,
                 };
-                self.json_env_registries.insert(route_key, registry.normalized.clone());
+                let routes = match origin {
+                    JsonAuthOrigin::Env => &mut self.json_env_registries,
+                    JsonAuthOrigin::File => &mut self.json_file_registries,
+                };
+                routes.insert(route_key, registry.normalized.clone());
             }
         }
     }
@@ -314,7 +332,7 @@ impl NpmrcAuth {
                 continue;
             };
             let raw_key = raw_key.trim();
-            let raw_value = raw_value.trim();
+            let raw_value = decode_ini_value(raw_value.trim());
 
             // Apply ${VAR} substitution to both the key and the value.
             // Unresolved placeholders become "" and are recorded as warnings.
@@ -348,20 +366,20 @@ impl NpmrcAuth {
                 continue;
             }
             if !opts.expand_request_destination_env
-                && has_env_placeholder(raw_value)
+                && has_env_placeholder(&raw_value)
                 && is_request_destination_value_key(&key)
             {
                 auth.warn_ignored_request_destination_env(&key);
                 continue;
             }
             if !opts.expand_auth_value_env
-                && has_env_placeholder(raw_value)
+                && has_env_placeholder(&raw_value)
                 && is_auth_value_key(&key)
             {
                 auth.warn_ignored_auth_value_env(&key);
                 continue;
             }
-            let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
+            let (value, value_unresolved) = env_replace_lossy::<Sys>(&raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
             }
@@ -565,7 +583,29 @@ impl NpmrcAuth {
     /// [`Self::apply_registry_and_warn`] (which runs *before* workspace
     /// yaml), this is called *after* yaml so the inferred routes win over
     /// repo-controlled registries.
-    pub fn apply_json_env_registries(&mut self, config: &mut Config) {
+    ///
+    /// The file-sourced routes fill in only what a config file has not
+    /// declared, which `declared` names: provenance rather than value,
+    /// because pinning the registry a lower layer already resolved to is
+    /// still a declaration. A route the `.npmrc` merely resolved is not one,
+    /// so those give way. The environment-sourced routes replace whatever
+    /// they find.
+    pub fn apply_json_env_registries(
+        &mut self,
+        config: &mut Config,
+        declared: &DeclaredRegistries,
+    ) {
+        for (scope, url) in std::mem::take(&mut self.json_file_registries) {
+            if scope == "default" {
+                if !declared.registry {
+                    config.registry.clone_from(&url);
+                }
+                continue;
+            }
+            if !declared.scopes.contains(&scope) {
+                config.registries_by_scope.insert(scope, url);
+            }
+        }
         for (scope, url) in std::mem::take(&mut self.json_env_registries) {
             if scope == "default" {
                 config.registry.clone_from(&url);
@@ -619,7 +659,7 @@ impl NpmrcAuth {
                             .or_default()
                             .insert(scope, command);
                     }
-                } else if let Some(header) = creds_to_header(&raw) {
+                } else if let Some(header) = creds_to_header(&raw)? {
                     if scope == DEFAULT_REGISTRY_SCOPE {
                         auth_header_by_uri.insert(uri.clone(), header);
                     } else {
@@ -759,6 +799,9 @@ impl NpmrcAuth {
         for (scope, registry) in lower.json_env_registries {
             self.json_env_registries.entry(scope).or_insert(registry);
         }
+        for (scope, registry) in lower.json_file_registries {
+            self.json_file_registries.entry(scope).or_insert(registry);
+        }
         for (key, value) in lower.raw_ini_config {
             self.raw_ini_config.entry(key).or_insert(value);
         }
@@ -811,7 +854,7 @@ impl NpmrcAuth {
         self.apply_registry_and_warn(config);
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
-        self.build_auth_headers(config).expect("valid tokenHelper in test .npmrc");
+        self.build_auth_headers(config).expect("valid credentials in test .npmrc");
     }
 
     fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
@@ -821,6 +864,18 @@ impl NpmrcAuth {
             .or_default()
             .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
             .or_default()
+    }
+}
+
+fn decode_ini_value(value: &str) -> Cow<'_, str> {
+    if value.starts_with('\'') && value.ends_with('\'') {
+        Cow::Borrowed(
+            value.strip_prefix('\'').and_then(|value| value.strip_suffix('\'')).unwrap_or(""),
+        )
+    } else if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
+        serde_json::from_str::<String>(value).map_or(Cow::Borrowed(value), Cow::Owned)
+    } else {
+        Cow::Borrowed(value)
     }
 }
 
@@ -947,21 +1002,33 @@ pub(crate) fn parse_no_proxy(raw: &str) -> NoProxySetting {
 
 /// Convert raw .npmrc credentials into an `Authorization` header
 /// value. Returns `None` if no usable credential shape is present.
-fn creds_to_header(creds: &RawCreds) -> Option<String> {
+///
+/// `_auth` is decoded and re-encoded rather than forwarded: an `.npmrc`
+/// carries spellings the wire format does not (embedded whitespace,
+/// redundant or missing `=` padding), and only the canonical encoding of
+/// the credential it names is a header a registry can read.
+fn creds_to_header(creds: &RawCreds) -> Result<Option<String>, LoadWorkspaceYamlError> {
     if let Some(token) = &creds.auth_token {
-        return Some(format!("Bearer {token}"));
+        return Ok(Some(format!("Bearer {token}")));
     }
-    if let Some(pair) = &creds.auth_pair_base64 {
-        return Some(format!("Basic {pair}"));
+    // An empty `_auth` names no credential — the shape an unresolved
+    // `${VAR}` leaves behind — and pnpm skips it rather than failing.
+    if let Some(pair) = creds.auth_pair_base64.as_deref().filter(|pair| !pair.is_empty()) {
+        let decoded = base64_decode_bytes(pair)
+            .ok_or(LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" })?;
+        if !decoded.contains(&b':') {
+            return Err(LoadWorkspaceYamlError::AuthMissingSeparator);
+        }
+        return Ok(Some(format!("Basic {}", base64_encode_bytes(&decoded))));
     }
     if let (Some(user), Some(pass_b64)) = (&creds.username, &creds.password) {
         // npm encodes `_password` as base64 of the raw password. The
         // header itself is `Basic base64(user:password)`, so we decode
         // the password back and re-encode the pair.
         let password = base64_decode(pass_b64).unwrap_or_else(|| pass_b64.clone());
-        return Some(format!("Basic {}", base64_encode(&format!("{user}:{password}"))));
+        return Ok(Some(format!("Basic {}", base64_encode(&format!("{user}:{password}")))));
     }
-    None
+    Ok(None)
 }
 
 /// Reject a `tokenHelper` that a workspace or project `.npmrc` contributed.
@@ -1036,33 +1103,39 @@ fn parse_token_helper_field(
     Ok((!command.is_empty()).then_some(command))
 }
 
-/// Decode a standard base64 string. Used for the `_password` field
-/// where npm stores the raw password base64-encoded; falls back to
-/// returning `None` so the caller can keep the raw value verbatim
-/// when the input is not valid base64.
-fn base64_decode(input: &str) -> Option<String> {
+/// The decoder pnpm reads credentials with: `atob`'s forgiving-base64,
+/// which ignores whitespace anywhere and keeps the low bits of a
+/// truncated final group rather than rejecting the value. Padding is
+/// stripped before the value reaches this engine, so `=` left anywhere
+/// else is an invalid byte — as it is for `atob`.
+const CREDENTIAL_BASE64: base64::engine::GeneralPurpose = base64::engine::GeneralPurpose::new(
+    &base64::alphabet::STANDARD,
+    base64::engine::GeneralPurposeConfig::new()
+        .with_decode_allow_trailing_bits(true)
+        .with_decode_padding_mode(base64::engine::DecodePaddingMode::RequireNone),
+);
+
+/// Decode a standard base64 credential to the bytes it carries, matching
+/// `decodeBase64Credential` in the TypeScript stack: whitespace is
+/// ignored, and trailing `=` padding may be redundant (`aGk===`),
+/// short (`Zm9vOmJhcg=`), or missing (`aGk`) — the spellings that reach
+/// a `.npmrc` by hand or from a shell pipeline. `None` when the value is
+/// not base64 at all.
+fn base64_decode_bytes(input: &str) -> Option<Vec<u8>> {
     let cleaned: Vec<u8> = input.bytes().filter(|byte| !byte.is_ascii_whitespace()).collect();
-    let mut bytes = Vec::with_capacity(cleaned.len() / 4 * 3);
-    let mut buffer = 0u32;
-    let mut bits = 0u32;
-    for byte in cleaned {
-        let value = match byte {
-            b'A'..=b'Z' => byte - b'A',
-            b'a'..=b'z' => byte - b'a' + 26,
-            b'0'..=b'9' => byte - b'0' + 52,
-            b'+' => 62,
-            b'/' => 63,
-            b'=' => break,
-            _ => return None,
-        };
-        buffer = (buffer << 6) | u32::from(value);
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            bytes.push(((buffer >> bits) & 0xff) as u8);
-        }
-    }
-    String::from_utf8(bytes).ok()
+    let Some(last) = cleaned.iter().rposition(|byte| *byte != b'=') else {
+        // Padding with nothing to pad is not base64; `atob` rejects it,
+        // and only an empty value decodes to nothing.
+        return cleaned.is_empty().then(Vec::new);
+    };
+    base64::Engine::decode(&CREDENTIAL_BASE64, &cleaned[..=last]).ok()
+}
+
+/// [`base64_decode_bytes`] for the `_password` field, whose decoded form
+/// is read as text. `None` — so the caller can keep the raw value
+/// verbatim — when the input is not base64 or not UTF-8.
+fn base64_decode(input: &str) -> Option<String> {
+    String::from_utf8(base64_decode_bytes(input)?).ok()
 }
 
 /// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix in
@@ -1189,6 +1262,28 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
     }
 }
 
+/// What the config files declared about registry routing, as opposed to what
+/// the cascade merely resolved to. Collected before each layer is applied,
+/// because applying it is what makes the two indistinguishable by value.
+#[derive(Debug, Default, Clone)]
+pub struct DeclaredRegistries {
+    /// Whether any config file named the registry packages resolve from,
+    /// through `registry` or a `registries` entry routing the bare `@`.
+    pub registry: bool,
+    /// The package scopes any config file routed.
+    pub scopes: BTreeSet<String>,
+}
+
+/// Which of `_auth`'s two trusted sources a value came from. They differ in
+/// standing, not in shape: the environment is the operator's channel and
+/// mandates its routes, while the config file is the user's own store and
+/// only fills in what nothing else declares.
+#[derive(Clone, Copy)]
+enum JsonAuthOrigin {
+    Env,
+    File,
+}
+
 /// The parsed `_auth` setting: registry URL → scope → credentials.
 /// Deserialization is strict — any malformed entry (bad JSON, wrong shape,
 /// invalid URL/scope, unsupported credential field) is an error, never a
@@ -1211,40 +1306,60 @@ struct JsonAuthRegistry {
     nerfed: String,
 }
 
+/// Validate a registry URL as an `_auth` key, returning it normalized.
+///
+/// The single home of the rule, so a writer of the setting — `pnpm login`
+/// recording what it was granted — refuses up front exactly what the reader
+/// would refuse afterwards, rather than leaving a document that no later
+/// command can load.
+///
+/// Error messages never echo the URL: it can embed secrets in userinfo or a
+/// query string, and they reach logs.
+pub fn validate_json_auth_registry(value: &str) -> Result<String, String> {
+    let Ok(url) = url::Url::parse(value) else {
+        return Err("an `_auth` key is not a valid http(s) registry URL".to_string());
+    };
+    if url.scheme() != "http" && url.scheme() != "https" {
+        return Err("an `_auth` registry URL must use http or https".to_string());
+    }
+    let Some(host) = url.host_str() else {
+        return Err("an `_auth` registry URL must have a host".to_string());
+    };
+    // A credential-free label for the remaining messages.
+    let label = match url.port() {
+        Some(port) => format!("{}://{host}:{port}", url.scheme()),
+        None => format!("{}://{host}", url.scheme()),
+    };
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(format!(
+            "registry URL {label} must not include credentials, a query, or a fragment",
+        ));
+    }
+    let normalized = normalize_registry_url(url.as_str());
+    if nerf_dart(&normalized).is_empty() {
+        return Err(format!("registry URL {label} is not a valid registry URL"));
+    }
+    Ok(normalized)
+}
+
+/// Whether `scope` is a key `_auth` accepts: the bare `@` standing for the
+/// registry itself, or a package scope such as `@org`. Shares its home with
+/// [`validate_json_auth_registry`] for the same reason.
+#[must_use]
+pub fn is_json_auth_scope(scope: &str) -> bool {
+    scope == DEFAULT_REGISTRY_SCOPE || is_package_scope(scope)
+}
+
 impl TryFrom<String> for JsonAuthRegistry {
     type Error = String;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        // Error messages never echo the raw key: it can embed secrets in
-        // userinfo or a query string, and these messages reach logs.
-        let Ok(url) = url::Url::parse(&value) else {
-            return Err("an `_auth` key is not a valid http(s) registry URL".to_string());
-        };
-        if url.scheme() != "http" && url.scheme() != "https" {
-            return Err("an `_auth` registry URL must use http or https".to_string());
-        }
-        let Some(host) = url.host_str() else {
-            return Err("an `_auth` registry URL must have a host".to_string());
-        };
-        // A credential-free label for the remaining messages.
-        let label = match url.port() {
-            Some(port) => format!("{}://{host}:{port}", url.scheme()),
-            None => format!("{}://{host}", url.scheme()),
-        };
-        if !url.username().is_empty()
-            || url.password().is_some()
-            || url.query().is_some()
-            || url.fragment().is_some()
-        {
-            return Err(format!(
-                "registry URL {label} must not include credentials, a query, or a fragment",
-            ));
-        }
-        let normalized = normalize_registry_url(url.as_str());
+        let normalized = validate_json_auth_registry(&value)?;
         let nerfed = nerf_dart(&normalized);
-        if nerfed.is_empty() {
-            return Err(format!("registry URL {label} is not a valid registry URL"));
-        }
         Ok(JsonAuthRegistry { normalized, nerfed })
     }
 }

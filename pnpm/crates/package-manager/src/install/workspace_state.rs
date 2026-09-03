@@ -6,6 +6,7 @@ use super::{
     gvs_build_marker_present, gvs_build_markers_may_require_recovery, load_workspace_projects,
     manifest_string_field, unapproved_recorded_ignored_builds,
 };
+use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {
@@ -554,7 +555,10 @@ pub(super) fn build_projects_map(
 /// [`pnpm_workspace_state::update_workspace_state`].
 ///
 /// Records the projects pacquet just materialized plus the resolved
-/// settings the install used.
+/// settings the install used. `lastValidatedTimestamp` is the
+/// [`validation_baseline_ms`] of the lockfile and manifests raised to
+/// `filesystem_now_ms`, per [`refreshed_validation_baseline_ms`]; the
+/// wall clock stands in only when nothing can be stat'd.
 /// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
 /// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
@@ -572,26 +576,14 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     filtered_install: bool,
+    filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
     WorkspaceState {
-        // Record the freshness baseline from the lockfile this install
-        // just wrote, not the wall clock. The repeat-install fast path
-        // compares this timestamp against file mtimes, so the two must be
-        // on the same clock: on a runner whose wall clock runs ahead of
-        // the filesystem's mtime clock (observed ~2 ms on some CI
-        // microVMs), a wall-clock baseline can sit above the mtime of
-        // a manifest/pnpmfile edited moments later, hiding the edit and
-        // wrongly keeping the fast path. The lockfile's own mtime shares
-        // the filesystem clock with every file the check compares, so no
-        // skew is possible. Mirrors pnpm's `checkDepsStatus`, whose
-        // single-project path keys off the wanted lockfile's mtime. Fall
-        // back to the clock only when no lockfile was written.
-        last_validated_timestamp: crate::optimistic_repeat_install::validation_baseline_ms(
-            workspace_root,
-            config,
-            project_manifests,
-        )
-        .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+        last_validated_timestamp: refreshed_validation_baseline_ms(
+            validation_baseline_ms(workspace_root, config, project_manifests)
+                .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+            filesystem_now_ms,
+        ),
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config),
         filtered_install,

@@ -160,6 +160,8 @@ async function handleMessage (
             files: {
               filesMap: verifyResult.filesMap,
               sideEffectsMaps: verifyResult.sideEffectsMaps,
+              sideEffectsDiffs: verifyResult.sideEffectsDiffs,
+              remoteSideEffectsQuarantine: verifyResult.remoteSideEffectsQuarantine,
               resolvedFrom: 'store',
               requiresBuild,
               requiresPrepare: pkgFilesIndex.requiresPrepare,
@@ -286,6 +288,7 @@ interface AddFilesFromDirResult {
     manifest?: BundledManifest
     requiresBuild: boolean
     requiresPrepare?: boolean
+    sideEffects?: SideEffectsDiff
   }
   indexWrites?: IndexWrite[]
 }
@@ -350,6 +353,7 @@ function addFilesFromDir (
   let requiresBuild: boolean
   let storedRequiresPrepare = requiresPrepare
   let indexWrites: IndexWrite[] | undefined
+  let sideEffects: SideEffectsDiff | undefined
   if (sideEffectsCacheKey) {
     const existingFilesIndex = getStoreIndex(storeDir).get(filesIndexFile) as PackageFilesIndex | undefined
     if (!existingFilesIndex) {
@@ -373,7 +377,8 @@ function addFilesFromDir (
         `Algorithm mismatch: package index uses "${existingFilesIndex.algo}" but side effects were computed with "${HASH_ALGORITHM}"`
       )
     }
-    existingFilesIndex.sideEffects.set(sideEffectsCacheKey, calculateDiff(existingFilesIndex.files, filesIntegrity))
+    sideEffects = calculateDiff(existingFilesIndex.files, filesIntegrity)
+    existingFilesIndex.sideEffects.set(sideEffectsCacheKey, sideEffects)
     if (existingFilesIndex.requiresBuild == null) {
       requiresBuild = pkgRequiresBuild(manifest, filesMap)
     } else {
@@ -392,7 +397,17 @@ function addFilesFromDir (
     }
     indexWrites = [{ key: filesIndexFile, buffer: packToShared(pkgFilesIndex) }]
   }
-  return { status: 'success', value: { filesMap, manifest: bundledManifest, requiresBuild, requiresPrepare: storedRequiresPrepare }, indexWrites }
+  return {
+    status: 'success',
+    value: {
+      filesMap,
+      manifest: bundledManifest,
+      requiresBuild,
+      requiresPrepare: storedRequiresPrepare,
+      sideEffects,
+    },
+    indexWrites,
+  }
 }
 
 function addManifestToCafs (cafs: CafsFunctions, filesIndex: FilesIndex, manifest: DependencyManifest): void {

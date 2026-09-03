@@ -132,6 +132,29 @@ fn installs_node_runtime_from_the_rc_channel() {
     assert!(fs::read_to_string(workspace.join("pnpm-lock.yaml")).unwrap().contains(version));
 }
 
+#[test]
+fn installs_node_runtime_from_an_authenticated_mirror() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release_with_auth(&mut server, version, Some("Bearer mirror-token"));
+    let workspace = prepare_workspace(
+        &root,
+        format!("nodeDownloadMirrors:\n  rc: '{}/'\n", server.url()).as_str(),
+    );
+    let server_url = server.url();
+    let authority = server_url.trim_start_matches("http:");
+    fs::write(workspace.join(".npmrc"), format!("{authority}/:_authToken=mirror-token\n")).unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "dependencies": { "node": format!("runtime:{version}") } }).to_string(),
+    )
+    .unwrap();
+
+    command(&workspace).with_arg("install").assert().success();
+    assert!(workspace.join("node_modules/node/package.json").exists());
+}
+
 /// The registry mock knows no package named "node", so resolving the alias
 /// name there instead of leaving the dependency to the runtime resolver
 /// fails the update.
@@ -267,6 +290,61 @@ fn devengines_runtime_with_download_is_installed() {
 
     command(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
     assert_installed(&workspace, std::slice::from_ref(&fixture));
+}
+
+#[cfg(unix)]
+#[test]
+fn downloaded_node_runtime_is_available_to_dependency_lifecycle_scripts() {
+    let root = tempfile::tempdir().unwrap();
+    let mut server = mockito::Server::new();
+    let version = "24.0.0-rc.4";
+    let _mocks = mock_node_release(&mut server, version);
+    let workspace = prepare_workspace(
+        &root,
+        format!(
+            "nodeDownloadMirrors:\n  rc: '{}/'\nallowBuilds:\n  'dependency@file:dependency': true\n",
+            server.url(),
+        )
+        .as_str(),
+    );
+    let dependency = workspace.join("dependency");
+    fs::create_dir(&dependency).unwrap();
+    fs::write(
+        dependency.join("package.json"),
+        json!({
+            "name": "dependency",
+            "version": "1.0.0",
+            "scripts": { "install": "node && printf ran > lifecycle-ran" },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "dependencies": { "dependency": "file:dependency" },
+            "devEngines": {
+                "runtime": { "name": "node", "version": version, "onFail": "download" },
+            },
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let empty_path = root.path().join("empty-path");
+    fs::create_dir(&empty_path).unwrap();
+    std::os::unix::fs::symlink("/bin/sh", empty_path.join("sh")).unwrap();
+
+    command(&workspace).with_env("PATH", &empty_path).with_arg("install").assert().success();
+    let lifecycle_marker = workspace.join("node_modules/dependency/lifecycle-ran");
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
+
+    fs::remove_dir_all(workspace.join("node_modules")).unwrap();
+    command(&workspace)
+        .with_env("PATH", empty_path)
+        .with_args(["install", "--frozen-lockfile", "--offline"])
+        .assert()
+        .success();
+    assert!(lifecycle_marker.exists(), "missing lifecycle marker: {lifecycle_marker:?}");
 }
 
 #[test]
@@ -616,6 +694,14 @@ fn node_archive_name(version: &str, platform: &str, arch: &str) -> String {
 }
 
 pub(crate) fn mock_node_release(server: &mut mockito::Server, version: &str) -> [mockito::Mock; 3] {
+    mock_node_release_with_auth(server, version, None)
+}
+
+fn mock_node_release_with_auth(
+    server: &mut mockito::Server,
+    version: &str,
+    authorization: Option<&str>,
+) -> [mockito::Mock; 3] {
     let archive_name = node_archive_name(version, host_platform(), host_arch());
     let archive = if host_platform() == "win32" {
         let prefix = archive_name.strip_suffix(".zip").unwrap();
@@ -624,22 +710,30 @@ pub(crate) fn mock_node_release(server: &mut mockito::Server, version: &str) -> 
         build_tarball("node", version, true)
     };
     let digest = format!("{:x}", Sha256::digest(&archive));
-    let index = server
+    let mut index = server
         .mock("GET", "/index.json")
         .with_status(200)
-        .with_body(format!(r#"[{{"version":"v{version}","lts":false}}]"#))
-        .create();
-    let shasums = server
+        .with_body(format!(r#"[{{"version":"v{version}","lts":false}}]"#));
+    if let Some(authorization) = authorization {
+        index = index.match_header("authorization", authorization);
+    }
+    let index = index.create();
+    let mut shasums = server
         .mock("GET", format!("/v{version}/SHASUMS256.txt").as_str())
         .with_status(200)
-        .with_body(format!("{digest}  {archive_name}\n"))
-        .create();
-    let archive = server
+        .with_body(format!("{digest}  {archive_name}\n"));
+    if let Some(authorization) = authorization {
+        shasums = shasums.match_header("authorization", authorization);
+    }
+    let shasums = shasums.create();
+    let mut archive = server
         .mock("GET", format!("/v{version}/{archive_name}").as_str())
         .with_status(200)
-        .with_body(archive)
-        .create();
-    [index, shasums, archive]
+        .with_body(archive);
+    if let Some(authorization) = authorization {
+        archive = archive.match_header("authorization", authorization);
+    }
+    [index, shasums, archive.create()]
 }
 
 fn command(workspace: &Path) -> Command {

@@ -1,0 +1,7 @@
+{
+  "name": "@pnpm.e2e/optional-peer-c-consumer-peer",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/depends-on-optional-peer-c-host": "1.0.0"
+  }
+}

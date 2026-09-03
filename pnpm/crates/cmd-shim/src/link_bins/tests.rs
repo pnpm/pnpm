@@ -213,6 +213,37 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
 }
 
 #[test]
+fn same_package_bin_conflict_prefers_latest_version() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp.path().join("node_modules");
+    let packages = [("@_ts/min", "5.4.5"), ("typescript", "6.0.2"), ("@_ts/max", "6.0.3")].map(
+        |(alias, version)| {
+            let location = modules.join(alias);
+            create_dir_all(location.join("bin")).unwrap();
+            write_file(location.join("bin/tsc"), "#!/usr/bin/env node\n").unwrap();
+            PackageBinSource::new(
+                location,
+                Arc::new(json!({
+                    "name": "typescript",
+                    "version": version,
+                    "bin": { "tsc": "bin/tsc" },
+                })),
+            )
+        },
+    );
+    let expected_target = modules.join("@_ts/max/bin/tsc");
+    let bins = modules.join(".bin");
+
+    link_bins_of_packages::<Host>(&packages, &bins, &LinkBinsOptions::default()).unwrap();
+
+    let body = read_to_string(bins.join("tsc")).unwrap();
+    assert!(
+        is_shim_pointing_at(&body, &expected_target),
+        "the highest TypeScript version must provide `tsc`, got body:\n{body}",
+    );
+}
+
+#[test]
 fn link_bins_propagates_parse_manifest_error() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
@@ -520,6 +551,75 @@ fn link_bins_propagates_chmod_error_via_di() {
     )
     .expect_err("chmod error must propagate");
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
+}
+
+#[test]
+fn link_bins_swallows_shim_chmod_not_found_via_di() {
+    use std::io;
+
+    struct NotFoundShimChmod;
+    impl FsReadDir for NotFoundShimChmod {
+        fn read_dir(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            Ok(empty())
+        }
+    }
+    impl FsReadFile for NotFoundShimChmod {
+        fn read_file(_: &Path) -> io::Result<Vec<u8>> {
+            unreachable!()
+        }
+    }
+    impl FsReadToString for NotFoundShimChmod {
+        fn read_to_string(_: &Path) -> io::Result<String> {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+    impl FsReadHead for NotFoundShimChmod {
+        fn read_head(_: &Path, _: u64, _: &mut [u8]) -> io::Result<usize> {
+            Ok(0)
+        }
+    }
+    impl FsCreateDirAll for NotFoundShimChmod {
+        fn create_dir_all(_: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsWrite for NotFoundShimChmod {
+        fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsSetExecutable for NotFoundShimChmod {
+        fn set_executable(_: &Path) -> io::Result<()> {
+            Err(io::Error::from(io::ErrorKind::NotFound))
+        }
+    }
+    impl FsEnsureExecutableBits for NotFoundShimChmod {
+        fn ensure_executable_bits(_: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    impl FsWalkFiles for NotFoundShimChmod {
+        fn walk_files(_: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            unreachable!("directories.bin not exercised by this test");
+            #[expect(
+                unreachable_code,
+                reason = "kept so the method returns its declared type after the `unreachable!()` above"
+            )]
+            Ok(empty())
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "").unwrap();
+    link_bins_of_packages::<NotFoundShimChmod>(
+        &[PackageBinSource::new(pkg, Arc::new(manifest))],
+        &tmp.path().join(".bin"),
+        &LinkBinsOptions::default(),
+    )
+    .expect("NotFound on shim chmod must be tolerated for concurrent GVS writers");
 }
 
 #[test]

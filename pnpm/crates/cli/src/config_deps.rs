@@ -408,19 +408,6 @@ impl EnvInstallerContext {
     }
 }
 
-/// Run the `updateConfig` pnpmfile hooks contributed by config-dependency
-/// plugins (and the project's own pnpmfile), applying their result to
-/// `config`. Plugin pnpmfiles run before the project pnpmfile, each
-/// transforming the config object in turn.
-///
-/// Config round-trips through [`WorkspaceSettings`], so any settings key
-/// a hook changes is applied back the same way `pnpm-workspace.yaml` is.
-/// Only the keys a hook actually changed are applied, so values resolved
-/// from `.npmrc` / CLI flags that the hooks leave untouched are not
-/// clobbered. The `catalog:`/`catalogs:` blocks — which pacquet models
-/// outside `WorkspaceSettings` — are seeded into the hook input and, when
-/// a hook changes them, captured into [`Config::catalogs`] for the install
-/// to use.
 /// The pnpmfile paths that contribute hooks for `root_dir`, in
 /// application order: config-dependency plugin pnpmfiles (lexical
 /// order) first, then the workspace-root `.pnpmfile.{cjs,mjs}`. Shared
@@ -468,14 +455,48 @@ pub fn load_before_packing_hooks(
         .collect())
 }
 
+/// Install the project's `configDependencies` and apply the `updateConfig`
+/// pnpmfile hooks to `config`, returning the loaded hook objects. `dir` is
+/// the command's working directory; the config root is derived from it the
+/// same way the install family derives it.
+///
+/// The entry point for commands outside the install family, each of which
+/// resolves its own [`Config`]: pnpm applies `updateConfig` once per
+/// invocation, before the command runs, so a hook's settings — including
+/// `extraEnv` and `extraBinPaths` — reach every command's child processes.
+pub async fn prepare_config<Reporter: self::Reporter>(
+    config: &mut Config,
+    dir: &Path,
+) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
+    let config_root = config.root_project_manifest_dir(dir).to_path_buf();
+    install_config_deps::<Reporter>(config, &config_root, config.frozen_lockfile.unwrap_or(false))
+        .await?;
+    run_update_config_hooks::<Reporter>(config, &config_root).await
+}
+
+/// Run the `updateConfig` pnpmfile hooks contributed by config-dependency
+/// plugins and the project's own pnpmfile, applying their result to `config`.
+/// The returned handles are the same loaded hook objects that ran
+/// `updateConfig`, so packing can retain the original hook set when the hook
+/// changes a hook-selection setting such as `ignorePnpmfile`.
+///
+/// Config round-trips through [`WorkspaceSettings`], so any settings key a
+/// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
+/// the keys a hook actually changed are applied, so values resolved from
+/// `.npmrc` or CLI flags that the hooks leave untouched are not clobbered.
+/// The `catalog:`/`catalogs:` blocks — which pacquet models outside
+/// `WorkspaceSettings` — are seeded into the hook input and, when changed,
+/// captured into [`Config::catalogs`] for install and packing commands.
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,
     root_dir: &Path,
-) -> Result<()> {
+) -> Result<Vec<Arc<dyn PnpmfileHooks>>> {
     let pnpmfiles = resolve_pnpmfile_paths(config, root_dir)
         .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))?;
+    let hooks: Vec<Arc<dyn PnpmfileHooks>> =
+        pnpmfiles.iter().cloned().map(finder::load_pnpmfile_at).collect();
     if pnpmfiles.is_empty() {
-        return Ok(());
+        return Ok(hooks);
     }
 
     let (base_dir, settings) = match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
@@ -521,17 +542,14 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
     let mut has_filter_log = false;
-    for pnpmfile in &pnpmfiles {
-        let hooks = finder::load_pnpmfile_at(pnpmfile.clone());
+    for (pnpmfile, hook) in pnpmfiles.iter().zip(&hooks) {
         let ctx = HookContext { log: hook_logger::<Reporter>(pnpmfile, &prefix), dir: None };
-        current = hooks
+        current = hook
             .update_config(current, ctx)
             .await
             .map_err(|err| miette::miette!("{err}"))
-            .wrap_err_with(|| {
-            format!("running updateConfig hook from {}", pnpmfile.display())
-        })?;
-        has_filter_log |= hooks.has_filter_log().await;
+            .wrap_err_with(|| format!("running updateConfig hook from {}", pnpmfile.display()))?;
+        has_filter_log |= hook.has_filter_log().await;
     }
     if has_filter_log {
         Reporter::emit(&LogEvent::Pnpm(PnpmLog {
@@ -564,7 +582,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 
     let delta = config_delta(&input, &current);
     if delta.as_object().is_none_or(serde_json::Map::is_empty) {
-        return Ok(());
+        return Ok(hooks);
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
     let changed_prefer_frozen_lockfile = delta.get("preferFrozenLockfile").cloned();
@@ -625,7 +643,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             global_virtual_store_dir_explicit,
         );
     }
-    Ok(())
+    Ok(hooks)
 }
 
 /// The keys whose value the hooks changed between the serialized input

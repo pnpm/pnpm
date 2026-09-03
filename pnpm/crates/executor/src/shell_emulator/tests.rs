@@ -12,7 +12,7 @@ fn run(
 ) -> (i32, Vec<(LifecycleStdio, String)>) {
     let lines = Mutex::new(Vec::new());
     let sink = |stdio, line| lines.lock().expect("the sink is never poisoned").push((stdio, line));
-    let code = execute_emulated(script, cwd, env, EmulatedOutput::Lines(&sink))
+    let code = execute_emulated(script, cwd, env, EmulatedOutput::Lines(&sink), None)
         .expect("run the script under the emulator");
     (code, lines.into_inner().expect("the sink is never poisoned"))
 }
@@ -104,6 +104,7 @@ fn rejects_a_script_the_shell_cannot_parse() {
         dir.path(),
         &HashMap::new(),
         EmulatedOutput::Inherit,
+        None,
     )
     .expect_err("an unparsable script is an error, not an exit code");
     dbg!(&error);

@@ -5,7 +5,7 @@ use super::{
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
-    dispatch::{CommandFuture, RunCtx},
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
     dlx::DlxArgs,
     env::{EnvArgs, EnvSubcommand},
     fetch::FetchArgs,
@@ -31,6 +31,7 @@ use super::{
     update::UpdateArgs,
     update_notifier,
 };
+use crate::State;
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
@@ -302,6 +303,8 @@ pub(super) fn install_test<'a>(
         reverse: false,
         parallel: ctx.recursive_parallel,
         sequential: false,
+        dry_run: false,
+        json: false,
     };
 
     let install_future = install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?;
@@ -319,14 +322,9 @@ pub(super) fn install_test<'a>(
         run_args.sort = cfg.sort;
         run_args.reverse = cfg.reverse;
         if recursive {
-            run_args.run_recursive(
-                cfg,
-                dir,
-                reporter_emit(reporter),
-                matches!(reporter, ReporterType::Ndjson | ReporterType::Silent),
-            )?;
+            run_args.run_recursive(cfg, dir, reporter)?;
         } else {
-            run_args.run(dir, cfg, matches!(reporter, ReporterType::Silent))?;
+            run_args.run(dir, cfg, reporter)?;
         }
 
         Ok(())
@@ -447,29 +445,39 @@ pub(super) fn fetch<'a>(ctx: &RunCtx<'a>, args: FetchArgs) -> miette::Result<Com
 }
 
 pub(super) fn import<'a>(ctx: &RunCtx<'a>, args: ImportArgs) -> miette::Result<CommandFuture<'a>> {
-    let command_state = (ctx.state)(false)?;
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(command_state))
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path.to_path_buf();
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let command_state =
+            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(command_state).await
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await,
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
-    })
+    }))
 }
 
 pub(super) fn link<'a>(ctx: &RunCtx<'a>, args: LinkArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
     let manifest_path = ctx.manifest_path.to_path_buf();
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>((ctx.config)()?, manifest_path))
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(config, manifest_path).await
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(config, manifest_path).await,
+            ReporterType::Silent => args.run::<SilentReporter>(config, manifest_path).await,
         }
-        ReporterType::Ndjson => {
-            Box::pin(args.run::<NdjsonReporter>((ctx.config)()?, manifest_path))
-        }
-        ReporterType::Silent => {
-            Box::pin(args.run::<SilentReporter>((ctx.config)()?, manifest_path))
-        }
-    })
+    }))
 }
 
 pub(super) fn unlink<'a>(ctx: &RunCtx<'a>, args: UnlinkArgs) -> miette::Result<CommandFuture<'a>> {
@@ -526,6 +534,7 @@ pub(super) fn rebuild<'a>(
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        apply_update_config(cfg, dir, reporter).await?;
         let recursive_sort = cfg.sort;
         let recursive_no_bail = !cfg.bail;
         args.pending = resolve_bool_override(args.pending, args.no_pending, cfg.pending);

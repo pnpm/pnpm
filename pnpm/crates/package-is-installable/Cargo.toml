@@ -11,6 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pnpm-semver-include-prerelease = { workspace = true }
+
 derive_more = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }

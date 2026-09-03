@@ -8,7 +8,7 @@
 //! its own check in that case.
 
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_deps_restorer::graph_sequencer;
+use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
@@ -26,26 +26,34 @@ use std::{
 /// project depending on an unselected one — is dropped rather than
 /// followed, so two selected projects joined only through a third are
 /// not a cycle. pnpm sequences its selected graph the same way. The
-/// cycle list can be empty for an unorderable set, which is why the
-/// verdict is the `Option` rather than the list's emptiness.
+/// Self-references are reported by the sequencer but do not make a workspace
+/// unorderable, so only cycles with more than one project are returned.
 #[must_use]
 pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBuf>>> {
-    let dirs: Vec<PathBuf> = graph.keys().cloned().collect();
-    let included: HashSet<&Path> = dirs.iter().map(PathBuf::as_path).collect();
-    let edges: HashMap<PathBuf, Vec<PathBuf>> = graph
+    // The sequencer runs over borrowed paths: a workspace-scale graph
+    // holds tens of thousands of edges, and cloning every `PathBuf`
+    // into a throwaway map cost more than the sort itself.
+    let dirs: Vec<PathNode<'_>> = graph.keys().map(|dir| PathNode(dir)).collect();
+    let included: HashSet<PathNode<'_>> = dirs.iter().copied().collect();
+    let edges: HashMap<PathNode<'_>, Vec<PathNode<'_>>> = graph
         .iter()
         .map(|(dir, node)| {
             let dependencies = node
                 .dependencies
                 .iter()
-                .filter(|dependency| included.contains(dependency.as_path()))
-                .cloned()
+                .map(|dependency| PathNode(dependency))
+                .filter(|dependency| included.contains(dependency))
                 .collect();
-            (dir.clone(), dependencies)
+            (PathNode(dir), dependencies)
         })
         .collect();
-    let sequenced = graph_sequencer(&edges, &dirs);
-    (!sequenced.safe).then_some(sequenced.cycles)
+    let cycles = graph_sequencer(&edges, &dirs)
+        .cycles
+        .into_iter()
+        .filter(|cycle| cycle.len() > 1)
+        .map(|cycle| cycle.into_iter().map(|node| node.0.to_path_buf()).collect())
+        .collect::<Vec<Vec<PathBuf>>>();
+    (!cycles.is_empty()).then_some(cycles)
 }
 
 /// The cycles among the projects an install covers: `selected_dirs`

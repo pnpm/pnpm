@@ -241,8 +241,9 @@ async function discoverActions (dir: string): Promise<ActionReference[]> {
     const localReferences: string[] = []
     for (const node of findUsesScalars(document.contents)) {
       const value = node.value
-      if (value.startsWith('./')) {
-        localReferences.push(value)
+      const localReference = parseLocalReference(value)
+      if (localReference != null) {
+        localReferences.push(localReference)
         continue
       }
       const parsed = parseActionReference(value)
@@ -301,6 +302,17 @@ function findMapValue (node: Node, key: string): Node | null {
 function findStringScalar (node: Node, key: string): Scalar<string> | null {
   const value = findMapValue(node, key)
   return isScalar(value) && typeof value.value === 'string' ? value as Scalar<string> : null
+}
+
+/**
+ * Returns the repository-relative path of a `uses:` value that points into the
+ * same repository, either the workspace-relative `./` form or GitHub's
+ * self-repository `$/` form. Returns `null` for every other value, such as an
+ * `owner/repo@ref` or `docker://` reference, which is left to
+ * `parseActionReference`.
+ */
+function parseLocalReference (value: string): string | null {
+  return value.startsWith('./') || value.startsWith('$/') ? value.slice(2) : null
 }
 
 async function resolveLocalReference (rootDir: string, reference: string): Promise<string | null> {

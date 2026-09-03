@@ -16,6 +16,7 @@ pnpm-cmd-shim                          = { workspace = true }
 pnpm-config                            = { workspace = true }
 pnpm-executor                          = { workspace = true }
 pnpm-exportable-manifest               = { workspace = true }
+pnpm-fs                                = { workspace = true }
 pnpm-fs-packlist                       = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-package-manifest                  = { workspace = true }
@@ -31,10 +32,10 @@ serde       = { workspace = true }
 serde_json  = { workspace = true }
 tar         = { workspace = true }
 tempfile    = { workspace = true }
+tokio       = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-tokio    = { workspace = true }
 
 [lints]
 workspace = true

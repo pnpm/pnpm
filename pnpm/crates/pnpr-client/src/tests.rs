@@ -1,16 +1,87 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, future::pending, time::Duration};
 
 use indexmap::IndexMap;
 use pnpm_config::{PackageExtension, ResolutionMode, TrustPolicy};
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::TarballRevision;
 use serde_json::{Value, json};
+use tokio::net::TcpListener;
 
 use super::{
     Frame, PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION, PnprClient, PnprClientError,
     ResolveOutcome, ResolveProject, ResolveProjectsOptions, ResolvedPackage, VerifyError,
     build_verify_error, parse_frame,
 };
+
+#[tokio::test]
+async fn artifact_handshake_times_out() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let (_connection, _) = listener.accept().await.unwrap();
+        pending::<()>().await;
+    });
+    let mut client = PnprClient::new(format!("http://{address}"));
+    client.artifact_request_timeout = Duration::from_millis(25);
+
+    let error = client.handshake_artifacts().await.unwrap_err();
+
+    assert!(matches!(error, PnprClientError::Http(error) if error.is_timeout()));
+    server.abort();
+}
+
+#[tokio::test]
+async fn lockfile_repair_rejects_a_server_without_the_capability() {
+    let mut options = resolve_projects_options();
+    options.fix_lockfile = true;
+    options.update_patches = false;
+    let mut server = mockito::Server::new_async().await;
+    let handshake_mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[0]}}"#)
+        .create_async()
+        .await;
+
+    let Err(error) = PnprClient::new(server.url()).resolve_projects(options).await else {
+        panic!("an older server must not silently ignore repair mode");
+    };
+
+    assert!(error.to_string().contains("does not advertise lockfile repair support"));
+    handshake_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn lockfile_repair_uses_an_advertised_capability() {
+    let mut options = resolve_projects_options();
+    options.fix_lockfile = true;
+    options.update_patches = false;
+    let response_lockfile = matching_transform_lockfile(&options);
+    let mut server = mockito::Server::new_async().await;
+    let handshake_mock = server
+        .mock("GET", "/-/pnpr")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"pnpr":{"versions":[0],"fixLockfile":[0]}}"#)
+        .create_async()
+        .await;
+    let resolve_mock = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .match_body(mockito::Matcher::PartialJson(json!({ "fixLockfile": true })))
+        .with_header(PROJECT_TRANSFORMS_HEADER, PROJECT_TRANSFORMS_VERSION)
+        .with_body(format!("{}\n", json!({ "type": "done", "lockfile": response_lockfile })))
+        .create_async()
+        .await;
+
+    let _ = PnprClient::new(server.url())
+        .resolve_projects(options)
+        .await
+        .expect("the advertised repair request succeeds");
+
+    handshake_mock.assert_async().await;
+    resolve_mock.assert_async().await;
+}
 
 /// The request body is the whole contract with the server: a field the
 /// client omits is not defaulted server-side but cleared, so the server
@@ -170,6 +241,7 @@ fn resolve_projects_options() -> ResolveProjectsOptions {
         frozen_lockfile: false,
         prefer_frozen_lockfile: None,
         update_patches: true,
+        fix_lockfile: false,
         ignore_manifest_check: false,
         trust_lockfile: true,
         resolution_mode: ResolutionMode::TimeBased,

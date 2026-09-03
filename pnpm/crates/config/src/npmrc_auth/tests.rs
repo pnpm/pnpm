@@ -3,7 +3,7 @@ use std::path::Path;
 use pnpm_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
 use pretty_assertions::assert_eq;
 
-use crate::Config;
+use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
 
 use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 
@@ -256,6 +256,56 @@ fn env_replace_substitutes_token() {
 }
 
 #[test]
+fn env_replace_substitutes_quoted_token_without_quotes() {
+    static_env!(EnvWithToken, &[("TOKEN", "abc123")]);
+
+    for quoted in [r#""${TOKEN}""#, "'${TOKEN}'", r#""\u0024{TOKEN}""#] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<EnvWithToken>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("abc123")));
+    }
+}
+
+#[test]
+fn parses_ini_quoted_values() {
+    for (quoted, expected) in [
+        (r#""literal-token""#, "literal-token"),
+        ("'literal-token'", "literal-token"),
+        (r#""token\nline""#, "token\nline"),
+        ("'", ""),
+        (r#""unterminated"#, r#""unterminated"#),
+        ("'unterminated", "'unterminated"),
+    ] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some(expected)));
+    }
+}
+
+#[test]
+fn project_ini_ignores_quoted_auth_env_placeholders() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    for quoted in [r#""${SECRET}""#, r#""\u0024{SECRET}""#] {
+        let ini = format!("//attacker.example/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(&ini, Path::new(""));
+
+        assert!(
+            auth.creds_by_scope_by_uri.is_empty(),
+            "unexpected credentials: {:?}",
+            auth.creds_by_scope_by_uri,
+        );
+        assert!(
+            auth.warnings
+                .iter()
+                .any(|warning| warning.contains("Ignored project-level auth setting")),
+            "warnings: {:?}",
+            auth.warnings,
+        );
+    }
+}
+
+#[test]
 fn project_ini_ignores_env_placeholders_in_registry_urls() {
     static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
 
@@ -431,7 +481,7 @@ fn basic_auth_built_from_username_and_password() {
 }
 
 #[test]
-fn auth_pair_base64_passes_through_to_basic_header() {
+fn auth_pair_base64_keys_to_basic_header() {
     let pair = base64_encode("alice:p@ss");
     let ini = format!("//reg.com/:_auth={pair}\n");
     let mut config = Config::new();
@@ -440,6 +490,87 @@ fn auth_pair_base64_passes_through_to_basic_header() {
         config.auth_headers.for_url("https://reg.com/").as_deref(),
         Some(format!("Basic {pair}").as_str()),
     );
+}
+
+/// An `_auth` spelled without its `=` padding — as a shell pipeline or a
+/// hand-written `.npmrc` leaves it — reaches the registry canonically
+/// encoded, not verbatim (pnpm/pnpm#14257).
+#[test]
+fn unpadded_auth_pair_base64_is_canonically_re_encoded() {
+    let padded = base64_encode("alice:pass1");
+    let unpadded = padded.trim_end_matches('=');
+    assert_ne!(unpadded, padded, "the fixture must exercise the padding branch");
+    let ini = format!("//reg.com/:_auth={unpadded}\n");
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(
+        config.auth_headers.for_url("https://reg.com/").as_deref(),
+        Some(format!("Basic {padded}").as_str()),
+    );
+}
+
+/// A value that decodes only once its trailing garbage is thrown away is
+/// not a credential — pnpm's `atob` rejects it, so pacquet must too.
+#[test]
+fn auth_pair_base64_with_a_suffix_after_its_padding_is_rejected() {
+    let ini = format!("//reg.com/:_auth={}garbage\n", base64_encode("alice:p@ss"));
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("trailing garbage after the padding must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" }),
+        "got: {error:?}",
+    );
+}
+
+/// Padding with nothing to pad is not base64 — the answer `atob` gives
+/// it — so it fails as an undecodable value rather than as a credential
+/// that decoded but carries no separator.
+#[test]
+fn auth_pair_base64_of_only_padding_is_rejected_as_invalid_base64() {
+    let ini = "//reg.com/:_auth=====\n";
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("an all-padding _auth must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" }),
+        "got: {error:?}",
+    );
+}
+
+/// An `_auth` left empty — the shape an unresolved `${VAR}` leaves —
+/// names no credential, so it is skipped instead of failing the load.
+#[test]
+fn empty_auth_pair_base64_supplies_no_header() {
+    let ini = "//reg.com/:_auth=\n";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
+}
+
+#[test]
+fn auth_pair_base64_that_does_not_decode_is_rejected() {
+    let ini = "//reg.com/:_auth=not*base64\n";
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("invalid base64 in _auth must fail the load");
+    assert!(
+        matches!(error, LoadWorkspaceYamlError::AuthInvalidBase64 { key: "_auth" }),
+        "got: {error:?}",
+    );
+}
+
+#[test]
+fn auth_pair_base64_without_a_colon_is_rejected() {
+    let ini = format!("//reg.com/:_auth={}\n", base64_encode("alice"));
+    let mut config = Config::new();
+    let error = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""))
+        .build_auth_headers(&mut config)
+        .expect_err("a passwordless _auth must fail the load");
+    assert!(matches!(error, LoadWorkspaceYamlError::AuthMissingSeparator), "got: {error:?}");
 }
 
 /// `[section]`-style headers are not legal `.npmrc` syntax (npm's
@@ -542,14 +673,34 @@ fn invalid_base64_password_falls_back_to_raw_value() {
 /// Without these assertions the password-decode fallback
 /// (`unwrap_or_else(... pass_b64.clone())`) path stays unreachable
 /// from the parser tests.
+///
+/// Every case here is an `atob` result: the decoder answers what pnpm's
+/// `decodeBase64Credential` answers for the same value.
 #[test]
-fn base64_decode_covers_every_alphabet_branch() {
+fn base64_decode_matches_atob() {
     assert_eq!(base64_decode(&base64_encode("alice:hunter2")).as_deref(), Some("alice:hunter2"));
     assert_eq!(base64_decode("Pz8/").as_deref(), Some("???"));
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
+    // Padding may be redundant, short of what the value needs, or
+    // missing entirely, and whitespace may appear anywhere.
     assert_eq!(base64_decode("aGk===").as_deref(), Some("hi"));
+    assert_eq!(base64_decode("Zm9vOmJhcg=").as_deref(), Some("foo:bar"));
+    assert_eq!(base64_decode("aGk").as_deref(), Some("hi"));
+    assert_eq!(base64_decode("aG k=").as_deref(), Some("hi"));
+    // A truncated final group keeps the whole bytes it does carry.
+    assert_eq!(base64_decode("aH").as_deref(), Some("h"));
+    // A lone trailing character carries no whole byte of its own.
+    assert_eq!(base64_decode("aGkyM"), None);
+    // `=` is padding, so anything after it is not base64, and padding
+    // with nothing to pad is not base64 either.
+    assert_eq!(base64_decode("Zm9vOmJhcg==garbage"), None);
+    assert_eq!(base64_decode("aGk=x"), None);
+    assert_eq!(base64_decode("===="), None);
     assert_eq!(base64_decode("not*base64"), None);
+    // Only an empty value decodes to nothing.
+    assert_eq!(base64_decode("").as_deref(), Some(""));
+    assert_eq!(base64_decode("  ").as_deref(), Some(""));
 }
 
 // --- Proxy parsing and cascade tests ---

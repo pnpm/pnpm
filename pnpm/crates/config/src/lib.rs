@@ -20,6 +20,7 @@ mod workspace_yaml;
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
     global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir},
+    npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
 };
 
 use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
@@ -59,12 +60,66 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, UpdateConfig,
-    UpdateSettings, WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings,
-    decided_allow_builds,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
+
+impl Config {
+    /// The environment is the last word on the remote side-effects cache: it is
+    /// where a CI runner injects the signing material that must not be
+    /// committed, and where a build job flips publication on for one
+    /// invocation.
+    ///
+    /// Read here rather than by the installer so the values reach it as
+    /// ordinary settings. A malformed JSON variable is dropped with a warning
+    /// rather than failing the install, matching how the feature degrades to a
+    /// local build on every other cache failure.
+    pub(crate) fn apply_remote_side_effects_cache_env<Sys: EnvVar>(&mut self) {
+        let mut settings = RemoteSideEffectsCacheSettings::default();
+        let mut set_any = false;
+        if let Some((publish, _)) = side_effects_cache_remote_env::<Sys>("PUBLISH") {
+            settings.publish = Some(publish == "true");
+            set_any = true;
+        }
+        for (field, suffix) in [
+            (&mut settings.key_id, "KEY_ID"),
+            (&mut settings.builder_id, "BUILDER_ID"),
+            (&mut settings.image_digest, "IMAGE_DIGEST"),
+            (&mut settings.architecture_baseline, "ARCHITECTURE_BASELINE"),
+            (&mut settings.private_key, "PRIVATE_KEY"),
+        ] {
+            if let Some((value, _)) = side_effects_cache_remote_env::<Sys>(suffix) {
+                *field = Some(value);
+                set_any = true;
+            }
+        }
+        for (field, suffix) in
+            [(&mut settings.build_env, "BUILD_ENV"), (&mut settings.trusted_keys, "TRUSTED_KEYS")]
+        {
+            let Some((value, variable)) = side_effects_cache_remote_env::<Sys>(suffix) else {
+                continue;
+            };
+            match serde_json::from_str::<BTreeMap<String, String>>(&value) {
+                Ok(parsed) => {
+                    *field = Some(parsed);
+                    set_any = true;
+                }
+                Err(error) => tracing::warn!(
+                    target: "pacquet::config",
+                    variable,
+                    %error,
+                    "remote side-effects environment variable is not a string-valued JSON object",
+                ),
+            }
+        }
+        if set_any {
+            self.remote_side_effects_cache.get_or_insert_default().overlay(settings);
+        }
+    }
+}
 
 fn default_ci<Sys: EnvVar>(detect_ci: fn() -> bool) -> bool {
     let ci = Sys::var("CI");
@@ -1386,6 +1441,9 @@ pub struct Config {
     /// The default package scope for `pnpm login` and `pnpm adduser`: the
     /// granted token is associated with this scope and the scope-to-registry
     /// mapping is recorded. Overridden by `--scope`.
+    ///
+    /// No repo-committed config file can set it — see
+    /// [`crate::refused_keys`].
     pub scope: Option<String>,
 
     /// Scoped registry routes keyed by `@scope`, populated from
@@ -1761,6 +1819,19 @@ pub struct Config {
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
 
+    pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
+
+    /// `sideEffectsCache.read` and `.write` as declared, which
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer over the boolean pair.
+    ///
+    /// The pair cannot express every combination the declaration can: reading
+    /// without writing is `sideEffectsCacheReadonly`, but writing without
+    /// reading — populate a cache this run never consumes, which is what a
+    /// warming CI job wants — has no spelling in it at all.
+    pub side_effects_cache_read_setting: Option<bool>,
+    pub side_effects_cache_write_setting: Option<bool>,
+
     /// Path to the user-level `.npmrc` to read auth from, overriding the
     /// default `~/.npmrc`. The `npmrcAuthFile` setting (and the
     /// `--userconfig` alias). Resolved in [`Config::current`] from this
@@ -1970,10 +2041,9 @@ pub struct Config {
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
     /// `extraEnv` object, wired up in `pnpm_cli`'s
-    /// `run_update_config_hooks`. That hook runs only for the
-    /// install-family commands (install, deploy, dedupe, prune), so this
-    /// is non-empty only under those; other commands' spawn sites read it
-    /// too, but see an empty map until the hook broadens.
+    /// `run_update_config_hooks`. That hook runs for the install family
+    /// and commands that pack packages, making the returned environment
+    /// available to their lifecycle scripts.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
@@ -2361,9 +2431,9 @@ pub struct Config {
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
-    /// them, in which case the install reads catalogs straight from the
+    /// them, in which case consumers read catalogs straight from the
     /// workspace manifest. `Some` carries the complete catalog set the
-    /// hook produced (existing + injected), so the install uses it as-is
+    /// hook produced (existing + injected), so consumers use it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
     pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
@@ -2420,6 +2490,12 @@ pub struct Config {
     /// patterns the command skips, and whether GitHub Actions should be
     /// updated.
     pub update_config: workspace_yaml::UpdateConfig,
+
+    /// `tasks` from `pnpm-workspace.yaml`: the workspace's task
+    /// declarations, consumed by the recursive `run` task scheduler. See
+    /// [`workspace_yaml::TaskSettings`]. Empty when the workspace declares
+    /// none.
+    pub tasks: IndexMap<String, workspace_yaml::TaskSettings>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See
@@ -2631,21 +2707,23 @@ impl Config {
         }
     }
 
-    /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Returns the user-supplied value when set, else `false`.
+    /// Effective value of [`Self::minimum_release_age_strict`]: the
+    /// user-supplied value when set, otherwise `true` if `minimumReleaseAge`
+    /// was explicitly configured.
     ///
-    /// pnpm flips this to `true` when the user *explicitly* set
-    /// `minimumReleaseAge`, but the "explicitly set vs default" check
-    /// relies on an `explicitlySetKeys` tracker that pacquet's config
-    /// layer doesn't have yet. Without that, distinguishing the built-in
-    /// 1440-minute default from a user-typed `minimumReleaseAge: 1440`
-    /// isn't possible, so this resolver stays conservative: explicit
-    /// `true` / `false` from yaml wins, otherwise `false`. The verifier
-    /// itself doesn't gate on this flag — it's resolver-only — so
-    /// the conservative default is dormant until pacquet grows the
-    /// resolver and the `explicitlySetKeys` mechanism alongside it.
+    /// Without that default a user-set cutoff would silently fall back to an
+    /// immature version whenever no mature one satisfies the range, making the
+    /// setting look like it had no effect. The built-in 1440-minute default
+    /// stays non-strict for backward compatibility, so the two are told apart
+    /// through [`Self::explicit_settings`] rather than through the value
+    /// itself. A repository's cutoff never reaches `self-update`, which
+    /// [`WorkspaceSettings::clear_self_update_policy`] drops before the
+    /// workspace yaml is recorded there.
+    ///
+    /// [`WorkspaceSettings::clear_self_update_policy`]: crate::WorkspaceSettings::clear_self_update_policy
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict.unwrap_or(false)
+        self.minimum_release_age_strict
+            .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
     }
 
     /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
@@ -2754,6 +2832,21 @@ impl Config {
         registries
     }
 
+    /// Apply a boolean `sideEffectsCache` declaration, which turns the
+    /// local read and write gates on or off together.
+    ///
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer the object form's
+    /// fields, so a layer spelling the setting as a boolean has to clear
+    /// what an earlier layer's object left behind to beat it. The remote
+    /// tier is a separate declaration the boolean says nothing about, so
+    /// it survives untouched.
+    pub fn apply_side_effects_cache_shorthand(&mut self, enabled: bool) {
+        self.side_effects_cache = enabled;
+        self.side_effects_cache_read_setting = None;
+        self.side_effects_cache_write_setting = None;
+    }
+
     /// Whether the install should consult the side-effects cache
     /// (`sideEffectsCacheRead = sideEffectsCache ?? sideEffectsCacheReadonly`).
     ///
@@ -2763,7 +2856,8 @@ impl Config {
     /// `sideEffectsCacheReadonly: true` with `sideEffectsCache: false`
     /// and get a read-only view.
     pub fn side_effects_cache_read(&self) -> bool {
-        self.side_effects_cache || self.side_effects_cache_readonly
+        self.side_effects_cache_read_setting
+            .unwrap_or(self.side_effects_cache || self.side_effects_cache_readonly)
     }
 
     /// Whether the install is allowed to populate the side-effects
@@ -2774,7 +2868,8 @@ impl Config {
     /// flags are explicitly set, but `readonly` as a flag name only makes
     /// sense if it really does block writes.
     pub fn side_effects_cache_write(&self) -> bool {
-        self.side_effects_cache && !self.side_effects_cache_readonly
+        self.side_effects_cache_write_setting
+            .unwrap_or(self.side_effects_cache && !self.side_effects_cache_readonly)
     }
 
     /// Resolve relative patch file paths in
@@ -3024,7 +3119,7 @@ impl Config {
     /// This runs after all config sources have been merged because an explicit
     /// `shamefullyHoist` value takes precedence over `publicHoistPattern`
     /// regardless of which source supplied either setting.
-    fn apply_shamefully_hoist_derivation(&mut self) {
+    pub fn apply_shamefully_hoist_derivation(&mut self) {
         match self.explicit_settings.get("shamefullyHoist").and_then(serde_json::Value::as_bool) {
             Some(true) => self.public_hoist_pattern = Some(vec!["*".to_string()]),
             Some(false) => self.public_hoist_pattern = None,
@@ -3509,13 +3604,18 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
         if let Some(mut global_settings) = global_settings {
+            note_declared_registries(&mut declared_registries, &global_settings);
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
             global_virtual_store_dir_explicit |= global_settings.global_virtual_store_dir.is_some();
             store_dir_explicit |= global_settings.store_dir.is_some();
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.expand_global_dir_home_prefixes::<Sys>();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
@@ -3584,6 +3684,9 @@ impl Config {
                 // config and PNPM_CONFIG_CI are applied in their own layers.
                 settings.ci = None;
                 settings.state_dir = None;
+                settings.scope = None;
+                settings.global_dir = None;
+                settings.global_bin_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3596,6 +3699,7 @@ impl Config {
                     settings.clear_self_update_policy();
                 }
                 self.workspace_key_issues = settings.key_issues.clone();
+                note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
@@ -3615,7 +3719,7 @@ impl Config {
         // repo-controlled registries) but before `PNPM_CONFIG_*` (so an
         // explicit `pnpm_config_registry` / `--registry` still wins) —
         // pnpm's "CLI > _auth > yaml" precedence.
-        npmrc_auth.apply_json_env_registries(&mut self);
+        npmrc_auth.apply_json_env_registries(&mut self, &declared_registries);
 
         // Apply `PNPM_CONFIG_*` env vars *after* `pnpm-workspace.yaml`:
         // env vars override yaml. The `WorkspaceSettings::apply_to`
@@ -3643,8 +3747,10 @@ impl Config {
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
+        env_settings.expand_global_dir_home_prefixes::<Sys>();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
+        self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =
             configured_state_dir.as_deref().filter(|value| !value.is_empty())
         {
@@ -3712,13 +3818,6 @@ impl Config {
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
         // `bin = globalBinDir ?? <pnpm-home>/bin`.
-        if self.global_dir.is_none() {
-            self.global_dir = read_pnpm_env::<Sys>("global_dir", "GLOBAL_DIR").map(PathBuf::from);
-        }
-        if self.global_bin_dir.is_none() {
-            self.global_bin_dir =
-                read_pnpm_env::<Sys>("global_bin_dir", "GLOBAL_BIN_DIR").map(PathBuf::from);
-        }
         let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
         let global_dir_root = self
             .global_dir
@@ -3816,6 +3915,25 @@ impl Config {
 /// [`WorkspaceSettings::apply_to`] and fills in the spelling the source left
 /// out, or `pnpm config get` would answer one of the two with the value the
 /// install did not use.
+/// Record what `settings` declares about registry routing, before
+/// [`WorkspaceSettings::apply_to`] consumes it.
+fn note_declared_registries(
+    declared: &mut crate::npmrc_auth::DeclaredRegistries,
+    settings: &WorkspaceSettings,
+) {
+    declared.registry |= settings.registry.is_some();
+    let Some(entries) = settings.registries.as_ref() else {
+        return;
+    };
+    for scope in crate::workspace_yaml::registries::routed_scopes(entries) {
+        if scope == crate::workspace_yaml::registries::DEFAULT_REGISTRY_SCOPE {
+            declared.registry = true;
+        } else {
+            declared.scopes.insert(scope);
+        }
+    }
+}
+
 fn collect_explicit_settings(
     target: &mut serde_json::Map<String, serde_json::Value>,
     settings: &WorkspaceSettings,
@@ -3860,7 +3978,9 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     trusted_auth.warnings.clear();
     let mut config = Config::default();
     trusted_auth.apply_registry_and_warn(&mut config);
-    trusted_auth.apply_json_env_registries(&mut config);
+    // No config file reaches the bootstrap cascade, so none declares here.
+    trusted_auth
+        .apply_json_env_registries(&mut config, &crate::npmrc_auth::DeclaredRegistries::default());
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;
@@ -3927,4 +4047,23 @@ fn full_metadata_policy(
     supports_time_field: bool,
 ) -> bool {
     trust_policy == TrustPolicy::NoDowngrade || (time_based && !supports_time_field)
+}
+
+/// Reads one field of the remote tier from the environment, under the name
+/// that matches the setting and under the one that matched its older spelling.
+///
+/// A machine configured for `remoteSideEffectsCache` keeps working; a machine
+/// setting both gets the name that matches the setting it is configuring.
+/// The name comes back with the value because a malformed one is reported by
+/// name, and naming a variable the user did not set sends them looking for it.
+fn side_effects_cache_remote_env<Sys: EnvVar>(suffix: &str) -> Option<(String, String)> {
+    for variable in [
+        format!("PNPM_SIDE_EFFECTS_CACHE_REMOTE_{suffix}"),
+        format!("PNPM_REMOTE_SIDE_EFFECTS_CACHE_{suffix}"),
+    ] {
+        if let Some(value) = Sys::var(&variable) {
+            return Some((value, variable));
+        }
+    }
+    None
 }

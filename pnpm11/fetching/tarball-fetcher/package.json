@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/fetching.tarball-fetcher",
-  "version": "1102.0.15",
+  "version": "1102.1.0",
   "description": "Fetcher for packages hosted as tarballs",
   "keywords": [
     "pnpm",

@@ -26,7 +26,9 @@ use miette::Diagnostic;
 use pnpm_cmd_shim::{Host, LinkBinsError, LinkBinsOptions, link_bins};
 use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::PkgIdWithPatchHash;
-use pnpm_reporter::{LogEvent, LogLevel, Reporter, StatsLog, StatsMessage};
+use pnpm_reporter::{
+    LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter, StatsLog, StatsMessage,
+};
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -298,7 +300,23 @@ fn import_node<Reporter: self::Reporter>(
             ..ImportIndexedDirOpts::default()
         },
     )
-    .map_err(LinkHoistedModulesError::ImportIndexedDir)
+    .map_err(LinkHoistedModulesError::ImportIndexedDir)?;
+
+    // `pnpm:progress imported` — see the matching emit in
+    // `create_virtual_dir_by_snapshot::run` for the rationale on the
+    // optimistic `method` value. Under `nodeLinker: hoisted` that emit
+    // never runs (no virtual-store slot is written), so this is the
+    // only source of the reporter's `added` counter.
+    Reporter::emit(&LogEvent::Progress(ProgressLog {
+        level: LogLevel::Debug,
+        message: ProgressMessage::Imported {
+            method: crate::optimistic_wire_method(opts.import_method),
+            requester: opts.requester.to_owned(),
+            to: node.dir.to_string_lossy().into_owned(),
+        },
+    }));
+
+    Ok(())
 }
 
 #[cfg(test)]

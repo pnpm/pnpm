@@ -9,7 +9,7 @@
 
 use crate::cli_args::ping::PingArgs;
 use clap::Args;
-use pnpm_config::Config;
+use pnpm_config::{Config, PNPM_VERSION};
 use serde::Serialize;
 use std::{
     fmt::Write as _,
@@ -167,10 +167,9 @@ impl DoctorArgs {
 }
 
 fn check_versions() -> CheckResult {
-    let pnpm_version = env!("CARGO_PKG_VERSION");
     let detail = match node_version() {
-        Some(node_version) => format!("pnpm {pnpm_version}, Node.js {node_version}"),
-        None => format!("pnpm {pnpm_version}"),
+        Some(node_version) => format!("pnpm {PNPM_VERSION}, Node.js {node_version}"),
+        None => format!("pnpm {PNPM_VERSION}"),
     };
     CheckResult::pass("Versions", detail)
 }

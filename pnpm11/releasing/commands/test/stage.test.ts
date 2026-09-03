@@ -5,7 +5,7 @@ import path from 'node:path'
 import { describe, expect, test } from '@jest/globals'
 import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
 import { stage } from '@pnpm/releasing.commands'
-import { REGISTRY_URL } from '@pnpm/testing.command-defaults'
+import { overrideTty, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import tar from 'tar-stream'
 import { temporaryDirectory } from 'tempy'
@@ -245,7 +245,7 @@ describe('stage command against the registry mock', () => {
         doneUrl: 'https://registry.example.com/-/v1/done?authId=test-auth-id',
       },
     }))
-    const restoreTty = forceNonInteractiveTty()
+    const restoreTty = overrideTty(false)
     try {
       await expect(stage.handler({
         ...stageOpts(registry.url),
@@ -282,7 +282,7 @@ describe('stage command against the registry mock', () => {
       return { status: 404, body: { error: 'not found' } }
     })
     baseUrl = registry.url
-    const restoreTty = forceInteractiveTty()
+    const restoreTty = overrideTty(true)
     try {
       const result = await stage.handler({
         ...stageOpts(registry.url),
@@ -421,7 +421,7 @@ describe('stage command against the registry mock', () => {
       return { status: 404, body: { error: 'not found' } }
     })
     baseUrl = registry.url
-    const restoreTty = forceInteractiveTty()
+    const restoreTty = overrideTty(true)
     try {
       const result = await stage.handler({
         ...stageOpts(registry.url),
@@ -629,7 +629,7 @@ describe('stage command against the registry mock', () => {
 
   test('stage approve without a stage id requires an interactive terminal', async () => {
     const registry = await createRegistry(() => ({ status: 500, body: { error: 'nothing should be requested' } }))
-    const restoreTty = forceNonInteractiveTty()
+    const restoreTty = overrideTty(false)
     try {
       await expect(stage.handler(stageOpts(registry.url), ['approve']))
         .rejects.toMatchObject({ code: 'ERR_PNPM_STAGE_ID_REQUIRED' })
@@ -653,7 +653,7 @@ describe('stage command against the registry mock', () => {
       }
       return { status: 404, body: { error: 'not found' } }
     })
-    const restoreTty = forceInteractiveTty()
+    const restoreTty = overrideTty(true)
     try {
       await expect(stage.handler(stageOpts(registry.url), ['approve']))
         .resolves.toBe('There are no staged packages awaiting approval.')
@@ -670,7 +670,7 @@ describe('stage command against the registry mock', () => {
       }
       return { status: 404, body: { error: 'not found' } }
     })
-    const restoreTty = forceInteractiveTty()
+    const restoreTty = overrideTty(true)
     try {
       await expect(stage.handler(stageOpts(registry.url), ['approve']))
         .resolves.toBe('There are no staged packages awaiting approval.')
@@ -801,7 +801,7 @@ function createPackageTarball (manifest: { name: string, version: string }): Pro
   return new Promise((resolve, reject) => {
     const pack = tar.pack()
     const chunks: Buffer[] = []
-    pack.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)))
+    pack.on('data', (chunk) => chunks.push(Buffer.from(chunk as Uint8Array)))
     pack.on('error', reject)
     pack.on('end', () => resolve(Buffer.concat(chunks)))
     pack.entry({ name: 'package/package.json' }, JSON.stringify(manifest), (err?: Error | null) => {
@@ -816,38 +816,6 @@ function createPackageTarball (manifest: { name: string, version: string }): Pro
 
 function headerValue (value: http.IncomingHttpHeaders[string]): string | undefined {
   return Array.isArray(value) ? value[0] : value
-}
-
-function forceInteractiveTty (): () => void {
-  return overrideTty(true)
-}
-
-function forceNonInteractiveTty (): () => void {
-  return overrideTty(false)
-}
-
-/**
- * Pins both terminal streams to `isTTY`, so a test exercises the interactive
- * or the non-interactive path whether or not the suite itself runs on a
- * terminal. Returns the restore function.
- */
-function overrideTty (isTTY: boolean): () => void {
-  const originalStdin = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
-  const originalStdout = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
-  Object.defineProperty(process.stdin, 'isTTY', { value: isTTY, configurable: true })
-  Object.defineProperty(process.stdout, 'isTTY', { value: isTTY, configurable: true })
-  return () => {
-    if (originalStdin) {
-      Object.defineProperty(process.stdin, 'isTTY', originalStdin)
-    } else {
-      delete (process.stdin as { isTTY?: boolean }).isTTY
-    }
-    if (originalStdout) {
-      Object.defineProperty(process.stdout, 'isTTY', originalStdout)
-    } else {
-      delete (process.stdout as { isTTY?: boolean }).isTTY
-    }
-  }
 }
 
 function readRequestBody (req: http.IncomingMessage): Promise<Buffer> {

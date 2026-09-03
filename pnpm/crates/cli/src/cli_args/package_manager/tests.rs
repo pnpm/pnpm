@@ -1,4 +1,4 @@
-use super::{package_manager_to_sync, wanted_package_manager};
+use super::{package_manager_to_sync, version_satisfies, wanted_package_manager};
 use pnpm_config::PNPM_VERSION;
 use std::path::Path;
 
@@ -37,4 +37,32 @@ fn a_range_pin_is_left_as_written() {
 
     assert_eq!(pm.version.as_deref(), Some(">=9.1.0 <9.1.2"));
     assert!(package_manager_to_sync(&manifest, Path::new("."), None).is_none());
+}
+
+/// Every expectation is npm's own answer, read off
+/// `semver.satisfies(version, range, { includePrerelease: true })` — the
+/// call the TypeScript CLI checks the same pins with.
+#[test]
+fn a_version_is_matched_against_a_pin_the_way_npm_matches_it() {
+    let cases = [
+        ("12.0.0-rc.7", "^12.0.0-rc.3", true),
+        ("12.0.0-rc.7", "12.0.0-rc.7", true),
+        ("12.0.0-rc.7", "^12", true),
+        ("12.0.0-rc.7", ">=12", true),
+        ("12.0.0-rc.7", "^11 || ^12", true),
+        // A prerelease sorts below its own release, so a pin naming a later
+        // one — or the release itself — leaves it behind.
+        ("12.0.0-rc.7", ">=12.0.0-rc.9", false),
+        ("12.0.0-rc.7", "^12.0.0-rc.11", false),
+        ("12.0.0-rc.7", "12.0.0", false),
+        ("12.0.0-rc.7", "^12.0.0", false),
+        ("12.0.0-rc.7", ">=12.0.0", false),
+        ("12.0.0", "^12.0.0", true),
+        ("22.5.0", "<=22", true),
+        ("not a version", "*", false),
+    ];
+
+    for (version, pin, satisfies) in cases {
+        assert_eq!(version_satisfies(version, pin), satisfies, "{version} against {pin}");
+    }
 }

@@ -60,6 +60,7 @@ pnpm-workspace-manifest-writer         = { workspace = true }
 pnpm-workspace-range-resolver          = { workspace = true }
 pnpm-workspace-spec                    = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
+pnpm-workspace-task-scheduler          = { workspace = true }
 
 async-recursion = { workspace = true }
 chrono          = { workspace = true }

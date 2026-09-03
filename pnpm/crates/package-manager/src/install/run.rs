@@ -68,6 +68,7 @@ where
             rebuild,
             selection,
             root_manifest_as_workspace_root,
+            deploy_manifest_hook,
             lockfile_specifier_project_manifests,
             read_package_hooked_manifest_paths,
             save_lockfile,
@@ -198,6 +199,9 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
+        let catalog_context_present = catalogs_override.is_some()
+            || config.catalogs.is_some()
+            || (!config.ignore_workspace && workspace_dir_opt.is_some());
         // Prefer a caller-supplied in-memory catalogs set
         // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
         // resolving a bumped `catalog:` entry that is not written to disk),
@@ -281,23 +285,25 @@ where
         // `NoLockfile` or `OutdatedLockfile` error still fires when
         // the lockfile is missing or stale.
 
-        let manifest_is_root_importer = root_manifest_as_workspace_root
-            || workspace_projects_are_overridden
-            || !config.shares_one_lockfile();
         let project_manifests = match selection.as_ref() {
             Some(selection) => build_selected_project_manifests_list(
                 manifest,
                 selection.all_projects,
                 selection.active_manifest_is_standin,
             ),
-            None if manifest_is_root_importer => build_root_importer_project_manifests_list(
-                &workspace_root,
-                manifest,
-                // Dedicated per-project lockfiles record a single "."
-                // importer per project; sibling projects only feed the
-                // `workspace:` resolver, never the importer list.
-                config.shares_one_lockfile().then_some(workspace_projects).flatten(),
-            ),
+            None if root_manifest_as_workspace_root => {
+                build_root_importer_project_manifests_list(&workspace_root, manifest, None)
+            }
+            None if workspace_projects_are_overridden || !config.shares_one_lockfile() => {
+                build_root_importer_project_manifests_list(
+                    &workspace_root,
+                    manifest,
+                    // Dedicated per-project lockfiles record a single "."
+                    // importer per project; sibling projects only feed the
+                    // `workspace:` resolver, never the importer list.
+                    config.shares_one_lockfile().then_some(workspace_projects).flatten(),
+                )
+            }
             None => build_project_manifests_list(manifest, workspace_projects),
         };
         let install_importer_ids = selection.as_ref().map(|selection| {
@@ -426,6 +432,14 @@ where
             }
         }
 
+        // Past the fast path every install flavor reads the wanted
+        // lockfile; start its read + parse on a background thread so it
+        // overlaps the cycle check below. The forced load further down
+        // joins it. (A run the pipeline knew would get here — frozen /
+        // forced — started this prefetch before project discovery, and
+        // this call is then a no-op.)
+        lockfile.prefetch();
+
         // Report the projects this install covers depending on each
         // other in a cycle — after the short-circuit above, because pnpm
         // returns from "Already up to date" before reaching its own
@@ -435,7 +449,19 @@ where
             && let Some(workspace_dir) = workspace_dir_opt.as_deref()
         {
             let scope = match selection.as_ref() {
-                Some(selection) => Some((selection.all_projects, Some(selection.selected_dirs))),
+                // A plan that already sequenced this very graph hands
+                // its cycle report over; the install then skips
+                // rebuilding the graph just to find them again.
+                Some(selection) => match selection.workspace_cycles {
+                    crate::PrecomputedWorkspaceCycles::Known(cycles) => {
+                        crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles)
+                            .map_err(InstallError::CyclicWorkspaceDependencies)?;
+                        None
+                    }
+                    crate::PrecomputedWorkspaceCycles::Unknown => {
+                        Some((selection.all_projects, Some(selection.selected_dirs)))
+                    }
+                },
                 // A single-project mutation (`add`, `update`, ...) has no
                 // set to cycle within; only a full install covers the
                 // whole workspace.
@@ -477,30 +503,62 @@ where
         // below: a load that failed leaves nothing cached, so asking later
         // would retry it and turn a lockfile this arm chose to ignore into
         // a fatal one.
-        let (lockfile, pre_merge_importers) = match lockfile_source.get() {
-            Ok(lockfile) => (
-                lockfile,
-                lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
-            ),
-            Err(error) if !frozen_lockfile => {
-                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                    level: LogLevel::Warn,
-                    message: format!(
-                        "Ignoring broken lockfile at {}: {error}",
-                        workspace_root.display(),
-                    ),
-                    prefix: prefix.clone(),
-                }));
-                (None, None)
-            }
-            Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
-        };
+        let (lockfile, lockfile_shared, merge_wanted_lockfile, pre_merge_importers) =
+            match lockfile_source.get() {
+                Ok(lockfile) => (
+                    lockfile,
+                    lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source
+                        .pre_merge_importers()
+                        .map_err(InstallError::LoadWantedLockfile)?,
+                ),
+                Err(error) if !frozen_lockfile => {
+                    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                        level: LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            workspace_root.display(),
+                        ),
+                        prefix: prefix.clone(),
+                    }));
+                    (None, None, None, None)
+                }
+                Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
+            };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "load_wanted_lockfile",
             elapsed_ms = phase_start.elapsed().as_millis() as u64,
             "phase complete",
         );
+
+        // Spawn the installability host detection (`node --version`,
+        // ~150 ms of node startup) as soon as the wanted lockfile is
+        // parsed, so the probe overlaps planning on the frozen path and
+        // the whole resolution on the fresh path. A constraint-free
+        // lockfile spawns nothing — the probe's result would go unused
+        // (see `detect_installability_host` for why that matters) —
+        // and neither does `--force` (skips the checks) or a
+        // resolve-only pass (returns before them). The scan is of the
+        // *wanted* lockfile: a fresh resolve whose new graph gains
+        // constraints the old lockfile lacked just detects the host at
+        // its own site, as before.
+        let early_host_detection = (!config.force
+            && !resolve_only
+            && lockfile.is_some_and(|lockfile| match (&lockfile.snapshots, &lockfile.packages) {
+                (Some(snapshots), Some(packages)) if !snapshots.is_empty() => {
+                    pnpm_deps_restorer::any_installability_constraint(snapshots, packages)
+                }
+                _ => false,
+            }))
+        .then(|| {
+            pnpm_deps_restorer::materialization_plan::HostDetection::spawn(
+                config.engine_strict,
+                super::effective_node_version(config, manifest),
+                supported_architectures.clone(),
+            )
+        });
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Register
@@ -1079,6 +1137,7 @@ where
             hoisted_dependencies,
             hoisted_locations,
             install_skipped,
+            peer_issue_importer_ids,
             fresh_lockfile,
             store_index_teardown,
         } = materialize::<Reporter>(MaterializationInputs {
@@ -1089,6 +1148,15 @@ where
             config,
             manifest,
             lockfile,
+            // The dispatch above may have swapped `lockfile` for a
+            // synthesized, branch-pruned, or fast-updated document; the
+            // loader's handle is forwarded only while it still *is* the
+            // lockfile, so a downstream consumer can never seed from a
+            // superseded document.
+            lockfile_shared: lockfile_shared.filter(|shared| {
+                lockfile.is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
+            }),
+            merge_wanted_lockfile,
             take_frozen_path,
             lockfile_verification_override,
             resolution_verifiers,
@@ -1107,6 +1175,7 @@ where
             mutation,
             current_lockfile: current_lockfile.as_ref(),
             supported_architectures: supported_architectures.as_ref(),
+            early_host_detection,
             skip_runtimes,
             modules_manifest,
             prior_hoisted_dependencies,
@@ -1126,6 +1195,7 @@ where
             peer_issues_sink,
             deps_requiring_build_sink,
             pnpmfile_hook,
+            deploy_manifest_hook,
             save_lockfile,
             manifest_spec_bumps,
             catalogs: &catalogs,
@@ -1133,11 +1203,13 @@ where
         })
         .await?;
 
+        let phase_start = std::time::Instant::now();
         apply_materialization_result::<Reporter>(ApplyMaterializationInputs {
             resolve_only,
             dry_run,
             peer_issues_sink_is_none,
             existing_wanted_lockfile,
+            peer_issue_importer_ids,
             fresh_lockfile,
             prefix,
             lockfile,
@@ -1170,9 +1242,16 @@ where
             selection,
             supported_architectures,
             catalogs,
+            catalog_context_present,
             verified_file_integrity_baseline,
         })
         .await?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "apply_materialization_result",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Only now wait out the store-index writer's teardown — its
         // final flush and the WAL checkpoint `SQLite` runs when the

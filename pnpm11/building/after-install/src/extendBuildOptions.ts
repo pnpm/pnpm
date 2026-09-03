@@ -4,7 +4,7 @@ import { DEFAULT_REGISTRIES_BY_SCOPE, normalizeRegistriesByScope } from '@pnpm/c
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import type { LogBase } from '@pnpm/logger'
 import type { StoreController } from '@pnpm/store.controller-types'
-import type { RegistriesByScope, RegistryConfig, SupportedArchitectures } from '@pnpm/types'
+import type { ProjectRootDir, RegistriesByScope, RegistryConfig, SupportedArchitectures } from '@pnpm/types'
 import { loadJsonFile } from 'load-json-file'
 
 export type StrictBuildOptions = {
@@ -53,6 +53,7 @@ export type StrictBuildOptions = {
   virtualStoreDir?: string
   virtualStoreDirMaxLength: number
   peersSuffixMaxLength: number
+  projectDependencies?: Map<ProjectRootDir, ProjectRootDir[]>
   strictStorePkgContentCheck: boolean
   fetchFullMetadata?: boolean
   supportedArchitectures?: SupportedArchitectures

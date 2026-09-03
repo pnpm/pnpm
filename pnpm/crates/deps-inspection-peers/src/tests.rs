@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use pnpm_config::PeerDependencyRules;
 
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, filter_peer_issues,
-    format_range, intersect_multiple_ranges, merge_missing_peers, normalize_version_str,
-    parse_allowed_versions, path_is_within, satisfies,
+    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
+    filter_peer_issues, format_range, intersect_multiple_ranges, merge_missing_peers,
+    normalize_version_str, parse_allowed_versions, satisfies,
 };
 
 fn have_common_version(version_ranges: &[String]) -> bool {
@@ -535,12 +535,30 @@ fn test_path_is_within() {
     let sub = base.join("foo");
     std::fs::create_dir(&sub).unwrap();
 
-    assert!(path_is_within(&sub, base));
-    assert!(path_is_within(base, base));
+    assert!(canonical_path_within(&sub, base).is_some());
+    assert!(canonical_path_within(base, base).is_some());
 
     let outside = base.join("../bar");
-    assert!(!path_is_within(&outside, base));
+    assert!(canonical_path_within(&outside, base).is_none());
 
     let absolute_outside = std::path::Path::new("/etc");
-    assert!(!path_is_within(absolute_outside, base));
+    assert!(canonical_path_within(absolute_outside, base).is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn canonical_containment_keeps_the_root_used_for_importer_ids() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    let project = real_root.join("packages/lib");
+    std::fs::create_dir_all(&project).unwrap();
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+    let canonical = canonical_path_within(&linked_root.join("packages/lib"), &linked_root).unwrap();
+
+    assert_eq!(
+        pnpm_workspace::importer_id_from_root_dir(&canonical.base, &canonical.path),
+        "packages/lib",
+    );
 }

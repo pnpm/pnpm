@@ -14,6 +14,7 @@ repository  = "https://github.com/pnpm/pacquet"
 [workspace.dependencies]
 # Crates
 pnpm-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
+pnpm-shared-artifact-protocol          = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-auth-commands                     = { path = "pnpm/crates/auth-commands" }
 pnpm-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
@@ -42,6 +43,7 @@ pnpm-package-manifest                  = { path = "pnpm/crates/package-manifest"
 pnpm-package-manager                   = { path = "pnpm/crates/package-manager" }
 pnpm-package-is-installable            = { path = "pnpm/crates/package-is-installable" }
 pnpm-lockfile                          = { path = "pnpm/crates/lockfile" }
+pnpm-lockfile-import                   = { path = "pnpm/crates/lockfile-import" }
 pnpm-lockfile-preferred-versions       = { path = "pnpm/crates/lockfile-preferred-versions" }
 pnpm-lockfile-verification             = { path = "pnpm/crates/lockfile-verification" }
 pnpm-modules-yaml                      = { path = "pnpm/crates/modules-yaml" }
@@ -80,6 +82,7 @@ pnpm-resolving-npm-resolver            = { path = "pnpm/crates/resolving-npm-res
 pnpm-resolving-parse-wanted-dependency = { path = "pnpm/crates/resolving-parse-wanted-dependency" }
 pnpm-resolving-resolver-base           = { path = "pnpm/crates/resolving-resolver-base" }
 pnpm-resolving-tarball-resolver        = { path = "pnpm/crates/resolving-tarball-resolver" }
+pnpm-semver-include-prerelease         = { path = "pnpm/crates/semver-include-prerelease" }
 pnpm-versioning                        = { path = "pnpm/crates/versioning" }
 pnpm-workspace                         = { path = "pnpm/crates/workspace" }
 pnpm-workspace-manifest-writer         = { path = "pnpm/crates/workspace-manifest-writer" }
@@ -88,13 +91,26 @@ pnpm-workspace-projects-graph          = { path = "pnpm/crates/workspace-project
 pnpm-workspace-range-resolver          = { path = "pnpm/crates/workspace-range-resolver" }
 pnpm-workspace-spec                    = { path = "pnpm/crates/workspace-spec" }
 pnpm-workspace-state                   = { path = "pnpm/crates/workspace-state" }
+pnpm-workspace-task-scheduler          = { path = "pnpm/crates/workspace-task-scheduler" }
 
 # Tasks
 pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 
 # Registry (sibling project — pnpm-compatible registry server)
-pnpr          = { path = "pnpr/crates/pnpr" }
-pnpr-fixtures = { path = "pnpr/crates/pnpr-fixtures" }
+pnpr                  = { path = "pnpr/crates/pnpr" }
+pnpr-auth             = { path = "pnpr/crates/auth" }
+pnpr-config           = { path = "pnpr/crates/config" }
+pnpr-error            = { path = "pnpr/crates/error" }
+pnpr-osv              = { path = "pnpr/crates/osv" }
+pnpr-package-name     = { path = "pnpr/crates/package-name" }
+pnpr-policy           = { path = "pnpr/crates/policy" }
+pnpr-registry         = { path = "pnpr/crates/registry" }
+pnpr-storage          = { path = "pnpr/crates/storage" }
+pnpr-route            = { path = "pnpr/crates/route" }
+pnpr-search           = { path = "pnpr/crates/search" }
+pnpr-shared-artifacts = { path = "pnpr/crates/shared-artifacts" }
+pnpr-upstream         = { path = "pnpr/crates/upstream" }
+pnpr-fixtures         = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
 async-recursion = { version = "1.1.1" }
@@ -150,14 +166,7 @@ owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
-reqwest = { version = "0.13", default-features = false, features = [
-  "gzip",
-  "hickory-dns",
-  "json",
-  "rustls",
-  "socks",
-  "stream",
-] }
+reqwest = { version = "0.13", default-features = false, features = ["gzip", "json", "rustls", "socks", "stream"] }
 node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
 pathdiff = { version = "0.2.3" }
@@ -171,6 +180,7 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 serde-saphyr = { version = "0.0.29" }

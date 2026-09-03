@@ -1,7 +1,8 @@
 use super::{
-    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, last_line, probe_link_capabilities,
-    render_report, status_mark,
+    CheckResult, CheckStatus, DoctorReport, can_write_to_dir, check_versions, last_line,
+    probe_link_capabilities, render_report, status_mark,
 };
+use pnpm_config::PNPM_VERSION;
 use pretty_assertions::assert_eq;
 
 fn report(checks: Vec<CheckResult>) -> DoctorReport {
@@ -89,4 +90,12 @@ fn can_write_to_dir_rejects_a_missing_dir() {
 fn last_line_skips_trailing_blanks() {
     assert_eq!(last_line("first\nERR_PNPM_BROKEN  it broke\n\n"), "ERR_PNPM_BROKEN  it broke");
     assert_eq!(last_line(""), "");
+}
+
+/// The `cli` crate carries a placeholder `Cargo.toml` version, so the check
+/// has to report the released version that `pnpm --version` prints.
+#[test]
+fn check_versions_reports_the_released_pnpm_version() {
+    let detail = check_versions().detail.expect("versions detail");
+    assert!(detail.starts_with(&format!("pnpm {PNPM_VERSION}")), "{detail}");
 }

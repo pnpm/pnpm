@@ -4,10 +4,11 @@
 )]
 
 use super::{
-    Install, InstallError, ProjectMutation, UpToDateFastPathCheck,
-    apply_materialization::report_verified_file_integrity, install_already_up_to_date,
-    load_workspace_projects, lockfile_freshness::exclude_linked_dependencies,
-    order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    Install, InstallError, ProjectMutation, UpToDateFastPathCheck, apply_deploy_manifest_hook,
+    apply_deploy_manifest_hook_to_arc, apply_materialization::report_verified_file_integrity,
+    install_already_up_to_date, load_workspace_projects,
+    lockfile_freshness::exclude_linked_dependencies, project_lifecycle_graph,
+    project_requires_lifecycle_scripts,
 };
 use crate::{
     AllowBuildPolicy, InstallWithFreshLockfileError, MinimumReleaseAgeError, VirtualStoreLayout,
@@ -33,7 +34,11 @@ use pnpm_testing_utils::{
 use pnpm_workspace_state::{
     self as workspace_state, NodeLinker as WorkspaceStateNodeLinker, load_workspace_state,
 };
-use std::{fs, sync::Mutex, time::Duration};
+use std::{
+    fs,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tempfile::tempdir;
 use text_block_macros::text_block;
 
@@ -53,6 +58,43 @@ fn empty_test_lockfile() -> Lockfile {
         time: None,
         extra: pnpm_lockfile::LockfileExtra::default(),
     }
+}
+
+#[test]
+fn deploy_manifest_hook_preserves_existing_dependency_metadata() {
+    let mut manifest = serde_json::json!({
+        "dependencies": {
+            "existing": "workspace:*",
+            "non-object": "workspace:*",
+            "new": "workspace:*",
+        },
+        "dependenciesMeta": {
+            "existing": { "built": false, "injected": false },
+            "non-object": null,
+        },
+    });
+
+    apply_deploy_manifest_hook(&mut manifest);
+
+    assert_eq!(
+        manifest["dependenciesMeta"],
+        serde_json::json!({
+            "existing": { "built": false, "injected": true },
+            "non-object": { "injected": true },
+            "new": { "injected": true },
+        }),
+    );
+}
+
+#[test]
+fn deploy_manifest_hook_reuses_unchanged_arc() {
+    let manifest = Arc::new(serde_json::json!({
+        "dependencies": { "registry-package": "1.0.0" },
+    }));
+
+    let transformed = apply_deploy_manifest_hook_to_arc(Arc::clone(&manifest));
+
+    assert!(Arc::ptr_eq(&manifest, &transformed));
 }
 
 #[test]
@@ -77,7 +119,7 @@ fn project_lifecycle_detection_includes_scripts_and_binding_gyp_fallback() {
 }
 
 #[test]
-fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups() {
+fn lifecycle_graph_normalizes_paths_and_recovers_from_incomplete_explicit_graph() {
     let temp = tempdir().unwrap();
     let workspace_root = temp.path().join("workspace");
     let dependency_dir = workspace_root.join("packages/holding/../dependency");
@@ -100,36 +142,33 @@ fn lifecycle_groups_normalize_paths_and_recover_from_incomplete_explicit_groups(
         "        version: link:../dependency"
     })
     .unwrap();
-    let incomplete_groups = vec![vec![dependent_dir.clone()]];
+    let incomplete_dependencies = indexmap::IndexMap::from([(dependent_dir.clone(), Vec::new())]);
 
-    let Err(missing_order_error) = order_project_lifecycle_groups(
+    let Err(missing_order_error) = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         None,
     ) else {
-        panic!("incomplete groups without a lockfile must fail");
+        panic!("incomplete graph without a lockfile must fail");
     };
     assert!(matches!(missing_order_error, InstallError::ProjectLifecycleOrder { .. }));
 
-    let groups = order_project_lifecycle_groups(
+    let graph = project_lifecycle_graph(
         &[
             (dependent_dir.clone(), &dependent_manifest),
             (dependency_dir.clone(), &dependency_manifest),
         ],
-        Some(&incomplete_groups),
+        Some(&incomplete_dependencies),
         &workspace_root,
         Some(&lockfile),
     )
     .unwrap();
-    let grouped_dirs = groups
-        .into_iter()
-        .map(|group| group.into_iter().map(|(project_dir, _)| project_dir).collect::<Vec<_>>())
-        .collect::<Vec<_>>();
-    assert_eq!(grouped_dirs, vec![vec![dependency_dir], vec![dependent_dir]]);
+    let dependency_dir = pnpm_fs::lexical_normalize(&dependency_dir);
+    assert_eq!(graph.dependencies[&dependent_dir], vec![dependency_dir]);
 }
 
 #[test]
@@ -1748,6 +1787,10 @@ async fn install_writes_workspace_state() {
 
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    pnpm_testing_utils::fs::set_mtime(
+        manifest.path(),
+        std::time::SystemTime::UNIX_EPOCH + Duration::new(1_700_000_000, 500_000),
+    );
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -1816,6 +1859,15 @@ async fn install_writes_workspace_state() {
         state.last_validated_timestamp > 0,
         "lastValidatedTimestamp should be populated, got {}",
         state.last_validated_timestamp,
+    );
+    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
+        .expect("manifest should have an mtime");
+    assert!(
+        !crate::optimistic_repeat_install::modified_at_or_after(
+            manifest_mtime,
+            state.last_validated_timestamp,
+        ),
+        "fresh install state should cover the validated manifest mtime",
     );
 
     // The state must record the project that pacquet just installed
@@ -1918,6 +1970,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[],
             false,
+            None,
         );
         assert!(state.projects.is_empty());
         assert_eq!(state.last_validated_timestamp, FAKE_NOW_MS);
@@ -1939,11 +1992,47 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[(dir.path().to_path_buf(), &manifest)],
             false,
+            None,
         );
         assert_eq!(
             state.last_validated_timestamp,
             pnpm_testing_utils::fs::mtime_ms(manifest.path()),
         );
+    }
+
+    /// A manifest mtime truncated to milliseconds reads as modified
+    /// against itself on a sub-millisecond filesystem, so the recorded
+    /// baseline is raised to the filesystem clock's `now`, which the
+    /// caller reads off a probe file.
+    #[test]
+    fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
+        let dir = tempdir().unwrap();
+        let manifest = write_manifest(dir.path(), "root", "1.0.0");
+        pnpm_testing_utils::fs::set_mtime(
+            manifest.path(),
+            SystemTime::UNIX_EPOCH + Duration::new(1_600_000_000, 500_000),
+        );
+        let config = Config::new();
+        let build = |filesystem_now_ms| {
+            build_workspace_state::<FrozenClock>(
+                dir.path(),
+                &config,
+                pnpm_config::NodeLinker::default(),
+                IncludedDependencies::default(),
+                None,
+                &BTreeMap::default(),
+                &[(dir.path().to_path_buf(), &manifest)],
+                false,
+                filesystem_now_ms,
+            )
+        };
+
+        let now_ms = 1_600_000_001_000;
+        assert_eq!(build(Some(now_ms)).last_validated_timestamp, now_ms);
+        // A manifest dated ahead of the filesystem clock keeps its own
+        // mtime as the baseline.
+        let manifest_ms = pnpm_testing_utils::fs::mtime_ms(manifest.path());
+        assert_eq!(build(Some(manifest_ms - 1)).last_validated_timestamp, manifest_ms);
     }
 
     /// Every project in the list lands in `state.projects` keyed by its
@@ -1976,6 +2065,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &project_manifests,
             false,
+            None,
         );
 
         assert_eq!(state.projects.len(), packages.len());
@@ -2013,6 +2103,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[],
             false,
+            None,
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
     }
@@ -7708,6 +7799,16 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     };
     write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    // Date the manifest inside a millisecond after the lockfile, as a
+    // sub-millisecond filesystem leaves a manifest edited after the last
+    // lockfile write: the manifest's truncated mtime alone would read as
+    // modified against itself on the next `pnpm run`.
+    let validated_at = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    pnpm_testing_utils::fs::set_mtime(
+        &virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        validated_at,
+    );
+    pnpm_testing_utils::fs::set_mtime(manifest.path(), validated_at + Duration::from_micros(500));
     // The short-circuit probes the tree it would skip; seed the one
     // direct-dep entry the lockfile records so the probe holds. A
     // marker *file* doubles as the materialization sentinel below:
@@ -7792,9 +7893,19 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     let written = load_workspace_state(&project_root)
         .expect("read workspace state")
         .expect("workspace state must be written");
+    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
+        .expect("manifest should have an mtime");
+    assert_eq!(
+        manifest_mtime.ns, 1_700_000_000_000_500_000,
+        "the short-circuit must leave the manifest untouched",
+    );
     assert!(
-        written.last_validated_timestamp > 0,
-        "last_validated_timestamp must be refreshed on the fast path",
+        !crate::optimistic_repeat_install::modified_at_or_after(
+            manifest_mtime,
+            written.last_validated_timestamp,
+        ),
+        "the refreshed state must cover the validated manifest mtime; got {}",
+        written.last_validated_timestamp,
     );
 
     drop(dir);

@@ -10,8 +10,9 @@ mod token_helper;
 
 pub use auth::{
     AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
-    base64_encode, hide_auth_information, nerf_dart, normalize_auth_key, redact_and_sanitize,
-    redact_and_sanitize_multiline, redact_url_credentials, redact_url_for_display,
+    base64_encode, base64_encode_bytes, hide_auth_information, nerf_dart, normalize_auth_key,
+    redact_and_sanitize, redact_and_sanitize_multiline, redact_url_credentials,
+    redact_url_for_display,
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
@@ -26,12 +27,9 @@ pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};
-#[cfg(target_os = "macos")]
-use reqwest::dns::Addrs;
-#[cfg(any(target_os = "macos", test))]
-use reqwest::dns::{Name, Resolve, Resolving};
 use reqwest::{
     Certificate, Client, Identity, Proxy,
+    dns::{Addrs, Name, Resolve, Resolving},
     header::{HeaderMap, HeaderValue, USER_AGENT},
 };
 use std::{
@@ -166,20 +164,13 @@ impl Default for NetworkSettings {
 #[derive(Debug)]
 pub struct ThrottledClient {
     semaphore: PrioritySemaphore,
-    client: Client,
-    client_without_redirects: Client,
+    default_clients: ClientPair,
     /// Per-registry clients keyed by nerf-darted URI. Empty when no
     /// `//host/:cert=…` / `:key=…` / `:ca=…` / `:cafile=…` /
     /// `:certfile=…` / `:keyfile=…` `.npmrc` entries are present —
     /// in which case `acquire_for_url` short-circuits to the default
     /// client without paying the routing cost.
-    per_registry: HashMap<String, Client>,
-    per_registry_without_redirects: HashMap<String, Client>,
-    /// Pre-built routing table cloned from [`PerRegistryTls`] so the
-    /// hot path can call `pick_for_url` without holding a reference
-    /// to `PerRegistryTls` (which lives on `Config`). Empty when
-    /// `per_registry` is empty.
-    routing: PerRegistryTls,
+    per_registry: tls::PerRegistryMap<ClientPair>,
     /// Per-origin socket cap (the `maxSockets` setting). `None` (the
     /// default) leaves the per-origin socket count bounded only by
     /// `semaphore`; see [`HostSocketLimit`].
@@ -187,6 +178,18 @@ pub struct ThrottledClient {
     fetch_warn_timeout: Duration,
     fetch_min_speed_ki_bps: u64,
     warning_handler: std::sync::RwLock<fn(&str)>,
+}
+
+#[derive(Debug)]
+struct ClientPair {
+    follow_redirects: Client,
+    no_redirects: Client,
+}
+
+impl ClientPair {
+    fn select(&self, follow_redirects: bool) -> &Client {
+        if follow_redirects { &self.follow_redirects } else { &self.no_redirects }
+    }
 }
 
 /// Per-origin concurrent-connection cap, mirroring undici's `connections`
@@ -297,7 +300,11 @@ impl ThrottledClient {
     /// `send + body-consume` lifetime, not just `.send()`.
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
         let permit = self.semaphore.acquire(UNPRIORITIZED).await;
-        ThrottledClientGuard { _permit: permit, _host_permit: None, client: &self.client }
+        ThrottledClientGuard {
+            _permit: permit,
+            _host_permit: None,
+            client: &self.default_clients.follow_redirects,
+        }
     }
 
     /// Install a per-origin socket cap (the `maxSockets` setting) on this
@@ -356,11 +363,10 @@ impl ThrottledClient {
     /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
     /// default.
     ///
-    /// DNS resolution is platform-specific. macOS uses its native
-    /// `getaddrinfo` resolver because Hickory misses scoped resolver
-    /// routing used by VPNs. A four-request cap matches Node's libuv DNS
-    /// pool and prevents concurrent calls from overwhelming
-    /// `mDNSResponder`. Other platforms keep Hickory's async resolver.
+    /// Hostnames resolve through the platform's `getaddrinfo` behind a
+    /// process-wide four-lookup cap shared by every client, matching
+    /// Node's libuv DNS pool. `configure_dns` documents why no pure-Rust
+    /// resolver is used on any platform.
     #[must_use]
     pub fn new_for_installs() -> Self {
         Self::for_installs(
@@ -518,30 +524,27 @@ impl ThrottledClient {
             }
         };
 
-        let default_client = build_client(tls, false)?;
-        let default_client_without_redirects = build_client(tls, true)?;
+        let default_clients = ClientPair {
+            follow_redirects: build_client(tls, false)?,
+            no_redirects: build_client(tls, true)?,
+        };
         // Build one client per per-registry override. Each gets a
         // merged `TlsConfig` where the per-registry fields shadow
         // their top-level counterparts field-by-field. `strict_ssl` and
         // `local_address` are top-level-only, so the per-registry client
         // still honors the top-level values.
-        let mut per_registry_clients = HashMap::with_capacity(per_registry.iter().count());
-        let mut per_registry_clients_without_redirects =
-            HashMap::with_capacity(per_registry.iter().count());
-        for (uri, override_) in per_registry.iter() {
+        let per_registry = per_registry.try_map(|override_| -> Result<_, ForInstallsError> {
             let merged = merge_tls(tls, override_);
-            per_registry_clients.insert(uri.to_string(), build_client(&merged, false)?);
-            per_registry_clients_without_redirects
-                .insert(uri.to_string(), build_client(&merged, true)?);
-        }
+            Ok(ClientPair {
+                follow_redirects: build_client(&merged, false)?,
+                no_redirects: build_client(&merged, true)?,
+            })
+        })?;
 
         Ok(ThrottledClient {
             semaphore: PrioritySemaphore::new(settings.network_concurrency),
-            client: default_client,
-            client_without_redirects: default_client_without_redirects,
-            per_registry: per_registry_clients,
-            per_registry_without_redirects: per_registry_clients_without_redirects,
-            routing: per_registry.clone(),
+            default_clients,
+            per_registry,
             host_socket_limit: None,
             fetch_warn_timeout: settings.fetch_warn_timeout,
             fetch_min_speed_ki_bps: settings.fetch_min_speed_ki_bps,
@@ -558,11 +561,11 @@ impl ThrottledClient {
         let semaphore = PrioritySemaphore::new(default_network_concurrency());
         ThrottledClient {
             semaphore,
-            client_without_redirects,
-            client,
-            per_registry: HashMap::new(),
-            per_registry_without_redirects: HashMap::new(),
-            routing: PerRegistryTls::default(),
+            default_clients: ClientPair {
+                follow_redirects: client,
+                no_redirects: client_without_redirects,
+            },
+            per_registry: tls::PerRegistryMap::default(),
             host_socket_limit: None,
             fetch_warn_timeout: Duration::from_millis(DEFAULT_FETCH_WARN_TIMEOUT_MS),
             fetch_min_speed_ki_bps: DEFAULT_FETCH_MIN_SPEED_KI_BPS,
@@ -618,6 +621,49 @@ impl ThrottledClient {
         self.acquire_for_url_with_priority_and_redirects(url, priority, false).await
     }
 
+    /// Send a GET whose URL-scoped credentials are re-evaluated for every
+    /// redirect target. Credentials are limited to TLS and loopback URLs by
+    /// [`AuthHeaders::for_secure_url`].
+    pub async fn get_bytes_with_secure_auth_headers(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        let mut current_url = url.to_string();
+        for redirect_count in 0..=MAX_REDIRECT_HOPS {
+            let client = self
+                .acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
+                .await;
+            let mut request = client.get(&current_url);
+            if let Some(authorization) = auth_headers.for_secure_url(&current_url) {
+                request = request.header("authorization", authorization);
+            }
+            let response = request.send().await?;
+            if !is_redirect_status(response.status()) || redirect_count == MAX_REDIRECT_HOPS {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            }
+            let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            let Ok(location) = location.to_str() else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            let Ok(target) = response.url().join(location) else {
+                let status = response.status();
+                let body = response.bytes().await?.to_vec();
+                return Ok(SecureAuthResponse { status, body });
+            };
+            current_url = target.to_string();
+        }
+        unreachable!()
+    }
+
     async fn acquire_for_url_with_priority_and_redirects(
         &self,
         url: &str,
@@ -633,15 +679,15 @@ impl ThrottledClient {
             None => None,
         };
         let permit = self.semaphore.acquire(priority).await;
-        let (client, per_registry) = if follow_redirects {
-            (&self.client, &self.per_registry)
-        } else {
-            (&self.client_without_redirects, &self.per_registry_without_redirects)
-        };
-        let client =
-            self.routing.pick_for_url(url).and_then(|key| per_registry.get(key)).unwrap_or(client);
+        let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
+        let client = clients.select(follow_redirects);
         ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
     }
+}
+
+pub struct SecureAuthResponse {
+    pub status: reqwest::StatusCode,
+    pub body: Vec<u8>,
 }
 
 fn ignore_warning(_: &str) {}
@@ -706,16 +752,20 @@ fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy 
     })
 }
 
-#[cfg(any(target_os = "macos", test))]
+fn is_redirect_status(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 301 | 302 | 303 | 307 | 308)
+}
+
+/// Caps concurrent lookups through `Inner`. Clones share the cap.
+#[derive(Clone)]
 struct CappedDnsResolver<Inner> {
     inner: Arc<Inner>,
     permits: Arc<Semaphore>,
 }
 
-#[cfg(target_os = "macos")]
+#[derive(Clone)]
 struct NativeDnsResolver;
 
-#[cfg(target_os = "macos")]
 impl Resolve for NativeDnsResolver {
     fn resolve(&self, name: Name) -> Resolving {
         let host = name.as_str().to_owned();
@@ -728,14 +778,12 @@ impl Resolve for NativeDnsResolver {
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
 impl<Inner> CappedDnsResolver<Inner> {
     fn new(inner: Inner, concurrency: NonZeroUsize) -> Self {
         Self { inner: Arc::new(inner), permits: Arc::new(Semaphore::new(concurrency.get())) }
     }
 }
 
-#[cfg(any(target_os = "macos", test))]
 impl<Inner> Resolve for CappedDnsResolver<Inner>
 where
     Inner: Resolve + 'static,
@@ -751,16 +799,35 @@ where
     }
 }
 
-#[cfg(target_os = "macos")]
+/// Resolve through the platform's `getaddrinfo`, capped at Node's libuv
+/// thread-pool width so `mDNSResponder` is not overloaded.
+///
+/// The system resolver is the only one that sees the whole host
+/// configuration, which is why Hickory's pure-Rust resolver is not used
+/// on any platform. macOS needs it for the scoped/supplemental resolver
+/// graph (VPN split DNS), which Hickory does not read. Windows needs it
+/// because Hickory sends every query from a freshly bound wildcard UDP
+/// socket, and Windows Defender Firewall treats that bind as a listener:
+/// it prompts the user to allow `pnpm.exe`, keyed on the executable's
+/// path, so every newly installed engine prompts again
+/// (pnpm/pnpm#14405). `getaddrinfo` hands the query to the Dnscache
+/// service and binds nothing in this process, and it also honors NRPT and
+/// per-adapter DNS settings. Linux needs it because Hickory parses
+/// `/etc/resolv.conf` itself and rejects the whole file over one option
+/// spelling glibc accepts (`no_tld_query`) or does not know yet, after
+/// which reqwest silently falls back to Google's public nameservers
+/// (pnpm/pnpm#14469). `getaddrinfo` also consults `nsswitch.conf`
+/// sources such as `nss-resolve` and `nss-mdns` that Hickory bypasses.
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+    // One cap per process, like the libuv thread pool it mirrors: the
+    // redirect pair, every per-registry override, and the bundled-roots
+    // retry all draw on the same four permits.
+    static RESOLVER: LazyLock<CappedDnsResolver<NativeDnsResolver>> = LazyLock::new(|| {
+        const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+        CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY)
+    });
 
-    builder.dns_resolver(CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY))
-}
-
-#[cfg(not(target_os = "macos"))]
-fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    builder.hickory_dns(true)
+    builder.dns_resolver(RESOLVER.clone())
 }
 
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {

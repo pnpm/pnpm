@@ -1,0 +1,33 @@
+[package]
+name                 = "pnpr-upstream"
+version              = "0.0.1"
+description          = "The upstream registry proxy client: packument and tarball fetches, caching validators, and the failure circuit breaker"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-config       = { workspace = true }
+pnpr-error        = { workspace = true }
+pnpr-package-name = { workspace = true }
+pnpm-lockfile     = { workspace = true }
+pnpm-network      = { workspace = true }
+chrono            = { workspace = true }
+reqwest           = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+ssri              = { workspace = true }
+tracing           = { workspace = true }
+
+[dev-dependencies]
+pnpr-policy = { workspace = true }
+mockito     = { workspace = true }
+tempfile    = { workspace = true }
+tokio       = { workspace = true }
+
+[lints]
+workspace = true

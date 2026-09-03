@@ -176,6 +176,26 @@ pub struct InstallOptions {
     pub reporter: Option<ReporterOptions>,
 }
 
+/// Options for [`get_peer_dependency_issues`]. Mirrors the TypeScript
+/// declaration in `index.d.ts`.
+#[napi(object)]
+pub struct PeerIssuesOptions {
+    pub dir: String,
+    pub projects: Vec<NodeApiProject>,
+    pub store_dir: Option<String>,
+    pub cache_dir: Option<String>,
+    pub registries: Option<HashMap<String, String>>,
+    pub auth_header_by_uri: Option<HashMap<String, String>>,
+    pub proxy_config: Option<ProxyConfigInput>,
+    pub network_config: Option<NetworkConfigInput>,
+    pub overrides: Option<IndexMap<String, String>>,
+    // napi narrows JavaScript numbers to `u32` without rejecting overflow, so
+    // these enter as numbers and are checked before conversion.
+    pub peers_suffix_max_length: Option<f64>,
+    pub virtual_store_dir_max_length: Option<f64>,
+    pub auto_install_peers: Option<bool>,
+}
+
 #[napi(object)]
 #[expect(clippy::struct_field_names, reason = "fields mirror the JavaScript proxyConfig contract")]
 pub struct ProxyConfigInput {
@@ -951,7 +971,7 @@ fn run_rebuild_blocking(
 
 #[napi(js_name = "getPeerDependencyIssues")]
 pub async fn get_peer_dependency_issues(
-    options: serde_json::Value,
+    options: PeerIssuesOptions,
 ) -> napi::Result<serde_json::Value> {
     let _guard = engine_call_lock().lock().await;
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -959,7 +979,7 @@ pub async fn get_peer_dependency_issues(
         .name("pnpm-napi-peer-issues".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
-            let _ = tx.send(run_peer_issues_blocking(&options));
+            let _ = tx.send(run_peer_issues_blocking(options));
         })
         .map_err(|error| {
             napi::Error::from_reason(format!("failed to spawn peer-issues thread: {error}"))
@@ -967,84 +987,14 @@ pub async fn get_peer_dependency_issues(
     rx.await.map_err(|_| napi::Error::from_reason("peer-issues worker thread panicked"))?
 }
 
-/// Map the `PeerIssuesOptions` JSON (a subset of [`InstallOptions`] — see
-/// `index.d.ts`) onto the install options struct, run a sink-driven
-/// `dry_run` resolve, and serialize the per-importer issues into the
-/// `PeerDependencyIssuesByProjects` wire shape, including the
+/// Run a sink-driven `dry_run` resolve and serialize the per-importer issues
+/// into the `PeerDependencyIssuesByProjects` wire shape, including the
 /// `conflicts` / `intersections` derivation v11's `mergePeers` does.
-fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_json::Value> {
+fn run_peer_issues_blocking(options: PeerIssuesOptions) -> napi::Result<serde_json::Value> {
     // No log sink for this query — engine events would interleave with
     // the caller's own reporting for what is a silent resolution.
     let _sink_guard = EngineCallGuard::new(None);
-    let obj = options.as_object().ok_or_else(|| {
-        napi::Error::from_reason("getPeerDependencyIssues: options must be an object")
-    })?;
-    let str_field =
-        |key: &str| obj.get(key).and_then(serde_json::Value::as_str).map(ToString::to_string);
-    // Generic over the target map so `overrides` can collect into the
-    // order-preserving `IndexMap` its field requires (serde_json's
-    // `preserve_order` feature keeps the JS object's key order here).
-    fn string_map<Map: FromIterator<(String, String)>>(
-        obj: &serde_json::Map<String, serde_json::Value>,
-        key: &str,
-    ) -> Option<Map> {
-        obj.get(key).and_then(serde_json::Value::as_object).map(|map| {
-            map.iter()
-                .filter_map(|(key, value)| {
-                    value.as_str().map(|value| (key.clone(), value.to_string()))
-                })
-                .collect()
-        })
-    }
-    let dir = str_field("dir")
-        .ok_or_else(|| napi::Error::from_reason("getPeerDependencyIssues: `dir` is required"))?;
-    let projects: Vec<NodeApiProject> = obj
-        .get("projects")
-        .and_then(serde_json::Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| {
-                    let entry = entry.as_object()?;
-                    Some(NodeApiProject {
-                        root_dir: entry.get("rootDir")?.as_str()?.to_string(),
-                        manifest: entry
-                            .get("manifest")
-                            .cloned()
-                            .unwrap_or_else(|| serde_json::json!({})),
-                        dependency_manifest: entry.get("dependencyManifest").cloned(),
-                    })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let install_options = InstallOptions {
-        dir,
-        projects,
-        store_dir: str_field("storeDir"),
-        cache_dir: str_field("cacheDir"),
-        registries: string_map(obj, "registries"),
-        auth_header_by_uri: string_map(obj, "authHeaderByUri"),
-        overrides: string_map(obj, "overrides"),
-        // Report every missing peer: with pnpm's default
-        // `autoInstallPeers: true` the resolver satisfies the peer
-        // itself and the issue never surfaces, but this query's whole
-        // point is the report (Bit derives the `intersections` it
-        // auto-adds from it). Callers can still opt back in.
-        auto_install_peers: Some(
-            obj.get("autoInstallPeers").and_then(serde_json::Value::as_bool).unwrap_or(false),
-        ),
-        peers_suffix_max_length: obj
-            .get("peersSuffixMaxLength")
-            .and_then(serde_json::Value::as_u64)
-            .map(|value| value as u32),
-        virtual_store_dir_max_length: obj
-            .get("virtualStoreDirMaxLength")
-            .and_then(serde_json::Value::as_u64)
-            .map(|value| value as u32),
-        ..InstallOptions::default()
-    };
+    let install_options = peer_issues_install_options(options)?;
 
     let sink: pnpm_package_manager::PeerIssuesSink = Arc::default();
     run_install_inner(&install_options, None, EngineMode::PeerIssues(Arc::clone(&sink)))?;
@@ -1056,6 +1006,49 @@ fn run_peer_issues_blocking(options: &serde_json::Value) -> napi::Result<serde_j
         result.insert(importer_id, peer_issues_to_json(&issues));
     }
     Ok(serde_json::Value::Object(result))
+}
+
+fn peer_issues_install_options(options: PeerIssuesOptions) -> napi::Result<InstallOptions> {
+    Ok(InstallOptions {
+        dir: options.dir,
+        projects: options.projects,
+        store_dir: options.store_dir,
+        cache_dir: options.cache_dir,
+        registries: options.registries,
+        auth_header_by_uri: options.auth_header_by_uri,
+        proxy_config: options.proxy_config,
+        network_config: options.network_config,
+        overrides: options.overrides,
+        peers_suffix_max_length: checked_u32_option(
+            options.peers_suffix_max_length,
+            "peersSuffixMaxLength",
+        )?,
+        virtual_store_dir_max_length: checked_u32_option(
+            options.virtual_store_dir_max_length,
+            "virtualStoreDirMaxLength",
+        )?,
+        // Unlike install, this query must expose missing peers by default.
+        auto_install_peers: Some(options.auto_install_peers.unwrap_or(false)),
+        ..InstallOptions::default()
+    })
+}
+
+fn checked_u32_option(value: Option<f64>, name: &str) -> napi::Result<Option<u32>> {
+    value
+        .map(|value| {
+            if value.is_finite()
+                && value.fract() == 0.0
+                && (0.0..=f64::from(u32::MAX)).contains(&value)
+            {
+                Ok(value as u32)
+            } else {
+                Err(napi::Error::from_reason(format!(
+                    "getPeerDependencyIssues: `{name}` must be an integer from 0 through {}",
+                    u32::MAX,
+                )))
+            }
+        })
+        .transpose()
 }
 
 /// Serialize one importer's issues into v11's `PeerDependencyIssues`

@@ -12,7 +12,7 @@ use super::{
     ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
-    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs},
+    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -696,10 +696,10 @@ pub enum CliCommand {
     Config(ConfigArgs),
     /// Print the config value for the provided key. Shorthand for
     /// `pnpm config get`.
-    Get(ConfigGetArgs),
+    Get(ConfigGetAliasArgs),
     /// Set the config key to the value provided. Shorthand for
     /// `pnpm config set`.
-    Set(ConfigSetArgs),
+    Set(ConfigSetAliasArgs),
     /// Manages your package.json.
     Pkg(PkgArgs),
     /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
@@ -800,6 +800,7 @@ impl CliCommand {
             self,
             CliCommand::Install(_)
                 | CliCommand::InstallTest(_)
+                | CliCommand::Import(_)
                 | CliCommand::List(_)
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)

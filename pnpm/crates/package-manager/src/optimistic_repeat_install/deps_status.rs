@@ -7,8 +7,7 @@ use super::{
     filesystem_now_ms, first_lockfile_requiring_conflict_safe_install,
     first_project_missing_modules_dir, first_setting_drift, modified_at_or_after,
     modified_manifests_match_lockfile, patches_modified_since, pnpmfiles_drift,
-    project_structure_matches, refreshed_validation_baseline_ms, stat_manifests,
-    update_workspace_state, wanted_lockfile_modified,
+    project_structure_matches, stat_manifests, update_workspace_state, wanted_lockfile_modified,
 };
 
 /// Outcome of [`check_deps_status_before_run`].
@@ -172,9 +171,6 @@ pub fn check_deps_status_before_run(
                     catalogs,
                     project_manifests,
                     state.filtered_install,
-                );
-                new_state.last_validated_timestamp = refreshed_validation_baseline_ms(
-                    new_state.last_validated_timestamp,
                     filesystem_now,
                 );
                 // The gate ignored `dev`/`optional`/`production` drift

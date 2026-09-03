@@ -3,7 +3,7 @@
 // `./bin/pnpx.mjs` for every pnpm >=11 (see its `config.json`) and loads them
 // into its own Node.js process, which a native executable cannot be loaded into.
 //
-// Nothing else runs this file: `package.json#bin` still points at the native
+// Only Corepack reaches this file: `package.json#bin` still points at the native
 // binary, so an ordinary `npm install -g pnpm` never pays for a Node.js startup.
 //
 // Corepack installs no dependencies and runs no lifecycle scripts, so the

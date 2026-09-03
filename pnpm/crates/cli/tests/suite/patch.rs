@@ -8,6 +8,7 @@ use pnpm_store_dir::{StoreDir, StoreIndex};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
+    git_repo::GitRepoFixture,
 };
 use serde_json::Value;
 use std::{ffi::OsStr, fmt::Write as _, fs, path::Path, process::Command};
@@ -438,6 +439,62 @@ fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
         "is-positive@1.0.0.patch",
         "allowBuilds: {}\n",
     );
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14273>.
+#[test]
+fn git_dependency_patch_applies_on_fresh_and_frozen_install() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, store_dir, cache_dir, .. } = npmrc_info;
+    let repo = GitRepoFixture::init(root.path(), "patched-git-dependency");
+    repo.write_file(
+        "package.json",
+        &serde_json::json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "main": "index.js",
+        })
+        .to_string(),
+    );
+    repo.write_file("index.js", "module.exports = true\n");
+    let commit = repo.commit("initial package");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "is-positive": repo.git_url_at(&commit),
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    fs::create_dir_all(workspace.join("patches")).expect("create patches dir");
+    fs::write(workspace.join("patches/is-positive@3.1.0.patch"), MARKER_PATCH)
+        .expect("write patch file");
+    append_workspace_yaml_key(
+        &workspace,
+        "patchedDependencies",
+        "\n  is-positive@3.1.0: patches/is-positive@3.1.0.patch",
+    );
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    let marker = workspace.join("node_modules/is-positive/patched-marker.txt");
+    assert_eq!(fs::read_to_string(&marker).expect("read fresh marker"), "patched\n");
+    let patch_hash = patch_file_hash(&workspace, "is-positive@3.1.0.patch");
+    let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
+    assert!(
+        snapshots.iter().any(|key| key.contains(&format!("(patch_hash={patch_hash})"))),
+        "snapshots: {snapshots:?}",
+    );
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    remove_dir_if_exists(&store_dir);
+    remove_dir_if_exists(&cache_dir);
+    pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"]).assert().success();
+    assert_eq!(fs::read_to_string(&marker).expect("read frozen marker"), "patched\n");
+
+    drop((root, mock_instance));
 }
 
 /// TS: `the patched package is updated if the patch is modified`
@@ -1596,6 +1653,43 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
         stdout = String::from_utf8_lossy(&output.stdout),
         stderr = String::from_utf8_lossy(&output.stderr),
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn legacy_deploy_honors_allow_unused_patches_overrides() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
+        "is-positive@1.0.0",
+        "is-positive@1.0.0.patch",
+        "packages:\n  - 'packages/*'\n",
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create app directory");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write app manifest");
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(
+        &workspace,
+        [
+            "--config.allow-unused-patches=true",
+            "--filter=app",
+            "deploy",
+            "--legacy",
+            "config-deploy",
+        ],
+    )
+    .assert()
+    .success();
+    pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "env-deploy"])
+        .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

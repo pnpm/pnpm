@@ -25,8 +25,15 @@ use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
 use serde::Serialize;
 
+use pnpm_catalogs_resolver::{
+    CatalogResolutionError, CatalogResolutionResult, WantedDependency, resolve_from_catalog,
+};
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::PeerDependencyRules;
-use pnpm_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
+use pnpm_lockfile::{
+    Lockfile, LockfileResolution, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot,
+    ResolvedDependencySpec, SnapshotEntry,
+};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::get_peer_version_range;
@@ -121,15 +128,15 @@ impl PeerIssuesReport {
 /// `peerDependencyRules`, for the given importers.
 ///
 /// Returns `None` when there is nothing worth acting on.
-#[must_use]
 pub fn peer_issues_for_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     importer_ids: &[String],
     rules: &PeerDependencyRules,
-) -> Option<PeerIssuesReport> {
+    catalogs: Option<&Catalogs>,
+) -> Result<Option<PeerIssuesReport>, CatalogResolutionError> {
     let issues = filter_peer_issues(
-        check_peer_dependencies_of_importers(lockfile, lockfile_dir, importer_ids),
+        check_peer_dependencies_of_importers(lockfile, lockfile_dir, importer_ids, catalogs)?,
         rules,
     );
     let has_missing_peer = issues.values().any(|project_issues| {
@@ -137,17 +144,17 @@ pub fn peer_issues_for_lockfile(
     });
     let has_issues =
         has_missing_peer || issues.values().any(|project_issues| !project_issues.bad.is_empty());
-    has_issues.then_some(PeerIssuesReport { issues, has_missing_peer })
+    Ok(has_issues.then_some(PeerIssuesReport { issues, has_missing_peer }))
 }
 
 /// The issues reachable from the given project directories, for the
 /// commands that inspect a selection rather than the whole workspace.
-#[must_use]
 pub fn check_peer_dependencies_from_lockfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     project_dirs: &[PathBuf],
-) -> IssuesByProjects {
+    catalogs: Option<&Catalogs>,
+) -> Result<IssuesByProjects, CatalogResolutionError> {
     let mut importer_ids: Vec<String> = project_dirs
         .iter()
         .map(|project_dir| pnpm_workspace::importer_id_from_root_dir(lockfile_dir, project_dir))
@@ -155,22 +162,23 @@ pub fn check_peer_dependencies_from_lockfile(
         .collect();
     importer_ids.sort();
     importer_ids.dedup();
-    check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids)
+    check_peer_dependencies_of_importers(lockfile, lockfile_dir, &importer_ids, catalogs)
 }
 
 /// Walk the named importers, collecting every peer a package requires
 /// but the recorded graph does not satisfy. Unfiltered — the caller
 /// applies [`filter_peer_issues`].
-#[must_use]
 pub fn check_peer_dependencies_of_importers(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
     importer_ids: &[String],
-) -> IssuesByProjects {
+    catalogs: Option<&Catalogs>,
+) -> Result<IssuesByProjects, CatalogResolutionError> {
     let empty_packages = HashMap::new();
     let empty_snapshots = HashMap::new();
     let packages = lockfile.packages.as_ref().unwrap_or(&empty_packages);
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
+    let context = PeerWalkContext { lockfile, lockfile_dir, catalogs };
 
     let mut result: IssuesByProjects = BTreeMap::new();
     // Shared across importers so each package is evaluated once, matching
@@ -190,13 +198,12 @@ pub fn check_peer_dependencies_of_importers(
         let mut visited_importers = HashSet::new();
         collect_initial_keys(
             importer_id,
-            lockfile,
-            lockfile_dir,
+            &context,
             &[],
             &mut initial_keys,
             &mut visited_importers,
             &mut issues,
-        );
+        )?;
 
         walk_snapshot(
             initial_keys,
@@ -214,28 +221,47 @@ pub fn check_peer_dependencies_of_importers(
         result.insert(importer_id.clone(), issues);
     }
 
-    result
+    Ok(result)
 }
 
-fn path_is_within(path: &Path, base: &Path) -> bool {
+struct CanonicalPathWithin {
+    path: PathBuf,
+    base: PathBuf,
+}
+
+fn canonical_path_within(path: &Path, base: &Path) -> Option<CanonicalPathWithin> {
     let (Ok(canonical_path), Ok(canonical_base)) =
         (dunce::canonicalize(path), dunce::canonicalize(base))
     else {
-        return false;
+        return None;
     };
-    canonical_path.starts_with(&canonical_base)
+    canonical_path
+        .starts_with(&canonical_base)
+        .then_some(CanonicalPathWithin { path: canonical_path, base: canonical_base })
 }
 
 /// `base_dir` is the directory the `link:` target is relative to — the
 /// importer's directory for importer dependencies, the lockfile directory for
 /// snapshot dependencies. Targets escaping `lockfile_dir` are rejected.
 fn resolve_link_version(base_dir: &Path, lockfile_dir: &Path, link_target: &str) -> Option<String> {
-    let target_dir = base_dir.join(link_target);
-    if !path_is_within(&target_dir, lockfile_dir) {
-        return None;
-    }
+    let target_dir = canonical_path_within(&base_dir.join(link_target), lockfile_dir)?.path;
     let manifest = PackageManifest::from_path(target_dir.join("package.json")).ok()?;
     package_manifest_version(&manifest)
+}
+
+fn resolve_file_version(
+    lockfile: &Lockfile,
+    lockfile_dir: &Path,
+    alias: &PkgName,
+    spec: &ResolvedDependencySpec,
+) -> Option<String> {
+    let key = spec.version.resolved_key(alias)?.without_peer();
+    let metadata = lockfile.packages.as_ref()?.get(&key)?;
+    if let Some(version) = &metadata.version {
+        return Some(version.clone());
+    }
+    let LockfileResolution::Directory(directory) = &metadata.resolution else { return None };
+    resolve_link_version(lockfile_dir, lockfile_dir, &directory.directory)
 }
 
 fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
@@ -245,29 +271,39 @@ fn package_manifest_version(manifest: &PackageManifest) -> Option<String> {
 /// A workspace package an importer reaches through `link:`, whose own
 /// `peerDependencies` the importer has to satisfy.
 struct LinkedPackagePeers<'a> {
-    importer: &'a pnpm_lockfile::ProjectSnapshot,
+    lockfile: &'a Lockfile,
+    importer: &'a ProjectSnapshot,
+    linked_importer: Option<&'a ProjectSnapshot>,
     importer_dir: &'a Path,
+    linked_importer_dir: &'a Path,
     lockfile_dir: &'a Path,
     manifest: &'a PackageManifest,
     alias: &'a str,
     linked_version: &'a str,
+    catalogs: Option<&'a Catalogs>,
     issues: &'a mut PeerIssues,
 }
 
-fn check_linked_package_peers(inputs: LinkedPackagePeers<'_>) {
+fn check_linked_package_peers(
+    inputs: LinkedPackagePeers<'_>,
+) -> Result<(), CatalogResolutionError> {
     let LinkedPackagePeers {
+        lockfile,
         importer,
+        linked_importer,
         importer_dir,
+        linked_importer_dir,
         lockfile_dir,
         manifest,
         alias,
         linked_version,
+        catalogs,
         issues,
     } = inputs;
     let Some(peer_deps) =
         manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
     else {
-        return;
+        return Ok(());
     };
 
     let current_parents =
@@ -275,7 +311,8 @@ fn check_linked_package_peers(inputs: LinkedPackagePeers<'_>) {
 
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
-        let peer_range = get_peer_version_range(peer_range);
+        let peer_range = resolve_peer_range(peer_name, peer_range, catalogs)?;
+        let peer_range = get_peer_version_range(&peer_range);
         let is_optional = manifest
             .value()
             .get("peerDependenciesMeta")
@@ -285,43 +322,39 @@ fn check_linked_package_peers(inputs: LinkedPackagePeers<'_>) {
             .unwrap_or(false);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let resolved_ref = importer
-            .dependencies
-            .as_ref()
-            .and_then(|deps| deps.get(&peer_pkg_name))
+        let resolved_ref = project_dependency(importer, &peer_pkg_name)
+            .map(|spec| (spec, importer_dir))
             .or_else(|| {
-                importer.dev_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
-            })
-            .or_else(|| {
-                importer.optional_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
+                linked_importer
+                    .and_then(|importer| project_dependency(importer, &peer_pkg_name))
+                    .map(|spec| (spec, linked_importer_dir))
             });
 
         match resolved_ref {
-            Some(spec) => {
-                if let Some(ver_peer) = spec.version.ver_peer() {
-                    let version_str = ver_peer.version().to_string();
-                    if !satisfies(&version_str, &peer_range) {
-                        issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                            parents: current_parents.clone(),
-                            optional: is_optional,
-                            wanted_range: peer_range.clone(),
-                            found_version: version_str,
-                            resolved_from: Vec::new(),
-                        });
-                    }
+            Some((spec, dependency_dir)) => {
+                let found_version = if let Some(ver_peer) = spec.version.ver_peer() {
+                    Some(ver_peer.version().to_string())
                 } else if let Some(link_target) = spec.version.as_link_target() {
-                    let found_version =
-                        resolve_link_version(importer_dir, lockfile_dir, link_target)
-                            .unwrap_or_else(|| format!("link:{link_target}"));
-                    if !satisfies(&found_version, &peer_range) {
-                        issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                            parents: current_parents.clone(),
-                            optional: is_optional,
-                            wanted_range: peer_range.clone(),
-                            found_version,
-                            resolved_from: Vec::new(),
-                        });
-                    }
+                    Some(
+                        resolve_link_version(dependency_dir, lockfile_dir, link_target)
+                            .unwrap_or_else(|| format!("link:{link_target}")),
+                    )
+                } else {
+                    spec.version.as_file_target().map(|file_target| {
+                        resolve_file_version(lockfile, lockfile_dir, &peer_pkg_name, spec)
+                            .unwrap_or_else(|| format!("file:{file_target}"))
+                    })
+                };
+                if let Some(found_version) = found_version
+                    && !satisfies(&found_version, &peer_range)
+                {
+                    issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
+                        parents: current_parents.clone(),
+                        optional: is_optional,
+                        wanted_range: peer_range.clone(),
+                        found_version,
+                        resolved_from: Vec::new(),
+                    });
                 }
             }
             None => {
@@ -335,22 +368,55 @@ fn check_linked_package_peers(inputs: LinkedPackagePeers<'_>) {
             }
         }
     }
+    Ok(())
+}
+
+fn project_dependency<'a>(
+    importer: &'a ProjectSnapshot,
+    name: &PkgName,
+) -> Option<&'a ResolvedDependencySpec> {
+    importer
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(name))
+        .or_else(|| importer.dev_dependencies.as_ref().and_then(|deps| deps.get(name)))
+        .or_else(|| importer.optional_dependencies.as_ref().and_then(|deps| deps.get(name)))
+}
+
+fn resolve_peer_range(
+    peer_name: &str,
+    peer_range: &str,
+    catalogs: Option<&Catalogs>,
+) -> Result<String, CatalogResolutionError> {
+    let Some(catalogs) = catalogs else { return Ok(peer_range.to_string()) };
+    let wanted =
+        WantedDependency { alias: peer_name.to_string(), bare_specifier: peer_range.to_string() };
+    match resolve_from_catalog(catalogs, &wanted) {
+        CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
+        CatalogResolutionResult::Unused => Ok(peer_range.to_string()),
+        CatalogResolutionResult::Misconfiguration(misconfiguration) => Err(misconfiguration.error),
+    }
+}
+
+struct PeerWalkContext<'a> {
+    lockfile: &'a Lockfile,
+    lockfile_dir: &'a Path,
+    catalogs: Option<&'a Catalogs>,
 }
 
 fn collect_initial_keys(
     importer_id: &str,
-    lockfile: &Lockfile,
-    lockfile_dir: &Path,
+    context: &PeerWalkContext<'_>,
     parents: &[ParentPkg],
     initial_keys: &mut Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
     visited_importers: &mut HashSet<String>,
     issues: &mut PeerIssues,
-) {
+) -> Result<(), CatalogResolutionError> {
     if !visited_importers.insert(importer_id.to_string()) {
-        return;
+        return Ok(());
     }
-    let Some(importer) = lockfile.importers.get(importer_id) else { return };
-    let importer_dir = lockfile_dir.join(importer_id);
+    let Some(importer) = context.lockfile.importers.get(importer_id) else { return Ok(()) };
+    let importer_dir = context.lockfile_dir.join(importer_id);
 
     let groups =
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
@@ -365,10 +431,11 @@ fn collect_initial_keys(
                 // dependency: the version, the peer check, and the
                 // recursion all need the same two answers, and this walk
                 // now runs on the install path.
-                let linked_dir = importer_dir.join(link_target);
-                if !path_is_within(&linked_dir, lockfile_dir) {
+                let Some(CanonicalPathWithin { path: linked_dir, base: canonical_lockfile_dir }) =
+                    canonical_path_within(&importer_dir.join(link_target), context.lockfile_dir)
+                else {
                     continue;
-                }
+                };
                 let linked_manifest =
                     PackageManifest::from_path(linked_dir.join("package.json")).ok();
                 let linked_version = linked_manifest
@@ -379,32 +446,38 @@ fn collect_initial_keys(
                 next_parents
                     .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
 
+                let linked_importer_id =
+                    pnpm_workspace::importer_id_from_root_dir(&canonical_lockfile_dir, &linked_dir);
+                let linked_importer = context.lockfile.importers.get(&linked_importer_id);
+
                 if let Some(linked_manifest) = &linked_manifest {
                     check_linked_package_peers(LinkedPackagePeers {
+                        lockfile: context.lockfile,
                         importer,
+                        linked_importer,
                         importer_dir: &importer_dir,
-                        lockfile_dir,
+                        linked_importer_dir: &linked_dir,
+                        lockfile_dir: context.lockfile_dir,
                         manifest: linked_manifest,
                         alias: &alias.to_string(),
                         linked_version: &linked_version,
+                        catalogs: context.catalogs,
                         issues,
-                    });
+                    })?;
                 }
 
-                let linked_importer_id =
-                    pnpm_workspace::importer_id_from_root_dir(lockfile_dir, &linked_dir);
                 collect_initial_keys(
                     &linked_importer_id,
-                    lockfile,
-                    lockfile_dir,
+                    context,
                     &next_parents,
                     initial_keys,
                     visited_importers,
                     issues,
-                );
+                )?;
             }
         }
     }
+    Ok(())
 }
 
 fn walk_snapshot(

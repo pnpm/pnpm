@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { summaryLogger } from '@pnpm/core-loggers'
+import { PnpmError } from '@pnpm/error'
 import {
   cleanOrphanedInstallDirs,
   createGlobalCacheKey,
@@ -18,6 +19,7 @@ import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { activateGlobalInstall, cleanupReplacedGlobalInstalls } from './globalActivation.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
+import { isPnpmCliDependency, isPnpmCliOnlyGroup, selectsPnpmCli } from './pnpmCliPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
 import { readInstalledPackages } from './readInstalledPackages.js'
 
@@ -60,6 +62,12 @@ export async function handleGlobalAdd (
   const groups = params
     .map((param) => splitCommaSeparated(param, opts.dir).map((token) => resolveLocalParam(token, opts.dir)))
     .filter((group) => group.length > 0)
+  // The rule applies to what actually gets installed, so it runs on the tokens
+  // a comma-separated group splits into rather than on the group: `pnpm,lodash`
+  // is a request to install pnpm. See `isPnpmCliDependency`.
+  if (selectsPnpmCli(groups.flat())) {
+    throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
+  }
 
   for (const group of groups) {
     // eslint-disable-next-line no-await-in-loop
@@ -182,7 +190,7 @@ async function installGroup (
 const PNPM_CLI_PACKAGE_ALIASES = ['pnpm', '@pnpm/exe']
 
 export function getReplacementAliases (aliases: string[]): string[] {
-  if (!aliases.some((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))) return aliases
+  if (!aliases.some((alias) => isPnpmCliDependency(alias))) return aliases
   return [...new Set([...aliases, ...PNPM_CLI_PACKAGE_ALIASES])]
 }
 
@@ -193,11 +201,6 @@ export function shouldReplaceExistingGlobalInstall (
 ): boolean {
   if (aliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))) return true
   return isPnpmCliOnlyGroup(pkg) && replacementAliases.some((alias) => Object.hasOwn(pkg.dependencies, alias))
-}
-
-function isPnpmCliOnlyGroup (pkg: GlobalPackageInfo): boolean {
-  const aliases = Object.keys(pkg.dependencies)
-  return aliases.length > 0 && aliases.every((alias) => PNPM_CLI_PACKAGE_ALIASES.includes(alias))
 }
 
 function splitCommaSeparated (param: string, baseDir: string): string[] {

@@ -1,5 +1,6 @@
 //! Moving an update's declared ranges onto the versions it resolved.
 
+use crate::{OverriddenDependencyMatcher, VersionsOverrider};
 use node_semver::Range;
 use pnpm_catalogs_protocol_parser::parse_catalog_protocol;
 use pnpm_lockfile::{
@@ -7,7 +8,7 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_lockfile_preferred_versions::get_version_selector_type;
-use pnpm_package_manifest::DependencyGroup;
+use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_registry::RangeSpecStyle;
 use pnpm_resolving_npm_resolver::{calc_version_range, infer_range_spec_style};
 use pnpm_resolving_resolver_base::VersionSelectorType;
@@ -27,8 +28,12 @@ use std::{
 /// back here for the update to write into `package.json` — or into the
 /// catalog entry the dependency points at.
 pub struct ManifestSpecBumps {
-    /// Direct-dependency aliases per importer id whose range may move.
-    pub targets: BTreeMap<String, HashSet<String>>,
+    /// Per importer id, the direct-dependency aliases whose range may move,
+    /// each mapped to the group its `package.json` declares it under and the
+    /// specifier declared there. The declaration is what tells a range the
+    /// update owns from one an override replaced before the resolver read it:
+    /// only a lockfile entry that still carries the declared text is bumped.
+    pub targets: BTreeMap<String, HashMap<String, (DependencyGroup, String)>>,
     /// The range operator to write when the declaration pins none.
     pub range_spec_style: RangeSpecStyle,
     /// What the resolve settled on, for the declarations whose text changed.
@@ -55,6 +60,28 @@ impl AppliedSpecBumps {
     }
 }
 
+/// The override set an update runs under, paired with the importer manifests
+/// whose own name and version a `parent>child` override key is matched
+/// against.
+///
+/// An override governs a declaration even when it repeats it verbatim, and a
+/// declaration an override governs is not the update's to move: the hook
+/// rewrites the bumped text away before the next resolve reads it, leaving a
+/// lockfile specifier the manifest never shows and a `--frozen-lockfile`
+/// install that rejects the pair (pnpm/pnpm#14224).
+pub(crate) struct OverriddenDeclarations<'a> {
+    pub overrider: &'a VersionsOverrider,
+    pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
+}
+
+impl<'a> OverriddenDeclarations<'a> {
+    fn matcher_for(&self, importer_id: &str) -> Option<OverriddenDependencyMatcher<'a>> {
+        self.importer_manifests
+            .get(importer_id)
+            .map(|manifest| self.overrider.dependency_matcher(manifest.value()))
+    }
+}
+
 /// Rewrite the targeted ranges in `lockfile` — which this run built and has
 /// not written yet — around the versions it records, and report them into
 /// [`ManifestSpecBumps::applied`].
@@ -63,16 +90,42 @@ impl AppliedSpecBumps {
 /// agreeing with the `package.json` the update writes afterwards: the two
 /// carry the same text, and the version recorded against it satisfies it by
 /// construction.
-pub(crate) fn apply_manifest_spec_bumps(lockfile: &mut Lockfile, bumps: &ManifestSpecBumps) {
+pub(crate) fn apply_manifest_spec_bumps(
+    lockfile: &mut Lockfile,
+    bumps: &ManifestSpecBumps,
+    overridden: Option<&OverriddenDeclarations<'_>>,
+) {
     let mut manifests: BTreeMap<String, HashMap<PkgName, (DependencyGroupIndex, String)>> =
         BTreeMap::new();
     let mut cataloged: HashSet<(String, PkgName)> = HashSet::new();
 
-    for (importer_id, aliases) in &bumps.targets {
+    for (importer_id, targets) in &bumps.targets {
         let Some(importer) = lockfile.importers.get(importer_id) else { continue };
-        for alias in aliases {
+        let override_matcher =
+            overridden.and_then(|overridden| overridden.matcher_for(importer_id));
+        for (alias, (manifest_group, manifest_specifier)) in targets {
+            // An override — or another manifest hook — governs this entry, so
+            // the version the run resolved answers the override rather than
+            // the declaration. Leaving the lockfile entry and `package.json`
+            // alone keeps the two agreeing and keeps the declaration, a
+            // `catalog:` reference included (pnpm/pnpm#12115). An override
+            // that repeats the declaration verbatim rewrites nothing, which
+            // is why the text comparison below cannot stand in for this
+            // (pnpm/pnpm#14224).
+            if override_matcher
+                .as_ref()
+                .is_some_and(|matcher| matcher.matches(alias, manifest_specifier))
+            {
+                continue;
+            }
             let Ok(alias) = PkgName::parse(alias.as_str()) else { continue };
-            let Some((group, declared)) = declared_dependency(importer, &alias) else { continue };
+            let Some((group, declared)) = declared_dependency(importer, &alias, *manifest_group)
+            else {
+                continue;
+            };
+            if declared.specifier != *manifest_specifier {
+                continue;
+            }
             if let Some(catalog_name) = parse_catalog_protocol(&declared.specifier) {
                 cataloged.insert((catalog_name.to_string(), alias));
                 continue;
@@ -202,14 +255,19 @@ type DependencyGroupIndex = usize;
 const IMPORTER_GROUPS: [DependencyGroup; 3] =
     [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
 
+/// The importer's entry for `alias` under the group the manifest declares it
+/// in. Anchoring on that group rather than on the first map that happens to
+/// carry the alias keeps a dependency declared in more than one group reading
+/// and rewriting the same entry.
 fn declared_dependency<'a>(
     importer: &'a ProjectSnapshot,
     alias: &PkgName,
+    group: DependencyGroup,
 ) -> Option<(DependencyGroupIndex, &'a ResolvedDependencySpec)> {
-    [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
-        .into_iter()
-        .enumerate()
-        .find_map(|(index, group)| Some((index, group.as_ref()?.get(alias)?)))
+    let index = IMPORTER_GROUPS.iter().position(|candidate| *candidate == group)?;
+    let maps =
+        [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies];
+    Some((index, maps[index].as_ref()?.get(alias)?))
 }
 
 fn dependency_maps_mut(importer: &mut ProjectSnapshot) -> [Option<&mut ResolvedDependencyMap>; 3] {

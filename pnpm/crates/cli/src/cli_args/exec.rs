@@ -5,17 +5,20 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::Config;
-use pnpm_executor::{ScriptOutput, StreamedScript, push_script_arg, select_shell};
+use pnpm_executor::{
+    ProcessTracker, ScriptOutput, StreamedScript, push_script_arg, select_shell, spawn_child,
+};
 use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_reporter::LogEvent;
 use pnpm_workspace::safe_read_project_manifest_only;
 use std::{
     path::Path,
     process::{Command, ExitStatus, Stdio},
 };
+
+use super::reporter::{ReporterType, reporter_emit};
 
 /// Run a shell command in the context of a project.
 ///
@@ -99,10 +102,11 @@ impl ExecArgs {
     /// On a non-zero child exit code this terminates the process with the
     /// same code via [`std::process::exit`], matching pnpm's exec, which
     /// returns `{ exitCode }` and lets the CLI exit with it.
-    pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
+    pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
         let command = prepare_command(self.command)?;
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        let status = spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit)?;
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        let status =
+            spawn_in_dir(&command, dir, config, self.shell_mode, ScriptOutput::Inherit, None)?;
         if !status.success() {
             // Propagate the child's exit code. A signal-terminated child
             // has no code; fall back to 1, matching pnpm's `exitCode ?? 1`.
@@ -118,10 +122,10 @@ impl ExecArgs {
         &self,
         config: &Config,
         dir: &Path,
-        emit: fn(&LogEvent),
+        reporter: ReporterType,
     ) -> miette::Result<()> {
-        super::verify_deps::verify_deps_before_run(dir, config, false)?;
-        recursive::exec_recursive(self, config, dir, emit).await
+        super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
+        recursive::exec_recursive(self, config, dir, reporter_emit(reporter)).await
     }
 }
 
@@ -158,51 +162,23 @@ pub(super) fn spawn_in_dir(
     config: &Config,
     shell_mode: bool,
     output: ScriptOutput<'_>,
+    process_tracker: Option<&ProcessTracker>,
 ) -> Result<ExitStatus, ExecError> {
     let mut cmd = command_in_dir(command, dir, config, shell_mode)?;
     let ScriptOutput::Streamed { dep_path, emit } = output else {
-        return cmd
-            .status()
-            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
-    };
-    let wd = dir.to_string_lossy();
-    let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
-    let mut child = cmd
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-    let status = streamed
-        .pump(&mut child)
-        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
-    streamed.finished(status.code().unwrap_or(-1));
-    Ok(status)
-}
-
-pub(super) async fn spawn_async_in_dir(
-    command: &[String],
-    dir: &Path,
-    config: &Config,
-    shell_mode: bool,
-    output: ScriptOutput<'_>,
-) -> Result<ExitStatus, ExecError> {
-    let cmd = command_in_dir(command, dir, config, shell_mode)?;
-    let mut cmd = tokio::process::Command::from(cmd);
-    cmd.kill_on_drop(true);
-    let ScriptOutput::Streamed { dep_path, emit } = output else {
-        return cmd
-            .status()
-            .await
+        let mut child = spawn_child(&mut cmd, process_tracker)
+            .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+        return child
+            .wait()
             .map_err(|source| ExecError::Spawn { command: command[0].clone(), source });
     };
     let wd = dir.to_string_lossy();
     let streamed = StreamedScript { dep_path, stage: EXEC_STAGE, wd: &wd, emit };
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child =
-        cmd.spawn().map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
+    let mut child = spawn_child(&mut cmd, process_tracker)
+        .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     let status = streamed
-        .pump_async(&mut child)
-        .await
+        .pump(child.child_mut())
         .map_err(|source| ExecError::Spawn { command: command[0].clone(), source })?;
     streamed.finished(status.code().unwrap_or(-1));
     Ok(status)

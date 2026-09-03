@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     State,
+    config_deps::prepare_config,
     config_overrides::{
         ConfigOverrides, apply_registry_override, apply_state_dir_override,
         apply_store_dir_override,
@@ -16,8 +17,9 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
+use pnpm_default_reporter::DefaultReporter;
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
 use std::{future::Future, path::Path, pin::Pin};
 
 pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
@@ -45,6 +47,10 @@ pub(crate) struct RunCtx<'a> {
     /// The top-level `--if-present` spelling (`pnpm --if-present test`);
     /// merged with the flag the script subcommands declare themselves.
     pub(crate) if_present: bool,
+    /// Whether a `pm` prefix (`pnpm pm clean`) forced the built-in
+    /// command, so a `package.json` script of the same name must not
+    /// override it. See [`crate::pm_prefix`].
+    pub(crate) builtin_command_forced: bool,
     pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
     /// Like [`Self::config`] but anchored at the pnpm home dir instead of
     /// `--dir`, so a `-g` install can't inherit the caller project's
@@ -136,7 +142,7 @@ impl CliArgs {
         let Ok(mut config) = loaded else {
             return false;
         };
-        config_overrides.apply(&mut config);
+        config_overrides.apply(&mut config, &dir);
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -174,8 +180,14 @@ impl CliArgs {
     /// tokens already stripped from argv by [`ConfigOverrides::extract`];
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
     /// `Config` is loaded, mirroring pnpm 11's
-    /// "CLI > yaml > .npmrc > defaults" precedence.
-    pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+    /// "CLI > yaml > .npmrc > defaults" precedence. `builtin_command_forced`
+    /// carries the `pm` prefix stripped from argv by
+    /// [`crate::pm_prefix::strip_prefix`].
+    pub async fn run(
+        self,
+        config_overrides: &ConfigOverrides,
+        builtin_command_forced: bool,
+    ) -> miette::Result<()> {
         if self.run_completion_if_requested()? {
             return Ok(());
         }
@@ -286,7 +298,7 @@ impl CliArgs {
         // including `self-update`'s.
         let finalize_config =
             |mut cfg: Config, anchor: &Path| -> miette::Result<&'static mut Config> {
-                config_overrides.apply(&mut cfg);
+                config_overrides.apply(&mut cfg, anchor);
                 cfg.color = if let Some(color) = color {
                     color
                 } else if no_color {
@@ -437,6 +449,7 @@ impl CliArgs {
             recursive_report_summary: report_summary,
             recursive_parallel: parallel,
             if_present,
+            builtin_command_forced,
             config: &config,
             global_config: &global_config,
             config_self_update: &config_self_update,
@@ -474,6 +487,31 @@ impl CliArgs {
 
         Ok(())
     }
+}
+
+/// Install the project's config dependencies and apply their `updateConfig`
+/// pnpmfile hooks to `config` before a command spawns anything, so a hook's
+/// settings — `extraEnv` and `extraBinPaths` among them — reach the child
+/// processes the command starts. pnpm applies them once per invocation,
+/// whatever the command.
+///
+/// Every [`RunCtx::config`] call yields a fresh `Config`, so the pass has to
+/// run on the instance the handler goes on to use — it cannot be hoisted ahead
+/// of [`route`]. The install family and pack/publish apply the same pass at
+/// their own entry points, where they already hold that instance.
+pub(super) async fn apply_update_config(
+    config: &mut Config,
+    dir: &Path,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            prepare_config::<DefaultReporter>(config, dir).await?
+        }
+        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
+        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
+    };
+    Ok(())
 }
 
 /// Route a parsed [`CliCommand`] to its handler. The per-command logic lives
@@ -582,7 +620,11 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
 }
 
 fn prints_json_errors(command: &CliCommand) -> bool {
-    matches!(command, CliCommand::Publish(args) if args.flags.json)
+    match command {
+        CliCommand::Publish(args) => args.flags.json,
+        CliCommand::View(args) => args.json,
+        _ => false,
+    }
 }
 
 fn print_json_error(error: &miette::Report) {

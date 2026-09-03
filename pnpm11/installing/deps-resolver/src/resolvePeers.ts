@@ -952,7 +952,7 @@ function inheritedParentPkgBreaksPeerDiamond<T extends PartialResolvedPackage> (
   if (parentPkg == null) return false
 
   const conflictingPeers = new Set<string>()
-  for (const peerName of Object.keys(parentPkg.peerDependencies)) {
+  for (const peerName of Object.keys(parentPkg.peerDependencies ?? {})) {
     if (!ctx.allPeerDepNames.has(peerName)) continue
     const inheritedPeer = inheritedContext[peerName]
     const currentPeer = parentPkgs[peerName]

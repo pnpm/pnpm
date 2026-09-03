@@ -1,6 +1,7 @@
 use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
-    SymlinkPackageError, VirtualStoreLayout, create_symlink_layout, import_indexed_dir,
+    DirCloneCache, ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER,
+    SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout,
+    import_indexed_dir,
     import_indexed_dir::marker_present,
     safe_join_modules_dir::{InvalidDependencyAliasError, safe_join_modules_dir},
 };
@@ -89,6 +90,12 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// Empty source file imported as `.pnpm-needs-build` before the package's
     /// atomic completion marker when the package needs a build or patch.
     pub needs_build_marker_source: Option<&'a Path>,
+    /// macOS directory-clone materialization cache
+    /// ([`crate::dir_clone_cache`]). `None` when the install isn't
+    /// eligible ([`DirCloneCache::eligible`]) or when the caller's
+    /// per-slot qualification says this slot must take the per-file
+    /// import.
+    pub dir_clone_cache: Option<&'a DirCloneCache<'a>>,
     #[cfg(test)]
     pub link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
 }
@@ -96,9 +103,17 @@ pub struct CreateVirtualDirBySnapshot<'a> {
 /// Error type of [`CreateVirtualDirBySnapshot`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CreateVirtualDirError {
-    #[display("Failed to recursively create node_modules directory at {dir:?}: {error}")]
+    #[display("Failed to create node_modules directory at {dir:?}: {error}")]
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_NODE_MODULES_DIR))]
     CreateNodeModulesDir {
+        dir: PathBuf,
+        #[error(source)]
+        error: io::Error,
+    },
+
+    #[display("Failed to create virtual store slot directory at {dir:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_CREATE_SLOT_DIR))]
+    CreateSlotDir {
         dir: PathBuf,
         #[error(source)]
         error: io::Error,
@@ -144,6 +159,7 @@ impl CreateVirtualDirBySnapshot<'_> {
             skipped,
             removed_aliases,
             needs_build_marker_source,
+            dir_clone_cache,
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
@@ -152,13 +168,37 @@ impl CreateVirtualDirBySnapshot<'_> {
         let _link_concurrency_guard =
             link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let virtual_node_modules_dir = layout.slot_dir(package_key).join("node_modules");
-        fs::create_dir_all(&virtual_node_modules_dir).map_err(|error| {
-            CreateVirtualDirError::CreateNodeModulesDir {
-                dir: virtual_node_modules_dir.clone(),
-                error,
+        let slot_dir = layout.slot_dir(package_key);
+        let virtual_node_modules_dir = slot_dir.join("node_modules");
+        // Two direct `mkdir`s instead of one `create_dir_all` on the
+        // deepest path: the recursive form probes bottom-up with a
+        // failing `mkdir` per missing ancestor before creating them
+        // top-down, which on the APFS-serialized metadata path costs a
+        // large install ~3 extra syscalls per slot. The virtual-store
+        // root exists (steady state) — only its absence falls back to
+        // the recursive form.
+        match fs::create_dir(&slot_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                fs::create_dir_all(&slot_dir).map_err(|error| {
+                    CreateVirtualDirError::CreateSlotDir { dir: slot_dir.clone(), error }
+                })?;
             }
-        })?;
+            Err(error) => {
+                return Err(CreateVirtualDirError::CreateSlotDir { dir: slot_dir, error });
+            }
+        }
+        match fs::create_dir(&virtual_node_modules_dir) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => {
+                return Err(CreateVirtualDirError::CreateNodeModulesDir {
+                    dir: virtual_node_modules_dir,
+                    error,
+                });
+            }
+        }
 
         let save_path =
             safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
@@ -190,6 +230,20 @@ impl CreateVirtualDirBySnapshot<'_> {
         };
 
         let import_package = || {
+            // A slot with an interrupted build re-imports with `force`,
+            // which the cache's fresh-destination clone cannot serve.
+            if !interrupted_build
+                && let Some(cache) = dir_clone_cache
+                && cache.try_import::<Reporter>(
+                    logged_methods,
+                    import_method,
+                    package_key,
+                    &save_path,
+                    cas_paths,
+                )
+            {
+                return Ok(());
+            }
             import_indexed_dir::<Reporter>(
                 logged_methods,
                 import_method,

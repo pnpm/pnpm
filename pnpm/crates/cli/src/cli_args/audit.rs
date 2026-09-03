@@ -17,6 +17,7 @@ use pnpm_lockfile::{
 use pnpm_network::{RetryOpts, encode_package_name, send_with_retry};
 use pnpm_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
 use pnpm_package_manifest::DependencyGroup;
+use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
@@ -58,7 +59,8 @@ pub(crate) use request::{
     lockfile_to_audit_request, root_included,
 };
 pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, satisfies_including_prerelease, satisfies_safe,
+    caret_range_for_patched, infer_patched_versions, patched_range_for_style,
+    satisfies_including_prerelease, satisfies_safe,
 };
 
 mod signatures;
@@ -243,8 +245,7 @@ impl AuditArgs {
                     let _ = std::io::stderr().flush();
                     if self.json {
                         let report = empty_audit_report(lockfile, env_lockfile.as_ref(), include);
-                        print!("{}", render_json_report(&report, audit_level)?);
-                        let _ = std::io::stdout().flush();
+                        print_command_output(&render_json_report(&report, audit_level)?);
                     }
                     return Ok(AuditOutcome::Clean);
                 }
@@ -320,8 +321,7 @@ impl AuditArgs {
                     let output =
                         fix_override(&filtered, &settings_dir, state.config, &publish_infos)
                             .await?;
-                    print!("{output}");
-                    let _ = std::io::stdout().flush();
+                    print_command_output(&output);
                     Ok(AuditOutcome::Clean)
                 }
                 FixMethod::Update => {
@@ -342,8 +342,7 @@ impl AuditArgs {
                         );
                         output.push_str(&note);
                     }
-                    print!("{output}");
-                    let _ = std::io::stdout().flush();
+                    print_command_output(&output);
                     Ok(if remaining.is_empty() {
                         AuditOutcome::Clean
                     } else {
@@ -361,8 +360,7 @@ impl AuditArgs {
                 &self.ignore,
                 self.ignore_unfixable,
             )?;
-            print!("{output}");
-            let _ = std::io::stdout().flush();
+            print_command_output(&output);
             return Ok(AuditOutcome::Clean);
         }
 
@@ -374,8 +372,7 @@ impl AuditArgs {
         } else {
             render_text_report(&report, audit_level, total_vulnerability_count, &ignored)
         };
-        print!("{output}");
-        let _ = std::io::stdout().flush();
+        print_command_output(&output);
 
         Ok(
             if report
@@ -452,8 +449,7 @@ impl AuditArgs {
         } else {
             signatures::render_signature_verification_result(&result)
         };
-        print!("{output}");
-        let _ = std::io::stdout().flush();
+        print_command_output(&output);
 
         Ok(if result.invalid.is_empty() && result.missing.is_empty() {
             AuditOutcome::Clean
@@ -517,6 +513,21 @@ async fn audit(
             body: sanitize_response_body(&raw_body),
         }),
     }
+}
+
+/// Write one command result to stdout, appending the newline it lacks. Mirrors
+/// pnpm's CLI, which terminates every command's output the same way and writes
+/// nothing when a command produced none.
+fn print_command_output(output: &str) {
+    if output.is_empty() {
+        return;
+    }
+    if output.ends_with('\n') {
+        print!("{output}");
+    } else {
+        println!("{output}");
+    }
+    let _ = std::io::stdout().flush();
 }
 
 fn retry_opts_from_config(config: &Config) -> RetryOpts {

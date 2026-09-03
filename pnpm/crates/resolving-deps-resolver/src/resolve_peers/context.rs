@@ -9,7 +9,7 @@ use crate::{
 };
 use node_semver::{Range, Version};
 use pnpm_deps_path::{DepPath, PeerId, index_of_dep_path_suffix};
-use pnpm_resolving_resolver_base::ResolveResult;
+use pnpm_resolving_resolver_base::{ResolveResult, get_peer_version_range};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     path::{Path, PathBuf},
@@ -383,23 +383,6 @@ fn version_gte(left: &str, right: &str) -> bool {
     }
 }
 
-pub(super) fn scoped_hoisted_optional_parent_refs(
-    parent_refs: &ParentRefs,
-    locked_peer_names: &HashSet<String>,
-    hoisted_optional_peer_node_ids: &HashSet<NodeId>,
-) -> ParentRefs {
-    parent_refs
-        .iter()
-        .filter(|(name, parent)| {
-            parent.node_id.as_ref().is_none_or(|parent_node_id| {
-                !hoisted_optional_peer_node_ids.contains(parent_node_id)
-                    || locked_peer_names.contains(*name)
-            })
-        })
-        .map(|(name, parent)| (name.clone(), parent.clone()))
-        .collect()
-}
-
 /// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
 ///
 /// Linked top-parent `NodeIds` (whether the workspace-link arm or the
@@ -414,6 +397,7 @@ pub(super) fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
 
 pub(super) fn importer_relative_link_dep_path(
     dep_path: &DepPath,
+    anchor: &crate::link_target::ImporterAnchor,
     lockfile_dir: Option<&Path>,
     project_dir: Option<&Path>,
 ) -> DepPath {
@@ -423,21 +407,23 @@ pub(super) fn importer_relative_link_dep_path(
     let (Some(lockfile_dir), Some(project_dir)) = (lockfile_dir, project_dir) else {
         return dep_path.clone();
     };
-    let target = Path::new(target);
-    let absolute_target = if target.is_absolute() {
-        pnpm_fs::lexical_normalize(target)
-    } else {
-        pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
-    };
-    // `diff_paths` walks both paths component-wise, so a base still
-    // carrying `.` / `..` segments would consume them as real directories
-    // and count the wrong number of `..` hops back out.
-    let project_dir = pnpm_fs::lexical_normalize(project_dir);
-    let relative_target = pathdiff::diff_paths(&absolute_target, project_dir)
-        .unwrap_or(absolute_target)
-        .display()
-        .to_string()
-        .replace('\\', "/");
+    let relative_target = anchor.target_relative_to_importer(target).unwrap_or_else(|| {
+        let target = Path::new(target);
+        let absolute_target = if target.is_absolute() {
+            pnpm_fs::lexical_normalize(target)
+        } else {
+            pnpm_fs::lexical_normalize(&lockfile_dir.join(target))
+        };
+        // `diff_paths` walks both paths component-wise, so a base still
+        // carrying `.` / `..` segments would consume them as real directories
+        // and count the wrong number of `..` hops back out.
+        let project_dir = pnpm_fs::lexical_normalize(project_dir);
+        pathdiff::diff_paths(&absolute_target, project_dir)
+            .unwrap_or(absolute_target)
+            .display()
+            .to_string()
+            .replace('\\', "/")
+    });
     DepPath::from(format!("link:{relative_target}"))
 }
 
@@ -608,16 +594,28 @@ fn peer_segment_name(segment: &str) -> Option<&str> {
 /// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
 /// in Yarn's full per-comparator algorithm.
 pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
+    let parsed_range = Range::parse(range).ok();
+    satisfies_with_parsed_prereleases(version, range, parsed_range.as_ref())
+}
+
+/// [`satisfies_with_prereleases`] against a range that is already
+/// parsed. `parsed_range` must be `Range::parse(range).ok()`;
+/// [`ComparablePeerRange`] is what keeps the two in step.
+fn satisfies_with_parsed_prereleases(
+    version: &str,
+    range: &str,
+    parsed_range: Option<&Range>,
+) -> bool {
     if range == "*" {
         return true;
     }
     let Ok(parsed_version) = Version::parse(version) else {
         return version == range;
     };
-    let Ok(parsed_range) = Range::parse(range) else {
+    let Some(parsed_range) = parsed_range else {
         return version == range;
     };
-    if parsed_version.satisfies(&parsed_range) {
+    if parsed_version.satisfies(parsed_range) {
         return true;
     }
     if !parsed_version.is_prerelease() {
@@ -630,7 +628,31 @@ pub(super) fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
         pre_release: Vec::new(),
         build: Vec::new(),
     };
-    base.satisfies(&parsed_range)
+    base.satisfies(parsed_range)
+}
+
+/// A peer range in the comparable form [`get_peer_version_range`]
+/// yields, paired with its parsed form so a range that many nodes
+/// declare is parsed once. Holding the two together is what keeps the
+/// parsed range in step with the text it came from.
+pub(super) struct ComparablePeerRange {
+    /// The comparable range, as peer-dependency issues quote it.
+    pub(super) text: String,
+    parsed: Option<Range>,
+}
+
+impl ComparablePeerRange {
+    pub(super) fn new(raw_range: &str) -> Self {
+        let text = get_peer_version_range(raw_range);
+        let parsed = Range::parse(&text).ok();
+        ComparablePeerRange { text, parsed }
+    }
+
+    /// Whether `version` satisfies this range, by
+    /// [`satisfies_with_prereleases`]'s rules.
+    pub(super) fn satisfies(&self, version: &str) -> bool {
+        satisfies_with_parsed_prereleases(version, &self.text, self.parsed.as_ref())
+    }
 }
 
 #[cfg(test)]

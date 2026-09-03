@@ -86,6 +86,7 @@ export type PnpmConfigFileKey = typeof pnpmConfigFileKeys[number]
 export const structuredConfigFileKeys = [
   'named-registries',
   'registries',
+  'remote-side-effects-cache',
 ] as const
 export type StructuredConfigFileKey = typeof structuredConfigFileKeys[number]
 

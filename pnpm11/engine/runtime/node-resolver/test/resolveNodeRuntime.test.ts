@@ -5,7 +5,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import type { FetchFromRegistry } from '@pnpm/fetching.types'
 
-import { resolveNodeRuntime } from '../lib/index.js'
+import { resolveNodeRuntime, resolveNodeVersion } from '../lib/index.js'
 
 const MIRROR = 'https://node.example/download/rc/'
 
@@ -41,6 +41,96 @@ test.each([
   })
 
   expect(resolution?.normalizedBareSpecifier).toBe(expected)
+})
+
+test('resolveNodeRuntime() authenticates release index and SHASUMS requests without sharing cached metadata', async () => {
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const authenticatedFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    return fetch(url)
+  }
+  const cacheDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-node-resolver-auth-'))
+  try {
+    for (let run = 0; run < 2; run++) {
+      // eslint-disable-next-line no-await-in-loop
+      await resolveNodeRuntime({
+        fetchFromRegistry: authenticatedFetch,
+        getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+        nodeDownloadMirrors: { rc: MIRROR },
+        cacheDir,
+      }, {
+        alias: 'node',
+        bareSpecifier: 'runtime:rc/22',
+      })
+    }
+
+    expect(requests).toEqual([
+      { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}index.json`, authHeaderValue: 'Bearer mirror-token' },
+      { url: `${MIRROR}v22.11.0/SHASUMS256.txt`, authHeaderValue: 'Bearer mirror-token' },
+    ])
+  } finally {
+    await fs.promises.rm(cacheDir, { recursive: true, force: true })
+  }
+})
+
+test.each([
+  'http://node.example/download/rc/',
+  'http://127.attacker.example/download/rc/',
+])('resolveNodeRuntime() omits credentials for remote HTTP mirror %s', async (mirror) => {
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const httpFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    if (url === `${mirror}index.json`) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    if (url === `${mirror}v22.11.0/SHASUMS256.txt`) {
+      return new Response('ed52239294ad517fbe91a268146d5d2aa8a17d2d62d64873e43219078ba71c4e  node-v22.11.0-linux-x64.tar.gz\n')
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  await resolveNodeRuntime({
+    fetchFromRegistry: httpFetch,
+    getAuthHeader: () => 'Bearer mirror-token',
+    nodeDownloadMirrors: { rc: mirror },
+  }, {
+    alias: 'node',
+    bareSpecifier: 'runtime:rc/22',
+  })
+
+  expect(requests).toEqual([
+    { url: `${mirror}index.json`, authHeaderValue: undefined },
+    { url: `${mirror}v22.11.0/SHASUMS256.txt`, authHeaderValue: undefined },
+  ])
+})
+
+test('resolveNodeVersion() selects credentials again after a redirect', async () => {
+  const startUrl = `${MIRROR}index.json`
+  const redirectedUrl = 'http://node.example/public/index.json'
+  const requests: Array<{ url: string, authHeaderValue?: string }> = []
+  const redirectingFetch: FetchFromRegistry = async (url, opts) => {
+    requests.push({ url, authHeaderValue: opts?.authHeaderValue })
+    if (url === startUrl) {
+      return new Response(null, { status: 302, headers: { location: redirectedUrl } })
+    }
+    if (url === redirectedUrl) {
+      return new Response(JSON.stringify([{ version: 'v22.11.0', lts: false }]))
+    }
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
+  const version = await resolveNodeVersion(redirectingFetch, 'latest', {
+    nodeMirrorBaseUrl: MIRROR,
+    getAuthHeader: url => url.startsWith(MIRROR) ? 'Bearer mirror-token' : undefined,
+  })
+
+  expect(version).toBe('22.11.0')
+  expect(requests).toEqual([
+    { url: startUrl, authHeaderValue: 'Bearer mirror-token' },
+    { url: redirectedUrl, authHeaderValue: undefined },
+  ])
 })
 
 const RELEASE_MIRROR = 'https://node.example/download/release/'

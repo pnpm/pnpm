@@ -182,6 +182,13 @@ impl fmt::Debug for AuthHeaders {
 }
 
 impl AuthHeaders {
+    /// Whether no configured credential or route hook can provide
+    /// authorization for any URL.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+    }
+
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
     /// pairs. Caller is responsible for nerf-darting and for choosing
     /// the right scheme (`Bearer ...` or `Basic ...`).
@@ -381,6 +388,24 @@ impl AuthHeaders {
     #[must_use]
     pub fn for_url(&self, url: &str) -> Option<String> {
         self.for_url_with_package(url, None)
+    }
+
+    /// Resolve an `Authorization` header only when `url` uses TLS or targets
+    /// the local machine. The loopback exception keeps local registry proxies
+    /// usable without exposing credentials on a network link.
+    #[must_use]
+    pub fn for_secure_url(&self, url: &str) -> Option<String> {
+        self.for_secure_url_with_package(url, None)
+    }
+
+    /// Package-aware counterpart to [`Self::for_secure_url`].
+    #[must_use]
+    pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        let parsed = ParsedUrl::parse(url)?;
+        if !parsed.scheme.eq_ignore_ascii_case("https") && !is_loopback_host(parsed.host) {
+            return None;
+        }
+        self.for_url_with_package(url, pkg_name)
     }
 
     /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
@@ -661,12 +686,20 @@ impl<'a> ParsedUrl<'a> {
             Some((user_info, host_port)) => (Some(user_info), host_port),
             None => (None, authority),
         };
-        let (host, port) = match host_port.rsplit_once(':') {
-            // Skip IPv6 brackets. Pnpm doesn't handle them either, and
-            // no npm registry we care about uses them. Documenting the
-            // limit here rather than silently misparsing.
-            Some((host, port)) if !host.contains('[') => (host, Some(port)),
-            _ => (host_port, None),
+        let (host, port) = if host_port.starts_with('[') {
+            match host_port.find(']') {
+                Some(closing_bracket) => {
+                    let host = &host_port[..=closing_bracket];
+                    let port = host_port[closing_bracket + 1..].strip_prefix(':');
+                    (host, port)
+                }
+                None => (host_port, None),
+            }
+        } else {
+            match host_port.rsplit_once(':') {
+                Some((host, port)) => (host, Some(port)),
+                None => (host_port, None),
+            }
         };
         Some(ParsedUrl { scheme, user_info, host, port, path })
     }
@@ -721,12 +754,26 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
     matches!((scheme, port), ("https", "443") | ("http", "80"))
 }
 
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .trim_matches(['[', ']'])
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
+
 /// Local base64 encode so this crate doesn't pull in `base64` just for
 /// 4 lines. Standard alphabet, with padding.
 #[must_use]
 pub fn base64_encode(input: &str) -> String {
+    base64_encode_bytes(input.as_bytes())
+}
+
+/// [`base64_encode`] for credentials that are not required to be UTF-8,
+/// so a re-encoded `.npmrc` credential reproduces its bytes exactly.
+#[must_use]
+pub fn base64_encode_bytes(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let bytes = input.as_bytes();
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let mut chunks = bytes.chunks_exact(3);
     for chunk in &mut chunks {

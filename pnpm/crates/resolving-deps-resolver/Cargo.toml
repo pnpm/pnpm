@@ -11,6 +11,7 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+tracing                                = { workspace = true }
 rustc-hash                             = { workspace = true }
 pnpm-catalogs-resolver                 = { workspace = true }
 pnpm-catalogs-types                    = { workspace = true }
@@ -22,6 +23,7 @@ pnpm-package-manifest                  = { workspace = true }
 pnpm-patching                          = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }
 pnpm-resolving-resolver-base           = { workspace = true }
+pnpm-semver-include-prerelease         = { workspace = true }
 
 async-recursion                     = { workspace = true }
 chrono                              = { workspace = true }

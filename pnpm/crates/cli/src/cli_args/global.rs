@@ -28,13 +28,14 @@ use crate::{
         },
     },
     engine_pm::selector::tool_install_selector,
-    shim_dispatch::install_dispatcher,
+    shim_dispatch::{ShimTarget, install_native_shim, migrate_legacy_shims, remove_native_shim},
 };
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use node_semver::Version;
 use pnpm_cmd_shim::{
-    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, link_bins_of_packages_context_aware,
-    link_bins_of_packages_with_excludes, link_virtual_shims, remove_bin as remove_cmd_shim,
+    Host as CmdShimHost, LinkBinsOptions, PackageBinSource, choose_bins,
+    link_bins_of_packages_with_excludes, remove_bin as remove_cmd_shim,
 };
 use pnpm_config::{
     CatalogMode, Config, GlobalShims, WorkspaceSettings, check_global_bin_dir, decided_allow_builds,
@@ -43,9 +44,10 @@ use pnpm_fs::{is_subdir, lexical_normalize, remove_symlink_dir, symlink_dir};
 use pnpm_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
     create_global_cache_key, create_install_dir, find_global_package, get_hash_link,
-    get_installed_bin_names, read_direct_dependencies, read_installed_packages,
+    get_installed_bin_names, installed_versions, read_direct_dependencies, read_installed_packages,
     scan_global_packages,
 };
+use pnpm_lockfile::{ImporterDepVersion, Lockfile};
 use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_package_manifest::{DependencyGroup, safe_read_package_json_from_dir};
 use pnpm_registry::RangeSpecStyle;
@@ -122,8 +124,8 @@ fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
         .map_err(miette::Report::new)
 }
 
-/// Link `pkgs`' bins into the global bin dir in the shim style selected
-/// by the `globalShims` record: bins of an enabled providing package get
+/// Link `pkgs`' bins into the global bin dir in the shape selected by the
+/// `globalShims` record: bins of an enabled providing package become
 /// context-aware shims, everything else gets direct shims. The runtime
 /// names only count when actually installed through the `runtime:`
 /// protocol, so an npm package that happens to be called `node` is not
@@ -154,7 +156,16 @@ fn link_global_bins(
                         .any(|(alias, spec)| alias == name && spec.starts_with("runtime:")))
         })
     });
+    migrate_legacy_shims(global_bin_dir).into_diagnostic().wrap_err("migrate the global shims")?;
     if !direct.is_empty() {
+        // A slot turning direct again (its package's shim switched off)
+        // must not keep the native shim, which would shadow the direct
+        // shim on Windows and hold a stale target everywhere.
+        for (command, _) in choose_bins::<CmdShimHost>(&direct, bins_to_skip) {
+            remove_native_shim(global_bin_dir, &command.name)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("remove the stale {} shim", command.name))?;
+        }
         link_bins_of_packages_with_excludes::<CmdShimHost>(
             &direct,
             global_bin_dir,
@@ -164,45 +175,10 @@ fn link_global_bins(
         .map_err(miette::Report::new)
         .wrap_err("link direct global package bins")?;
     }
-    if !context_aware.is_empty() {
-        install_dispatcher(global_bin_dir)
+    for (command, _) in choose_bins::<CmdShimHost>(&context_aware, bins_to_skip) {
+        install_native_shim(global_bin_dir, &command.name, &ShimTarget::Installed(command.path))
             .into_diagnostic()
-            .wrap_err("install the global shim dispatcher")?;
-        link_bins_of_packages_context_aware::<CmdShimHost>(
-            &context_aware,
-            global_bin_dir,
-            bins_to_skip,
-        )
-        .map_err(miette::Report::new)
-        .wrap_err("link context-aware global package bins")?;
-        #[cfg(windows)]
-        install_windows_node_dispatcher(&context_aware, global_bin_dir, bins_to_skip)?;
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn install_windows_node_dispatcher(
-    packages: &[PackageBinSource],
-    global_bin_dir: &Path,
-    bins_to_skip: &HashSet<String>,
-) -> miette::Result<()> {
-    if bins_to_skip.contains("node") {
-        return Ok(());
-    }
-    let target = packages.iter().find_map(|pkg| {
-        if pkg.manifest.get("name").and_then(serde_json::Value::as_str) != Some("node") {
-            return None;
-        }
-        pnpm_cmd_shim::get_bins_from_package_manifest::<CmdShimHost>(&pkg.manifest, &pkg.location)
-            .into_iter()
-            .find(|command| command.name == "node")
-            .map(|command| command.path)
-    });
-    if let Some(target) = target {
-        crate::shim_dispatch::install_windows_node_dispatcher(global_bin_dir, &target)
-            .into_diagnostic()
-            .wrap_err("install the Windows Node.js dispatcher")?;
+            .wrap_err_with(|| format!("install the {} shim", command.name))?;
     }
     Ok(())
 }
@@ -223,9 +199,7 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     let groups = split_into_groups(params, cwd);
     // Each selector is read as its package name, so versioned forms like
     // `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
-    if groups.iter().flatten().any(|token| {
-        matches!(parse_wanted_dependency(token).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
-    }) {
+    if selects_pnpm_cli(groups.iter().flatten()) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
     // A tool name becomes the selector that installs the tool itself,
@@ -246,14 +220,19 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     clean_orphaned_install_dirs(&global_pkg_dir);
 
     for group in groups {
-        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
+        let install_dir = create_install_dir(&global_pkg_dir)
+            .into_diagnostic()
+            .wrap_err("create global install dir")?;
+        let config = Box::pin(run_group_install::<Reporter>(GroupInstall {
             base_config,
-            &global_pkg_dir,
-            &group,
+            global_pkg_dir: &global_pkg_dir,
+            install_dir: &install_dir,
+            selectors: &group,
             range_spec_style,
-            supported_architectures.clone(),
+            supported_architectures: supported_architectures.clone(),
             allow_build,
-        ))
+            lockfile_only: false,
+        }))
         .await?;
 
         let pkgs = read_installed_packages(&install_dir);
@@ -313,15 +292,6 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
                 return Err(error);
             }
         };
-        if !replacement_plan.shims_to_restore.is_empty()
-            && let Err(error) = install_dispatcher(&global_bin_dir)
-                .into_diagnostic()
-                .wrap_err("install the global shim dispatcher")
-        {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
-
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
@@ -379,10 +349,20 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     check_bin_dir(&global_bin_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    let all =
+    let scanned =
         scan_global_packages(&global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
-    if all.is_empty() {
+    if scanned.is_empty() {
         println!("No global packages found");
+        return Ok(());
+    }
+    // `pnpm self-update` owns the pnpm CLI's global install: it is what points
+    // the pnpm home's bins at a release. Reinstalling that group here would
+    // resolve pnpm from the `latest` dist-tag and relink the bins, silently
+    // rolling the running pnpm back to whatever `latest` points at.
+    let all: Vec<GlobalPackageInfo> =
+        scanned.into_iter().filter(|pkg| !has_pnpm_cli_dependency(pkg)).collect();
+    if all.is_empty() {
+        println!(r#"No global packages to update. Run "pnpm self-update" to update pnpm itself."#);
         return Ok(());
     }
     let mut to_update: Vec<GlobalPackageInfo> = if params.is_empty() {
@@ -401,19 +381,32 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     }
 
     for pkg in &to_update {
-        let selectors = update_selectors(&pkg.dependencies, latest);
-        let (install_dir, config) = Box::pin(run_group_install::<Reporter>(
+        let install_dir = create_install_dir(&global_pkg_dir)
+            .into_diagnostic()
+            .wrap_err("create global install dir")?;
+        let pins = Box::pin(pins_for_downgrades::<Reporter>(
             base_config,
             &global_pkg_dir,
-            &selectors,
+            &install_dir,
+            pkg,
+            latest,
             range_spec_style,
             supported_architectures.clone(),
-            // `update -g` takes no `--allow-build`; the build policy comes
-            // from the global `allowBuilds` loaded in `run_group_install`.
-            &[],
         ))
         .await?;
-        let _ = config;
+        Box::pin(run_group_install::<Reporter>(GroupInstall {
+            base_config,
+            global_pkg_dir: &global_pkg_dir,
+            install_dir: &install_dir,
+            selectors: &update_selectors(&pkg.dependencies, latest, &pins),
+            range_spec_style,
+            supported_architectures: supported_architectures.clone(),
+            // `update -g` takes no `--allow-build`; the build policy comes
+            // from the global `allowBuilds` loaded in `run_group_install`.
+            allow_build: &[],
+            lockfile_only: false,
+        }))
+        .await?;
 
         let pkgs = read_installed_packages(&install_dir);
         let dependencies = read_direct_dependencies(&install_dir);
@@ -466,15 +459,6 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
                 return Err(error);
             }
         };
-        if !replacement_plan.shims_to_restore.is_empty()
-            && let Err(error) = install_dispatcher(&global_bin_dir)
-                .into_diagnostic()
-                .wrap_err("install the global shim dispatcher")
-        {
-            let _ = fs::remove_dir_all(&install_dir);
-            return Err(error);
-        }
-
         let hash_link = get_hash_link(&global_pkg_dir, &pkg.hash);
         let linked_pkgs = hash_linked_packages(&pkgs, &install_dir, &hash_link);
         let activation = activate_global_install_with_extra_bin_names::<CmdShimHost>(
@@ -519,15 +503,110 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
 
 /// With `--latest`, a dependency is reduced to its bare alias so the newest
 /// registry version is resolved.
-fn update_selectors(dependencies: &[(String, String)], latest: bool) -> Vec<String> {
+/// The selectors that reinstall a group. With `--latest` a plain version spec
+/// is dropped so the newest release is picked; `pins` holds back the aliases
+/// that would otherwise move backwards.
+fn update_selectors(
+    dependencies: &[(String, String)],
+    latest: bool,
+    pins: &HashMap<String, String>,
+) -> Vec<String> {
     dependencies
         .iter()
         .map(|(alias, spec)| {
-            if latest && is_plain_version_spec(spec) {
+            if let Some(pin) = pins.get(alias) {
+                format!("{alias}@{pin}")
+            } else if latest && is_plain_version_spec(spec) {
                 alias.clone()
             } else {
                 format!("{alias}@{spec}")
             }
+        })
+        .collect()
+}
+
+/// The version to hold each dependency of `pkg` at, for the ones an update would
+/// otherwise move backwards. `--latest` resolves the `latest` dist-tag, which
+/// points at an older release than the one installed whenever that came from
+/// another tag, or from a major that has not been promoted to `latest` yet.
+///
+/// The versions are resolved into `install_dir` without installing anything, so
+/// a release that is about to be rejected never gets the chance to run its
+/// lifecycle scripts. The install that follows reuses the lockfile written here
+/// and only re-resolves what a pin changes.
+///
+/// Only plain version dependencies are considered: every other spec form says
+/// where the package comes from, so holding one at a bare version would resolve
+/// a different package from the default registry.
+async fn pins_for_downgrades<Reporter: self::Reporter + 'static>(
+    base_config: &'static Config,
+    global_pkg_dir: &Path,
+    install_dir: &Path,
+    pkg: &GlobalPackageInfo,
+    latest: bool,
+    range_spec_style: RangeSpecStyle,
+    supported_architectures: Option<SupportedArchitectures>,
+) -> miette::Result<HashMap<String, String>> {
+    // Only `--latest` can pick a version outside the recorded range, and only a
+    // plain version spec is dropped for it. Everything else resolves within a
+    // range the installed version already satisfies.
+    if !latest {
+        return Ok(HashMap::new());
+    }
+    let versions_before = installed_versions(&pkg.install_dir);
+    // Nothing to compare a resolution against, so nothing to resolve.
+    if !pkg
+        .dependencies
+        .iter()
+        .any(|(alias, spec)| is_plain_version_spec(spec) && versions_before.contains_key(alias))
+    {
+        return Ok(HashMap::new());
+    }
+    run_group_install::<Reporter>(GroupInstall {
+        base_config,
+        global_pkg_dir,
+        install_dir,
+        selectors: &update_selectors(&pkg.dependencies, latest, &HashMap::new()),
+        range_spec_style,
+        supported_architectures,
+        allow_build: &[],
+        lockfile_only: true,
+    })
+    .await?;
+    let resolved = resolved_direct_versions(install_dir);
+
+    Ok(pkg
+        .dependencies
+        .iter()
+        .filter(|(_, spec)| is_plain_version_spec(spec))
+        .filter_map(|(alias, _)| {
+            let before = Version::parse(versions_before.get(alias)?).ok()?;
+            let now = resolved.get(alias)?;
+            (*now < before).then(|| (alias.clone(), before.to_string()))
+        })
+        .collect())
+}
+
+/// The version each direct dependency resolved to, read from the lockfile the
+/// resolve pass wrote. Only the plain-semver shape is reported: it is the only
+/// one a plain version spec resolves to, and the only one a pin can hold.
+fn resolved_direct_versions(install_dir: &Path) -> HashMap<String, Version> {
+    let Ok(Some(lockfile)) = Lockfile::load_from_path(&install_dir.join(Lockfile::FILE_NAME))
+    else {
+        return HashMap::new();
+    };
+    let Some(importer) = lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY) else {
+        return HashMap::new();
+    };
+    importer
+        .dependencies
+        .iter()
+        .flatten()
+        .filter_map(|(alias, resolved)| match &resolved.version {
+            ImporterDepVersion::Regular(version) => {
+                Some((alias.to_string(), version.version_semver()?.clone()))
+            }
+            _ => None,
         })
         .collect()
 }
@@ -578,12 +657,6 @@ pub fn handle_global_remove<Reporter: self::Reporter>(
         &protected,
         &crate::shim_dispatch::global_shims_setting(),
     )?;
-    if !shims_to_restore.is_empty() {
-        install_dispatcher(&global_bin_dir)
-            .into_diagnostic()
-            .wrap_err("install the global shim dispatcher")?;
-    }
-
     let restored_bin_names = shims_to_restore.values().flatten().cloned().collect::<HashSet<_>>();
     let affected_bin_names = groups
         .iter()
@@ -722,32 +795,50 @@ fn restore_virtual_shims(
     global_bin_dir: &Path,
 ) -> miette::Result<()> {
     for (package, bins) in shims_to_restore {
-        let bin_refs = bins.iter().map(String::as_str).collect::<Vec<_>>();
-        link_virtual_shims::<CmdShimHost>(package, &bin_refs, global_bin_dir)
-            .map_err(miette::Report::new)
-            .wrap_err_with(|| format!("restore the {package} shims"))?;
+        for bin in bins {
+            install_native_shim(global_bin_dir, bin, &ShimTarget::Virtual(package.clone()))
+                .into_diagnostic()
+                .wrap_err_with(|| format!("restore the {package} shims"))?;
+        }
     }
     Ok(())
 }
 
-/// Install `selectors` into a fresh group directory under `global_pkg_dir`,
-/// returning that directory and the leaked per-group [`Config`] (anchored
-/// there, saving to `dependencies`). Then run the global build-approval
-/// flow. Shared by add and update.
-async fn run_group_install<Reporter: self::Reporter + 'static>(
-    base_config: &Config,
-    global_pkg_dir: &Path,
-    selectors: &[String],
+/// What to install into a fresh global group directory. See
+/// [`run_group_install`].
+struct GroupInstall<'a> {
+    base_config: &'a Config,
+    global_pkg_dir: &'a Path,
+    /// The group's own directory, created by the caller.
+    install_dir: &'a Path,
+    selectors: &'a [String],
     range_spec_style: RangeSpecStyle,
     supported_architectures: Option<SupportedArchitectures>,
-    allow_build: &[String],
-) -> miette::Result<(PathBuf, &'static Config)> {
-    let install_dir = create_install_dir(global_pkg_dir)
-        .into_diagnostic()
-        .wrap_err("create global install dir")?;
+    allow_build: &'a [String],
+    /// Resolve and write the lockfile without linking anything or running a
+    /// build. Nothing a resolution is only being inspected for gets the chance
+    /// to run its lifecycle scripts.
+    lockfile_only: bool,
+}
 
+/// Install `install.selectors` into `install.install_dir`, returning the leaked
+/// per-group [`Config`] (anchored there, saving to `dependencies`). Then run the
+/// global build-approval flow. Shared by add and update.
+async fn run_group_install<Reporter: self::Reporter + 'static>(
+    install: GroupInstall<'_>,
+) -> miette::Result<&'static Config> {
+    let GroupInstall {
+        base_config,
+        global_pkg_dir,
+        install_dir,
+        selectors,
+        range_spec_style,
+        supported_architectures,
+        allow_build,
+        lockfile_only,
+    } = install;
     let mut cfg =
-        global_group_config(base_config, &install_dir, global_pkg_dir, supported_architectures)?;
+        global_group_config(base_config, install_dir, global_pkg_dir, supported_architectures)?;
     apply_allow_build(&mut cfg, allow_build, global_pkg_dir)?;
 
     let config: &'static Config = Config::leak(cfg);
@@ -764,14 +855,16 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         &selectors,
         range_spec_style,
         None,
-        false,
+        lockfile_only,
         config.supported_architectures.clone(),
         Some([DependencyGroup::Prod]),
     )
     .await?;
 
-    prompt_approve_global_builds::<Reporter>(config, &install_dir, global_pkg_dir).await?;
-    Ok((install_dir, config))
+    if !lockfile_only {
+        prompt_approve_global_builds::<Reporter>(config, install_dir, global_pkg_dir).await?;
+    }
+    Ok(config)
 }
 
 fn global_group_config(
@@ -1027,6 +1120,11 @@ struct GlobalRemovalTransaction<'a> {
 
 trait FsGlobalRemoval: FsRename {
     fn remove_bin_slot(path: &Path) -> io::Result<()> {
+        if let (Some(bin_dir), Some(name)) =
+            (path.parent(), path.file_name().and_then(std::ffi::OsStr::to_str))
+        {
+            remove_native_shim(bin_dir, name)?;
+        }
         remove_cmd_shim(path)
     }
 
@@ -1220,7 +1318,7 @@ fn replacement_aliases(aliases: &[String]) -> Vec<String> {
     const PNPM_CLI_PACKAGE_ALIASES: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
     let mut expanded = aliases.to_vec();
-    if aliases.iter().any(|alias| is_pnpm_cli_package_alias(alias)) {
+    if aliases.iter().any(|alias| is_pnpm_cli_package_name(alias)) {
         for alias in PNPM_CLI_PACKAGE_ALIASES {
             if !expanded.iter().any(|existing| existing == alias) {
                 expanded.push(alias.to_string());
@@ -1241,13 +1339,48 @@ fn should_replace_existing_package(
     is_pnpm_cli_only_group(pkg) && aliases_to_replace.iter().any(|alias| pkg.has_alias(alias))
 }
 
-fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
-    !pkg.dependencies.is_empty()
-        && pkg.dependencies.iter().all(|(alias, _)| is_pnpm_cli_package_alias(alias))
+/// Whether `pkg` is a global group the pnpm CLI is installed in — the install
+/// that `pnpm self-update` owns. `update -g` leaves the whole group alone:
+/// reinstalling it would relink pnpm's bin whatever else the group holds.
+pub fn has_pnpm_cli_dependency(pkg: &GlobalPackageInfo) -> bool {
+    pkg.dependencies.iter().any(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
 }
 
-fn is_pnpm_cli_package_alias(alias: &str) -> bool {
-    matches!(alias, "pnpm" | "@pnpm/exe")
+/// Whether `pkg` is a global group holding nothing but the pnpm CLI. `add -g`
+/// refuses to create one.
+fn is_pnpm_cli_only_group(pkg: &GlobalPackageInfo) -> bool {
+    !pkg.dependencies.is_empty()
+        && pkg.dependencies.iter().all(|(alias, spec)| is_pnpm_cli_dependency(alias, Some(spec)))
+}
+
+/// Whether any of `params` names the pnpm CLI itself. Each selector is
+/// normalized to the package it installs first, so neither a versioned form
+/// like `pnpm@9` nor an aliased one like `foo@npm:pnpm@9` bypasses the guard.
+pub fn selects_pnpm_cli<'a>(params: impl IntoIterator<Item = &'a String>) -> bool {
+    params.into_iter().any(|param| {
+        let parsed = parse_wanted_dependency(param);
+        is_pnpm_cli_dependency(
+            parsed.alias.as_deref().unwrap_or_default(),
+            parsed.bare_specifier.as_deref(),
+        )
+    })
+}
+
+/// Whether a dependency declared as `alias` at `spec` is the pnpm CLI. An
+/// `npm:` alias resolves to its target, so `foo` at `npm:pnpm@9` is the pnpm
+/// CLI under another name — the install still carries pnpm's own `pnpm` bin.
+fn is_pnpm_cli_dependency(alias: &str, spec: Option<&str>) -> bool {
+    let name = npm_alias_target(spec);
+    is_pnpm_cli_package_name(name.as_deref().unwrap_or(alias))
+}
+
+fn is_pnpm_cli_package_name(name: &str) -> bool {
+    matches!(name, "pnpm" | "@pnpm/exe")
+}
+
+/// The package an `npm:` alias points at, or `None` for any other spec.
+fn npm_alias_target(spec: Option<&str>) -> Option<String> {
+    parse_wanted_dependency(spec?.strip_prefix("npm:")?).alias
 }
 
 /// The set of bin names provided by global package groups other than those

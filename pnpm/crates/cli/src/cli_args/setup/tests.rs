@@ -50,7 +50,7 @@ fn windows_report_omits_the_source_hint() {
 }
 
 #[test]
-fn standalone_manifest_declares_the_module_type() {
+fn standalone_manifest_declares_package_files() {
     assert_eq!(
         standalone_manifest("pnpm.exe"),
         serde_json::json!({
@@ -58,6 +58,7 @@ fn standalone_manifest_declares_the_module_type() {
             "version": PNPM_VERSION,
             "type": "module",
             "bin": { "pnpm": "pnpm.exe", "pn": "pnpm.exe" },
+            "files": ["pnpm.exe", "dist/"],
         }),
     );
 }

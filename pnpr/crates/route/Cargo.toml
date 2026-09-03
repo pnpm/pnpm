@@ -1,0 +1,25 @@
+[package]
+name                 = "pnpr-route"
+version              = "0.0.1"
+description          = "Classifies each fetch route as public or private, so a shared resolution never leaks private data"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+pnpr-config   = { workspace = true }
+pnpr-policy   = { workspace = true }
+pnpr-registry = { workspace = true }
+pnpm-network  = { workspace = true }
+indexmap      = { workspace = true }
+reqwest       = { workspace = true }
+sha2          = { workspace = true }
+tracing       = { workspace = true }
+wax           = { workspace = true }
+
+[lints]
+workspace = true

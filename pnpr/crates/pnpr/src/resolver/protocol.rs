@@ -128,6 +128,10 @@ pub struct ResolveRequest {
     /// version. Omitted by older clients and false for ordinary resolves.
     #[serde(default)]
     pub update_patches: bool,
+    /// Re-resolve every edge while preserving compatible locked versions and
+    /// regenerating derived lockfile fields.
+    #[serde(default)]
+    pub fix_lockfile: bool,
     /// `ignoreManifestCheck`: skip the manifest ↔ lockfile freshness
     /// comparison during the frozen resolve.
     #[serde(default)]

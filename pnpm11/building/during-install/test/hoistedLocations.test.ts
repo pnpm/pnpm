@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { expect, jest, test } from '@jest/globals'
 
-import type { DependenciesGraph } from '../lib/buildSequence.js'
+import type { DependenciesGraph } from '../lib/buildGraph.js'
 
 const hardLinkDir = jest.fn<(src: string, destDirs: string[]) => Promise<void>>(async () => {})
 const originalWorker = await import('@pnpm/worker')

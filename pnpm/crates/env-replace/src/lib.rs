@@ -81,10 +81,9 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
     let mut output = String::with_capacity(text.len());
     let mut unresolved = Vec::new();
     let mut index = 0;
+    let mut literal_start = 0;
     while index < bytes.len() {
-        let char = bytes[index];
-        if char != b'$' {
-            output.push(char as char);
+        if bytes[index] != b'$' {
             index += 1;
             continue;
         }
@@ -99,16 +98,13 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
         }
 
         let Some(end) = find_placeholder_end(bytes, index) else {
-            output.push('$');
             index += 1;
             continue;
         };
 
-        // Each pair of backslashes collapses to one literal backslash.
-        // The source backslashes are already in `output` from the
-        // literal-passthrough loop, so we truncate them off and re-emit
-        // half.
-        output.truncate(output.len() - backslashes);
+        // The escape backslashes are held back from the literal span and
+        // re-emitted halved: each pair collapses to one literal backslash.
+        output.push_str(&text[literal_start..index - backslashes]);
         for _ in 0..(backslashes / 2) {
             output.push('\\');
         }
@@ -131,7 +127,9 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
             }
         }
         index = end + 1;
+        literal_start = index;
     }
+    output.push_str(&text[literal_start..]);
     (output, unresolved)
 }
 

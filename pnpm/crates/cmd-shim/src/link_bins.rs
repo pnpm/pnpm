@@ -5,13 +5,13 @@ use crate::{
         FsSetExecutable, FsWalkFiles, FsWrite,
     },
     shim::{
-        ShimStyle, generate_cmd_shim, generate_pwsh_shim, generate_sh_shim,
-        generate_virtual_cmd_shim, generate_virtual_pwsh_shim, generate_virtual_sh_shim,
-        is_context_aware_shim, is_shim_pointing_at, search_script_runtime,
+        generate_cmd_shim, generate_pwsh_shim, generate_sh_shim, is_shim_pointing_at,
+        search_script_runtime,
     },
 };
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pnpm_package_manifest::parse_manifest_bytes;
 use rayon::prelude::*;
 use serde_json::Value;
@@ -329,11 +329,6 @@ fn read_package<Sys: FsReadFile>(
 /// false`). When non-empty, each shim carries a `NODE_PATH` block
 /// listing the target's own `node_modules` dirs followed by these
 /// entries; when empty the shims stay `NODE_PATH`-free.
-///
-/// Pacquet's first iteration does not resolve same-package multi-version
-/// conflicts via semver (used elsewhere for hoisting), since the
-/// virtual-store layout means each bin source is a unique
-/// `(package, version)` slot already.
 pub fn link_bins_of_packages<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
@@ -374,34 +369,7 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options, ShimStyle::Direct)
-}
-
-/// Like [`link_bins_of_packages_with_excludes`] but writes
-/// [`ShimStyle::ContextAware`] shims — the global bin dir's format (see
-/// [`ShimStyle`]). Global shims never carry `NODE_PATH`, so there is no
-/// `extra_node_paths` parameter.
-pub fn link_bins_of_packages_context_aware<Sys>(
-    packages: &[PackageBinSource],
-    bins_dir: &Path,
-    exclude_bins: &std::collections::HashSet<String>,
-) -> Result<(), LinkBinsError>
-where
-    Sys: FsReadToString
-        + FsReadHead
-        + FsCreateDirAll
-        + FsWalkFiles
-        + FsWrite
-        + FsSetExecutable
-        + FsEnsureExecutableBits,
-{
-    link_bins_impl::<Sys>(
-        packages,
-        bins_dir,
-        exclude_bins,
-        &LinkBinsOptions::default(),
-        ShimStyle::ContextAware,
-    )
+    link_bins_impl::<Sys>(packages, bins_dir, exclude_bins, options)
 }
 
 fn link_bins_impl<Sys>(
@@ -409,7 +377,6 @@ fn link_bins_impl<Sys>(
     bins_dir: &Path,
     exclude_bins: &std::collections::HashSet<String>,
     options: &LinkBinsOptions,
-    style: ShimStyle,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString
@@ -420,37 +387,7 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
-    let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
-
-    for pkg in packages {
-        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
-        let commands = get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location);
-        for command in commands {
-            match chosen.get(&command.name) {
-                None => {
-                    chosen.insert(command.name.clone(), (command, pkg));
-                }
-                Some((_, existing)) => {
-                    let existing_name =
-                        existing.manifest.get("name").and_then(Value::as_str).unwrap_or("");
-                    if pick_winner(
-                        &command.name,
-                        existing_name,
-                        existing.origin,
-                        pkg_name,
-                        pkg.origin,
-                    ) {
-                        chosen.insert(command.name.clone(), (command, pkg));
-                    }
-                }
-            }
-        }
-    }
-
-    for excluded in exclude_bins {
-        chosen.remove(excluded);
-    }
-
+    let chosen = choose_bins::<Sys>(packages, exclude_bins);
     if chosen.is_empty() {
         return Ok(());
     }
@@ -462,7 +399,7 @@ where
     // across bin names. There is no shared state, so drive them on rayon.
     // The hot path is per-package-bin; without parallelism the per-shim
     // file I/O serialised across the whole `chosen` map.
-    chosen.par_iter().try_for_each(|(bin_name, (command, pkg))| {
+    chosen.par_iter().try_for_each(|(command, pkg)| {
         // On Unix the symlink branch never writes a shim, so no bin
         // needs a NODE_PATH — skip `shim_node_path`'s per-package
         // canonicalize entirely.
@@ -471,18 +408,46 @@ where
         } else {
             shim_node_path(pkg, &options.extra_node_paths)
         };
-        let pkg_name = pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("");
+        let pkg_name = package_name(pkg);
         write_shim::<Sys>(
             &command.path,
-            &bins_dir.join(bin_name),
+            &bins_dir.join(&command.name),
             &node_path,
             options.prefer_symlinked_executables,
-            style,
             wants_powershell_shim(pkg_name),
         )
     })?;
 
     Ok(())
+}
+
+/// The bins `packages` provide, minus `exclude_bins`, each paired with the
+/// package providing it. A name several packages provide goes to the one
+/// that owns it, else to the first by name and highest version.
+#[must_use]
+pub fn choose_bins<'packages, Sys: FsWalkFiles>(
+    packages: &'packages [PackageBinSource],
+    exclude_bins: &std::collections::HashSet<String>,
+) -> Vec<(Command, &'packages PackageBinSource)> {
+    let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
+    for pkg in packages {
+        for command in get_bins_from_package_manifest::<Sys>(&pkg.manifest, &pkg.location) {
+            match chosen.get(&command.name) {
+                None => {
+                    chosen.insert(command.name.clone(), (command, pkg));
+                }
+                Some((_, existing)) => {
+                    if pick_winner(&command.name, existing, pkg) {
+                        chosen.insert(command.name.clone(), (command, pkg));
+                    }
+                }
+            }
+        }
+    }
+    for excluded in exclude_bins {
+        chosen.remove(excluded);
+    }
+    chosen.into_values().collect()
 }
 
 /// The `NODE_PATH` entries for one package's shims: the target's own
@@ -525,26 +490,39 @@ fn wants_powershell_shim(pkg_name: &str) -> bool {
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
-/// Applies a three-step direct-then-ownership-then-lexical comparison.
-fn pick_winner(
-    bin_name: &str,
-    existing: &str,
-    existing_origin: BinOrigin,
-    candidate: &str,
-    candidate_origin: BinOrigin,
-) -> bool {
-    match (existing_origin, candidate_origin) {
+fn pick_winner(bin_name: &str, existing: &PackageBinSource, candidate: &PackageBinSource) -> bool {
+    match (existing.origin, candidate.origin) {
         (BinOrigin::Hoisted, BinOrigin::Direct) => return true,
         (BinOrigin::Direct, BinOrigin::Hoisted) => return false,
         _ => {}
     }
-    let existing_owns = pkg_owns_bin(bin_name, existing);
-    let candidate_owns = pkg_owns_bin(bin_name, candidate);
+    let existing_name = package_name(existing);
+    let candidate_name = package_name(candidate);
+    let existing_owns = pkg_owns_bin(bin_name, existing_name);
+    let candidate_owns = pkg_owns_bin(bin_name, candidate_name);
     match (existing_owns, candidate_owns) {
-        (true, false) => false,
-        (false, true) => true,
-        _ => candidate < existing,
+        (true, false) => return false,
+        (false, true) => return true,
+        _ => {}
     }
+    if candidate_name != existing_name {
+        return candidate_name < existing_name;
+    }
+    match (package_version(existing), package_version(candidate)) {
+        (Some(existing_version), Some(candidate_version)) => candidate_version > existing_version,
+        _ => false,
+    }
+}
+
+fn package_name(pkg: &PackageBinSource) -> &str {
+    pkg.manifest.get("name").and_then(Value::as_str).unwrap_or("")
+}
+
+fn package_version(pkg: &PackageBinSource) -> Option<Version> {
+    pkg.manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .and_then(|version| Version::parse(version).ok())
 }
 
 /// Write the canonical bin shim for `target_path` at `shim_path`,
@@ -568,7 +546,6 @@ fn write_shim<Sys>(
     shim_path: &Path,
     node_path: &[String],
     prefer_symlinked_executables: bool,
-    style: ShimStyle,
     make_powershell_shim: bool,
 ) -> Result<(), LinkBinsError>
 where
@@ -588,10 +565,8 @@ where
     // `preferSymlinkedExecutables` — so a relink pass that doesn't
     // carry the setting (the injected-deps syncer's workspace-wide
     // relink, for one) leaves symlinked bins alone instead of
-    // rewriting them into shims. Context-aware global shims are
-    // exempt: replacing a plain symlink with the dispatch shim is
-    // that style's whole job.
-    if style == ShimStyle::Direct && symlink_already_points_at(shim_path, target_path) {
+    // rewriting them into shims.
+    if symlink_already_points_at(shim_path, target_path) {
         return ensure_target_executable::<Sys>(target_path);
     }
 
@@ -614,19 +589,7 @@ where
     //    (`$basedir/../node/bin/../node/bin/node` — the `node` segment
     //    appears twice). A direct symlink / hardlink bypasses the
     //    parser entirely.
-    //
-    // A context-aware `node` is the exception on Unix: the whole point of
-    // the global bin dir's shims is that bare `node` can defer to a
-    // project-local version, which a symlink cannot do, so the global
-    // `node` gets a dispatch shim like every other bin. This low-level linker
-    // keeps the Windows hardlink because replacing `node.exe` with a script
-    // would break tools that spawn it without a shell; the global CLI linker
-    // subsequently replaces it with the native dispatcher after recording
-    // the original executable as its fallback target.
-    if is_node_bin_name(shim_path)
-        && (style == ShimStyle::Direct || cfg!(windows))
-        && link_node_bin(target_path, shim_path)?
-    {
+    if is_node_bin_name(shim_path) && link_node_bin(target_path, shim_path)? {
         return Ok(());
     }
 
@@ -643,19 +606,17 @@ where
         LinkBinsError::ProbeShimSource { path: target_path.to_path_buf(), error }
     })?;
 
-    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path, style);
+    let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
     // Windows siblings are off on Unix to match pnpm. The bodies
     // themselves still get computed inside the `cfg!(windows)` branch
     // below — moving the `generate_*` calls there keeps Unix builds
     // off the `relative_target_windows` allocation path entirely.
     let windows_shims = cfg!(windows).then(|| {
         let cmd_path = with_extension_appended(shim_path, "cmd");
-        let cmd_body =
-            generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path, style);
+        let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
         let powershell_shim = make_powershell_shim.then(|| {
             let ps1_path = with_extension_appended(shim_path, "ps1");
-            let ps1_body =
-                generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path, style);
+            let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
             (ps1_path, ps1_body)
         });
         (cmd_path, cmd_body, powershell_shim)
@@ -682,9 +643,7 @@ where
     let sh_marker_ok = match Sys::read_to_string(shim_path) {
         Ok(existing) if !node_path.is_empty() => existing == sh_body,
         Ok(existing) => {
-            is_shim_pointing_at(&existing, target_path)
-                && !existing.contains("export NODE_PATH=")
-                && is_context_aware_shim(&existing) == (style == ShimStyle::ContextAware)
+            is_shim_pointing_at(&existing, target_path) && !existing.contains("export NODE_PATH=")
         }
         Err(_) => false,
     };
@@ -729,8 +688,7 @@ where
         }
     }
 
-    Sys::set_executable(shim_path)
-        .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
+    chmod_tolerating_removal(shim_path, Sys::set_executable)?;
     ensure_target_executable::<Sys>(target_path)?;
 
     Ok(())
@@ -738,18 +696,30 @@ where
 
 /// Make the underlying script executable: apply a minimum mode of
 /// 0o755 without rewriting CRLF shebangs. Targets shipped by npm
-/// already use LF in practice, so the simpler chmod-only path is
-/// enough for the install tests this PR ports. `NotFound` is swallowed
-/// because the target may legitimately have been removed by an
-/// unrelated process between extraction and bin linking.
+/// already use LF in practice, so a chmod alone suffices.
 fn ensure_target_executable<Sys>(target_path: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsEnsureExecutableBits,
 {
-    match Sys::ensure_executable_bits(target_path) {
+    chmod_tolerating_removal(target_path, Sys::ensure_executable_bits)
+}
+
+/// Apply `chmod` to `path`, treating a path that has vanished as success.
+///
+/// Nothing serializes bin linking across processes: independent installs
+/// sharing a global virtual store materialize the same shim, and an
+/// unrelated process can remove a package between extraction and bin
+/// linking. Whoever unlinked the path writes an equivalent one and chmods
+/// it in turn, so `NotFound` means another writer finished the job rather
+/// than that this one failed. Every other error still surfaces.
+fn chmod_tolerating_removal(
+    path: &Path,
+    chmod: impl FnOnce(&Path) -> io::Result<()>,
+) -> Result<(), LinkBinsError> {
+    match chmod(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::Chmod { path: target_path.to_path_buf(), error }),
+        Err(error) => Err(LinkBinsError::Chmod { path: path.to_path_buf(), error }),
     }
 }
 
@@ -1036,50 +1006,6 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.push(".");
     result.push(ext);
     result.into()
-}
-
-/// Write the target-less shims for `package`'s `bins` into `bins_dir`.
-///
-/// Unlike [`link_bins_of_packages_context_aware`], nothing is installed
-/// behind these: the package is not in the global bin dir, and only the
-/// project a shim runs in can say what to execute. Returns the shim paths
-/// that now exist, in the order they were written.
-pub fn link_virtual_shims<Sys>(
-    package: &str,
-    bins: &[&str],
-    bins_dir: &Path,
-) -> Result<Vec<PathBuf>, LinkBinsError>
-where
-    Sys: FsCreateDirAll + FsWrite + FsSetExecutable,
-{
-    Sys::create_dir_all(bins_dir)
-        .map_err(|error| LinkBinsError::CreateBinDir { dir: bins_dir.to_path_buf(), error })?;
-    let mut written = Vec::new();
-    for bin in bins {
-        let shim_path = bins_dir.join(bin);
-        if cfg!(windows) {
-            remove_stale_bin(&with_extension_appended(&shim_path, "exe"))?;
-        }
-        let mut flavors = vec![(shim_path.clone(), generate_virtual_sh_shim(package, &shim_path))];
-        if cfg!(windows) {
-            let cmd_path = with_extension_appended(&shim_path, "cmd");
-            let ps1_path = with_extension_appended(&shim_path, "ps1");
-            flavors.push((cmd_path.clone(), generate_virtual_cmd_shim(package, &cmd_path)));
-            flavors.push((ps1_path.clone(), generate_virtual_pwsh_shim(package, &ps1_path)));
-        }
-        for (path, body) in flavors {
-            // Unlink first for the same reason [`write_shim`] does: a
-            // symlink planted at the bin path would otherwise redirect
-            // the write.
-            remove_stale_bin(&path)?;
-            Sys::write(&path, body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: path.clone(), error })?;
-            written.push(path);
-        }
-        Sys::set_executable(&shim_path)
-            .map_err(|error| LinkBinsError::Chmod { path: shim_path.clone(), error })?;
-    }
-    Ok(written)
 }
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].

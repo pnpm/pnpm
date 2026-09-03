@@ -8,9 +8,9 @@ use super::{
     cat_index::CatIndexArgs,
     change::ChangeArgs,
     clean::CleanArgs,
-    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs, ConfigSubcommand},
+    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs, ConfigSubcommand},
     deprecate::DeprecateArgs,
-    dispatch::{CommandFuture, RunCtx},
+    dispatch::{CommandFuture, RunCtx, apply_update_config},
     dist_tag::DistTagArgs,
     docs::DocsArgs,
     doctor::{DoctorArgs, DoctorOutcome},
@@ -51,7 +51,9 @@ use super::{
     why::WhyArgs,
     with::WithArgs,
 };
+use crate::{State, config_deps::prepare_config};
 use clap::CommandFactory;
+use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
 use pnpm_reporter::{NdjsonReporter, SilentReporter};
@@ -87,26 +89,30 @@ pub(super) fn outdated<'a>(
             Ok(())
         }));
     }
-    let command_state = (ctx.state)(false)?;
-    macro_rules! run_outdated {
-        ($reporter:ty) => {
-            Box::pin(async move {
-                if args.run::<$reporter>(command_state).await? == OutdatedOutcome::Outdated {
-                    #[expect(
-                        clippy::exit,
-                        reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
-                    )]
-                    std::process::exit(1);
-                }
-                Ok(())
-            })
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    let manifest_path = ctx.manifest_path.to_path_buf();
+    let reporter = ctx.reporter;
+    Ok(Box::pin(async move {
+        apply_update_config(config, dir, reporter).await?;
+        let command_state =
+            State::init(manifest_path, config, false).wrap_err("initialize the state")?;
+        let outcome = match reporter {
+            ReporterType::Default | ReporterType::AppendOnly => {
+                args.run::<DefaultReporter>(command_state).await?
+            }
+            ReporterType::Ndjson => args.run::<NdjsonReporter>(command_state).await?,
+            ReporterType::Silent => args.run::<SilentReporter>(command_state).await?,
         };
-    }
-    Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => run_outdated!(DefaultReporter),
-        ReporterType::Ndjson => run_outdated!(NdjsonReporter),
-        ReporterType::Silent => run_outdated!(SilentReporter),
-    })
+        if outcome == OutdatedOutcome::Outdated {
+            #[expect(
+                clippy::exit,
+                reason = "`outdated` exits non-zero when a dependency is outdated, mirroring pnpm"
+            )]
+            std::process::exit(1);
+        }
+        Ok(())
+    }))
 }
 
 pub(super) fn audit<'a>(ctx: &RunCtx<'a>, args: AuditArgs) -> miette::Result<CommandFuture<'a>> {
@@ -316,16 +322,25 @@ pub(super) fn unpublish<'a>(
     args: UnpublishArgs,
 ) -> miette::Result<CommandFuture<'a>> {
     let cfg: &Config = (ctx.config)()?;
-    Ok(Box::pin(async move {
-        if let Some(output) = args.run(cfg).await? {
+    async fn print_output<Reporter: pnpm_reporter::Reporter>(
+        args: UnpublishArgs,
+        cfg: &Config,
+    ) -> miette::Result<()> {
+        if let Some(output) = args.run::<Reporter>(cfg).await? {
             let output = super::sanitize::sanitize(&output);
-            if output.is_empty() {
-                return Ok(());
+            if !output.is_empty() {
+                println!("{output}");
             }
-            println!("{output}");
         }
         Ok(())
-    }))
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(print_output::<DefaultReporter>(args, cfg))
+        }
+        ReporterType::Ndjson => Box::pin(print_output::<NdjsonReporter>(args, cfg)),
+        ReporterType::Silent => Box::pin(print_output::<SilentReporter>(args, cfg)),
+    })
 }
 
 pub(super) fn team<'a>(ctx: &RunCtx<'a>, args: TeamArgs) -> miette::Result<CommandFuture<'a>> {
@@ -425,10 +440,17 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: PackArgs) -> miette::Result<Comma
     Ok(Box::pin(async move {
         let output = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {
-                args.run::<DefaultReporter>(dir, config, recursive).await?
+                let hooks = prepare_config::<DefaultReporter>(config, dir).await?;
+                args.run::<DefaultReporter>(dir, config, recursive, hooks).await?
             }
-            ReporterType::Ndjson => args.run::<NdjsonReporter>(dir, config, recursive).await?,
-            ReporterType::Silent => args.run::<SilentReporter>(dir, config, recursive).await?,
+            ReporterType::Ndjson => {
+                let hooks = prepare_config::<NdjsonReporter>(config, dir).await?;
+                args.run::<NdjsonReporter>(dir, config, recursive, hooks).await?
+            }
+            ReporterType::Silent => {
+                let hooks = prepare_config::<SilentReporter>(config, dir).await?;
+                args.run::<SilentReporter>(dir, config, recursive, hooks).await?
+            }
         };
         if !output.is_empty() {
             println!("{output}");
@@ -453,15 +475,24 @@ pub(super) fn publish<'a>(
     let dir = ctx.dir;
     let recursive = ctx.recursive;
     args.flags.report_summary |= ctx.recursive_report_summary;
+    async fn run<Reporter: pnpm_reporter::Reporter>(
+        args: PublishArgs,
+        dir: &std::path::Path,
+        config: &mut Config,
+        recursive: bool,
+    ) -> miette::Result<()> {
+        let hooks = prepare_config::<Reporter>(config, dir).await?;
+        args.run::<Reporter>(dir, config, recursive, hooks).await
+    }
     if args.flags.json {
-        return Ok(Box::pin(args.run::<SilentReporter>(dir, config, recursive)));
+        return Ok(Box::pin(run::<SilentReporter>(args, dir, config, recursive)));
     }
     Ok(match ctx.reporter {
         ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(args.run::<DefaultReporter>(dir, config, recursive))
+            Box::pin(run::<DefaultReporter>(args, dir, config, recursive))
         }
-        ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir, config, recursive)),
-        ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir, config, recursive)),
+        ReporterType::Ndjson => Box::pin(run::<NdjsonReporter>(args, dir, config, recursive)),
+        ReporterType::Silent => Box::pin(run::<SilentReporter>(args, dir, config, recursive)),
     })
 }
 
@@ -480,10 +511,15 @@ pub(super) fn stage<'a>(
     async fn print_output<Reporter: pnpm_reporter::Reporter>(
         args: StageArgs,
         dir: &std::path::Path,
-        config: &Config,
+        config: &mut Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        if let Some(output) = args.run::<Reporter>(dir, config, recursive).await? {
+        let hooks = if args.params.first().is_some_and(|subcommand| subcommand == "publish") {
+            prepare_config::<Reporter>(config, dir).await?
+        } else {
+            Vec::new()
+        };
+        if let Some(output) = args.run::<Reporter>(dir, config, recursive, hooks).await? {
             let output = super::sanitize::sanitize(&output);
             if !output.is_empty() {
                 println!("{output}");
@@ -549,16 +585,16 @@ pub(super) fn config<'a>(ctx: &RunCtx<'a>, args: ConfigArgs) -> miette::Result<C
 // cannot drift.
 pub(super) fn config_get<'a>(
     ctx: &RunCtx<'a>,
-    args: ConfigGetArgs,
+    args: ConfigGetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(ctx, ConfigArgs { command: ConfigSubcommand::Get(args) })
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Get(args.args) })
 }
 
 pub(super) fn config_set<'a>(
     ctx: &RunCtx<'a>,
-    args: ConfigSetArgs,
+    args: ConfigSetAliasArgs,
 ) -> miette::Result<CommandFuture<'a>> {
-    config(ctx, ConfigArgs { command: ConfigSubcommand::Set(args) })
+    config(ctx, ConfigArgs { flags: args.flags, command: ConfigSubcommand::Set(args.args) })
 }
 
 pub(super) fn not_implemented<'a>(command: &'static str) -> miette::Result<CommandFuture<'a>> {
@@ -583,17 +619,21 @@ pub(super) fn repo<'a>(ctx: &RunCtx<'a>, args: RepoArgs) -> miette::Result<Comma
     let cfg = (ctx.config)()?;
     let dir = ctx.dir;
     Ok(match ctx.reporter {
-        ReporterType::Default | ReporterType::AppendOnly => {
-            Box::pin(async move { args.run::<DefaultReporter>(cfg, dir).await })
-        }
-        ReporterType::Ndjson => Box::pin(async move { args.run::<NdjsonReporter>(cfg, dir).await }),
-        ReporterType::Silent => Box::pin(async move { args.run::<SilentReporter>(cfg, dir).await }),
+        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, DefaultReporter>(cfg, dir).await
+        }),
+        ReporterType::Ndjson => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, NdjsonReporter>(cfg, dir).await
+        }),
+        ReporterType::Silent => Box::pin(async move {
+            args.run::<pnpm_network_web_auth::Host, SilentReporter>(cfg, dir).await
+        }),
     })
 }
 
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
-    Ok(Box::pin(async move { args.run(cfg).await }))
+    Ok(Box::pin(async move { args.run::<pnpm_network_web_auth::Host>(cfg).await }))
 }
 
 pub(super) fn with<'a>(ctx: &RunCtx<'a>, args: WithArgs) -> miette::Result<CommandFuture<'a>> {

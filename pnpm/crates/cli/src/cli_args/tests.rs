@@ -2,6 +2,7 @@ use super::{
     CliArgs,
     add::AddArgs,
     cli_command::{CliCommand, WorkspaceRootError},
+    config::{ConfigLocation, ConfigSubcommand},
     dedupe::DedupeArgs,
     install::{InstallArgs, resolve_bool_override},
     list::RecursionLimit,
@@ -484,7 +485,7 @@ fn recursive_by_default_command_is_promoted_inside_workspace() {
     let workspace = tempfile::tempdir().expect("creates workspace");
     std::fs::write(workspace.path().join("pnpm-workspace.yaml"), "packages: []\n")
         .expect("writes workspace manifest");
-    for command in ["install", "list", "why", "peers"] {
+    for command in ["install", "import", "list", "why", "peers"] {
         let mut parsed = CliArgs::try_parse_from([
             "pacquet",
             "--dir",
@@ -723,6 +724,43 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
         package_manager.version,
         current_source_pnpm_version().expect("source pnpm version"),
     );
+}
+
+/// The range is built from `PNPM_VERSION` so the source checkout's version
+/// (a different major) can never satisfy it and answer first.
+#[test]
+fn package_manager_to_sync_records_the_running_version_for_a_satisfied_range_pin() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    let range = format!("^{}", pnpm_config::PNPM_VERSION);
+    std::fs::write(
+        &manifest_path,
+        format!(
+            r#"{{"devEngines":{{"packageManager":{{"name":"pnpm","version":"{range}","onFail":"download"}}}}}}"#,
+        ),
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    let package_manager =
+        package_manager_to_sync(&manifest, root.path(), None).expect("sync package manager");
+
+    assert_eq!(package_manager.specifier, range);
+    assert_eq!(package_manager.version, pnpm_config::PNPM_VERSION);
+}
+
+#[test]
+fn package_manager_to_sync_records_nothing_for_a_pin_nothing_satisfies() {
+    let root = TempDir::new().expect("tmp dir");
+    let manifest_path = root.path().join("package.json");
+    std::fs::write(
+        &manifest_path,
+        r#"{"devEngines":{"packageManager":{"name":"pnpm","version":"^999.0.0","onFail":"download"}}}"#,
+    )
+    .expect("write manifest");
+
+    let manifest = read_manifest_json(&manifest_path).expect("read manifest").expect("manifest");
+    assert_eq!(package_manager_to_sync(&manifest, root.path(), None), None);
 }
 
 #[test]
@@ -1041,18 +1079,98 @@ fn unlink_args(argv: &[&str]) -> UnlinkArgs {
 
 #[test]
 fn get_and_set_are_top_level_spellings_of_the_config_subcommands() {
-    let CliCommand::Get(get) = command(&["pacquet", "get", "store-dir"]) else {
-        panic!("expected get");
-    };
-    assert_eq!(get.key.as_deref(), Some("store-dir"));
+    for (alias, params) in
+        [("get", ["store-dir"].as_slice()), ("set", ["store-dir", "/tmp/store"].as_slice())]
+    {
+        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
+            for flag_before_params in [true, false] {
+                let mut argv = vec!["pacquet", alias];
+                if flag_before_params {
+                    argv.extend(flag);
+                }
+                argv.extend(params);
+                if !flag_before_params {
+                    argv.extend(flag);
+                }
 
-    let CliCommand::Set(set) = command(&["pacquet", "set", "store-dir", "/tmp/store", "--global"])
-    else {
-        panic!("expected set");
-    };
-    assert_eq!(set.key.as_deref(), Some("store-dir"));
-    assert_eq!(set.value.as_deref(), Some("/tmp/store"));
-    assert!(set.flags.global);
+                match (alias, command(&argv)) {
+                    ("get", CliCommand::Get(get)) => {
+                        assert_eq!(get.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+                        assert_eq!(get.flags.global, expected_global, "{argv:?}");
+                        assert_eq!(get.flags.location, expected_location, "{argv:?}");
+                        assert_eq!(get.flags.json, expected_json, "{argv:?}");
+                    }
+                    ("set", CliCommand::Set(set)) => {
+                        assert_eq!(set.args.key.as_deref(), Some("store-dir"), "{argv:?}");
+                        assert_eq!(set.args.value.as_deref(), Some("/tmp/store"), "{argv:?}");
+                        assert_eq!(set.flags.global, expected_global, "{argv:?}");
+                        assert_eq!(set.flags.location, expected_location, "{argv:?}");
+                        assert_eq!(set.flags.json, expected_json, "{argv:?}");
+                    }
+                    (_, command) => panic!("expected {alias}, got {command:?}"),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn config_flags_parse_on_either_side_of_the_subcommand() {
+    for subcommand in [
+        ["set", "registry", "https://registry.test"].as_slice(),
+        ["get", "registry"].as_slice(),
+        ["delete", "registry"].as_slice(),
+        ["list"].as_slice(),
+    ] {
+        for (flag, expected_global, expected_location, expected_json) in config_flag_cases() {
+            for flag_before_subcommand in [true, false] {
+                let mut argv = vec!["pacquet", "config"];
+                if flag_before_subcommand {
+                    argv.extend(flag);
+                }
+                argv.extend(subcommand);
+                if !flag_before_subcommand {
+                    argv.extend(flag);
+                }
+
+                let CliCommand::Config(args) = command(&argv) else {
+                    panic!("expected config");
+                };
+                assert_eq!(args.flags.global, expected_global, "{argv:?}");
+                assert_eq!(args.flags.location, expected_location, "{argv:?}");
+                assert_eq!(args.flags.json, expected_json, "{argv:?}");
+                match (subcommand[0], args.command) {
+                    ("set", ConfigSubcommand::Set(set)) => {
+                        assert_eq!(set.key.as_deref(), Some("registry"), "{argv:?}");
+                        assert_eq!(set.value.as_deref(), Some("https://registry.test"), "{argv:?}");
+                    }
+                    ("get", ConfigSubcommand::Get(get)) => {
+                        assert_eq!(get.key.as_deref(), Some("registry"), "{argv:?}");
+                    }
+                    ("delete", ConfigSubcommand::Delete(delete)) => {
+                        assert_eq!(delete.key.as_deref(), Some("registry"), "{argv:?}");
+                    }
+                    ("list", ConfigSubcommand::List(_)) => {}
+                    (subcommand, command) => {
+                        panic!("expected config {subcommand}, got {command:?}")
+                    }
+                }
+            }
+        }
+    }
+}
+
+type ConfigFlagCase = (&'static [&'static str], bool, Option<ConfigLocation>, bool);
+
+fn config_flag_cases() -> impl Iterator<Item = ConfigFlagCase> {
+    [
+        (["--global"].as_slice(), true, None, false),
+        (["-g"].as_slice(), true, None, false),
+        (["--location", "project"].as_slice(), false, Some(ConfigLocation::Project), false),
+        (["--location", "global"].as_slice(), false, Some(ConfigLocation::Global), false),
+        (["--json"].as_slice(), false, None, true),
+    ]
+    .into_iter()
 }
 
 #[test]

@@ -61,6 +61,7 @@ pub fn resolve_snapshot_patches(
     config: &Config,
     pre_resolved: Option<&pnpm_patching::PatchGroupRecord>,
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+    packages: Option<&HashMap<PackageKey, PackageMetadata>>,
 ) -> Result<Option<HashMap<PackageKey, ExtendedPatchInfo>>, BuildPhaseError> {
     // Reuse the caller's grouped record when it already resolved it (the
     // fresh-lockfile path builds it to feed the resolver), so the patch
@@ -77,9 +78,7 @@ pub fn resolve_snapshot_patches(
             let mut map = HashMap::new();
             for key in snaps.keys() {
                 let metadata_key = key.without_peer();
-                let metadata_key_str = metadata_key.to_string();
-                let (name, version) =
-                    crate::build_modules::parse_name_version_from_key(&metadata_key_str);
+                let (name, version) = crate::name_version_from_package_key(&metadata_key, packages);
                 // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather than
                 // silently skipping the snapshot. Failing here makes the
                 // user add an exact-version entry to disambiguate.
@@ -187,7 +186,9 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         link_options,
     } = inputs;
 
-    let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
+    let patches = resolve_snapshot_patches(config, patch_groups, snapshots, packages)?;
+    let shared_side_effects_publisher =
+        crate::shared_side_effects::shared_side_effects_publisher(config, snapshots);
 
     // Convert `pnpm-config`'s mirror enum to the executor's
     // canonical type. Config's enum carries the yaml-deserialize impl;
@@ -215,6 +216,7 @@ pub fn run_build_phase<Reporter: self::Reporter>(
         crate::BuildModulesOutput {
             ignored_builds: Vec::new(),
             deferred_builds: crate::build_modules::deferred_builds(newly_deferred, true),
+            mutated_slots: false,
         }
     } else {
         BuildModules {
@@ -228,8 +230,10 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
             requires_build_by_snapshot: Some(requires_build_by_snapshot),
             engine_name,
-            side_effects_cache: config.side_effects_cache_read(),
+            side_effects_cache: config.side_effects_cache_read()
+                || config.remote_side_effects_cache.is_some(),
             side_effects_cache_write: config.side_effects_cache_write(),
+            shared_side_effects_publisher: shared_side_effects_publisher.as_ref(),
             store_dir: Some(&config.store_dir),
             store_index_writer: Some(store_index_writer),
             patches: patches.as_ref(),
@@ -283,6 +287,24 @@ pub fn run_build_phase<Reporter: self::Reporter>(
     let modules_dir_basename: &OsStr =
         config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
     for (importer_id, importer_snapshot) in importers {
+        // Public-hoist promotes transitives into the workspace root's
+        // `<root>/node_modules/<alias>`, so only the root importer's
+        // `.bin` sees `BinOrigin::Hoisted` candidates.
+        let hoisted_names: &[String] = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+            publicly_hoisted_for_post_build
+        } else {
+            &[]
+        };
+        // When nothing this phase can change actually changed — no
+        // script, patch, or side-effects overlay touched a linked slot
+        // — the isolated link phase's own bin pass already shimmed
+        // exactly this candidate set, so re-resolving it would only
+        // re-read every direct dep's manifest per importer. Hoisted
+        // installs always relink: this pass is their only importer
+        // bin pass.
+        if !is_hoisted && !build_output.mutated_slots && hoisted_names.is_empty() {
+            continue;
+        }
         let project_dir = importer_root_dir(top_level_bin_root, importer_id);
         let modules_dir = project_dir.join(modules_dir_basename);
         // Same filter the symlink phase used so the post-build pass sees
@@ -294,14 +316,6 @@ pub fn run_build_phase<Reporter: self::Reporter>(
             skipped,
             false,
         );
-        // Public-hoist promotes transitives into the workspace root's
-        // `<root>/node_modules/<alias>`, so only the root importer's
-        // `.bin` sees `BinOrigin::Hoisted` candidates.
-        let hoisted_names: &[String] = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
-            publicly_hoisted_for_post_build
-        } else {
-            &[]
-        };
         link_top_level_bins(&modules_dir, &direct_names, hoisted_names, link_options)
             .map_err(BuildPhaseError::TopLevelBinLink)?;
     }

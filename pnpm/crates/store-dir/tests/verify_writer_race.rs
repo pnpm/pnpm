@@ -80,6 +80,7 @@ fn make_index(filename: &str, content: &[u8]) -> PackageFilesIndex {
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     }
 }
 

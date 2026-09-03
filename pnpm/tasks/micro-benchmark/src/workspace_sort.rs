@@ -14,10 +14,10 @@
 //! [pnpm/pnpm#14149]: <https://github.com/pnpm/pnpm/issues/14149>
 
 use criterion::Criterion;
-use pnpm_deps_restorer::graph_sequencer;
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, GraphProject, create_projects_graph,
 };
+use pnpm_workspace_task_scheduler::graph_sequencer;
 use std::{
     collections::{HashMap, HashSet},
     hint::black_box,
@@ -108,7 +108,7 @@ pub fn bench_workspace_sort(criterion: &mut Criterion) {
                 })
                 .collect();
             let sequenced = graph_sequencer(&edges, &dirs);
-            black_box((sequenced.safe, sequenced.chunks.len()))
+            black_box((sequenced.cycles.len(), sequenced.order.len()))
         });
     });
     group.finish();

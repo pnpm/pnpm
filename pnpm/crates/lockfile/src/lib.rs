@@ -226,6 +226,33 @@ impl Lockfile {
     /// The key used to refer to the root project inside `importers`.
     pub const ROOT_IMPORTER_KEY: &str = ".";
 
+    /// Keep only the lockfile fields that seed a repairing resolution.
+    pub fn prepare_for_fix(&mut self) {
+        if let Some(packages) = self.packages.as_mut() {
+            for metadata in packages.values_mut() {
+                metadata.version = None;
+                metadata.engines = None;
+                metadata.cpu = None;
+                metadata.os = None;
+                metadata.libc = None;
+                metadata.deprecated = None;
+                metadata.has_bin = None;
+                metadata.prepare = None;
+                metadata.bundled_dependencies = None;
+                metadata.peer_dependencies = None;
+                metadata.peer_dependencies_meta = None;
+            }
+        }
+        if let Some(snapshots) = self.snapshots.as_mut() {
+            for snapshot in snapshots.values_mut() {
+                snapshot.id = None;
+                snapshot.transitive_peer_dependencies = None;
+                snapshot.patched = None;
+                snapshot.optional = false;
+            }
+        }
+    }
+
     /// Convenience accessor for the root project's snapshot.
     #[must_use]
     pub fn root_project(&self) -> Option<&'_ ProjectSnapshot> {

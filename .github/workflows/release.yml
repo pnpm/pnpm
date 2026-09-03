@@ -269,9 +269,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          runtime: node@26.7.0
+          runtime: node@26.8.1
       - name: Build TypeScript executable artifacts
         run: pn --filter=@pnpm/exe run build-artifacts
 
@@ -423,9 +423,9 @@ jobs:
         with:
           api_token: ${{ secrets.GARNET_API_TOKEN }}
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
-          runtime: node@26.7.0
+          runtime: node@26.8.1
       # Internal workspace packages still publish with the static token. `@pnpm/exe`
       # and `pnpm` use stage-only OIDC. CI stages both packages but cannot approve
       # or publish them; a maintainer does that later with interactive 2FA. Keeping
@@ -484,7 +484,7 @@ jobs:
         id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           # Draft so a maintainer publishes it deliberately, like the Rust and
           # pnpr releases: the repository uses immutable releases, so a
@@ -531,7 +531,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
 
@@ -611,7 +611,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
@@ -724,7 +724,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
@@ -791,7 +791,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -910,7 +910,8 @@ jobs:
           tar -xzf "$wrapper_tarball" \
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
-          "$smoke_dir/node_modules/pnpm/pnpm" --version
+          wrapper_bin=$(node -p 'require(process.argv[1]).bin.pnpm' "$smoke_dir/node_modules/pnpm/package.json")
+          "$smoke_dir/node_modules/pnpm/$wrapper_bin" --version
           # Corepack's entry point into the same tarball; it never runs
           # install.js, so its only job here is to prove it was published and
           # can reach the binary.
@@ -936,7 +937,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -1080,7 +1081,7 @@ jobs:
         # publishes it deliberately. `make_latest: false` keeps a published v12
         # prerelease from stealing the "Latest" badge from the stable v11
         # line.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
@@ -1142,7 +1143,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
         with:
           tool: cross
 
@@ -1256,7 +1257,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -1369,7 +1370,7 @@ jobs:
           persist-credentials: false
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
         with:
           runtime: node@22
           install: false
@@ -1493,7 +1494,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -1572,7 +1573,7 @@ jobs:
         # byte-for-byte as attested there. Draft so a maintainer publishes it
         # deliberately; `make_latest: false` keeps a pnpr release off the
         # repository's "Latest" badge, which tracks the stable pnpm CLI.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}

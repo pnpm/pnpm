@@ -342,7 +342,6 @@ pub(crate) struct ImporterHoistState {
     /// peer walk resolves them at their tree position instead of the
     /// importer root.
     hoisted_peer_provider_node_ids: HashSet<crate::NodeId>,
-    hoisted_optional_peer_node_ids: HashSet<crate::NodeId>,
     /// Whether the last required round converged with no missing
     /// required peers left. A converged importer's next required round
     /// is a no-op unless its inputs changed since: an optional hoist
@@ -467,20 +466,12 @@ impl ImporterHoistState {
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by)
             .with_catalogs(catalogs);
-        let ImporterLockedPeerContext {
-            versions: locked_peer_versions,
-            names_by_alias: mut locked_peer_names_by_alias,
-        } = importer_locked_peer_context(
+        let locked_peer_versions = Arc::new(importer_locked_peer_versions(
             ctx.workspace().wanted_lockfile().map(AsRef::as_ref),
             importer_id,
-        );
-        let locked_peer_versions = Arc::new(locked_peer_versions);
+        ));
         let locked_peer_names = Arc::new(locked_peer_versions.keys().cloned().collect());
-        let changed_direct_deps = record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
-        discard_changed_direct_dep_peer_context(
-            &mut locked_peer_names_by_alias,
-            &changed_direct_deps,
-        );
+        record_changed_direct_deps(&ctx, importer_id, &initial_wanted);
         let wanted_specifier_by_alias: BTreeMap<String, String> = initial_wanted
             .iter()
             .map(|(alias, range, ..)| (alias.clone(), range.clone()))
@@ -500,7 +491,6 @@ impl ImporterHoistState {
             &ParentPkgAliases::root(parent_pkg_aliases.clone()),
         )
         .await?;
-        ctx.workspace().set_direct_locked_peer_names(&direct, &locked_peer_names_by_alias);
         parent_pkg_aliases.extend(direct.iter().map(|dep| dep.alias.clone()));
         ctx.resolve_new_direct_deps_as_subdeps();
         Ok(ImporterHoistState {
@@ -510,7 +500,6 @@ impl ImporterHoistState {
             workspace_root_deps: Arc::default(),
             wanted_specifier_by_alias,
             hoisted_peer_provider_node_ids: HashSet::default(),
-            hoisted_optional_peer_node_ids: HashSet::default(),
             discovery_converged: false,
             converged_children_rewrites: 0,
             walked_direct_len: 0,
@@ -565,7 +554,6 @@ impl ImporterHoistState {
             modules_dir: self.modules_dir.clone(),
             hoist_missing_scope: None,
             hoisted_peer_provider_node_ids: self.hoisted_peer_provider_node_ids.clone(),
-            hoisted_optional_peer_node_ids: self.hoisted_optional_peer_node_ids.clone(),
             ..ResolvePeersOptions::default()
         }
     }
@@ -869,8 +857,6 @@ impl ImporterHoistState {
             &ParentPkgAliases::root(self.parent_pkg_aliases.clone()),
         )
         .await?;
-        self.hoisted_optional_peer_node_ids
-            .extend(new_direct.iter().map(|dep| dep.node_id.clone()));
         self.direct.extend(new_direct);
         // The direct set changed; the next required round must
         // re-discover so the hoisted names leave the missing buckets.
@@ -883,10 +869,8 @@ impl ImporterHoistState {
     /// pass would be discarded), together with the `NodeIds` of the peer
     /// providers among them (see
     /// [`ResolvePeersOptions::hoisted_peer_provider_node_ids`]).
-    pub(crate) fn into_direct(
-        self,
-    ) -> (Vec<DirectDep>, HashSet<crate::NodeId>, HashSet<crate::NodeId>) {
-        (self.direct, self.hoisted_peer_provider_node_ids, self.hoisted_optional_peer_node_ids)
+    pub(crate) fn into_direct(self) -> (Vec<DirectDep>, HashSet<crate::NodeId>) {
+        (self.direct, self.hoisted_peer_provider_node_ids)
     }
 
     /// Run the final per-importer peer pass and emit the result. Used
@@ -899,41 +883,27 @@ impl ImporterHoistState {
     }
 }
 
-fn discard_changed_direct_dep_peer_context(
-    names_by_alias: &mut HashMap<String, Arc<HashSet<String>>>,
-    changed_direct_deps: &HashSet<PkgName>,
-) {
-    names_by_alias.retain(|alias, _| {
-        alias.parse::<PkgName>().is_ok_and(|name| !changed_direct_deps.contains(&name))
-    });
-}
-
-struct ImporterLockedPeerContext {
-    versions: HashMap<String, HashSet<String>>,
-    names_by_alias: HashMap<String, Arc<HashSet<String>>>,
-}
-
-fn importer_locked_peer_context(
+/// The peer versions the wanted lockfile pinned, by peer name: those on
+/// the importer's direct dependencies, or on every snapshot for an
+/// importer the lockfile does not know yet. The optional-peer hoist
+/// only picks versions from this set, and its names stay eligible for
+/// importer-local hoisting (see [`HoistMissingScope::locked_peer_names`]).
+fn importer_locked_peer_versions(
     wanted_lockfile: Option<&pnpm_lockfile::Lockfile>,
     importer_id: &str,
-) -> ImporterLockedPeerContext {
+) -> HashMap<String, HashSet<String>> {
     let Some(lockfile) = wanted_lockfile else {
-        return ImporterLockedPeerContext {
-            versions: HashMap::default(),
-            names_by_alias: HashMap::default(),
-        };
+        return HashMap::default();
     };
+    let mut versions = HashMap::<String, HashSet<String>>::default();
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        let mut versions = HashMap::<String, HashSet<String>>::default();
-        for (key, _) in lockfile.snapshots.iter().flatten() {
-            for (name, version) in locked_peer_versions_for_key(lockfile, key) {
+        for (key, snapshot) in lockfile.snapshots.iter().flatten() {
+            for (name, version) in locked_peer_versions_for_key(lockfile, key, Some(snapshot)) {
                 versions.entry(name).or_default().insert(version);
             }
         }
-        return ImporterLockedPeerContext { versions, names_by_alias: HashMap::default() };
+        return versions;
     };
-    let mut versions = HashMap::<String, HashSet<String>>::default();
-    let mut names_by_alias = HashMap::default();
     for (alias, dependency) in importer.dependencies_by_groups([
         DependencyGroup::Prod,
         DependencyGroup::Optional,
@@ -942,33 +912,38 @@ fn importer_locked_peer_context(
         let Some(key) = dependency.version.resolved_key(alias) else {
             continue;
         };
-        let mut names = HashSet::default();
-        for (name, version) in locked_peer_versions_for_key(lockfile, &key) {
-            names.insert(name.clone());
+        let snapshot = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(&key));
+        for (name, version) in locked_peer_versions_for_key(lockfile, &key, snapshot) {
             versions.entry(name).or_default().insert(version);
         }
-        if !names.is_empty() {
-            names_by_alias.insert(alias.to_string(), Arc::new(names));
-        }
     }
-    ImporterLockedPeerContext { versions, names_by_alias }
+    versions
 }
 
+/// The peer name/version pairs the wanted lockfile pinned for `key`.
+///
+/// An explicit suffix already spells them out, save for the names an
+/// npm alias renamed ([`restore_aliased_peer_names`]). A hashed suffix
+/// spells out nothing, so the pairs are recovered from the package's
+/// declared peers and the snapshot edges that resolved them.
 fn locked_peer_versions_for_key(
     lockfile: &pnpm_lockfile::Lockfile,
     key: &pnpm_lockfile::PkgNameVerPeer,
+    snapshot: Option<&pnpm_lockfile::SnapshotEntry>,
 ) -> Vec<(String, String)> {
-    let explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
-    if !explicit.is_empty() || !is_hashed_peer_suffix(key.suffix.peer()) {
+    let metadata =
+        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+    let mut explicit = peer_suffix_versions(key.suffix.peer()).collect::<Vec<_>>();
+    if !explicit.is_empty() {
+        if let Some(snapshot) = snapshot {
+            restore_aliased_peer_names(snapshot, metadata, &mut explicit);
+        }
         return explicit;
     }
-    let Some(snapshot) = lockfile.snapshots.as_ref().and_then(|snapshots| snapshots.get(key))
-    else {
-        return Vec::new();
-    };
-    let Some(metadata) =
-        lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()))
-    else {
+    if !is_hashed_peer_suffix(key.suffix.peer()) {
+        return explicit;
+    }
+    let (Some(snapshot), Some(metadata)) = (snapshot, metadata) else {
         return Vec::new();
     };
     let peer_names = metadata
@@ -991,17 +966,143 @@ fn locked_peer_versions_for_key(
         .collect()
 }
 
+/// Rename the suffix segments an npm alias provides back to the name
+/// the provider is installed under.
+///
+/// A peer suffix names each provider by the package it resolved to,
+/// while peer resolution keys providers by the name they occupy in the
+/// dependent's `node_modules` — which for `"peer": "npm:provider@1"` is
+/// `peer`, not `provider`. Reading the segment back verbatim would pin a
+/// peer nobody declares and leave the declared one unpinned, so a
+/// repeated resolution is free to pick the other variant.
+fn restore_aliased_peer_names(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+    peers: &mut [(String, String)],
+) {
+    let mut providers = provider_aliases(snapshot, metadata);
+    if providers.is_empty() {
+        return;
+    }
+    for (name, version) in peers.iter_mut() {
+        let Some(alias) =
+            providers.get_mut(&format!("{name}@{version}")).and_then(ProviderAliases::claim)
+        else {
+            continue;
+        };
+        *name = alias;
+    }
+}
+
+/// Index the snapshot's dependency edges by the `name@version` of the
+/// package each one installs, so every suffix segment is attributed in
+/// one lookup rather than another scan of the edges.
+///
+/// Empty — and every segment therefore left alone — unless some edge
+/// installs a package under a name other than its own, since that is the
+/// only shape that makes a segment disagree with its edge.
+fn provider_aliases(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+    metadata: Option<&pnpm_lockfile::PackageMetadata>,
+) -> HashMap<String, ProviderAliases> {
+    if !dependency_edges(snapshot)
+        .any(|(_, reference)| matches!(reference, pnpm_lockfile::SnapshotDepRef::Alias(_)))
+    {
+        return HashMap::default();
+    }
+    let declared = metadata.and_then(|metadata| metadata.peer_dependencies.as_ref());
+    let mut providers = HashMap::<String, ProviderAliases>::default();
+    for (edge_name, reference) in dependency_edges(snapshot) {
+        let (provider, ver_peer) = match reference {
+            pnpm_lockfile::SnapshotDepRef::Plain(ver_peer) => (edge_name.to_string(), ver_peer),
+            pnpm_lockfile::SnapshotDepRef::Alias(target) => {
+                (target.name.to_string(), &target.suffix)
+            }
+            pnpm_lockfile::SnapshotDepRef::Link(_) => continue,
+        };
+        let edge_name = edge_name.to_string();
+        let declares_peer = declared.is_some_and(|peers| peers.contains_key(&edge_name));
+        providers
+            .entry(format!("{provider}@{}", ver_peer.without_peer()))
+            .or_default()
+            .record(edge_name, declares_peer);
+    }
+    providers
+}
+
+/// The names one provider is installed under, split by whether the
+/// dependent declares that name as a peer.
+///
+/// The suffix spells one segment per peer-resolved edge and never merges
+/// equal ones, so each segment claims an edge of its own.
+#[derive(Default)]
+struct ProviderAliases {
+    declared_peers: Vec<String>,
+    /// How many of `declared_peers` the segments seen so far claimed.
+    claimed: usize,
+    ordinary: Option<String>,
+    ordinaries: usize,
+}
+
+impl ProviderAliases {
+    fn record(&mut self, alias: String, declares_peer: bool) {
+        if declares_peer {
+            self.declared_peers.push(alias);
+            return;
+        }
+        self.ordinaries += 1;
+        if self.ordinaries == 1 {
+            self.ordinary = Some(alias);
+        }
+    }
+
+    /// The name to attribute the next segment naming this provider to.
+    ///
+    /// Declared peer edges go first, matching the
+    /// `peerDependencies`-keyed lookup the TypeScript CLI restores peer
+    /// context with; an ordinary edge takes the segment left over, which
+    /// is how a peer propagated up from a child — satisfied by an
+    /// ordinary dependency, under the name the child declared — gets its
+    /// name back.
+    ///
+    /// Competing ordinary edges are unattributable, since a dependency
+    /// may be aliased onto the very package and version a peer resolved
+    /// to and nothing in the lockfile tells the two apart, so the segment
+    /// keeps the name the suffix spelled.
+    fn claim(&mut self) -> Option<String> {
+        if self.claimed < self.declared_peers.len() {
+            self.claimed += 1;
+            return Some(self.declared_peers[self.claimed - 1].clone());
+        }
+        if self.ordinaries == 1 {
+            return self.ordinary.take();
+        }
+        None
+    }
+}
+
+fn dependency_edges(
+    snapshot: &pnpm_lockfile::SnapshotEntry,
+) -> impl Iterator<Item = (&PkgName, &pnpm_lockfile::SnapshotDepRef)> {
+    snapshot.dependencies.iter().chain(snapshot.optional_dependencies.iter()).flatten()
+}
+
+/// Whether the suffix is the opaque hash
+/// [`create_peer_dep_graph_hash`](fn@pnpm_deps_path::create_peer_dep_graph_hash)
+/// emits once the spelled-out peers exceed
+/// [`ResolvePeersOptions::peers_suffix_max_length`], rather than
+/// segments [`peer_suffix_versions`] can read.
+fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
+    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
+        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
+    })
+}
+
 fn peer_suffix_versions(peer_suffix: &str) -> impl Iterator<Item = (String, String)> + '_ {
     peer_suffix.match_indices('(').filter_map(|(start, _)| {
         let segment = peer_suffix[start + 1..].split(['(', ')']).next()?;
         let (name, version) = segment.rsplit_once('@')?;
         (!name.is_empty()).then(|| (name.to_string(), version.to_string()))
-    })
-}
-
-fn is_hashed_peer_suffix(peer_suffix: &str) -> bool {
-    peer_suffix.rsplit_once('(').and_then(|(_, tail)| tail.strip_suffix(')')).is_some_and(|hash| {
-        hash.len() == 32 && hash.chars().all(|character| character.is_ascii_hexdigit())
     })
 }
 

@@ -1,7 +1,17 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, process::Command};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
+use std::{fs, path::Path, process::Command};
+
+fn pacquet_at(workspace: &Path) -> Command {
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(workspace)
+        .without_ambient_pnpm_config()
+}
 
 #[test]
 fn dedupe_writes_lockfile() {
@@ -444,9 +454,14 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
     .expect("write package.json");
     // 100 years: every version the mocked registry serves is immature, so
     // the fresh resolve behind `dedupe --check` records loose-mode picks.
+    // An explicit cutoff turns strict mode on by default, which would abort
+    // the resolve before the check can report its diff.
     let workspace_manifest_path = workspace.join("pnpm-workspace.yaml");
-    fs::write(&workspace_manifest_path, "minimumReleaseAge: 52560000\n")
-        .expect("write pnpm-workspace.yaml");
+    fs::write(
+        &workspace_manifest_path,
+        "minimumReleaseAge: 52560000\nminimumReleaseAgeStrict: false\n",
+    )
+    .expect("write pnpm-workspace.yaml");
     let manifest_before =
         fs::read_to_string(&workspace_manifest_path).expect("read pnpm-workspace.yaml");
 
@@ -465,6 +480,69 @@ fn dedupe_check_does_not_persist_minimum_release_age_excludes() {
         manifest_before, manifest_after,
         "dedupe --check must not modify pnpm-workspace.yaml",
     );
+
+    drop((root, mock_instance));
+}
+
+/// A lockfile whose snapshot keys carry no `(peer)` segment for an
+/// optional peer that only a sibling's subtree provides — the shape
+/// pnpm 11 writes for this graph — must be re-keyed completely.
+/// The graph mirrors pnpm/pnpm#14455: `optional-peer-c-consumer` and its
+/// auto-installed peer both reach `optional-peer-c-host`, whose optional
+/// `peer-c` is provided by `abc-regular-deps`. One `dedupe` pass must
+/// re-key every affected snapshot — the consumer's own key included —
+/// and a second pass must change nothing.
+#[test]
+fn dedupe_re_keys_a_hoisted_optional_peer_in_one_pass() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/abc-regular-deps": "1.0.0",
+                "@pnpm.e2e/optional-peer-c-consumer": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    pacquet_at(&workspace).with_args(["install", "--lockfile-only"]).assert().success();
+    let converged = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let consumer_key = concat!(
+        "@pnpm.e2e/optional-peer-c-consumer@1.0.0",
+        "(@pnpm.e2e/optional-peer-c-consumer-peer@1.0.0(@pnpm.e2e/peer-c@1.0.0))",
+        "(@pnpm.e2e/peer-c@1.0.0)",
+    );
+    assert!(
+        converged.contains(consumer_key),
+        "a fresh resolution must hoist peer-c into the consumer's key:\n{converged}",
+    );
+
+    let hoisted_host_snapshot = concat!(
+        "  '@pnpm.e2e/optional-peer-c-host@1.0.0(@pnpm.e2e/peer-c@1.0.0)':\n",
+        "    optionalDependencies:\n",
+        "      '@pnpm.e2e/peer-c': 1.0.0\n",
+    );
+    assert!(converged.contains(hoisted_host_snapshot), "unexpected lockfile shape:\n{converged}");
+    let stale = converged
+        .replace(hoisted_host_snapshot, "  '@pnpm.e2e/optional-peer-c-host@1.0.0': {}\n")
+        .replace("(@pnpm.e2e/peer-c@1.0.0)", "");
+    fs::write(&lockfile_path, &stale).expect("write the pre-hoisting lockfile");
+
+    pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
+    let first_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("first pass:\n{first_pass}\nfresh resolution:\n{converged}");
+    assert_eq!(first_pass, converged, "one dedupe pass must reach the fresh resolution");
+
+    pacquet_at(&workspace).with_args(["dedupe", "--lockfile-only"]).assert().success();
+    let second_pass = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    eprintln!("second pass:\n{second_pass}");
+    assert_eq!(second_pass, first_pass, "a second dedupe pass must change nothing");
 
     drop((root, mock_instance));
 }

@@ -116,6 +116,38 @@ test('authorization headers are not removed before redirection if the target is 
   }
 })
 
+test('authorization headers are removed before a same-host HTTPS downgrade', async () => {
+  setupMockAgent()
+  try {
+    const securePool = getMockAgent().get('https://registry.pnpm.io')
+    securePool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: { authorization: 'Bearer 123' },
+    }).reply(302, '', { headers: { location: 'http://registry.pnpm.io/is-positive' } })
+
+    const plainPool = getMockAgent().get('http://registry.pnpm.io')
+    plainPool.intercept({
+      path: '/is-positive',
+      method: 'GET',
+      headers: headers => {
+        expect(headers.authorization).toBeUndefined()
+        return true
+      },
+    }).reply(200, { ok: true }, { headers: { 'content-type': 'application/json' } })
+
+    const fetchFromRegistry = createFetchFromRegistry({})
+    const res = await fetchFromRegistry(
+      'https://registry.pnpm.io/is-positive',
+      { authHeaderValue: 'Bearer 123' }
+    )
+
+    expect(await res.json()).toStrictEqual({ ok: true })
+  } finally {
+    await teardownMockAgent()
+  }
+})
+
 test('manual redirect mode returns the redirect response without following it', async () => {
   setupMockAgent()
   try {

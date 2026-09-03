@@ -115,7 +115,7 @@ export async function main (inputArgv: string[]): Promise<void> {
       forSelfUpdate: cmd === 'self-update',
       printWarnings: !isSingleSettingRead(cmd, cliParams),
     }) as { config: typeof config, context: ConfigContext })
-    if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+    if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams, cliOptions.location)) {
       if (context.wantedPackageManager != null) {
         const pm = context.wantedPackageManager
         if (pm.onFail !== 'ignore') {
@@ -427,16 +427,16 @@ function printError (message: string, hint?: string): void {
 }
 
 /**
- * Whether to skip the packageManager/runtime handling block (both auto
- * download and warn/error checks). Returns true when the command itself
- * opts out via `skipPackageManagerCheck: true`, or when the user is asking
- * for help on such a command — `pnpm help <skippable>` and
- * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
- * cmd='help' form) shouldn't download an older pinned pnpm just to render
- * help for a command that older pnpm may not even have.
+ * Returns whether the command may bypass project package-manager and runtime
+ * handling. Config command aliases bypass it unless `location` is exactly
+ * `project`; an absent or unrecognized location therefore retains config's
+ * global default. Commands marked with `skipPackageManagerCheck`, and help
+ * requests targeting those commands, also bypass it. A missing command does
+ * not.
  */
-function shouldSkipPmHandling (cmd: string | null, cliParams: string[]): boolean {
+function shouldSkipPmHandling (cmd: string | null, cliParams: string[], location: unknown): boolean {
   if (cmd == null) return false
+  if ((cmd === 'config' || cmd === 'c' || cmd === 'get' || cmd === 'set') && location !== 'project') return true
   if (skipPackageManagerCheckForCommand.has(cmd)) return true
   if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
   return false

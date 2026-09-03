@@ -13,16 +13,14 @@ use std::{
 };
 
 use super::{
-    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
+    cache::{MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution},
     protocol::{ResolveRequest, ResolveRequestProject},
     reject_inline_url_auth, reject_invalid_patch_hashes, reject_off_allowlist_fetches,
     resolution_cache_key, store_resolution,
 };
-use crate::{
-    config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
-    policy::{AccessList, Identity, PackageRule, PackageRules},
-    route::{Footprint, PrivateAccessDescriptor, RouteContext},
-};
+use pnpr_config::{Config as RegistryConfig, PublicRoute, UpstreamConfig};
+use pnpr_policy::{AccessList, Identity, PackageRule, PackageRules};
+use pnpr_route::{Footprint, PrivateAccessDescriptor, RouteContext};
 
 fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();
@@ -97,7 +95,7 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: alias.to_string(),
-        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
         package: None,
     });
     footprint
@@ -114,7 +112,7 @@ fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
 /// whose `access` is `access`, so a test can rotate who may read a hosted
 /// package.
 fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
-    use crate::registry::PackagePattern;
+    use pnpr_registry::PackagePattern;
     let rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
@@ -327,7 +325,7 @@ fn resolution_cache_key_changes_with_project_transforms() {
 }
 
 #[test]
-fn revision_refresh_bypasses_the_resolution_cache() {
+fn metadata_refreshes_bypass_the_resolution_cache() {
     let ordinary = ResolveRequest {
         dependencies: Some(deps(&[("foo", "1.0.0")])),
         ..ResolveRequest::default()
@@ -337,9 +335,15 @@ fn revision_refresh_bypasses_the_resolution_cache() {
         update_patches: true,
         ..ResolveRequest::default()
     };
+    let repair = ResolveRequest {
+        dependencies: ordinary.dependencies.clone(),
+        fix_lockfile: true,
+        ..ResolveRequest::default()
+    };
 
     assert!(resolution_cache_key(&config(), &ordinary).is_some());
     assert!(resolution_cache_key(&config(), &refresh).is_none());
+    assert!(resolution_cache_key(&config(), &repair).is_none());
 }
 
 #[test]
@@ -353,6 +357,19 @@ fn update_patches_defaults_to_false_for_older_clients() {
 
     assert!(!request.update_patches);
     assert!(refresh.update_patches);
+}
+
+#[test]
+fn fix_lockfile_defaults_to_false_for_older_clients() {
+    let request = serde_json::from_value::<ResolveRequest>(serde_json::json!({}))
+        .expect("legacy request parses");
+    let repair = serde_json::from_value::<ResolveRequest>(serde_json::json!({
+        "fixLockfile": true
+    }))
+    .expect("repair request parses");
+
+    assert!(!request.fix_lockfile);
+    assert!(repair.fix_lockfile);
 }
 
 #[test]
@@ -542,8 +559,8 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 
 #[test]
 fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
-    use crate::policy::{PackageRule, PackageRules};
-    use crate::registry::PackagePattern;
+    use pnpr_policy::{PackageRule, PackageRules};
+    use pnpr_registry::PackagePattern;
 
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
@@ -553,7 +570,7 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
-        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        credential_digest: pnpr_route::credential_digest(ALIAS_TOKEN),
         package: Some("@corp/secret".to_string()),
     });
     assert!(store_resolution(
@@ -1037,7 +1054,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
         upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1072,7 +1089,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     let registries =
         HashMap::from([("default".to_string(), "https://npm.corp.example/".to_string())]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1102,7 +1119,7 @@ fn package_frame_strips_signed_token_from_public_registry_tarball() {
     let registries =
         HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
     let router = tarball_router_with_registries(&registry, user("alice"), registries);
-    let frame = super::package_frame(
+    let frame = super::wire::package_frame(
         &router,
         &ResolvedPackageHint {
             id: "acme@1.0.0",
@@ -1211,32 +1228,32 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
     };
 
     // `gitHosted: true` must not let a normal https registry tarball opt out.
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo-1.0.0.tgz",
         Some(true),
     )));
     // A URL that strict parsing would reject is still scanned when it is http(s).
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
         None,
     )));
     // Mutable git-host archive refs are still checked.
-    assert!(super::is_osv_checkable_resolution(&tarball(
+    assert!(super::wire::is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/abc123",
         Some(false),
     )));
     // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
-    assert!(!super::is_osv_checkable_resolution(&tarball(
+    assert!(!super::wire::is_osv_checkable_resolution(&tarball(
         "https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567",
         Some(false),
     )));
     // Non-http schemes are skipped.
-    assert!(!super::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
+    assert!(!super::wire::is_osv_checkable_resolution(&tarball("file:../foo.tgz", None)));
 }
 
 #[test]
 fn tarball_url_version_extracts_conventional_names_only() {
-    use super::tarball_url_version;
+    use super::wire::tarball_url_version;
 
     assert_eq!(tarball_url_version("https://r/foo/-/foo-1.2.3.tgz", "foo"), Some("1.2.3"));
     // Scoped packages name the tarball file with the unscoped name.

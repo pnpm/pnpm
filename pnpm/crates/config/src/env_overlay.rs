@@ -36,10 +36,10 @@ fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
 /// where `""` is observably different from unset:
 ///
 /// - `savePrefix`: `""` is the value that selects an exact version pin.
-/// - `scope`: `""` must override a scope from `pnpm-workspace.yaml` or the
-///   global `config.yaml` so that `PNPM_CONFIG_SCOPE=` yields an unscoped
-///   `pnpm login`. Dropping it would let the lower layer's scope leak
-///   through, diverging from the TypeScript CLI.
+/// - `scope`: `""` must override a scope from the global `config.yaml` so
+///   that `PNPM_CONFIG_SCOPE=` yields an unscoped `pnpm login`. Dropping it
+///   would let the lower layer's scope leak through, diverging from the
+///   TypeScript CLI.
 /// - `tag`: `""` is a dist-tag `pnpm publish` registers the version under,
 ///   distinct from the `latest` an unset `tag` falls back to.
 fn read_env_allow_empty<Sys: EnvVar>(suffix: &str) -> Option<String> {
@@ -177,6 +177,8 @@ impl WorkspaceSettings {
         json_field!(enable_modules_dir, "ENABLE_MODULES_DIR");
         json_field!(global_shims, "GLOBAL_SHIMS");
         string_field!(global_virtual_store_dir, "GLOBAL_VIRTUAL_STORE_DIR");
+        string_field!(global_dir, "GLOBAL_DIR");
+        string_field!(global_bin_dir, "GLOBAL_BIN_DIR");
         enum_field!(package_import_method, "PACKAGE_IMPORT_METHOD", PackageImportMethod);
         json_field!(modules_cache_max_age, "MODULES_CACHE_MAX_AGE");
         json_field!(virtual_store_dir_max_length, "VIRTUAL_STORE_DIR_MAX_LENGTH");
@@ -269,6 +271,7 @@ impl WorkspaceSettings {
         json_field!(fetch_min_speed_ki_bps, "FETCH_MIN_SPEED_KI_BPS");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
+        json_field!(allow_unused_patches, "ALLOW_UNUSED_PATCHES");
         string_field!(patches_dir, "PATCHES_DIR");
         string_field!(global_pnpmfile, "GLOBAL_PNPMFILE");
         enum_field!(pnpmfile, "PNPMFILE", crate::PnpmfileSetting);

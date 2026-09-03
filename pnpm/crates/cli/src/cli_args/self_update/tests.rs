@@ -1,8 +1,8 @@
 use super::{
-    install_pnpm, is_installed_globally, package_manager_pin_specifier,
-    refresh_global_shim_dispatcher, update_version_constraint, version_lt,
+    install_pnpm, is_installed_globally, package_manager_pin_specifier, refresh_global_shims,
+    update_version_constraint, version_lt,
 };
-use pnpm_cmd_shim::CONTEXT_AWARE_DISPATCHER_NAME;
+use crate::shim_dispatch::{ShimTarget, native_shim::install_native_shim_from, native_shim_target};
 use std::{fs, path::Path};
 
 #[test]
@@ -83,56 +83,88 @@ fn version_lt_compares_semver() {
     assert!(!version_lt("not-a-version", "1.0.0"));
 }
 
-#[test]
-fn self_update_refreshes_an_existing_v1_dispatcher_from_the_v12_engine() {
-    let root = tempfile::tempdir().unwrap();
-    let global_bin = root.path().join("bin");
-    let install_dir = root.path().join("engine");
+fn seed_shim_and_new_engine(root: &Path) -> (install_pnpm::InstallPnpmResult, std::path::PathBuf) {
+    let global_bin = root.join("bin");
+    let install_dir = root.join("engine");
     fs::create_dir_all(&global_bin).unwrap();
     let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
     fs::create_dir_all(executable.parent().unwrap()).unwrap();
-    fs::write(&executable, b"new v12 engine").unwrap();
-    let dispatcher = global_shim_dispatcher_path(&global_bin);
-    fs::write(&dispatcher, b"old v12 engine").unwrap();
+    fs::write(&executable, b"new shim engine").unwrap();
+    let old_engine = root.join("old-engine");
+    fs::write(&old_engine, b"old shim engine").unwrap();
+    let target = ShimTarget::Installed(root.join("node-release/bin/node"));
+    install_native_shim_from(&old_engine, &global_bin, "node", &target).unwrap();
     let installed = install_pnpm::InstallPnpmResult {
         install_dir,
         package_name: "pnpm",
         already_existed: false,
     };
-
-    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0-alpha.1").unwrap();
-
-    assert_eq!(fs::read(dispatcher).unwrap(), b"new v12 engine");
+    (installed, global_bin.join(format!("node{}", std::env::consts::EXE_SUFFIX)))
 }
 
-#[cfg(windows)]
 #[test]
-fn self_update_refreshes_node_when_it_is_the_v1_dispatcher() {
+fn self_update_republishes_global_shims_from_a_compatible_engine() {
     let root = tempfile::tempdir().unwrap();
+    let (installed, node) = seed_shim_and_new_engine(root.path());
     let global_bin = root.path().join("bin");
-    let install_dir = root.path().join("engine");
-    fs::create_dir_all(&global_bin).unwrap();
-    let executable = install_pnpm::pnpm_executable_path(&install_dir, "pnpm");
-    fs::create_dir_all(executable.parent().unwrap()).unwrap();
-    fs::write(&executable, b"new v12 engine").unwrap();
-    let dispatcher = global_shim_dispatcher_path(&global_bin);
+
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
+
+    assert_eq!(fs::read(node).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "node").unwrap(),
+        Some(ShimTarget::Installed(root.path().join("node-release/bin/node"))),
+    );
+}
+
+/// The shims an earlier pnpm 12 wrote were shell scripts calling a
+/// `.pnpm-shim-v1` dispatcher; a self-update turns them into native shims
+/// and retires the dispatcher.
+#[cfg(unix)]
+#[test]
+fn self_update_migrates_legacy_shell_shims() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = tempfile::tempdir().unwrap();
+    let (installed, _) = seed_shim_and_new_engine(root.path());
+    let global_bin = root.path().join("bin");
+    let dispatcher = global_bin.join(".pnpm-shim-v1");
     fs::write(&dispatcher, b"old v12 engine").unwrap();
-    let node = global_bin.join("node.exe");
-    fs::hard_link(&dispatcher, &node).unwrap();
-    let installed = install_pnpm::InstallPnpmResult {
-        install_dir,
-        package_name: "pnpm",
-        already_existed: false,
-    };
+    let legacy_shim = global_bin.join("tool");
+    fs::write(
+        &legacy_shim,
+        "#!/bin/sh\nexec \"$basedir/.pnpm-shim-v1\" --shim 'tool' -- \"$@\"\n# pnpm-shim-style=context-aware\n# cmd-shim-target=/global/tool/cli.js\n",
+    )
+    .unwrap();
+    fs::set_permissions(&legacy_shim, fs::Permissions::from_mode(0o755)).unwrap();
+    let legacy_virtual = global_bin.join("yarn");
+    fs::write(
+        &legacy_virtual,
+        "#!/bin/sh\nexit 1\n# pnpm-shim-style=context-aware\n# cmd-shim-target=pkg:yarn\n",
+    )
+    .unwrap();
+    fs::write(global_bin.join("direct"), "#!/bin/sh\nexec node\n# cmd-shim-target=/x/cli.js\n")
+        .unwrap();
 
-    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 
-    assert_eq!(fs::read(dispatcher).unwrap(), b"new v12 engine");
-    assert_eq!(fs::read(node).unwrap(), b"new v12 engine");
+    assert_eq!(fs::read(&legacy_shim).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "tool").unwrap(),
+        Some(ShimTarget::Installed("/global/tool/cli.js".into())),
+    );
+    assert_eq!(fs::read(&legacy_virtual).unwrap(), b"new shim engine");
+    assert_eq!(
+        native_shim_target(&global_bin, "yarn").unwrap(),
+        Some(ShimTarget::Virtual("yarn".to_string())),
+    );
+    assert!(fs::read_to_string(global_bin.join("direct")).unwrap().starts_with("#!/bin/sh"));
+    assert_eq!(native_shim_target(&global_bin, "direct").unwrap(), None);
+    assert!(!dispatcher.exists());
 }
 
 #[test]
-fn self_update_leaves_a_missing_v1_dispatcher_absent() {
+fn self_update_installs_no_shim_where_none_exists() {
     let root = tempfile::tempdir().unwrap();
     let global_bin = root.path().join("bin");
     fs::create_dir_all(&global_bin).unwrap();
@@ -142,32 +174,25 @@ fn self_update_leaves_a_missing_v1_dispatcher_absent() {
         already_existed: false,
     };
 
-    refresh_global_shim_dispatcher(&global_bin, &installed, "12.0.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.3.0").unwrap();
 
-    assert!(!global_shim_dispatcher_path(&global_bin).exists());
+    assert_eq!(fs::read_dir(&global_bin).unwrap().count(), 0);
 }
 
 #[test]
-fn self_update_to_pre_v12_preserves_the_v1_dispatcher() {
+fn self_update_to_pnpm_without_native_shims_leaves_the_global_shims_alone() {
     let root = tempfile::tempdir().unwrap();
+    let (_, node) = seed_shim_and_new_engine(root.path());
     let global_bin = root.path().join("bin");
-    fs::create_dir_all(&global_bin).unwrap();
-    let dispatcher = global_shim_dispatcher_path(&global_bin);
-    fs::write(&dispatcher, b"v12 dispatcher").unwrap();
     let installed = install_pnpm::InstallPnpmResult {
         install_dir: root.path().join("legacy-engine"),
-        package_name: "@pnpm/exe",
+        package_name: "pnpm",
         already_existed: false,
     };
 
-    refresh_global_shim_dispatcher(&global_bin, &installed, "11.10.0").unwrap();
+    refresh_global_shims(&global_bin, &installed, "12.2.1").unwrap();
 
-    assert_eq!(fs::read(dispatcher).unwrap(), b"v12 dispatcher");
-}
-
-fn global_shim_dispatcher_path(global_bin: &Path) -> std::path::PathBuf {
-    let suffix = if cfg!(windows) { ".exe" } else { "" };
-    global_bin.join(format!("{CONTEXT_AWARE_DISPATCHER_NAME}{suffix}"))
+    assert_eq!(fs::read(node).unwrap(), b"old shim engine");
 }
 
 /// The engine is a native binary, so building a runnable and a non-runnable one

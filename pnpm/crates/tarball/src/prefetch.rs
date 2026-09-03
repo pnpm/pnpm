@@ -54,6 +54,11 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 pub type PrefetchedSideEffectsMaps =
     HashMap<String, Arc<HashMap<String, HashMap<String, PathBuf>>>>;
 
+pub type PrefetchedSideEffects =
+    HashMap<String, Arc<HashMap<String, pnpm_store_dir::SideEffectsDiff>>>;
+
+pub type PrefetchedRemoteSideEffectsQuarantine = HashMap<String, Arc<HashMap<String, Vec<String>>>>;
+
 /// `requiresBuild` flags recovered from the same `index.db` rows as
 /// [`PrefetchedCasPaths`]. Missing values in old rows are recomputed
 /// from the bundled manifest plus verified file keys, mirroring
@@ -82,6 +87,8 @@ pub struct PrefetchResult {
     pub cas_paths: PrefetchedCasPaths,
     pub manifests: PrefetchedManifests,
     pub side_effects_maps: PrefetchedSideEffectsMaps,
+    pub side_effects: PrefetchedSideEffects,
+    pub remote_side_effects_quarantine: PrefetchedRemoteSideEffectsQuarantine,
     pub requires_build: PrefetchedRequiresBuild,
     pub requires_prepare: PrefetchedRequiresPrepare,
 }
@@ -110,9 +117,12 @@ pub async fn prefetch_cas_paths(
         return PrefetchResult::default();
     }
     let result = tokio::task::spawn_blocking(move || -> PrefetchResult {
+        let read_start = std::time::Instant::now();
         let Some(raw) = read_raw_rows_under_lock(&index, &cache_keys) else {
             return PrefetchResult::default();
         };
+        let read_ms = read_start.elapsed().as_millis() as u64;
+        let decode_start = std::time::Instant::now();
         // Phase 2: decode each row's msgpackr-records bytes into a
         // `PackageFilesIndex`, then run the integrity check. Both
         // steps are per-row CPU work with no shared state, so we
@@ -180,10 +190,19 @@ pub async fn prefetch_cas_paths(
                 ))
             })
             .collect();
+        tracing::debug!(
+            target: "pacquet::download",
+            rows = decoded.len(),
+            read_ms,
+            decode_verify_ms = decode_start.elapsed().as_millis() as u64,
+            "prefetch timings",
+        );
 
         let mut cas_paths = HashMap::with_capacity(decoded.len());
         let mut manifests = HashMap::new();
         let mut side_effects_maps = HashMap::new();
+        let mut side_effects = HashMap::new();
+        let mut remote_side_effects_quarantine = HashMap::new();
         let mut requires_build = HashMap::with_capacity(decoded.len());
         let mut requires_prepare = HashMap::new();
         for (cache_key, manifest, stored_requires_build, stored_requires_prepare, verify_result) in
@@ -202,6 +221,17 @@ pub async fn prefetch_cas_paths(
                 {
                     side_effects_maps.insert(cache_key.clone(), Arc::new(maps));
                 }
+                if let Some(diffs) = verify_result.side_effects
+                    && !diffs.is_empty()
+                {
+                    side_effects.insert(cache_key.clone(), Arc::new(diffs));
+                }
+                if let Some(quarantine) = verify_result.remote_side_effects_quarantine
+                    && !quarantine.is_empty()
+                {
+                    remote_side_effects_quarantine
+                        .insert(cache_key.clone(), Arc::new(quarantine));
+                }
                 requires_build.insert(cache_key.clone(), calculated_requires_build);
                 if let Some(requires_prepare_value) = stored_requires_prepare {
                     requires_prepare.insert(cache_key.clone(), requires_prepare_value);
@@ -213,6 +243,8 @@ pub async fn prefetch_cas_paths(
             cas_paths,
             manifests,
             side_effects_maps,
+            side_effects,
+            remote_side_effects_quarantine,
             requires_build,
             requires_prepare,
         }

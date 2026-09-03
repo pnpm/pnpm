@@ -10,6 +10,9 @@
   ],
   "references": [
     {
+      "path": "../../../pnpr/client"
+    },
+    {
       "path": "../../bins/linker"
     },
     {
@@ -31,9 +34,6 @@
       "path": "../../deps/graph-hasher"
     },
     {
-      "path": "../../deps/graph-sequencer"
-    },
-    {
       "path": "../../deps/path"
     },
     {
@@ -41,6 +41,9 @@
     },
     {
       "path": "../../fs/hard-link-dir"
+    },
+    {
+      "path": "../../lockfile/types"
     },
     {
       "path": "../../patching/apply-patch"
@@ -56,6 +59,9 @@
     },
     {
       "path": "../../worker"
+    },
+    {
+      "path": "../../workspace/task-scheduler"
     }
   ]
 }

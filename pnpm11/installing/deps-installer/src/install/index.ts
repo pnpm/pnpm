@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
 import { buildSelectedPkgs } from '@pnpm/building.after-install'
-import { buildModules, type DepsStateCache, linkBinsOfDependencies } from '@pnpm/building.during-install'
+import { buildModules, type DepsStateCache, linkBinsOfDependencies, linkBinsOfRuntimeDependencies } from '@pnpm/building.during-install'
 import { createAllowBuildFunction, isBuildExplicitlyDisallowed } from '@pnpm/building.policy'
 import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
@@ -33,12 +33,13 @@ import {
   runLifecycleHooksConcurrently,
   type RunLifecycleHooksConcurrentlyOptions,
 } from '@pnpm/exec.lifecycle'
-import { createDependencyOverrider } from '@pnpm/hooks.read-package-hook'
+import { createDependencyOverrider, createOverriddenDependencyMatcher, type OverriddenDependencyMatcher } from '@pnpm/hooks.read-package-hook'
 import { getContext, type PnpmContext } from '@pnpm/installing.context'
 import {
   type DependenciesGraph,
   type DependenciesGraphNode,
   getWantedDependencies,
+  isWorkspaceLocalPathSpecifier,
   type RangeSpecStyle,
   resolveDependencies,
   type UpdateMatchingFunction,
@@ -76,6 +77,7 @@ import { allProjectsAreUpToDate, catalogResolutionIsStale, catalogResolutionsAre
 import { logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
 import { createVersionSpecFromResolvedVersion, getAllDependenciesFromManifest, getAllUniqueSpecs } from '@pnpm/pkg-manifest.utils'
+import { isLocalFilesystemSpecifier } from '@pnpm/resolving.local-resolver'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import {
   EXISTING_VERSION_SELECTOR_WEIGHT,
@@ -1185,6 +1187,7 @@ export async function mutateModules (
           // Promoting it into a catalog rewrites the entry to `catalog:`, which
           // breaks that round-trip and strands it in `devDependencies`.
           if (wantedDep.bareSpecifier?.startsWith('runtime:')) continue
+          if (wantedDep.bareSpecifier != null && isProjectRelativePath(wantedDep.bareSpecifier)) continue
           const perDepCatalogName = getPerDepCatalogName(wantedDep, opts.saveCatalogName)
           const catalogBareSpecifier = `catalog:${perDepCatalogName === 'default' ? '' : perDepCatalogName}`
           const catalog = resolveFromCatalog(opts.catalogs, { ...wantedDep, bareSpecifier: catalogBareSpecifier })
@@ -1579,6 +1582,22 @@ async function runUnignoredDependencyBuilds (
   return previousIgnoredBuilds
 }
 
+/**
+ * Whether `specifier` names a path resolved against the project that declares
+ * it — a `file:` / `link:` protocol, a bare path or tarball filename, or a
+ * `workspace:` pointing at a directory rather than a range.
+ *
+ * A catalog entry is read by every project that references it, so it cannot
+ * mean the same directory for all of them. `resolveFromCatalog` already
+ * refuses a `link:` / `file:` entry outright
+ * (`ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`); it accepts a `workspace:` one,
+ * which is worse — every consumer silently resolves the relative path from its
+ * own directory. Auto-cataloging leaves all of them alone.
+ */
+function isProjectRelativePath (specifier: string): boolean {
+  return isLocalFilesystemSpecifier(specifier) || isWorkspaceLocalPathSpecifier(specifier)
+}
+
 function cacheExpired (prunedAt: string, maxAgeInMinutes: number): boolean {
   return ((Date.now() - new Date(prunedAt).valueOf()) / (1000 * 60)) > maxAgeInMinutes
 }
@@ -1764,6 +1783,7 @@ export type ImporterToUpdate = {
   id: ProjectId
   manifest: ProjectManifest
   originalManifest?: ProjectManifest
+  isOverriddenDependency?: OverriddenDependencyMatcher
   modulesDir: string
   rootDir: ProjectRootDir
   pruneDirectDependencies: boolean
@@ -1870,6 +1890,16 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         }
       })
   )
+
+  // Only the projects whose manifest this run writes need the answer, and only
+  // the manifest on disk — the one the overrides hook read — can give it.
+  const overriddenDependencyMatcherFor = createOverriddenDependencyMatcher(opts.parsedOverrides, opts.lockfileDir)
+  if (overriddenDependencyMatcherFor != null) {
+    for (const project of projects) {
+      if (!project.updatePackageManifest) continue
+      project.isOverriddenDependency = overriddenDependencyMatcherFor(project.originalManifest ?? project.manifest)
+    }
+  }
 
   stageLogger.debug({
     prefix: ctx.lockfileDir,
@@ -2125,6 +2155,9 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
         registriesByScope: ctx.registriesByScope,
         rootModulesDir: ctx.rootModulesDir,
         sideEffectsCacheRead: opts.sideEffectsCacheRead,
+        remoteSideEffectsCache: opts.remoteSideEffectsCache,
+        pnprServer: opts.pnprServer,
+        configByUri: opts.configByUri,
         symlink: opts.symlink,
         skipped: ctx.skipped,
         skipRuntimes: opts.skipRuntimes,
@@ -2217,6 +2250,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
             ...makeNodePackageMapOption(path.join(ctx.rootModulesDir, PACKAGE_MAP_FILENAME), extraEnv),
           }
         }
+        if (!opts.ignoreScripts && !opts.virtualStoreOnly) {
+          await linkRuntimeBinsOfImporters({
+            dependenciesByProjectId,
+            dependenciesGraph,
+            extraNodePaths: ctx.extraNodePaths,
+            preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+            projects,
+          })
+        }
         // Dependency lifecycle scripts must not run on an unverified lockfile.
         await opts.verifyLockfile?.()
         const ignoredBuildsFromBuild = (await buildModules(dependenciesGraph, rootNodes, {
@@ -2236,11 +2278,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           scriptShell: opts.scriptShell,
           shellEmulator: opts.shellEmulator,
           sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
+          remoteSideEffectsCache: opts.remoteSideEffectsCache,
           storeController: opts.storeController,
+          supportedArchitectures: opts.supportedArchitectures,
           unsafePerm: opts.unsafePerm,
           userAgent: opts.userAgent,
           enableGlobalVirtualStore: opts.enableGlobalVirtualStore,
           frozenStore: opts.frozenStore,
+          configByUri: opts.configByUri,
+          pnprServer: opts.pnprServer,
         })).ignoredBuilds
         if (ignoredBuildsFromBuild?.size) {
           ignoredBuilds ??= new Set()
@@ -2382,11 +2428,13 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
       // from the lockfile, so they are held to the same gate as dependency
       // builds — also when no new dep paths made the buildModules branch run.
       await opts.verifyLockfile?.()
-      await runLifecycleHooksConcurrently(['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
-        projectsToBeBuilt,
-        opts.childConcurrency,
-        opts.scriptsOpts
-      )
+      await runLifecycleHooksConcurrently({
+        childConcurrency: opts.childConcurrency,
+        importers: projectsToBeBuilt,
+        opts: opts.scriptsOpts,
+        projectDependencies: opts.projectDependencies,
+        stages: ['preinstall', 'install', 'postinstall', 'preprepare', 'prepare', 'postprepare'],
+      })
     }
   } else {
     if (opts.useLockfile && opts.saveLockfile && !isInstallationOnlyForLockfileCheck) {
@@ -2577,6 +2625,7 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
             })
           }
         }
+        if (opts.lockfileOnly) return await _installInContext(newProjects, ctx, opts)
         const result = await installInContext(newProjects, ctx, {
           ...opts,
           lockfileOnly: true,
@@ -2719,6 +2768,26 @@ const installInContext: InstallFunction = async (projects, ctx, opts) => {
 }
 
 const limitLinking = pLimit(16)
+
+async function linkRuntimeBinsOfImporters (opts: {
+  dependenciesByProjectId: Record<string, Map<string, DepPath>>
+  dependenciesGraph: DependenciesGraph
+  extraNodePaths?: string[]
+  preferSymlinkedExecutables?: boolean
+  projects: Array<Pick<ImporterToUpdate, 'binsDir' | 'id'>>
+}
+): Promise<void> {
+  await Promise.all(opts.projects.map((project) => limitLinking(() =>
+    linkBinsOfRuntimeDependencies(
+      Array.from(opts.dependenciesByProjectId[project.id].values()).map((depPath) => opts.dependenciesGraph[depPath]),
+      project.binsDir,
+      {
+        extraNodePaths: opts.extraNodePaths,
+        preferSymlinkedExecutables: opts.preferSymlinkedExecutables,
+      }
+    )
+  )))
+}
 
 async function linkAllBins (
   depNodes: DependenciesGraphNode[],

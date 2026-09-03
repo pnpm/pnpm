@@ -9,7 +9,7 @@
 //!    surviving `scripts` map loses its publish-lifecycle entries.
 //! 2. **Dependency rewriting.** Each `dependencies` /
 //!    `devDependencies` / `optionalDependencies` / `peerDependencies`
-//!    value runs through the workspace → catalog → jsr replacers in
+//!    value runs through the catalog → workspace → jsr replacers in
 //!    sequence, turning `workspace:` / `catalog:` / `jsr:` specifiers
 //!    into the concrete specifiers the registry understands.
 //! 3. **`publishConfig` override.** Whitelisted `publishConfig` keys
@@ -209,7 +209,7 @@ fn make_publish_dependencies(
     Ok(Some(Value::Object(out)))
 }
 
-/// Run one specifier through the workspace → catalog → jsr replacers in
+/// Run one specifier through the catalog → workspace → jsr replacers in
 /// sequence, returning the registry-ready specifier.
 fn convert_dependency_for_publish(
     dep_name: &str,
@@ -218,17 +218,20 @@ fn convert_dependency_for_publish(
     opts: &CreateExportableManifestOptions<'_>,
     kind: DependencyKind,
 ) -> Result<String, CreateExportableManifestError> {
+    let after_catalog = replace_catalog_protocol(dep_name, spec, opts.catalogs)?;
     let after_workspace = match kind {
         DependencyKind::Regular => {
-            replace_workspace_protocol(dep_name, spec, dir, opts.modules_dir)
+            replace_workspace_protocol(dep_name, &after_catalog, dir, opts.modules_dir)
         }
-        DependencyKind::Peer => {
-            replace_workspace_protocol_peer_dependency(dep_name, spec, dir, opts.modules_dir)
-        }
+        DependencyKind::Peer => replace_workspace_protocol_peer_dependency(
+            dep_name,
+            &after_catalog,
+            dir,
+            opts.modules_dir,
+        ),
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
-    let after_catalog = replace_catalog_protocol(dep_name, &after_workspace, opts.catalogs)?;
-    replace_jsr_protocol(dep_name, &after_catalog)
+    replace_jsr_protocol(dep_name, &after_workspace)
 }
 
 /// Dereference a `catalog:` specifier; pass any other specifier

@@ -56,6 +56,18 @@ snapshots:
   foo@1.1.0(patch_hash=deadbeef): {}
 ";
 
+const PATCHED_GIT_LOCKFILE: &str = r"
+lockfileVersion: '9.0'
+importers:
+  .: {}
+packages:
+  foo@git+file:///repo#0123456789012345678901234567890123456789:
+    resolution: {type: git, repo: file:///repo, commit: '0123456789012345678901234567890123456789'}
+    version: 1.0.0
+snapshots:
+  foo@git+file:///repo#0123456789012345678901234567890123456789(patch_hash=PATCH_HASH): {}
+";
+
 /// `foo` comes from a named registry, so the key's version slot holds
 /// `work:1.1.0` rather than a plain semver the patch keys can match.
 const REGISTRY_QUALIFIED_LOCKFILE: &str = r"
@@ -410,6 +422,30 @@ fn rejects_an_unused_patch_when_unused_patches_are_not_allowed() {
         .is_none(),
         "the resolver has to run so it can raise ERR_PNPM_UNUSED_PATCH",
     );
+}
+
+#[test]
+fn recognizes_a_git_patch_while_absorbing_unrelated_settings_drift() {
+    let dir = workspace(&["foo@1.0.0"]);
+    let config = Config {
+        exclude_links_from_lockfile: true,
+        allow_unused_patches: false,
+        ..config(dir.path(), &["foo@1.0.0"], false)
+    };
+    let patch_hashes = config
+        .patched_dependency_hashes()
+        .expect("hash the patch files")
+        .expect("a configured patch");
+    let hash = &patch_hashes["foo@1.0.0"];
+    let mut subject = lockfile(&PATCHED_GIT_LOCKFILE.replace("PATCH_HASH", hash));
+    subject.patched_dependencies = Some(patch_hashes.clone());
+    subject.settings =
+        Some(crate::fast_update_settings::lockfile_settings_from_config(&Config::default()));
+
+    let updated = try_fast_update_patched_dependencies(&subject, &config)
+        .expect("the git patch remains applied while the settings update is absorbed");
+
+    assert!(updated.settings.expect("settings").exclude_links_from_lockfile);
 }
 
 #[test]

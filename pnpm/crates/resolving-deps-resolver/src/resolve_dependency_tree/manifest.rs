@@ -2,6 +2,7 @@
 //! `pkgIdWithPatchHash`, its child specs, its peer dependencies, its
 //! leaf classification, and its deprecation notice.
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_package_manifest::engines_runtime_dependencies;
 use pnpm_patching::get_patch_info;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
@@ -11,8 +12,8 @@ use std::collections::BTreeMap;
 use crate::resolved_tree::PeerDep;
 
 use super::{
-    Deprecation, ResolveDependencyTreeError, lock_recoverable, tree_ctx::TreeCtx,
-    workspace_ctx::ChildSpec,
+    Deprecation, ResolveDependencyTreeError, catalogs::resolve_catalog_specifier,
+    dependency_is_injected, lock_recoverable, tree_ctx::TreeCtx, workspace_ctx::ChildSpec,
 };
 
 /// Compute the `pkgIdWithPatchHash` for a freshly-resolved package:
@@ -29,26 +30,31 @@ use super::{
 ///    `ERR_PNPM_UNUSED_PATCH` check sees the hit.
 ///
 /// Packages whose resolver didn't supply [`pnpm_resolving_resolver_base::ResolveResult::name_ver`]
-/// (git / tarball / local — they learn the name from the manifest at
-/// fetch time) skip the patch lookup. That matches the surface
-/// `patchedDependencies` covers today: keys are `name[@version]`, so a
-/// package without a resolve-time name can't match a configured entry
-/// anyway. The lookup is also skipped when no patches are configured.
+/// use the manifest's `name` and, for non-directory resolutions, its
+/// `version`. Local directories remain linked rather than patched, matching
+/// the TypeScript CLI and the lockfile format, which omits their manifest
+/// version. The lookup is skipped when either field is unavailable or no
+/// patches are configured.
 pub(super) async fn build_pkg_id_with_patch_hash(
     ctx: &TreeCtx,
     result: &pnpm_resolving_resolver_base::ResolveResult,
 ) -> Result<String, ResolveDependencyTreeError> {
     let raw_id = result.id.as_str();
     if let Some(target) = raw_id.strip_prefix("link:") {
-        let target = std::path::Path::new(target);
-        let absolute_target = if target.is_absolute() {
-            pnpm_fs::lexical_normalize(target)
-        } else {
-            pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
-        };
         let relative_target =
-            pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir).unwrap_or(absolute_target);
-        let relative_target = relative_target.display().to_string().replace('\\', "/");
+            ctx.link_anchor.target_relative_to_lockfile_root(target).unwrap_or_else(|| {
+                let target = std::path::Path::new(target);
+                let absolute_target = if target.is_absolute() {
+                    pnpm_fs::lexical_normalize(target)
+                } else {
+                    pnpm_fs::lexical_normalize(&ctx.base_opts.project_dir.join(target))
+                };
+                pathdiff::diff_paths(&absolute_target, &ctx.lockfile_dir)
+                    .unwrap_or(absolute_target)
+                    .display()
+                    .to_string()
+                    .replace('\\', "/")
+            });
         let relative_target = if relative_target.is_empty() { "." } else { &relative_target };
         return Ok(format!("link:{relative_target}"));
     }
@@ -64,9 +70,19 @@ pub(super) async fn build_pkg_id_with_patch_hash(
         .as_ref()
         .and_then(|manifest| manifest.get("name"))
         .and_then(serde_json::Value::as_str);
+    let manifest_version =
+        (!matches!(result.resolution, pnpm_lockfile::LockfileResolution::Directory(_)))
+            .then(|| {
+                result
+                    .manifest
+                    .as_ref()
+                    .and_then(|manifest| manifest.get("version"))
+                    .and_then(serde_json::Value::as_str)
+            })
+            .flatten();
     let (name, version) = match (result.name_ver.as_ref(), manifest_name) {
         (Some(name_ver), _) => (name_ver.name.to_string(), name_ver.suffix.to_string()),
-        (None, Some(name)) => (name.to_string(), String::new()),
+        (None, Some(name)) => (name.to_string(), manifest_version.unwrap_or_default().to_string()),
         (None, None) => return Ok(raw_id.to_string()),
     };
     let prefixed = if raw_id.starts_with(&format!("{name}@")) {
@@ -74,12 +90,9 @@ pub(super) async fn build_pkg_id_with_patch_hash(
     } else {
         format!("{name}@{raw_id}")
     };
-    // `patched_dependencies` keys carry a `name@version` shape, so
-    // entries that came in without a `name_ver` (file: / git: /
-    // tarball: resolutions whose name we just learned from the
-    // manifest above) can't match unless the manifest also surfaced
-    // a version. Bail out when version is empty so the patch lookup
-    // doesn't run a `name@""` query.
+    // `patched_dependencies` keys carry a `name@version` shape. Bail
+    // out when the resolver and manifest both omitted the version so
+    // the patch lookup doesn't run a `name@""` query.
     if version.is_empty() {
         return Ok(prefixed);
     }
@@ -104,10 +117,11 @@ pub(super) async fn build_pkg_id_with_patch_hash(
 /// (via [`extract_peer_dependencies`]) so the peer-resolution stage
 /// can compute the correct depPath suffix once everything is walked.
 ///
-/// Each entry carries an `optional` flag — `true` when the name appears
-/// in `optionalDependencies`. The walker propagates this through
-/// `current_is_optional` so [`ResolvedPackage::optional`] reflects
-/// whether every path to the node went through an optional edge.
+/// Each entry carries `optional` and `injected` flags from the manifest.
+/// The walker propagates `optional` through `current_is_optional` so
+/// [`ResolvedPackage::optional`] reflects whether every path to the node
+/// went through an optional edge. `injected` selects the hard-linked
+/// `file:` resolution for a workspace dependency.
 ///
 /// npm merges `optionalDependencies` into `dependencies` at publish
 /// time, so registry manifests routinely list the same name in both.
@@ -140,7 +154,7 @@ pub(super) fn extract_children(
         }
     }
     for (name, specifier) in engines_runtime_dependencies(manifest, "engines", "dependencies") {
-        out.push((name.to_string(), specifier, false));
+        out.push((name.to_string(), specifier, false, false));
     }
     out.sort_unstable();
     Ok(out)
@@ -187,7 +201,12 @@ fn collect_deps(
             if bundled.contains(name.as_str()) {
                 continue;
             }
-            out.push((name.clone(), range_str.to_string(), optional));
+            out.push((
+                name.clone(),
+                range_str.to_string(),
+                optional,
+                dependency_is_injected(manifest, name),
+            ));
         }
     }
     Ok(())
@@ -211,14 +230,16 @@ fn render_parent(result: &pnpm_resolving_resolver_base::ResolveResult) -> String
 /// without a matching `peerDependencies` entry only counts when
 /// `optional: true` — it is treated as an optional `"*"` peer exactly
 /// like an explicitly declared one, and non-optional meta-only entries
-/// are ignored.
+/// are ignored. When [`Catalogs`] are supplied, `catalog:` ranges are
+/// dereferenced before they enter peer resolution.
 ///
 /// [`peer_shadowed_dependencies`]: crate::parent_pkg_aliases::peer_shadowed_dependencies
 pub(super) fn extract_peer_dependencies(
     result: &pnpm_resolving_resolver_base::ResolveResult,
     peer_shadowed: &HashSet<String>,
-) -> BTreeMap<String, PeerDep> {
-    let Some(manifest) = result.manifest.as_ref() else { return BTreeMap::new() };
+    catalogs: Option<&Catalogs>,
+) -> Result<BTreeMap<String, PeerDep>, ResolveDependencyTreeError> {
+    let Some(manifest) = result.manifest.as_ref() else { return Ok(BTreeMap::new()) };
     let mut peers: BTreeMap<String, PeerDep> = BTreeMap::new();
 
     let dep_names = |key| {
@@ -240,10 +261,13 @@ pub(super) fn extract_peer_dependencies(
                 continue;
             }
             if let Some(range_str) = range.as_str() {
-                peers.insert(
-                    name.clone(),
-                    PeerDep { version: range_str.to_string(), optional: false },
-                );
+                let version = match catalogs {
+                    Some(catalogs) => {
+                        resolve_catalog_specifier(name.clone(), range_str.to_string(), catalogs)?.1
+                    }
+                    None => range_str.to_string(),
+                };
+                peers.insert(name.clone(), PeerDep { version, optional: false });
             }
         }
     }
@@ -262,7 +286,7 @@ pub(super) fn extract_peer_dependencies(
         }
     }
 
-    peers
+    Ok(peers)
 }
 
 /// `true` when the package has no `dependencies`, `optionalDependencies`,

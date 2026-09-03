@@ -13,8 +13,8 @@
 
 use super::{
     CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
-    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, origin_of,
-    parse_proxy_url,
+    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, bundled_root_certs,
+    origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -97,6 +97,41 @@ async fn capped_dns_resolver_limits_concurrency() {
     }
     assert_eq!(active.load(Ordering::SeqCst), 0);
     assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
+}
+
+/// Fetches through a client built the way installs build theirs, so the
+/// request goes through the resolver `configure_dns` wires in. The
+/// server listens on a loopback IP but is addressed as `localhost`, a
+/// name the platform's `getaddrinfo` answers from the host's own tables
+/// on every OS.
+#[tokio::test]
+async fn install_client_resolves_hostnames_through_the_system_resolver() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/by-hostname")
+        .expect(1)
+        .with_status(200)
+        .with_body("resolved")
+        .create_async()
+        .await;
+    let port = server.socket_address().port();
+
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("default install client builds");
+    let guard = client.acquire().await;
+    let resp = guard
+        .get(format!("http://localhost:{port}/by-hostname"))
+        .send()
+        .await
+        .expect("localhost resolves and connects");
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text().await.expect("body"), "resolved");
+    mock.assert_async().await;
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
@@ -531,11 +566,15 @@ async fn from_clients_uses_the_supplied_no_redirect_configuration() {
         .create_async()
         .await;
     let final_mock = registry.mock("GET", "/final").expect(0).create_async().await;
+    // Bundled roots only: a sibling test may have pointed `SSL_CERT_FILE` at
+    // an empty bundle, which makes a platform-verifier client unbuildable.
     let client = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("ordinary-client")
         .build()
         .expect("build ordinary client");
     let client_without_redirects = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("strict-client")
         .redirect(reqwest::redirect::Policy::none())
         .build()
@@ -967,6 +1006,30 @@ fn for_installs_builds_per_registry_clients() {
 }
 
 #[test]
+fn for_installs_does_not_retain_per_registry_tls_material() {
+    use crate::RegistryTls;
+    use std::collections::HashMap;
+    const PRIVATE_KEY_MARKER: &str = "registry-private-key-marker";
+
+    let mut map = HashMap::new();
+    map.insert(
+        "//reg.example.com/".to_string(),
+        RegistryTls { key: Some(PRIVATE_KEY_MARKER.to_string()), ..RegistryTls::default() },
+    );
+    let per_registry = PerRegistryTls::from_map(map);
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &per_registry,
+        &NetworkSettings::default(),
+    )
+    .expect("per-registry config builds");
+
+    let debug = format!("{client:?}");
+    assert!(!debug.contains(PRIVATE_KEY_MARKER), "finished client retained TLS key: {debug}");
+}
+
+#[test]
 fn for_installs_per_registry_invalid_ca_errors() {
     // A malformed per-registry CA must surface as `InvalidCa` at
     // build time, same as the top-level path. The `index` in the
@@ -1029,6 +1092,91 @@ async fn acquire_for_url_routes_per_registry_then_falls_back() {
         scoped_ptr, default_ptr,
         "scoped and default URLs must route through different reqwest clients",
     );
+
+    let scoped_guard = throttled
+        .acquire_for_url_without_redirects_with_priority("https://reg.example.com/pkg", 0)
+        .await;
+    let default_guard = throttled
+        .acquire_for_url_without_redirects_with_priority("https://other.example.org/pkg", 0)
+        .await;
+    let scoped_ptr: *const reqwest::Client = &raw const *scoped_guard;
+    let default_ptr: *const reqwest::Client = &raw const *default_guard;
+    assert_ne!(
+        scoped_ptr, default_ptr,
+        "scoped and default URLs must route through different no-redirect clients",
+    );
+}
+
+#[tokio::test]
+async fn per_registry_route_selects_the_client_for_the_requested_redirect_mode() {
+    // Pointer identity cannot see a routed pair whose two members
+    // were built the wrong way round, so drive a real redirect
+    // through both accessors instead.
+    use crate::RegistryTls;
+    use std::collections::HashMap;
+
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .with_status(302)
+        .with_header("location", "/final")
+        .expect(2)
+        .create_async()
+        .await;
+    let final_mock = registry
+        .mock("GET", "/final")
+        .with_status(200)
+        .with_body("followed")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let mut map = HashMap::new();
+    map.insert(
+        format!("//{}/", registry.host_with_port()),
+        RegistryTls { ca: Some(TEST_CA_PEM.to_string()), ..RegistryTls::default() },
+    );
+    let per_registry = PerRegistryTls::from_map(map);
+    let throttled = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &per_registry,
+        &NetworkSettings::default(),
+    )
+    .expect("valid");
+
+    let url = format!("{}/start", registry.url());
+    // The statuses below hold for the default pair too, so pin the
+    // routing first: a route map that lost the key would fall back
+    // and still look green.
+    {
+        let routed_guard = throttled.acquire_for_url(&url).await;
+        let unmatched_guard = throttled.acquire_for_url("https://other.example.org/pkg").await;
+        let routed: *const reqwest::Client = &raw const *routed_guard;
+        let unmatched: *const reqwest::Client = &raw const *unmatched_guard;
+        assert_ne!(routed, unmatched, "the fixture URL must reach its own routed client");
+    }
+
+    let blocked = throttled
+        .acquire_for_url_without_redirects_with_priority(&url, 0)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .expect("the redirect response itself is successful HTTP transport");
+    assert_eq!(blocked.status(), 302, "the routed no-redirect client must not follow");
+
+    let followed = throttled
+        .acquire_for_url(&url)
+        .await
+        .get(&url)
+        .send()
+        .await
+        .expect("the routed redirect-following client reaches the target");
+    assert_eq!(followed.status(), 200, "the routed redirect-following client must follow");
+
+    start_mock.assert_async().await;
+    final_mock.assert_async().await;
 }
 
 #[tokio::test]

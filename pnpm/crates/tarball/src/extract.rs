@@ -655,6 +655,7 @@ fn assemble_extract_output(
         algo: "sha512".to_string(),
         files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     (cas_paths, pkg_files_idx)
 }
@@ -959,6 +960,9 @@ pub(crate) fn tar_entry_payload<'a, Reader: std::io::Read>(
 /// both implementations share to a reader that *does* treat them as
 /// separators.
 ///
+/// A leading `.` is preserved because npm's `tar` counts it as the
+/// component removed by `strip: 1`. Other `.` components are ignored.
+///
 /// `None` for an absolute path or one climbing past the root.
 pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
     let normalized = raw.replace('\\', "/");
@@ -966,9 +970,11 @@ pub(crate) fn archive_entry_segments(raw: &str) -> Option<Vec<String>> {
         return None;
     }
     let mut segments = Vec::new();
-    for segment in normalized.split('/') {
+    for (index, segment) in normalized.split('/').enumerate() {
         match segment {
-            "" | "." => {}
+            "" => {}
+            "." if index == 0 => segments.push(segment.to_string()),
+            "." => {}
             ".." => return None,
             other => segments.push(other.to_string()),
         }

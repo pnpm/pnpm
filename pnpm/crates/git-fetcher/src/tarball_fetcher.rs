@@ -177,6 +177,7 @@ impl GitHostedTarballFetcher<'_> {
                         algo: "sha512".to_string(),
                         files: files_index,
                         side_effects: None,
+                        remote_side_effects_quarantine: None,
                     },
                 );
             }
@@ -212,6 +213,7 @@ impl GitHostedTarballFetcher<'_> {
                     algo: "sha512".to_string(),
                     files: files_index,
                     side_effects: None,
+                    remote_side_effects_quarantine: None,
                 },
             );
         }

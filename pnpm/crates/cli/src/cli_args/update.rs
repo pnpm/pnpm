@@ -394,8 +394,9 @@ impl UpdateArgs {
         let run_package_update = !self.interactive || !package_selectors.is_empty();
         let InstallFamilySelection {
             workspace_root: _,
+            workspace_cycles: _,
             mut projects,
-            ordered_groups,
+            project_dependencies,
             ordered_dirs,
             selected_dirs,
             install_dirs,
@@ -426,7 +427,7 @@ impl UpdateArgs {
             }
             .run_selected::<Reporter>(
                 &mut projects,
-                &ordered_groups,
+                &project_dependencies,
                 &ordered_dirs,
                 selected_dirs.as_ref(),
                 install_dirs.as_ref(),
@@ -456,8 +457,11 @@ impl UpdateArgs {
     ) -> miette::Result<()> {
         self.check_patches_options()?;
         self.check_workspace_option(None)?;
+        if crate::cli_args::global::selects_pnpm_cli(&self.packages) {
+            return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
+        }
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
-            match crate::cli_args::update_interactive::select_global_package_groups(
+            match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
                 config,
                 &self.packages,
                 self.latest,
@@ -543,6 +547,7 @@ impl UpdateArgs {
             frozen_lockfile: false,
             prefer_frozen_lockfile: false,
             update_patches: true,
+            fix_lockfile: false,
             lockfile_only: self.lockfile_only,
             ignore_manifest_check: false,
             trust_lockfile: state.config.trust_lockfile,

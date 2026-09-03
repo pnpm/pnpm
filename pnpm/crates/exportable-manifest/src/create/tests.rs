@@ -121,6 +121,71 @@ fn catalog_protocol_dependency_is_resolved() {
 }
 
 #[test]
+fn workspace_protocol_from_catalog_is_rewritten_to_installed_version() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "2.3.4");
+    let mut catalog = Catalog::new();
+    catalog.insert("bar".to_string(), "workspace:^".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("default".to_string(), catalog);
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "bar": "catalog:" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "bar": "^2.3.4" }));
+}
+
+#[test]
+fn peer_workspace_aliases_and_paths_from_catalog_are_rewritten() {
+    let dir = tempdir().unwrap();
+    let project = dir.path().join("node_modules/project");
+    fs::create_dir_all(&project).unwrap();
+    install_dep(dir.path(), "xerox", "4.5.6");
+
+    let mut alias_catalog = Catalog::new();
+    alias_catalog.insert("garply".to_string(), "workspace:plugh@2.0.0".to_string());
+    alias_catalog.insert("sentinel".to_string(), "workspace:plugh@^".to_string());
+    alias_catalog.insert("range".to_string(), "workspace:plugh@>=1 <3".to_string());
+    alias_catalog.insert("union".to_string(), "workspace:plugh@^1 || ^2".to_string());
+    let mut path_catalog = Catalog::new();
+    path_catalog.insert("xeroxAlias".to_string(), "workspace:../xerox".to_string());
+    let mut catalogs = empty_catalogs();
+    catalogs.insert("alias".to_string(), alias_catalog);
+    catalogs.insert("path".to_string(), path_catalog);
+
+    let out = build(
+        &project,
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "peerDependencies": {
+                "garply": "catalog:alias",
+                "sentinel": "catalog:alias",
+                "range": "catalog:alias",
+                "union": "catalog:alias",
+                "xeroxAlias": "catalog:path",
+            },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(
+        out["peerDependencies"],
+        json!({
+            "garply": "npm:plugh@2.0.0",
+            "sentinel": "npm:plugh@*",
+            "range": "npm:plugh@>=1 <3",
+            "union": "npm:plugh@^1 || ^2",
+            "xeroxAlias": "npm:xerox@4.5.6",
+        }),
+    );
+}
+
+#[test]
 fn jsr_protocol_dependency_becomes_npm_alias() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();

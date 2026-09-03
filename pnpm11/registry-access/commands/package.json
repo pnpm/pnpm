@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry-access.commands",
-  "version": "1101.0.1",
+  "version": "1101.0.2",
   "description": "Commands for managing packages on the registry",
   "keywords": [
     "pnpm",
@@ -43,6 +43,7 @@
     "@pnpm/npm-package-arg": "catalog:",
     "@pnpm/registry-access.client": "workspace:*",
     "@pnpm/resolving.registry.types": "workspace:*",
+    "@pnpm/text.sanitize": "workspace:*",
     "@pnpm/types": "workspace:*",
     "chalk": "catalog:",
     "ramda": "catalog:",

@@ -2,18 +2,20 @@
 //!
 //! Selects the workspace projects the `--filter` selectors pick, drops the
 //! private / unnamed / already-published ones (unless `--force`), then
-//! publishes the rest one dependency-ordered chunk at a time, optionally
+//! publishes the rest in dependency order, optionally
 //! writing `pnpm-publish-summary.json`.
 
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
 use miette::{Context, IntoDiagnostic};
 use pipe_trait::Pipe;
 use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{RetryOpts, ThrottledClient};
 use pnpm_publish::{
     Host, PublishNetwork, PublishSummary, batch_publish_packed_pkgs, find_registry_info,
@@ -23,14 +25,17 @@ use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
+};
 use serde_json::Value;
 
 use super::PublishArgs;
 use crate::cli_args::{
     changelog::published_name,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
+        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        select_recursive_projects,
     },
     registry_client::build_registry_client,
 };
@@ -44,6 +49,7 @@ impl PublishArgs {
         dir: &Path,
         config: &Config,
         stage: bool,
+        before_packing_hooks: &[Arc<dyn PnpmfileHooks>],
     ) -> miette::Result<Vec<PublishSummary>> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         // `publish` is not in pnpm's root-auto-exclusion command set
@@ -109,10 +115,9 @@ impl PublishArgs {
             return Ok(Vec::new());
         }
 
-        // Publish chunk by chunk in dependency order. Publishing cannot run
+        // Publishing cannot run
         // concurrently: an OTP challenge is interactive and per-process.
-        let mut published: Vec<PublishSummary> = Vec::new();
-        let chunks = sort_filtered_projects(
+        let project_dependencies = filtered_projects_dependencies(
             graph,
             selection.full_graph(),
             selection.prod_all.as_ref(),
@@ -120,9 +125,19 @@ impl PublishArgs {
         );
         if self.flags.batch {
             let mut packed = Vec::with_capacity(to_publish.len());
-            for root in chunks.iter().flatten() {
-                if to_publish.contains(root) {
-                    packed.push(self.pack_directory::<Reporter>(root, config).await?);
+            let edges = project_dependencies
+                .iter()
+                .map(|(root, dependencies)| (root.clone(), dependencies.clone()))
+                .collect();
+            for root in
+                graph_sequencer(&edges, &project_dependencies.keys().cloned().collect::<Vec<_>>())
+                    .order
+            {
+                if to_publish.contains(&root) {
+                    packed.push(
+                        self.pack_directory::<Reporter>(&root, config, before_packing_hooks)
+                            .await?,
+                    );
                 }
             }
             let packages = packed.iter().map(|package| package.packed_pkg()).collect::<Vec<_>>();
@@ -143,16 +158,56 @@ impl PublishArgs {
             }
             return Ok(published);
         }
-        for chunk in chunks {
-            for root in chunk {
+        let published: Mutex<Vec<PublishSummary>> = Mutex::new(Vec::new());
+        let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
+        let run_node = |root: PathBuf| {
+            let command = self;
+            let to_publish = &to_publish;
+            let opts = &opts;
+            let network = &network;
+            let published = &published;
+            let first_error = &first_error;
+            async move {
                 if !to_publish.contains(&root) {
-                    continue;
+                    return TaskCompletion::Passed;
                 }
-                let summary =
-                    self.publish_directory::<Reporter>(&root, config, &opts, &network).await?;
-                published.push(summary);
+                match command
+                    .publish_directory::<Reporter>(
+                        &root,
+                        config,
+                        opts,
+                        network,
+                        before_packing_hooks,
+                    )
+                    .await
+                {
+                    Ok(summary) => {
+                        published
+                            .lock()
+                            .expect("publish results lock is not poisoned")
+                            .push(summary);
+                        TaskCompletion::Passed
+                    }
+                    Err(error) => {
+                        first_error
+                            .lock()
+                            .expect("publish error lock is not poisoned")
+                            .get_or_insert(error);
+                        TaskCompletion::Failed
+                    }
+                }
             }
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &project_dependencies,
+            &ScheduleGraphAsyncOptions::new(1, true, &run_node, &on_node_skipped),
+        )
+        .await;
+        if let Some(error) = first_error.into_inner().expect("publish error lock is not poisoned") {
+            return Err(error);
         }
+        let published = published.into_inner().expect("publish results lock is not poisoned");
 
         if self.flags.report_summary {
             write_publish_summary(workspace_root, &published)?;

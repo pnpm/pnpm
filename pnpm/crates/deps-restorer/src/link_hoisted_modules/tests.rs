@@ -8,13 +8,15 @@ use pnpm_cmd_shim::LinkBinsOptions;
 use pnpm_config::PackageImportMethod;
 use pnpm_lockfile::{DirectoryResolution, LockfileResolution, PkgIdWithPatchHash};
 use pnpm_modules_yaml::DepPath;
-use pnpm_reporter::SilentReporter;
+use pnpm_reporter::{
+    LogEvent, PackageImportMethod as WireImportMethod, ProgressMessage, Reporter, SilentReporter,
+};
 use pretty_assertions::assert_eq;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
-    sync::atomic::AtomicU8,
+    sync::{Mutex, atomic::AtomicU8},
 };
 
 fn sample_resolution() -> LockfileResolution {
@@ -416,4 +418,79 @@ fn hierarchy_entry_missing_from_graph_errors() {
         }
         other => panic!("expected MissingGraphNode, got {other:?}"),
     }
+}
+
+/// One `pnpm:progress imported` per imported node — the event the
+/// default reporter counts as `added`, and the only source of that
+/// counter under `nodeLinker: hoisted`.
+#[test]
+fn import_pass_emits_one_imported_event_per_node() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let cas_root = tmp.path().join("cas");
+    let lockfile_dir = tmp.path().join("repo");
+    let (graph, hierarchy, cas_paths) = flat_layout(
+        &lockfile_dir,
+        &cas_root,
+        &[
+            ("a", "a@1.0.0", "a@1.0.0", &[("package/index.js", b"module.exports = 1;")]),
+            ("b", "b@1.0.0", "b@1.0.0", &[("package/index.js", b"module.exports = 2;")]),
+        ],
+    );
+
+    let logged = AtomicU8::new(0);
+    let opts = LinkHoistedModulesOpts {
+        graph: &graph,
+        prev_graph: None,
+        hierarchy: &hierarchy,
+        cas_paths_by_pkg_id: &cas_paths,
+        import_method: PackageImportMethod::Hardlink,
+        logged_methods: &logged,
+        requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
+        confine_root: &lockfile_dir,
+    };
+    EVENTS.lock().unwrap().clear();
+    link_hoisted_modules::<RecordingReporter>(&opts).expect("linker succeeds");
+
+    let captured = EVENTS.lock().unwrap();
+    let mut imported: Vec<(WireImportMethod, String, String)> = captured
+        .iter()
+        .filter_map(|event| match event {
+            LogEvent::Progress(log) => match &log.message {
+                ProgressMessage::Imported { method, requester, to } => {
+                    Some((*method, requester.clone(), to.clone()))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    imported.sort_by(|left, right| left.2.cmp(&right.2));
+
+    let modules = lockfile_dir.join("node_modules");
+    let requester = lockfile_dir.to_str().expect("requester").to_string();
+    assert_eq!(
+        imported,
+        vec![
+            (
+                WireImportMethod::Hardlink,
+                requester.clone(),
+                modules.join("a").to_string_lossy().into_owned(),
+            ),
+            (
+                WireImportMethod::Hardlink,
+                requester,
+                modules.join("b").to_string_lossy().into_owned(),
+            ),
+        ],
+    );
 }

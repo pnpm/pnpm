@@ -39,6 +39,28 @@ pub trait OtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge>;
 }
 
+/// The challenge a `401` response body carries, or `None` when the body is
+/// a plain authentication failure: a JSON body with both `authUrl` and
+/// `doneUrl` is the web-based flow, a body mentioning `one-time pass` (npm's
+/// classic wording) is a classic OTP challenge.
+#[must_use]
+pub fn otp_challenge_from_unauthorized_body(body: &[u8]) -> Option<OtpChallenge> {
+    if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(body)
+        && let (Some(auth_url), Some(done_url)) = (map.get("authUrl"), map.get("doneUrl"))
+    {
+        return Some(OtpChallenge {
+            body: Some(OtpErrorBody {
+                auth_url: auth_url.as_str().map(str::to_owned),
+                done_url: done_url.as_str().map(str::to_owned),
+            }),
+        });
+    }
+    if String::from_utf8_lossy(body).to_ascii_lowercase().contains("one-time pass") {
+        return Some(OtpChallenge { body: None });
+    }
+    None
+}
+
 /// Synthetic EOTP error meant to be thrown by an operation passed to
 /// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
 #[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
@@ -313,7 +335,7 @@ where
                 .map_err(WithOtpError::Timeout)
         }
         None => {
-            match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
+            match Sys::input("This operation requires a one-time password.\nEnter OTP").await {
                 Ok(value) => Ok(value.filter(|otp| !otp.is_empty())),
                 // The user aborted the prompt: leave the challenge unsatisfied.
                 Err(PromptError::Cancelled) => Ok(None),
@@ -363,3 +385,6 @@ where
         .run::<Sys, Reporter, Token, Error, Operation, Fut>(operation)
         .await
 }
+
+#[cfg(test)]
+mod tests;

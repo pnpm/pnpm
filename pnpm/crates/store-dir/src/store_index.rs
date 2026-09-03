@@ -66,7 +66,10 @@ enum WriteMsg {
     /// Wholesale replace the row at `key`. Used by the prefetch /
     /// download path that already has the full [`PackageFilesIndex`]
     /// in hand.
-    Replace { key: String, value: PackageFilesIndex },
+    Replace {
+        key: String,
+        value: PackageFilesIndex,
+    },
     /// Read-modify-write the row at `key`: load the existing row
     /// (from the same writer task's pending state or, on a miss,
     /// from `SQLite`), compute the diff between `current_files` and
@@ -86,8 +89,21 @@ enum WriteMsg {
         key: String,
         cache_key: String,
         current_files: HashMap<String, CafsFileInfo>,
+        response: Option<std::sync::mpsc::SyncSender<Option<SideEffectsDiff>>>,
+    },
+    RemoteSideEffects {
+        key: String,
+        cache_key: String,
+        diff: SideEffectsDiff,
+    },
+    QuarantineRemoteSideEffects {
+        key: String,
+        channel: String,
+        envelope_digest: String,
     },
 }
+
+const MAX_QUARANTINED_REMOTE_SIDE_EFFECTS: usize = 64;
 
 /// Batch cap for [`StoreIndexWriter`]. Big enough that a 1352-snapshot
 /// install flushes in a handful of transactions (so the fsync cost is
@@ -258,21 +274,44 @@ fn apply_write_msg(
         WriteMsg::Replace { key, value } => {
             pending.insert(key, value);
         }
-        WriteMsg::SideEffectsUpload { key, cache_key, current_files } => {
-            let Some(row) = load_pending_row(index, pending, &key) else { return };
-            if row.algo != crate::upload::HASH_ALGORITHM {
-                tracing::warn!(
-                    target: "pacquet::store_index",
-                    key = %key,
-                    row_algo = %row.algo,
-                    "algo mismatch on base row; skip side-effects upload",
-                );
-                // Row stays in `pending` for the flush — only
-                // the side-effects mutation is suppressed.
-                return;
+        WriteMsg::SideEffectsUpload { key, cache_key, current_files, response } => {
+            let diff = load_pending_row(index, pending, &key).and_then(|row| {
+                if row.algo != crate::upload::HASH_ALGORITHM {
+                    tracing::warn!(
+                        target: "pacquet::store_index",
+                        key = %key,
+                        row_algo = %row.algo,
+                        "algo mismatch on base row; skip side-effects upload",
+                    );
+                    return None;
+                }
+                let diff = crate::upload::calculate_diff(&row.files, &current_files);
+                row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff.clone());
+                Some(diff)
+            });
+            if let Some(response) = response {
+                let _ = response.send(diff);
             }
-            let diff = crate::upload::calculate_diff(&row.files, &current_files);
-            row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
+        }
+        WriteMsg::RemoteSideEffects { key, cache_key, diff } => {
+            if let Some(row) = load_pending_row(index, pending, &key) {
+                row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
+            }
+        }
+        WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest } => {
+            if let Some(row) = load_pending_row(index, pending, &key) {
+                let digests = row
+                    .remote_side_effects_quarantine
+                    .get_or_insert_with(HashMap::new)
+                    .entry(channel)
+                    .or_default();
+                if !digests.contains(&envelope_digest) {
+                    digests.push(envelope_digest);
+                }
+                if digests.len() > MAX_QUARANTINED_REMOTE_SIDE_EFFECTS {
+                    digests.drain(..digests.len() - MAX_QUARANTINED_REMOTE_SIDE_EFFECTS);
+                }
+            }
         }
     }
 }
@@ -345,7 +384,41 @@ impl StoreIndexWriter {
         cache_key: String,
         current_files: HashMap<String, CafsFileInfo>,
     ) {
-        self.send_msg(WriteMsg::SideEffectsUpload { key, cache_key, current_files });
+        self.send_msg(WriteMsg::SideEffectsUpload {
+            key,
+            cache_key,
+            current_files,
+            response: None,
+        });
+    }
+
+    pub fn queue_side_effects_upload_with_result(
+        &self,
+        key: String,
+        cache_key: String,
+        current_files: HashMap<String, CafsFileInfo>,
+    ) -> Option<SideEffectsDiff> {
+        let (response, result) = std::sync::mpsc::sync_channel(1);
+        self.send_msg(WriteMsg::SideEffectsUpload {
+            key,
+            cache_key,
+            current_files,
+            response: Some(response),
+        });
+        result.recv().ok().flatten()
+    }
+
+    pub fn queue_remote_side_effects(&self, key: String, cache_key: String, diff: SideEffectsDiff) {
+        self.send_msg(WriteMsg::RemoteSideEffects { key, cache_key, diff });
+    }
+
+    pub fn queue_remote_side_effects_quarantine(
+        &self,
+        key: String,
+        channel: String,
+        envelope_digest: String,
+    ) {
+        self.send_msg(WriteMsg::QuarantineRemoteSideEffects { key, channel, envelope_digest });
     }
 
     fn send_msg(&self, msg: WriteMsg) {
@@ -1033,11 +1106,14 @@ pub struct PackageFilesIndex {
     /// round-trip through `rmp_serde::from_slice`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub side_effects: Option<HashMap<String, SideEffectsDiff>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_side_effects_quarantine: Option<HashMap<String, Vec<String>>>,
 }
 
 /// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
 /// metadata field-for-field so that the msgpack payload interops.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CafsFileInfo {
     /// Content-addressed digest of the file — raw hex (no `sha512-` prefix),
@@ -1084,13 +1160,26 @@ fn serialize_checked_at<Serializer: serde::Serializer>(
 /// the bespoke encoder in `msgpackr_records.rs` (it iterates the
 /// map in sorted-key order). The derived serde `Serialize` impl
 /// is unused on the write path.
-#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SideEffectsDiff {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub added: Option<HashMap<String, CafsFileInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_origin: Option<RemoteSideEffectsOrigin>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteSideEffectsOrigin {
+    pub channel: String,
+    pub owner: pnpm_shared_artifact_protocol::OwnerScope,
+    pub signer_key_id: String,
+    pub builder_profile: pnpm_shared_artifact_protocol::BuilderProfile,
+    pub envelope: pnpm_shared_artifact_protocol::SignedArtifactEnvelope,
+    pub verification: String,
 }
 
 /// Build the `file://…?immutable=1` URI used to open `index.db` read-only (see

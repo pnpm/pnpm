@@ -91,6 +91,9 @@
       "path": "../../workspace/projects-sorter"
     },
     {
+      "path": "../../workspace/task-scheduler"
+    },
+    {
       "path": "../../workspace/workspace-manifest-reader"
     },
     {

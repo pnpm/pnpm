@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { stripVTControlCharacters } from 'node:util'
+import util, { stripVTControlCharacters } from 'node:util'
 
 import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { createMatcher } from '@pnpm/config.matcher'
@@ -11,7 +11,7 @@ import { addEsmNodePathLoaderOption } from '@pnpm/exec.esm-node-path-loader'
 import { getCurrentBranch } from '@pnpm/network.git-utils'
 import { applyRuntimeOnFailOverride } from '@pnpm/pkg-manifest.utils'
 import { isCamelCase } from '@pnpm/text.naming-cases'
-import type { DevEngines, EngineDependency, ProjectManifest, VirtualStoreType } from '@pnpm/types'
+import type { DevEngines, EngineDependency, ProjectManifest, RemoteSideEffectsCacheSettings, SideEffectsCacheSettings, VirtualStoreType } from '@pnpm/types'
 import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
 import { readWorkspaceManifest, type WorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import { betterPathResolve } from 'better-path-resolve'
@@ -51,7 +51,7 @@ import {
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
-import { transformPathKeys } from './transformPath.js'
+import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
@@ -296,6 +296,10 @@ export async function getConfig (opts: {
 
   // Track which keys are explicitly set (not defaults)
   const explicitlySetKeys = new Set<string>(Object.keys(configFromCliOpts))
+  // The command line alone, before any config file adds to the set above. A
+  // `registry` a yaml declared is explicit too, but it is not the command
+  // line, and only the command line outranks the `_auth` environment.
+  const registrySetOnCommandLine = explicitlySetKeys.has('registry')
   pnpmConfig.explicitlySetKeys = explicitlySetKeys
   pnpmConfig.cliOptions = cliOptions
 
@@ -366,6 +370,7 @@ export async function getConfig (opts: {
       expandRequestDestinationEnv: true,
       projectManifest: undefined,
       skipSettings: GLOBAL_CONFIG_SKIPPED_KEYS,
+      trustedSource: true,
       workspaceDir: undefined,
       workspaceManifest: globalYamlConfig,
     })
@@ -390,6 +395,10 @@ export async function getConfig (opts: {
   }
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
+    // The file fallback applies to the bootstrap cascade too, so a registry
+    // reached only through a stored credential is reached the same way when
+    // pnpm downloads itself as when it installs.
+    ...npmrcResult.jsonAuth.fallbackRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -420,6 +429,21 @@ export async function getConfig (opts: {
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
+  // `globalPkgDir` and `bin` are derived just below, and `globalPkgDir` is
+  // read again further down, both before the full `PNPM_CONFIG_*` pass runs.
+  // The two settings they are built from therefore have to come off the
+  // environment here; that pass sets them again to the same values. The CLI
+  // outranks the environment, exactly as it does there.
+  for (const { key, value } of parseEnvVars(
+    schemaKey => schemaKey === 'global-dir' || schemaKey === 'global-bin-dir' ? types[schemaKey] : undefined,
+    env
+  )) {
+    if ((key !== 'globalDir' && key !== 'globalBinDir') || typeof value !== 'string') continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
+    pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
+  }
+  transformGlobalDirKeys(pnpmConfig, os.homedir())
   let globalDirRoot
   if (pnpmConfig.globalDir) {
     globalDirRoot = pnpmConfig.globalDir
@@ -563,25 +587,40 @@ export async function getConfig (opts: {
     }
   }
 
-  // Precedence: builtin < .npmrc < yaml < `_auth` < CLI. CLI
+  // Precedence: builtin < .npmrc < `_auth` file < yaml < `_auth` env < CLI. CLI
   // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
   // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
+  // A `registry:` in either yaml declares the default as plainly as a
+  // `registries` entry does, but reaches `pnpmConfig.registry` instead of the
+  // map, so it has to be restated here to outrank the `_auth` file fallback.
+  // Asked of the key rather than of its value: pinning the registry a lower
+  // layer already resolved to is still a declaration.
+  const declaredDefault =
+    explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string'
+      ? { default: normalizeRegistryUrl(pnpmConfig.registry) }
+      : undefined
   pnpmConfig.registriesByScope = {
     ...registriesFromNpmrc,
+    // The global config file's `_auth` only fills in what nothing declares:
+    // it is where a `pnpm login` stores a credential, and holding one is not
+    // a statement about where packages come from.
+    ...npmrcResult.jsonAuth.fallbackRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
-    // `_auth` routes win over repo-controlled yaml on conflicting scopes.
+    ...declaredDefault,
+    // The `_auth` env var is the operator's channel — a CI runner pointed at
+    // a mandated proxy — so its routes win over what any file declares.
     ...npmrcResult.jsonAuth.registries,
     // CLI per-scope registries last, so `--@scope:registry=...` wins over
-    // both yaml and `_auth` ("CLI > _auth > yaml").
+    // both yaml and `_auth` ("CLI > _auth env > yaml > _auth file").
     ...cliScopedRegistries,
   }
   // Re-apply an unscoped `--registry` CLI flag last for the same reason
   // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
   // `authConfig.registry` and would otherwise be buried by env JSON.
-  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+  if (registrySetOnCommandLine && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registriesByScope.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   if (!pnpmConfig.registriesByScope.default) {
@@ -598,7 +637,7 @@ export async function getConfig (opts: {
   // registry configured in pnpm-workspace.yaml. Only sync when the workspace
   // manifest actually contributed a different default than what .npmrc provided,
   // and when registry was not explicitly set via CLI.
-  if (!explicitlySetKeys.has('registry') && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
+  if (!registrySetOnCommandLine && pnpmConfig.registriesByScope.default !== registriesFromNpmrc.default) {
     pnpmConfig.registry = pnpmConfig.registriesByScope.default
   }
 
@@ -643,6 +682,14 @@ export async function getConfig (opts: {
     }
     if (key === 'maxSockets') {
       maxSocketsFromEnv = value as number
+      continue
+    }
+
+    // The environment can only spell the boolean, and a plain assignment
+    // would drop a remote tier a config file declared under the object form.
+    if (key === 'sideEffectsCache') {
+      applySideEffectsCacheDeclaration(pnpmConfig, value)
+      explicitlySetKeys.add(key)
       continue
     }
 
@@ -836,8 +883,7 @@ export async function getConfig (opts: {
   if (!pnpmConfig.userConfig) {
     pnpmConfig.userConfig = npmrcResult.userConfig as Record<string, string>
   }
-  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache ?? pnpmConfig.sideEffectsCacheReadonly
-  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
+  resolveSideEffectsCache(pnpmConfig)
 
   pnpmConfig.workspaceConcurrency = getWorkspaceConcurrency(pnpmConfig.workspaceConcurrency)
 
@@ -908,6 +954,8 @@ export async function getConfig (opts: {
   if (pnpmConfig.runtimeOnFail && pnpmConfig.rootProjectManifest) {
     applyRuntimeOnFailOverride(pnpmConfig.rootProjectManifest, pnpmConfig.runtimeOnFail)
   }
+
+  applyRemoteSideEffectsCacheEnv(pnpmConfig, env)
 
   const {
     hooks, finders,
@@ -1285,6 +1333,17 @@ const CREDENTIAL_KEYS = [
 ] as const satisfies ReadonlyArray<keyof (Config & ConfigContext)>
 
 /**
+ * Which scope a `pnpm login` claims for the machine.
+ *
+ * The granted token is recorded as a route in the global `auth.ini`, which
+ * outranks the user's own `~/.npmrc` in every project on the machine — so the
+ * choice is the user's, not a repository's.
+ */
+const LOGIN_TARGET_KEYS = [
+  'scope',
+] as const satisfies ReadonlyArray<keyof Config>
+
+/**
  * Keys a project's `pnpm-workspace.yaml` does not contribute.
  *
  * `cacheDir` and `storeDir` are deliberately absent: those name caches a
@@ -1294,6 +1353,134 @@ type ProjectManifestSkippedKey =
   | typeof MACHINE_LOCATION_KEYS[number]
   | typeof CURRENT_RUN_LOCATION_KEYS[number]
   | typeof CREDENTIAL_KEYS[number]
+  | typeof LOGIN_TARGET_KEYS[number]
+
+/**
+ * Resolves the four accepted spellings into the three fields consumers read.
+ *
+ * `sideEffectsCache: true` sets reading and writing together,
+ * `sideEffectsCacheReadonly` is `read` without `write`, and
+ * `remoteSideEffectsCache` is `remote`; `sideEffectsCache` as an object wins
+ * over any of them on a field they both set. Its `read` and `write` default to
+ * enabled, so declaring only `remote` does not quietly switch the local cache
+ * off.
+ */
+function resolveSideEffectsCache (pnpmConfig: Config): void {
+  const declared = pnpmConfig.sideEffectsCache
+  const settings = typeof declared === 'object' && declared != null ? declared : undefined
+  const shorthand = typeof declared === 'boolean' ? declared : undefined
+  const readonly = pnpmConfig.sideEffectsCacheReadonly === true
+  pnpmConfig.sideEffectsCacheRead = settings != null
+    ? settings.read ?? true
+    // `sideEffectsCacheReadonly: true` with `sideEffectsCache: false` is how
+    // pacquet documents a read-only view, so either flag enables reading.
+    : (shorthand ?? false) || readonly
+  pnpmConfig.sideEffectsCacheWrite = settings != null
+    ? settings.write ?? true
+    // `sideEffectsCacheReadonly` reads as blocking writes and is documented as
+    // doing so, and pacquet has always enforced that. Deriving writes from the
+    // boolean alone let it through here, since that boolean defaults to on.
+    : readonly ? false : shorthand
+  // Combined here rather than as each source is read, so that the canonical
+  // spelling wins on a field both set no matter which order they appeared in.
+  if (settings?.remote != null) {
+    pnpmConfig.remoteSideEffectsCache = {
+      ...pnpmConfig.remoteSideEffectsCache,
+      ...settings.remote,
+    }
+  }
+}
+
+/**
+ * Rewrites `organization` to `org` before the two remote spellings are merged.
+ *
+ * Merging first and resolving after would compare a field named `org` on one
+ * side against `organization` on the other, so neither would take precedence
+ * over the other and whichever key happened to be named `org` would win.
+ */
+function withCanonicalOrg (remote: RemoteSideEffectsCacheSettings | undefined): RemoteSideEffectsCacheSettings | undefined {
+  if (remote?.organization == null) return remote
+  const { organization, ...rest } = remote
+  return { ...rest, org: rest.org ?? organization }
+}
+
+/**
+ * The environment is the last word on the remote side-effects cache: it is
+ * where a CI runner injects the signing material that must not be committed,
+ * and where a build job flips publication on for one invocation.
+ *
+ * These are read here rather than by their consumers so the values reach the
+ * installer as ordinary settings, and so `pnpm config list` can show them.
+ */
+function applyRemoteSideEffectsCacheEnv (
+  pnpmConfig: Config & ConfigContext,
+  env: NodeJS.ProcessEnv
+): void {
+  const settings: Partial<RemoteSideEffectsCacheSettings> = {}
+  const publish = readSideEffectsCacheEnv(env, 'PUBLISH')
+  if (publish != null) {
+    settings.publish = publish.value === 'true'
+  }
+  for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_STRINGS) {
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read != null) settings[field] = read.value
+  }
+  for (const [field, suffix] of SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON) {
+    const read = readSideEffectsCacheEnv(env, suffix)
+    if (read == null) continue
+    settings[field] = parseStringValuedJsonObject(read.value, read.variable)
+  }
+  if (Object.keys(settings).length === 0) return
+  pnpmConfig.remoteSideEffectsCache = {
+    ...pnpmConfig.remoteSideEffectsCache,
+    ...settings,
+  } as RemoteSideEffectsCacheSettings
+  pnpmConfig.explicitlySetKeys.add('remoteSideEffectsCache')
+}
+
+const SIDE_EFFECTS_CACHE_REMOTE_ENV_STRINGS = [
+  ['keyId', 'KEY_ID'],
+  ['builderId', 'BUILDER_ID'],
+  ['imageDigest', 'IMAGE_DIGEST'],
+  ['architectureBaseline', 'ARCHITECTURE_BASELINE'],
+  ['privateKey', 'PRIVATE_KEY'],
+] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
+
+const SIDE_EFFECTS_CACHE_REMOTE_ENV_JSON = [
+  ['buildEnv', 'BUILD_ENV'],
+  ['trustedKeys', 'TRUSTED_KEYS'],
+] as const satisfies ReadonlyArray<[keyof RemoteSideEffectsCacheSettings, string]>
+
+/**
+ * Reads one field of the remote tier from the environment, under the name that
+ * matches the setting and under the one that matched its older spelling.
+ *
+ * A machine configured for `remoteSideEffectsCache` keeps working; a machine
+ * setting both gets the name that matches the setting it is configuring.
+ */
+function readSideEffectsCacheEnv (env: NodeJS.ProcessEnv, suffix: string): { value: string, variable: string } | undefined {
+  // The name comes back with the value because a malformed one is reported by
+  // name, and naming a variable the user did not set sends them looking for it.
+  for (const variable of [`PNPM_SIDE_EFFECTS_CACHE_REMOTE_${suffix}`, `PNPM_REMOTE_SIDE_EFFECTS_CACHE_${suffix}`]) {
+    const value = env[variable]
+    if (value != null) return { value, variable }
+  }
+  return undefined
+}
+
+function parseStringValuedJsonObject (value: string, variable: string): Record<string, string> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (err: unknown) {
+    throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV',
+      `${variable} is not valid JSON: ${util.types.isNativeError(err) ? err.message : String(err)}`)
+  }
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed) || !Object.values(parsed).every((item) => typeof item === 'string')) {
+    throw new PnpmError('INVALID_REMOTE_SIDE_EFFECTS_ENV', `${variable} must be a JSON object with string values`)
+  }
+  return parsed as Record<string, string>
+}
 
 /** Every key a caller of {@link addSettingsFromWorkspaceManifestToConfig} may skip. */
 type SkippableKey =
@@ -1305,6 +1492,7 @@ const PROJECT_MANIFEST_SKIPPED_KEYS: ReadonlySet<ProjectManifestSkippedKey> = ne
   ...MACHINE_LOCATION_KEYS,
   ...CURRENT_RUN_LOCATION_KEYS,
   ...CREDENTIAL_KEYS,
+  ...LOGIN_TARGET_KEYS,
 ])
 
 /**
@@ -1435,6 +1623,7 @@ function quoteAndSuggestCamelCase (keys: string[]): string {
 }
 
 function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigContext, {
+  trustedSource,
   configFromCliOpts,
   expandRequestDestinationEnv,
   projectManifest,
@@ -1447,17 +1636,49 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   projectManifest: ProjectManifest | undefined
   /** Settings this manifest may not contribute, chosen by the caller. */
   skipSettings?: ReadonlySet<SkippableKey>
+  /** See {@link getOptionsFromPnpmSettings}. Only the global config yaml is trusted. */
+  trustedSource?: boolean
   workspaceDir: string | undefined
   workspaceManifest: WorkspaceManifest
 }): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv }), configFromCliOpts)
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
+  const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
     if (isNeverAFileSetting(kebabCase(key))) continue
     if (skipped?.has(key)) continue
 
+    // A workspace declares eligibility while the machine holds the signing
+    // trust root, so the two sources contribute different fields of one object
+    // and the later one must not drop what the earlier one set.
+    //
+    // The two spellings accumulate separately and are combined once, in
+    // `resolveSideEffectsCache`. Merging them here would make precedence a
+    // function of the order the keys happen to appear in, so a file listing
+    // the deprecated spelling second would have it win.
+    if (key === 'remoteSideEffectsCache') {
+      pnpmConfig.remoteSideEffectsCache = {
+        ...pnpmConfig.remoteSideEffectsCache,
+        ...withCanonicalOrg(value as RemoteSideEffectsCacheSettings),
+      }
+      pnpmConfig.explicitlySetKeys.add(key)
+      continue
+    }
+    if (key === 'sideEffectsCache') {
+      // The command line is a layer on top of the manifest, not a substitute
+      // for it: applying only the value that won the merge above would drop a
+      // remote tier the manifest declared, which the boolean says nothing
+      // about.
+      if (sideEffectsCacheFromManifest != null && sideEffectsCacheFromManifest !== value) {
+        applySideEffectsCacheDeclaration(pnpmConfig, sideEffectsCacheFromManifest)
+      }
+      applySideEffectsCacheDeclaration(pnpmConfig, value)
+      pnpmConfig.explicitlySetKeys.add(key)
+      continue
+    }
     // @ts-expect-error
     pnpmConfig[key] = value
     pnpmConfig.explicitlySetKeys.add(key)
@@ -1471,6 +1692,38 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/**
+ * Merge one source's `sideEffectsCache` declaration into the config, later
+ * sources landing on top of earlier ones.
+ *
+ * A boolean says whether to read and write. It says nothing about the remote
+ * tier, so one declared by an earlier source survives it — but it has to
+ * survive as a remote tier rather than by turning the boolean into an object,
+ * which would move the whole declaration onto the object branch of
+ * {@link resolveSideEffectsCache} and take it out of reach of
+ * `sideEffectsCacheReadonly`.
+ */
+function applySideEffectsCacheDeclaration (pnpmConfig: Config, value: unknown): void {
+  const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
+    ? pnpmConfig.sideEffectsCache
+    : undefined
+  if (typeof value === 'boolean') {
+    if (previous?.remote != null) {
+      pnpmConfig.remoteSideEffectsCache = {
+        ...pnpmConfig.remoteSideEffectsCache,
+        ...withCanonicalOrg(previous.remote),
+      }
+    }
+    pnpmConfig.sideEffectsCache = value
+  } else if (value != null) {
+    const declared = value as SideEffectsCacheSettings
+    const remote = previous?.remote != null || declared.remote != null
+      ? { ...previous?.remote, ...withCanonicalOrg(declared.remote) }
+      : undefined
+    pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
+  }
 }
 
 /**

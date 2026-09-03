@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
 
-import gfs from '@pnpm/fs.graceful-fs'
+import gfs, { renameFileWithRetry } from '@pnpm/fs.graceful-fs'
 import { globalInfo, globalWarn, logger } from '@pnpm/logger'
 import type { ResolvedFrom } from '@pnpm/store.controller-types'
 import { rimrafSync } from '@zkochan/rimraf'
@@ -13,10 +13,7 @@ import { renameOverwriteSync } from 'rename-overwrite'
 import sanitizeFilename from 'sanitize-filename'
 
 const filenameConflictsLogger = logger('_filename-conflicts')
-const RENAME_RETRY_BUDGET_MS = 60_000
-const RENAME_RETRY_BACKOFF_CAP_MS = 100
 const FILE_COMPARE_BUFFER_SIZE = 64 * 1024
-const renameRetrySleepBuffer = new Int32Array(new SharedArrayBuffer(4))
 
 export type ImportFile = (src: string, dest: string) => void
 
@@ -191,30 +188,6 @@ function replaceFileIfDifferent (importFile: ImportFile, src: string, dest: stri
     if (mismatchReason(dest, src) === undefined) return
     throw err
   }
-}
-
-// Retry a Windows sharing violation without rename-overwrite's fallback of
-// deleting the destination. Another install may still be reading that dirent.
-function renameFileWithRetry (src: string, dest: string): void {
-  const startedAt = Date.now()
-  let backoffMs = 0
-  for (;;) {
-    try {
-      fs.renameSync(src, dest)
-      return
-    } catch (err) {
-      if (!isTransientRenameError(err) || Date.now() - startedAt >= RENAME_RETRY_BUDGET_MS) throw err
-      if (backoffMs > 0) Atomics.wait(renameRetrySleepBuffer, 0, 0, backoffMs)
-      backoffMs = Math.min(backoffMs + 10, RENAME_RETRY_BACKOFF_CAP_MS)
-    }
-  }
-}
-
-function isTransientRenameError (err: unknown): boolean {
-  return process.platform === 'win32' &&
-    util.types.isNativeError(err) &&
-    'code' in err &&
-    (err.code === 'EPERM' || err.code === 'EACCES' || err.code === 'EBUSY')
 }
 
 // A rename cannot put a file where a directory is (EISDIR), so one standing in

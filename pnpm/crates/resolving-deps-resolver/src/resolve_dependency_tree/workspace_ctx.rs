@@ -6,9 +6,11 @@
 use chrono::{DateTime, Utc};
 use pnpm_hooks::PnpmfileHooks;
 use pnpm_lockfile::{PkgName, PkgNameVerPeer, RegistryContext};
+use pnpm_resolving_resolver_base::{PkgResolutionId, ResolveOptions, WorkspacePackages};
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
+    hash::{Hash, Hasher},
     path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
 };
@@ -22,8 +24,8 @@ use crate::{
 };
 
 use super::{
-    DeprecationLogFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth, UpdateReuseScope,
-    lock_recoverable, tree_ctx::TreeCtx,
+    DeprecationLogFn, FinalizedPackageFn, ManifestHook, SkippedOptionalLogFn, UpdateDepth,
+    UpdateReuseScope, lock_recoverable, tree_ctx::TreeCtx,
 };
 
 /// Cache key for [`WorkspaceTreeCtx`]'s `resolved_by_wanted` map.
@@ -92,12 +94,159 @@ pub(super) type WantedKey = (
     Option<bool>,
     bool,
     Option<DateTime<Utc>>,
-    Option<PathBuf>,
+    Option<PathKey>,
     Option<PkgNameVerPeer>,
     Vec<(String, Vec<String>)>,
     Option<String>,
     bool,
 );
+
+/// A path slot of a resolver cache key.
+///
+/// `Path`'s own `Hash` and `Eq` walk the path component by component,
+/// and the per-edge key lookups made that walk one of the hottest
+/// spots of a large workspace's resolution. The paths that reach these
+/// keys come from one canonical config-derived source per importer, so
+/// this wrapper compares and hashes the underlying `OsStr` — a plain
+/// byte comparison. That is *stricter* than component equality
+/// (`a//b` ≠ `a/b` here), which for a dedup cache can only cost an
+/// extra identical resolution, never conflate two different paths.
+#[derive(Debug, Clone, derive_more::From)]
+pub(super) struct PathKey(pub(super) PathBuf);
+
+impl PartialEq for PathKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.as_os_str() == other.0.as_os_str()
+    }
+}
+
+impl Eq for PathKey {}
+
+impl Hash for PathKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        self.0.as_os_str().hash(state);
+    }
+}
+
+/// A wanted dependency key without its consumer directory, plus the resolver
+/// inputs that may vary between importers.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct SharedWorkspaceWantedKey {
+    wanted: WantedKey,
+    previous_specifier: Option<String>,
+    // Behind an `Arc` because the fields are invariant per importer
+    // (see [`WorkspaceResolutionOptionsKey`]) while a key is built per
+    // dependency edge; the derived `Hash`/`Eq` see through the `Arc`,
+    // so keys built by different importers still match by value.
+    resolve_options: Arc<WorkspaceResolutionOptionsKey>,
+}
+
+impl SharedWorkspaceWantedKey {
+    pub(super) fn new(
+        wanted: WantedKey,
+        previous_specifier: Option<String>,
+        resolve_options: &Arc<WorkspaceResolutionOptionsKey>,
+    ) -> Self {
+        Self { wanted, previous_specifier, resolve_options: Arc::clone(resolve_options) }
+    }
+}
+
+/// Resolver inputs that can change a named workspace resolution independently
+/// of the consuming project directory.
+///
+/// Every field is invariant across the [`ResolveOptions`] variants one
+/// importer's walk hands the resolver — the depth split changes only
+/// the version pick, and the per-edge overrides change only
+/// `project_dir` / `current_pkg` / the overlay — so [`TreeCtx`] builds
+/// this once per importer and every edge shares it.
+/// [`Self::matches_options`] backs the debug assertion pinning that
+/// invariance.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct WorkspaceResolutionOptionsKey {
+    workspace_packages: Option<WorkspacePackagesKey>,
+    lockfile_dir: PathKey,
+    default_tag: Option<String>,
+    inject_workspace_packages: bool,
+    calc_specifier: bool,
+    range_spec_style_discriminant: Option<u8>,
+    save_workspace_protocol_discriminant: u8,
+}
+
+impl WorkspaceResolutionOptionsKey {
+    pub(super) fn new(options: &ResolveOptions) -> Self {
+        Self {
+            workspace_packages: options.workspace_packages.as_ref().map(WorkspacePackagesKey::new),
+            lockfile_dir: PathKey(options.lockfile_dir.clone()),
+            default_tag: options.default_tag.clone(),
+            inject_workspace_packages: options.inject_workspace_packages,
+            calc_specifier: options.calc_specifier,
+            range_spec_style_discriminant: options.range_spec_style.map(|style| style as u8),
+            save_workspace_protocol_discriminant: options.save_workspace_protocol as u8,
+        }
+    }
+
+    /// Whether the importer-wide key still describes `options` — the
+    /// per-importer invariance the shared cache relies on, asserted at
+    /// the key's use site in debug builds.
+    #[cfg(debug_assertions)]
+    pub(super) fn matches_options(&self, options: &ResolveOptions) -> bool {
+        *self == Self::new(options)
+    }
+}
+
+/// Keeps the immutable workspace map alive.
+/// The key uses pointer identity instead of hashing the map for every dependency edge.
+/// Clones of the same [`Arc`] share a key. Separately allocated maps use separate keys.
+#[derive(Clone)]
+struct WorkspacePackagesKey(Arc<WorkspacePackages>);
+
+impl WorkspacePackagesKey {
+    fn new(packages: &Arc<WorkspacePackages>) -> Self {
+        Self(Arc::clone(packages))
+    }
+}
+
+impl std::fmt::Debug for WorkspacePackagesKey {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.debug_tuple("WorkspacePackagesKey").field(&Arc::as_ptr(&self.0)).finish()
+    }
+}
+
+impl PartialEq for WorkspacePackagesKey {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for WorkspacePackagesKey {}
+
+impl Hash for WorkspacePackagesKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        Arc::as_ptr(&self.0).hash(state);
+    }
+}
+
+/// Cache key for a hook-processed workspace result.
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub(super) struct WorkspaceFinalWantedKey {
+    shared_wanted: SharedWorkspaceWantedKey,
+    canonical_resolution_id: PkgResolutionId,
+    rendered_resolution_id: PkgResolutionId,
+}
+
+impl WorkspaceFinalWantedKey {
+    pub(super) fn new(
+        shared_wanted: SharedWorkspaceWantedKey,
+        canonical_resolution_id: &PkgResolutionId,
+        rendered_resolution_id: &PkgResolutionId,
+    ) -> Self {
+        Self {
+            shared_wanted,
+            canonical_resolution_id: canonical_resolution_id.clone(),
+            rendered_resolution_id: rendered_resolution_id.clone(),
+        }
+    }
+}
 
 type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 
@@ -106,10 +255,10 @@ type SubtreeReuseKey = (Option<String>, PkgNameVerPeer, i32);
 pub(super) type DirectDepVersions = HashMap<String, Vec<node_semver::Version>>;
 
 /// One entry in [`WorkspaceTreeCtx`]'s `children_specs_by_id` map —
-/// `(child_alias, child_range, child_optional)` triples extracted from
+/// `(child_alias, child_range, child_optional, child_injected)` tuples extracted from
 /// a resolved package's manifest's `dependencies` plus
 /// `optionalDependencies` sections.
-pub(super) type ChildSpec = (String, String, bool);
+pub(super) type ChildSpec = (String, String, bool, bool);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ChildrenOwner {
@@ -253,6 +402,19 @@ pub struct WorkspaceTreeCtx {
     pub(super) applied_patches: Mutex<HashSet<String>>,
     pub(super) resolved_by_wanted:
         Mutex<HashMap<WantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Resolver output for workspace directory resolutions before manifest
+    /// hooks run. `link:` paths are canonicalised relative to the lockfile
+    /// root, so one entry can be rendered for every consuming importer.
+    pub(super) resolved_workspace_by_wanted:
+        Mutex<HashMap<SharedWorkspaceWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// Hook-processed workspace results indexed by their canonical target and
+    /// rendered consumer link, so importers that render the same `link:` reuse
+    /// one hook pass. `resolved_by_wanted` keeps its project-scoped entry for
+    /// these too — this map is what a *different* importer hits.
+    pub(super) resolved_workspace_final_by_wanted:
+        Mutex<HashMap<WorkspaceFinalWantedKey, Arc<pnpm_resolving_resolver_base::ResolveResult>>>,
+    /// See [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    pub(super) share_workspace_resolutions: bool,
     pub(super) children_specs_by_id: Mutex<HashMap<Arc<str>, Arc<Vec<ChildSpec>>>>,
     /// Package ids whose children have already been speculatively
     /// resolved. A package is warmed once, however many occurrences of
@@ -320,6 +482,21 @@ pub struct WorkspaceTreeCtx {
     /// keeps the skip behavior but drops the notification. See
     /// [`SkippedOptionalLogFn`].
     pub(super) skipped_optional_log: Option<SkippedOptionalLogFn>,
+    /// Sink for finalized-package notifications. `None` skips the
+    /// per-level subtree sweep entirely. See [`FinalizedPackageFn`].
+    pub(super) finalized_package: Option<FinalizedPackageFn>,
+    /// The package ids already handed to `finalized_package`, so every
+    /// package is announced once across importers and hoist rounds.
+    pub(super) finalized_ids: Mutex<HashSet<Arc<str>>>,
+    /// Packages written or re-recorded since the last finalization
+    /// sweep: the only ones whose verdict can have changed on their own.
+    /// Maintained only while `finalized_package` is set.
+    pub(super) finalization_pending: Mutex<Vec<Arc<str>>>,
+    /// Every package whose recorded children include the key, so a
+    /// package's finalization can be propagated to the packages
+    /// depending on it. Maintained only while `finalized_package` is
+    /// set; see [`update_parent_index`].
+    pub(super) parents_by_id: Mutex<HashMap<Arc<str>, HashSet<Arc<str>>>>,
     /// The `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     pub(super) allowed_deprecated_versions: BTreeMap<String, String>,
@@ -497,6 +674,9 @@ impl Default for WorkspaceTreeCtx {
             policy_violations: Mutex::new(Vec::new()),
             applied_patches: Mutex::new(HashSet::default()),
             resolved_by_wanted: Mutex::new(HashMap::default()),
+            resolved_workspace_by_wanted: Mutex::new(HashMap::default()),
+            resolved_workspace_final_by_wanted: Mutex::new(HashMap::default()),
+            share_workspace_resolutions: false,
             children_specs_by_id: Mutex::new(HashMap::default()),
             warmed_children_by_id: Mutex::new(HashSet::default()),
             children_by_id: Mutex::new(HashMap::default()),
@@ -515,6 +695,10 @@ impl Default for WorkspaceTreeCtx {
             pnpmfile_hook: None,
             read_package_log: None,
             skipped_optional_log: None,
+            finalized_package: None,
+            finalized_ids: Mutex::new(HashSet::default()),
+            finalization_pending: Mutex::new(Vec::new()),
+            parents_by_id: Mutex::new(HashMap::default()),
             allowed_deprecated_versions: BTreeMap::new(),
             deprecation_log: None,
             auto_install_peers: false,
@@ -528,6 +712,13 @@ impl Default for WorkspaceTreeCtx {
 }
 
 impl WorkspaceTreeCtx {
+    /// Sets [`crate::WorkspaceResolveOptions::share_workspace_resolutions`].
+    #[must_use]
+    pub fn with_shared_workspace_resolutions(mut self, share_workspace_resolutions: bool) -> Self {
+        self.share_workspace_resolutions = share_workspace_resolutions;
+        self
+    }
+
     /// Snapshot the workspace context into a [`ResolvedTree`] without
     /// consuming `self`. `direct` carries the combined direct-dep
     /// envelopes the caller built up across importers; multi-importer
@@ -883,6 +1074,15 @@ impl WorkspaceTreeCtx {
     /// invisible to the discovery engine's view.
     pub(super) fn record_package_write(&self, pkg_id: &str) {
         lock_recoverable(&self.sync_log).packages.push(pkg_id.to_string());
+        self.note_finalization_candidate(pkg_id);
+    }
+
+    /// Queue `pkg_id` for the next finalization sweep. See
+    /// [`Self::finalization_pending`].
+    fn note_finalization_candidate(&self, pkg_id: &str) {
+        if self.finalized_package.is_some() {
+            lock_recoverable(&self.finalization_pending).push(Arc::from(pkg_id));
+        }
     }
 
     /// See [`Self::record_package_write`].
@@ -1078,22 +1278,6 @@ impl WorkspaceTreeCtx {
             .collect()
     }
 
-    pub(crate) fn set_direct_locked_peer_names(
-        &self,
-        direct: &[DirectDep],
-        names_by_alias: &HashMap<String, Arc<HashSet<String>>>,
-    ) {
-        let mut tree = lock_recoverable(&self.dependencies_tree);
-        for dep in direct {
-            let Some(names) = names_by_alias.get(&dep.alias) else {
-                continue;
-            };
-            if let Some(node) = tree.get_mut(&dep.node_id) {
-                node.locked_mut().locked_peer_names = Some(Arc::clone(names));
-            }
-        }
-    }
-
     /// Set which dependencies `pacquet update` excludes from reuse. See
     /// [`UpdateReuseScope`].
     #[must_use]
@@ -1151,6 +1335,13 @@ impl WorkspaceTreeCtx {
         self
     }
 
+    /// Attach the finalized-package sink. See [`FinalizedPackageFn`].
+    #[must_use]
+    pub fn with_finalized_package(mut self, finalized_package: Option<FinalizedPackageFn>) -> Self {
+        self.finalized_package = finalized_package;
+        self
+    }
+
     /// Attach the `pnpm.allowedDeprecatedVersions` map. See
     /// [`crate::WorkspaceResolveOptions::allowed_deprecated_versions`].
     #[must_use]
@@ -1189,34 +1380,32 @@ impl WorkspaceTreeCtx {
     /// [`TreeCtx::into_resolved_tree`], which routes through here once
     /// the last `Arc<WorkspaceTreeCtx>` reference is the [`TreeCtx`]'s
     /// own.
-    pub fn into_resolved_tree(self, direct: Vec<DirectDep>) -> ResolvedTree {
-        ResolvedTree {
+    pub fn into_resolved_tree(mut self, direct: Vec<DirectDep>) -> ResolvedTree {
+        let tree = ResolvedTree {
             direct,
-            packages: self.packages.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner),
-            dependencies_tree: self
-                .dependencies_tree
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            all_peer_dep_names: self
-                .all_peer_dep_names
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            policy_violations: self
-                .policy_violations
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            applied_patches: self
-                .applied_patches
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-            children_by_id: self
-                .children_by_id
-                .into_inner()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
+            packages: take_locked(&mut self.packages),
+            dependencies_tree: take_locked(&mut self.dependencies_tree),
+            all_peer_dep_names: take_locked(&mut self.all_peer_dep_names),
+            policy_violations: take_locked(&mut self.policy_violations),
+            applied_patches: take_locked(&mut self.applied_patches),
+            children_by_id: take_locked(&mut self.children_by_id)
                 .into_iter()
                 .map(|(pkg_id, recorded)| (pkg_id, recorded.edges))
                 .collect(),
-        }
+        };
+        // The per-edge dedup caches hold an entry per resolved wanted
+        // dependency; freeing a workspace-scale map costs long enough
+        // to show up in the install's tail, and nothing reads them
+        // again, so a background thread takes the drop off the
+        // critical path.
+        let dedup_caches = (
+            take_locked(&mut self.resolved_by_wanted),
+            take_locked(&mut self.resolved_workspace_by_wanted),
+            take_locked(&mut self.resolved_workspace_final_by_wanted),
+            take_locked(&mut self.children_specs_by_id),
+        );
+        pnpm_fs::background_drop(dedup_caches);
+        tree
     }
 }
 
@@ -1416,14 +1605,51 @@ pub(super) fn record_children(
             Some(recorded) if *recorded.edges == edges => ChildrenRecording::Published,
             Some(_) => ChildrenRecording::PublishedOverStale,
         };
-        children.insert(
-            Arc::from(pkg_id.to_string()),
-            RecordedChildren { edges: Arc::new(edges), context },
-        );
+        let edges = Arc::new(edges);
+        if ctx.workspace.finalized_package.is_some() {
+            update_parent_index(
+                &mut lock_recoverable(&ctx.workspace.parents_by_id),
+                pkg_id,
+                children.get(pkg_id).map(|recorded| recorded.edges.as_slice()),
+                &edges,
+            );
+        }
+        children.insert(Arc::from(pkg_id.to_string()), RecordedChildren { edges, context });
         recording
     };
     ctx.workspace.record_children_by_id_write(pkg_id);
+    ctx.workspace.note_finalization_candidate(pkg_id);
     recording
+}
+
+/// Move `pkg_id` in the reverse parent index from the children it
+/// recorded before (`previous`) to the ones it records now (`next`).
+/// Recording the same edges again is a no-op, and a child dropped
+/// from the record no longer lists `pkg_id` as a parent.
+fn update_parent_index(
+    parents_by_id: &mut HashMap<Arc<str>, HashSet<Arc<str>>>,
+    pkg_id: &str,
+    previous: Option<&[crate::resolved_tree::ChildEdge]>,
+    next: &[crate::resolved_tree::ChildEdge],
+) {
+    if previous.is_some_and(|previous| previous == next) {
+        return;
+    }
+    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
+    for edge in previous.into_iter().flatten() {
+        if kept.contains(edge.pkg_id.as_ref()) {
+            continue;
+        }
+        if let Some(parents) = parents_by_id.get_mut(&edge.pkg_id) {
+            parents.remove(pkg_id);
+            if parents.is_empty() {
+                parents_by_id.remove(&edge.pkg_id);
+            }
+        }
+    }
+    for edge in next {
+        parents_by_id.entry(Arc::clone(&edge.pkg_id)).or_default().insert(Arc::from(pkg_id));
+    }
 }
 
 /// Seed the peer-walker's `parentPkgs` filter with the names a
@@ -1542,5 +1768,14 @@ pub(super) fn make_non_owner_nodes_lazy(ctx: &TreeCtx, pkg_id: &str, owner_node_
     }
 }
 
+/// Take a mutex-held map out of a context this thread solely owns,
+/// recovering from poisoning like every other read of these maps.
+fn take_locked<Value: Default>(cell: &mut Mutex<Value>) -> Value {
+    std::mem::take(cell.get_mut().unwrap_or_else(std::sync::PoisonError::into_inner))
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod parent_index_tests;

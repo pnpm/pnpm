@@ -28,7 +28,7 @@ use super::{
 };
 use crate::cli_args::{
     changelog::published_name,
-    recursive::{discover_workspace_projects, sort_projects},
+    recursive::{discover_workspace_projects, sequence_graph},
     sanitize::sanitize_inline,
 };
 
@@ -144,11 +144,8 @@ impl StageApprovalItem {
 /// published in, keyed by the name the package publishes under — the only
 /// name a staged version carries.
 struct WorkspaceApprovalOrder {
-    /// Index of the topological chunk a package belongs to. A package only
-    /// ever depends on packages in lower-indexed chunks, so approving in
-    /// ascending index order publishes every dependency before its
-    /// dependents.
-    chunk_index_by_package_name: HashMap<String, usize>,
+    /// Each package's index in one topological order.
+    order_index_by_package_name: HashMap<String, usize>,
     /// The workspace siblings a package directly depends on.
     dependency_names_by_package_name: HashMap<String, Vec<String>>,
 }
@@ -396,26 +393,22 @@ fn read_workspace_approval_order(
             Some((root_dir.as_path(), name.to_owned()))
         })
         .collect();
-    let mut chunk_index_by_package_name = HashMap::new();
+    let mut order_index_by_package_name = HashMap::new();
     let mut dependency_names_by_package_name = HashMap::new();
-    for (chunk_index, chunk) in sort_projects(&graph, None).into_iter().enumerate() {
-        for root_dir in chunk {
-            let Some(package_name) = published_name_by_root_dir.get(root_dir.as_path()) else {
-                continue;
-            };
-            chunk_index_by_package_name.insert(package_name.clone(), chunk_index);
-            let dependencies: Vec<String> = graph[&root_dir]
-                .dependencies
-                .iter()
-                .filter_map(|dependency| {
-                    published_name_by_root_dir.get(dependency.as_path()).cloned()
-                })
-                .collect();
-            dependency_names_by_package_name.insert(package_name.clone(), dependencies);
-        }
+    for (order_index, root_dir) in sequence_graph(&graph, &graph).order.into_iter().enumerate() {
+        let Some(package_name) = published_name_by_root_dir.get(root_dir.as_path()) else {
+            continue;
+        };
+        order_index_by_package_name.insert(package_name.clone(), order_index);
+        let dependencies: Vec<String> = graph[&root_dir]
+            .dependencies
+            .iter()
+            .filter_map(|dependency| published_name_by_root_dir.get(dependency.as_path()).cloned())
+            .collect();
+        dependency_names_by_package_name.insert(package_name.clone(), dependencies);
     }
     Ok(Some(WorkspaceApprovalOrder {
-        chunk_index_by_package_name,
+        order_index_by_package_name,
         dependency_names_by_package_name,
     }))
 }
@@ -427,7 +420,7 @@ fn sort_items_for_approval(
     mut items: Vec<StageApprovalItem>,
     order: Option<&WorkspaceApprovalOrder>,
 ) -> Vec<StageApprovalItem> {
-    items.sort_by_key(|item| chunk_index_of(item, order));
+    items.sort_by_key(|item| order_index_of(item, order));
     items
 }
 
@@ -452,11 +445,11 @@ fn unavailable_dependencies(
         .collect()
 }
 
-fn chunk_index_of(item: &StageApprovalItem, order: Option<&WorkspaceApprovalOrder>) -> usize {
+fn order_index_of(item: &StageApprovalItem, order: Option<&WorkspaceApprovalOrder>) -> usize {
     order
         .zip(item.package_name.as_deref())
         .and_then(|(order, package_name)| {
-            order.chunk_index_by_package_name.get(package_name).copied()
+            order.order_index_by_package_name.get(package_name).copied()
         })
         .unwrap_or(usize::MAX)
 }

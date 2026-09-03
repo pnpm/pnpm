@@ -230,11 +230,57 @@ fn registry_flag_404_exits_with_code_1() {
 
     mock.assert();
     assert_eq!(output.status.code(), Some(1), "a 404 must exit with code 1");
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stderr.contains("ERR_PNPM_FETCH_404"),
-        "stderr must name the fetch-404 diagnostic; got:\n{stderr}",
+        stdout.contains("ERR_PNPM_FETCH_404"),
+        "stdout must name the fetch-404 diagnostic; got:\n{stdout}",
     );
+    drop((root, server));
+}
+
+#[test]
+fn json_flag_prints_errors_to_stdout_for_all_aliases() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let mock = server.mock("GET", "/not-a-real-package").with_status(404).expect(4).create();
+    let auth_file = empty_auth_file(root.path());
+
+    for alias in ["view", "info", "show", "v"] {
+        let output = pacquet_at(&workspace)
+            .with_arg("--npmrc-auth-file")
+            .with_arg(&auth_file)
+            .with_args([
+                alias,
+                "not-a-real-package",
+                "versions",
+                "--registry",
+                &server.url(),
+                "--json",
+            ])
+            .output()
+            .expect("spawn pnpm view alias");
+
+        assert_eq!(output.status.code(), Some(1), "a 404 must exit with code 1");
+        assert!(
+            output.stderr.is_empty(),
+            "{alias} --json errors must not be rendered to stderr; stderr: {}",
+            String::from_utf8_lossy(&output.stderr),
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let parsed: Value = serde_json::from_str(&stdout).unwrap_or_else(|error| {
+            panic!("stdout must be a JSON error envelope: {error}; stdout: {stdout}")
+        });
+        assert_eq!(
+            parsed,
+            serde_json::json!({
+                "error": {
+                    "code": "ERR_PNPM_FETCH_404",
+                    "message": format!("GET {}/not-a-real-package: Not Found - 404", server.url()),
+                },
+            }),
+        );
+    }
+    mock.assert();
     drop((root, server));
 }
 

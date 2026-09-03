@@ -465,6 +465,7 @@ fn build_modules_collects_ignored_builds() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -496,6 +497,125 @@ fn build_modules_collects_ignored_builds() {
         vec!["aaa@2.0.0".to_string(), "zzz@1.0.0".to_string()],
         "ignored set must be sorted lexicographically: {ignored:?}",
     );
+}
+
+/// The post-build importer bin relink keys off
+/// [`BuildModulesOutput::mutated_slots`], so the signal must stay
+/// `false` when every candidate is blocked by the allow policy —
+/// nothing wrote into a linked slot, and the relink may skip.
+#[test]
+fn mutated_slots_is_false_when_every_build_is_ignored() {
+    let snapshots = HashMap::from([(key("zzz", "1.0.0"), SnapshotEntry::default())]);
+    let importers = root_importers(&[("zzz", "1.0.0")]);
+    let policy = AllowBuildPolicy::default(); // empty → default-deny
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+    create_buildable_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+
+    let output = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: false,
+        extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+    assert!(!output.mutated_slots, "an ignored build must not report a slot mutation");
+}
+
+/// The converse of [`mutated_slots_is_false_when_every_build_is_ignored`]:
+/// an allowed candidate actually runs its script, so the signal must be
+/// `true` and the post-build importer bin relink must not skip.
+#[test]
+fn mutated_slots_is_true_when_a_script_runs() {
+    let snapshots = HashMap::from([(key("zzz", "1.0.0"), SnapshotEntry::default())]);
+    let importers = root_importers(&[("zzz", "1.0.0")]);
+    let policy = policy_from_specs([("zzz", true)], false);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+    // `create_buildable_pkg` writes a `postinstall: true` script the
+    // policy above allows to run; swap the body for a portable no-op
+    // (`true` is not a command on Windows shells).
+    let pkg_dir = create_buildable_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+    fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::json!({ "scripts": { "postinstall": "node -e 0" } }).to_string(),
+    )
+    .expect("write manifest");
+
+    let output = BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pnpm_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: true,
+        side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        script_shell: None,
+        shell_emulator: false,
+        extra_env: &HashMap::new(),
+        user_agent: "pnpm/test",
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_roots_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
+    }
+    .run::<SilentReporter>()
+    .expect("run BuildModules");
+    assert!(output.mutated_slots, "an executed script must report a slot mutation");
 }
 
 /// Under `ignore_scripts`, the same default-deny build candidates that
@@ -535,6 +655,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -594,6 +715,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -623,19 +745,14 @@ fn cached_requires_build_false_skips_package_dir_probe() {
 }
 
 /// Parallel-path variant of [`build_modules_collects_ignored_builds`]
-/// running under `child_concurrency: 2` so the rayon
-/// `chunk.par_iter().try_for_each(...)` dispatch is actually
-/// exercised. The other `BuildModules` tests all run with
-/// `child_concurrency: 1`, which is the sequential codepath; this
-/// test pins the concurrent codepath against a fixture that places
-/// two policy-denied build candidates in the same chunk (no
-/// dependency edges between them, so the topo sort puts them both
-/// in chunk 0).
+/// running under `child_concurrency: 2`. The other `BuildModules`
+/// tests all run with `child_concurrency: 1`; this test pins the
+/// concurrent codepath against two independent policy-denied build
+/// candidates.
 ///
 /// The assertion is the same sorted ignored-set as the sequential
-/// test — a regression that dropped the `pool.install` /
-/// `try_for_each` wrapping would still collect both names but in
-/// non-deterministic order on insertion. The
+/// test. The concurrently scheduled nodes may insert in a
+/// non-deterministic order. The
 /// `BTreeSet`-backed `ignored_builds` ordering hides that, so
 /// breakage would more likely show up as a lock contention bug
 /// (e.g. dropping the `Mutex` wrapping) which would manifest as a
@@ -673,6 +790,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -699,9 +817,9 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
     .ignored_builds;
     dbg!(&ignored);
 
-    // Same expected output as the sequential test — both members of
-    // the same chunk insert into the `Mutex<BTreeSet>` concurrently
-    // and the BTreeSet's iteration order normalizes the result.
+    // Same expected output as the sequential test. Both independent
+    // nodes may insert concurrently, and the BTreeSet's iteration
+    // order normalizes the result.
     assert_eq!(
         ignored,
         vec!["aaa@2.0.0".to_string(), "zzz@1.0.0".to_string()],
@@ -744,6 +862,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -832,6 +951,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -998,6 +1118,7 @@ fn using_side_effects_cache_skips_rebuild() {
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -1129,6 +1250,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -1251,6 +1373,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -1322,6 +1445,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: false,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -1391,6 +1515,7 @@ fn fail_when_failing_postinstall_is_required() {
         engine_name: None,
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,
@@ -1484,6 +1609,7 @@ fn frozen_backstop_run(
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: Some(&patches),
@@ -1769,6 +1895,7 @@ async fn write_path_populates_side_effects_row() {
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -1811,6 +1938,7 @@ async fn write_path_populates_side_effects_row() {
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: true,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: None,
@@ -1912,6 +2040,7 @@ async fn write_path_disabled_skips_upload() {
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -1937,6 +2066,7 @@ async fn write_path_disabled_skips_upload() {
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: None,
@@ -2034,6 +2164,7 @@ async fn frozen_store_skips_side_effects_upload() {
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
         side_effects_cache_write: true,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: None,
@@ -2155,6 +2286,7 @@ async fn upload_error_does_not_interrupt_install() {
         algo: HASH_ALGORITHM.to_string(),
         files: HashMap::new(),
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -2181,6 +2313,7 @@ async fn upload_error_does_not_interrupt_install() {
         engine_name: Some("darwin;arm64;node20"),
         side_effects_cache: true,
         side_effects_cache_write: true,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: None,
@@ -2367,6 +2500,7 @@ async fn write_path_cache_key_includes_patch_hash() {
         algo: HASH_ALGORITHM.to_string(),
         files: base_files,
         side_effects: None,
+        remote_side_effects_quarantine: None,
     };
     {
         let mut index = StoreIndex::open_in(&store_dir).expect("open index for seed");
@@ -2442,6 +2576,7 @@ new file mode 100644
         engine_name: Some(engine),
         side_effects_cache: true,
         side_effects_cache_write: true,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: Some(&patches),
@@ -2559,6 +2694,7 @@ new file mode 100644
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: Some(&patches),
@@ -2648,6 +2784,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: Some(&store_dir),
         store_index_writer: Some(&writer),
         patches: Some(&patches),
@@ -2912,6 +3049,7 @@ fn rebuild_selection_runs_only_selected_scripts() {
         engine_name: None,
         side_effects_cache: false,
         side_effects_cache_write: false,
+        shared_side_effects_publisher: None,
         store_dir: None,
         store_index_writer: None,
         patches: None,

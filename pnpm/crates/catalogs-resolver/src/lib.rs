@@ -54,7 +54,7 @@ pub struct CatalogResolutionMisconfiguration {
     pub error: CatalogResolutionError,
 }
 
-/// The four ways a `catalog:` lookup can fail. Each variant carries the
+/// The three ways a `catalog:` lookup can fail. Each variant carries the
 /// `pnpm` error code reported for that failure.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -68,12 +68,6 @@ pub enum CatalogResolutionError {
     )]
     #[diagnostic(code(ERR_PNPM_CATALOG_ENTRY_INVALID_RECURSIVE_DEFINITION))]
     EntryInvalidRecursiveDefinition { alias: String, catalog_name: String },
-
-    #[display(
-        "The workspace protocol cannot be used as a catalog value. The entry for '{alias}' in catalog '{catalog_name}' is invalid."
-    )]
-    #[diagnostic(code(ERR_PNPM_CATALOG_ENTRY_INVALID_WORKSPACE_SPEC))]
-    EntryInvalidWorkspaceSpec { alias: String, catalog_name: String },
 
     #[display(
         "The entry for '{alias}' in catalog '{catalog_name}' declares a dependency using the '{protocol}' protocol. This is not yet supported, but may be in a future version of pnpm."
@@ -114,21 +108,7 @@ pub fn resolve_from_catalog(
         });
     }
 
-    // `workspace:` is banned: it's silly to indirect through a catalog
-    // when the workspace protocol resolves directly, and `link:`
-    // resolutions cannot be cached in `pnpm-lock.yaml` across importers
-    // the way semver selectors can.
     let protocol_of_lookup = catalog_lookup.split(':').next().unwrap_or("");
-    if protocol_of_lookup == "workspace" {
-        return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
-            catalog_name: catalog_name.to_string(),
-            error: CatalogResolutionError::EntryInvalidWorkspaceSpec {
-                alias: wanted_dependency.alias.clone(),
-                catalog_name: catalog_name.to_string(),
-            },
-        });
-    }
-
     if matches!(protocol_of_lookup, "link" | "file") {
         return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {
             catalog_name: catalog_name.to_string(),

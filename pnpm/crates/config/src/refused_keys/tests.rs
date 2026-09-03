@@ -57,6 +57,19 @@ fn a_key_that_is_no_setting_is_not_offered_a_route() {
 }
 
 /// The refusal reads both spellings, since a config file may carry either.
+/// `pnpm login` turns `scope` into a `@scope:registry` route in the
+/// machine-global `auth.ini`, which outranks `~/.npmrc` in every project on
+/// the machine from then on, so the route offered is the global one.
+/// See <https://github.com/pnpm/pnpm/issues/13557>
+#[test]
+fn the_login_scope_is_refused_and_routed_to_the_global_config() {
+    assert!(is_refused_by_a_project_manifest("scope"));
+    assert_eq!(
+        where_refused_key_belongs("scope"),
+        "Set it for the machine instead: pnpm config set --global scope",
+    );
+}
+
 #[test]
 fn refusal_is_spelling_insensitive() {
     assert!(is_refused_by_a_project_manifest("authConfig"));

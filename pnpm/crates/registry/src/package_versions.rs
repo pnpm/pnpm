@@ -232,6 +232,22 @@ impl PackageVersions {
         self.slot(version).is_some()
     }
 
+    /// Why `version`'s fragment failed to decode, or `None` when the
+    /// version is absent or decodes fine.
+    ///
+    /// [`Self::get`] answers "absent" for both a version the packument
+    /// never listed and one whose manifest pnpm couldn't parse. The two
+    /// need different reporting — the second is a registry serving a
+    /// field in a shape pnpm doesn't model, and the caller can only say
+    /// so if it can recover the parse error. Re-parses the fragment, so
+    /// this belongs on error paths only.
+    #[must_use]
+    pub fn decode_error(&self, version: &str) -> Option<String> {
+        let slot = self.slot(version)?;
+        let json = slot.source.json()?;
+        serde_json::from_str::<PackageVersion>(&json).err().map(|error| error.to_string())
+    }
+
     /// Whether `version` is marked deprecated, equivalent to
     /// `get(version).is_some_and(|manifest| manifest.deprecated.is_some())`
     /// but without hydrating the full manifest: an unhydrated fragment

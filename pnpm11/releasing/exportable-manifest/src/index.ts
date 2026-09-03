@@ -9,6 +9,7 @@ import type { Hooks } from '@pnpm/hooks.pnpmfile'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import type { Dependencies, ProjectManifest } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
+import { WorkspaceSpec } from '@pnpm/workspace.spec-parser'
 import { clone, omit } from 'ramda'
 
 import { overridePublishConfig } from './overridePublishConfig.js'
@@ -51,7 +52,7 @@ export async function createExportableManifest (
   const catalogResolver = resolveFromCatalog.bind(null, opts.catalogs)
   const replaceCatalogProtocol = resolveCatalogProtocol.bind(null, catalogResolver)
 
-  const convertDependencyForPublish = combineConverters(replaceWorkspaceProtocol, replaceCatalogProtocol, replaceJsrProtocol)
+  const convertDependencyForPublish = combineConverters(replaceCatalogProtocol, replaceWorkspaceProtocol, replaceJsrProtocol)
   await Promise.all((['dependencies', 'devDependencies', 'optionalDependencies'] as const).map(async (depsField) => {
     const deps = await makePublishDependencies(dir, originalManifest[depsField], {
       modulesDir: opts?.modulesDir,
@@ -64,7 +65,7 @@ export async function createExportableManifest (
 
   const peerDependencies = originalManifest.peerDependencies
   if (peerDependencies) {
-    const convertPeersForPublish = combineConverters(replaceWorkspaceProtocolPeerDependency, replaceCatalogProtocol, replaceJsrProtocol)
+    const convertPeersForPublish = combineConverters(replaceCatalogProtocol, replaceWorkspaceProtocolPeerDependency, replaceJsrProtocol)
     publishManifest.peerDependencies = await makePublishDependencies(dir, peerDependencies, {
       modulesDir: opts?.modulesDir,
       convertDependencyForPublish: convertPeersForPublish,
@@ -116,16 +117,20 @@ export async function readReadmeFile (projectDir: string): Promise<string | unde
 export type PublishDependencyConverter = (
   depName: string,
   depSpec: string,
-  dir: string,
-  modulesDir?: string
+  context: PublishDependencyConverterContext
 ) => Promise<string> | string
 
+export interface PublishDependencyConverterContext {
+  dir: string
+  modulesDir?: string
+}
+
 function combineConverters (...converters: readonly PublishDependencyConverter[]): PublishDependencyConverter {
-  return async (depName, depSpec, dir, modulesDir) => {
+  return async (depName, depSpec, context) => {
     let bareSpecifier = depSpec
     for (const converter of converters) {
       // eslint-disable-next-line no-await-in-loop
-      bareSpecifier = await converter(depName, bareSpecifier, dir, modulesDir)
+      bareSpecifier = await converter(depName, bareSpecifier, context)
     }
     return bareSpecifier
   }
@@ -144,7 +149,7 @@ async function makePublishDependencies (
   if (dependencies == null) return dependencies
   const publishDependencies = await Promise.all(
     Object.entries(dependencies).map(async ([depName, depSpec]): Promise<[string, string]> =>
-      [depName, await convertDependencyForPublish(depName, depSpec, dir, modulesDir)]
+      [depName, await convertDependencyForPublish(depName, depSpec, { dir, modulesDir })]
     )
   )
   return Object.fromEntries(publishDependencies)
@@ -172,7 +177,11 @@ function resolveCatalogProtocol (catalogResolver: CatalogResolver, alias: string
   }
 }
 
-async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: string, modulesDir?: string): Promise<string> {
+async function replaceWorkspaceProtocol (
+  depName: string,
+  depSpec: string,
+  { dir, modulesDir }: PublishDependencyConverterContext
+): Promise<string> {
   if (!depSpec.startsWith('workspace:')) {
     return depSpec
   }
@@ -203,9 +212,24 @@ async function replaceWorkspaceProtocol (depName: string, depSpec: string, dir: 
   return depSpec
 }
 
-async function replaceWorkspaceProtocolPeerDependency (depName: string, depSpec: string, dir: string, modulesDir?: string) {
+async function replaceWorkspaceProtocolPeerDependency (
+  depName: string,
+  depSpec: string,
+  { dir, modulesDir }: PublishDependencyConverterContext
+) {
   if (!depSpec.includes('workspace:')) {
     return depSpec
+  }
+
+  const workspaceSpec = WorkspaceSpec.parse(depSpec)
+  if (workspaceSpec?.alias != null) {
+    const version = workspaceSpec.version === '^' || workspaceSpec.version === '~' || workspaceSpec.version === ''
+      ? '*'
+      : workspaceSpec.version
+    return `npm:${workspaceSpec.alias}@${version}`
+  }
+  if (workspaceSpec?.version.startsWith('./') || workspaceSpec?.version.startsWith('../')) {
+    return replaceWorkspaceProtocol(depName, depSpec, { dir, modulesDir })
   }
 
   // Dependencies with bare "*", "^", "~",">=",">","<=", "<", version

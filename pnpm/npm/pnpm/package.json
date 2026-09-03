@@ -11,7 +11,7 @@
       "./dist/node_modules/node-gyp/gyp/gyp"
     ]
   },
-  "version": "12.0.0-rc.11",
+  "version": "12.3.1",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
@@ -35,6 +35,7 @@
   "type": "module",
   "scripts": {
     "preinstall": "node install.js",
+    "postinstall": "node install.js",
     "bundle-node-gyp": "node scripts/bundle-node-gyp.mjs"
   },
   "engines": {

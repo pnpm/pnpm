@@ -11,13 +11,13 @@ license.workspace    = true
 repository.workspace = true
 
 [dependencies]
-pnpm-fs                                = { workspace = true }
-pnpm-package-manifest                  = { workspace = true }
-pnpm-resolving-parse-wanted-dependency = { workspace = true }
+pnpm-fs               = { workspace = true }
+pnpm-package-manifest = { workspace = true }
 
 derive_more = { workspace = true }
 dunce       = { workspace = true }
 miette      = { workspace = true }
+node-semver = { workspace = true }
 pipe-trait  = { workspace = true }
 rayon       = { workspace = true }
 same-file   = { workspace = true }

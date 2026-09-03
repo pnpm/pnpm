@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/crypto.shasums-file",
-  "version": "1100.2.1",
+  "version": "1100.2.2",
   "description": "Utils for working with shasums files",
   "keywords": [
     "pnpm",

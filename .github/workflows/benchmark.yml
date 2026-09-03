@@ -67,17 +67,17 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@84cb39b217b10273981911c288cd62326dc7c6d2 # v2.0.2
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
-        runtime: node@26.7.0
+        runtime: node@26.8.1
 
     - name: Install Rust Toolchain
-      uses: ./.github/actions/rustup
+      uses: $/.github/actions/rustup
       with:
         shared-key: pnpm-benchmark
 
     - name: Install hyperfine
-      uses: ./.github/actions/binstall
+      uses: $/.github/actions/binstall
       with:
         packages: hyperfine@1.18.0
 

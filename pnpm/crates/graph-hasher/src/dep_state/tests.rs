@@ -1,7 +1,8 @@
 use super::{
-    CalcDepStateOptions, DepsGraphNode, calc_dep_graph_hash, calc_dep_state,
-    transitively_requires_build, warm_deps_state_cache,
+    CalcDepStateOptions, DepsGraphNode, build_required_dep_paths, calc_dep_graph_hash,
+    calc_dep_state, calc_dep_state_input_key, warm_deps_state_cache,
 };
+use crate::hash_object;
 use indexmap::IndexMap;
 use pretty_assertions::assert_eq;
 use std::collections::{HashMap, HashSet};
@@ -180,171 +181,134 @@ fn dep_graph_and_patch_concatenate_in_upstream_order() {
 }
 
 #[test]
-fn transitively_requires_build_self_in_built_set() {
+fn shared_input_key_excludes_engine_and_includes_patch() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
-        "builder@1.0.0".to_string(),
-        DepsGraphNode {
-            full_pkg_id: "builder@1.0.0:sha512-b".to_string(),
-            children: IndexMap::new(),
-        },
+        "x@1.0.0".to_string(),
+        DepsGraphNode { full_pkg_id: "x@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
-    let built: std::collections::HashSet<String> =
-        std::iter::once("builder@1.0.0".to_string()).collect();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"builder@1.0.0".to_string(),
-        &mut parents
-    ));
-    assert_eq!(cache.get("builder@1.0.0"), Some(&true));
+    let key = calc_dep_state_input_key(&graph, &"x@1.0.0".to_string(), Some("patchhex"));
+    let deps_hash = hash_object(&serde_json::json!({
+        "id": "x@1.0.0:sha512-x",
+        "deps": {},
+    }));
+    assert_eq!(key, format!("dependency-side-effects:v1:deps={deps_hash};patch=patchhex"));
 }
 
 #[test]
-fn transitively_requires_build_walks_to_descendant_builder() {
-    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = IndexMap::new();
-    root_children.insert("dep".to_string(), "builder@1.0.0".to_string());
-    graph.insert(
-        "root@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: root_children },
+#[should_panic(expected = "input-key root is not present")]
+fn shared_input_key_rejects_a_missing_root() {
+    calc_dep_state_input_key(
+        &HashMap::<String, DepsGraphNode<String>>::new(),
+        &"missing@1.0.0".to_string(),
+        None,
     );
-    graph.insert(
-        "builder@1.0.0".to_string(),
-        DepsGraphNode {
-            full_pkg_id: "builder@1.0.0:sha512-b".to_string(),
-            children: IndexMap::new(),
-        },
-    );
-    let built: std::collections::HashSet<String> =
-        std::iter::once("builder@1.0.0".to_string()).collect();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"root@1.0.0".to_string(),
-        &mut parents
-    ));
-    assert_eq!(cache.get("root@1.0.0"), Some(&true));
-    assert_eq!(cache.get("builder@1.0.0"), Some(&true));
 }
 
 #[test]
-fn transitively_requires_build_returns_false_for_unrelated_tree() {
-    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut root_children = IndexMap::new();
-    root_children.insert("dep".to_string(), "leaf@1.0.0".to_string());
-    graph.insert(
-        "root@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: root_children },
-    );
-    graph.insert(
-        "leaf@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-l".to_string(), children: IndexMap::new() },
-    );
-    let built: std::collections::HashSet<String> =
-        std::iter::once("builder@9.9.9".to_string()).collect();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(!transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"root@1.0.0".to_string(),
-        &mut parents
-    ));
-    assert_eq!(cache.get("root@1.0.0"), Some(&false));
-    assert_eq!(cache.get("leaf@1.0.0"), Some(&false));
-}
-
-/// The install-time graph build can drop entries for resolutions the
-/// linker rejects later, so the walker must not panic on missing keys.
-#[test]
-fn transitively_requires_build_caches_false_for_missing_node() {
-    let graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let built: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(!transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"ghost@1.0.0".to_string(),
-        &mut parents
-    ));
-    assert_eq!(cache.get("ghost@1.0.0"), Some(&false));
-}
-
-#[test]
-fn transitively_requires_build_cycle_terminates() {
-    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    let mut a_children = IndexMap::new();
-    a_children.insert("b".to_string(), "b@1.0.0".to_string());
+fn shared_input_keys_isolate_cyclic_roots() {
+    let mut graph = HashMap::new();
     graph.insert(
         "a@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
+        DepsGraphNode {
+            full_pkg_id: "a@1.0.0:sha512-a".to_string(),
+            children: IndexMap::from([("b".to_string(), "b@1.0.0".to_string())]),
+        },
     );
-    let mut b_children = IndexMap::new();
-    b_children.insert("a".to_string(), "a@1.0.0".to_string());
     graph.insert(
         "b@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "b@1.0.0:sha512-b".to_string(), children: b_children },
+        DepsGraphNode {
+            full_pkg_id: "b@1.0.0:sha512-b".to_string(),
+            children: IndexMap::from([("a".to_string(), "a@1.0.0".to_string())]),
+        },
     );
-    let built: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(!transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"a@1.0.0".to_string(),
-        &mut parents
-    ));
-    assert_eq!(cache.get("a@1.0.0"), Some(&false));
-    assert_eq!(cache.get("b@1.0.0"), Some(&false));
-    assert!(parents.is_empty(), "parents set must be restored to empty");
+
+    let truncated_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": {},
+    }));
+    let nested_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": truncated_a },
+    }));
+    let root_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": nested_b },
+    }));
+    let truncated_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": {},
+    }));
+    let nested_a = hash_object(&serde_json::json!({
+        "id": "a@1.0.0:sha512-a",
+        "deps": { "b": truncated_b },
+    }));
+    let root_b = hash_object(&serde_json::json!({
+        "id": "b@1.0.0:sha512-b",
+        "deps": { "a": nested_a },
+    }));
+
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"a@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_a}"),
+    );
+    assert_eq!(
+        calc_dep_state_input_key(&graph, &"b@1.0.0".to_string(), None),
+        format!("dependency-side-effects:v1:deps={root_b}"),
+    );
 }
 
 #[test]
-fn transitively_requires_build_cycle_does_not_mask_sibling_builder() {
-    let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
-    // Two children so child iteration order can take either path.
-    let mut a_children = IndexMap::new();
-    a_children.insert("b".to_string(), "b@1.0.0".to_string());
-    a_children.insert("c".to_string(), "builder@1.0.0".to_string());
-    graph.insert(
-        "a@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "a@1.0.0:sha512-a".to_string(), children: a_children },
+fn build_required_dep_paths_reaches_every_parent_across_a_cycle() {
+    let graph = HashMap::from([
+        (
+            "a".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "a".to_string(),
+                children: IndexMap::from([
+                    ("b".to_string(), "b".to_string()),
+                    ("builder".to_string(), "builder".to_string()),
+                ]),
+            },
+        ),
+        (
+            "b".to_string(),
+            DepsGraphNode {
+                full_pkg_id: "b".to_string(),
+                children: IndexMap::from([("a".to_string(), "a".to_string())]),
+            },
+        ),
+        (
+            "builder".to_string(),
+            DepsGraphNode { full_pkg_id: "builder".to_string(), children: IndexMap::new() },
+        ),
+        (
+            "unrelated".to_string(),
+            DepsGraphNode { full_pkg_id: "unrelated".to_string(), children: IndexMap::new() },
+        ),
+    ]);
+
+    assert_eq!(
+        build_required_dep_paths(&graph, &HashSet::from(["builder".to_string()])),
+        HashSet::from(["a".to_string(), "b".to_string(), "builder".to_string()]),
     );
-    let mut b_children = IndexMap::new();
-    b_children.insert("a".to_string(), "a@1.0.0".to_string());
-    graph.insert(
-        "b@1.0.0".to_string(),
-        DepsGraphNode { full_pkg_id: "b@1.0.0:sha512-b".to_string(), children: b_children },
-    );
-    graph.insert(
-        "builder@1.0.0".to_string(),
+}
+
+#[test]
+fn build_required_dep_paths_handles_empty_and_missing_builders() {
+    let graph = HashMap::from([(
+        "root".to_string(),
         DepsGraphNode {
-            full_pkg_id: "builder@1.0.0:sha512-x".to_string(),
-            children: IndexMap::new(),
+            full_pkg_id: "root".to_string(),
+            children: IndexMap::from([("missing".to_string(), "missing".to_string())]),
         },
+    )]);
+
+    assert!(build_required_dep_paths(&graph, &HashSet::new()).is_empty());
+    assert_eq!(
+        build_required_dep_paths(&graph, &HashSet::from(["missing".to_string()])),
+        HashSet::from(["root".to_string(), "missing".to_string()]),
     );
-    let built: std::collections::HashSet<String> =
-        std::iter::once("builder@1.0.0".to_string()).collect();
-    let mut cache = HashMap::new();
-    let mut parents = std::collections::HashSet::new();
-    assert!(transitively_requires_build(
-        &graph,
-        &built,
-        &mut cache,
-        &"a@1.0.0".to_string(),
-        &mut parents
-    ));
 }
 
 /// `a` sits in two cycles at once — `a` ↔ `b` and `a` ↔ `m` — so the

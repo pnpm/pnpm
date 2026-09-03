@@ -1,0 +1,36 @@
+[package]
+name                 = "pnpr-error"
+version              = "0.0.1"
+description          = "The error type every pnpr layer returns, and how it renders as an HTTP response"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[features]
+backend-libsql   = ["dep:libsql"]
+backend-mysql    = ["dep:sqlx", "sqlx/mysql"]
+backend-postgres = ["dep:sqlx", "sqlx/postgres"]
+
+[dependencies]
+axum         = { workspace = true }
+bcrypt       = { workspace = true }
+derive_more  = { workspace = true }
+libsql       = { workspace = true, optional = true }
+object_store = { workspace = true }
+reqwest      = { workspace = true }
+rusqlite     = { workspace = true }
+serde_json   = { workspace = true }
+tracing      = { workspace = true }
+sqlx         = { workspace = true, optional = true }
+tokio        = { workspace = true }
+url          = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

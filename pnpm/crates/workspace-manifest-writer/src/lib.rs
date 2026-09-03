@@ -99,6 +99,9 @@ pub enum UpdateWorkspaceManifestError {
     )]
     #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_INVALID_CONTROL_CHARACTER))]
     InvalidControlCharacter { path: std::path::PathBuf, value: String },
+
+    #[diagnostic(transparent)]
+    VersionPolicy(#[error(source)] pnpm_config::version_policy::VersionPolicyError),
 }
 
 /// Whether `value` holds a character YAML treats as a line break: a
@@ -152,12 +155,14 @@ pub struct UpdateWorkspaceManifestOptions<'a> {
     pub resolved_package_versions: Option<&'a ResolvedPackageVersions>,
     pub prune_minimum_release_age_excludes: bool,
     pub prune_allow_builds: bool,
+    /// Entries to merge into the project-local `minimumReleaseAgeExclude`
+    /// list after its cleanup pass.
+    pub added_minimum_release_age_excludes: &'a [String],
 }
 
-/// Merge `opts.updated_catalogs` into `dir`'s `pnpm-workspace.yaml` and run
-/// the `catalogPrune` pass when requested, writing the file back
-/// only when something actually changed (and removing it when the edits
-/// empty the document).
+/// Apply the requested merges and cleanup passes to `dir`'s
+/// `pnpm-workspace.yaml`, writing the file back only when something actually
+/// changed (and removing it when the edits empty the document).
 pub fn update_workspace_manifest(
     dir: &Path,
     opts: &UpdateWorkspaceManifestOptions<'_>,
@@ -185,6 +190,11 @@ pub fn update_workspace_manifest(
             return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
         }
     }
+    if !opts.added_minimum_release_age_excludes.is_empty()
+        && let Some(key) = unsupported_inline_key(manifest.text(), &[&["minimumReleaseAgeExclude"]])
+    {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock { path, key });
+    }
 
     let mut changed = match opts.updated_catalogs {
         Some(updated_catalogs) => {
@@ -211,6 +221,23 @@ pub fn update_workspace_manifest(
         if opts.prune_allow_builds {
             changed |= edit::prune_allow_builds(&mut manifest, resolved);
         }
+    }
+    if !opts.added_minimum_release_age_excludes.is_empty() {
+        let merged = pnpm_config::version_policy::merge_package_version_specs(
+            manifest
+                .minimum_release_age_exclude
+                .iter()
+                .flatten()
+                .chain(opts.added_minimum_release_age_excludes),
+        )
+        .map_err(UpdateWorkspaceManifestError::VersionPolicy)?;
+        if let Some(bad) = merged.iter().find(|exclude| has_control_char(exclude)) {
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path,
+                value: bad.clone(),
+            });
+        }
+        changed |= edit::set_minimum_release_age_excludes(&mut manifest, &merged);
     }
     if !changed {
         return Ok(());
@@ -686,25 +713,24 @@ pub fn update_manifest_field(
         }
     };
 
-    let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
-        UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
-    })?;
+    let edit =
+        edit_manifest_field(original.as_deref(), key, value).map_err(|error| match error {
+            EditManifestFieldError::Parse { source } => {
+                UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
+            }
+            EditManifestFieldError::UnsupportedInlineBlock { key } => {
+                UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+                    path: path.to_path_buf(),
+                    key,
+                }
+            }
+        })?;
 
-    if edit::document_root_is_inline(manifest.text()) {
-        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
-            path: path.to_path_buf(),
-            key: key.to_string(),
-        });
-    }
-
-    let changed = if value.is_null() {
-        edit::remove_top_level_field(&mut manifest, key)
-    } else {
-        edit::set_top_level_field(&mut manifest, key, value)
+    let text = match edit {
+        ManifestEdit::Unchanged => return Ok(()),
+        ManifestEdit::Remove => return remove_manifest(path),
+        ManifestEdit::Write(text) => text,
     };
-    if !changed {
-        return Ok(());
-    }
 
     // A `set` may target a config directory that does not exist yet
     // (`pnpm config set --global`). Create the directory recursively before
@@ -719,7 +745,83 @@ pub fn update_manifest_field(
         })?;
     }
 
-    write_or_remove_manifest(path, manifest)
+    write_atomic(path, &text)
+        .map_err(|source| UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source })
+}
+
+/// What [`edit_manifest_field`] leaves the caller to do with the file the
+/// `original` text came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManifestEdit {
+    /// The document already says what the edit wanted it to say.
+    Unchanged,
+    /// Replace the file's contents with this text.
+    Write(String),
+    /// The edit left no keys behind, so the file should go with them.
+    Remove,
+}
+
+/// Failure to apply [`edit_manifest_field`], for the caller to pair with the
+/// path it read.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum EditManifestFieldError {
+    #[display("Failed to parse the document as YAML: {source}")]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_PARSE))]
+    Parse {
+        #[error(source)]
+        source: Box<serde_saphyr::Error>,
+    },
+
+    #[display(
+        "Cannot edit {key:?}: the document uses an inline YAML value that cannot be edited in place (a multi-line flow collection, an alias, or a scalar). Reformat it to block style and try again."
+    )]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_MANIFEST_WRITER_UNSUPPORTED_INLINE_BLOCK))]
+    UnsupportedInlineBlock { key: String },
+}
+
+/// Set or delete a top-level field of the YAML document `original`, returning
+/// the text to write back rather than touching the filesystem, so a caller that
+/// owns its own I/O — `pnpm login` writing through its capability seam — can
+/// reuse the format-preserving edit. [`update_manifest_field`] is this function
+/// plus the read and the atomic write.
+///
+/// A `null` `value` deletes the key; any other value sets it. `None` `original`
+/// is a document that does not exist yet.
+pub fn edit_manifest_field(
+    original: Option<&str>,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<ManifestEdit, EditManifestFieldError> {
+    let mut manifest =
+        Manifest::parse(original).map_err(|source| EditManifestFieldError::Parse { source })?;
+
+    if edit::document_root_is_inline(manifest.text()) {
+        return Err(EditManifestFieldError::UnsupportedInlineBlock { key: key.to_string() });
+    }
+
+    let changed = if value.is_null() {
+        edit::remove_top_level_field(&mut manifest, key)
+    } else {
+        edit::set_top_level_field(&mut manifest, key, value)
+    };
+    if !changed {
+        return Ok(ManifestEdit::Unchanged);
+    }
+    if manifest.top_level_keys.is_empty() {
+        return Ok(ManifestEdit::Remove);
+    }
+    Ok(ManifestEdit::Write(manifest.into_text()))
+}
+
+fn remove_manifest(path: &Path) -> Result<(), UpdateWorkspaceManifestError> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(source) => {
+            Err(UpdateWorkspaceManifestError::Remove { path: path.to_path_buf(), source })
+        }
+    }
 }
 
 fn write_or_remove_manifest(
@@ -727,13 +829,7 @@ fn write_or_remove_manifest(
     manifest: Manifest,
 ) -> Result<(), UpdateWorkspaceManifestError> {
     if manifest.top_level_keys.is_empty() {
-        match fs::remove_file(path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(source) => {
-                Err(UpdateWorkspaceManifestError::Remove { path: path.to_path_buf(), source })
-            }
-        }
+        remove_manifest(path)
     } else {
         write_atomic(path, &manifest.into_text()).map_err(|source| {
             UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }

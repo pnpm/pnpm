@@ -13,6 +13,9 @@ use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 
 pub mod package_manager_spec;
+mod truthiness;
+
+pub use truthiness::is_truthy;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
@@ -290,11 +293,16 @@ impl PackageManifest {
     }
 
     pub fn from_path(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        if !path.exists() {
-            return Err(PackageManifestError::NoImporterManifestFound(path.display().to_string()));
-        }
-
-        PackageManifest::read_from_file(path)
+        // The read itself answers existence: a NotFound maps to the
+        // same missing-manifest error a pre-check would raise, without
+        // paying a stat before every successful read.
+        let rendered_path = path.display().to_string();
+        PackageManifest::read_from_file(path).map_err(|error| match error {
+            PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
+                PackageManifestError::NoImporterManifestFound(rendered_path)
+            }
+            other => other,
+        })
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {

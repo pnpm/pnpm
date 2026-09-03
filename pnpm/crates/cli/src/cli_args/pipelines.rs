@@ -6,8 +6,8 @@ use super::{
     package_manager::{PackageManagerToSync, package_manager_to_sync, read_manifest_json},
     prune::PruneArgs,
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
-        sort_filtered_projects,
+        AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
+        select_recursive_projects,
     },
     remove::RemoveArgs,
     update::UpdateArgs,
@@ -23,9 +23,14 @@ use crate::{
     },
     config_deps,
 };
+use indexmap::IndexMap;
 use miette::Context;
 use pnpm_config::{Config, Host};
+use pnpm_package_manager::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, ScopeLog};
+use pnpm_workspace_task_scheduler::{
+    ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
+};
 use std::{
     collections::{BTreeMap, HashSet},
     future::Future,
@@ -36,11 +41,16 @@ use std::{
 pub(crate) struct InstallFamilySelection {
     pub(crate) workspace_root: PathBuf,
     pub(crate) projects: Vec<pnpm_workspace::Project>,
-    pub(crate) ordered_groups: Vec<Vec<PathBuf>>,
+    pub(crate) project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
     pub(crate) ordered_dirs: Vec<PathBuf>,
     pub(crate) selected_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) install_dirs: Arc<HashSet<PathBuf>>,
     pub(crate) active_manifest_is_standin: bool,
+    /// `Some` when the plan already ran the install's cycle search over
+    /// the same graph the install would rebuild (the unnarrowed case);
+    /// empty means the projects are orderable. `None` — the install
+    /// searches itself.
+    pub(crate) workspace_cycles: Option<Vec<Vec<PathBuf>>>,
 }
 
 /// How a recursive / filtered install-family command should be dispatched,
@@ -57,43 +67,63 @@ pub(crate) enum InstallFamilyPlan {
     /// Recursive / filtered with one lockfile per project
     /// (`sharedWorkspaceLockfile: false`): the selected project directories,
     /// each installed independently against its own `pnpm-lock.yaml`,
-    /// `node_modules`, and virtual store. Mirrors pnpm's per-project loop in
-    /// its recursive dispatch. The order is not topological — each project
-    /// resolves in isolation — so the dirs are sorted for a deterministic run
-    /// order, matching pnpm's alphabetical `Object.keys(...).sort()`.
-    PerProject(Vec<PathBuf>),
+    /// `node_modules`, and virtual store. Dependency-ready projects run under
+    /// the workspace-concurrency limit.
+    PerProject(IndexMap<PathBuf, Vec<PathBuf>>),
 }
 
 struct DedicatedProjectRuns<'a> {
     config: &'a Config,
-    project_dirs: Vec<PathBuf>,
+    project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
     require_lockfile: bool,
 }
 
 impl DedicatedProjectRuns<'_> {
-    async fn run<Runner, RunFuture>(self, mut run: Runner) -> miette::Result<()>
+    async fn run<Runner, RunFuture>(self, run: Runner) -> miette::Result<()>
     where
-        Runner: FnMut(State) -> RunFuture,
-        RunFuture: Future<Output = miette::Result<()>>,
+        Runner: Fn(State) -> RunFuture + Sync,
+        RunFuture: Future<Output = miette::Result<()>> + Send,
     {
-        let mut first_error = None;
-        for project_dir in self.project_dirs {
-            let result = match init_dedicated_project_state(
-                self.config,
-                &project_dir,
-                self.require_lockfile,
-            ) {
-                Ok(state) => run(state).await,
-                Err(error) => Err(error),
-            };
-            if let Err(error) = result {
-                if self.config.bail {
-                    return Err(error);
+        let first_error: std::sync::Mutex<Option<miette::Report>> = std::sync::Mutex::new(None);
+        let config = self.config;
+        let require_lockfile = self.require_lockfile;
+        let run = &run;
+        let run_node = |project_dir: PathBuf| {
+            let first_error = &first_error;
+            async move {
+                let result =
+                    match init_dedicated_project_state(config, &project_dir, require_lockfile) {
+                        Ok(state) => run(state).await,
+                        Err(error) => Err(error),
+                    };
+                match result {
+                    Ok(()) => TaskCompletion::Passed,
+                    Err(error) => {
+                        first_error
+                            .lock()
+                            .expect("dedicated install error lock is not poisoned")
+                            .get_or_insert(error);
+                        TaskCompletion::Failed
+                    }
                 }
-                first_error.get_or_insert(error);
             }
-        }
-        first_error.map_or(Ok(()), Err)
+        };
+        let on_node_skipped: fn(&PathBuf) = |_| {};
+        schedule_graph_async(
+            &self.project_dependencies,
+            &ScheduleGraphAsyncOptions::new(
+                usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
+                self.config.bail,
+                &run_node,
+                &on_node_skipped,
+            )
+            .continue_on_failure(!self.config.bail),
+        )
+        .await;
+        first_error
+            .into_inner()
+            .expect("dedicated install error lock is not poisoned")
+            .map_or(Ok(()), Err)
     }
 }
 
@@ -103,9 +133,16 @@ fn select_install_family_plan<Reporter: self::Reporter>(
     manifest_path: &Path,
     recursive_sort: bool,
     auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
 ) -> miette::Result<InstallFamilyPlan> {
-    let Some(selection) =
-        select_workspace_projects(cfg, prefix, manifest_path, recursive_sort, auto_exclude_root)?
+    let Some(selection) = select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        precompute_workspace_cycles,
+    )?
     else {
         return Ok(InstallFamilyPlan::Single);
     };
@@ -123,9 +160,7 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
     if !cfg.shares_one_lockfile() {
-        let mut project_dirs: Vec<PathBuf> = selection.selected_dirs.iter().cloned().collect();
-        project_dirs.sort();
-        return Ok(InstallFamilyPlan::PerProject(project_dirs));
+        return Ok(InstallFamilyPlan::PerProject(selection.project_dependencies));
     }
     Ok(InstallFamilyPlan::Shared(Box::new(selection)))
 }
@@ -136,6 +171,29 @@ pub(crate) fn select_workspace_projects(
     manifest_path: &Path,
     recursive_sort: bool,
     auto_exclude_root: bool,
+) -> miette::Result<Option<InstallFamilySelection>> {
+    select_workspace_projects_with_cycles(
+        cfg,
+        prefix,
+        manifest_path,
+        recursive_sort,
+        auto_exclude_root,
+        false,
+    )
+}
+
+/// [`select_workspace_projects`], optionally running the install's
+/// workspace-cycle search over the selection graph while it is still in
+/// hand. Callers pass `true` only for a run that is certain to reach
+/// the cycle check — the "Already up to date" fast path returns before
+/// it, and a search it never reads would tax exactly that path.
+fn select_workspace_projects_with_cycles(
+    cfg: &Config,
+    prefix: &Path,
+    manifest_path: &Path,
+    recursive_sort: bool,
+    auto_exclude_root: bool,
+    precompute_workspace_cycles: bool,
 ) -> miette::Result<Option<InstallFamilySelection>> {
     if !cfg.recursive {
         return Ok(None);
@@ -151,7 +209,7 @@ pub(crate) fn select_workspace_projects(
             );
         }
     }
-    let (ordered_groups, ordered_dirs, selected_dirs) = {
+    let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
         let selection = select_recursive_projects(
             &projects,
             cfg,
@@ -162,20 +220,52 @@ pub(crate) fn select_workspace_projects(
                 AutoExcludeRoot::Disabled
             },
         )?;
-        let ordered_groups = if recursive_sort {
-            sort_filtered_projects(
+        // Computed here only when it answers exactly what the install's
+        // own cycle search over its rebuilt graph would: an unnarrowed
+        // selection (`all` unset) is the whole graph in build order, so
+        // running the same search over it here lets the install skip
+        // the rebuild. A `--filter` / `--filter-prod` selection reorders
+        // the nodes (and prod-prunes some edges), so the install keeps
+        // its own search there.
+        let workspace_cycles = (precompute_workspace_cycles
+            && selection.all.is_none()
+            && !cfg.ignore_workspace_cycles)
+            .then(|| {
+                pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
+            });
+        let project_dependencies = if recursive_sort {
+            filtered_projects_dependencies(
                 &selection.selected,
                 selection.full_graph(),
                 selection.prod_all.as_ref(),
                 &selection.prod_only_selected,
             )
         } else {
-            vec![selection.selected.keys().cloned().collect()]
+            let mut dirs = selection.selected.keys().cloned().collect::<Vec<_>>();
+            dirs.sort();
+            dirs.into_iter().map(|dir| (dir, Vec::new())).collect()
         };
-        let ordered_dirs = ordered_groups.iter().flatten().cloned().collect();
+        // Sequenced over borrowed paths: cloning a workspace-scale edge
+        // map just to sort it cost more than the sort.
+        let ordered_dirs = graph_sequencer(
+            &project_dependencies
+                .iter()
+                .map(|(key, value)| {
+                    (
+                        PathNode(key.as_path()),
+                        value.iter().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
+                    )
+                })
+                .collect(),
+            &project_dependencies.keys().map(|dir| PathNode(dir)).collect::<Vec<_>>(),
+        )
+        .order
+        .into_iter()
+        .map(|node| node.0.to_path_buf())
+        .collect();
         let selected_dirs: Arc<HashSet<PathBuf>> =
             Arc::new(selection.selected.keys().cloned().collect());
-        (ordered_groups, ordered_dirs, selected_dirs)
+        (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles)
     };
 
     let active_dir = manifest_path.parent().expect("manifest path always has a parent dir");
@@ -199,11 +289,12 @@ pub(crate) fn select_workspace_projects(
     Ok(Some(InstallFamilySelection {
         workspace_root,
         projects,
-        ordered_groups,
+        project_dependencies,
         ordered_dirs,
         selected_dirs,
         install_dirs: Arc::new(install_dirs),
         active_manifest_is_standin,
+        workspace_cycles,
     }))
 }
 
@@ -267,16 +358,45 @@ impl InstallPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Built ahead of project discovery so a run that is certain to
+        // read the wanted lockfile parses it on a background thread
+        // while discovery walks the workspace. Certain means the fast
+        // "Already up to date" return cannot fire: it is off under
+        // `--frozen-lockfile` / `--force`, and it requires a workspace
+        // state from a previous install — a workspace with none on
+        // disk (a lockfile-only workflow never writes one) always
+        // reaches the full pipeline. A `--fix-lockfile` run reads
+        // through the separate repair loader, which this prefetch does
+        // not feed. Only the shared-lockfile arms consume this
+        // lockfile; the per-project arms load their own.
+        let lockfile = cfg
+            .shares_one_lockfile()
+            .then(|| State::lazy_lockfile(cfg, &manifest_path, require_lockfile));
+        let certain_full_install = cfg.shares_one_lockfile() && {
+            let manifest_dir =
+                manifest_path.parent().expect("manifest path always has a parent dir");
+            let lockfile_dir = cfg.lockfile_dir_for(manifest_dir);
+            frozen_lockfile
+                || cfg.force
+                || !pnpm_workspace_state::get_file_path(lockfile_dir).is_file()
+        };
+        if let Some(lockfile) = lockfile.as_ref()
+            && !args.fix_lockfile
+            && certain_full_install
+        {
+            lockfile.prefetch();
+        }
         let plan = select_install_family_plan::<Reporter>(
             cfg,
             &prefix,
             &manifest_path,
             recursive_sort,
             false,
+            certain_full_install,
         )?;
         match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                DedicatedProjectRuns { config: cfg, project_dirs, require_lockfile }
+            InstallFamilyPlan::PerProject(project_dependencies) => {
+                DedicatedProjectRuns { config: cfg, project_dependencies, require_lockfile }
                     .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
                     .await
             }
@@ -285,8 +405,7 @@ impl InstallPipeline {
                     return Ok(());
                 }
                 let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let state = init_shared_state(manifest_path, cfg, require_lockfile, lockfile)?;
                 Box::pin(args.run_selected::<Reporter>(state, *selection)).await
             }
             InstallFamilyPlan::Single => {
@@ -303,12 +422,26 @@ impl InstallPipeline {
                     .await;
                 }
                 let cfg: &'static Config = cfg;
-                let state = State::init(manifest_path, cfg, require_lockfile)
-                    .wrap_err("initialize the state")?;
+                let state = init_shared_state(manifest_path, cfg, require_lockfile, lockfile)?;
                 Box::pin(args.run::<Reporter>(state)).await
             }
         }
     }
+}
+
+/// [`State::init`], consuming the pipeline's pre-built lockfile when
+/// there is one so an already-running prefetch isn't thrown away.
+fn init_shared_state(
+    manifest_path: PathBuf,
+    config: &'static Config,
+    require_lockfile: bool,
+    lockfile: Option<pnpm_lockfile::LazyLockfile>,
+) -> miette::Result<State> {
+    match lockfile {
+        Some(lockfile) => State::init_with_lockfile(manifest_path, config, lockfile),
+        None => State::init(manifest_path, config, require_lockfile),
+    }
+    .wrap_err("initialize the state")
 }
 
 pub(crate) struct AddPipeline {
@@ -361,13 +494,14 @@ impl AddPipeline {
                 &manifest_path,
                 recursive_sort,
                 true,
+                false,
             )?
         };
         match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
+            InstallFamilyPlan::PerProject(project_dependencies) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
-                DedicatedProjectRuns { config: cfg, project_dirs, require_lockfile: false }
+                DedicatedProjectRuns { config: cfg, project_dependencies, require_lockfile: false }
                     .run(|state| Box::pin(args.clone().run::<Reporter>(state, None)))
                     .await
             }
@@ -444,11 +578,14 @@ impl UpdatePipeline {
             &manifest_path,
             recursive_sort,
             false,
+            false,
         )?;
         // An empty selection has nothing to update, and — like the shared
         // path — must not generate a changeset.
         match &plan {
-            InstallFamilyPlan::PerProject(project_dirs) if project_dirs.is_empty() => {
+            InstallFamilyPlan::PerProject(project_dependencies)
+                if project_dependencies.is_empty() =>
+            {
                 return Ok(());
             }
             InstallFamilyPlan::Shared(selection) if selection.selected_dirs.is_empty() => {
@@ -480,8 +617,8 @@ impl UpdatePipeline {
             .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
             .transpose()?;
         match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
-                DedicatedProjectRuns { config: cfg, project_dirs, require_lockfile: false }
+            InstallFamilyPlan::PerProject(project_dependencies) => {
+                DedicatedProjectRuns { config: cfg, project_dependencies, require_lockfile: false }
                     .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
                     .await?;
             }
@@ -545,12 +682,13 @@ impl RemovePipeline {
             &manifest_path,
             recursive_sort,
             false,
+            false,
         )?;
         match plan {
-            InstallFamilyPlan::PerProject(project_dirs) => {
+            InstallFamilyPlan::PerProject(project_dependencies) => {
                 // Dedicated per-project lockfiles: remove the packages from
                 // each selected project independently.
-                DedicatedProjectRuns { config: cfg, project_dirs, require_lockfile: false }
+                DedicatedProjectRuns { config: cfg, project_dependencies, require_lockfile: false }
                     .run(|state| Box::pin(args.clone().run::<Reporter>(state)))
                     .await
             }

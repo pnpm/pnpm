@@ -198,6 +198,29 @@ describe('extractZipToTarget security', () => {
       expect(fs.existsSync(path.join(targetDir, 'README.md'))).toBe(true)
     })
 
+    it('should authenticate the ZIP download', async () => {
+      const targetDir = temporaryDirectory()
+      const zip = new AdmZip()
+      zip.addFile('node-v20.0.0/bin/node', Buffer.from('binary'))
+      const zipBuffer = zip.toBuffer()
+      const integrity = ssri.fromData(zipBuffer).toString()
+      const fetch = (_url: string, opts?: { authHeaderValue?: string }) => {
+        expect(opts?.authHeaderValue).toBe('Bearer mirror-token')
+        return Promise.resolve({
+          body: (async function * () {
+            yield zipBuffer
+          })(),
+        })
+      }
+
+      await downloadAndUnpackZip(fetch as never, {
+        url: 'https://example.com/node.zip',
+        integrity,
+        basename: 'node-v20.0.0',
+        authHeaderValue: 'Bearer mirror-token',
+      }, targetDir)
+    })
+
     it('should handle empty basename correctly', async () => {
       const targetDir = temporaryDirectory()
       const zip = new AdmZip()
@@ -350,6 +373,38 @@ describe('extractZipToTarget security', () => {
 })
 
 describe('createBinaryFetcher', () => {
+  it.each([
+    ['https://mirror.example/node.zip', 'Bearer mirror-token'],
+    ['http://mirror.example/node.zip', undefined],
+    ['http://127.attacker.example/node.zip', undefined],
+    ['http://127.0.0.1/node.zip', 'Bearer mirror-token'],
+  ])('selects secure Node.js mirror auth for %s', async (url, expectedAuthHeaderValue) => {
+    const fetch = ((_url: string, opts?: { authHeaderValue?: string }) => {
+      expect(opts?.authHeaderValue).toBe(expectedAuthHeaderValue)
+      throw new Error('stop after request inspection')
+    }) as never
+    const binaryFetcher = createBinaryFetcher({
+      fetch,
+      fetchFromRemoteTarball: fetch,
+      getAuthHeader: () => 'Bearer mirror-token',
+      storeIndex: {} as never,
+    }).binary
+
+    await expect(binaryFetcher({
+      tempDir: async () => temporaryDirectory(),
+    } as never, {
+      type: 'binary',
+      archive: 'zip',
+      bin: { node: 'node.exe' },
+      integrity: 'sha512-unused',
+      url,
+    }, {
+      filesIndexFile: 'unused',
+      lockfileDir: 'unused',
+      pkg: { name: 'node', version: '22.0.0' },
+    })).rejects.toThrow('stop after request inspection')
+  })
+
   it('rejects an invalid archiveFilters regex at creation time', () => {
     const noop = (() => {
       throw new Error('should not be called')

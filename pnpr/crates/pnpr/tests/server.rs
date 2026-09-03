@@ -351,6 +351,37 @@ fn sha512_integrity(bytes: &[u8]) -> String {
     opts.result().to_string()
 }
 
+fn hosted_publish_request(
+    url: &str,
+    package: &str,
+    version: &str,
+    tarball: &[u8],
+    token: &str,
+) -> Request<Body> {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let basename = package.rsplit('/').next().unwrap();
+    let attachment = format!("{package}-{version}.tgz");
+    let body = json!({
+        "name": package,
+        "dist-tags": { "latest": version },
+        "versions": { (version): { "name": package, "version": version, "dist": {
+            "tarball": format!("http://example.test/{package}/-/{basename}-{version}.tgz"),
+            "integrity": sha512_integrity(tarball),
+        } } },
+        "_attachments": { (attachment): {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(tarball),
+            "length": tarball.len(),
+        } },
+    });
+    Request::put(url)
+        .header("content-type", "application/json")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap()
+}
+
 /// The 40-char hex SHA-1 the way pre-2017 npm publishes carry it in the
 /// legacy `dist.shasum` field.
 fn sha1_hex_of(bytes: &[u8]) -> String {
@@ -2751,6 +2782,10 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let handshake =
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0] } }),
+    );
 
     let verify = app
         .clone()
@@ -2848,6 +2883,41 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .unwrap();
     assert_ne!(verify.status(), StatusCode::UNAUTHORIZED);
     assert_ne!(verify.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.registry.enabled = false;
+    config.resolver.enabled = false;
+    config.artifacts.enabled = true;
+    let app = router(config);
+
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [], "artifacts": [0], "fixLockfile": [] } }),
+    );
+
+    let artifact = app
+        .clone()
+        .oneshot(Request::post("/-/pnpr/v0/artifacts/resolve").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(artifact.status(), StatusCode::UNAUTHORIZED);
+    assert!(
+        String::from_utf8_lossy(&body_bytes(artifact.into_body()).await)
+            .contains("shared artifacts"),
+    );
+
+    let resolve = app
+        .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -3348,6 +3418,193 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .await
         .unwrap();
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$all"));
+    let graph = vec![
+        (
+            "acme".to_string(),
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+        ),
+        ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
+    ];
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let tarball = b"public-hosted-original";
+    let integrity_text = sha512_integrity(tarball);
+    let integrity = integrity_text.parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let digest = revision_path.rsplit('/').next().unwrap();
+
+    let publish = router_with_auth(config.clone(), auth.clone())
+        .oneshot(hosted_publish_request(
+            "/~acme/@acme/widget",
+            "@acme/widget",
+            "1.0.0",
+            tarball,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    let app = router_with_auth(config, auth);
+    for path in [
+        format!("/~acme/{revision_path}"),
+        format!("/~main/{revision_path}"),
+        format!("/{revision_path}"),
+    ] {
+        let response =
+            app.clone().oneshot(Request::get(&path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        assert_eq!(response.headers().get(header::VARY).unwrap(), "Authorization");
+        assert_eq!(
+            response.headers().get(header::ETAG).unwrap().to_str().unwrap(),
+            format!(r#""{digest}""#),
+        );
+        assert_eq!(
+            response.headers().get("content-digest").unwrap().to_str().unwrap(),
+            format!("sha-512=:{}:", integrity_text.strip_prefix("sha512-").unwrap()),
+        );
+        assert_eq!(body_bytes(response.into_body()).await, tarball, "{path}");
+    }
+
+    let canonical = app
+        .oneshot(
+            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(canonical.status(), StatusCode::OK);
+    assert_eq!(body_bytes(canonical.into_body()).await, tarball);
+}
+
+#[tokio::test]
+async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_existing_refs() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert("acme".to_string(), hosted_with_access("acme", "$authenticated"));
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let tarball = b"shared-hosted-original";
+    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let app = router_with_auth(config, auth);
+
+    for index in 0..32 {
+        let package = format!("shared-artifact-{index}");
+        let response = app
+            .clone()
+            .oneshot(hosted_publish_request(
+                &format!("/~acme/{package}"),
+                &package,
+                "1.0.0",
+                tarball,
+                &token,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED, "{package}");
+    }
+
+    let rejected = app
+        .clone()
+        .oneshot(hosted_publish_request(
+            "/~acme/shared-artifact-overflow",
+            "shared-artifact-overflow",
+            "1.0.0",
+            tarball,
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::CONFLICT);
+
+    let overflow_packument = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/shared-artifact-overflow")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(overflow_packument.status(), StatusCode::OK);
+    let overflow_packument = body_json(overflow_packument.into_body()).await;
+    assert!(overflow_packument["versions"].get("1.0.0").is_none());
+
+    let existing = app
+        .oneshot(
+            Request::get(format!("/~acme/{revision_path}"))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(existing.status(), StatusCode::OK);
+    assert_eq!(body_bytes(existing.into_body()).await, tarball);
+}
+
+#[tokio::test]
+async fn hosted_digest_route_rechecks_package_access() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert("corp".to_string(), hosted_with_access("corp", "alice"));
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        Some("corp".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let alice = auth.tokens.issue("alice").await.unwrap();
+    let bob = auth.tokens.issue("bob").await.unwrap();
+    let tarball = b"private-hosted-original";
+    let integrity = sha512_integrity(tarball).parse().unwrap();
+    let revision_path = integrity_addressed_tarball_path(&integrity).unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish = app
+        .clone()
+        .oneshot(hosted_publish_request("/~corp/secret", "secret", "1.0.0", tarball, &alice))
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    for authorization in [None, Some(format!("Bearer {bob}"))] {
+        let mut request = Request::get(format!("/~corp/{revision_path}"));
+        if let Some(authorization) = authorization {
+            request = request.header(header::AUTHORIZATION, authorization);
+        }
+        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+        assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+        assert_eq!(response.headers().get(header::VARY).unwrap(), "Authorization");
+    }
+
+    let response = app
+        .oneshot(
+            Request::get(format!("/~corp/{revision_path}"))
+                .header(header::AUTHORIZATION, format!("Bearer {alice}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers().get(header::CACHE_CONTROL).unwrap(), "private, no-store");
+    assert_eq!(response.headers().get(header::VARY).unwrap(), "Authorization");
+    assert_eq!(body_bytes(response.into_body()).await, tarball);
 }
 
 /// A hosted registry's declared `patterns:` are enforced on the registry itself, on
@@ -4182,4 +4439,35 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
     }
+}
+
+/// Falling through to the path-less behaviour here would let *any* first
+/// segment reach the account and staging endpoints.
+#[tokio::test]
+async fn a_first_segment_that_is_not_a_tilde_prefix_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for path in ["/corp/-/whoami", "/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
+    }
+}
+
+/// A percent-escape that decodes to invalid UTF-8 is a malformed request, not
+/// a server fault: answering 500 would both misreport it and let a client fill
+/// the error log by looping on bad URLs.
+#[tokio::test]
+async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    let response =
+        app.oneshot(Request::get("/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

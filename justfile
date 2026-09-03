@@ -54,8 +54,7 @@ check:
 
 # Run all the tests.
 test:
-  # Tests opt into CI-sensitive pnpm defaults explicitly.
-  env PNPM_CONFIG_CI=false cargo nextest run
+  node pnpm/scripts/run-rust-tests.mjs
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
@@ -71,12 +70,14 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
-  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
-  cargo nextest run -p pnpr -p pnpr-fixtures
+  # Every `pnpr-*` crate, selected together so cargo's feature unification
+  # gives them the same backend features `pnpr` itself defaults to — selecting
+  # one alone would build it bare and silently skip its backend tests.
+  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-package-name -p pnpr-policy -p pnpr-registry -p pnpr-route -p pnpr-osv -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
 
 # List expected-failing test ports
 [unix]

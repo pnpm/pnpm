@@ -1085,6 +1085,122 @@ test('`pnpm -r --resume-from run` should executed from given package', async () 
   expect(server.getLines().sort()).toEqual(['project-2', 'project-3'])
 })
 
+test('recursive run resumes from exactly the tasks that passed before a failure', async () => {
+  preparePackages([
+    {
+      name: 'dependency',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "const fs = require(\'fs\'); fs.appendFileSync(\'../order.log\', \'dependency\\n\'); if (fs.existsSync(\'../fail\')) process.exit(1)"',
+      },
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        dependency: '1',
+      },
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'anchor\\n\')"',
+      },
+    },
+    {
+      name: 'completed',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'completed\\n\')"',
+      },
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const selection = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    ...selection,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+
+  await expect(run.handler(opts, ['build'])).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  const firstRun = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect([...firstRun].sort()).toStrictEqual(['completed', 'dependency'])
+
+  await fs.promises.rm('fail')
+  await run.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, ['build'])
+
+  expect((await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')).toStrictEqual([
+    ...firstRun,
+    'dependency',
+    'anchor',
+  ])
+  const stateDir = path.join('node_modules', '.pnpm-task-run-state-v1')
+  const latest = JSON.parse(await fs.promises.readFile(path.join(stateDir, 'latest.json'), 'utf8')) as { invocation: string, run: string }
+  await expect(fs.promises.access(path.join(stateDir, `${latest.invocation}.${latest.run}.jsonl`))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+test('recursive run does not persist a task skipped by the lifecycle recursion guard', async () => {
+  preparePackages([
+    {
+      name: 'origin',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'origin\\n\')"',
+      },
+    },
+    {
+      name: 'anchor',
+      version: '1.0.0',
+      dependencies: {
+        origin: '1',
+      },
+      scripts: {
+        build: 'node -e "require(\'fs\').appendFileSync(\'../order.log\', \'anchor\\n\')"',
+      },
+    },
+    {
+      name: 'failure',
+      version: '1.0.0',
+      scripts: {
+        build: 'node -e "const fs = require(\'fs\'); fs.appendFileSync(\'../order.log\', \'failure\\n\'); if (fs.existsSync(\'../fail\')) process.exit(1)"',
+      },
+    },
+  ])
+  await fs.promises.writeFile('fail', '')
+  const selection = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const opts = {
+    ...DEFAULT_OPTS,
+    ...selection,
+    bail: false,
+    dir: process.cwd(),
+    recursive: true,
+    workspaceConcurrency: 1,
+    workspaceDir: process.cwd(),
+  }
+  const previousLifecycleEvent = process.env.npm_lifecycle_event
+  const previousScriptSrcDir = process.env.PNPM_SCRIPT_SRC_DIR
+  try {
+    process.env.npm_lifecycle_event = 'build'
+    process.env.PNPM_SCRIPT_SRC_DIR = path.join(process.cwd(), 'origin')
+    await expect(run.handler(opts, ['build'])).rejects.toMatchObject({ code: 'ERR_PNPM_RECURSIVE_FAIL' })
+  } finally {
+    restoreEnv('npm_lifecycle_event', previousLifecycleEvent)
+    restoreEnv('PNPM_SCRIPT_SRC_DIR', previousScriptSrcDir)
+  }
+  expect((await fs.promises.readFile('order.log', 'utf8')).split('\n')).not.toContain('origin')
+
+  await fs.promises.rm('fail')
+  await run.handler({ ...opts, bail: true, resumeFrom: 'anchor' }, ['build'])
+
+  const order = (await fs.promises.readFile('order.log', 'utf8')).trim().split('\n')
+  expect(order.filter((task) => task === 'origin')).toHaveLength(1)
+  const stateDir = path.join('node_modules', '.pnpm-task-run-state-v1')
+  const latest = JSON.parse(await fs.promises.readFile(path.join(stateDir, 'latest.json'), 'utf8')) as { invocation: string, run: string }
+  await expect(fs.promises.access(path.join(stateDir, `${latest.invocation}.${latest.run}.jsonl`))).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
 test('pnpm run with RegExp script selector should work on recursive', async () => {
   preparePackages([
     {
@@ -1287,6 +1403,9 @@ test('pnpm recursive run report summary with --bail', async () => {
 
   const { default: { executionStatus } } = (await import(path.resolve('pnpm-exec-summary.json')))
 
+  // The first failure ends the run at once: scripts still running are
+  // reported as such (the exit path terminates them), and a script still
+  // queued behind the concurrency limit is never started.
   expect(executionStatus[path.resolve('project-1')].status).toBe('running')
   expect(executionStatus[path.resolve('project-2')].status).toBe('failure')
   expect(executionStatus[path.resolve('project-2')].duration).not.toBeFalsy()
@@ -1356,3 +1475,11 @@ test('pnpm recursive run with a regex selector keeps a failure when a later matc
 
   expect(err?.code).toBe('ERR_PNPM_RECURSIVE_FAIL')
 })
+
+function restoreEnv (name: string, value: string | undefined): void {
+  if (value == null) {
+    delete process.env[name]
+  } else {
+    process.env[name] = value
+  }
+}

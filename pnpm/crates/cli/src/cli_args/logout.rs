@@ -1,6 +1,6 @@
-//! `pacquet logout` — revoke the registry auth token and remove it from
-//! `auth.ini`. The command logic lives in `pnpm-auth-commands`; this
-//! module is the thin CLI adapter that resolves config into
+//! `pacquet logout` — revoke the registry auth token and remove it from the
+//! global `config.yaml`. The command logic lives in `pnpm-auth-commands`;
+//! this module is the thin CLI adapter that resolves config into
 //! [`LogoutOptions`].
 
 use std::{collections::HashMap, time::Duration};
@@ -26,8 +26,8 @@ pub struct LogoutArgs {
 pub enum LogoutCliError {
     /// pacquet-specific guard: pnpm always resolves a `configDir`, but
     /// pacquet leaves [`Config::config_dir`] `None` when no home directory
-    /// can be located, and `logout` cannot find `auth.ini` without it.
-    #[display("Could not determine the pnpm config directory to locate auth.ini")]
+    /// can be located, and `logout` cannot find the token without it.
+    #[display("Could not determine the pnpm config directory to locate config.yaml")]
     #[diagnostic(code(ERR_PNPM_NO_CONFIG_DIR))]
     NoConfigDir,
 }

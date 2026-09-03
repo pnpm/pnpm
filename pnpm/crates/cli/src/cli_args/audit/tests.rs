@@ -18,6 +18,7 @@ use super::{
 };
 use chrono::{DateTime, Utc};
 use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use pnpm_registry::RangeSpecStyle;
 use std::{collections::HashSet, fmt::Write as _};
 
 fn parse_lockfile(yaml: &str) -> Lockfile {
@@ -1147,7 +1148,7 @@ fn create_overrides_sorts_and_skips_unfixable() {
         ),
     ]);
 
-    let overrides = create_overrides(&advisories);
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
 
     assert_eq!(
         overrides.into_iter().collect::<Vec<_>>(),
@@ -1156,6 +1157,26 @@ fn create_overrides_sorts_and_skips_unfixable() {
             ("zoo@<2.0.0".to_string(), "^2.0.0".to_string()),
         ],
     );
+}
+
+#[test]
+fn create_overrides_respects_save_style() {
+    let advisories = BTreeMap::from([(
+        "1".to_string(),
+        fix_advisory(1, "axios", "<=0.18.0", Some(">=0.18.1"), ConfigAuditLevel::High, "GHSA-a"),
+    )]);
+
+    let exact = create_overrides(&advisories, RangeSpecStyle::from_save_options(true, None));
+    assert_eq!(exact["axios@<=0.18.0"], "0.18.1");
+
+    let tilde = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("~")));
+    assert_eq!(tilde["axios@<=0.18.0"], "~0.18.1");
+
+    let equals = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("=")));
+    assert_eq!(equals["axios@<=0.18.0"], "=0.18.1");
+
+    let bare = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("")));
+    assert_eq!(bare["axios@<=0.18.0"], "0.18.1");
 }
 
 #[test]

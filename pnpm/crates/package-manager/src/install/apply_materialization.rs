@@ -5,11 +5,14 @@ use super::{
     ProjectScriptsInputs, RebuildOptions, Reporter, SummaryLog, SystemTime,
     WorkspaceInstallSelection, build_modules_manifest, build_workspace_state,
     current_contains_dep_path, drain_settled_projects, merge_filtered_modules_metadata,
-    merge_pending_builds, order_project_lifecycle_groups, project_requires_lifecycle_scripts,
+    merge_pending_builds, project_lifecycle_graph, project_requires_lifecycle_scripts,
     projects_running_own_scripts, run_projects_lifecycle_scripts, update_workspace_state,
     write_modules_manifest,
 };
-use crate::peer_dependency_issues::report_peer_dependency_issues;
+use crate::{
+    optimistic_repeat_install::filesystem_now_ms,
+    peer_dependency_issues::report_peer_dependency_issues,
+};
 use pnpm_store_dir::VerifiedFileIntegrity;
 use std::time::Duration;
 
@@ -18,9 +21,11 @@ struct ResolveOnlyCompletionInputs<'a> {
     dry_run: bool,
     peer_issues_sink_is_none: bool,
     existing_wanted_lockfile: Option<&'a Lockfile>,
+    peer_issue_importer_ids: &'a HashSet<String>,
     fresh_lockfile: Option<&'a Lockfile>,
     prefix: &'a str,
     config: &'static Config,
+    catalogs: Option<&'a Catalogs>,
     workspace_root: &'a Path,
     installed_importer_ids: &'a HashSet<String>,
 }
@@ -50,9 +55,11 @@ fn complete_resolve_only<Reporter: self::Reporter>(
     if inputs.peer_issues_sink_is_none {
         report_peer_dependency_issues::<Reporter>(
             inputs.fresh_lockfile,
+            inputs.peer_issue_importer_ids,
             inputs.installed_importer_ids,
             inputs.workspace_root,
             inputs.config,
+            inputs.catalogs,
         )?;
     }
     Reporter::emit(&LogEvent::Summary(SummaryLog {
@@ -561,15 +568,15 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
             })
         };
     if !projects_to_run.is_empty() {
-        let project_groups = order_project_lifecycle_groups(
+        let project_graph = project_lifecycle_graph(
             &projects_to_run,
-            selection.map(|selection| selection.ordered_groups),
+            selection.map(|selection| selection.project_dependencies),
             workspace_root,
             materialized_current_lockfile,
         )?;
-        if !project_groups.is_empty() {
+        if !project_graph.dependencies.is_empty() {
             run_projects_lifecycle_scripts::<Reporter>(
-                &project_groups,
+                &project_graph,
                 config,
                 node_linker,
                 workspace_root,
@@ -585,6 +592,7 @@ fn run_materialized_project_scripts<Reporter: self::Reporter>(
 
 struct ReportInstallCompletionInputs<'a> {
     config: &'static Config,
+    catalogs: Option<&'a Catalogs>,
     workspace_root: &'a Path,
     workspace_manifest_dir: &'a Path,
     prefix: String,
@@ -594,6 +602,7 @@ struct ReportInstallCompletionInputs<'a> {
     /// resolution — which is what decides whether peer-dependency
     /// issues are reported at all.
     resolved_lockfile: Option<&'a Lockfile>,
+    peer_issue_importer_ids: &'a HashSet<String>,
     installed_importer_ids: &'a HashSet<String>,
 }
 
@@ -602,12 +611,14 @@ fn report_install_completion<Reporter: self::Reporter>(
 ) -> Result<(), InstallError> {
     let ReportInstallCompletionInputs {
         config,
+        catalogs,
         workspace_root,
         workspace_manifest_dir,
         prefix,
         ignored_builds,
         verified_file_integrity_baseline,
         resolved_lockfile,
+        peer_issue_importer_ids,
         installed_importer_ids,
     } = inputs;
     // Reported before the summary and before the ignored-builds
@@ -615,9 +626,11 @@ fn report_install_completion<Reporter: self::Reporter>(
     // the install, first among the ways it can still fail.
     report_peer_dependency_issues::<Reporter>(
         resolved_lockfile,
+        peer_issue_importer_ids,
         installed_importer_ids,
         workspace_root,
         config,
+        catalogs,
     )?;
     // `pnpm:summary` closes the install and lets the reporter render
     // the accumulated `pnpm:root` events as a "+N -M" block. Must
@@ -713,6 +726,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) dry_run: bool,
     pub(super) peer_issues_sink_is_none: bool,
     pub(super) existing_wanted_lockfile: Option<&'a Lockfile>,
+    pub(super) peer_issue_importer_ids: HashSet<String>,
     pub(super) fresh_lockfile: Option<Lockfile>,
     pub(super) prefix: String,
     pub(super) lockfile: Option<&'a Lockfile>,
@@ -745,6 +759,7 @@ pub(super) struct ApplyMaterializationInputs<'a, 'selection> {
     pub(super) selection: Option<WorkspaceInstallSelection<'selection>>,
     pub(super) supported_architectures: Option<pnpm_package_is_installable::SupportedArchitectures>,
     pub(super) catalogs: Catalogs,
+    pub(super) catalog_context_present: bool,
     pub(super) verified_file_integrity_baseline: VerifiedFileIntegrity,
 }
 
@@ -756,6 +771,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         dry_run,
         peer_issues_sink_is_none,
         existing_wanted_lockfile,
+        peer_issue_importer_ids,
         fresh_lockfile,
         prefix,
         lockfile,
@@ -788,8 +804,10 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         selection,
         supported_architectures,
         catalogs,
+        catalog_context_present,
         verified_file_integrity_baseline,
     } = inputs;
+    let peer_catalogs = catalog_context_present.then_some(&catalogs);
     let modules_manifest = modules_manifest.as_ref();
     // What this run installed: a `--filter`ed install acts only on its
     // selection, every other one on the whole workspace. The lockfile
@@ -803,9 +821,11 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         dry_run,
         peer_issues_sink_is_none,
         existing_wanted_lockfile,
+        peer_issue_importer_ids: &peer_issue_importer_ids,
         fresh_lockfile: fresh_lockfile.as_ref(),
         prefix: &prefix,
         config,
+        catalogs: peer_catalogs,
         workspace_root: &workspace_root,
         installed_importer_ids,
     })? {
@@ -882,6 +902,14 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         materialized_current_lockfile: materialized_current_lockfile.as_ref(),
     })?;
 
+    // Nothing below reads the materialized lockfiles, and each holds a
+    // workspace-scale importer map.
+    pnpm_fs::background_drop((
+        selected_current_lockfile,
+        materialized_current_lockfile,
+        current_lockfile,
+    ));
+
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
     // moment this file is missing, forcing `pnpm install` to rerun.
@@ -899,18 +927,23 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
             &catalogs,
             &project_manifests,
             filtered_install,
+            filesystem_now_ms(&workspace_root),
         ),
     )
     .map_err(InstallError::WriteWorkspaceState)?;
 
-    report_install_completion::<Reporter>(ReportInstallCompletionInputs {
+    let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
+        catalogs: peer_catalogs,
         workspace_root: &workspace_root,
         workspace_manifest_dir: &workspace_manifest_dir,
         prefix,
         ignored_builds,
         verified_file_integrity_baseline,
         resolved_lockfile: fresh_lockfile.as_ref(),
+        peer_issue_importer_ids: &peer_issue_importer_ids,
         installed_importer_ids,
-    })
+    });
+    pnpm_fs::background_drop(fresh_lockfile);
+    completion
 }

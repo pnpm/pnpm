@@ -2,7 +2,7 @@ use crate::apply::{PatchApplyError, apply_patch_to_dir};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
-use text_block_macros::text_block_fnl;
+use text_block_macros::{text_block, text_block_fnl};
 
 /// An `is-positive` patch: a single-hunk Modify on `index.js`.
 const IS_POSITIVE_PATCH: &str = "\
@@ -54,6 +54,29 @@ fn write_patch(dir: &std::path::Path, body: &str) -> std::path::PathBuf {
     path
 }
 
+/// The single-file header [`applied_hunk`] prepends to every hunk it is given.
+const FILE_TXT_PATCH_HEADER: &str = text_block_fnl! {
+    "diff --git a/file.txt b/file.txt"
+    "--- a/file.txt"
+    "+++ b/file.txt"
+};
+
+/// Apply a patch whose sole file operation is `hunk` against a `file.txt`
+/// holding `original`, and return what the file holds afterwards.
+/// [`FILE_TXT_PATCH_HEADER`] is supplied here so a caller only spells out the
+/// coordinates under test.
+fn applied_hunk(original: &str, hunk: &str) -> String {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("file.txt");
+    fs::write(&target, original).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), &format!("{FILE_TXT_PATCH_HEADER}{hunk}"));
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    fs::read_to_string(&target).unwrap()
+}
+
 #[test]
 fn applies_modify_against_existing_file() {
     let patched = tempdir().unwrap();
@@ -65,6 +88,187 @@ fn applies_modify_against_existing_file() {
 
     let after = fs::read_to_string(patched.path().join("index.js")).unwrap();
     assert_eq!(after, IS_POSITIVE_INDEX_JS_PATCHED);
+}
+
+#[test]
+fn applies_an_insertion_with_context_on_both_sides() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -1,2 +1,3 @@"
+        " one"
+        "+added"
+        " two"
+    };
+    let expected = text_block_fnl! {
+        "one"
+        "added"
+        "two"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_at_the_start_of_the_file() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -0,0 +1 @@"
+        "+added"
+    };
+    let expected = text_block_fnl! {
+        "added"
+        "one"
+        "two"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_to_an_empty_file() {
+    let hunk = text_block_fnl! {
+        "@@ -0,0 +1 @@"
+        "+added"
+    };
+    assert_eq!(applied_hunk("", hunk), "added\n");
+}
+
+#[test]
+fn applies_a_zero_context_insertion_after_the_first_line() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -1,0 +2 @@"
+        "+added"
+    };
+    let expected = text_block_fnl! {
+        "one"
+        "added"
+        "two"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_multi_line_zero_context_insertion_in_the_middle_of_the_file() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+        "three"
+        "four"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -2,0 +3,2 @@"
+        "+first"
+        "+second"
+    };
+    let expected = text_block_fnl! {
+        "one"
+        "two"
+        "first"
+        "second"
+        "three"
+        "four"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_at_the_end_of_the_file() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -2,0 +3 @@"
+        "+added"
+    };
+    let expected = text_block_fnl! {
+        "one"
+        "two"
+        "added"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_to_a_crlf_file() {
+    let original = concat!("one\r\n", "two\r\n");
+    let hunk = text_block_fnl! {
+        "@@ -1,0 +2 @@"
+        "+added"
+    };
+    let expected = concat!("one\r\n", "added\n", "two\r\n");
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_to_a_file_without_a_final_newline() {
+    let original = text_block! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -1,0 +2 @@"
+        "+added"
+    };
+    let expected = text_block! {
+        "one"
+        "added"
+        "two"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_that_ends_the_file_without_a_newline() {
+    let original = text_block_fnl! {
+        "one"
+        "two"
+    };
+    let hunk = text_block_fnl! {
+        "@@ -2,0 +3 @@"
+        "+added"
+        r"\ No newline at end of file"
+    };
+    let expected = text_block! {
+        "one"
+        "two"
+        "added"
+    };
+    let after = applied_hunk(original, hunk);
+    eprintln!("AFTER:\n{after}\n");
+    assert_eq!(after, expected);
+}
+
+#[test]
+fn applies_a_zero_context_insertion_without_a_newline_to_an_empty_file() {
+    let hunk = text_block_fnl! {
+        "@@ -0,0 +1 @@"
+        "+added"
+        r"\ No newline at end of file"
+    };
+    assert_eq!(applied_hunk("", hunk), "added");
 }
 
 #[test]

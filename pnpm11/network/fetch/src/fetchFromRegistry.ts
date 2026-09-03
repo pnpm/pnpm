@@ -91,7 +91,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
 
     let redirects = 0
     let urlObject = new URL(url)
-    const originalHost = urlObject.host
+    const originalOrigin = urlObject.origin
     /* eslint-disable no-await-in-loop */
     while (true) {
       const dispatcherOptions: DispatcherOptions = {
@@ -123,7 +123,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
       // This is a workaround to remove authorization headers on redirect.
       // Related pnpm issue: https://github.com/pnpm/pnpm/issues/1815
       urlObject = resolveRedirectUrl(response, urlObject)
-      if (originalHost === urlObject.host) continue
+      if (originalOrigin === urlObject.origin) continue
       if (headers['authorization']) {
         delete headers.authorization
       }

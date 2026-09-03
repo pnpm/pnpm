@@ -3,7 +3,7 @@ use super::{
     calc_leaf_global_virtual_store_path, format_global_virtual_store_path,
     join_global_virtual_store_path,
 };
-use crate::dep_state::DepsGraphNode;
+use crate::{build_required_dep_paths, dep_state::DepsGraphNode};
 use indexmap::IndexMap;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
@@ -53,15 +53,12 @@ fn identical_leaves_hash_identically() {
     );
     let mut cache_a = HashMap::new();
     let mut cache_b = HashMap::new();
-    let mut br_a = HashMap::new();
-    let mut br_b = HashMap::new();
     let first = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br_a,
         None,
     );
     let second = calc_graph_node_hash(
@@ -70,7 +67,6 @@ fn identical_leaves_hash_identically() {
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br_b,
         None,
     );
     assert_eq!(first, second, "deterministic for same input");
@@ -85,38 +81,26 @@ fn engine_string_changes_hash() {
         DepsGraphNode { full_pkg_id: "leaf@1.0.0:sha512-x".to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
-    let mut br = HashMap::new();
     let with_engine = calc_graph_node_hash(
         &graph,
         &mut cache,
         &"leaf@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br,
         None,
     );
     let mut cache_other = HashMap::new();
-    let mut br_other = HashMap::new();
     let with_other_engine = calc_graph_node_hash(
         &graph,
         &mut cache_other,
         &"leaf@1.0.0".to_string(),
         Some("linux-x64-node22"),
         None,
-        &mut br_other,
         None,
     );
     let mut cache_null = HashMap::new();
-    let mut br_null = HashMap::new();
-    let with_null = calc_graph_node_hash(
-        &graph,
-        &mut cache_null,
-        &"leaf@1.0.0".to_string(),
-        None,
-        None,
-        &mut br_null,
-        None,
-    );
+    let with_null =
+        calc_graph_node_hash(&graph, &mut cache_null, &"leaf@1.0.0".to_string(), None, None, None);
     assert_ne!(with_engine, with_other_engine);
     assert_ne!(with_engine, with_null);
     assert_ne!(with_other_engine, with_null);
@@ -132,32 +116,29 @@ fn engine_agnostic_when_subtree_has_no_builders() {
             children: IndexMap::new(),
         },
     );
-    let built: HashSet<String> = std::iter::once("someone-else@1.0.0".to_string()).collect();
+    let build_required: HashSet<String> =
+        std::iter::once("someone-else@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
-    let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"pure-js@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&built),
-        &mut br_a,
+        Some(&build_required),
         None,
     );
     let mut cache_b = HashMap::new();
-    let mut br_b = HashMap::new();
     let linux = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"pure-js@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&built),
-        &mut br_b,
+        Some(&build_required),
         None,
     );
     assert_eq!(
         darwin, linux,
-        "pure-js subtree must hash engine-agnostically when gated by builtDepPaths",
+        "pure-js subtree must hash engine-agnostically when build gating is enabled",
     );
 }
 
@@ -171,27 +152,23 @@ fn engine_included_when_self_in_built_set() {
             children: IndexMap::new(),
         },
     );
-    let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
+    let build_required: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
     let mut cache_a = HashMap::new();
-    let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"native@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&built),
-        &mut br_a,
+        Some(&build_required),
         None,
     );
     let mut cache_b = HashMap::new();
-    let mut br_b = HashMap::new();
     let linux = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"native@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&built),
-        &mut br_b,
+        Some(&build_required),
         None,
     );
     assert_ne!(darwin, linux, "builder must partition by engine string");
@@ -214,33 +191,108 @@ fn engine_included_for_ancestor_of_builder() {
         },
     );
     let built: HashSet<String> = std::iter::once("native@1.0.0".to_string()).collect();
+    let build_required = build_required_dep_paths(&graph, &built);
     let mut cache_a = HashMap::new();
-    let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"root@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
-        Some(&built),
-        &mut br_a,
+        Some(&build_required),
         None,
     );
     let mut cache_b = HashMap::new();
-    let mut br_b = HashMap::new();
     let linux = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"root@1.0.0".to_string(),
         Some("linux-x64-node22"),
-        Some(&built),
-        &mut br_b,
+        Some(&build_required),
         None,
     );
     assert_ne!(darwin, linux, "ancestor of a builder must partition by engine string");
 }
 
 #[test]
-fn none_built_dep_paths_disables_gating() {
+fn engine_included_for_every_cycle_member_that_reaches_builder() {
+    let cycle_a = "a@1.0.0".to_string();
+    let cycle_b = "b@1.0.0".to_string();
+    let builder = "builder@1.0.0".to_string();
+    let pure_js = "pure-js@1.0.0".to_string();
+    let graph = HashMap::from([
+        (
+            cycle_a.clone(),
+            DepsGraphNode {
+                full_pkg_id: "a@1.0.0:sha512-a".to_string(),
+                children: IndexMap::from([
+                    ("b".to_string(), cycle_b.clone()),
+                    ("builder".to_string(), builder.clone()),
+                ]),
+            },
+        ),
+        (
+            cycle_b.clone(),
+            DepsGraphNode {
+                full_pkg_id: "b@1.0.0:sha512-b".to_string(),
+                children: IndexMap::from([("a".to_string(), cycle_a.clone())]),
+            },
+        ),
+        (
+            builder.clone(),
+            DepsGraphNode {
+                full_pkg_id: "builder@1.0.0:sha512-builder".to_string(),
+                children: IndexMap::new(),
+            },
+        ),
+        (
+            pure_js.clone(),
+            DepsGraphNode {
+                full_pkg_id: "pure-js@1.0.0:sha512-pure".to_string(),
+                children: IndexMap::new(),
+            },
+        ),
+    ]);
+    let built = HashSet::from([builder]);
+    let build_required = build_required_dep_paths(&graph, &built);
+
+    let hashes_for = |engine, dep_paths: [&String; 3]| {
+        let mut dep_state_cache = HashMap::new();
+        dep_paths.map(|dep_path| {
+            calc_graph_node_hash(
+                &graph,
+                &mut dep_state_cache,
+                dep_path,
+                Some(engine),
+                Some(&build_required),
+                None,
+            )
+        })
+    };
+
+    let darwin = hashes_for("darwin-arm64-node20", [&cycle_a, &cycle_b, &pure_js]);
+    let linux = hashes_for("linux-x64-node22", [&cycle_a, &cycle_b, &pure_js]);
+    let darwin_reverse = hashes_for("darwin-arm64-node20", [&cycle_b, &cycle_a, &pure_js]);
+    let linux_reverse = hashes_for("linux-x64-node22", [&cycle_b, &cycle_a, &pure_js]);
+
+    assert_ne!(darwin[0], linux[0], "first cycle member must partition by engine string");
+    assert_ne!(darwin[1], linux[1], "second cycle member must partition by engine string");
+    assert_eq!(darwin[2], linux[2], "disconnected pure-JS package stays engine-agnostic");
+    assert_ne!(
+        darwin_reverse[0], linux_reverse[0],
+        "second cycle member must partition by engine string when visited first",
+    );
+    assert_ne!(
+        darwin_reverse[1], linux_reverse[1],
+        "first cycle member must partition by engine string when visited second",
+    );
+    assert_eq!(
+        darwin_reverse[2], linux_reverse[2],
+        "disconnected pure-JS package stays engine-agnostic in reverse order",
+    );
+}
+
+#[test]
+fn no_build_required_set_disables_gating() {
     let mut graph: HashMap<String, DepsGraphNode<String>> = HashMap::new();
     graph.insert(
         "pure-js@1.0.0".to_string(),
@@ -250,28 +302,24 @@ fn none_built_dep_paths_disables_gating() {
         },
     );
     let mut cache_a = HashMap::new();
-    let mut br_a = HashMap::new();
     let darwin = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"pure-js@1.0.0".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br_a,
         None,
     );
     let mut cache_b = HashMap::new();
-    let mut br_b = HashMap::new();
     let linux = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"pure-js@1.0.0".to_string(),
         Some("linux-x64-node22"),
         None,
-        &mut br_b,
         None,
     );
-    assert_ne!(darwin, linux, "without builtDepPaths gating, engine is always part of the hash");
+    assert_ne!(darwin, linux, "without build gating, engine is always part of the hash");
 }
 
 #[test]
@@ -292,25 +340,21 @@ fn different_children_change_hash() {
         DepsGraphNode { full_pkg_id: "root@1.0.0:sha512-r".to_string(), children: IndexMap::new() },
     );
     let mut cache_a = HashMap::new();
-    let mut br_a = HashMap::new();
     let with_dep = calc_graph_node_hash(
         &graph,
         &mut cache_a,
         &"root@1.0.0(a)".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br_a,
         None,
     );
     let mut cache_b = HashMap::new();
-    let mut br_b = HashMap::new();
     let without_dep = calc_graph_node_hash(
         &graph,
         &mut cache_b,
         &"root@1.0.0(b)".to_string(),
         Some("darwin-arm64-node20"),
         None,
-        &mut br_b,
         None,
     );
     assert_ne!(with_dep, without_dep, "same root, different children must not collide on GVS hash");
@@ -325,16 +369,8 @@ fn leaf_matches_single_node_graph_hash() {
         DepsGraphNode { full_pkg_id: full.to_string(), children: IndexMap::new() },
     );
     let mut cache = HashMap::new();
-    let mut br = HashMap::new();
-    let digest = calc_graph_node_hash(
-        &graph,
-        &mut cache,
-        &"leaf@1.0.0".to_string(),
-        None,
-        None,
-        &mut br,
-        None,
-    );
+    let digest =
+        calc_graph_node_hash(&graph, &mut cache, &"leaf@1.0.0".to_string(), None, None, None);
     assert_eq!(
         calc_leaf_global_virtual_store_path(full, "leaf", "1.0.0"),
         format_global_virtual_store_path("leaf", "1.0.0", &digest),

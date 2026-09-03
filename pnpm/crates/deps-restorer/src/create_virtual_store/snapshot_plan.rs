@@ -1,17 +1,13 @@
-//! Decide which snapshots this install must materialize, and derive the
-//! store-index cache key each one is looked up by.
-//!
-//! Runs before the prefetch, whose input is the cache keys produced
-//! here.
+//! Decide which snapshots this install must materialize, pairing each
+//! with the store-index cache key [`super::CasPrefetch::start`]
+//! derived for it.
 
 use super::{
-    CreateVirtualStoreError, SnapshotWithCacheKey, gvs_slot_needs_rebuild, integrity_equal,
-    snapshot_cache_key, snapshot_deps_equal,
+    CreateVirtualStoreError, SnapshotCacheKey, SnapshotWithCacheKey, gvs_slot_needs_rebuild,
+    integrity_equal, snapshot_deps_equal,
 };
 use crate::{SkippedSnapshots, VirtualStoreLayout};
-use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry,
-};
+use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry};
 use pnpm_reporter::{BrokenModulesLog, LogEvent, LogLevel, Reporter};
 use std::{
     collections::{HashMap, HashSet},
@@ -33,8 +29,10 @@ pub(super) struct SnapshotPlanInputs<'a> {
     pub link_dependencies: bool,
     pub is_hoisted: bool,
     pub include_optional_dependencies: bool,
-    pub ignore_scripts: bool,
-    pub runtime_platform_selector: &'a PlatformSelector,
+    /// One derivation `Result` per lockfile snapshot, taken by the
+    /// entry that keeps it. See [`super::CasPrefetch::start`], which
+    /// guarantees the every-snapshot coverage.
+    pub cache_keys: &'a mut HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
 }
 
 /// The snapshots to install, the ones deliberately left alone, and the
@@ -54,16 +52,16 @@ pub(super) struct SnapshotPlan<'a> {
 /// Partition the lockfile's snapshots into what this install must do
 /// and what it may leave alone.
 ///
-/// Validation is deliberately asymmetric: survivors go through the
-/// strict cache-key derivation, because the install will actually fetch
-/// and link them, so a malformed resolution must fail before the warm
-/// batch starts rather than several seconds into it. Skipped snapshots
-/// get a lenient pass — they are not being installed, and swallowing a
-/// per-snapshot error there costs only a prefetch row.
-pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
-    inputs: &SnapshotPlanInputs<'a>,
-) -> Result<SnapshotPlan<'a>, CreateVirtualStoreError> {
-    let &SnapshotPlanInputs {
+/// Validation is deliberately asymmetric: survivors keep the strict
+/// cache-key derivation `Result`, because the install will actually
+/// fetch and link them, so a malformed resolution must fail before the
+/// warm batch starts rather than several seconds into it. Skipped
+/// snapshots get a lenient pass — they are not being installed, and
+/// swallowing a per-snapshot error there costs only a prefetch row.
+pub(super) fn plan_snapshots<Reporter: self::Reporter>(
+    inputs: SnapshotPlanInputs<'_>,
+) -> Result<SnapshotPlan<'_>, CreateVirtualStoreError> {
+    let SnapshotPlanInputs {
         snapshots,
         packages,
         current_snapshots,
@@ -74,8 +72,7 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         link_dependencies,
         is_hoisted,
         include_optional_dependencies,
-        ignore_scripts,
-        runtime_platform_selector,
+        cache_keys,
     } = inputs;
 
     // The slot probe goes through `layout.slot_dir` because under GVS
@@ -152,12 +149,9 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                 Ok(!needs_rebuild)
             })()?;
             if !current_slot_matches {
-                let cache_key = snapshot_cache_key(
-                    snapshot_key,
-                    packages,
-                    ignore_scripts,
-                    runtime_platform_selector,
-                )?;
+                let cache_key = cache_keys
+                    .remove(snapshot_key)
+                    .expect("CasPrefetch::start derived a cache key for every lockfile snapshot")?;
                 has_git_hosted_survivor |= cache_key.is_git_hosted;
                 entries.push((snapshot_key, snapshot, cache_key.value));
             }
@@ -191,14 +185,10 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
         // here.
         .filter(|(snapshot_key, _)| !skipped.contains(snapshot_key))
         .map(|(snapshot_key, snapshot)| {
-            let cache_key = snapshot_cache_key(
-                snapshot_key,
-                packages,
-                ignore_scripts,
-                runtime_platform_selector,
-            )
-            .ok()
-            .and_then(|cache_key| cache_key.value);
+            let cache_key = cache_keys
+                .remove(snapshot_key)
+                .and_then(Result::ok)
+                .and_then(|cache_key| cache_key.value);
             (snapshot_key, snapshot, cache_key)
         })
         .collect();

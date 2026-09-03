@@ -25,11 +25,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use console::Term;
 use pnpm_config::ColorMode;
 use pnpm_reporter::{FetchingProgressMessage, LogEvent, PromptAction, Reporter};
 
 use crate::{
     colors::Colors,
+    format::visible_width,
     state::{Output, ReporterState},
 };
 
@@ -216,6 +218,20 @@ struct Sink {
     /// redraw without allocating, and writes it as a single `write_all`
     /// (an atomic update other writers can't interleave into).
     frame_buf: String,
+    /// The differ's frame width, and the terminal height the frame has to fit
+    /// into. Re-read from [`terminal_size`] on every frame so a window resize
+    /// takes effect. See [`Sink::commit_overflow`].
+    columns: usize,
+    rows: Option<usize>,
+    committed_lines: usize,
+    /// How many rows the frame the differ is holding takes up, and whether it
+    /// already outgrew the terminal it was drawn on.
+    rendered_frame_rows: usize,
+    rendered_frame_outgrew_terminal: bool,
+    /// Probe for the output terminal's dimensions. A field so a test can pin
+    /// them instead of measuring the terminal the test runner happens to
+    /// inherit.
+    terminal_size: fn() -> Option<(usize, Option<usize>)>,
     throttle: Duration,
     last_write: Option<Instant>,
     prompt_active: bool,
@@ -231,7 +247,8 @@ impl Sink {
             std::io::stdout().is_terminal()
         };
         let append_only = !is_tty || FORCE_APPEND_ONLY.get().copied().unwrap_or(false);
-        let columns = if is_tty { terminal_columns().unwrap_or(80) } else { 80 };
+        let (columns, rows) =
+            if is_tty { terminal_size().unwrap_or((80, None)) } else { (80, None) };
         // pnpm's `outputMaxWidth`: `columns - 2` on a TTY, else 80.
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: colors_enabled(is_tty) };
@@ -258,6 +275,12 @@ impl Sink {
         Sink {
             state,
             diff,
+            columns,
+            rows,
+            committed_lines: 0,
+            rendered_frame_rows: 0,
+            rendered_frame_outgrew_terminal: false,
+            terminal_size,
             frame_buf: String::new(),
             throttle,
             last_write: None,
@@ -353,13 +376,17 @@ impl Sink {
                 if !frame.ends_with('\n') {
                     frame.push('\n');
                 }
+                let lines: Vec<&str> = frame[..frame.len() - 1].split('\n').collect();
+                self.refresh_terminal_size();
                 // `\r` resets the column in case an external process left the
                 // cursor mid-line; `\x1b[K` erases trailing characters on the
                 // current line; `\x1b[0J` erases anything written below the
                 // rendered frame.
                 self.frame_buf.clear();
                 self.frame_buf.push('\r');
-                self.diff.update_into(&frame, &mut self.frame_buf);
+                self.commit_overflow(&lines);
+                let visible = &frame[frame_offset_of_line(&frame, &lines, self.committed_lines)..];
+                self.diff.update_into(visible, &mut self.frame_buf);
                 self.frame_buf.push_str("\x1b[K\x1b[0J");
                 let _ = out.write_all(self.frame_buf.as_bytes());
             }
@@ -367,23 +394,119 @@ impl Sink {
         let _ = out.flush();
         true
     }
-}
 
-#[cfg(unix)]
-fn terminal_columns() -> Option<usize> {
-    let fd = if is_stderr_output() { libc::STDERR_FILENO } else { libc::STDOUT_FILENO };
-    // SAFETY: `winsize` is plain-old-data; `ioctl` only writes into it and we
-    // check the return code before reading.
-    unsafe {
-        let mut ws: libc::winsize = std::mem::zeroed();
-        (libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) == 0 && ws.ws_col > 0)
-            .then_some(ws.ws_col as usize)
+    /// Pick up a window resize, so the frame is fitted to the terminal it is
+    /// about to be drawn on rather than the one the process started in.
+    fn refresh_terminal_size(&mut self) {
+        let Some((columns, rows)) = (self.terminal_size)() else { return };
+        self.rows = rows;
+        if columns == self.columns {
+            return;
+        }
+        // The terminal was resized. The frame on screen has reflowed at the new
+        // width, so every position the differ tracked against the old one is
+        // wrong: start over below what is already there.
+        self.columns = columns;
+        self.diff = diff::Diff::new(columns);
+    }
+
+    /// Hands the lines of the frame that no longer fit on screen over to the
+    /// scrollback, appending the differential that performs the handover to
+    /// `frame_buf` and restarting the differ below them.
+    ///
+    /// The differ redraws by moving the cursor up from the end of its frame, so
+    /// it can only reach lines that are still on screen. A frame taller than
+    /// the terminal has scrolled its top away, and every later redraw then
+    /// stops at the top of the screen — overwriting output above the frame
+    /// instead of updating it (pnpm/pnpm#14270). Committing the overflow keeps
+    /// the frame within the terminal, at the cost of no longer being able to
+    /// revise what was committed.
+    fn commit_overflow(&mut self, lines: &[&str]) {
+        if lines.len() <= self.committed_lines {
+            // The frame no longer reaches past what was committed — an error
+            // frame replaces it rather than extending it. Render it whole,
+            // below.
+            self.committed_lines = 0;
+            self.diff.reset();
+            return;
+        }
+        let Some(rows) = self.rows else { return };
+        // One row is left over for the cursor line that the trailing newline
+        // puts below the frame.
+        let max_rows = rows.saturating_sub(1).max(1);
+        let uncommitted_rows: usize = lines[self.committed_lines..]
+            .iter()
+            .map(|line| rendered_rows(line, self.columns))
+            .sum();
+        // The last line always stays in the frame — there would be nothing left
+        // to redraw otherwise — so the walk upwards starts one line above it.
+        let mut first_visible = lines.len() - 1;
+        let mut frame_rows = rendered_rows(lines[first_visible], self.columns);
+        for idx in (self.committed_lines..first_visible).rev() {
+            let line_rows = rendered_rows(lines[idx], self.columns);
+            if frame_rows + line_rows > max_rows {
+                break;
+            }
+            frame_rows += line_rows;
+            first_visible = idx;
+        }
+        // A frame taller than the terminal has scrolled its own top away —
+        // whether because a line outgrew the screen or because the window shrank
+        // under it — so no cursor move reaches back into it, and growing the
+        // window again does not bring it back. Start afresh below instead,
+        // reprinting rather than revising, and leave the commit for the next
+        // frame, whose layout is one this differ laid out itself.
+        let cannot_revise =
+            self.rendered_frame_outgrew_terminal || self.rendered_frame_rows > max_rows;
+        if cannot_revise || first_visible == self.committed_lines {
+            self.rendered_frame_rows = uncommitted_rows;
+            self.rendered_frame_outgrew_terminal = uncommitted_rows > max_rows;
+            if cannot_revise || self.rendered_frame_outgrew_terminal {
+                self.diff = diff::Diff::new(self.columns);
+            }
+            return;
+        }
+        self.rendered_frame_rows = frame_rows;
+        self.rendered_frame_outgrew_terminal = false;
+        // Shrinking the frame to just the overflow leaves those lines untouched
+        // where they already are, erases the rest of the frame below them, and
+        // parks the cursor on the next line — where the restarted differ picks
+        // up.
+        let handover = format!("{}\n", lines[self.committed_lines..first_visible].join("\n"));
+        let mut buf = std::mem::take(&mut self.frame_buf);
+        self.diff.update_into(&handover, &mut buf);
+        self.frame_buf = buf;
+        self.diff = diff::Diff::new(self.columns);
+        self.committed_lines = first_visible;
     }
 }
 
-#[cfg(not(unix))]
-fn terminal_columns() -> Option<usize> {
-    None
+/// The output terminal's `(columns, rows)`, when it has them. Measured on the
+/// stream the reporter writes to, and on Windows as well as Unix — a frame is
+/// fitted to the terminal it is drawn on wherever pnpm runs.
+fn terminal_size() -> Option<(usize, Option<usize>)> {
+    let term = if is_stderr_output() { Term::stderr() } else { Term::stdout() };
+    let (rows, columns) = term.size_checked()?;
+    (columns > 0).then(|| (columns as usize, (rows > 0).then_some(rows as usize)))
+}
+
+/// Where the `index`-th of `lines` starts in the `frame` they were split from.
+/// The lines from there on are already laid out contiguously in `frame`, so the
+/// visible part of a frame is a borrow rather than a second copy of it.
+fn frame_offset_of_line(frame: &str, lines: &[&str], index: usize) -> usize {
+    let trailing: usize = lines[index..].iter().map(|line| line.len() + '\n'.len_utf8()).sum();
+    frame.len() - trailing
+}
+
+/// How many terminal rows `line` occupies once wrapped at `width`, counting the
+/// escape sequences in it as zero-width. Never zero: an empty line still takes
+/// a row. `width` is the terminal's own column count, and a zero one is read as
+/// "no wrapping" rather than dividing by it.
+fn rendered_rows(line: &str, width: usize) -> usize {
+    if width == 0 {
+        return 1;
+    }
+    visible_width(line).div_ceil(width).max(1)
 }
 
 #[cfg(test)]

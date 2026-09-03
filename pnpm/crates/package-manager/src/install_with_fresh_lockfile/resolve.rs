@@ -59,6 +59,7 @@ pub(super) fn preferred_versions_seeds(
     let mut workspace_seed = match update_seed_policy {
         UpdateSeedPolicy::KeepAll
         | UpdateSeedPolicy::KeepAllResolveAll
+        | UpdateSeedPolicy::FixLockfile
         | UpdateSeedPolicy::RefreshRevisions
         | UpdateSeedPolicy::ByImporter { .. } => from_lockfile(snapshots, manifests.as_slice()),
         UpdateSeedPolicy::DropAll { .. } => from_lockfile(None, manifests.as_slice()),
@@ -222,6 +223,9 @@ pub(super) struct ReuseSeedInputs<'a> {
     pub catalogs: &'a Catalogs,
     /// The previous run's lockfile, the only reuse candidate.
     pub wanted_lockfile: Option<&'a Lockfile>,
+    /// An `Arc` handle to the same document, when the loader holds one;
+    /// the reuse-verbatim path shares it instead of deep-copying.
+    pub wanted_lockfile_shared: Option<&'a Arc<Lockfile>>,
     pub package_extensions_checksum: Option<&'a str>,
     pub parsed_overrides: Option<&'a [pnpm_config_parse_overrides::VersionOverride]>,
     pub resolved_overrides: Option<&'a IndexMap<String, String>>,
@@ -263,6 +267,7 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
         config,
         catalogs,
         wanted_lockfile,
+        wanted_lockfile_shared,
         package_extensions_checksum,
         parsed_overrides,
         resolved_overrides,
@@ -335,7 +340,13 @@ pub(super) async fn lockfile_reuse_seed(inputs: ReuseSeedInputs<'_>) -> Option<A
     };
 
     if override_settings_match {
-        return Some(Arc::new(catalog_rewrite.unwrap_or_else(|| lockfile.clone())));
+        return Some(match catalog_rewrite {
+            Some(rewritten) => Arc::new(rewritten),
+            // `lockfile` is `wanted_lockfile` narrowed by the filter
+            // above, so the loader's handle to it reuses the parsed
+            // document verbatim.
+            None => wanted_lockfile_shared.map_or_else(|| Arc::new(lockfile.clone()), Arc::clone),
+        });
     }
     if !fast_override_eligible {
         return None;
@@ -399,6 +410,9 @@ pub(super) async fn warn_stale_convergence_overrides<Reporter: pnpm_reporter::Re
 pub(super) struct ResolvePassInputs<'a> {
     pub config: &'a Config,
     pub resolver: &'a dyn Resolver,
+    /// See
+    /// [`WorkspaceResolveOptions::share_workspace_resolutions`](pnpm_resolving_deps_resolver::WorkspaceResolveOptions::share_workspace_resolutions).
+    pub share_workspace_resolutions: bool,
     pub importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,
     pub dependency_groups: &'a [DependencyGroup],
     pub catalogs: &'a Catalogs,
@@ -416,6 +430,7 @@ pub(super) struct ResolvePassInputs<'a> {
     /// `afterAllResolved` hook.
     pub pnpmfile_hook: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     pub read_package_log: Option<pnpm_hooks::LogFn>,
+    pub finalized_package: Option<pnpm_resolving_deps_resolver::FinalizedPackageFn>,
     /// See [`crate::resolution_policy::PickPolicy`].
     pub pick_lowest_direct: bool,
     pub time_based: bool,
@@ -450,6 +465,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
     let ResolvePassInputs {
         config,
         resolver,
+        share_workspace_resolutions,
         importer_manifests,
         dependency_groups,
         catalogs,
@@ -463,6 +479,7 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         overrides_hook,
         pnpmfile_hook,
         read_package_log,
+        finalized_package,
         pick_lowest_direct,
         time_based,
         published_by,
@@ -503,11 +520,13 @@ pub(super) async fn run_resolve_pass<Reporter: pnpm_reporter::Reporter>(
         exclude_links_from_lockfile: config.exclude_links_from_lockfile,
         lockfile_dir: lockfile_dir.to_path_buf(),
         peers_suffix_max_length,
+        share_workspace_resolutions,
         manifest_hook: manifest_hook.clone(),
         overrides_hook: overrides_hook.clone(),
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log: Some(super::skipped_optional_log_fn::<Reporter>()),
+        finalized_package,
         pick_lowest_direct,
         time_based,
         wanted_lockfile: resolution_lockfile,

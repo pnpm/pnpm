@@ -753,7 +753,14 @@ mod dependency_build_scripts {
 
         // The dependency was still added and materialized; only its
         // blocked scripts did not run. Mirrors pnpm, which writes the
-        // artifacts before failing.
+        // manifest and the artifacts before failing.
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(workspace.join("package.json")).unwrap())
+                .expect("parse package.json");
+        assert_eq!(
+            manifest["dependencies"],
+            serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        );
         let pkg_dir = workspace.join(
             "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
              /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",

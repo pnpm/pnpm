@@ -678,3 +678,34 @@ test('update --latest resolves an npm: alias to the latest version of the aliase
   const lockfile = project.readLockfile()
   expect(lockfile.packages['@pnpm.e2e/foo@100.1.0']).toBeTruthy()
 })
+
+// `pnpm self-update` owns the pnpm CLI's global install; routing the request
+// through the global updater would relink the pnpm home's bins to whatever the
+// `latest` dist-tag points at (pnpm/pnpm#14270).
+describe.each(['pnpm', '@pnpm/exe', 'pnpm@12', 'my-pnpm@npm:pnpm@12'])('update -g %s', (param) => {
+  it.each([false, true])('points at self-update instead of updating pnpm (interactive: %s)', async (interactive) => {
+    prepare({})
+    await expect(update.handler({
+      ...DEFAULT_OPTS,
+      bin: path.resolve('bin'),
+      dir: process.cwd(),
+      global: true,
+      globalPkgDir: path.resolve('global'),
+      interactive,
+    }, [param])).rejects.toThrow(
+      expect.objectContaining({
+        code: 'ERR_PNPM_GLOBAL_PNPM_INSTALL',
+        message: 'Use the "pnpm self-update" command to install or update pnpm',
+      })
+    )
+  })
+})
+
+test('cliOptionsTypes registers the supply-chain policy options', () => {
+  const optionTypes = update.cliOptionsTypes()
+
+  expect(optionTypes).toHaveProperty('trust-lockfile')
+  expect(optionTypes).toHaveProperty('trust-policy')
+  expect(optionTypes).toHaveProperty('trust-policy-exclude')
+  expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
+})

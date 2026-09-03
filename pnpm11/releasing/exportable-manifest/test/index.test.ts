@@ -350,6 +350,78 @@ test('catalog deps are replaced', async () => {
   })
 })
 
+test('workspace protocol from a catalog is replaced', async () => {
+  const manifest = {
+    name: 'catalog-workspace-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: 'catalog:',
+    },
+    peerDependencies: {
+      garply: 'catalog:alias',
+      sentinel: 'catalog:alias',
+      range: 'catalog:alias',
+      union: 'catalog:alias',
+      xeroxAlias: 'catalog:path',
+    },
+  } satisfies ProjectManifest
+
+  preparePackages([
+    manifest,
+    {
+      name: 'bar',
+      version: '2.3.4',
+    },
+    {
+      name: 'plugh',
+      version: '2.0.0',
+    },
+    {
+      name: 'xerox',
+      version: '4.5.6',
+    },
+  ])
+
+  const workspaceManifest = {
+    packages: ['**', '!store/**'],
+    catalog: {
+      bar: 'workspace:^',
+    },
+    catalogs: {
+      alias: {
+        garply: 'workspace:plugh@2.0.0',
+        sentinel: 'workspace:plugh@^',
+        range: 'workspace:plugh@>=1 <3',
+        union: 'workspace:plugh@^1 || ^2',
+      },
+      path: {
+        xeroxAlias: 'workspace:../xerox',
+      },
+    },
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
+
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
+  process.chdir(manifest.name)
+
+  expect(await createExportableManifest(process.cwd(), manifest, {
+    catalogs: getCatalogsFromWorkspaceManifest(workspaceManifest),
+  })).toStrictEqual({
+    name: 'catalog-workspace-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^2.3.4',
+    },
+    peerDependencies: {
+      garply: 'npm:plugh@2.0.0',
+      sentinel: 'npm:plugh@*',
+      range: 'npm:plugh@>=1 <3',
+      union: 'npm:plugh@^1 || ^2',
+      xeroxAlias: 'npm:xerox@4.5.6',
+    },
+  })
+})
+
 test('jsr deps are replaced', async () => {
   const manifest = {
     name: 'jsr-protocol-manifest',
