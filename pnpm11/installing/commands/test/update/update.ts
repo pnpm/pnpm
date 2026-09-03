@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
+import { createTestIpcServer } from '@pnpm/test-ipc-server'
 import { addDistTag } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
@@ -23,6 +24,24 @@ test.each([
   }, dependencies)).rejects.toMatchObject({
     code: 'ERR_PNPM_PATCHES_WITH_SELECTOR',
   })
+})
+
+test('update ignores lifecycle scripts when --ignore-scripts is used', async () => {
+  await using server = await createTestIpcServer()
+
+  prepare({
+    scripts: {
+      postinstall: server.sendLineScript('postinstall'),
+    },
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+    ignoreScripts: true,
+  }, [])
+
+  expect(server.getLines()).toStrictEqual([])
 })
 
 test('update with "*" pattern', async () => {
