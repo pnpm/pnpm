@@ -153,6 +153,23 @@ pub(super) fn plan_snapshots<'a, Reporter: self::Reporter>(
                             missing: dir.to_string_lossy().into_owned(),
                         }));
                     }
+                    // A missing slot has no build marker either, so the
+                    // survivor marker rescan after this fold need not
+                    // stat under it again.
+                    marker_probe_keys.insert(snapshot_key.clone());
+                    return Ok(false);
+                }
+                // The importer populates shared GVS slots in place, so an
+                // existing directory may be an import another install is
+                // still filling or died halfway through (see
+                // `import_into_shared_dir`). Without a current-lockfile
+                // record vouching that a previous install completed the
+                // slot, require the importer's own completion invariant —
+                // pnpm's `pkgExistsAtTargetDir` probes `package.json`,
+                // which the import places last. A rare package whose file
+                // map lacks `package.json` merely re-materializes, and
+                // the import then short-circuits on its actual marker.
+                if !current_entry_unchanged && !dir.join("package.json").is_file() {
                     return Ok(false);
                 }
                 if !optional_children_match(

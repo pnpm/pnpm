@@ -165,13 +165,19 @@ impl PlanFixture {
         self.snapshots.keys().next().expect("fixture holds one snapshot")
     }
 
-    fn materialize_slot(&self) {
-        let dir = self
-            .layout
+    fn slot_package_dir(&self) -> std::path::PathBuf {
+        self.layout
             .slot_dir(self.snapshot_key())
             .join("node_modules")
-            .join(self.snapshot_key().name.to_string());
-        fs::create_dir_all(dir).expect("materialize the slot's package dir");
+            .join(self.snapshot_key().name.to_string())
+    }
+
+    fn materialize_slot(&self) {
+        let dir = self.slot_package_dir();
+        fs::create_dir_all(&dir).expect("materialize the slot's package dir");
+        // The import places the completion marker (`package.json`) last;
+        // a slot without it is a partial import.
+        fs::write(dir.join("package.json"), "{}").expect("place the completion marker");
     }
 
     fn plan(&self, force: bool) -> SnapshotPlan<'_> {
@@ -225,6 +231,22 @@ fn gvs_existing_slot_is_skipped_without_a_current_lockfile() {
     assert!(
         cache_key.is_some(),
         "the skipped entry must keep its cache key so its store-index rows still feed the build phase",
+    );
+}
+
+#[test]
+fn gvs_partial_slot_without_completion_marker_survives() {
+    let temp_dir = tempfile::tempdir().expect("create temp directory");
+    let fixture = PlanFixture::gvs(temp_dir.path(), registry_metadata());
+    fs::create_dir_all(fixture.slot_package_dir())
+        .expect("materialize the slot's package dir without its completion marker");
+
+    let plan = fixture.plan(false);
+
+    assert_eq!(
+        plan.survivors.len(),
+        1,
+        "a slot directory without its completion marker is a partial import and must be repaired",
     );
 }
 
