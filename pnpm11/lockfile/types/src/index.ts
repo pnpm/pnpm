@@ -68,6 +68,8 @@ export interface LockfilePackageInfo {
 export interface ProjectSnapshotBase {
   dependenciesMeta?: DependenciesMeta
   publishDirectory?: string
+  /** Present only when workspace links must ignore `publishDirectory`. */
+  linkDirectory?: false
 }
 
 export interface ProjectSnapshot extends ProjectSnapshotBase {

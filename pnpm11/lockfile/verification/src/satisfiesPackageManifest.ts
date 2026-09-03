@@ -63,6 +63,14 @@ export function satisfiesPackageManifest (
       detailedReason: `"publishDirectory" in the lockfile (${importer.publishDirectory ?? 'undefined'}) doesn't match "publishConfig.directory" in package.json (${pkg.publishConfig?.directory ?? 'undefined'})`,
     }
   }
+  const lockfileLinksPublishDirectory = importer.publishDirectory != null && importer.linkDirectory !== false
+  const manifestLinksPublishDirectory = pkg.publishConfig?.directory != null && pkg.publishConfig.linkDirectory !== false
+  if (lockfileLinksPublishDirectory !== manifestLinksPublishDirectory) {
+    return {
+      satisfies: false,
+      detailedReason: `"linkDirectory" in the lockfile (${lockfileLinksPublishDirectory}) doesn't match "publishConfig.linkDirectory" in package.json (${manifestLinksPublishDirectory})`,
+    }
+  }
   if (!equals(pkg.dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})) {
     return {
       satisfies: false,

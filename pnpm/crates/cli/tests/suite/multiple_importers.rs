@@ -492,8 +492,7 @@ fn custom_virtual_store_directory_in_a_workspace_with_shared_lockfile() {
     assert_recorded_virtual_store("frozen");
 }
 
-/// TS: `symlink local package from the location described in its
-/// publishConfig.directory when linkDirectory is true`
+/// TS: `relink local package when publishConfig.linkDirectory changes`
 /// (`multipleImporters.ts:1766`).
 #[test]
 fn symlink_local_package_from_publish_config_directory() {
@@ -529,11 +528,28 @@ fn symlink_local_package_from_publish_config_directory() {
         fixture.wanted().importers["packages/project-1"].publish_directory.as_deref(),
         Some("dist"),
     );
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, None);
 
     fs::remove_dir_all(fixture.workspace.join("node_modules")).expect("remove root node_modules");
     fs::remove_dir_all(project_2.join("node_modules")).expect("remove project-2 node_modules");
     fixture.run(["install", "--frozen-lockfile"]);
     assert_publish_dir_is_linked();
+
+    project_1_manifest["publishConfig"]["linkDirectory"] = json!(false);
+    write_manifest_value(&project_1, &project_1_manifest);
+
+    let output = fixture.command_at(&fixture.workspace, ["install", "--frozen-lockfile"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !output.status.success(),
+        "frozen install accepted linkDirectory drift\nstderr:\n{stderr}",
+    );
+    assert!(stderr.contains("ERR_PNPM_OUTDATED_LOCKFILE"), "got:\n{stderr}");
+
+    fixture.run(["install"]);
+    let linked = read_manifest(&project_2.join("node_modules/project-1"));
+    assert_eq!(linked["name"], "project-1");
+    assert_eq!(fixture.wanted().importers["packages/project-1"].link_directory, Some(false));
 }
 
 /// TS: `recursive install with shared-workspace-lockfile builds

@@ -191,6 +191,9 @@ function writeImporterFromLockedVersions (
   }
   if (project.manifest.publishConfig?.directory != null) {
     importer.publishDirectory = project.manifest.publishConfig.directory
+    if (project.manifest.publishConfig.linkDirectory === false) {
+      importer.linkDirectory = false
+    }
   }
   lockfile.importers[project.id] = importer
   return true

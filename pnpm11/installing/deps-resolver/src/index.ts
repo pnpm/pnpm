@@ -531,6 +531,9 @@ function addDirectDependenciesToLockfile (
 
   if (newManifest.publishConfig?.directory) {
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
+    if (newManifest.publishConfig.linkDirectory === false) {
+      newProjectSnapshot.linkDirectory = false
+    }
   }
 
   for (const linkedPkg of linkedPackages) {

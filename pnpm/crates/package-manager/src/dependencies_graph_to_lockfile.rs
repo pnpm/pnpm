@@ -492,12 +492,7 @@ fn build_importer(
         .get("dependenciesMeta")
         .filter(|value| value.as_object().is_some_and(|meta| !meta.is_empty()))
         .cloned();
-    let publish_directory = manifest
-        .value()
-        .get("publishConfig")
-        .and_then(|publish_config| publish_config.get("directory"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
+    let (publish_directory, link_directory) = manifest_publish_config(manifest);
 
     Ok(ProjectSnapshot {
         specifiers: (!specifiers.is_empty()).then_some(specifiers),
@@ -506,7 +501,25 @@ fn build_importer(
         optional_dependencies: (!optional_dependencies.is_empty()).then_some(optional_dependencies),
         dependencies_meta,
         publish_directory,
+        link_directory,
     })
+}
+
+pub(crate) fn manifest_publish_config(
+    manifest: &PackageManifest,
+) -> (Option<String>, Option<bool>) {
+    let publish_config = manifest.value().get("publishConfig");
+    let publish_directory = publish_config
+        .and_then(|publish_config| publish_config.get("directory"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let link_directory = publish_directory.as_ref().and_then(|_| {
+        publish_config
+            .and_then(|publish_config| publish_config.get("linkDirectory"))
+            .and_then(Value::as_bool)
+            .filter(|link_directory| !link_directory)
+    });
+    (publish_directory, link_directory)
 }
 
 /// Map each direct-dep alias to the manifest group it appears in.
