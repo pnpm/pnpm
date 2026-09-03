@@ -1398,6 +1398,89 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
     drop((root, npmrc_info));
 }
 
+/// A package whose every in-range version is vulnerable has no update that
+/// fixes it. The run must still fix what it can elsewhere and report the rest
+/// as remaining, rather than failing resolution outright.
+#[test]
+fn audit_fix_update_keeps_going_when_no_version_in_range_is_safe() {
+    const STUCK_PKG: &str = "@pnpm.e2e/audit-multi-version";
+    const FIXABLE_PKG: &str = "@pnpm.e2e/multi-version-b";
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpr_url = npmrc_info.mock_instance.url();
+
+    // `^2.0.0` admits only vulnerable 2.x versions of the first package, while
+    // `>=1.0.0` leaves the second one a safe 2.0.0 to fall back to.
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{"name":"audit-fix-update","version":"1.0.0","dependencies":{{"{STUCK_PKG}":"^2.0.0","{FIXABLE_PKG}":">=1.0.0"}}}}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet_cmd(&workspace, ["install"]).assert().success();
+    assert!(
+        workspace.join("node_modules/.pnpm").join("@pnpm.e2e+multi-version-b@3.1.0").exists(),
+        "install should pick the highest in-range version",
+    );
+
+    let mut audit_registry = mockito::Server::new();
+    let body = format!(
+        "{{\n{},\n{}\n}}",
+        advisory_entry(STUCK_PKG, 9001, "high", ">=2.0.0", "vulnerable 2.x", "GHSA-mult-1111-2222",),
+        advisory_entry(
+            FIXABLE_PKG,
+            9002,
+            "high",
+            ">=3.0.0",
+            "vulnerable 3.x",
+            "GHSA-mult-3333-4444",
+        ),
+    );
+    let mock = audit_registry
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create();
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={audit}\n@pnpm.e2e:registry={pnpr}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\nfetchRetries=0\n",
+            audit = audit_registry.url(),
+            pnpr = pnpr_url,
+        ),
+    )
+    .expect("rewrite .npmrc");
+
+    let output = pacquet_cmd(&workspace, ["audit", "--fix", "update"])
+        .output()
+        .expect("run audit --fix update");
+
+    // Remaining vulnerabilities still exit 1; what must not happen is the
+    // resolver aborting the run.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "stderr:\n{stderr}");
+    assert!(stderr.is_empty(), "the run should report no error:\n{stderr}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("1 vulnerability was fixed, 1 vulnerability remains."),
+        "stdout should report one fix and one remaining:\n{stdout}",
+    );
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("audit-multi-version@2.0.1"),
+        "the vulnerable pick with no safe alternative should stay:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("multi-version-b@2.0.0"),
+        "the package with a safe version in range should still be updated:\n{lockfile}",
+    );
+    mock.assert();
+    drop((root, npmrc_info));
+}
+
 /// `--fix update` with `minimumReleaseAge`: the inferred patched version
 /// (3.0.0) has no entry in the packument's `time` map because it was never
 /// published, so no exclusion entry is written for it.
@@ -1483,9 +1566,22 @@ fn advisory_response(
     title: &str,
     ghsa: &str,
 ) -> String {
+    let entry = advisory_entry(package, id, severity, vulnerable_versions, title, ghsa);
+    format!("{{\n{entry}\n}}")
+}
+
+/// One `"<package>": [ … ]` member of a bulk-advisory response body, so a
+/// test can serve advisories for several packages at once.
+fn advisory_entry(
+    package: &str,
+    id: u64,
+    severity: &str,
+    vulnerable_versions: &str,
+    title: &str,
+    ghsa: &str,
+) -> String {
     format!(
-        r#"{{
-  "{package}": [
+        r#"  "{package}": [
     {{
       "id": {id},
       "url": "https://github.com/advisories/{ghsa}",
@@ -1494,8 +1590,7 @@ fn advisory_response(
       "vulnerable_versions": "{vulnerable_versions}",
       "cwe": []
     }}
-  ]
-}}"#,
+  ]"#,
     )
 }
 

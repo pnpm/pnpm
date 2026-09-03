@@ -20,8 +20,8 @@ use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_resolver_base::{
-    PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
-    parse_packument_timestamp,
+    GuardExhaustionPolicy, PackageVersionGuard, PackageVersionGuardDecision,
+    PackageVersionGuardFuture, parse_packument_timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -729,6 +729,13 @@ impl PackageVersionGuard for VulnerabilityGuard {
                 PackageVersionGuardDecision::Allow
             })
         })
+    }
+
+    /// A package whose every in-range version is vulnerable stays on the
+    /// version it would have resolved to anyway; `--fix update` then reports
+    /// its advisories as remaining instead of failing the whole run.
+    fn exhaustion_policy(&self) -> GuardExhaustionPolicy {
+        GuardExhaustionPolicy::AcceptRejected
     }
 }
 
