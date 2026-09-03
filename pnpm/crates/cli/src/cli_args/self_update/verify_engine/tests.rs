@@ -312,7 +312,6 @@ async fn does_not_retry_an_unavailable_fallback_registry() {
             .await
             .expect("failure expected");
 
-    eprintln!("FAILURE: {}", failure.reason);
     assert!(matches!(failure.category, FailureCategory::Unreachable));
     fallback_mock.assert_async().await;
 }

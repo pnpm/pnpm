@@ -410,6 +410,29 @@ describe('verifyInstalledPackageSignatures', () => {
     expect(fallbackRequests).toBe(1)
   })
 
+  test('keeps primary and fallback retry policies separate when they share a registry', async () => {
+    const key = createSigningKey()
+    let sharedRegistryRequests = 0
+    mockPackument({ signatures: [] })
+    getMockAgent().get(SECOND_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/signed-pkg', method: 'GET' })
+      .reply(() => {
+        sharedRegistryRequests++
+        return { statusCode: 502, data: {} }
+      })
+      .persist()
+
+    await verifyInstalledPackageSignatures([
+      { name: 'signed-pkg', registry: REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+      { name: 'signed-pkg', registry: SECOND_REGISTRY, version: '1.0.0', integrity: INTEGRITY },
+    ], [toRegistryKey(key)], () => undefined, {
+      retry: { retries: 2, minTimeout: 1, maxTimeout: 1 },
+      fallbackRegistry: SECOND_REGISTRY,
+    })
+
+    expect(sharedRegistryRequests).toBe(4)
+  })
+
   test('reports absent when a reachable fallback registry has no signature either', async () => {
     const key = createSigningKey()
     mockPackument({ signatures: [] })
