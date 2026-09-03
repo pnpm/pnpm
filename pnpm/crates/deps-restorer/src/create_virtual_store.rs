@@ -375,6 +375,14 @@ pub enum CreateVirtualStoreError {
         #[error(source)]
         error: std::io::Error,
     },
+
+    #[display("Failed to inspect the virtual store slot at {path:?}: {error}")]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_INSPECT_VIRTUAL_STORE_SLOT))]
+    InspectVirtualStoreSlot {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
 }
 
 impl CreateVirtualStore<'_> {
@@ -512,6 +520,7 @@ impl CreateVirtualStore<'_> {
             allow_build_policy,
             skipped,
             link_dependencies: !is_hoisted && config.symlink,
+            force: config.force,
             is_hoisted,
             include_optional_dependencies,
             cache_keys: &mut snapshot_cache_keys,
