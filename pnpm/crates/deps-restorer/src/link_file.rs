@@ -246,13 +246,24 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
         // the `-exec` suffix (idempotent, a no-op for non-exec entries)
         // before adopting the dirent.
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link).map_err(
-                |error| LinkFileError::Import {
+            match pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link) {
+                Ok(()) => Ok(()),
+                // Nothing serializes shared-slot imports across
+                // processes: the writer that owns the target may
+                // replace it again before this chmod lands. Whoever
+                // unlinked the path writes an equivalent
+                // content-addressed file and restores its exec bit in
+                // turn, so `NotFound` means another writer finished
+                // the job — the same tolerance the bin-shim chmod
+                // applies (`chmod_tolerating_removal` in
+                // `pnpm-cmd-shim`, pnpm/pnpm#14353).
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(LinkFileError::Import {
                     from: source_file.to_path_buf(),
                     to: target_link.to_path_buf(),
                     error,
-                },
-            )
+                }),
+            }
         }
         Err(error) => Err(LinkFileError::Import {
             from: source_file.to_path_buf(),
