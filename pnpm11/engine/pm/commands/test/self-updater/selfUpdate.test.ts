@@ -1788,6 +1788,37 @@ describe('native pnpm shims', () => {
     expectPnpmShimRunsNative(binDir)
   })
 
+  test('a failed cache repair restores the original launcher', async () => {
+    const opts = prepare()
+    const installDir = seedGlobalPnpm(opts, '12.3.1')
+    const nativeContent = `':' //; exec /usr/bin/env node "$0" "$@"
+process.exit(0)
+`
+    const binDir = await createStaleNativePnpmShim(installDir, '12.3.1', nativeContent)
+    const shimPath = path.join(binDir, 'pnpm')
+    const originalShim = fs.readFileSync(shimPath, 'utf8')
+    expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
+
+    const rename = fs.promises.rename.bind(fs.promises)
+    let publicationFailed = false
+    const renameSpy = jest.spyOn(fs.promises, 'rename').mockImplementation(async (oldPath, newPath) => {
+      if (!publicationFailed && newPath === binDir) {
+        publicationFailed = true
+        throw new Error('injected publication failure')
+      }
+      await rename(oldPath, newPath)
+    })
+    try {
+      await expect(installPnpm('12.3.1', opts)).rejects.toThrow('injected publication failure')
+    } finally {
+      renameSpy.mockRestore()
+    }
+
+    expect(fs.readFileSync(shimPath, 'utf8')).toBe(originalShim)
+    expect(spawn.sync(shimPath, ['--version']).status).toBe(0)
+    expect(fs.readdirSync(installDir).filter((entry) => entry.startsWith('.bin.'))).toEqual([])
+  })
+
   test('does not migrate native launchers from before pnpm 12.3', async () => {
     const opts = prepare()
     const installDir = seedGlobalPnpm(opts, '12.2.0')
@@ -1802,7 +1833,7 @@ describe('native pnpm shims', () => {
   })
 })
 
-function seedNativePnpmPackage (installDir: string, version: string): void {
+function seedNativePnpmPackage (installDir: string, version: string, nativeContent?: string): void {
   const pkgDir = path.join(installDir, 'node_modules', 'pnpm')
   fs.mkdirSync(pkgDir, { recursive: true })
   fs.writeFileSync(path.join(installDir, 'package.json'), JSON.stringify({ dependencies: { pnpm: version } }))
@@ -1818,11 +1849,16 @@ function seedNativePnpmPackage (installDir: string, version: string): void {
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
   const platformDir = path.join(installDir, 'node_modules', '@pnpm', exePlatformPkgDirNameNext(platform, arch, familySync()))
   fs.mkdirSync(platformDir, { recursive: true })
-  fs.copyFileSync(platform === 'win32' ? process.execPath : '/usr/bin/true', path.join(platformDir, executable))
+  const nativePath = path.join(platformDir, executable)
+  if (nativeContent == null) {
+    fs.copyFileSync(platform === 'win32' ? process.execPath : '/usr/bin/true', nativePath)
+  } else {
+    fs.writeFileSync(nativePath, nativeContent, { mode: 0o755 })
+  }
 }
 
-async function createStaleNativePnpmShim (installDir: string, version: string): Promise<string> {
-  seedNativePnpmPackage(installDir, version)
+async function createStaleNativePnpmShim (installDir: string, version: string, nativeContent?: string): Promise<string> {
+  seedNativePnpmPackage(installDir, version, nativeContent)
   const binDir = path.join(installDir, 'bin')
   await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: () => {} })
   expect(linkExePlatformBinary(installDir, 'pnpm')).toBe(true)

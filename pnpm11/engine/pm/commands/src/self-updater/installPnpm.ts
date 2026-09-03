@@ -148,7 +148,6 @@ export async function installPnpmToStore (
   if (fs.existsSync(path.join(pnpmPkgDir, 'package.json'))) {
     if (!fs.existsSync(binDir)) {
       await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
-      if (pnpmVersionNeedsShimRepair(pnpmVersion)) markPnpmShimReady(binDir)
     } else if (pnpmVersionNeedsShimRepair(pnpmVersion)) {
       await ensurePnpmShimReady(pnpmGvsPath, pkgName, binDir)
     }
@@ -177,7 +176,6 @@ export async function installPnpmToStore (
 
     // Now the GVS should be populated — create bins alongside the GVS entry
     await linkPnpmBins(pnpmGvsPath, pkgName, binDir)
-    if (pnpmVersionNeedsShimRepair(pnpmVersion)) markPnpmShimReady(binDir)
 
     return { binDir }
   } finally {
@@ -270,7 +268,6 @@ async function installPnpmToGlobalDir (
     }
 
     await linkPnpmBins(installDir, pkgName, binDir)
-    if (pnpmVersionNeedsShimRepair(version)) markPnpmShimReady(binDir)
 
     // Before the caller points PNPM_HOME here, so a broken release is discarded
     // rather than swapped in.
@@ -573,16 +570,67 @@ async function relinkBinsAtomically (baseDir: string, binDir: string): Promise<v
     `.${path.basename(binDir)}.${process.pid}.${randomUUID()}.tmp`
   )
   try {
-    await fs.promises.mkdir(tempBinDir, { recursive: true })
-    await linkBins(path.join(baseDir, 'node_modules'), tempBinDir, { warn: noop })
-    await fs.promises.mkdir(binDir, { recursive: true })
-    const entries = await fs.promises.readdir(tempBinDir)
-    await Promise.all(entries.map(async (entry) => fs.promises.rename(
-      path.join(tempBinDir, entry),
-      path.join(binDir, entry)
+    try {
+      await fs.promises.cp(binDir, tempBinDir, { recursive: true })
+    } catch (err: unknown) {
+      if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+      await fs.promises.mkdir(tempBinDir, { recursive: true })
+    }
+    const removalResults = await Promise.allSettled(['pnpm', 'pnpm.cmd', 'pnpm.ps1'].map(async (name) => fs.promises.rm(
+      path.join(tempBinDir, name),
+      { force: true }
     )))
+    const removalError = removalResults.find((result) => result.status === 'rejected')
+    if (removalError?.status === 'rejected') throw removalError.reason
+    await linkBins(path.join(baseDir, 'node_modules'), tempBinDir, { warn: noop })
+    await fs.promises.writeFile(pnpmShimReadyMarker(tempBinDir), '')
+    await publishBinDir(tempBinDir, binDir)
   } finally {
     await fs.promises.rm(tempBinDir, { recursive: true, force: true })
+  }
+}
+
+async function publishBinDir (tempBinDir: string, binDir: string): Promise<void> {
+  const backupBinDir = uniqueTempPath(binDir)
+  let hasBackup = false
+  try {
+    await fs.promises.rename(binDir, backupBinDir)
+    hasBackup = true
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+  }
+  try {
+    await fs.promises.rename(tempBinDir, binDir)
+  } catch (publishError: unknown) {
+    if (await pathExists(binDir)) {
+      if (hasBackup) await fs.promises.rm(backupBinDir, { recursive: true, force: true })
+      return
+    }
+    if (hasBackup) {
+      try {
+        await fs.promises.rename(backupBinDir, binDir)
+      } catch (rollbackError: unknown) {
+        throw Object.assign(
+          new Error(
+            `Failed to publish pnpm bins and restore the original directory at ${binDir}. ` +
+            `Rollback error: ${String(rollbackError)}`
+          ),
+          { cause: publishError }
+        )
+      }
+    }
+    throw publishError
+  }
+  if (hasBackup) await fs.promises.rm(backupBinDir, { recursive: true, force: true })
+}
+
+async function pathExists (file: string): Promise<boolean> {
+  try {
+    await fs.promises.access(file)
+    return true
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') return false
+    throw err
   }
 }
 
