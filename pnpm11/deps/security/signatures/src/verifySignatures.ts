@@ -463,7 +463,9 @@ export interface VerifyInstalledSignaturesOptions extends VerifySignaturesOption
    * Signatures are verified against the caller's trusted keys over the installed
    * integrity, so where the signature bytes come from does not affect what they
    * prove — a package passes only when some genuine signature validates over the
-   * bytes actually installed. See https://github.com/pnpm/pnpm/issues/13147.
+   * bytes actually installed. The fallback request is attempted once because it
+   * is an optional availability check after the primary registry already failed
+   * to provide a verifiable signature. See https://github.com/pnpm/pnpm/issues/13147.
    */
   fallbackRegistry?: string
 }
@@ -524,7 +526,13 @@ async function findSignatureFailure (
   const { fallbackRegistry } = ctx.opts
   if (fallbackRegistry == null || equalRegistries(pkg.registry, fallbackRegistry)) return primary
 
-  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, ctx)
+  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, {
+    ...ctx,
+    opts: {
+      ...ctx.opts,
+      retry: { ...ctx.opts.retry, retries: 0 },
+    },
+  })
   // A genuine signature validating over the installed integrity proves the
   // installed bytes regardless of which registry the primary attempt hit or
   // what it answered (e.g. a mirror serving stale signatures from a rotated

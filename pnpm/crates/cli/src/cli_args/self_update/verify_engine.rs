@@ -362,7 +362,9 @@ impl SignatureFailure {
 /// validates over the lockfile bytes — from the component's own registry,
 /// or from `fallback_registry` when its own registry cannot provide a
 /// verifiable one. `fallback_registry` is [`CANONICAL_NPM_REGISTRY`] in
-/// production and a mock registry in unit tests.
+/// production and a mock registry in unit tests. The fallback is attempted
+/// once because it is an optional availability check after the primary
+/// registry already failed to provide a verifiable signature.
 async fn find_signature_failure(
     component: &EngineComponent,
     fallback_registry: &str,
@@ -416,7 +418,7 @@ async fn find_signature_failure(
         fallback_registry,
         keys,
         client,
-        retry_opts,
+        RetryOpts { retries: 0, ..retry_opts },
         config,
     )
     .await?;
