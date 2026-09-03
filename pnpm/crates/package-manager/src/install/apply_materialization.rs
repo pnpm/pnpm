@@ -899,6 +899,14 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         materialized_current_lockfile: materialized_current_lockfile.as_ref(),
     })?;
 
+    // Nothing below reads the materialized lockfiles, and each holds a
+    // workspace-scale importer map.
+    pnpm_fs::background_drop((
+        selected_current_lockfile,
+        materialized_current_lockfile,
+        current_lockfile,
+    ));
+
     // Write `node_modules/.pnpm-workspace-state-v1.json`.
     // pnpm's `verifyDepsBeforeRun` gate bails to "outdated" the
     // moment this file is missing, forcing `pnpm install` to rerun.
@@ -920,7 +928,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
     )
     .map_err(InstallError::WriteWorkspaceState)?;
 
-    report_install_completion::<Reporter>(ReportInstallCompletionInputs {
+    let completion = report_install_completion::<Reporter>(ReportInstallCompletionInputs {
         config,
         catalogs: peer_catalogs,
         workspace_root: &workspace_root,
@@ -931,5 +939,7 @@ pub(super) async fn apply_materialization_result<Reporter: self::Reporter + 'sta
         resolved_lockfile: fresh_lockfile.as_ref(),
         peer_issue_importer_ids: &peer_issue_importer_ids,
         installed_importer_ids,
-    })
+    });
+    pnpm_fs::background_drop(fresh_lockfile);
+    completion
 }

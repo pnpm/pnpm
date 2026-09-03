@@ -1369,10 +1369,7 @@ impl WorkspaceTreeCtx {
             take_locked(&mut self.resolved_workspace_final_by_wanted),
             take_locked(&mut self.children_specs_by_id),
         );
-        // A spawn failure drops the closure — caches and all — right
-        // here, so a host that cannot take another thread just pays the
-        // drop inline, as before.
-        drop(std::thread::Builder::new().spawn(move || drop(dedup_caches)));
+        pnpm_fs::background_drop(dedup_caches);
         tree
     }
 }

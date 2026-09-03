@@ -1,3 +1,4 @@
+mod background_drop;
 mod dir_lock;
 mod ensure_file;
 mod is_subdir;
@@ -9,6 +10,7 @@ mod retry;
 mod symlink_dir;
 mod write_atomic;
 
+pub use background_drop::background_drop;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;
 pub use is_subdir::is_subdir;
