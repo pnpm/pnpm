@@ -1245,9 +1245,22 @@ fn shared_workspace_key(
     }
     // The consumer scope is exactly what the shared key drops. Every
     // `workspace:` selector carries one, so its absence means this edge is not
-    // the shape assumed here.
-    let mut wanted_key = cache_key.clone();
-    wanted_key.6.take()?;
+    // the shape assumed here. Checked before the clone so the dropped
+    // slot's path is never copied just to be discarded.
+    cache_key.6.as_ref()?;
+    let wanted_key = (
+        cache_key.0.clone(),
+        cache_key.1.clone(),
+        cache_key.2,
+        cache_key.3,
+        cache_key.4,
+        cache_key.5,
+        None,
+        cache_key.7.clone(),
+        cache_key.8.clone(),
+        cache_key.9.clone(),
+        cache_key.10,
+    );
     Some(SharedWorkspaceWantedKey::new(
         wanted_key,
         wanted.prev_specifier.clone(),
