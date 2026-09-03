@@ -1,15 +1,21 @@
+import { execFile } from 'node:child_process'
 import path from 'node:path'
+import { promisify } from 'node:util'
 
 import { beforeAll, describe, expect, it, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import { install, update } from '@pnpm/installing.commands'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { addDistTag } from '@pnpm/testing.registry-mock'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 
 import { DEFAULT_OPTS } from '../utils/index.js'
+
+const execFileAsync = promisify(execFile)
+const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
 test.each([
   { dependencies: ['is-positive'], options: { patches: true } },
@@ -29,18 +35,36 @@ test.each([
 test('update ignores lifecycle scripts when --ignore-scripts is used', async () => {
   await using server = await createTestIpcServer()
 
-  prepare({
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  await execFileAsync(process.execPath, [
+    pnpmBin,
+    'install',
+    `--registry=${registry}`,
+  ])
+
+  project.writePackageJson({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+    },
     scripts: {
       postinstall: server.sendLineScript('postinstall'),
     },
   })
 
-  await update.handler({
-    ...DEFAULT_OPTS,
-    dir: process.cwd(),
-    ignoreScripts: true,
-  }, [])
+  await execFileAsync(process.execPath, [
+    pnpmBin,
+    'update',
+    '@pnpm.e2e/foo@2.0.0',
+    '--ignore-scripts',
+    `--registry=${registry}`,
+  ])
 
+  expect(loadJsonFileSync<ProjectManifest>('package.json').dependencies?.['@pnpm.e2e/foo']).toBe('2.0.0')
   expect(server.getLines()).toStrictEqual([])
 })
 
