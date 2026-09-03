@@ -1541,13 +1541,10 @@ pub(super) async fn warm_children_resolutions<Chain>(
     .await;
 }
 
-/// Warm every child of `result`, then recurse into each child the
-/// moment it resolves, so a subtree's metadata is requested as soon
-/// as its parent's arrives rather than one level per barrier. The
-/// per-package-id claim ([`claim_children_warmup`]) bounds the
-/// recursion to one visit per package across the whole walk, real
-/// seeds included, so the fan-out is the graph's size, not its path
-/// count.
+/// Warm the resolutions of `result`'s whole subtree. Speculative only:
+/// nothing is recorded in the tree, every package is visited at most
+/// once across the walk, and a child whose own peers shadow it is
+/// skipped the way the real seed path skips it.
 #[async_recursion]
 async fn warm_result_children<Chain>(
     ctx: &TreeCtx,
@@ -1616,17 +1613,26 @@ async fn warm_result_children<Chain>(
                 else {
                     return;
                 };
-                let Ok(child_id) = build_pkg_id_with_patch_hash(ctx, &child).await else {
-                    return;
-                };
-                if child_id.starts_with("link:") || !claim_children_warmup(ctx, &child_id) {
+                // Claimed by the resolver's raw id: the patch-qualified
+                // id is only built on the real walk, whose bookkeeping
+                // decides which patches count as applied.
+                let child_id = child.id.as_str();
+                if child_id.starts_with("link:") || !claim_children_warmup(ctx, child_id) {
                     return;
                 }
+                // The parent alias scope is not tracked speculatively;
+                // with `autoInstallPeers` off nothing is shadowed and
+                // the real walk drops the edge instead.
+                let child_peer_shadowed = peer_shadowed_dependencies(
+                    child.manifest.as_deref(),
+                    &ParentPkgAliases::root(HashSet::default()),
+                    ctx.workspace.auto_install_peers,
+                );
                 warm_result_children(
                     ctx,
                     resolver,
                     &child,
-                    &HashSet::default(),
+                    &child_peer_shadowed,
                     resolves_children_through_catalogs(&child),
                     depth + 1,
                 )
