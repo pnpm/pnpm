@@ -1635,8 +1635,12 @@ fn update_parent_index(
     previous: Option<&[crate::resolved_tree::ChildEdge]>,
     next: &[crate::resolved_tree::ChildEdge],
 ) {
+    if previous.is_some_and(|previous| previous == next) {
+        return;
+    }
+    let kept: HashSet<&str> = next.iter().map(|edge| edge.pkg_id.as_ref()).collect();
     for edge in previous.into_iter().flatten() {
-        if next.iter().any(|kept| kept.pkg_id == edge.pkg_id) {
+        if kept.contains(edge.pkg_id.as_ref()) {
             continue;
         }
         if let Some(parents) = parents_by_id.get_mut(&edge.pkg_id) {
