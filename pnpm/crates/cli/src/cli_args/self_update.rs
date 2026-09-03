@@ -554,7 +554,12 @@ fn refresh_global_shims(
     installed: &install_pnpm::InstallPnpmResult,
     version: &str,
 ) -> miette::Result<()> {
-    if !node_semver::Version::parse(version).is_ok_and(|version| version.major >= 12) {
+    // Named native shims first shipped in pnpm 12.3. An older engine
+    // cannot interpret their sidecars, so leave the working shim engine
+    // in place when downgrading.
+    if !node_semver::Version::parse(version)
+        .is_ok_and(|version| (version.major, version.minor) >= (12, 3))
+    {
         return Ok(());
     }
     let executable =
