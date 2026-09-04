@@ -835,17 +835,11 @@ where
         LinkBinsError::ProbeShimSource { path: probe_path.to_path_buf(), error }
     })?;
     let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
+    // Any failure — a lost race, a dangling symlink squatting on the
+    // path, a `Sys` without exclusive creation — goes to the general
+    // path, whose replacement is atomic. No content is ever read back
+    // through the path here: a read would follow a raced symlink.
     if Sys::write_new(shim_path, sh_body.as_bytes()).is_err() {
-        // Lost the creation race (or `Sys` lacks exclusive creation). A
-        // winner that wrote this same shim needs no rewrite — accept it
-        // rather than fall into the replace path, whose removal would
-        // yank a good shim out from under sibling installs racing over
-        // a shared slot's `.bin`.
-        if equivalent_regular_file::<Sys>(shim_path, sh_body.as_bytes()) {
-            chmod_tolerating_removal(shim_path, Sys::set_executable)?;
-            cache.ensure_target_executable_once::<Sys>(probe_path)?;
-            return Ok(true);
-        }
         return Ok(false);
     }
     if cfg!(windows) {
@@ -1152,15 +1146,6 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
         }
     }
     Ok(filled)
-}
-
-/// Whether `path` is a regular file (not a symlink — a raced link must
-/// not be accepted even when the read, which follows it, returns
-/// matching bytes) holding exactly `bytes`. The winner-acceptance test
-/// of the fresh-create path.
-fn equivalent_regular_file<Sys: FsReadToString>(path: &Path, bytes: &[u8]) -> bool {
-    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
-        && matches!(Sys::read_to_string(path), Ok(existing) if existing.as_bytes() == bytes)
 }
 
 /// Replace whatever occupies `path` with a fresh regular file holding
