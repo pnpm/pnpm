@@ -197,7 +197,7 @@ fn propagates_features_from_the_selected_older_candidate() {
 #[test]
 fn dep_activation_suppresses_the_implicit_optional_feature() {
     let metadata =
-        METADATA.replacen("\"req\": \"^1.0\"", "\"req\": \"^1.0\", \"features\": [\"codec\"]", 1);
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["codec"]"#, 1);
     let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"codec","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"full":["dep:codec"]},"yanked":false}"#;
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
