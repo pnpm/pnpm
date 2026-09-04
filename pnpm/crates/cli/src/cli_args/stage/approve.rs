@@ -465,19 +465,33 @@ fn manifest_for_graph(mut manifest: Value) -> Value {
                 let spec = spec.as_str()?;
                 let (registry_name, registry_spec) =
                     PackageManifest::resolve_registry_dependency(name, spec);
-                let (name, spec) = if Version::parse(registry_spec).is_ok()
-                    || Range::parse(registry_spec).is_ok()
-                {
-                    (registry_name, registry_spec)
-                } else {
-                    (name.as_str(), spec)
-                };
+                let (name, spec) =
+                    if let Some(registry_spec) = registry_spec_for_graph(registry_spec) {
+                        (registry_name, registry_spec)
+                    } else {
+                        (name.as_str(), spec)
+                    };
                 Some((name.to_owned(), Value::String(spec.to_owned())))
             })
             .collect();
         manifest[field] = Value::Object(normalized);
     }
     manifest
+}
+
+fn registry_spec_for_graph(spec: &str) -> Option<&str> {
+    if Version::parse(spec).is_ok() {
+        return Some(spec);
+    }
+    let mut contains_empty_set = false;
+    for set in spec.split("||") {
+        if set.trim().is_empty() {
+            contains_empty_set = true;
+        } else if Range::parse(set.trim()).is_err() {
+            return None;
+        }
+    }
+    if contains_empty_set { Some("*") } else { Range::parse(spec).ok().map(|_| spec) }
 }
 
 fn render_package_count(count: usize) -> String {

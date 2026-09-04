@@ -109,6 +109,16 @@ fn npm_aliases_to_tags_keep_their_alias_name() {
 }
 
 #[test]
+fn npm_alias_ranges_with_an_empty_set_match_every_version() {
+    let manifest = manifest_for_graph(json!({
+        "name": "dependent",
+        "version": "1.0.0",
+        "dependencies": { "local-name": "npm:dependency@^1.0.0 || " },
+    }));
+    assert_eq!(manifest["dependencies"], json!({ "dependency": "*" }));
+}
+
+#[test]
 fn stage_ids_are_validated_as_uuids() {
     let params = vec![
         "approve".to_owned(),

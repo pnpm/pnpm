@@ -416,13 +416,13 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
                 "name": "@scope/dependent",
                 "version": "1.0.0",
                 "dependencies": {
-                    "local-name": "npm:@scope/dependency@1.0.0",
+                    "local-name": "npm:@scope/dependency@^1.0.0 || ",
                 },
             })),
         ),
         (
             SECOND_STAGE_ID,
-            package_tarball(&json!({ "name": "@scope/dependency", "version": "1.0.0" })),
+            package_tarball(&json!({ "name": "@scope/dependency", "version": "9.0.0" })),
         ),
     ]
     .into_iter()
