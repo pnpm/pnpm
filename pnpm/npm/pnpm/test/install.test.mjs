@@ -46,10 +46,38 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 })
 
+// pnpm blocks a dependency's build scripts by default, so this is what an older
+// pnpm leaves behind when a `packageManager` pin sends it to fetch a newer one.
+// Its two bin-link shapes are covered separately: a shim that execs the target,
+// and a symlink to it.
+const PNPM_SKIPS_THE_PLACEHOLDER = process.platform === 'win32' &&
+  'Windows cannot run an extension-less file'
+
+test('pnpm links a shim that runs the placeholder when it skipped the build scripts', {
+  skip: PNPM_SKIPS_THE_PLACEHOLDER,
+}, (t) => {
+  const { projectDir } = installFixtureWithPnpm(t, [])
+  const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
+  assert.equal(fs.lstatSync(bin).isSymbolicLink(), false)
+
+  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+})
+
+// The shape `installPnpmToTools` produces for the version store a
+// `packageManager` pin is delegated to.
+test('pnpm links a symlink that runs the placeholder when executables are symlinked', {
+  skip: PNPM_SKIPS_THE_PLACEHOLDER,
+}, (t) => {
+  const { projectDir } = installFixtureWithPnpm(t, ['--config.node-linker=hoisted'])
+  const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
+  assert.equal(fs.lstatSync(bin).isSymbolicLink(), true)
+
+  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+})
+
 /**
- * Install the wrapper fixture globally with npm into a prefix of its own, with
- * the host's platform package as a `file:` optional dependency. Throws when npm
- * fails; the temp tree is removed when `t` ends.
+ * Install the wrapper fixture globally with npm into a prefix of its own.
+ * Throws when npm fails; the temp tree is removed when `t` ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {string[]} npmFlags Extra `npm install` flags, e.g. `--ignore-scripts`.
@@ -57,6 +85,65 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
  *   landed in, and the fixture wrapper it was installed from.
  */
 function installFixtureWithNpm (t, npmFlags) {
+  const { tempDir, fixtureDir } = writeFixture(t)
+
+  const prefix = path.join(tempDir, 'prefix')
+  runNpm([
+    'install',
+    '--global',
+    '--install-links=true',
+    ...npmFlags,
+    '--prefix',
+    prefix,
+    fixtureDir,
+  ], tempDir)
+  return { prefix, fixtureDir }
+}
+
+/**
+ * Install the wrapper fixture into a project of its own with the `pnpm` on
+ * PATH, from a tarball so it is unpacked rather than linked, and with its build
+ * scripts skipped. Throws when pnpm fails; the temp tree is removed when `t`
+ * ends.
+ *
+ * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @param {string[]} pnpmFlags Extra `pnpm add` flags, e.g. a node linker.
+ * @returns {{ projectDir: string, fixtureDir: string }} The project the bin was
+ *   linked into, and the fixture wrapper it was installed from.
+ */
+function installFixtureWithPnpm (t, pnpmFlags) {
+  const { tempDir, fixtureDir } = writeFixture(t)
+  runNpm(['pack', fixtureDir, '--pack-destination', tempDir], tempDir)
+  const tarball = path.join(tempDir, 'pnpm-install-fixture-1.0.0.tgz')
+
+  const projectDir = path.join(tempDir, 'project')
+  fs.mkdirSync(projectDir)
+  fs.writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'project', private: true }))
+  execFileSync('pnpm', [
+    'add',
+    tarball,
+    // The fixture lives under the OS temp dir, so nothing above it should be
+    // read as a workspace, and nothing should reach the caller's store.
+    '--ignore-workspace',
+    '--store-dir',
+    path.join(tempDir, 'store'),
+    '--ignore-scripts',
+    ...pnpmFlags,
+  ], { cwd: projectDir, stdio: 'pipe' })
+  return { projectDir, fixtureDir }
+}
+
+/**
+ * The wrapper as a package manager receives it: the files a script-less install
+ * leaves behind, and the host's platform package as a `file:` optional
+ * dependency. Filesystem errors propagate; the temp tree is removed when `t`
+ * ends.
+ *
+ * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @returns {{ tempDir: string, fixtureDir: string }} The temp root, and the
+ *   wrapper directory inside it.
+ */
+function writeFixture (t) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm wrapper install-'))
   t.after(() => fs.rmSync(tempDir, { recursive: true, force: true }))
 
@@ -88,17 +175,7 @@ function installFixtureWithNpm (t, npmFlags) {
     optionalDependencies: { [packageName]: `file:${nativePackageDir}` },
   }))
 
-  const prefix = path.join(tempDir, 'prefix')
-  runNpm([
-    'install',
-    '--global',
-    '--install-links=true',
-    ...npmFlags,
-    '--prefix',
-    prefix,
-    fixtureDir,
-  ], tempDir)
-  return { prefix, fixtureDir }
+  return { tempDir, fixtureDir }
 }
 
 function runNpm (args, cwd) {

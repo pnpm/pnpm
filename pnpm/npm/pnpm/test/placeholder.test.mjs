@@ -84,11 +84,13 @@ describe('placeholder bin', () => {
 
   // A project the wrapper sits under can hold anything under the platform
   // package's name; only what was installed with the wrapper is its binary.
-  it('does not run a platform package from an ancestor node_modules', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  // Launched through the entry point, whose rule this is, so Windows is covered
+  // too — the placeholder cannot run there.
+  it('does not run a platform package from an ancestor node_modules', async () => {
     const fixture = createFixture({ installPlatformPackage: false, nestedUnder: ['node_modules', 'tool', 'node_modules'] })
     writePlatformPackage(path.join(fixture.dir, 'node_modules'))
 
-    const result = await run(fixture.placeholder, ['--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run(process.execPath, [fixture.entryPoint, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
     assert.doesNotMatch(result.stdout, FAKE_BINARY_OUTPUT)
@@ -100,7 +102,12 @@ describe('placeholder bin', () => {
  * Resolves once the child has exited, with its exit status and decoded output;
  * rejects only if it could not be spawned.
  *
+ * @param {string} command Executable to spawn, as an absolute path or a name on `PATH`.
+ * @param {string[]} args Arguments to pass to it.
+ * @param {Record<string, string>} [env] Variables layered over `process.env`; the
+ *   environment is inherited unchanged when omitted.
  * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
+ *   `status` is null when a signal ended the child.
  */
 function run (command, args, env) {
   const child = spawn(command, args, { env: { ...process.env, ...env } })
@@ -139,18 +146,22 @@ function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}
     writePlatformPackage(path.join(wrapperDir, 'node_modules'))
   }
 
-  return { dir, placeholder: path.join(wrapperDir, 'pnpm') }
+  return { dir, placeholder: path.join(wrapperDir, 'pnpm'), entryPoint: path.join(wrapperDir, 'bin', 'pnpm.mjs') }
 }
 
 /**
  * Create the host's `@pnpm/exe.<target>` package under `modulesDir` (created if
- * missing): a manifest and the stand-in binary, an executable `sh` script.
- * Filesystem errors propagate.
+ * missing): a manifest and the stand-in binary — an executable `sh` script on
+ * Unix, a copy of the running node on Windows. Filesystem errors propagate.
  */
 function writePlatformPackage (modulesDir) {
   const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
   const packageDir = path.join(modulesDir, packageName)
   fs.mkdirSync(packageDir, { recursive: true })
   fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: packageName, version: '99.0.0' }))
-  fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
+  if (IS_UNIX) {
+    fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
+  } else {
+    fs.copyFileSync(process.execPath, path.join(packageDir, binFile))
+  }
 }
