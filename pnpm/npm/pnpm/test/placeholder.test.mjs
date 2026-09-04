@@ -62,7 +62,7 @@ describe('placeholder bin', () => {
     const link = path.join(binDir, 'pnpm')
     fs.symlinkSync(path.relative(binDir, fixture.placeholder), link)
 
-    const result = await run('sh', ['-c', 'exec "$0" "$@"', link, '--version'])
+    const result = await run('sh', [link, '--version'])
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
@@ -85,7 +85,7 @@ describe('placeholder bin', () => {
   it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
-    const result = await run('sh', ['-c', 'exec "$0" "$@"', fixture.placeholder, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run('sh', [fixture.placeholder, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
   })

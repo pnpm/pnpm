@@ -186,7 +186,7 @@ function writeFixture (t) {
  * @returns {string} Its stdout, decoded as UTF-8.
  */
 function runThroughShell (bin, args) {
-  return execFileSync('sh', ['-c', 'exec "$0" "$@"', bin, ...args], { encoding: 'utf8' })
+  return execFileSync('sh', [bin, ...args], { encoding: 'utf8' })
 }
 
 function runNpm (args, cwd) {
