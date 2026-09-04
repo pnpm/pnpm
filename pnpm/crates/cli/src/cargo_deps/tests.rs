@@ -50,6 +50,24 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 }
 
 #[test]
+fn crate_store_slots_are_grouped_by_name_version_and_content() {
+    let package = LockedCrate {
+        name: "serde".to_string(),
+        version: "1.0.228".to_string(),
+        checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e".to_string(),
+    };
+
+    assert_eq!(
+        package.store_slot(std::path::Path::new("store/v11")),
+        std::path::Path::new("store/v11")
+            .join("crates")
+            .join("serde")
+            .join("1.0.228")
+            .join("9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"),
+    );
+}
+
+#[test]
 fn appends_the_managed_config_without_changing_user_settings() {
     let existing = "[alias]\ncodecov = \"llvm-cov\"\n";
     let updated = update_managed_config(existing).unwrap();

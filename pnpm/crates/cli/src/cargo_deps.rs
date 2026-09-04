@@ -321,7 +321,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
         requester,
     } = options;
     let link_name = package.link_name();
-    let slot = store_dir.root().join("crates").join(package.slot_name());
+    let slot = package.store_slot(store_dir.root());
     if slot_is_complete(&slot) {
         return Ok((link_name, slot));
     }
@@ -578,8 +578,13 @@ impl LockedCrate {
         format!("{}-{}", self.name, self.version)
     }
 
-    fn slot_name(&self) -> String {
-        format!("{}-{}-{}", self.name, self.version, self.checksum)
+    /// The shared slot contains immutable crate source, not a dependency view.
+    /// Unlike an npm GVS slot, it has no package-local dependency links, so its
+    /// final identity component is the registry checksum rather than a graph
+    /// hash. Cargo's workspace directory source supplies the graph-specific
+    /// view, and Cargo writes compilation artifacts outside this slot.
+    fn store_slot(&self, store_root: &Path) -> PathBuf {
+        store_root.join("crates").join(&self.name).join(&self.version).join(&self.checksum)
     }
 }
 
