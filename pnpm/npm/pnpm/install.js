@@ -6,8 +6,8 @@
 // the native binary at the same path. npm's global Windows shims still target
 // the extensionless path after the `bin` rewrite, so postinstall asks npm to
 // regenerate them against `pnpm.exe`. When lifecycle scripts are blocked
-// (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and pnpm
-// cannot run.
+// (`--ignore-scripts`, pnpm/Bun default), the placeholder remains and runs pnpm
+// through Node.js wherever a shell reaches it (see the `pnpm` file).
 //
 // `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
 // relinked); on Windows the native binary is hardlinked onto each and

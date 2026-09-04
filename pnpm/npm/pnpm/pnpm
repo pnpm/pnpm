@@ -1,4 +1,38 @@
-This is a placeholder. pnpm's native binary replaces this file during
-installation (see ./install.js). If you are reading this, the install/build
-script did not run — reinstall with build scripts enabled (e.g. allow-list
-pnpm's build under pnpm or Bun, or drop --ignore-scripts).
+# pnpm's native binary replaces this file during installation (see
+# ./install.js). Until then this hands over to ./bin/pnpm.mjs, which finds the
+# installed binary or downloads one and spawns it.
+#
+# Shebang-less on purpose, and therefore an `sh` script: a bin shim generated
+# from a shebang records that interpreter, and pnpm 11 generates the shim before
+# it puts the native binary at this path.
+#
+# Something has to retry this file under a shell, because the kernel answers
+# ENOEXEC for it. A bin shim and a shell both do, and so does glibc's `execvp`.
+# Apple's libc does not, so on macOS a program that spawns this path itself gets
+# ENOEXEC; Windows has neither and cannot reach it at all.
+if ! command -v node > /dev/null 2>&1; then
+  echo "pnpm's native binary was not installed, and there is no Node.js to run pnpm without it." >&2
+  echo "Reinstall pnpm with build scripts enabled (allow-list pnpm's build under pnpm or Bun, or drop --ignore-scripts)." >&2
+  exit 1
+fi
+
+if [ -t 2 ]; then
+  echo "pnpm is running through Node.js because the script that installs its native binary was skipped." >&2
+  echo "Reinstall pnpm with its build scripts allowed to run the binary directly." >&2
+fi
+
+# $0 is whatever shim or symlink pnpm was launched through; ./bin/pnpm.mjs is
+# found relative to this file. The hop cap matches the kernel's ELOOP limit, so
+# a cycle cannot hang the script.
+self=$0
+hops=0
+while [ -L "$self" ] && [ "$hops" -lt 40 ]; do
+  hops=$((hops + 1))
+  link=$(readlink "$self")
+  case $link in
+    /*) self=$link ;;
+    *) self=$(dirname "$self")/$link ;;
+  esac
+done
+
+exec node "$(dirname "$self")/bin/pnpm.mjs" "$@"
