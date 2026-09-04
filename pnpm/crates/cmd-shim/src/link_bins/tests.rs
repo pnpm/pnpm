@@ -1,5 +1,6 @@
 use super::{
-    BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, link_bins, link_bins_of_packages,
+    BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, ShimTargetCache, link_bins,
+    link_bins_of_packages, link_bins_of_packages_cached,
 };
 use crate::{
     capabilities::{
@@ -11,6 +12,7 @@ use crate::{
 use serde_json::{Value, json};
 use std::{
     fs::{create_dir_all, read as read_file, read_to_string, write as write_file},
+    io,
     iter::{Empty, empty},
     path::{Path, PathBuf},
     sync::Arc,
@@ -1631,4 +1633,108 @@ fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
     write_file(bins_dir.join("pnpm.ps1"), "planted after the first link").unwrap();
     link_bins_of_packages::<Host>(&packages, &bins_dir, &LinkBinsOptions::default()).unwrap();
     assert!(!bins_dir.join("pnpm.ps1").exists());
+}
+
+/// A dangling symlink squatting on the shim path defeats the exclusive
+/// create of the fresh-`.bin` fast path; the general path must then
+/// replace it with a real shim.
+#[cfg(unix)]
+#[test]
+fn dangling_symlink_at_shim_path_is_replaced_with_a_shim() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    std::os::unix::fs::symlink(tmp.path().join("nowhere"), bins_dir.join("foo")).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    let body = read_to_string(bins_dir.join("foo")).expect("real shim replaces the dangling link");
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+/// Two linking calls sharing one [`ShimTargetCache`] probe a shared
+/// resolved target's script runtime once. The counting fake stands in
+/// for the many importers that link the same virtual-store bin file.
+#[test]
+fn shared_shim_target_cache_probes_a_resolved_target_once() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static READ_HEAD_CALLS: AtomicUsize = AtomicUsize::new(0);
+
+    struct CountingHost;
+    impl FsReadHead for CountingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            // One probe issues several reads (the head-fill loop runs to
+            // EOF); the leading offset-0 read counts the probes.
+            if offset == 0 {
+                READ_HEAD_CALLS.fetch_add(1, Ordering::Relaxed);
+            }
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for CountingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for CountingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for CountingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for CountingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsSetExecutable for CountingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for CountingHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let store_pkg = tmp.path().join("store/foo");
+    create_dir_all(&store_pkg).unwrap();
+    write_file(store_pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let cache = ShimTargetCache::default();
+    for importer in ["a", "b"] {
+        let modules = tmp.path().join(importer).join("node_modules");
+        let location = modules.join("foo");
+        create_dir_all(&location).unwrap();
+        write_file(location.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+        link_bins_of_packages_cached::<CountingHost>(
+            &[PackageBinSource::new(location, Arc::new(manifest.clone()))
+                .with_resolved_location(store_pkg.clone())],
+            &modules.join(".bin"),
+            &LinkBinsOptions::default(),
+            &cache,
+        )
+        .unwrap();
+        assert!(modules.join(".bin/foo").exists());
+    }
+    assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
 }

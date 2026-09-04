@@ -634,6 +634,7 @@ fn package_version(pkg: &PackageBinSource) -> Option<Version> {
 /// the call sites stay portable and don't need their own
 /// `#[cfg(unix)]` gating.
 /// The per-bin inputs one [`write_shim`] call consumes.
+#[derive(Clone, Copy)]
 struct ShimSpec<'a> {
     /// The bin file the shim executes, reached through the package's
     /// `node_modules` location — the path the shim body embeds.
