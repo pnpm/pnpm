@@ -101,12 +101,10 @@ pub(super) type WantedKeyFields = (
     bool,
 );
 
-/// A [`WantedKeyFields`] tuple behind an `Arc`, with its hashes
-/// precomputed at construction: one over every field, and one that
-/// skips the consumer-scope slot for [`SharedWorkspaceWantedKey`]. An
-/// edge builds its key once; the maps and derived keys that carry it
-/// afterwards bump the `Arc` and write the cached hash instead of
-/// re-cloning and re-hashing the strings inside.
+/// A [`WantedKeyFields`] tuple with its hashes fixed at construction —
+/// the full one, and a consumer-scope-less one for
+/// [`SharedWorkspaceWantedKey`] — so an edge's key is hashed once
+/// however many maps and derived keys carry it. Cloning is cheap.
 #[derive(Debug, Clone)]
 pub(super) struct WantedKey(Arc<WantedKeyInner>);
 
@@ -200,10 +198,8 @@ impl Hash for PathKey {
 /// A wanted dependency key without its consumer directory, plus the resolver
 /// inputs that may vary between importers.
 ///
-/// Holds the edge's full [`WantedKey`] (an `Arc` bump, not a field
-/// clone); the consumer directory is dropped by `Hash`/`Eq` instead —
-/// they use the key's scope-less hash and field comparison, so keys
-/// built by different importers still match by value.
+/// Holds the edge's full [`WantedKey`]; `Hash`/`Eq` drop the consumer
+/// directory, so keys built by different importers match by value.
 #[derive(Debug, Clone)]
 pub(super) struct SharedWorkspaceWantedKey {
     wanted: WantedKey,

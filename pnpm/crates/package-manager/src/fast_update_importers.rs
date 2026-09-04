@@ -53,9 +53,8 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     prune_stale_importers: bool,
     resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
-    // Each importer's map builds from its own manifest alone, so a
-    // workspace-scale set fans out across rayon; an unparsable alias
-    // anywhere still sends the whole compose to the resolver.
+    // Each importer's map builds from its own manifest alone; an
+    // unparsable alias anywhere still sends the compose to the resolver.
     let manifest_dependencies: Result<
         Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>,
         (),
@@ -92,9 +91,8 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     } else {
         Vec::new()
     };
-    // Divergence checks only read the lockfile and each importer's own
-    // map, so they fan out too. `Resolve` must win over `Absorbable`
-    // regardless of which importer reports it, which the fold preserves.
+    // `Resolve` must win over `Absorbable` regardless of which importer
+    // reports it, which the fold preserves.
     let mut any_diverged = false;
     for divergence in manifest_dependencies
         .par_iter()
