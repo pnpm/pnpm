@@ -1,5 +1,5 @@
 use crate::{
-    model::{FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
+    model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
     registry::{Registry, compatibility_line, matching_versions, validate_registry},
 };
 use miette::Result;
@@ -18,6 +18,7 @@ impl FeatureActivations {
         &mut self,
         activation: &str,
         features: &BTreeMap<String, Vec<String>>,
+        implicit_optional_aliases: &BTreeSet<&str>,
         pending: &mut VecDeque<String>,
     ) {
         if let Some(alias) = activation.strip_prefix("dep:") {
@@ -34,7 +35,7 @@ impl FeatureActivations {
             }
         } else if features.contains_key(activation) {
             pending.push_back(activation.to_string());
-        } else {
+        } else if implicit_optional_aliases.contains(activation) {
             self.active_aliases.insert(activation.to_string());
         }
     }
@@ -64,7 +65,7 @@ pub(crate) fn active_dependencies_from_parts(
     let activations = collect_feature_activations(dependencies, features, selection);
     Ok(dependencies
         .iter()
-        .filter(|dependency| include_dev || dependency.kind.as_deref() != Some("dev"))
+        .filter(|dependency| include_dev || dependency.kind != DependencyKind::Dev)
         .filter(|dependency| {
             !dependency.optional || activations.active_aliases.contains(&dependency.alias)
         })
@@ -83,9 +84,16 @@ fn collect_feature_activations(
     features: &BTreeMap<String, Vec<String>>,
     selection: &FeatureSelection,
 ) -> FeatureActivations {
-    let optional_aliases = dependencies
+    let explicitly_activated_aliases = features
+        .values()
+        .flatten()
+        .filter_map(|activation| activation.strip_prefix("dep:"))
+        .collect::<BTreeSet<_>>();
+    let implicit_optional_aliases = dependencies
         .iter()
-        .filter(|dependency| dependency.optional)
+        .filter(|dependency| {
+            dependency.optional && !explicitly_activated_aliases.contains(dependency.alias.as_str())
+        })
         .map(|dependency| dependency.alias.as_str())
         .collect::<BTreeSet<_>>();
     let mut pending = selection.features.iter().cloned().collect::<VecDeque<_>>();
@@ -100,13 +108,18 @@ fn collect_feature_activations(
             continue;
         }
         let Some(feature_activations) = features.get(&feature) else {
-            if optional_aliases.contains(feature.as_str()) {
+            if implicit_optional_aliases.contains(feature.as_str()) {
                 activations.active_aliases.insert(feature);
             }
             continue;
         };
         for activation in feature_activations {
-            activations.record_feature_activation(activation, features, &mut pending);
+            activations.record_feature_activation(
+                activation,
+                features,
+                &implicit_optional_aliases,
+                &mut pending,
+            );
         }
     }
     activations.activate_weak_dependency_features();

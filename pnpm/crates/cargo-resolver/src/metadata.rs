@@ -34,7 +34,7 @@ pub(crate) fn active_metadata_dependencies(
             alias: dependency.rename.clone().unwrap_or_else(|| dependency.name.clone()),
             name: dependency.name.clone(),
             requirement: dependency.req.clone(),
-            kind: dependency.kind.clone(),
+            kind: dependency.kind,
             registry: dependency.source.clone(),
             optional: dependency.optional,
             default_features: dependency.uses_default_features,

@@ -1,4 +1,4 @@
-use crate::model::{RegistryDependency, RegistryVersion};
+use crate::model::{DependencyKind, RegistryDependency, RegistryVersion};
 use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use semver::{Version, VersionReq};
@@ -94,7 +94,7 @@ fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<Reg
         alias,
         name,
         requirement,
-        kind: dependency.kind.map(std::borrow::Cow::into_owned),
+        kind: DependencyKind::from_raw(dependency.kind.as_deref()),
         registry: dependency.registry.map(std::borrow::Cow::into_owned),
         optional: dependency.optional,
         default_features: dependency.default_features,

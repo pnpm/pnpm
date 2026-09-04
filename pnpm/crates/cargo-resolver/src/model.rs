@@ -1,6 +1,7 @@
 use semver::{Version, VersionReq};
 use serde::Deserialize;
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
@@ -27,7 +28,7 @@ pub(crate) struct MetadataDependency {
     pub(crate) source: Option<String>,
     pub(crate) req: VersionReq,
     #[serde(default)]
-    pub(crate) kind: Option<String>,
+    pub(crate) kind: DependencyKind,
     #[serde(default)]
     pub(crate) rename: Option<String>,
     #[serde(default)]
@@ -52,7 +53,7 @@ pub(crate) struct RegistryDependency {
     pub(crate) alias: String,
     pub(crate) name: String,
     pub(crate) requirement: VersionReq,
-    pub(crate) kind: Option<String>,
+    pub(crate) kind: DependencyKind,
     pub(crate) registry: Option<String>,
     pub(crate) optional: bool,
     pub(crate) default_features: bool,
@@ -63,6 +64,36 @@ pub(crate) struct RegistryDependency {
 pub(crate) struct FeatureSelection {
     pub(crate) default_features: bool,
     pub(crate) features: BTreeSet<String>,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DependencyKind {
+    #[default]
+    Normal,
+    Dev,
+    Build,
+    Unknown,
+}
+
+impl DependencyKind {
+    pub(crate) fn from_raw(kind: Option<&str>) -> Self {
+        match kind {
+            None | Some("normal") => Self::Normal,
+            Some("dev") => Self::Dev,
+            Some("build") => Self::Build,
+            Some(_) => Self::Unknown,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for DependencyKind {
+    fn deserialize<Deserializer>(deserializer: Deserializer) -> Result<Self, Deserializer::Error>
+    where
+        Deserializer: serde::Deserializer<'de>,
+    {
+        let kind = Option::<Cow<'de, str>>::deserialize(deserializer)?;
+        Ok(Self::from_raw(kind.as_deref()))
+    }
 }
 
 impl RegistryDependency {
