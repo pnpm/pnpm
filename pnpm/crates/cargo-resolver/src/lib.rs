@@ -81,6 +81,48 @@ struct FeatureSelection {
     features: BTreeSet<String>,
 }
 
+#[derive(Debug, Default)]
+struct FeatureActivations {
+    active_aliases: BTreeSet<String>,
+    dependency_features: BTreeMap<String, BTreeSet<String>>,
+    weak_dependency_features: Vec<(String, String)>,
+}
+
+impl FeatureActivations {
+    fn record_feature_activation(
+        &mut self,
+        activation: &str,
+        features: &BTreeMap<String, Vec<String>>,
+        pending: &mut VecDeque<String>,
+    ) {
+        if let Some(alias) = activation.strip_prefix("dep:") {
+            self.active_aliases.insert(alias.to_string());
+        } else if let Some((alias, feature)) = activation.split_once('/') {
+            if let Some(alias) = alias.strip_suffix('?') {
+                self.weak_dependency_features.push((alias.to_string(), feature.to_string()));
+            } else {
+                self.active_aliases.insert(alias.to_string());
+                self.dependency_features
+                    .entry(alias.to_string())
+                    .or_default()
+                    .insert(feature.to_string());
+            }
+        } else if features.contains_key(activation) {
+            pending.push_back(activation.to_string());
+        } else {
+            self.active_aliases.insert(activation.to_string());
+        }
+    }
+
+    fn activate_weak_dependency_features(&mut self) {
+        for (alias, feature) in std::mem::take(&mut self.weak_dependency_features) {
+            if self.active_aliases.contains(&alias) {
+                self.dependency_features.entry(alias).or_default().insert(feature);
+            }
+        }
+    }
+}
+
 impl RegistryDependency {
     fn feature_selection(&self) -> FeatureSelection {
         FeatureSelection {
@@ -343,67 +385,56 @@ fn active_dependencies_from_parts(
     selection: &FeatureSelection,
     include_dev: bool,
 ) -> Result<Vec<RegistryDependency>> {
-    let aliases = dependencies
+    let activations = collect_feature_activations(dependencies, features, selection);
+    Ok(dependencies
         .iter()
-        .map(|dependency| (dependency.alias.as_str(), dependency))
-        .collect::<BTreeMap<_, _>>();
+        .filter(|dependency| include_dev || dependency.kind.as_deref() != Some("dev"))
+        .filter(|dependency| {
+            !dependency.optional || activations.active_aliases.contains(&dependency.alias)
+        })
+        .map(|dependency| {
+            let mut dependency = dependency.clone();
+            if let Some(features) = activations.dependency_features.get(&dependency.alias) {
+                dependency.features.extend(features.iter().cloned());
+            }
+            dependency
+        })
+        .collect())
+}
+
+fn collect_feature_activations(
+    dependencies: &[RegistryDependency],
+    features: &BTreeMap<String, Vec<String>>,
+    selection: &FeatureSelection,
+) -> FeatureActivations {
+    let optional_aliases = dependencies
+        .iter()
+        .filter(|dependency| dependency.optional)
+        .map(|dependency| dependency.alias.as_str())
+        .collect::<BTreeSet<_>>();
     let mut pending = selection.features.iter().cloned().collect::<VecDeque<_>>();
     if selection.default_features {
         pending.push_back("default".to_string());
     }
     let mut visited = BTreeSet::new();
-    let mut active_aliases = BTreeSet::new();
-    let mut dependency_features = BTreeMap::<String, BTreeSet<String>>::new();
-    let mut weak_dependency_features = Vec::new();
+    let mut activations = FeatureActivations::default();
 
     while let Some(feature) = pending.pop_front() {
         if !visited.insert(feature.clone()) {
             continue;
         }
-        let Some(activations) = features.get(&feature) else {
-            if aliases.get(feature.as_str()).is_some_and(|dependency| dependency.optional) {
-                active_aliases.insert(feature);
+        let Some(feature_activations) = features.get(&feature) else {
+            if optional_aliases.contains(feature.as_str()) {
+                activations.active_aliases.insert(feature);
             }
             continue;
         };
-        for activation in activations {
-            if let Some(alias) = activation.strip_prefix("dep:") {
-                active_aliases.insert(alias.to_string());
-            } else if let Some((alias, feature)) = activation.split_once('/') {
-                if let Some(alias) = alias.strip_suffix('?') {
-                    weak_dependency_features.push((alias.to_string(), feature.to_string()));
-                } else {
-                    active_aliases.insert(alias.to_string());
-                    dependency_features
-                        .entry(alias.to_string())
-                        .or_default()
-                        .insert(feature.to_string());
-                }
-            } else if features.contains_key(activation) {
-                pending.push_back(activation.clone());
-            } else {
-                active_aliases.insert(activation.clone());
-            }
+        for activation in feature_activations {
+            activations.record_feature_activation(activation, features, &mut pending);
         }
     }
-    for (alias, feature) in weak_dependency_features {
-        if active_aliases.contains(&alias) {
-            dependency_features.entry(alias).or_default().insert(feature);
-        }
-    }
-
-    dependencies
-        .iter()
-        .filter(|dependency| include_dev || dependency.kind.as_deref() != Some("dev"))
-        .filter(|dependency| !dependency.optional || active_aliases.contains(&dependency.alias))
-        .map(|dependency| {
-            let mut dependency = dependency.clone();
-            if let Some(features) = dependency_features.get(&dependency.alias) {
-                dependency.features.extend(features.iter().cloned());
-            }
-            Ok(dependency)
-        })
-        .collect()
+    activations.activate_weak_dependency_features();
+    activations
 }
 
 const fn default_true() -> bool {
