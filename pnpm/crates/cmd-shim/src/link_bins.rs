@@ -836,6 +836,19 @@ where
     })?;
     let sh_body = generate_sh_shim(target_path, shim_path, runtime.as_ref(), node_path);
     if Sys::write_new(shim_path, sh_body.as_bytes()).is_err() {
+        // Lost the creation race (or `Sys` lacks exclusive creation). A
+        // winner that wrote this same shim needs no rewrite — accept it
+        // rather than fall into the replace path, whose removal would
+        // yank a good shim out from under sibling installs racing over
+        // a shared slot's `.bin`.
+        if matches!(
+            Sys::read_to_string(shim_path),
+            Ok(existing) if existing == sh_body,
+        ) {
+            chmod_tolerating_removal(shim_path, Sys::set_executable)?;
+            cache.ensure_target_executable_once::<Sys>(probe_path)?;
+            return Ok(true);
+        }
         return Ok(false);
     }
     if cfg!(windows) {

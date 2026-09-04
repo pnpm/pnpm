@@ -1911,3 +1911,75 @@ fn stale_shim_rewrite_accepts_an_equivalent_concurrent_winner() {
     let body = read_to_string(bins_dir.join("foo")).unwrap();
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
+
+/// Losing the fresh-create race to a winner that wrote the equivalent
+/// shim must not fall into the replace path: its removal would yank the
+/// good shim out from under sibling installs racing on one slot's
+/// `.bin`.
+#[test]
+fn fresh_shim_create_accepts_an_equivalent_concurrent_winner() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static WRITE_NEW_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct LosingFreshHost;
+    impl FsReadHead for LosingFreshHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for LosingFreshHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for LosingFreshHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for LosingFreshHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for LosingFreshHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            WRITE_NEW_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
+            // The "other installer" lands the equivalent shim first.
+            <Host as FsWrite>::write(path, bytes)?;
+            Err(io::Error::from(io::ErrorKind::AlreadyExists))
+        }
+    }
+    impl FsSetExecutable for LosingFreshHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for LosingFreshHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+
+    link_bins_of_packages::<LosingFreshHost>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(WRITE_NEW_ATTEMPTS.load(Ordering::Relaxed), 1, "no replace-path churn");
+    let body = read_to_string(bins_dir.join("foo")).unwrap();
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
