@@ -10,6 +10,10 @@ use pnpr_package_name::PackageName;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
 use std::time::Duration;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpListener,
+};
 
 /// Build an [`Upstream`] pointing at `url` with `headers`, all per-upstream
 /// tuning knobs at their verdaccio defaults.
@@ -102,6 +106,77 @@ async fn fetch_revision_tarball_rejects_redirects_and_forwards_headers() {
     ));
     redirect.assert_async().await;
     redirected.assert_async().await;
+}
+
+#[tokio::test]
+async fn discovery_rejects_redirects_before_configured_headers_reach_the_target() {
+    let mut target = mockito::Server::new_async().await;
+    let redirected = target
+        .mock("GET", "/-/v1/search")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .expect(0)
+        .create_async()
+        .await;
+    let mut source = mockito::Server::new_async().await;
+    let redirect = source
+        .mock("GET", "/-/v1/search")
+        .match_query("text=foo")
+        .match_header("authorization", "Bearer secret-token")
+        .with_status(302)
+        .with_header("location", &format!("{}/-/v1/search", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = upstream(source.url(), auth_and_custom_headers());
+    let result = upstream.fetch_search("text=foo").await;
+
+    assert!(
+        matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })),
+        "expected the first redirect response, got {result:?}",
+    );
+    redirect.assert_async().await;
+    redirected.assert_async().await;
+}
+
+#[test]
+fn discovery_omits_configured_headers_on_insecure_remote_urls() {
+    let upstream = upstream("http://registry.example".to_string(), auth_and_custom_headers());
+
+    assert!(upstream.discovery_headers("http://registry.example/-/v1/search").is_empty());
+    assert!(!upstream.discovery_headers("https://registry.example/-/v1/search").is_empty());
+    assert!(!upstream.discovery_headers("http://127.0.0.1/-/v1/search").is_empty());
+}
+
+#[tokio::test]
+async fn discovery_body_read_failure_opens_the_circuit() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        let _ = socket.read(&mut request).await;
+        socket
+            .write_all(
+                b"HTTP/1.1 200 OK\r\n\
+                  Content-Length: 1024\r\n\
+                  Content-Type: application/json\r\n\
+                  Connection: close\r\n\
+                  \r\n\
+                  {}",
+            )
+            .await
+            .unwrap();
+    });
+    let upstream = breaking_upstream(url, 1);
+
+    let first = upstream.fetch_search("text=foo").await;
+    server.await.unwrap();
+    assert!(matches!(first, Err(RegistryError::UpstreamResponse { .. })));
+    assert!(matches!(
+        upstream.fetch_search("text=foo").await,
+        Err(RegistryError::UpstreamUnavailable { .. }),
+    ));
 }
 
 #[tokio::test]

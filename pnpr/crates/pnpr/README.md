@@ -37,10 +37,13 @@ Origins must contain only an `http` or `https` scheme, host, and optional port.
 The `search` setting also enables `/-/org/{scope}/package` discovery for that
 upstream. pnpr applies registry routing and access rules to returned entries and
 uses only the upstream credentials from its configuration, never a browser
-caller's authorization header. Search totals count only visible, deduplicated
-results. When an upstream has more results than pnpr needs for the current page,
-the total is a visible lower bound through the next page rather than the
-upstream's unfiltered count. It becomes exact when every source is exhausted.
+caller's authorization header. Discovery refuses redirects and sends configured
+upstream headers only over HTTPS or loopback HTTP. Search totals count only
+visible, deduplicated results and are exact across every participating source.
+To bound work from a single browser request, pnpr rejects upstream searches
+that would scan more than 2,000 upstream results or eight upstream pages.
+Offsets that would require a larger upstream scan are also rejected. Refine the
+search term when a query reaches that limit.
 
 ## License
 

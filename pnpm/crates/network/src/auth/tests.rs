@@ -568,6 +568,15 @@ fn secure_lookup_rejects_plain_http_but_allows_loopback() {
     assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
 }
 
+#[test]
+fn classifies_urls_that_are_secure_for_credentials() {
+    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("not a url"));
+}
+
 /// Specifically exercises the trailing-slash-append branch in
 /// [`AuthHeaders::for_url`]: the URL ends without a `/` *and*
 /// names a path segment (`/scope`). Without the append,

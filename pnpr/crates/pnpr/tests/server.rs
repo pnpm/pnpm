@@ -4310,6 +4310,124 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     visible.assert_async().await;
 }
 
+#[tokio::test]
+async fn upstream_search_exhausts_results_to_return_an_exact_total() {
+    let mut upstream = mockito::Server::new_async().await;
+    let first = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "remote-a" } },
+                    { "package": { "name": "remote-b" } },
+                ],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let last = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=2&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "remote-c" } }],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = body_json(response.into_body()).await;
+    assert_eq!(response["total"], json!(3));
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-a"));
+    first.assert_async().await;
+    last.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
+    let mut upstream = mockito::Server::new_async().await;
+    let oversized = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "objects": [], "total": 2_001 }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let offset = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
+
+    let result_set = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
+    oversized.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_more_than_eight_short_pages() {
+    let mut upstream = mockito::Server::new_async().await;
+    let short_page = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "repeated" } }],
+                "total": 9,
+            })
+            .to_string(),
+        )
+        .expect(8)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    short_page.assert_async().await;
+}
+
 /// Every registry operation routes through the registry graph when addressed as
 /// `/~<name>/...` (RFC "registries", implementation point 7): dist-tag
 /// read/add/remove, whoami, search, the version manifest, and the whole

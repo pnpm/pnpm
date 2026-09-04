@@ -1545,12 +1545,32 @@ impl SearchPage {
         false
     }
 
-    fn needs_lookahead(&self) -> bool {
-        self.names.len() <= self.from.saturating_add(self.size)
-    }
-
     fn total(&self) -> usize {
         self.names.len()
+    }
+}
+
+const MAX_UPSTREAM_SEARCH_RESULTS: usize = 2_000;
+const MAX_UPSTREAM_SEARCH_PAGES: usize = 8;
+
+#[derive(Default)]
+struct UpstreamSearchBudget {
+    pages: usize,
+    results: usize,
+}
+
+struct UpstreamSearchContext<'a> {
+    state: &'a AppState,
+    identity: &'a Identity,
+    registry: &'a str,
+    source: &'a str,
+    upstream: &'a Upstream,
+    query_string: &'a str,
+}
+
+impl UpstreamSearchBudget {
+    fn remaining_results(&self) -> usize {
+        MAX_UPSTREAM_SEARCH_RESULTS.saturating_sub(self.results)
     }
 }
 
@@ -2282,10 +2302,10 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 
 /// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
-/// upstream results are appended in registry-source order. Upstream scans stop
-/// after one visible result beyond the requested page, so `total` is a safe
-/// visible lower bound until every source has been exhausted. An upstream only
-/// participates when its `search` setting is enabled.
+/// upstream results are appended in registry-source order. Every participating
+/// upstream is exhausted so `total` describes the complete visible,
+/// deduplicated result set. An upstream only participates when its `search`
+/// setting is enabled.
 async fn serve_search(
     state: &AppState,
     identity: &Identity,
@@ -2309,6 +2329,7 @@ async fn serve_search(
         return result(Vec::new(), 0);
     };
     let mut page = SearchPage::new(params.from, params.size);
+    let mut upstream_budget = UpstreamSearchBudget::default();
     for source in discovery_sources(state, &registry) {
         match source {
             DiscoverySource::Hosted(source) => {
@@ -2352,20 +2373,23 @@ async fn serve_search(
                 let Some(upstream) = state.inner.upstreams.get(&source) else {
                     continue;
                 };
-                if !page.needs_lookahead() {
-                    continue;
+                if params.from > page.total().saturating_add(upstream_budget.remaining_results()) {
+                    return RegistryError::BadRequest {
+                        reason: format!(
+                            "search `from` would require scanning more than {MAX_UPSTREAM_SEARCH_RESULTS} upstream results",
+                        ),
+                    }
+                    .into_response();
                 }
-                match append_upstream_search(
+                let context = UpstreamSearchContext {
                     state,
                     identity,
-                    &registry,
-                    &source,
+                    registry: &registry,
+                    source: &source,
                     upstream,
                     query_string,
-                    &mut page,
-                )
-                .await
-                {
+                };
+                match append_upstream_search(context, &mut page, &mut upstream_budget).await {
                     Ok(()) => {}
                     Err(err) => return err.into_response(),
                 }
@@ -2377,33 +2401,47 @@ async fn serve_search(
 }
 
 async fn append_upstream_search(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    source: &str,
-    upstream: &Upstream,
-    query_string: &str,
+    context: UpstreamSearchContext<'_>,
     page: &mut SearchPage,
+    budget: &mut UpstreamSearchBudget,
 ) -> Result<(), RegistryError> {
     const FETCH_SIZE: usize = 250;
 
-    let resolved = RegistrySource::Upstream(source.to_string());
+    let resolved = RegistrySource::Upstream(context.source.to_string());
+    let source_result_budget = budget.remaining_results();
     let mut from = 0usize;
-    while page.needs_lookahead() {
-        let query = upstream_search_query(query_string, from, FETCH_SIZE);
-        let response = match upstream.fetch_search(&query).await? {
+    loop {
+        if budget.pages == MAX_UPSTREAM_SEARCH_PAGES {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_PAGES} pages; refine the query",
+                ),
+            });
+        }
+        budget.pages += 1;
+        let query = upstream_search_query(context.query_string, from, FETCH_SIZE);
+        let response = match context.upstream.fetch_search(&query).await? {
             FetchOutcome::Ok(response) => response,
             FetchOutcome::NotFound => return Ok(()),
         };
         let object_count = response.objects.len();
+        if response.total > source_result_budget || object_count > budget.remaining_results() {
+            return Err(RegistryError::BadRequest {
+                reason: format!(
+                    "upstream search is limited to {MAX_UPSTREAM_SEARCH_RESULTS} results; refine the query",
+                ),
+            });
+        }
+        budget.results += object_count;
         for object in response.objects {
             let Some(name) = search_object_name(&object) else {
                 continue;
             };
             if !matches!(
-                resolve_registry_source(state, registry, name),
-                RegistrySource::Upstream(candidate) if candidate == source,
-            ) || authorize(state, identity, &resolved, name, Action::Access).is_err()
+                resolve_registry_source(context.state, context.registry, name),
+                RegistrySource::Upstream(candidate) if candidate == context.source,
+            ) || authorize(context.state, context.identity, &resolved, name, Action::Access)
+                .is_err()
             {
                 continue;
             }
@@ -2415,12 +2453,11 @@ async fn append_upstream_search(
         }
         if object_count == 0 {
             return Err(RegistryError::UpstreamResponse {
-                url: format!("{source}/-/v1/search"),
+                url: format!("{}/-/v1/search", context.source),
                 reason: format!("reported {} results but returned an empty page", response.total),
             });
         }
     }
-    Ok(())
 }
 
 fn discovery_sources(state: &AppState, registry: &str) -> Vec<DiscoverySource> {

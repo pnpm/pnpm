@@ -3,7 +3,9 @@ use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
     is_integrity_addressed_registry_tarball_url,
 };
-use pnpm_network::{ThrottledClient, read_limited_body};
+use pnpm_network::{
+    ThrottledClient, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+};
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
@@ -357,8 +359,9 @@ impl Upstream {
     ) -> Result<FetchOutcome<Payload>> {
         self.ensure_available()?;
         let url = format!("{}{path_and_query}", self.base.trim_end_matches('/'));
-        let client = self.client.acquire_for_url(&url).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let client =
+            self.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED).await;
+        let request = client.get(&url).timeout(self.timeout).headers(self.discovery_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -367,6 +370,7 @@ impl Upstream {
         let response = self.checked(response, &url).await?;
         let body =
             read_limited_body(response, UPSTREAM_DISCOVERY_BODY_LIMIT).await.map_err(|err| {
+                self.breaker.record_failure();
                 RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
             })?;
         if body.truncated {
@@ -384,6 +388,13 @@ impl Upstream {
         })?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(parsed))
+    }
+
+    fn discovery_headers(&self, url: &str) -> HeaderMap {
+        if is_url_secure_for_credentials(url) {
+            return self.headers.clone();
+        }
+        HeaderMap::new()
     }
 
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
