@@ -12,8 +12,7 @@ use serde::{Deserialize, Serialize};
 use ssri::{Algorithm, Integrity};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    fs,
-    io::{self, Write as _},
+    fs, io,
     path::{Path, PathBuf},
     process::Command,
     str::FromStr,
@@ -826,6 +825,7 @@ fn write_workspace_file(
     bytes: &[u8],
     mode: Option<u32>,
 ) -> io::Result<()> {
+    use std::io::Write as _;
     use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
 
     let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
