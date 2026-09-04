@@ -4,7 +4,7 @@
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
 
 use cargo_lock::{Checksum, Dependency, Lockfile, Metadata, Name, Package, Patch, ResolveVersion};
-use cargo_util_schemas::index::IndexPackage;
+use cargo_util_schemas::index::{IndexPackage, RegistryDependency as IndexDependency};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pubgrub::{
     DefaultStringReporter, OfflineDependencyProvider, PubGrubError, Ranges, Reporter, resolve,
@@ -217,62 +217,7 @@ impl Registry {
     fn new(index_files: &BTreeMap<String, String>) -> Result<Self> {
         let mut packages = BTreeMap::new();
         for (name, contents) in index_files {
-            let mut versions = Vec::new();
-            for (line_index, line) in contents.lines().enumerate() {
-                let package: IndexPackage<'_> =
-                    serde_json::from_str(line).into_diagnostic().wrap_err_with(|| {
-                        format!("parse sparse index entry {name}:{}", line_index + 1)
-                    })?;
-                if package.v.is_some_and(|version| version > 3) {
-                    continue;
-                }
-                let dependencies = package
-                    .deps
-                    .into_iter()
-                    .map(|dependency| {
-                        let alias = dependency.name.into_owned();
-                        let name = dependency
-                            .package
-                            .map_or_else(|| alias.clone(), std::borrow::Cow::into_owned);
-                        let requirement = VersionReq::parse(&dependency.req)
-                            .into_diagnostic()
-                            .wrap_err_with(|| format!("parse requirement for {name}"))?;
-                        Ok(RegistryDependency {
-                            alias,
-                            name,
-                            requirement,
-                            kind: dependency.kind.map(std::borrow::Cow::into_owned),
-                            registry: dependency.registry.map(std::borrow::Cow::into_owned),
-                            optional: dependency.optional,
-                            default_features: dependency.default_features,
-                            features: dependency
-                                .features
-                                .into_iter()
-                                .map(std::borrow::Cow::into_owned)
-                                .collect(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                versions.push(RegistryVersion {
-                    version: package.vers,
-                    dependencies,
-                    features: package
-                        .features
-                        .into_iter()
-                        .chain(package.features2.unwrap_or_default())
-                        .map(|(name, values)| {
-                            (
-                                name.into_owned(),
-                                values.into_iter().map(std::borrow::Cow::into_owned).collect(),
-                            )
-                        })
-                        .collect(),
-                    checksum: package.cksum,
-                    yanked: package.yanked.unwrap_or(false),
-                });
-            }
-            versions.sort_by(|left, right| left.version.cmp(&right.version));
-            packages.insert(normalize_name(name), versions);
+            packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
         Ok(Self { packages })
     }
@@ -282,6 +227,61 @@ impl Registry {
             miette::miette!("sparse index metadata for crate {name} was not fetched")
         })
     }
+}
+
+fn parse_index_file(name: &str, contents: &str) -> Result<Vec<RegistryVersion>> {
+    let mut versions = Vec::new();
+    for (line_index, line) in contents.lines().enumerate() {
+        let package: IndexPackage<'_> = serde_json::from_str(line)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("parse sparse index entry {name}:{}", line_index + 1))?;
+        if let Some(version) = registry_version_from_index(package)? {
+            versions.push(version);
+        }
+    }
+    versions.sort_by(|left, right| left.version.cmp(&right.version));
+    Ok(versions)
+}
+
+fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<RegistryVersion>> {
+    if package.v.is_some_and(|version| version > 3) {
+        return Ok(None);
+    }
+    let dependencies =
+        package.deps.into_iter().map(registry_dependency_from_index).collect::<Result<Vec<_>>>()?;
+    let features = package
+        .features
+        .into_iter()
+        .chain(package.features2.unwrap_or_default())
+        .map(|(name, values)| {
+            (name.into_owned(), values.into_iter().map(std::borrow::Cow::into_owned).collect())
+        })
+        .collect();
+    Ok(Some(RegistryVersion {
+        version: package.vers,
+        dependencies,
+        features,
+        checksum: package.cksum,
+        yanked: package.yanked.unwrap_or(false),
+    }))
+}
+
+fn registry_dependency_from_index(dependency: IndexDependency<'_>) -> Result<RegistryDependency> {
+    let alias = dependency.name.into_owned();
+    let name = dependency.package.map_or_else(|| alias.clone(), std::borrow::Cow::into_owned);
+    let requirement = VersionReq::parse(&dependency.req)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse requirement for {name}"))?;
+    Ok(RegistryDependency {
+        alias,
+        name,
+        requirement,
+        kind: dependency.kind.map(std::borrow::Cow::into_owned),
+        registry: dependency.registry.map(std::borrow::Cow::into_owned),
+        optional: dependency.optional,
+        default_features: dependency.default_features,
+        features: dependency.features.into_iter().map(std::borrow::Cow::into_owned).collect(),
+    })
 }
 
 fn parse_metadata(metadata: &str) -> Result<CargoMetadata> {

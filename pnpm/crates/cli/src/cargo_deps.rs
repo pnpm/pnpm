@@ -1031,34 +1031,12 @@ fn update_managed_config(existing: &str) -> Result<String> {
 fn parse_lockfile(input: &str) -> Result<Vec<LockedCrate>> {
     let lockfile =
         cargo_lock::Lockfile::from_str(input).into_diagnostic().wrap_err("parse Cargo.lock")?;
-    let packages = lockfile
-        .packages
-        .into_iter()
-        .filter_map(|package| package.source.clone().map(|source| (package, source)))
-        .map(|(package, source)| {
-            if !source.is_default_registry() {
-                return Err(miette::miette!(
-                    "Cargo source {source:?} is not supported by the crates.io-only proof of concept"
-                ));
-            }
-            let name = package.name.to_string();
-            let version = package.version.to_string();
-            let checksum = package
-                .checksum
-                .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?
-                .to_string();
-            validate_package_field("crate name", &name, |byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
-            })?;
-            validate_package_field("crate version", &version, |byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
-            })?;
-            if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                return Err(miette::miette!("invalid checksum for crate {name} {version}"));
-            }
-            Ok(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() })
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let mut packages = Vec::new();
+    for package in lockfile.packages {
+        if let Some(package) = locked_crate_from_package(package)? {
+            packages.push(package);
+        }
+    }
 
     let mut names = BTreeSet::new();
     for package in &packages {
@@ -1071,6 +1049,33 @@ fn parse_lockfile(input: &str) -> Result<Vec<LockedCrate>> {
         }
     }
     Ok(packages)
+}
+
+fn locked_crate_from_package(package: cargo_lock::Package) -> Result<Option<LockedCrate>> {
+    let Some(source) = package.source.as_ref() else {
+        return Ok(None);
+    };
+    if !source.is_default_registry() {
+        return Err(miette::miette!(
+            "Cargo source {source:?} is not supported by the crates.io-only proof of concept"
+        ));
+    }
+    let name = package.name.to_string();
+    let version = package.version.to_string();
+    let checksum = package
+        .checksum
+        .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?
+        .to_string();
+    validate_package_field("crate name", &name, |byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
+    })?;
+    validate_package_field("crate version", &version, |byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
+    })?;
+    if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(miette::miette!("invalid checksum for crate {name} {version}"));
+    }
+    Ok(Some(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() }))
 }
 
 fn validate_package_field(label: &str, value: &str, allowed: impl Fn(u8) -> bool) -> Result<()> {
