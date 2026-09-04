@@ -377,7 +377,7 @@ fn record_publisher(incoming: &mut Value, identity: &Identity) {
         return;
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
-        manifest.entry("_npmUser").or_insert_with(|| json!({ "name": username }));
+        manifest.insert("_npmUser".to_string(), json!({ "name": username }));
     }
 }
 

@@ -3349,10 +3349,15 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let body = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
-        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
-            "integrity": sha512_integrity(tarball),
-        } } },
+        "versions": { "1.0.0": {
+            "name": "@acme/widget",
+            "version": "1.0.0",
+            "_npmUser": { "name": "mallory" },
+            "dist": {
+                "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+                "integrity": sha512_integrity(tarball),
+            },
+        } },
         "_attachments": { "@acme/widget-1.0.0.tgz": {
             "content_type": "application/octet-stream",
             "data": BASE64.encode(tarball),
@@ -3398,7 +3403,11 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(read.status(), StatusCode::OK);
     let doc = body_json(read.into_body()).await;
     assert!(doc["versions"]["1.0.0"].is_object());
-    assert_eq!(doc["versions"]["1.0.0"]["_npmUser"]["name"], json!("alice"));
+    assert_eq!(
+        doc["versions"]["1.0.0"]["_npmUser"]["name"],
+        json!("alice"),
+        "the authenticated publisher must replace client-supplied attribution",
+    );
 
     let search = app
         .clone()
@@ -4164,7 +4173,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
     let mut upstream = mockito::Server::new_async().await;
     let search = upstream
         .mock("GET", "/-/v1/search")
-        .match_query("text=remote&from=0&size=5")
+        .match_query("text=remote&from=0&size=250")
         .match_header("authorization", mockito::Matcher::Missing)
         .with_status(200)
         .with_header("content-type", "application/json")
@@ -4220,7 +4229,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("write"));
+    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("read"));
     search.assert_async().await;
     org.assert_async().await;
 }
@@ -4228,40 +4237,48 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
 #[tokio::test]
 async fn search_paginates_across_hosted_and_upstream_sources() {
     let mut upstream = mockito::Server::new_async().await;
-    let first = upstream
+    let shadowed = upstream
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::AllOf(vec![
             mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
             mockito::Matcher::UrlEncoded("from".into(), "0".into()),
-            mockito::Matcher::UrlEncoded("size".into(), "1".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
         ]))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
             json!({
-                "objects": [{ "package": { "name": "ajv-remote-a" } }],
-                "total": 2,
+                "objects": [
+                    { "package": { "name": "ajv" } },
+                    { "package": { "name": "ajv-keywords" } },
+                ],
+                "total": 4,
             })
             .to_string(),
         )
+        .expect(2)
         .create_async()
         .await;
-    let second = upstream
+    let visible = upstream
         .mock("GET", "/-/v1/search")
         .match_query(mockito::Matcher::AllOf(vec![
             mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
-            mockito::Matcher::UrlEncoded("from".into(), "1".into()),
-            mockito::Matcher::UrlEncoded("size".into(), "1".into()),
+            mockito::Matcher::UrlEncoded("from".into(), "2".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
         ]))
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(
             json!({
-                "objects": [{ "package": { "name": "ajv-remote-b" } }],
-                "total": 2,
+                "objects": [
+                    { "package": { "name": "ajv-remote-a" } },
+                    { "package": { "name": "ajv-remote-b" } },
+                ],
+                "total": 4,
             })
             .to_string(),
         )
+        .expect(2)
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
@@ -4289,8 +4306,8 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     let second_page = body_json(second_page.into_body()).await;
     assert_eq!(second_page["total"], json!(3));
     assert_eq!(second_page["objects"][0]["package"]["name"], json!("ajv-remote-b"));
-    first.assert_async().await;
-    second.assert_async().await;
+    shadowed.assert_async().await;
+    visible.assert_async().await;
 }
 
 /// Every registry operation routes through the registry graph when addressed as

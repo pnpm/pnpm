@@ -8,11 +8,10 @@
 //! found", which an upstream proxy can't guarantee because npm's
 //! search returns dozens of fuzzy matches for almost anything.
 //!
-//! Implementation is intentionally simple: a one-shot scan of
-//! `<storage>/<pkg>/package.json` files at request time, filtered
-//! by a case-insensitive package-name or maintainer match. The caller
-//! receives every visible match and applies pagination after combining
-//! hosted registries, which keeps `total` accurate for the local view.
+//! Package-name searches count matching storage names without loading every
+//! packument, then load metadata only for the requested page. Maintainer
+//! searches inspect packuments because pnpr does not maintain a separate
+//! ownership index.
 
 use pnpr_error::Result;
 use pnpr_package_name::PackageName;
@@ -114,19 +113,18 @@ pub fn parse_from(query_string: &str) -> usize {
     0
 }
 
-/// Scan one hosted store for packuments that match `query` and pass `keep`.
-/// The server applies pagination only after it combines every eligible source,
-/// so this returns the complete visible result set. Errors reading individual
-/// packuments are tolerated. A malformed packument simply does not match.
-pub async fn run_local_search(
+/// Return the sorted package names that match one hosted search source. A
+/// package-name query needs only the storage listing. A maintainer query reads
+/// candidate packuments because that metadata is not indexed separately.
+pub async fn local_search_names(
     storage: &Storage,
     query: &SearchText,
     keep: impl Fn(&str) -> bool,
-) -> Result<Vec<Value>> {
+) -> Result<Vec<String>> {
     let needle = match query {
         SearchText::Package(query) | SearchText::Maintainer(query) => query.to_lowercase(),
     };
-    let mut matches: Vec<Value> = Vec::new();
+    let mut matches = Vec::new();
     let mut names = storage.hosted_package_names().await?;
     names.sort();
 
@@ -136,20 +134,40 @@ pub async fn run_local_search(
         {
             continue;
         }
-        let Ok(parsed) = PackageName::parse(&name) else { continue };
-        let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
-        let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
-        if matches!(query, SearchText::Maintainer(_))
-            && !packument_has_maintainer(&packument, &needle)
-        {
-            continue;
+        if matches!(query, SearchText::Maintainer(_)) {
+            let Ok(parsed) = PackageName::parse(&name) else { continue };
+            let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
+            let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
+            if !packument_has_maintainer(&packument, &needle) {
+                continue;
+            }
         }
-        if let Some(entry) = build_search_entry(&name, &packument) {
-            matches.push(entry);
-        }
+        matches.push(name);
     }
 
     Ok(matches)
+}
+
+/// Build the npm search object for one already-selected hosted package. A
+/// package can disappear or become malformed between listing and reading; the
+/// minimal object preserves stable pagination without inventing metadata.
+pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
+    let entry = async {
+        let parsed = PackageName::parse(name).ok()?;
+        let bytes = storage.read_hosted_packument(&parsed).await.ok()??;
+        let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
+        build_search_entry(name, &packument)
+    }
+    .await;
+    entry.unwrap_or_else(|| build_minimal_search_entry(name))
+}
+
+fn build_minimal_search_entry(name: &str) -> Value {
+    json!({
+        "package": { "name": name },
+        "score": { "final": 1.0 },
+        "searchScore": 1.0,
+    })
 }
 
 /// Construct one entry for the `objects` array.

@@ -37,8 +37,10 @@ Origins must contain only an `http` or `https` scheme, host, and optional port.
 The `search` setting also enables `/-/org/{scope}/package` discovery for that
 upstream. pnpr applies registry routing and access rules to returned entries and
 uses only the upstream credentials from its configuration, never a browser
-caller's authorization header. Hosted totals are counted after filtering;
-upstream totals are the values reported by each eligible upstream.
+caller's authorization header. Search totals count only visible, deduplicated
+results. When an upstream has more results than pnpr needs for the current page,
+the total is a visible lower bound through the next page rather than the
+upstream's unfiltered count. It becomes exact when every source is exhausted.
 
 ## License
 

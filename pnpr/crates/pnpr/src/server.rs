@@ -1525,31 +1525,32 @@ impl SearchPage {
         Self { objects: Vec::new(), names: HashSet::new(), from, size }
     }
 
-    fn append_source(&mut self, source_objects: Vec<Value>, source_start: usize) {
-        let skip = self.from.saturating_sub(source_start);
-        for object in source_objects.into_iter().skip(skip) {
-            if self.is_full() {
-                break;
-            }
-            self.push(object);
-        }
-    }
-
     fn push(&mut self, object: Value) {
         let Some(name) = search_object_name(&object) else {
             return;
         };
-        if self.names.insert(name.to_string()) {
+        if self.push_name(name) {
             self.objects.push(object);
         }
     }
 
-    fn is_full(&self) -> bool {
-        self.objects.len() >= self.size
+    fn push_name(&mut self, name: &str) -> bool {
+        let position = self.names.len();
+        if self.names.insert(name.to_string())
+            && position >= self.from
+            && position < self.from.saturating_add(self.size)
+        {
+            return true;
+        }
+        false
     }
 
-    fn remaining(&self) -> usize {
-        self.size.saturating_sub(self.objects.len())
+    fn needs_lookahead(&self) -> bool {
+        self.names.len() <= self.from.saturating_add(self.size)
+    }
+
+    fn total(&self) -> usize {
+        self.names.len()
     }
 }
 
@@ -2281,7 +2282,9 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 
 /// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
 /// Hosted results are counted after routing and access filters, then optional
-/// upstream results are appended in registry-source order. An upstream only
+/// upstream results are appended in registry-source order. Upstream scans stop
+/// after one visible result beyond the requested page, so `total` is a safe
+/// visible lower bound until every source has been exhausted. An upstream only
 /// participates when its `search` setting is enabled.
 async fn serve_search(
     state: &AppState,
@@ -2306,7 +2309,6 @@ async fn serve_search(
         return result(Vec::new(), 0);
     };
     let mut page = SearchPage::new(params.from, params.size);
-    let mut total = 0usize;
     for source in discovery_sources(state, &registry) {
         match source {
             DiscoverySource::Hosted(source) => {
@@ -2326,14 +2328,16 @@ async fn serve_search(
                         HostedGate::Allowed(_),
                     )
                 };
-                let entries =
-                    match pnpr_search::run_local_search(&storage, &params.text, keep).await {
-                        Ok(entries) => entries,
+                let names =
+                    match pnpr_search::local_search_names(&storage, &params.text, keep).await {
+                        Ok(names) => names,
                         Err(err) => return err.into_response(),
                     };
-                let source_total = entries.len();
-                page.append_source(entries, total);
-                total = total.saturating_add(source_total);
+                for name in names {
+                    if page.push_name(&name) {
+                        page.objects.push(pnpr_search::local_search_entry(&storage, &name).await);
+                    }
+                }
             }
             DiscoverySource::Upstream(source) => {
                 let Some(config) = state.inner.config.upstreams.get(&source) else {
@@ -2348,37 +2352,75 @@ async fn serve_search(
                 let Some(upstream) = state.inner.upstreams.get(&source) else {
                     continue;
                 };
-                let source_from = params.from.saturating_sub(total);
-                let request_size = page.remaining().max(1);
-                let query = upstream_search_query(query_string, source_from, request_size);
-                let response = match upstream.fetch_search(&query).await {
-                    Ok(FetchOutcome::Ok(response)) => response,
-                    Ok(FetchOutcome::NotFound) => continue,
-                    Err(err) => return err.into_response(),
-                };
-                let source_total = response.total;
-                for object in response.objects {
-                    if page.is_full() {
-                        break;
-                    }
-                    let Some(name) = search_object_name(&object) else {
-                        continue;
-                    };
-                    let resolved = RegistrySource::Upstream(source.clone());
-                    if !matches!(
-                        resolve_registry_source(state, &registry, name),
-                        RegistrySource::Upstream(candidate) if candidate == source,
-                    ) || authorize(state, identity, &resolved, name, Action::Access).is_err()
-                    {
-                        continue;
-                    }
-                    page.push(object);
+                if !page.needs_lookahead() {
+                    continue;
                 }
-                total = total.saturating_add(source_total);
+                match append_upstream_search(
+                    state,
+                    identity,
+                    &registry,
+                    &source,
+                    upstream,
+                    query_string,
+                    &mut page,
+                )
+                .await
+                {
+                    Ok(()) => {}
+                    Err(err) => return err.into_response(),
+                }
             }
         }
     }
+    let total = page.total();
     result(page.objects, total)
+}
+
+async fn append_upstream_search(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    source: &str,
+    upstream: &Upstream,
+    query_string: &str,
+    page: &mut SearchPage,
+) -> Result<(), RegistryError> {
+    const FETCH_SIZE: usize = 250;
+
+    let resolved = RegistrySource::Upstream(source.to_string());
+    let mut from = 0usize;
+    while page.needs_lookahead() {
+        let query = upstream_search_query(query_string, from, FETCH_SIZE);
+        let response = match upstream.fetch_search(&query).await? {
+            FetchOutcome::Ok(response) => response,
+            FetchOutcome::NotFound => return Ok(()),
+        };
+        let object_count = response.objects.len();
+        for object in response.objects {
+            let Some(name) = search_object_name(&object) else {
+                continue;
+            };
+            if !matches!(
+                resolve_registry_source(state, registry, name),
+                RegistrySource::Upstream(candidate) if candidate == source,
+            ) || authorize(state, identity, &resolved, name, Action::Access).is_err()
+            {
+                continue;
+            }
+            page.push(object);
+        }
+        from = from.saturating_add(object_count);
+        if from >= response.total {
+            return Ok(());
+        }
+        if object_count == 0 {
+            return Err(RegistryError::UpstreamResponse {
+                url: format!("{source}/-/v1/search"),
+                reason: format!("reported {} results but returned an empty page", response.total),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn discovery_sources(state: &AppState, registry: &str) -> Vec<DiscoverySource> {
@@ -2487,7 +2529,7 @@ async fn serve_org_packages(
                     Ok(FetchOutcome::NotFound) => continue,
                     Err(err) => return err.into_response(),
                 };
-                for (name, permission) in upstream_packages {
+                for (name, _) in upstream_packages {
                     let resolved = RegistrySource::Upstream(source.clone());
                     if !name.starts_with(&prefix)
                         || !matches!(
@@ -2498,7 +2540,7 @@ async fn serve_org_packages(
                     {
                         continue;
                     }
-                    packages.entry(name).or_insert(permission);
+                    packages.entry(name).or_insert_with(|| Value::String("read".to_string()));
                 }
             }
         }
