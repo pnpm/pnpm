@@ -3593,6 +3593,11 @@ pacquet@12.3.3:
     - parallel-lockfile-lowering
     - parallel-manifest-transforms
     - sh-placeholder-bin
+pacquet@12.3.4:
+  dir: pnpm/npm/pnpm
+  intents:
+    - hashed-wanted-keys
+    - unsafe-perm-flag
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
