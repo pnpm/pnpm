@@ -1148,18 +1148,29 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
 /// file, creating it with `O_CREAT | O_EXCL` semantics so a dirent
 /// planted between the removal and the write — the classic
 /// unlink/symlink race in a shared or writable bin dir — fails the
-/// create instead of redirecting it. A concurrent installer laying down
-/// the same shim loses that race legitimately, so a few retries absorb
-/// it; a path still contested after that surfaces as a write error
+/// create instead of redirecting it. Nothing serializes bin linking
+/// across processes (installs sharing a global virtual store race over
+/// one slot's shims), so a lost create whose winner wrote these same
+/// bytes is accepted as done and other losses retry;
+/// a path still contested after the retries surfaces as a write error
 /// rather than silently keeping whatever won. A `Sys` without exclusive
 /// creation (the DI fakes' default) keeps the plain remove-then-write.
-fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsError> {
+fn replace_shim<Sys: FsReadToString + FsWrite>(
+    path: &Path,
+    bytes: &[u8],
+) -> Result<(), LinkBinsError> {
     let mut last_error = None;
     for _ in 0..3 {
         remove_stale_bin(path)?;
         match Sys::write_new(path, bytes) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                if matches!(
+                    Sys::read_to_string(path),
+                    Ok(existing) if existing.as_bytes() == bytes,
+                ) {
+                    return Ok(());
+                }
                 last_error = Some(error);
             }
             Err(error) if error.kind() == io::ErrorKind::Unsupported => {

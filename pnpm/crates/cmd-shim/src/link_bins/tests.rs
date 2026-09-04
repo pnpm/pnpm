@@ -1838,3 +1838,76 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
     let body = read_to_string(bins_dir.join("foo")).unwrap();
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
+
+/// A lost exclusive create whose winner already wrote the equivalent
+/// shim is accepted instead of removed and retried, so concurrent
+/// installers sharing a slot's `.bin` converge without churn.
+#[test]
+fn stale_shim_rewrite_accepts_an_equivalent_concurrent_winner() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static WRITE_NEW_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct LosingToTwinHost;
+    impl FsReadHead for LosingToTwinHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for LosingToTwinHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for LosingToTwinHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for LosingToTwinHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for LosingToTwinHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            WRITE_NEW_ATTEMPTS.fetch_add(1, Ordering::Relaxed);
+            // The "other installer" lands the equivalent shim first.
+            <Host as FsWrite>::write(path, bytes)?;
+            Err(io::Error::from(io::ErrorKind::AlreadyExists))
+        }
+    }
+    impl FsSetExecutable for LosingToTwinHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for LosingToTwinHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(bins_dir.join("foo"), "not a shim").unwrap();
+
+    link_bins_of_packages::<LosingToTwinHost>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(WRITE_NEW_ATTEMPTS.load(Ordering::Relaxed), 1, "the winner's shim is accepted");
+    let body = read_to_string(bins_dir.join("foo")).unwrap();
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
