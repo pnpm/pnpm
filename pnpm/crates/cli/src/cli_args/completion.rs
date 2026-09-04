@@ -188,7 +188,7 @@ fn words_without_binary(words: &[String]) -> Vec<String> {
     if Path::new(first)
         .file_stem()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name == "pnpm" || name == "pacquet")
+        .is_some_and(|name| matches!(name, "pnpm" | "pn" | "pacquet"))
     {
         rest.to_vec()
     } else {
@@ -333,7 +333,7 @@ _pnpm_completion() {
   local IFS=$'\n'
   COMPREPLY=($(COMP_LINE="$COMP_LINE" COMP_POINT="$COMP_POINT" SHELL=bash pnpm completion-server -- "${COMP_WORDS[@]}"))
 }
-complete -F _pnpm_completion pnpm
+complete -F _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 
@@ -352,11 +352,12 @@ function __pnpm_completion
   pnpm completion-server -- $tokens
 end
 complete -c pnpm -f -a "(__pnpm_completion)"
+complete -c pn -f -a "(__pnpm_completion)"
 ###-end-pnpm-completion-###
 "#;
 
 const PWSH_COMPLETION: &str = r#"###-begin-pnpm-completion-###
-Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
+Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock {
   param($wordToComplete, $commandAst, $cursorPosition)
   $env:SHELL = "pwsh"
   $env:COMP_LINE = $commandAst.ToString()
@@ -370,14 +371,14 @@ Register-ArgumentCompleter -Native -CommandName pnpm -ScriptBlock {
 ###-end-pnpm-completion-###
 "#;
 
-const ZSH_COMPLETION: &str = r#"#compdef pnpm
+const ZSH_COMPLETION: &str = r#"#compdef pnpm pn
 ###-begin-pnpm-completion-###
 _pnpm_completion() {
   local reply
   reply=("${(@f)$(COMP_CWORD=$((CURRENT-1)) COMP_LINE="$BUFFER" COMP_POINT="$CURSOR" SHELL=zsh pnpm completion-server -- "${words[@]}")}")
   _describe 'values' reply
 }
-compdef _pnpm_completion pnpm
+compdef _pnpm_completion pnpm pn
 ###-end-pnpm-completion-###
 "#;
 
