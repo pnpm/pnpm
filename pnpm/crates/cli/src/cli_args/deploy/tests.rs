@@ -1,7 +1,7 @@
 use super::{
-    ConvertCtx, ProjectInfo, comparable_path_components, convert_package_key,
-    convert_package_metadata, create_deploy_install_config, create_file_url_key,
-    split_local_payload, validate_lockfile_local_path,
+    ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
+    create_deploy_install_config, create_file_url_key, split_local_payload,
+    validate_lockfile_local_path,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
@@ -11,13 +11,21 @@ use std::{
 };
 
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+use super::{DeployFiles, DeployWorkspaceConfig, index_projects, write_deploy_files};
 #[cfg(unix)]
 use pnpm_lockfile::Lockfile;
 #[cfg(unix)]
+use pnpm_package_manifest::PackageManifest;
+#[cfg(unix)]
+use pnpm_workspace::Project;
+#[cfg(unix)]
 use serde_json::json;
 #[cfg(unix)]
-use std::os::unix::fs::symlink;
+use std::{
+    ffi::OsStr,
+    os::unix::{ffi::OsStrExt, fs::symlink},
+    path::PathBuf,
+};
 
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
@@ -146,7 +154,7 @@ fn create_file_url_key_prefers_workspace_project_name() {
     let resolved_path = project_root.join("../local-pkg");
     let mut projects_by_path = HashMap::new();
     projects_by_path.insert(
-        comparable_path_components(&project_root),
+        ProjectPathKey::new(&project_root),
         ProjectInfo {
             name: Some("workspace-name".to_string()),
             peer_dependencies: Vec::new(),
@@ -159,6 +167,29 @@ fn create_file_url_key_prefers_workspace_project_name() {
         .expect("create file URL key");
 
     assert_eq!(key.name.to_string(), "workspace-name");
+}
+
+#[cfg(unix)]
+#[test]
+fn index_projects_keeps_the_first_project_per_comparison_key() {
+    let project = |name: &str, root_dir: &[u8]| {
+        let root_dir = PathBuf::from(OsStr::from_bytes(root_dir));
+        let manifest =
+            PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
+        Project { root_dir, manifest, dependency_manifest: None }
+    };
+    // Both roots print as `a\u{FFFD}`, so they share a comparison key while
+    // staying distinct paths, as case variants do on Windows.
+    let projects = [
+        project("first", b"/workspace/packages/a\xff"),
+        project("second", b"/workspace/packages/a\xfe"),
+    ];
+
+    let index = index_projects(&projects);
+
+    assert_eq!(index.len(), 1, "comparison-equal roots share one entry");
+    let project = index.get(&ProjectPathKey::new(&projects[1].root_dir)).expect("indexed project");
+    assert_eq!(project.name.as_deref(), Some("first"), "the first discovered project wins");
 }
 
 #[cfg(unix)]

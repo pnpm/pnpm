@@ -123,10 +123,7 @@ struct ProjectInfo {
 
 struct SelectedProject {
     project: Project,
-    /// Keyed by [`comparable_path_components`] of each normalized project root,
-    /// the components [`same_path`] compares, so a lockfile local path finds its
-    /// project with one lookup. The first project discovered under a key wins.
-    projects_by_path: HashMap<Vec<String>, ProjectInfo>,
+    projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
 }
 
 struct DeployWorkspaceConfig {
@@ -147,7 +144,7 @@ enum DeployInstallMode {
 }
 
 struct ConvertCtx<'a> {
-    projects_by_path: &'a HashMap<Vec<String>, ProjectInfo>,
+    projects_by_path: &'a HashMap<ProjectPathKey, ProjectInfo>,
     deploy_dir: &'a Path,
     lockfile_dir: &'a Path,
     deployed_project_root: &'a Path,
@@ -461,10 +458,31 @@ fn select_project(
     dir: &Path,
 ) -> miette::Result<SelectedProject> {
     let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
+    let projects_by_path = index_projects(&projects);
+
+    let selected_root = {
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let mut selected = selection.selected.keys();
+        match (selected.next(), selected.next()) {
+            (None, _) => return Err(DeployError::NothingToDeploy.into()),
+            (Some(root), None) => lexical_normalize(root),
+            (Some(_), Some(_)) => return Err(DeployError::CannotDeployMany.into()),
+        }
+    };
+    let project = projects
+        .into_iter()
+        .find(|project| lexical_normalize(&project.root_dir) == selected_root)
+        .ok_or(DeployError::NothingToDeploy)?;
+    Ok(SelectedProject { project, projects_by_path })
+}
+
+/// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
+/// equal, the first discovered project wins.
+fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> {
     let mut projects_by_path = HashMap::with_capacity(projects.len());
-    for project in &projects {
-        let root_dir = lexical_normalize(&project.root_dir);
-        projects_by_path.entry(comparable_path_components(&root_dir)).or_insert_with(|| {
+    for project in projects {
+        projects_by_path.entry(ProjectPathKey::new(&project.root_dir)).or_insert_with(|| {
             ProjectInfo {
                 name: project
                     .manifest
@@ -485,22 +503,7 @@ fn select_project(
             }
         });
     }
-
-    let selected_root = {
-        let selection =
-            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let mut selected = selection.selected.keys();
-        match (selected.next(), selected.next()) {
-            (None, _) => return Err(DeployError::NothingToDeploy.into()),
-            (Some(root), None) => lexical_normalize(root),
-            (Some(_), Some(_)) => return Err(DeployError::CannotDeployMany.into()),
-        }
-    };
-    let project = projects
-        .into_iter()
-        .find(|project| lexical_normalize(&project.root_dir) == selected_root)
-        .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject { project, projects_by_path })
+    projects_by_path
 }
 
 fn resolve_target_dir(dir: &Path, target: &Path) -> PathBuf {
@@ -884,8 +887,7 @@ fn create_deploy_files(
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
-        if let Some(project) =
-            selected.projects_by_path.get(&comparable_path_components(&project_root))
+        if let Some(project) = selected.projects_by_path.get(&ProjectPathKey::new(&project_root))
             && !project.peer_dependencies.is_empty()
         {
             linked_workspace_projects.insert(package_key.clone(), project.clone());
@@ -1473,7 +1475,7 @@ fn validate_lockfile_local_path(path: &Path, lockfile_dir: &Path) -> miette::Res
 fn create_file_url_key(
     resolved_path: &Path,
     suffix: &str,
-    projects_by_path: &HashMap<Vec<String>, ProjectInfo>,
+    projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
     package_name: Option<&PkgName>,
 ) -> miette::Result<PkgNameVerPeer> {
     let normalized = lexical_normalize(resolved_path);
@@ -1482,7 +1484,7 @@ fn create_file_url_key(
         .map_err(|()| miette::miette!("could not convert {} to a file URL", normalized_display))?
         .to_string();
     let name = projects_by_path
-        .get(&comparable_path_components(&normalized))
+        .get(&ProjectPathKey::new(&normalized))
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
         .or_else(|| package_name.map(PkgName::to_string))
@@ -1498,6 +1500,17 @@ fn same_path(left: &Path, right: &Path) -> bool {
     let left = lexical_normalize(left);
     let right = lexical_normalize(right);
     path_components_match(&left, &right)
+}
+
+/// Hash key under which two paths collide exactly when [`same_path`] equates
+/// them.
+#[derive(PartialEq, Eq, Hash)]
+struct ProjectPathKey(Vec<String>);
+
+impl ProjectPathKey {
+    fn new(path: &Path) -> Self {
+        Self(comparable_path_components(&lexical_normalize(path)))
+    }
 }
 
 fn has_path_prefix(child: &Path, parent: &Path) -> bool {
