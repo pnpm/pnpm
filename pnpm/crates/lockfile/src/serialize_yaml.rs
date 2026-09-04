@@ -76,7 +76,7 @@ fn next_stash_id() -> u64 {
 
 /// Maps lowered in parallel during the current [`to_string`] call on
 /// this thread, waiting to be spliced over their markers. `None`
-/// outside a `to_string` call — the state [`sorted_map`] checks to know
+/// outside a [`to_string`] call — the state [`sorted_map`] checks to know
 /// whether the parallel path is available.
 struct LoweredMaps {
     nonce: String,
