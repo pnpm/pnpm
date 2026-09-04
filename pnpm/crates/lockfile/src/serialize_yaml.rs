@@ -19,15 +19,9 @@ use std::{cell::RefCell, collections::HashMap, fmt::Display};
 /// The document is normalized before rendering, the way pnpm's
 /// `normalizeLockfile` normalizes a lockfile on its way to disk.
 ///
-/// The lowering to a [`serde_json::Value`] tree is where a
-/// workspace-scale lockfile spends this function's time, almost all of
-/// it inside the big sorted maps (`importers:`, `packages:`,
-/// `snapshots:`), whose entries lower independently. While this
-/// function runs, [`sorted_map`] lowers any large map's values across
-/// rayon and stashes the assembled object here, leaving a marker
-/// string in its place; the markers are spliced back below by *moving*
-/// the stashed objects in, so the document is identical to what the
-/// plain serialization builds.
+/// Workspace-scale maps are lowered to [`serde_json::Value`] in
+/// parallel (see [`sorted_map`]); the output is byte-identical to the
+/// serial lowering.
 pub(crate) fn to_string<Document: Serialize>(
     value: &Document,
 ) -> Result<String, serde_json::Error> {
@@ -45,7 +39,13 @@ pub(crate) fn to_string<Document: Serialize>(
     if !maps.is_empty() {
         let mut remaining = maps.len();
         splice_lowered_maps(&mut document, &stash_nonce, &mut maps, &mut remaining);
-        debug_assert_eq!(remaining, 0, "every stashed map must have a marker in the document");
+        if remaining != 0 {
+            // A stashed map's marker never surfaced — a logic bug this
+            // module must not turn into a corrupt lockfile. The stash
+            // is inactive now, so this re-serialization takes the plain
+            // serial path and is correct regardless.
+            document = serde_json::to_value(value)?;
+        }
     }
     crate::prune_time(&mut document);
     Ok(crate::yaml_emit::to_string(document))
@@ -56,28 +56,26 @@ pub(crate) fn to_string<Document: Serialize>(
 /// and only workspace-scale maps matter.
 const PARALLEL_LOWERING_THRESHOLD: usize = 64;
 
-/// Marker prefix for stashed-map placeholders. The private-use
-/// character keeps it out of any well-formed lockfile string, and the
-/// per-call id distinguishes concurrent [`to_string`] calls' stashes.
-/// Lockfile strings are attacker-influenced, so the id also carries a
-/// nanosecond timestamp: a crafted string cannot predict the marker and
-/// steal a splice. [`splice_lowered_maps`] additionally leaves any
-/// prefix-matching string that doesn't name an unconsumed stash entry
-/// alone rather than trusting it.
+/// Marker prefix for stashed-map placeholders.
 const STASH_MARKER_PREFIX: &str = "\u{f8ff}pacquet-lowered-map:";
 
+/// Unpredictable per-call marker id. Lockfile strings are
+/// attacker-influenced, so a guessable id would let a crafted string
+/// pose as a marker and steal a splice; hashing a counter through a
+/// process-random [`std::hash::RandomState`] leaves nothing to
+/// enumerate.
 fn next_stash_id() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |elapsed| u64::from(elapsed.subsec_nanos()));
-    (nanos << 32) | COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    static RANDOM: std::sync::LazyLock<std::hash::RandomState> =
+        std::sync::LazyLock::new(std::hash::RandomState::new);
+    let mut hasher = RANDOM.build_hasher();
+    hasher.write_u64(COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    hasher.finish()
 }
 
 /// Maps lowered in parallel during the current [`to_string`] call on
-/// this thread, waiting to be spliced over their markers. `None`
-/// outside a [`to_string`] call — the state [`sorted_map`] checks to know
-/// whether the parallel path is available.
+/// this thread, waiting to be spliced over their markers.
 struct LoweredMaps {
     nonce: String,
     maps: Vec<Option<serde_json::Value>>,
@@ -88,10 +86,9 @@ thread_local! {
 }
 
 /// Replace every stashed-map marker under `node` with its stashed
-/// object, moving rather than rebuilding it. Markers only occur in the
-/// shell the serial lowering built — never inside a stashed map, whose
-/// entries were lowered with the stash taken away — so the walk skips
-/// spliced values and stops once every stash entry has landed.
+/// object, moving rather than rebuilding it. The walk does not descend
+/// into spliced values (a stashed map never contains a marker) and
+/// stops once `remaining` hits zero.
 fn splice_lowered_maps(
     node: &mut serde_json::Value,
     nonce: &str,
@@ -217,5 +214,51 @@ where
     match map {
         Some(map) => sorted_map(map, serializer),
         None => serializer.serialize_none(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::splice_lowered_maps;
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    /// A prefix-matching string that doesn't name an unconsumed stash
+    /// entry is data, not a marker: it stays put, the real markers still
+    /// splice, and the caller's `remaining` count exposes any theft.
+    #[test]
+    fn splice_ignores_decoy_markers() {
+        let nonce = "\u{f8ff}pacquet-lowered-map:42:";
+        let decoy_high = format!("{nonce}7");
+        let decoy_text = format!("{nonce}not-an-index");
+        let mut document = json!({
+            "a": decoy_high,
+            "b": decoy_text,
+            "c": format!("{nonce}0"),
+        });
+        let mut maps = vec![Some(json!({"real": true}))];
+        let mut remaining = maps.len();
+        splice_lowered_maps(&mut document, nonce, &mut maps, &mut remaining);
+        assert_eq!(remaining, 0);
+        assert_eq!(document, json!({ "a": decoy_high, "b": decoy_text, "c": {"real": true} }),);
+    }
+
+    /// Each stash entry splices at most once; a repeat of a marker is
+    /// data. And an entry whose marker never surfaces leaves `remaining`
+    /// non-zero, which sends [`super::to_string`] back to the serial
+    /// lowering instead of emitting a document with a hole.
+    #[test]
+    fn duplicate_markers_and_missing_markers_are_survivable() {
+        let nonce = "\u{f8ff}pacquet-lowered-map:42:";
+        let mut document = json!({
+            "a": format!("{nonce}0"),
+            "z": format!("{nonce}0"),
+        });
+        let mut maps = vec![Some(json!({"real": true})), Some(json!({"orphaned": true}))];
+        let mut remaining = maps.len();
+        splice_lowered_maps(&mut document, nonce, &mut maps, &mut remaining);
+        assert_eq!(remaining, 1, "the orphaned entry's marker never surfaced");
+        assert_eq!(document["a"], json!({"real": true}));
+        assert_eq!(document["z"], json!(format!("{nonce}0")), "the repeat stays data");
     }
 }
