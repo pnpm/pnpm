@@ -18,7 +18,7 @@ use std::{
 };
 
 #[cfg(unix)]
-use std::os::unix::fs::symlink;
+use std::os::unix::fs::{PermissionsExt, symlink};
 
 #[test]
 fn parses_crates_io_packages_and_ignores_workspace_packages() {
@@ -278,6 +278,23 @@ fn discovers_nested_cargo_manifests_without_scanning_generated_directories() {
     fs::write(generated.join("Cargo.toml"), "[workspace]\n").unwrap();
 
     assert_eq!(discover_manifests(repository.path()).unwrap(), [project.join("Cargo.toml")]);
+}
+
+#[cfg(unix)]
+#[test]
+fn discovery_skips_unreadable_unrelated_directories() {
+    let repository = tempfile::tempdir().unwrap();
+    let project = repository.path().join("rust/project");
+    let unreadable = repository.path().join("unrelated");
+    fs::create_dir_all(&project).unwrap();
+    fs::create_dir_all(&unreadable).unwrap();
+    fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
+    fs::write(unreadable.join("Cargo.toml"), "[workspace]\n").unwrap();
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o0)).unwrap();
+
+    let manifests = discover_manifests(repository.path());
+    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(manifests.unwrap(), [project.join("Cargo.toml")]);
 }
 
 #[tokio::test]

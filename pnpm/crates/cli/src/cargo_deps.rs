@@ -183,15 +183,42 @@ fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
     let mut pending = vec![search_root.to_path_buf()];
     let mut manifests = Vec::new();
     while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(&directory).into_diagnostic().wrap_err_with(|| {
-            format!("read directory while discovering Cargo projects at {}", directory.display())
-        })? {
-            let entry = entry.into_diagnostic().wrap_err_with(|| {
-                format!("read entry while discovering Cargo projects at {}", directory.display())
-            })?;
-            let file_type = entry.file_type().into_diagnostic().wrap_err_with(|| {
-                format!("inspect Cargo project candidate {}", entry.path().display())
-            })?;
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if directory != search_root && is_ignorable_discovery_error(&error) => {
+                continue;
+            }
+            Err(error) => {
+                return Err(error).into_diagnostic().wrap_err_with(|| {
+                    format!(
+                        "read directory while discovering Cargo projects at {}",
+                        directory.display(),
+                    )
+                });
+            }
+        };
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) if is_ignorable_discovery_error(&error) => continue,
+                Err(error) => {
+                    return Err(error).into_diagnostic().wrap_err_with(|| {
+                        format!(
+                            "read entry while discovering Cargo projects at {}",
+                            directory.display(),
+                        )
+                    });
+                }
+            };
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(error) if is_ignorable_discovery_error(&error) => continue,
+                Err(error) => {
+                    return Err(error).into_diagnostic().wrap_err_with(|| {
+                        format!("inspect Cargo project candidate {}", entry.path().display())
+                    });
+                }
+            };
             if file_type.is_symlink() {
                 continue;
             }
@@ -208,6 +235,10 @@ fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(manifests)
+}
+
+fn is_ignorable_discovery_error(error: &std::io::Error) -> bool {
+    matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied,)
 }
 
 async fn ensure_lockfile(
