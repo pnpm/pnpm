@@ -262,10 +262,10 @@ Tests must prove the changed behavior, not just execute nearby code.
 
 ## 9. pnpm v12 and v11 coverage
 
-pnpm v12 is the latest stable release and the target for new features. It is implemented in
-Rust under `pnpm/`. pnpm v11 is the TypeScript implementation under `pnpm11/` and receives bug
-fixes only. **Reject new-feature implementations in v11; a v12-only feature is an intentional
-version difference, not a parity failure.**
+pnpm v12 is the target for new features. It is implemented in Rust under `pnpm/`. pnpm v11 is
+the TypeScript implementation under `pnpm11/` and receives bug fixes only. **Reject new-feature
+implementations in v11; a v12-only feature is an intentional version difference, not a parity
+failure.**
 
 - For a bug fix, establish whether the bug is present in v11, v12, or both.
 - If both versions are affected, fix and test both implementations. Do both sides in one PR

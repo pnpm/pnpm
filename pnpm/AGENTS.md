@@ -6,9 +6,9 @@ Guidance for AI coding agents working in `pnpm/`.
 
 ## What this project is
 
-`pacquet` is pnpm v12, the latest stable [pnpm](https://pnpm.io) CLI,
-implemented in Rust. The TypeScript CLI under `../pnpm11/` is pnpm v11, which
-is maintained for bug fixes. New features are developed only in pacquet.
+`pacquet` is pnpm v12, implemented in Rust and the target for new feature
+development. The TypeScript CLI under `../pnpm11/` is pnpm v11, which is
+maintained for bug fixes. New features are developed only in pacquet.
 
 ## Version policy
 

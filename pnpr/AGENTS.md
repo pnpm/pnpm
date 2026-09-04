@@ -19,9 +19,8 @@ the `Cargo.lock` stays unified.
 
 ## Relationship to pacquet
 
-- **`pnpm/`** is pnpm v12, the latest stable CLI and the target for new
-  feature development. See [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its
-  version policy.
+- **`pnpm/`** is pnpm v12 and the target for new feature development. See
+  [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its version policy.
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 

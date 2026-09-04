@@ -5,14 +5,14 @@ This document provides context and instructions for AI agents working on the pnp
 The repository contains three products:
 
 - The **TypeScript pnpm v11 CLI** — `pnpm11/`.
-- The **Rust pnpm v12 CLI (pacquet)** — `pnpm/`. pnpm v12 is the latest stable release. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+- The **Rust pnpm v12 CLI (pacquet)** — `pnpm/`. pnpm v12 is the target for new feature development. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
 
 Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
 ## pnpm v12 and v11 development policy
 
-pnpm v12, implemented in Rust under `pnpm/`, is the latest stable release and the target for new development. pnpm v11, implemented in TypeScript under `pnpm11/`, is maintained for bug fixes.
+pnpm v12, implemented in Rust under `pnpm/`, is the target for new development. pnpm v11, implemented in TypeScript under `pnpm11/`, is maintained for bug fixes.
 
 **Implement new features only in pnpm v12. Do not add them to pnpm v11.** A feature that intentionally exists only in v12 is not a parity gap.
 

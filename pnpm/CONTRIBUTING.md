@@ -4,7 +4,7 @@ See also [`CODE_STYLE_GUIDE.md`](./CODE_STYLE_GUIDE.md) for the code style guide
 
 ## Scope and Version Policy
 
-pacquet is pnpm v12, the latest stable release and the target for new feature development. New commands, settings, and other user-visible features are implemented here and are not backported to the TypeScript pnpm v11 CLI under `../pnpm11/`.
+pacquet is pnpm v12 and the target for new feature development. New commands, settings, and other user-visible features are implemented here and are not backported to the TypeScript pnpm v11 CLI under `../pnpm11/`.
 
 For bug fixes, determine which supported versions contain the bug. A bug present in both v11 and v12 must be fixed and tested in both implementations. A bug present in only one version is fixed only in that version. See [`AGENTS.md`](./AGENTS.md) for the full version policy.
 
