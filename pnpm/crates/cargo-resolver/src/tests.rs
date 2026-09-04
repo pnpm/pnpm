@@ -1,4 +1,4 @@
-use super::{missing_index_names, resolve_lockfile};
+use super::{latest_version, missing_index_names, resolve_lockfile};
 use cargo_lock::Lockfile;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -52,6 +52,15 @@ fn discovers_transitive_sparse_index_files() {
 
     files.insert("bar".to_string(), BAR_INDEX.to_string());
     assert!(missing_index_names(METADATA, &files).unwrap().is_empty());
+}
+
+#[test]
+fn selects_the_latest_stable_non_yanked_version() {
+    let index = r#"{"name":"foo","vers":"2.0.0-alpha.1","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}
+{"name":"foo","vers":"1.2.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":true}"#;
+
+    assert_eq!(latest_version("foo", index).unwrap(), "1.1.0");
 }
 
 #[test]

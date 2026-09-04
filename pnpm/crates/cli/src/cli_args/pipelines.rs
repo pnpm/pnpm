@@ -21,7 +21,7 @@ use crate::{
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
     },
-    config_deps, ecosystem_install,
+    config_deps, ecosystem_add, ecosystem_install,
 };
 use indexmap::IndexMap;
 use miette::Context;
@@ -483,6 +483,7 @@ impl InstallPipeline {
             http_client,
             lockfile_only,
             frozen_lockfile,
+            cargo_lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
         }
         .run::<Reporter, _>(node_install)
         .await
@@ -516,6 +517,7 @@ pub(crate) struct AddPipeline {
     /// before this pipeline scaffolds a manifest. `Some` exactly when
     /// `--config` was passed.
     pub(crate) config_dependencies: Option<BTreeMap<String, String>>,
+    pub(crate) package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
 }
 
 impl AddPipeline {
@@ -529,6 +531,7 @@ impl AddPipeline {
             manifest_path,
             recursive_sort,
             config_dependencies,
+            package_specifier_plan,
         } = self;
         if let Some(pm) = package_manager_to_sync.as_ref() {
             config_deps::sync_package_manager_dependencies(
@@ -543,6 +546,65 @@ impl AddPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        if package_specifier_plan.has_cargo() {
+            if cfg.recursive {
+                return Err(miette::miette!(
+                    "crate: dependencies cannot yet be added through a recursive or filtered selection"
+                ));
+            }
+            if args.save_catalog || args.save_catalog_name.is_some() {
+                return Err(miette::miette!(
+                    "crate: dependencies cannot be saved to an npm catalog"
+                ));
+            }
+            let has_node_packages = !package_specifier_plan.node_packages.is_empty();
+            let cargo_dependency_kind =
+                args.dependency_options.cargo_dependency_kind(has_node_packages)?;
+            if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
+                let manifest_dir = manifest_path
+                    .parent()
+                    .expect("manifest path always has a parent dir")
+                    .to_path_buf();
+                cfg.anchor_lockfile_paths(&manifest_dir);
+            }
+            let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
+            let cargo_manifest_path = prefix.join("Cargo.toml");
+            ecosystem_add::prepare(
+                cfg,
+                &cargo_manifest_path,
+                &package_specifier_plan.ecosystem_packages,
+                cargo_dependency_kind,
+                args.save_exact,
+                args.save_prefix.as_deref(),
+                Arc::clone(&http_client),
+            )
+            .await?;
+
+            let cargo_root =
+                if config_root.join("Cargo.toml").is_file() { config_root } else { prefix };
+            let lockfile_only = args.lockfile_only;
+            let mut node_args = args;
+            node_args.package_names = package_specifier_plan.node_packages;
+            let cfg: &'static Config = cfg;
+            let node_http_client = Arc::clone(&http_client);
+            let node_install = async move {
+                if node_args.package_names.is_empty() {
+                    return Ok(());
+                }
+                let state = init_shared_state(manifest_path, cfg, false, None, node_http_client)?;
+                Box::pin(node_args.run::<Reporter>(state, None)).await
+            };
+            return ecosystem_install::EcosystemInstallCoordinator {
+                config: cfg,
+                root_dir: &cargo_root,
+                http_client,
+                lockfile_only,
+                frozen_lockfile: false,
+                cargo_lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
+            }
+            .run::<Reporter, _>(node_install)
+            .await;
+        }
         // `--config` targets the workspace's configuration dependencies, not
         // any project's manifest, so it bypasses project selection entirely.
         let plan = if config_dependencies.is_some() {

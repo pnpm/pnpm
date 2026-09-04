@@ -193,6 +193,21 @@ pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) 
     lockfile_from_solution(&metadata, &registry, &solution, &feature_selections)
 }
 
+/// Return the newest stable, non-yanked version from a crates.io sparse-index entry.
+///
+/// `cargo add <name>` records this version as the dependency requirement when the
+/// user did not supply one. Pre-releases remain opt-in, matching Cargo's default.
+pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
+    let registry = Registry::new(&BTreeMap::from([(name.to_string(), index_file.to_string())]))?;
+    registry
+        .package(name)?
+        .iter()
+        .rev()
+        .find(|version| !version.yanked && version.version.pre.is_empty())
+        .map(|version| version.version.to_string())
+        .ok_or_else(|| miette::miette!("crate {name} has no stable, non-yanked version"))
+}
+
 struct Registry {
     packages: BTreeMap<String, Vec<RegistryVersion>>,
 }

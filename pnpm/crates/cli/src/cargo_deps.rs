@@ -24,6 +24,12 @@ const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
 const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
 const MANAGED_CONFIG: &str = "# >>> pnpm-managed cargo sources >>>\n[source.crates-io]\nreplace-with = \"pnpm-crates-io\"\n\n[source.pnpm-crates-io]\ndirectory = \".pnpm/crates/crates-io\"\n# <<< pnpm-managed cargo sources <<<";
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CargoLockfilePolicy {
+    UseExisting,
+    Resolve,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LockedCrate {
     name: String,
@@ -50,6 +56,7 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     root_dir: &Path,
     lockfile_only: bool,
     frozen_lockfile: bool,
+    lockfile_policy: CargoLockfilePolicy,
     http_client: Arc<ThrottledClient>,
 ) -> Result<()> {
     if !config.cargo.enabled {
@@ -57,8 +64,15 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     }
 
     let cargo_lock_path = root_dir.join("Cargo.lock");
-    let cargo_lock =
-        ensure_lockfile(config, root_dir, &cargo_lock_path, frozen_lockfile, &http_client).await?;
+    let cargo_lock = ensure_lockfile(
+        config,
+        root_dir,
+        &cargo_lock_path,
+        frozen_lockfile,
+        lockfile_policy,
+        &http_client,
+    )
+    .await?;
     if lockfile_only {
         return Ok(());
     }
@@ -113,15 +127,18 @@ async fn ensure_lockfile(
     root_dir: &Path,
     cargo_lock_path: &Path,
     frozen_lockfile: bool,
+    lockfile_policy: CargoLockfilePolicy,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<String> {
-    match fs::read_to_string(cargo_lock_path) {
-        Ok(lockfile) => return Ok(lockfile),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => {
-            return Err(error)
-                .into_diagnostic()
-                .wrap_err_with(|| format!("read {}", cargo_lock_path.display()));
+    if lockfile_policy == CargoLockfilePolicy::UseExisting {
+        match fs::read_to_string(cargo_lock_path) {
+            Ok(lockfile) => return Ok(lockfile),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("read {}", cargo_lock_path.display()));
+            }
         }
     }
     if frozen_lockfile {
@@ -138,6 +155,20 @@ async fn ensure_lockfile(
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", cargo_lock_path.display()))?;
     Ok(lockfile)
+}
+
+pub(crate) async fn latest_version(
+    config: &Config,
+    name: &str,
+    http_client: &ThrottledClient,
+) -> Result<String> {
+    let auth_headers = AuthHeaders::default();
+    let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
+    let index_file =
+        fetch_sparse_index_file(name, &cache_dir, http_client, &auth_headers, config.offline)
+            .await?;
+    pnpm_cargo_resolver::latest_version(name, &index_file)
+        .wrap_err_with(|| format!("select the latest version of crate {name}"))
 }
 
 async fn read_cargo_metadata(root_dir: &Path) -> Result<String> {

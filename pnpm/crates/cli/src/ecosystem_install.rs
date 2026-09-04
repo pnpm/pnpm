@@ -1,4 +1,4 @@
-use crate::cargo_deps;
+use crate::cargo_deps::{self, CargoLockfilePolicy};
 use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use std::{future::Future, path::Path, pin::Pin, sync::Arc};
@@ -20,6 +20,7 @@ pub(crate) struct EcosystemInstallCoordinator<'a> {
     pub(crate) http_client: Arc<ThrottledClient>,
     pub(crate) lockfile_only: bool,
     pub(crate) frozen_lockfile: bool,
+    pub(crate) cargo_lockfile_policy: CargoLockfilePolicy,
 }
 
 impl<'a> EcosystemInstallCoordinator<'a> {
@@ -40,6 +41,7 @@ impl<'a> EcosystemInstallCoordinator<'a> {
             self.root_dir,
             self.lockfile_only,
             self.frozen_lockfile,
+            self.cargo_lockfile_policy,
             Arc::clone(&self.http_client),
         );
         run_installers(vec![Box::pin(node_install), Box::pin(cargo_install)]).await
