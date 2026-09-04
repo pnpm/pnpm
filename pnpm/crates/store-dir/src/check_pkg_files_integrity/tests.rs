@@ -100,7 +100,7 @@ fn careful_path_fails_on_missing_cafs_file() {
 /// `checked_at = 0` makes the mtime-slack delta "definitely > 100 ms",
 /// forcing a re-hash.
 #[test]
-fn careful_path_removes_file_whose_content_hash_mismatches() {
+fn careful_path_fails_but_keeps_file_whose_content_hash_mismatches() {
     let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
@@ -115,13 +115,17 @@ fn careful_path_removes_file_whose_content_hash_mismatches() {
     dbg!(&result);
     assert!(!result.passed, "bad hash → fail");
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "mismatched file is removed so the next call re-fetches");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 /// `checked_at = 0` puts us firmly in the "modified" branch (mtime now
 /// > 100 ms past 0), so the size check runs.
 #[test]
-fn careful_path_removes_file_whose_size_mismatches_after_touch() {
+fn careful_path_fails_but_keeps_file_whose_size_mismatches_after_touch() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
     let content = b"actual content";
@@ -132,7 +136,11 @@ fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "size mismatch removes the file so a re-fetch starts clean");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 #[test]
@@ -239,7 +247,10 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "unknown algo → treated as corrupt → removed");
+    assert!(
+        path.exists(),
+        "an unverifiable file is no evidence of corruption; it stays for the re-fetch to replace",
+    );
 }
 
 /// The tally is process-wide, so a test measuring a delta across it has
@@ -316,8 +327,9 @@ fn the_tally_covers_hashing_only() {
 }
 
 /// Plants a directory where a CAFS blob belongs (store corruption —
-/// stray `mkdir -p` or interrupted write) to exercise the dirent-type
-/// fallback in `remove_stale_cafs_entry`.
+/// stray `mkdir -p` or interrupted write) to exercise
+/// `scrub_directory_at_cafs_path`: a directory is the one dirent the
+/// re-fetch's rename cannot replace, so the verifier removes it.
 #[test]
 fn careful_path_removes_directory_at_cafs_path() {
     let tmp = tempdir().unwrap();

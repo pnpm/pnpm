@@ -204,12 +204,12 @@ function verifyFile (
   if (currentFile == null) return false
   if (currentFile.isModified) {
     if (currentFile.size !== fstat.size) {
-      rimrafSync(filename)
+      scrubDirectoryAtCafsPath(filename)
       return false
     }
     const passed = tallyVerifyFileIntegrity(filename, { digest: fstat.digest, algorithm })
     if (!passed) {
-      gfs.unlinkSync(filename)
+      scrubDirectoryAtCafsPath(filename)
     }
     return passed
   }
@@ -217,6 +217,30 @@ function verifyFile (
   // digest read. Store integrity verification detects corruption; it does not make
   // a store writable by untrusted users safe.
   return true
+}
+
+/**
+ * A mismatched or unreadable file is left in place: the re-fetch replaces it
+ * atomically (writeBufferToCafs verifies an existing file and swaps in a fresh
+ * copy via temp+rename), while unlinking it here races every other install
+ * sharing the store. Nothing serializes installs across processes, so a
+ * concurrent install may hold this path in its files map and be importing from
+ * it right now — the unlink surfaces there as ENOENT and fails that whole
+ * install. Verification also reports a transient read failure the same way as
+ * a mismatch, so an unlink could remove a perfectly healthy blob. Only a
+ * directory squatting at the blob's path is removed: a rename cannot replace
+ * it, so it would otherwise wedge the path forever.
+ */
+function scrubDirectoryAtCafsPath (filename: string): void {
+  let stats
+  try {
+    stats = fs.lstatSync(filename)
+  } catch {
+    return
+  }
+  if (stats.isDirectory()) {
+    rimrafSync(filename)
+  }
 }
 
 /**

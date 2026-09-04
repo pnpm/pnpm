@@ -345,20 +345,18 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 ///
 /// **Locking discipline.** The fast path (`is_modified == false`, i.e.
 /// the file's mtime is within 100 ms of the recorded `checked_at`)
-/// runs lock-free — it never touches the file's bytes and never
-/// considers a delete, so it cannot race with an in-flight writer.
-/// The slow path (where verification could lead to a
-/// [`remove_stale_cafs_entry`] call) acquires
+/// runs lock-free — it never touches the file's bytes, so it cannot
+/// race with an in-flight writer. The slow path acquires
 /// [`pnpm_fs::cas_write_lock`] for `path` before re-stating the
 /// file. This is the same per-path mutex
 /// [`pnpm_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
-/// `write_all`, so a concurrent writer's full sequence completes
-/// before the verifier evaluates the file. Without this gate, the
-/// verifier observes the writer's intermediate (partial) state,
-/// `unlink`s the file out from under the writer's open fd, and the
-/// install ends up with `cas_paths` referencing a path whose dirent
-/// has been removed — which surfaces later as ENOENT in
-/// `link_file`.
+/// `write_all`, so a concurrent same-process writer's full sequence
+/// completes before the verifier evaluates the file — without the
+/// gate the verifier would read the writer's intermediate (partial)
+/// state and report a spurious miss. The lock is process-local, which
+/// is exactly why a failed verification must never unlink a file:
+/// another *process* sharing the store may be importing from it — see
+/// [`scrub_directory_at_cafs_path`].
 fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> bool {
     // Lock-free fast path. `check_file` is read-only and only touches
     // the file's metadata; no risk of clobbering a writer's state.
@@ -406,18 +404,18 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
         return true;
     }
     if size != info.size {
-        // Wrong size → content definitely changed. Remove so the next
-        // caller fetches a clean copy. See `remove_stale_cafs_entry`
-        // for why this has to cover dirs too.
+        // Wrong size → content definitely changed. Report the miss so
+        // the caller re-fetches; see `scrub_directory_at_cafs_path` for
+        // why nothing but a directory is removed here.
         tracing::debug!(
             target: "pacquet::store_index",
             ?filename,
             ?path,
             expected_size = info.size,
             actual_size = size,
-            "CAFS file size mismatch; scrubbing and re-fetching",
+            "CAFS file size mismatch; re-fetching",
         );
-        remove_stale_cafs_entry(path);
+        scrub_directory_at_cafs_path(path);
         return false;
     }
     let passed = verify_file_integrity(path, &info.digest, algo);
@@ -426,37 +424,46 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
             target: "pacquet::store_index",
             ?filename,
             ?path,
-            "CAFS file digest mismatch or unknown algo; scrubbing and re-fetching",
+            "CAFS file digest mismatch, read failure, or unknown algo; re-fetching",
         );
-        remove_stale_cafs_entry(path);
+        scrub_directory_at_cafs_path(path);
     }
     passed
 }
 
-/// Remove a CAFS dirent that failed verification, with recursive
-/// (`rimraf`-style) semantics that also handle a directory.
+/// Remove a *directory* squatting at a CAFS blob path (stray
+/// `mkdir -p`, interrupted write, filesystem hiccup), so the store
+/// self-heals: the re-fetch's `rename` cannot replace a directory, and
+/// without this the next install's verification would fail again and
+/// again.
 ///
-/// `fs::remove_file` on a directory returns `EISDIR` / `EPERM`, and a
-/// corrupted store that has a directory sitting where a CAFS blob
-/// belongs (stray `mkdir -p`, interrupted write, filesystem hiccup)
-/// would stay there forever if we only tried `remove_file`. Next
-/// install's verification would fail again and again — the store
-/// wouldn't self-heal.
+/// Any other dirent — a corrupt or truncated blob, a symlink — is
+/// deliberately left in place. The re-fetch replaces it atomically
+/// (`write_cas_file` byte-verifies an existing file and rename-swaps
+/// anything that doesn't match), so unlinking here buys nothing and
+/// races every other install sharing the store: nothing serializes
+/// installs across processes, and a concurrent install may hold this
+/// path in its `cas_paths` and be mid-import from it — the unlink
+/// surfaces there as an ENOENT that fails that whole install
+/// (pnpm/pnpm#14353's error class). This matters doubly because
+/// [`verify_file_integrity`] reports a *transient read failure* the
+/// same way as a mismatch, so an unlink here could remove a perfectly
+/// healthy blob.
 ///
-/// Best-effort for both: try `remove_file`, fall back to
-/// `remove_dir_all` if the dirent is a directory. Errors are logged at
-/// `debug` and dropped — worst case the next install notices the same
-/// stale dirent and retries. We use `symlink_metadata` so we identify
-/// the dirent type without following a symlink.
-fn remove_stale_cafs_entry(path: &Path) {
-    let is_dir = fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir());
-    let result = if is_dir { fs::remove_dir_all(path) } else { fs::remove_file(path) };
-    if let Err(error) = result {
+/// Best-effort: errors are logged at `debug` and dropped — worst case
+/// the next install notices the same dirent and retries. We use
+/// `symlink_metadata` so a symlink is not followed into whatever it
+/// points at.
+fn scrub_directory_at_cafs_path(path: &Path) {
+    if !fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
+        return;
+    }
+    if let Err(error) = fs::remove_dir_all(path) {
         tracing::debug!(
             target: "pacquet::store_index",
             ?path,
             ?error,
-            "failed to scrub stale CAFS entry; next install will retry",
+            "failed to scrub a directory at a CAFS path; next install will retry",
         );
     }
 }
