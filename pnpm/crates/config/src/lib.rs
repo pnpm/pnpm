@@ -914,14 +914,6 @@ pub enum PackageImportMethod {
     CloneOrCopy,
 }
 
-/// Resolved runtime config built from defaults, the auth subset of
-/// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
-///
-/// The type carries the merged result — it is never deserialized from a
-/// file directly. Yaml is parsed into [`WorkspaceSettings`] and applied
-/// onto `Config` field-by-field, following pnpm 11's split between
-/// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
-/// (project-structural settings).
 /// The two hoist patterns as one value, for
 /// [`Config::hoist_patterns_before_virtual_store_only`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -930,6 +922,14 @@ pub struct HoistPatterns {
     pub public_hoist_pattern: Option<Vec<String>>,
 }
 
+/// Resolved runtime config built from defaults, the auth subset of
+/// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
+///
+/// The type carries the merged result — it is never deserialized from a
+/// file directly. Yaml is parsed into [`WorkspaceSettings`] and applied
+/// onto `Config` field-by-field, following pnpm 11's split between
+/// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
+/// (project-structural settings).
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
     /// Whether recursive commands stop after the first failure.
