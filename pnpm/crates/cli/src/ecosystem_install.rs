@@ -5,10 +5,7 @@ use std::{future::Future, path::Path, pin::Pin, sync::Arc};
 
 type Installer<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
 
-/// Whether any non-Node.js ecosystem participates in this install.
-///
-/// Keep this check at the orchestration boundary as new ecosystems are added,
-/// so an empty Node.js selection can still skip all install initialization.
+/// Report whether a non-Node.js ecosystem participates in this install.
 pub(crate) fn is_enabled(config: &Config) -> bool {
     config.cargo.enabled
 }
@@ -25,10 +22,7 @@ pub(crate) struct EcosystemInstallCoordinator<'a> {
 }
 
 impl<'a> EcosystemInstallCoordinator<'a> {
-    /// Run every configured ecosystem concurrently.
-    ///
-    /// Each new language contributes one boxed installer here and receives the
-    /// same install-wide HTTP client, preserving the configured network budget.
+    /// Install every configured ecosystem under the shared network budget.
     pub(crate) async fn run<Reporter, NodeInstall>(
         self,
         node_install: NodeInstall,

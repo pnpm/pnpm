@@ -12,11 +12,7 @@ use pubgrub::{
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// Return sparse-index package names needed to resolve `metadata`.
-///
-/// Callers fetch the returned files and call this function again until the
-/// result is empty. Keeping network I/O outside this crate makes the resolver
-/// usable by both the CLI and a future pnpr implementation.
+/// Return sparse-index package names still needed to resolve `metadata`.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,

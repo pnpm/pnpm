@@ -9,11 +9,7 @@ use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use std::{path::Path, sync::Arc};
 
-/// Prepare non-Node.js manifests before their install futures start.
-///
-/// The protocol dispatcher is intentionally ecosystem-neutral. A Python
-/// implementation can add its own specifier variant and manifest handler here
-/// without changing npm selector parsing or npm's package.json writer.
+/// Update supported non-Node.js manifests for an add request.
 pub(crate) async fn prepare(
     config: &Config,
     cargo_manifest_path: &Path,

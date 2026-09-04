@@ -137,18 +137,31 @@ pub(crate) fn collect_feature_selections(
     while let Some(dependency) = pending.pop_front() {
         validate_registry(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let version =
-            matching_versions(versions, &dependency.requirement).next_back().ok_or_else(|| {
+        let eligible_versions =
+            matching_versions(versions, &dependency.requirement).collect::<Vec<_>>();
+        let compatibility = eligible_versions
+            .last()
+            .map(|version| compatibility_line(&version.version))
+            .ok_or_else(|| {
                 miette::miette!(
                     "no non-yanked version of {} satisfies {}",
                     dependency.name,
                     dependency.requirement,
                 )
             })?;
-        let compatibility = compatibility_line(&version.version);
-        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
-        let candidate_is_new =
-            candidate_versions.entry(package.clone()).or_default().insert(version.version.clone());
+        let package = PackageKey::Registry {
+            name: dependency.name.clone(),
+            compatibility: compatibility.clone(),
+        };
+        let candidates = candidate_versions.entry(package.clone()).or_default();
+        let previous_candidate_count = candidates.len();
+        candidates.extend(
+            eligible_versions
+                .into_iter()
+                .filter(|version| compatibility_line(&version.version) == compatibility)
+                .map(|version| version.version.clone()),
+        );
+        let candidates_changed = candidates.len() != previous_candidate_count;
         let requested = dependency.feature_selection();
         let selection = selections.entry(package.clone()).or_default();
         let previous = selection.clone();
@@ -156,7 +169,7 @@ pub(crate) fn collect_feature_selections(
         selection.features.extend(requested.features);
         let selection_changed = *selection != previous;
         let selection = selection.clone();
-        if !candidate_is_new && !selection_changed {
+        if !candidates_changed && !selection_changed {
             continue;
         }
         for candidate_version in &candidate_versions[&package] {

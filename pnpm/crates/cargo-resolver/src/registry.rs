@@ -33,9 +33,6 @@ impl Registry {
 }
 
 /// Return the newest stable, non-yanked version from a crates.io sparse-index entry.
-///
-/// `cargo add <name>` records this version as the dependency requirement when the
-/// user did not supply one. Pre-releases remain opt-in, matching Cargo's default.
 pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
     let registry = Registry::new(&BTreeMap::from([(name.to_string(), index_file.to_string())]))?;
     registry
