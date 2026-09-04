@@ -202,6 +202,20 @@ fn dep_activation_suppresses_the_implicit_optional_feature() {
     let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
 
     assert!(missing_index_names(&metadata, &files).unwrap().is_empty());
+    assert!(resolve_lockfile(&metadata, &files).is_err());
+}
+
+#[test]
+fn selects_an_older_candidate_that_provides_a_requested_feature() {
+    let metadata =
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["special"]"#, 1);
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"special":[]},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
     let lockfile = Lockfile::from_str(&resolve_lockfile(&metadata, &files).unwrap()).unwrap();
-    assert_eq!(lockfile.packages.len(), 2);
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
 }

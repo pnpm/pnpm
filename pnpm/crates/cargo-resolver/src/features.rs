@@ -56,6 +56,15 @@ pub(crate) fn active_dependencies(
     active_dependencies_from_parts(&package.dependencies, &package.features, selection, false)
 }
 
+pub(crate) fn supports_features(package: &RegistryVersion, selection: &FeatureSelection) -> bool {
+    let implicit_optional_aliases =
+        implicit_optional_aliases(&package.dependencies, &package.features);
+    selection.features.iter().all(|feature| {
+        package.features.contains_key(feature)
+            || implicit_optional_aliases.contains(feature.as_str())
+    })
+}
+
 pub(crate) fn active_dependencies_from_parts(
     dependencies: &[RegistryDependency],
     features: &BTreeMap<String, Vec<String>>,
@@ -84,18 +93,7 @@ fn collect_feature_activations(
     features: &BTreeMap<String, Vec<String>>,
     selection: &FeatureSelection,
 ) -> FeatureActivations {
-    let explicitly_activated_aliases = features
-        .values()
-        .flatten()
-        .filter_map(|activation| activation.strip_prefix("dep:"))
-        .collect::<BTreeSet<_>>();
-    let implicit_optional_aliases = dependencies
-        .iter()
-        .filter(|dependency| {
-            dependency.optional && !explicitly_activated_aliases.contains(dependency.alias.as_str())
-        })
-        .map(|dependency| dependency.alias.as_str())
-        .collect::<BTreeSet<_>>();
+    let implicit_optional_aliases = implicit_optional_aliases(dependencies, features);
     let mut pending = selection.features.iter().cloned().collect::<VecDeque<_>>();
     if selection.default_features {
         pending.push_back("default".to_string());
@@ -124,6 +122,24 @@ fn collect_feature_activations(
     }
     activations.activate_weak_dependency_features();
     activations
+}
+
+fn implicit_optional_aliases<'a>(
+    dependencies: &'a [RegistryDependency],
+    features: &BTreeMap<String, Vec<String>>,
+) -> BTreeSet<&'a str> {
+    let explicitly_activated_aliases = features
+        .values()
+        .flatten()
+        .filter_map(|activation| activation.strip_prefix("dep:"))
+        .collect::<BTreeSet<_>>();
+    dependencies
+        .iter()
+        .filter(|dependency| {
+            dependency.optional && !explicitly_activated_aliases.contains(dependency.alias.as_str())
+        })
+        .map(|dependency| dependency.alias.as_str())
+        .collect()
 }
 
 pub(crate) fn collect_feature_selections(
@@ -177,6 +193,9 @@ pub(crate) fn collect_feature_selections(
                 .iter()
                 .find(|candidate| candidate.version == *candidate_version)
                 .expect("recorded candidate came from this registry package");
+            if !supports_features(candidate, &selection) {
+                continue;
+            }
             pending.extend(active_dependencies(candidate, &selection)?);
         }
     }

@@ -1,5 +1,5 @@
 use crate::{
-    features::{active_dependencies, collect_feature_selections},
+    features::{active_dependencies, collect_feature_selections, supports_features},
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
     model::{PackageKey, RegistryDependency},
@@ -38,8 +38,11 @@ pub fn missing_index_names(
             missing.insert(dependency.name);
             continue;
         };
-        for version in matching_versions(versions, &dependency.requirement) {
-            pending.extend(active_dependencies(version, &dependency.feature_selection())?);
+        let selection = dependency.feature_selection();
+        for version in matching_versions(versions, &dependency.requirement)
+            .filter(|version| supports_features(version, &selection))
+        {
+            pending.extend(active_dependencies(version, &selection)?);
         }
     }
 
@@ -70,6 +73,9 @@ pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) 
         for version in versions.iter().filter(|version| {
             !version.yanked && compatibility_line(&version.version) == *compatibility
         }) {
+            if !supports_features(version, &selection) {
+                continue;
+            }
             let dependencies = active_dependencies(version, &selection)?;
             if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
                 continue;
