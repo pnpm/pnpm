@@ -238,7 +238,7 @@ fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn is_ignorable_discovery_error(error: &std::io::Error) -> bool {
-    matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied,)
+    matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied)
 }
 
 async fn ensure_lockfile(
