@@ -61,12 +61,9 @@ impl ImporterAnchor {
         if target.starts_with(SEPARATORS) {
             return None;
         }
-        // One pass over the target's bytes: classify each raw segment,
-        // grow the shared prefix, and remember where the kept tail
-        // starts. The kept tail is almost always verbatim — no
-        // collapsed separators, no `.` segments, no trailing separator
-        // — and then the rendering is one `String` build from two
-        // slices instead of a second segment split.
+        // Avoid splitting the target a second time for the rendering:
+        // when the kept tail is verbatim — nothing collapsed or
+        // dropped — it copies over as one slice.
         let mut shared = 0;
         let mut still_shared = true;
         let mut tail_start: Option<usize> = None;
