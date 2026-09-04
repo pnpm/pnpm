@@ -123,6 +123,9 @@ struct ProjectInfo {
 
 struct SelectedProject {
     project: Project,
+    /// Keyed by [`comparable_path_components`] of each normalized project root,
+    /// the components [`same_path`] compares, so a lockfile local path finds its
+    /// project with one lookup. The first project discovered under a key wins.
     projects_by_path: HashMap<Vec<String>, ProjectInfo>,
 }
 
