@@ -656,3 +656,46 @@ fn foreign_top_level_keys_survive_a_round_trip() {
     let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
     assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
 }
+
+/// The parallel map lowering `serialize_yaml::to_string` uses for
+/// workspace-scale maps must render byte-identically to the plain
+/// serial lowering (which still runs when no stash is active, as in
+/// the direct `serde_json::to_value` below).
+#[test]
+fn parallel_map_lowering_matches_serial_lowering() {
+    use std::fmt::Write as _;
+    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  packages/pkg-{index:03}:\n    dependencies:\n      '@scope/dep-{index:03}':\n        specifier: workspace:*\n        version: link:../dep-{index:03}",
+        )
+        .expect("write to a string");
+    }
+    yaml.push_str("snapshots:\n");
+    for index in 0..200 {
+        writeln!(yaml, "  'pkg-{index:03}@1.0.{index}': {{}}").expect("write to a string");
+    }
+    yaml.push_str("packages:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  'pkg-{index:03}@1.0.{index}':\n    resolution: {{integrity: sha512-{index:A>88}}}",
+        )
+        .expect("write to a string");
+    }
+    let lockfile = Lockfile::parse(&yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the synthetic lockfile")
+        .expect("non-empty lockfile");
+
+    let via_to_string = lockfile.to_yaml_string().expect("serialize via to_string");
+    let mut plain = serde_json::to_value(&lockfile).expect("serialize serially");
+    crate::prune_time(&mut plain);
+    let via_serial = crate::yaml_emit::to_string(plain);
+
+    assert_eq!(via_to_string, via_serial);
+    assert!(
+        !via_to_string.contains('\u{f8ff}'),
+        "no stash marker may survive into the rendered lockfile",
+    );
+}
