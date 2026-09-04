@@ -329,12 +329,12 @@ For each PR, in order:
 6. **Product/contract.** npm-recognized semantics; defaults preserved or properly gated;
    no log noise. (§5)
 7. **Tests.** Right level, meaningful, regression-proving, cross-platform where relevant. (§7)
-8. **Changeset.** Present iff user-visible; `"pnpm"` included; one per change; accurate; styled
-   per `AGENTS.md`. (§8)
+8. **Changeset.** Present iff user-visible; targets every affected package (`pacquet` for v12,
+   `"pnpm"` for v11); one per change; accurate; styled per `AGENTS.md`. (§8)
 9. **Version coverage.** New features target v12 only; bug fixes cover every affected version. (§9)
 10. **Conventions.** `PnpmError`, no swallowed errors, good names, reused libraries, correct
     dependency placement, config through options. (`AGENTS.md` → Conventions)
 
 A change is mergeable when it is the **smallest correct, secure, in-scope version of a thing
 pnpm should do**, in the right layer, proven by a meaningful test, documented if user-visible,
-and mirrored in pacquet.
+and implemented in every affected pnpm version.

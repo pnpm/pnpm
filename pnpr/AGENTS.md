@@ -19,15 +19,16 @@ the `Cargo.lock` stays unified.
 
 ## Relationship to pacquet
 
-- **`pnpm/`** is a *port* of the pnpm CLI. Its cardinal rule is
-  "match pnpm exactly" — see [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md).
+- **`pnpm/`** is pnpm v12, the latest stable CLI and the target for new
+  feature development. See [`../pnpm/AGENTS.md`](../pnpm/AGENTS.md) for its
+  version policy.
 - **`pnpr/`** has no pnpm-CLI counterpart to mirror. It is a new
   server. Behavior here is designed, not ported.
 
-That means the "match upstream pnpm" discipline that governs `pnpm/`
-does **not** apply here. The registry can pick its own architecture,
-flags, and config format. It must still be compatible with the npm
-registry protocol that pnpm (and npm, yarn, etc.) clients speak.
+The pnpm v12 and v11 coverage policy governs the CLI implementations, not
+pnpr. The registry can pick its own architecture, flags, and config format. It
+must still be compatible with the npm registry protocol that pnpm (and npm,
+yarn, etc.) clients speak.
 
 ## Layout
 
@@ -82,7 +83,7 @@ drive-by during feature work.
 ### New registry-only crates
 
 When the registry needs its own crate (logic that isn't shared with the
-pnpm port and doesn't fit in `pnpm/`), put it under
+pnpm CLI and doesn't fit in `pnpm/`), put it under
 `pnpr/crates/<short-name>/` and name the package
 `pnpr-<short-name>` in its `Cargo.toml`. The
 `pnpr/crates/*` glob in the root workspace `members` picks it up

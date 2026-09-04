@@ -196,7 +196,7 @@ If your changes affect published packages, you MUST create a changeset file in t
 
 Example:
 
-```
+```text
 ---
 "@pnpm/installing.deps-installer": patch
 "pnpm": patch
