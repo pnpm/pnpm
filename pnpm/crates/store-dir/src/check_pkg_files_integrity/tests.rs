@@ -253,6 +253,31 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     );
 }
 
+/// A blob the verifier cannot open reports a miss like a mismatch
+/// would, and the failure may be transient — so the file must survive
+/// for the concurrent installs that may be importing from it.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_unreadable_file() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"guarded content";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    dbg!(&result);
+    assert!(!result.passed, "an unreadable blob is a verification miss");
+    assert!(
+        path.exists(),
+        "a read failure is no evidence of corruption; the blob must survive for concurrent readers",
+    );
+}
+
 /// The tally is process-wide, so a test measuring a delta across it has
 /// to be the only one hashing at the time. Every test that hashes holds
 /// this for its duration; without it, a sibling's re-hash lands between

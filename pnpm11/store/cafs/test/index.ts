@@ -206,6 +206,29 @@ describe('checkPkgFilesIntegrity()', () => {
     expect(fs.existsSync(filename)).toBeTruthy()
   })
 
+  // Windows ignores the 0o000 mode, so the open cannot be made to fail there.
+  const itOnPosix = process.platform === 'win32' ? it.skip : it
+  itOnPosix('leaves an unreadable file in place', () => {
+    const storeDir = temporaryDirectory()
+    const content = Buffer.from('guarded content')
+    const digest = crypto.createHash('sha512').update(content).digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, digest, 420)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, content)
+    fs.chmodSync(filename, 0)
+    // A non-ENOENT read failure surfaces as an error (graceful-fs already
+    // absorbs transient EMFILE pressure); what matters here is that the
+    // blob is not deleted on the way out.
+    expect(() => checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest, mode: 420, size: content.length }],
+      ]),
+    })).toThrow()
+    fs.chmodSync(filename, 0o644)
+    expect(fs.existsSync(filename)).toBeTruthy()
+  })
+
   it('removes a directory squatting at a blob path so the re-fetch can land', () => {
     const storeDir = temporaryDirectory()
     const claimedDigest = crypto.createHash('sha512').update('some content').digest('hex')

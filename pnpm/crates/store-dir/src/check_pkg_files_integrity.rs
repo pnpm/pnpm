@@ -431,40 +431,33 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
     passed
 }
 
-/// Remove a *directory* squatting at a CAFS blob path (stray
-/// `mkdir -p`, interrupted write, filesystem hiccup), so the store
-/// self-heals: the re-fetch's `rename` cannot replace a directory, and
-/// without this the next install's verification would fail again and
-/// again.
+/// Remove a *directory* squatting at a CAFS blob path so the
+/// re-fetch's `rename` can land. Every other dirent stays: the
+/// re-fetch replaces a mismatched file atomically, and unlinking here
+/// would race installs in other processes importing from this very
+/// path (pnpm/pnpm#14353's error class) — the verifier's lock is
+/// process-local, and [`verify_file_integrity`] reports a transient
+/// read failure the same way as a real mismatch.
 ///
-/// Any other dirent — a corrupt or truncated blob, a symlink — is
-/// deliberately left in place. The re-fetch replaces it atomically
-/// (`write_cas_file` byte-verifies an existing file and rename-swaps
-/// anything that doesn't match), so unlinking here buys nothing and
-/// races every other install sharing the store: nothing serializes
-/// installs across processes, and a concurrent install may hold this
-/// path in its `cas_paths` and be mid-import from it — the unlink
-/// surfaces there as an ENOENT that fails that whole install
-/// (pnpm/pnpm#14353's error class). This matters doubly because
-/// [`verify_file_integrity`] reports a *transient read failure* the
-/// same way as a mismatch, so an unlink here could remove a perfectly
-/// healthy blob.
-///
-/// Best-effort: errors are logged at `debug` and dropped — worst case
-/// the next install notices the same dirent and retries. We use
-/// `symlink_metadata` so a symlink is not followed into whatever it
-/// points at.
+/// `remove_dir_all` itself refuses a non-directory (a file or a
+/// symlink at the path errors without deleting anything), so the
+/// dirent-type decision and the removal are one call with no window
+/// between them. Best-effort: a failure is logged at `debug` and the
+/// next install retries.
 fn scrub_directory_at_cafs_path(path: &Path) {
-    if !fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
-        return;
-    }
     if let Err(error) = fs::remove_dir_all(path) {
-        tracing::debug!(
-            target: "pacquet::store_index",
-            ?path,
-            ?error,
-            "failed to scrub a directory at a CAFS path; next install will retry",
-        );
+        // A non-directory dirent (or nothing at all) at the path makes
+        // `remove_dir_all` fail without deleting anything — exactly the
+        // leave-it-alone outcome — so only a directory that could not
+        // be removed is worth a log line.
+        if fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
+            tracing::debug!(
+                target: "pacquet::store_index",
+                ?path,
+                ?error,
+                "failed to scrub a directory at a CAFS path; next install will retry",
+            );
+        }
     }
 }
 
