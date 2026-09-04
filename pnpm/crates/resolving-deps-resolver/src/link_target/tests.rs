@@ -64,6 +64,31 @@ fn guards_send_unclean_inputs_to_the_fallback() {
     assert_eq!(disarmed.target_relative_to_lockfile_root("packages/lib"), None);
 }
 
+/// Targets whose kept tail is not verbatim — collapsed separators, `.`
+/// segments, a trailing separator — re-render through the segment join
+/// and agree with the clean spelling of the same target.
+#[test]
+fn filtered_segments_render_like_their_clean_spelling() {
+    let anchor = ImporterAnchor::new(&abs_root().join("packages/app"), abs_root());
+    for messy in ["packages//lib", "packages/./lib", "packages/lib/", "./packages/lib"] {
+        assert_eq!(
+            anchor.target_relative_to_importer(messy),
+            Some("../lib".to_string()),
+            "target {messy:?}",
+        );
+    }
+    assert_eq!(
+        anchor.target_relative_to_importer("packages/app"),
+        Some(String::new()),
+        "a target that is the importer itself renders empty",
+    );
+    assert_eq!(
+        anchor.target_relative_to_importer("packages"),
+        Some("..".to_string()),
+        "a target that is a prefix of the importer only climbs",
+    );
+}
+
 #[test]
 fn root_importer_uses_the_empty_suffix() {
     let rel = importer_rel_dir(abs_root(), abs_root()).expect("same dir");
