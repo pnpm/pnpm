@@ -715,6 +715,10 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64

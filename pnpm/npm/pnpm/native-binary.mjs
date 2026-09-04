@@ -29,11 +29,12 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
-    // Only a glibc build is released for this architecture, so the specifier
-    // is a plain string rather than a libc pair: the libc ordering below maps
-    // over the pair's keys, and a missing one would yield an `undefined`
-    // specifier.
-    riscv64: '@pnpm/exe.linux-riscv64/pnpm',
+    // No musl build is released for this architecture. The pair is therefore
+    // glibc-only, and a musl host resolves no candidate at all rather than a
+    // binary it cannot run.
+    riscv64: {
+      glibc: '@pnpm/exe.linux-riscv64/pnpm',
+    },
   },
 }
 
@@ -54,8 +55,17 @@ export function getBinCandidates () {
     return [platformEntry]
   }
 
-  const order = detectLinuxLibc() === 'musl' ? ['musl', 'glibc'] : ['glibc', 'musl']
-  return order.map((libc) => platformEntry[libc])
+  // `detectLinuxLibc` returns null when `process.report` is unavailable; that
+  // falls back to glibc, which is what the ordering defaulted to before.
+  const detected = detectLinuxLibc() === 'musl' ? 'musl' : 'glibc'
+  const preferred = platformEntry[detected]
+  // An architecture released for only one libc has no entry for the other, and
+  // the binary it does ship cannot run there, so it offers no candidate.
+  if (preferred == null) {
+    return []
+  }
+  const alternate = platformEntry[detected === 'musl' ? 'glibc' : 'musl']
+  return alternate == null ? [preferred] : [preferred, alternate]
 }
 
 /**
