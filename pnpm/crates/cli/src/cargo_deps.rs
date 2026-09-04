@@ -643,9 +643,10 @@ fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result
                     if error.kind() == io::ErrorKind::NotADirectory
                         || error.raw_os_error() == Some(libc::ELOOP) =>
                 {
+                    let path = path.display();
                     return Err(miette::miette!(
                         "managed Cargo directory {} must be a real directory",
-                        path.display(),
+                        path,
                     ));
                 }
                 Err(error) => {
@@ -741,9 +742,10 @@ fn ensure_workspace_directory_windows(
             .into_diagnostic()
             .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()))?;
         if !metadata.is_dir() || is_windows_reparse_point(&metadata) {
+            let path = path.display();
             return Err(miette::miette!(
                 "managed Cargo directory {} must be a real directory",
-                path.display(),
+                path,
             ));
         }
         handles.push(handle);
