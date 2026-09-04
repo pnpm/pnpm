@@ -203,6 +203,60 @@ function runNpm (args, cwd) {
   }
 }
 
+test('linux riscv64 resolves the glibc package, and nothing under musl', async (t) => {
+  const restore = fakeHost(t, 'riscv64')
+
+  // `native-binary.mjs` reads process.platform and process.arch at module
+  // scope, so it has to be imported again once they are faked. The libc is
+  // read per call, so one import covers both cases.
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?riscv64')
+
+  restore.setLibc('glibc')
+  assert.deepEqual(candidates(), ['@pnpm/exe.linux-riscv64/pnpm'])
+
+  // No musl binary is released for riscv64, and the glibc one cannot run
+  // there, so the installer reports an unsupported platform instead.
+  restore.setLibc('musl')
+  assert.deepEqual(candidates(), [])
+})
+
+test('an architecture released for both libcs still offers the other as a fallback', async (t) => {
+  const restore = fakeHost(t, 'x64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?x64')
+
+  restore.setLibc('glibc')
+  assert.deepEqual(candidates(), ['@pnpm/exe.linux-x64/pnpm', '@pnpm/exe.linux-x64-musl/pnpm'])
+
+  restore.setLibc('musl')
+  assert.deepEqual(candidates(), ['@pnpm/exe.linux-x64-musl/pnpm', '@pnpm/exe.linux-x64/pnpm'])
+})
+
+/**
+ * Present the running process as a Linux host of `arch`, restoring the real
+ * descriptors when the test ends. `setLibc` drives `detectLinuxLibc`, which
+ * reads `process.report`, so the cases do not depend on the host's own libc.
+ */
+function fakeHost (t, arch) {
+  const saved = ['platform', 'arch', 'report']
+    .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
+  t.after(() => {
+    for (const [key, descriptor] of saved) {
+      if (descriptor) Object.defineProperty(process, key, descriptor)
+    }
+  })
+  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+  Object.defineProperty(process, 'arch', { value: arch, configurable: true })
+  return {
+    setLibc (libc) {
+      const header = libc === 'glibc' ? { glibcVersionRuntime: '2.39' } : {}
+      Object.defineProperty(process, 'report', {
+        value: { getReport: () => ({ header }) },
+        configurable: true,
+      })
+    },
+  }
+}
+
 function writeNativeFixture (destPath) {
   if (process.platform === 'win32') {
     try {
