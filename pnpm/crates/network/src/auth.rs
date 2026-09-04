@@ -766,7 +766,8 @@ fn is_loopback_host(host: &str) -> bool {
 #[must_use]
 pub fn is_url_secure_for_credentials(url: &str) -> bool {
     ParsedUrl::parse(url).is_some_and(|parsed| {
-        parsed.scheme.eq_ignore_ascii_case("https") || is_loopback_host(parsed.host)
+        parsed.scheme.eq_ignore_ascii_case("https")
+            || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
     })
 }
 

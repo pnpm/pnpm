@@ -574,6 +574,8 @@ fn classifies_urls_that_are_secure_for_credentials() {
     assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
     assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
     assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
     assert!(!super::is_url_secure_for_credentials("not a url"));
 }
 
