@@ -231,7 +231,7 @@ jobs:
     environment: release
     needs: tag-in-registry
     steps:
-      - uses: vedantmgoyal9/winget-releaser@7bd472be23763def6e16bd06cc8b1cdfab0e2fd5 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
+      - uses: vedantmgoyal9/winget-releaser@b3a5dae0047c6180023acba3f548c55fdf6b7193 # 2026-03-15 pin, no longer on a named ref # zizmor: ignore[ref-version-mismatch]
         with:
           identifier: pnpm.pnpm
           version: ${{ github.event.inputs.version }}
