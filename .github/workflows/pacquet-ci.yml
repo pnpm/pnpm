@@ -289,11 +289,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Both, because the wrapper places and spawns a native executable and
-          # those are where Windows differs. The tests that need to spawn one
-          # skip themselves there; the download half runs everywhere.
+          # All three, because the wrapper places and spawns a native executable
+          # and runs a shebang-less bin, and those are where the platforms
+          # differ. Windows runs neither, so those tests skip themselves there;
+          # macOS reaches them through a BSD `sh`, `readlink`, and `dirname`.
           - os: blacksmith-4vcpu-ubuntu-2404
             os_label: ubuntu
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
           - os: blacksmith-8vcpu-windows-2025
             os_label: windows
     runs-on: ${{ matrix.os }}
