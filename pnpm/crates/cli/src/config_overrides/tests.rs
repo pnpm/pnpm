@@ -891,8 +891,9 @@ fn virtual_store_only_flag_empties_the_hoist_patterns() {
 }
 
 /// `linkWorkspacePackages` and `saveWorkspaceProtocol` are a boolean or a
-/// keyword, so they take every boolean spelling plus the keyword in the
-/// `=` form.
+/// keyword, so they take every boolean spelling plus the keyword. pnpm
+/// types the first `[Boolean, 'deep']` and the second `Boolean`, so only
+/// `deep` is spellable bare; `rolling` needs the `--config.` form.
 #[test]
 fn a_boolean_or_keyword_setting_takes_both_spellings() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
@@ -900,7 +901,7 @@ fn a_boolean_or_keyword_setting_takes_both_spellings() {
         "add",
         "foo",
         "--link-workspace-packages",
-        "--save-workspace-protocol=rolling",
+        "--config.save-workspace-protocol=rolling",
     ]));
     assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
     let mut config = Config::default();
@@ -943,6 +944,20 @@ fn a_boolean_or_keyword_setting_takes_both_spellings() {
         Config { link_workspace_packages: LinkWorkspacePackages::Deep, ..Config::default() };
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::Off);
+
+    // pnpm's `nopt` type for `saveWorkspaceProtocol` is `Boolean`, so the
+    // bare spelling of the keyword is left for clap to report.
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "foo",
+        "--save-workspace-protocol=rolling",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo", "--save-workspace-protocol=rolling"]));
+    let mut config =
+        Config { save_workspace_protocol: SaveWorkspaceProtocol::On, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.save_workspace_protocol, SaveWorkspaceProtocol::On);
 }
 
 #[test]

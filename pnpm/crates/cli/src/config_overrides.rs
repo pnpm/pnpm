@@ -837,13 +837,14 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
         return ConfigToken::NotOurs;
     };
     if let Some(negated) = flag.strip_prefix("no-")
-        && let Some((key, SettingArity::Boolean | SettingArity::BooleanOr(_))) = setting(negated)
+        && let Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) =
+            setting(negated)
     {
         return ConfigToken::WellFormed { key, value: "false" };
     }
     let Some((key, value)) = flag.split_once('=') else {
         return match setting(flag) {
-            Some((key, SettingArity::Boolean | SettingArity::BooleanOr(_))) => {
+            Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
                 ConfigToken::BooleanFollows(key)
             }
             Some((key, _)) => ConfigToken::ValueFollows(key),
@@ -851,6 +852,11 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
         };
     };
     match setting(key) {
+        Some((_, SettingArity::BooleanOr { bare_keyword: false, .. }))
+            if parse_bool(value).is_none() =>
+        {
+            ConfigToken::NotOurs
+        }
         Some(_) if !setting_takes(key, value) => ConfigToken::NotOurs,
         Some((key, _)) => ConfigToken::WellFormed { key, value },
         None => ConfigToken::NotOurs,
@@ -865,13 +871,19 @@ enum SettingArity {
     /// `--<setting>`, `--no-<setting>`, `--<setting>=<bool>`, and
     /// `--<setting> <bool>`.
     Boolean,
-    /// Every [`Boolean`] spelling, plus `--<setting>=<value>` for a value
-    /// the carried predicate accepts: the settings whose type is a
-    /// boolean or a keyword, like `linkWorkspacePackages: deep`. Only a
-    /// boolean is claimed from the token after the flag.
+    /// Every [`Boolean`] spelling, plus a keyword `takes` accepts, for a
+    /// setting whose type is a boolean or a keyword. Only a boolean is
+    /// claimed from the token after the flag.
+    ///
+    /// `bare_keyword` says whether the keyword is spellable as
+    /// `--<setting>=<keyword>`, which follows the `nopt` type pnpm gives
+    /// the setting: `linkWorkspacePackages` is `[Boolean, 'deep']`, so
+    /// `--link-workspace-packages=deep` parses; `saveWorkspaceProtocol` is
+    /// `Boolean` alone, so `rolling` reaches it only through the untyped
+    /// `--config.` form.
     ///
     /// [`Boolean`]: Self::Boolean
-    BooleanOr(fn(&str) -> bool),
+    BooleanOr { takes: fn(&str) -> bool, bare_keyword: bool },
     /// A path, a glob pattern, or another free-form value: every spelling
     /// is one the setting takes, so the token after the flag is claimed
     /// only when it cannot be anything else — see [`claims_as_value`].
@@ -903,7 +915,10 @@ const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("hoist-pattern", SettingArity::Text),
     ("ignore-pnpmfile", SettingArity::Boolean),
     ("ignore-scripts", SettingArity::Boolean),
-    ("link-workspace-packages", SettingArity::BooleanOr(is_enum::<LinkWorkspacePackages>)),
+    (
+        "link-workspace-packages",
+        SettingArity::BooleanOr { takes: is_enum::<LinkWorkspacePackages>, bare_keyword: true },
+    ),
     ("lockfile", SettingArity::Boolean),
     ("lockfile-include-tarball-url", SettingArity::Boolean),
     ("merge-git-branch-lockfiles", SettingArity::Boolean),
@@ -917,7 +932,10 @@ const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("prefer-offline", SettingArity::Boolean),
     ("public-hoist-pattern", SettingArity::Text),
     ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
-    ("save-workspace-protocol", SettingArity::BooleanOr(is_enum::<SaveWorkspaceProtocol>)),
+    (
+        "save-workspace-protocol",
+        SettingArity::BooleanOr { takes: is_enum::<SaveWorkspaceProtocol>, bare_keyword: false },
+    ),
     ("shamefully-hoist", SettingArity::Boolean),
     ("shared-workspace-lockfile", SettingArity::Boolean),
     ("side-effects-cache", SettingArity::Boolean),
@@ -955,7 +973,9 @@ fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
 fn setting_takes(key: &str, value: &str) -> bool {
     match named_bare_setting_flag(key) {
         Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
-        Some((_, SettingArity::BooleanOr(takes))) => parse_bool(value).is_some() || takes(value),
+        Some((_, SettingArity::BooleanOr { takes, .. })) => {
+            parse_bool(value).is_some() || takes(value)
+        }
         Some((_, SettingArity::Text)) => true,
         Some((_, SettingArity::Parsed(takes))) => takes(value),
         None => true,
@@ -972,7 +992,9 @@ fn setting_takes(key: &str, value: &str) -> bool {
 /// `--child-concurrency -1` mean "every core but one".
 fn claims_as_value(key: &str, token: &str) -> bool {
     match named_bare_setting_flag(key) {
-        Some((_, SettingArity::Boolean | SettingArity::BooleanOr(_))) => is_boolean_value(token),
+        Some((_, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
+            is_boolean_value(token)
+        }
         Some((_, SettingArity::Text)) => !token.starts_with('-'),
         Some((_, SettingArity::Parsed(takes))) => takes(token),
         None => false,
@@ -999,7 +1021,7 @@ fn is_boolean_value(token: &str) -> bool {
 pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> bool {
     matches!(
         named_bare_setting_flag(flag),
-        Some((_, SettingArity::Boolean | SettingArity::BooleanOr(_))),
+        Some((_, SettingArity::Boolean | SettingArity::BooleanOr { .. })),
     ) && next.is_some_and(is_boolean_value)
 }
 
