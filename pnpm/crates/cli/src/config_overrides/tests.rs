@@ -2,8 +2,9 @@ use super::{
     ConfigOverrides, apply_registry_override, apply_state_dir_override, apply_store_dir_override,
 };
 use pnpm_config::{
-    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, NodeLinker,
-    PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail, TrustPolicy,
+    ColorMode, Config, EnvVar, GetCurrentDir, GetHomeDir, LinkProbe, LinkWorkspacePackages,
+    NodeLinker, PackageImportMethod, PmOnFail, RemoteSideEffectsCacheSettings, RuntimeOnFail,
+    SaveWorkspaceProtocol, TrustPolicy,
 };
 use pnpm_store_dir::STORE_VERSION;
 use pretty_assertions::assert_eq;
@@ -793,6 +794,236 @@ fn trust_lockfile_is_a_bare_flag_where_no_command_declares_it() {
     assert!(config.trust_lockfile);
 }
 
+/// Vercel runs every pnpm install as `pnpm install --unsafe-perm`
+/// ([pnpm/pnpm#14346](https://github.com/pnpm/pnpm/issues/14346)).
+#[test]
+fn unsafe_perm_is_a_bare_flag_on_every_command() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--unsafe-perm"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { unsafe_perm: false, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.unsafe_perm);
+    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(true)));
+
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "rebuild", "--no-unsafe-perm"]));
+    assert_eq!(remaining, argv(["pacquet", "rebuild"]));
+    let mut config = Config { unsafe_perm: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.unsafe_perm);
+    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(false)));
+
+    for (flag, expected) in [
+        ("--unsafe-perm", true),
+        ("--unsafe-perm=true", true),
+        ("--no-unsafe-perm", false),
+        ("--unsafe-perm=false", false),
+    ] {
+        let (overrides, remaining) =
+            ConfigOverrides::extract(argv(["pacquet", "remove", "foo", flag]));
+        assert_eq!(remaining, argv(["pacquet", "remove", "foo"]), "{flag}");
+        let mut config = Config { unsafe_perm: !expected, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.unsafe_perm, expected, "{flag}");
+    }
+}
+
+/// The boolean settings pnpm's `nopt` types make spellable on every
+/// command that lists them, which clap rejected as unexpected arguments.
+#[test]
+fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "foo",
+        "--dangerously-allow-all-builds",
+        "--engine-strict",
+        "--frozen-store",
+        "--lockfile-include-tarball-url",
+        "--merge-git-branch-lockfiles",
+        "--node-experimental-package-map",
+        "--offline",
+        "--prefer-frozen-lockfile",
+        "--prefer-offline",
+        "--no-shared-workspace-lockfile",
+        "--no-verify-store-integrity",
+        "--force-legacy-deploy",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
+
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.dangerously_allow_all_builds);
+    assert!(config.engine_strict);
+    assert!(config.frozen_store);
+    assert!(config.lockfile_include_tarball_url);
+    assert!(config.merge_git_branch_lockfiles);
+    assert!(config.node_experimental_package_map);
+    assert!(config.offline);
+    assert!(config.prefer_frozen_lockfile);
+    assert!(config.prefer_offline);
+    assert!(!config.shared_workspace_lockfile);
+    assert!(!config.verify_store_integrity);
+    assert!(config.force_legacy_deploy);
+    assert_eq!(config.explicit_settings.get("offline"), Some(&serde_json::Value::Bool(true)));
+    assert_eq!(
+        config.explicit_settings.get("sharedWorkspaceLockfile"),
+        Some(&serde_json::Value::Bool(false)),
+    );
+
+    // `audit` declares neither, unlike `install` and `add`.
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "audit",
+        "--ignore-scripts",
+        "--ignore-pnpmfile",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "audit"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.ignore_scripts);
+    assert!(config.ignore_pnpmfile);
+}
+
+/// `virtualStoreOnly` empties the hoist patterns the way the yaml layer
+/// does, so a later install does not read a pattern this one never applied.
+#[test]
+fn virtual_store_only_flag_empties_the_hoist_patterns() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--virtual-store-only"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config {
+        hoist_pattern: Some(vec!["*".to_string()]),
+        public_hoist_pattern: Some(vec!["*eslint*".to_string()]),
+        ..Config::default()
+    };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.virtual_store_only);
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
+}
+
+/// A lower layer's `virtualStoreOnly: true` empties the patterns when the
+/// config is built; `--no-virtual-store-only` outranks it and gets them
+/// back exactly, an explicitly disabled pattern included.
+#[test]
+fn no_virtual_store_only_restores_the_hoist_patterns() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--no-virtual-store-only"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(vec!["*eslint*".to_string()]),
+        public_hoist_pattern: None,
+        ..Config::default()
+    };
+    config.apply_virtual_store_only_derivation();
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.virtual_store_only);
+    assert_eq!(config.hoist_pattern, Some(vec!["*eslint*".to_string()]));
+    assert_eq!(config.public_hoist_pattern, None);
+    assert_eq!(config.hoist_patterns_before_virtual_store_only, None);
+
+    // A pattern given on the same command line is what comes back.
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--hoist-pattern=foo",
+        "--no-virtual-store-only",
+    ]));
+    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    config.apply_virtual_store_only_derivation();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(vec!["foo".to_string()]));
+    assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
+
+    // Turning the mode on from the command line keeps the patterns
+    // empty whatever else the command line says about them.
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--virtual-store-only",
+        "--hoist-pattern=foo",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
+}
+
+/// `linkWorkspacePackages` and `saveWorkspaceProtocol` are a boolean or a
+/// keyword, so they take every boolean spelling plus the keyword. pnpm
+/// types the first `[Boolean, 'deep']` and the second `Boolean`, so only
+/// `deep` is spellable bare; `rolling` needs the `--config.` form.
+#[test]
+fn a_boolean_or_keyword_setting_takes_both_spellings() {
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "foo",
+        "--link-workspace-packages",
+        "--config.save-workspace-protocol=rolling",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::DirectOnly);
+    assert_eq!(config.save_workspace_protocol, SaveWorkspaceProtocol::Rolling);
+    assert_eq!(
+        config.explicit_settings.get("linkWorkspacePackages"),
+        Some(&serde_json::Value::Bool(true)),
+    );
+    assert_eq!(
+        config.explicit_settings.get("saveWorkspaceProtocol"),
+        Some(&serde_json::Value::String("rolling".to_string())),
+    );
+
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "foo",
+        "--link-workspace-packages=deep",
+        "--no-save-workspace-protocol",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::Deep);
+    assert_eq!(config.save_workspace_protocol, SaveWorkspaceProtocol::Off);
+
+    // The keyword is only taken in the `=` form; a following token is
+    // claimed only when it spells a boolean.
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "--link-workspace-packages",
+        "false",
+        "foo",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
+    let mut config =
+        Config { link_workspace_packages: LinkWorkspacePackages::Deep, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.link_workspace_packages, LinkWorkspacePackages::Off);
+
+    // pnpm's `nopt` type for `saveWorkspaceProtocol` is `Boolean`, so the
+    // bare spelling of the keyword is left for clap to report.
+    let (overrides, remaining) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "add",
+        "foo",
+        "--save-workspace-protocol=rolling",
+    ]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo", "--save-workspace-protocol=rolling"]));
+    let mut config =
+        Config { save_workspace_protocol: SaveWorkspaceProtocol::On, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.save_workspace_protocol, SaveWorkspaceProtocol::On);
+}
+
 #[test]
 fn install_keeps_the_trust_lockfile_pair_for_clap() {
     for flag in ["--trust-lockfile", "--no-trust-lockfile"] {
@@ -1011,6 +1242,10 @@ fn extract_leaves_invalid_setting_values_for_clap() {
         &["--child-concurrency=lots"],
         &["--child-concurrency", "lots"],
         &["--trust-policy-ignore-after=soon"],
+        &["--link-workspace-packages=shallow"],
+        &["--save-workspace-protocol=sometimes"],
+        &["--offline=maybe"],
+        &["--unsafe-perm=maybe"],
     ] {
         let command_line = ["pacquet", "install"]
             .into_iter()

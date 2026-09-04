@@ -71,6 +71,7 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'trust-policy',
     'trust-policy-exclude',
     'trust-policy-ignore-after',
+    'unsafe-perm',
     'virtual-store-dir',
   ], allTypes)
 }

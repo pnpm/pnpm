@@ -173,3 +173,7 @@ test('cliOptionsTypes registers the supply-chain policy options', () => {
   expect(optionTypes).toHaveProperty('trust-policy-exclude')
   expect(optionTypes).toHaveProperty('trust-policy-ignore-after')
 })
+
+test('cliOptionsTypes registers unsafe-perm', () => {
+  expect(remove.cliOptionsTypes()).toHaveProperty('unsafe-perm')
+})

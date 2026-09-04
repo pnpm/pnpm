@@ -914,6 +914,14 @@ pub enum PackageImportMethod {
     CloneOrCopy,
 }
 
+/// The two hoist patterns as one value, for
+/// [`Config::hoist_patterns_before_virtual_store_only`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoistPatterns {
+    pub hoist_pattern: Option<Vec<String>>,
+    pub public_hoist_pattern: Option<Vec<String>>,
+}
+
 /// Resolved runtime config built from defaults, the auth subset of
 /// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
 ///
@@ -1060,6 +1068,14 @@ pub struct Config {
     /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
+
+    /// The patterns [`apply_virtual_store_only_derivation`] emptied, so
+    /// a command-line `--no-virtual-store-only` that outranks a lower
+    /// layer's `virtualStoreOnly: true` can bring them back exactly.
+    /// `None` until that derivation empties them.
+    ///
+    /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
+    pub hoist_patterns_before_virtual_store_only: Option<HoistPatterns>,
 
     /// `extendNodePath`: when `true` (the default) and the isolated
     /// `nodeLinker` runs with a hoist pattern, command shims set
@@ -2997,8 +3013,31 @@ impl Config {
         if !self.virtual_store_only {
             return;
         }
+        if self.hoist_patterns_before_virtual_store_only.is_none() {
+            self.hoist_patterns_before_virtual_store_only = Some(HoistPatterns {
+                hoist_pattern: self.hoist_pattern.take(),
+                public_hoist_pattern: self.public_hoist_pattern.take(),
+            });
+        }
         self.hoist_pattern = Some(Vec::new());
         self.public_hoist_pattern = Some(Vec::new());
+    }
+
+    /// Undo [`apply_virtual_store_only_derivation`] after a command-line
+    /// `--no-virtual-store-only` outranks a lower layer's
+    /// `virtualStoreOnly: true`, which emptied both patterns when the
+    /// config was built. pnpm merges the command line before it derives,
+    /// so it never empties them in the first place.
+    ///
+    /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
+    pub fn restore_hoist_patterns_after_virtual_store_only(&mut self) {
+        if self.virtual_store_only {
+            return;
+        }
+        if let Some(patterns) = self.hoist_patterns_before_virtual_store_only.take() {
+            self.hoist_pattern = patterns.hoist_pattern;
+            self.public_hoist_pattern = patterns.public_hoist_pattern;
+        }
     }
 
     /// The lockfile file name this install reads first and writes back:

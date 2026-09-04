@@ -1,7 +1,8 @@
 use pnpm_config::{
     ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
-    NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail, TrustPolicy, VerifyDepsBeforeRun,
-    default_state_dir, resolve_child_concurrency,
+    LinkWorkspacePackages, NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail,
+    SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
+    resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
@@ -121,13 +122,19 @@ pub struct ConfigOverrides {
     scope: Option<String>,
     registries: BTreeMap<String, String>,
     child_concurrency: Option<i32>,
+    dangerously_allow_all_builds: Option<bool>,
     deploy_all_files: Option<bool>,
+    engine_strict: Option<bool>,
     force_legacy_deploy: Option<bool>,
+    frozen_store: Option<bool>,
     global_dir: Option<String>,
     hoist: Option<bool>,
     hoist_pattern: Option<Vec<String>>,
+    ignore_pnpmfile: Option<bool>,
     ignore_scripts: Option<bool>,
     inject_workspace_packages: Option<bool>,
+    link_workspace_packages: Option<LinkWorkspacePackages>,
+    lockfile_include_tarball_url: Option<bool>,
     /// `maxsockets`, npm's spelling of [`Self::max_sockets`]. Kept apart
     /// so the canonical spelling can win when one command line carries
     /// both.
@@ -137,6 +144,11 @@ pub struct ConfigOverrides {
     minimum_release_age_exclude: Option<Vec<String>>,
     minimum_release_age_ignore_missing_time: Option<bool>,
     minimum_release_age_strict: Option<bool>,
+    merge_git_branch_lockfiles: Option<bool>,
+    node_experimental_package_map: Option<bool>,
+    offline: Option<bool>,
+    prefer_frozen_lockfile: Option<bool>,
+    prefer_offline: Option<bool>,
     /// The raw `modulesDir` / `virtualStoreDir` spellings, kept unresolved
     /// so [`Config::anchor_lockfile_paths`] can re-resolve them against
     /// whichever directory ends up anchoring the install.
@@ -148,13 +160,17 @@ pub struct ConfigOverrides {
     pm_on_fail: Option<PmOnFail>,
     public_hoist_pattern: Option<Vec<String>>,
     runtime_on_fail: Option<RuntimeOnFail>,
+    save_workspace_protocol: Option<SaveWorkspaceProtocol>,
     shared_workspace_lockfile: Option<bool>,
     strict_peer_dependencies: Option<bool>,
     trust_lockfile: Option<bool>,
     trust_policy: Option<TrustPolicy>,
     trust_policy_exclude: Option<Vec<String>>,
     trust_policy_ignore_after: Option<u64>,
+    unsafe_perm: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
+    verify_store_integrity: Option<bool>,
+    virtual_store_only: Option<bool>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
     no_proxy: Option<String>,
@@ -226,23 +242,47 @@ impl ConfigOverrides {
             "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
             "bail" => self.bail = parse_bool(value),
             "ci" => self.ci = parse_bool(value),
+            "dangerously-allow-all-builds" => {
+                self.dangerously_allow_all_builds = parse_bool(value);
+            }
             "color" => {
                 self.color = parse_bool(value)
                     .map(|enabled| if enabled { ColorMode::Always } else { ColorMode::Never })
                     .or_else(|| parse_enum(value));
             }
             "embed-readme" => self.embed_readme = parse_bool(value),
+            "engine-strict" => self.engine_strict = parse_bool(value),
+            "frozen-store" => self.frozen_store = parse_bool(value),
             "ignore-workspace-root-check" => {
                 self.ignore_workspace_root_check = parse_bool(value);
             }
             "hoist" => self.hoist = parse_bool(value),
+            "ignore-pnpmfile" => self.ignore_pnpmfile = parse_bool(value),
+            "link-workspace-packages" => {
+                self.link_workspace_packages = parse_bool_or_enum(value);
+            }
             "lockfile" => self.lockfile = parse_bool(value),
+            "lockfile-include-tarball-url" => {
+                self.lockfile_include_tarball_url = parse_bool(value);
+            }
+            "merge-git-branch-lockfiles" => {
+                self.merge_git_branch_lockfiles = parse_bool(value);
+            }
+            "node-experimental-package-map" => {
+                self.node_experimental_package_map = parse_bool(value);
+            }
+            "offline" => self.offline = parse_bool(value),
             "optimistic-repeat-install" => self.optimistic_repeat_install = parse_bool(value),
             "optional" => self.optional = parse_bool(value),
             "package-lock" => self.package_lock = parse_bool(value),
             "pending" => self.pending = parse_bool(value),
+            "prefer-frozen-lockfile" => self.prefer_frozen_lockfile = parse_bool(value),
+            "prefer-offline" => self.prefer_offline = parse_bool(value),
             "recursive-install" => self.recursive_install = parse_bool(value),
             "reverse" => self.reverse = parse_bool(value),
+            "save-workspace-protocol" => {
+                self.save_workspace_protocol = parse_bool_or_enum(value);
+            }
             "shamefully-hoist" => self.shamefully_hoist = parse_bool(value),
             "shell-emulator" => self.shell_emulator = parse_bool(value),
             "side-effects-cache" => self.side_effects_cache = parse_bool(value),
@@ -255,7 +295,10 @@ impl ConfigOverrides {
             "sort" => self.sort = parse_bool(value),
             "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
             "trust-lockfile" => self.trust_lockfile = parse_bool(value),
+            "unsafe-perm" => self.unsafe_perm = parse_bool(value),
             "use-beta-cli" => self.use_beta_cli = parse_bool(value),
+            "verify-store-integrity" => self.verify_store_integrity = parse_bool(value),
+            "virtual-store-only" => self.virtual_store_only = parse_bool(value),
             _ => {}
         }
         if key == "registry" {
@@ -438,6 +481,18 @@ impl ConfigOverrides {
         if let Some(value) = self.reverse {
             config.reverse = value;
         }
+        // Ahead of the hoist settings below: a `--no-virtual-store-only`
+        // gets the lower layers' patterns back first, and a pattern on the
+        // same command line then replaces them.
+        if let Some(value) = self.virtual_store_only {
+            config.virtual_store_only = value;
+            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
+            if value {
+                config.apply_virtual_store_only_derivation();
+            } else {
+                config.restore_hoist_patterns_after_virtual_store_only();
+            }
+        }
         if let Some(value) = self.shamefully_hoist {
             config.shamefully_hoist = value;
             config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
@@ -556,6 +611,7 @@ impl ConfigOverrides {
         }
         if let Some(value) = self.shared_workspace_lockfile {
             config.shared_workspace_lockfile = value;
+            config.explicit_settings.insert("sharedWorkspaceLockfile".to_string(), value.into());
         }
         // The `pnpm_config_verify_deps_before_run` env var outranks even
         // the CLI for this one key (pnpm's config reader applies it after
@@ -616,6 +672,66 @@ impl ConfigOverrides {
         if let Some(value) = self.trust_policy_ignore_after {
             config.trust_policy_ignore_after = Some(value);
             config.explicit_settings.insert("trustPolicyIgnoreAfter".to_string(), value.into());
+        }
+        if let Some(value) = self.unsafe_perm {
+            config.unsafe_perm = value;
+            config.explicit_settings.insert("unsafePerm".to_string(), value.into());
+        }
+        if let Some(value) = self.dangerously_allow_all_builds {
+            config.dangerously_allow_all_builds = value;
+            config.explicit_settings.insert("dangerouslyAllowAllBuilds".to_string(), value.into());
+        }
+        if let Some(value) = self.engine_strict {
+            config.engine_strict = value;
+            config.explicit_settings.insert("engineStrict".to_string(), value.into());
+        }
+        if let Some(value) = self.frozen_store {
+            config.frozen_store = value;
+            config.explicit_settings.insert("frozenStore".to_string(), value.into());
+        }
+        if let Some(value) = self.ignore_pnpmfile {
+            config.ignore_pnpmfile = value;
+            config.explicit_settings.insert("ignorePnpmfile".to_string(), value.into());
+        }
+        if let Some(value) = self.link_workspace_packages {
+            config.link_workspace_packages = value;
+            config
+                .explicit_settings
+                .insert("linkWorkspacePackages".to_string(), setting_value(value));
+        }
+        if let Some(value) = self.lockfile_include_tarball_url {
+            config.lockfile_include_tarball_url = value;
+            config.explicit_settings.insert("lockfileIncludeTarballUrl".to_string(), value.into());
+        }
+        if let Some(value) = self.merge_git_branch_lockfiles {
+            config.merge_git_branch_lockfiles = value;
+            config.explicit_settings.insert("mergeGitBranchLockfiles".to_string(), value.into());
+        }
+        if let Some(value) = self.node_experimental_package_map {
+            config.node_experimental_package_map = value;
+            config.explicit_settings.insert("nodeExperimentalPackageMap".to_string(), value.into());
+        }
+        if let Some(value) = self.offline {
+            config.offline = value;
+            config.explicit_settings.insert("offline".to_string(), value.into());
+        }
+        if let Some(value) = self.prefer_frozen_lockfile {
+            config.prefer_frozen_lockfile = value;
+            config.explicit_settings.insert("preferFrozenLockfile".to_string(), value.into());
+        }
+        if let Some(value) = self.prefer_offline {
+            config.prefer_offline = value;
+            config.explicit_settings.insert("preferOffline".to_string(), value.into());
+        }
+        if let Some(value) = self.save_workspace_protocol {
+            config.save_workspace_protocol = value;
+            config
+                .explicit_settings
+                .insert("saveWorkspaceProtocol".to_string(), setting_value(value));
+        }
+        if let Some(value) = self.verify_store_integrity {
+            config.verify_store_integrity = value;
+            config.explicit_settings.insert("verifyStoreIntegrity".to_string(), value.into());
         }
         if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
             let global_dir = lexical_normalize(&dir.join(value));
@@ -728,18 +844,26 @@ fn classify<'a>(arg: &'a OsStr, claimed_by_command: &HashSet<&str>) -> ConfigTok
         return ConfigToken::NotOurs;
     };
     if let Some(negated) = flag.strip_prefix("no-")
-        && let Some((key, SettingArity::Boolean)) = setting(negated)
+        && let Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) =
+            setting(negated)
     {
         return ConfigToken::WellFormed { key, value: "false" };
     }
     let Some((key, value)) = flag.split_once('=') else {
         return match setting(flag) {
-            Some((key, SettingArity::Boolean)) => ConfigToken::BooleanFollows(key),
+            Some((key, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
+                ConfigToken::BooleanFollows(key)
+            }
             Some((key, _)) => ConfigToken::ValueFollows(key),
             None => ConfigToken::NotOurs,
         };
     };
     match setting(key) {
+        Some((_, SettingArity::BooleanOr { bare_keyword: false, .. }))
+            if parse_bool(value).is_none() =>
+        {
+            ConfigToken::NotOurs
+        }
         Some(_) if !setting_takes(key, value) => ConfigToken::NotOurs,
         Some((key, _)) => ConfigToken::WellFormed { key, value },
         None => ConfigToken::NotOurs,
@@ -754,6 +878,19 @@ enum SettingArity {
     /// `--<setting>`, `--no-<setting>`, `--<setting>=<bool>`, and
     /// `--<setting> <bool>`.
     Boolean,
+    /// Every [`Boolean`] spelling, plus a keyword `takes` accepts, for a
+    /// setting whose type is a boolean or a keyword. Only a boolean is
+    /// claimed from the token after the flag.
+    ///
+    /// `bare_keyword` says whether the keyword is spellable as
+    /// `--<setting>=<keyword>`, which follows the `nopt` type pnpm gives
+    /// the setting: `linkWorkspacePackages` is `[Boolean, 'deep']`, so
+    /// `--link-workspace-packages=deep` parses; `saveWorkspaceProtocol` is
+    /// `Boolean` alone, so `rolling` reaches it only through the untyped
+    /// `--config.` form.
+    ///
+    /// [`Boolean`]: Self::Boolean
+    BooleanOr { takes: fn(&str) -> bool, bare_keyword: bool },
     /// A path, a glob pattern, or another free-form value: every spelling
     /// is one the setting takes, so the token after the flag is claimed
     /// only when it cannot be anything else — see [`claims_as_value`].
@@ -773,20 +910,41 @@ enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-const BARE_SETTING_FLAGS: [(&str, SettingArity); 21] = [
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 39] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
+    ("dangerously-allow-all-builds", SettingArity::Boolean),
+    ("engine-strict", SettingArity::Boolean),
+    ("force-legacy-deploy", SettingArity::Boolean),
+    ("frozen-store", SettingArity::Boolean),
     ("global-dir", SettingArity::Text),
     ("hoist", SettingArity::Boolean),
     ("hoist-pattern", SettingArity::Text),
+    ("ignore-pnpmfile", SettingArity::Boolean),
+    ("ignore-scripts", SettingArity::Boolean),
+    (
+        "link-workspace-packages",
+        SettingArity::BooleanOr { takes: is_enum::<LinkWorkspacePackages>, bare_keyword: true },
+    ),
     ("lockfile", SettingArity::Boolean),
+    ("lockfile-include-tarball-url", SettingArity::Boolean),
+    ("merge-git-branch-lockfiles", SettingArity::Boolean),
     ("modules-dir", SettingArity::Text),
+    ("node-experimental-package-map", SettingArity::Boolean),
+    ("offline", SettingArity::Boolean),
     ("optimistic-repeat-install", SettingArity::Boolean),
     ("package-import-method", SettingArity::Parsed(is_enum::<PackageImportMethod>)),
     ("pm-on-fail", SettingArity::Parsed(is_enum::<PmOnFail>)),
+    ("prefer-frozen-lockfile", SettingArity::Boolean),
+    ("prefer-offline", SettingArity::Boolean),
     ("public-hoist-pattern", SettingArity::Text),
     ("runtime-on-fail", SettingArity::Parsed(is_enum::<RuntimeOnFail>)),
+    (
+        "save-workspace-protocol",
+        SettingArity::BooleanOr { takes: is_enum::<SaveWorkspaceProtocol>, bare_keyword: false },
+    ),
     ("shamefully-hoist", SettingArity::Boolean),
+    ("shared-workspace-lockfile", SettingArity::Boolean),
     ("side-effects-cache", SettingArity::Boolean),
     ("side-effects-cache-readonly", SettingArity::Boolean),
     ("strict-peer-dependencies", SettingArity::Boolean),
@@ -794,7 +952,10 @@ const BARE_SETTING_FLAGS: [(&str, SettingArity); 21] = [
     ("trust-policy", SettingArity::Parsed(is_enum::<TrustPolicy>)),
     ("trust-policy-exclude", SettingArity::Text),
     ("trust-policy-ignore-after", SettingArity::Parsed(is_u64)),
+    ("unsafe-perm", SettingArity::Boolean),
+    ("verify-store-integrity", SettingArity::Boolean),
     ("virtual-store-dir", SettingArity::Text),
+    ("virtual-store-only", SettingArity::Boolean),
 ];
 
 fn is_i32(value: &str) -> bool {
@@ -819,6 +980,9 @@ fn named_bare_setting_flag(key: &str) -> Option<(&'static str, SettingArity)> {
 fn setting_takes(key: &str, value: &str) -> bool {
     match named_bare_setting_flag(key) {
         Some((_, SettingArity::Boolean)) => parse_bool(value).is_some(),
+        Some((_, SettingArity::BooleanOr { takes, .. })) => {
+            parse_bool(value).is_some() || takes(value)
+        }
         Some((_, SettingArity::Text)) => true,
         Some((_, SettingArity::Parsed(takes))) => takes(value),
         None => true,
@@ -835,7 +999,9 @@ fn setting_takes(key: &str, value: &str) -> bool {
 /// `--child-concurrency -1` mean "every core but one".
 fn claims_as_value(key: &str, token: &str) -> bool {
     match named_bare_setting_flag(key) {
-        Some((_, SettingArity::Boolean)) => is_boolean_value(token),
+        Some((_, SettingArity::Boolean | SettingArity::BooleanOr { .. })) => {
+            is_boolean_value(token)
+        }
         Some((_, SettingArity::Text)) => !token.starts_with('-'),
         Some((_, SettingArity::Parsed(takes))) => takes(token),
         None => false,
@@ -860,8 +1026,10 @@ fn is_boolean_value(token: &str) -> bool {
 /// that is both, and `pnpm --lockfile true --config.registry=… install`
 /// loses everything past the boolean to the script fallback.
 pub(crate) fn bare_boolean_setting_claims(flag: &str, next: Option<&str>) -> bool {
-    matches!(named_bare_setting_flag(flag), Some((_, SettingArity::Boolean)))
-        && next.is_some_and(is_boolean_value)
+    matches!(
+        named_bare_setting_flag(flag),
+        Some((_, SettingArity::Boolean | SettingArity::BooleanOr { .. })),
+    ) && next.is_some_and(is_boolean_value)
 }
 
 /// How many argv slots a bare `--<setting>` flag occupies, given the
@@ -898,6 +1066,14 @@ fn normalize_registry_url(registry: &str) -> String {
 
 fn parse_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
     serde_json::from_value(serde_json::Value::String(value.to_string())).ok()
+}
+
+/// A setting whose type is a boolean or a keyword, from either spelling.
+fn parse_bool_or_enum<Value: serde::de::DeserializeOwned>(value: &str) -> Option<Value> {
+    match parse_bool(value) {
+        Some(boolean) => serde_json::from_value(serde_json::Value::Bool(boolean)).ok(),
+        None => parse_enum(value),
+    }
 }
 
 /// An enum setting's kebab-case spelling, for [`Config::explicit_settings`]
