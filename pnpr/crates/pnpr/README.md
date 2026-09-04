@@ -4,6 +4,42 @@ A pnpm-compatible npm registry server, written in Rust.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
 
+## Browser registry UIs
+
+Cross-origin browser access and upstream discovery are disabled by default. To
+run a registry UI on a separate origin, list that exact origin and opt the
+needed upstreams into search and organization discovery:
+
+```yaml
+cors:
+  allowedOrigins:
+    - https://registry-ui.example.com
+
+registries:
+  local:
+    type: hosted
+    access: $all
+    packages:
+      '@example/*': {}
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    search: true
+  main:
+    type: router
+    sources: [local, npmjs]
+
+defaultRegistry: main
+```
+
+Origins must contain only an `http` or `https` scheme, host, and optional port.
+The `search` setting also enables `/-/org/{scope}/package` discovery for that
+upstream. pnpr applies registry routing and access rules to returned entries and
+uses only the upstream credentials from its configuration, never a browser
+caller's authorization header. Hosted totals are counted after filtering;
+upstream totals are the values reported by each eligible upstream.
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](../../LICENSE.md) —

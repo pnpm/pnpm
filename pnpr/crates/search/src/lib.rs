@@ -10,15 +10,43 @@
 //!
 //! Implementation is intentionally simple: a one-shot scan of
 //! `<storage>/<pkg>/package.json` files at request time, filtered
-//! by a case-insensitive substring match on `name`. Sufficient for
-//! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
-//! test queries that exercise it.
+//! by a case-insensitive package-name or maintainer match. The caller
+//! receives every visible match and applies pagination after combining
+//! hosted registries, which keeps `total` accurate for the local view.
 
 use pnpr_error::Result;
 use pnpr_package_name::PackageName;
 use pnpr_storage::Storage;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SearchText {
+    Package(String),
+    Maintainer(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchParams {
+    pub text: SearchText,
+    pub from: usize,
+    pub size: usize,
+}
+
+#[must_use]
+pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchParams> {
+    let query = parse_query(query_string)?;
+    let text =
+        query.strip_prefix("maintainer:").filter(|maintainer| !maintainer.is_empty()).map_or_else(
+            || SearchText::Package(query.clone()),
+            |maintainer| SearchText::Maintainer(maintainer.to_string()),
+        );
+    Some(SearchParams {
+        text,
+        from: parse_from(query_string),
+        size: parse_size(query_string, default_size),
+    })
+}
 
 /// Parse the `text` query parameter out of a `/-/v1/search?...`
 /// query string. npm clients always send `text=...`; we accept
@@ -72,34 +100,50 @@ pub fn parse_size(query_string: &str, default_size: usize) -> usize {
     default_size
 }
 
-/// Scan one hosted store for packuments whose name contains `query`
-/// (case-insensitive) and passes `keep` — the server's routing and access
-/// filter, applied before any packument is read so a filtered name costs
-/// no I/O. Returns at most `limit` entries in npm search v1 `objects`
-/// shape (`{ package: {...}, score: {...}, searchScore }`); the server
-/// aggregates entries across the namespaces a registry serves and builds the
-/// response body. Errors reading individual packuments are tolerated — a
-/// malformed packument just doesn't match anything. Works against both
-/// the local-directory and the S3-backed hosted store.
+/// `from=` URL param. Invalid values start at the first result.
+#[must_use]
+pub fn parse_from(query_string: &str) -> usize {
+    for pair in query_string.split('&') {
+        if let Some((key, value)) = pair.split_once('=')
+            && key == "from"
+            && let Ok(parsed) = value.parse::<usize>()
+        {
+            return parsed;
+        }
+    }
+    0
+}
+
+/// Scan one hosted store for packuments that match `query` and pass `keep`.
+/// The server applies pagination only after it combines every eligible source,
+/// so this returns the complete visible result set. Errors reading individual
+/// packuments are tolerated. A malformed packument simply does not match.
 pub async fn run_local_search(
     storage: &Storage,
-    query: &str,
-    limit: usize,
+    query: &SearchText,
     keep: impl Fn(&str) -> bool,
 ) -> Result<Vec<Value>> {
-    let needle = query.to_lowercase();
+    let needle = match query {
+        SearchText::Package(query) | SearchText::Maintainer(query) => query.to_lowercase(),
+    };
     let mut matches: Vec<Value> = Vec::new();
+    let mut names = storage.hosted_package_names().await?;
+    names.sort();
 
-    for name in storage.hosted_package_names().await? {
-        if matches.len() >= limit {
-            break;
-        }
-        if !name.to_lowercase().contains(&needle) || !keep(&name) {
+    for name in names {
+        if !keep(&name)
+            || matches!(query, SearchText::Package(_)) && !name.to_lowercase().contains(&needle)
+        {
             continue;
         }
         let Ok(parsed) = PackageName::parse(&name) else { continue };
         let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
         let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
+        if matches!(query, SearchText::Maintainer(_))
+            && !packument_has_maintainer(&packument, &needle)
+        {
+            continue;
+        }
         if let Some(entry) = build_search_entry(&name, &packument) {
             matches.push(entry);
         }
@@ -134,11 +178,17 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     pkg.insert("name".to_string(), Value::String(name.to_string()));
     pkg.insert("version".to_string(), Value::String(version_id.to_string()));
     if let Some(version_obj) = version_obj {
-        for field in ["description", "keywords", "author", "maintainers", "homepage"] {
+        for field in ["description", "keywords", "author", "homepage"] {
             if let Some(value) = version_obj.get(field) {
                 pkg.insert(field.to_string(), value.clone());
             }
         }
+    }
+    if let Some(maintainers) = obj
+        .get("maintainers")
+        .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
+    {
+        pkg.insert("maintainers".to_string(), maintainers.clone());
     }
     // `time.<version>` if present, else `time.modified` as a fallback.
     if let Some(time) = obj.get("time").and_then(Value::as_object) {
@@ -158,6 +208,34 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     links.insert("npm".to_string(), Value::String(format!("https://npmx.dev/package/{name}")));
     pkg.insert("links".to_string(), serde_json::to_value(links).ok()?);
     Some(Value::Object(pkg))
+}
+
+fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {
+    if maintainer_value_matches(packument.get("maintainers"), needle) {
+        return true;
+    }
+    let versions = packument.get("versions").and_then(Value::as_object);
+    versions.is_some_and(|versions| {
+        versions.values().any(|version| {
+            maintainer_value_matches(version.get("maintainers"), needle)
+                || maintainer_value_matches(version.get("_npmUser"), needle)
+                || maintainer_value_matches(version.get("publisher"), needle)
+        })
+    })
+}
+
+fn maintainer_value_matches(value: Option<&Value>, needle: &str) -> bool {
+    match value {
+        Some(Value::String(value)) => value.to_lowercase().contains(needle),
+        Some(Value::Array(values)) => {
+            values.iter().any(|value| maintainer_value_matches(Some(value), needle))
+        }
+        Some(Value::Object(value)) => ["username", "name", "email"]
+            .iter()
+            .filter_map(|field| value.get(*field).and_then(Value::as_str))
+            .any(|value| value.to_lowercase().contains(needle)),
+        _ => false,
+    }
 }
 
 /// Decode a percent-encoded query value. ASCII-oriented: multi-byte UTF-8

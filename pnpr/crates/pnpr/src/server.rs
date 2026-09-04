@@ -54,7 +54,7 @@ use pnpr_upstream::{
     rewrite_upstream_tarball_urls, tarball_basename,
 };
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use ssri::Integrity;
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 
@@ -1508,6 +1508,51 @@ enum RegistrySource {
     NotFound,
 }
 
+enum DiscoverySource {
+    Hosted(String),
+    Upstream(String),
+}
+
+struct SearchPage {
+    objects: Vec<Value>,
+    names: HashSet<String>,
+    from: usize,
+    size: usize,
+}
+
+impl SearchPage {
+    fn new(from: usize, size: usize) -> Self {
+        Self { objects: Vec::new(), names: HashSet::new(), from, size }
+    }
+
+    fn append_source(&mut self, source_objects: Vec<Value>, source_start: usize) {
+        let skip = self.from.saturating_sub(source_start);
+        for object in source_objects.into_iter().skip(skip) {
+            if self.is_full() {
+                break;
+            }
+            self.push(object);
+        }
+    }
+
+    fn push(&mut self, object: Value) {
+        let Some(name) = search_object_name(&object) else {
+            return;
+        };
+        if self.names.insert(name.to_string()) {
+            self.objects.push(object);
+        }
+    }
+
+    fn is_full(&self) -> bool {
+        self.objects.len() >= self.size
+    }
+
+    fn remaining(&self) -> usize {
+        self.size.saturating_sub(self.objects.len())
+    }
+}
+
 /// The registry the path-less base (`https://<pnpr>/`) aliases, owned so it can be
 /// held across an `await`. `None` disables the path-less base entirely — the
 /// bare host has no registry and every request is a not-found, so clients must
@@ -2234,42 +2279,17 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
     }
 }
 
-/// `GET /-/v1/search?text=...&size=...` — npm search v1 endpoint.
-///
-/// Local-only: scans the on-disk storage and matches package names
-/// as a case-insensitive substring on `text`. Matches verdaccio's
-/// default behavior. We deliberately do NOT proxy to upstream npm
-/// even in proxy mode — the tests rely on the local-search semantics
-/// (`releasing/commands/test/search.ts` asserts that a guaranteed-not
-/// -to-exist query returns "No packages found", which an upstream
-/// proxy can't deliver because npm's search is fuzzy and returns
-/// dozens of unrelated matches for almost anything).
-///
-/// Results are served through the registry graph and gated exactly like the
-/// packument and tarball GETs:
-///
-/// * Only the hosted registries the addressed registry serves are scanned (see
-///   [`hosted_search_sources`]), each gated by its **registry access list** — a
-///   caller a registry denies gets nothing from it, the same existence mask the
-///   read paths apply. Without this, search would enumerate a private registry's
-///   packages by name/version/description while the packument GET correctly
-///   404s.
-/// * Under a router, a name is kept only when the router actually **routes it
-///   to the scanned source**, so a hosted package shadowed by an earlier route
-///   is as invisible to search as it is to a packument GET.
-/// * The **per-package access policy** drops any package the caller can't
-///   read (e.g. anonymous + `@private/*` with the default rules).
-///
-/// `total` counts the returned (post-filter, size-capped) objects so clients
-/// can't infer the existence of hidden packages from a mismatched total.
+/// `GET /-/v1/search?text=...&from=...&size=...` — npm search v1 endpoint.
+/// Hosted results are counted after routing and access filters, then optional
+/// upstream results are appended in registry-source order. An upstream only
+/// participates when its `search` setting is enabled.
 async fn serve_search(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     query_string: &str,
 ) -> Response {
-    let result = |objects: Vec<Value>| {
-        let total = objects.len();
+    let result = |objects: Vec<Value>, total: usize| {
         let body = json!({ "objects": objects, "total": total, "time": now_iso() });
         let bytes = serde_json::to_vec(&body).expect("search response serializes");
         Response::builder()
@@ -2278,68 +2298,221 @@ async fn serve_search(
             .body(Body::from(bytes))
             .expect("static-shape response always builds")
     };
-    let Some(text) = pnpr_search::parse_query(query_string) else {
-        return result(Vec::new());
+    let Some(params) = pnpr_search::parse_params(query_string, 20) else {
+        return result(Vec::new(), 0);
     };
     let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
     else {
-        return result(Vec::new());
+        return result(Vec::new(), 0);
     };
-    let size = pnpr_search::parse_size(query_string, 20);
-    let mut objects: Vec<Value> = Vec::new();
-    for source in hosted_search_sources(state, &registry) {
-        if objects.len() >= size {
-            break;
-        }
-        let Some(hosted) = state.inner.config.hosted.get(&source) else {
-            continue;
-        };
-        // Fast path: a caller no rule of this registry could ever admit
-        // gets the empty result without a storage scan — the blanket mask
-        // must not become an enumeration (or scan-timing) primitive.
-        if !hosted.rules.any_access_admits(identity) {
-            continue;
-        }
-        let org = hosted.org.clone();
-        let storage = hosted_storage(state, Some(&org));
-        // The caller was resolved once by the middleware; both filters run
-        // synchronously against it inside the scan. Visibility is
-        // per-package: each hit is gated by this hosted registry's effective
-        // access for that name, so a per-package rule can open (or close) a
-        // name regardless of the registry-level default.
-        let keep = |name: &str| {
-            matches!(
-                resolve_registry_source(state, &registry, name),
-                RegistrySource::Hosted(resolved) if resolved == source,
-            ) && matches!(hosted_gate(state, identity, &source, name), HostedGate::Allowed(_))
-        };
-        match pnpr_search::run_local_search(&storage, &text, size - objects.len(), keep).await {
-            Ok(mut entries) => objects.append(&mut entries),
-            Err(err) => return err.into_response(),
+    let mut page = SearchPage::new(params.from, params.size);
+    let mut total = 0usize;
+    for source in discovery_sources(state, &registry) {
+        match source {
+            DiscoverySource::Hosted(source) => {
+                let Some(hosted) = state.inner.config.hosted.get(&source) else {
+                    continue;
+                };
+                if !hosted.rules.any_access_admits(identity) {
+                    continue;
+                }
+                let storage = hosted_storage(state, Some(&hosted.org));
+                let keep = |name: &str| {
+                    matches!(
+                        resolve_registry_source(state, &registry, name),
+                        RegistrySource::Hosted(resolved) if resolved == source,
+                    ) && matches!(
+                        hosted_gate(state, identity, &source, name),
+                        HostedGate::Allowed(_),
+                    )
+                };
+                let entries =
+                    match pnpr_search::run_local_search(&storage, &params.text, keep).await {
+                        Ok(entries) => entries,
+                        Err(err) => return err.into_response(),
+                    };
+                let source_total = entries.len();
+                page.append_source(entries, total);
+                total = total.saturating_add(source_total);
+            }
+            DiscoverySource::Upstream(source) => {
+                let Some(config) = state.inner.config.upstreams.get(&source) else {
+                    continue;
+                };
+                if !config.search
+                    || config.access.as_ref().is_some_and(|access| !access.allows(identity))
+                    || !config.rules.all_access_admit(identity)
+                {
+                    continue;
+                }
+                let Some(upstream) = state.inner.upstreams.get(&source) else {
+                    continue;
+                };
+                let source_from = params.from.saturating_sub(total);
+                let request_size = page.remaining().max(1);
+                let query = upstream_search_query(query_string, source_from, request_size);
+                let response = match upstream.fetch_search(&query).await {
+                    Ok(FetchOutcome::Ok(response)) => response,
+                    Ok(FetchOutcome::NotFound) => continue,
+                    Err(err) => return err.into_response(),
+                };
+                let source_total = response.total;
+                for object in response.objects {
+                    if page.is_full() {
+                        break;
+                    }
+                    let Some(name) = search_object_name(&object) else {
+                        continue;
+                    };
+                    let resolved = RegistrySource::Upstream(source.clone());
+                    if !matches!(
+                        resolve_registry_source(state, &registry, name),
+                        RegistrySource::Upstream(candidate) if candidate == source,
+                    ) || authorize(state, identity, &resolved, name, Action::Access).is_err()
+                    {
+                        continue;
+                    }
+                    page.push(object);
+                }
+                total = total.saturating_add(source_total);
+            }
         }
     }
-    result(objects)
+    result(page.objects, total)
 }
 
-/// The hosted registries a search addressed to `registry` scans, in source order.
-/// A hosted registry scans itself; a router scans each of its hosted sources; an
-/// upstream registry scans nothing — search is local-only, never proxied (an
-/// upstream is reached only through its own registry, by exact package name;
-/// there is no cross-origin search merge).
-fn hosted_search_sources(state: &AppState, registry: &str) -> Vec<String> {
+fn discovery_sources(state: &AppState, registry: &str) -> Vec<DiscoverySource> {
     match state.inner.config.registries.get(registry) {
-        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
+        Some(Registry::Hosted { .. }) => vec![DiscoverySource::Hosted(registry.to_string())],
+        Some(Registry::Upstream { .. }) => vec![DiscoverySource::Upstream(registry.to_string())],
         Some(Registry::Router { sources }) => sources
             .iter()
-            .filter(|source| {
-                matches!(
-                    state.inner.config.registries.get(source.as_str()),
-                    Some(Registry::Hosted { .. }),
-                )
+            .filter_map(|source| match state.inner.config.registries.get(source.as_str()) {
+                Some(Registry::Hosted { .. }) => Some(DiscoverySource::Hosted(source.clone())),
+                Some(Registry::Upstream { .. }) => Some(DiscoverySource::Upstream(source.clone())),
+                Some(Registry::Router { .. }) | None => None,
             })
-            .cloned()
             .collect(),
-        Some(Registry::Upstream { .. }) | None => Vec::new(),
+        None => Vec::new(),
+    }
+}
+
+fn search_object_name(object: &Value) -> Option<&str> {
+    object.get("package")?.get("name")?.as_str()
+}
+
+fn upstream_search_query(query_string: &str, from: usize, size: usize) -> String {
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    for (key, value) in url::form_urlencoded::parse(query_string.as_bytes()) {
+        if key != "from" && key != "size" {
+            query.append_pair(&key, &value);
+        }
+    }
+    query.append_pair("from", &from.to_string());
+    query.append_pair("size", &size.clamp(1, 250).to_string());
+    query.finish()
+}
+
+/// `GET /-/org/{scope}/package` — the npm-compatible package-permission map.
+/// Values are useful to npm's account UI; registry UIs such as npmX consume
+/// the keys as the authoritative package list.
+async fn serve_org_packages(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    raw_scope: &str,
+) -> Response {
+    let scope = raw_scope.strip_prefix('@').unwrap_or(raw_scope);
+    if PackageName::parse(&format!("@{scope}/package")).is_err() {
+        return not_found();
+    }
+    let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
+    else {
+        return not_found();
+    };
+    let prefix = format!("@{scope}/");
+    let mut packages = Map::new();
+    for source in discovery_sources(state, &registry) {
+        match source {
+            DiscoverySource::Hosted(source) => {
+                let Some(hosted) = state.inner.config.hosted.get(&source) else {
+                    continue;
+                };
+                if !hosted.rules.any_access_admits(identity) {
+                    continue;
+                }
+                let storage = hosted_storage(state, Some(&hosted.org));
+                let mut names = match storage.hosted_package_names().await {
+                    Ok(names) => names,
+                    Err(err) => return err.into_response(),
+                };
+                names.sort();
+                for name in names {
+                    if !name.starts_with(&prefix)
+                        || !matches!(
+                            resolve_registry_source(state, &registry, &name),
+                            RegistrySource::Hosted(candidate) if candidate == source,
+                        )
+                        || !matches!(
+                            hosted_gate(state, identity, &source, &name),
+                            HostedGate::Allowed(_),
+                        )
+                    {
+                        continue;
+                    }
+                    let resolved = RegistrySource::Hosted(source.clone());
+                    let permission =
+                        if authorize(state, identity, &resolved, &name, Action::Publish).is_ok() {
+                            "write"
+                        } else {
+                            "read"
+                        };
+                    packages.insert(name, Value::String(permission.to_string()));
+                }
+            }
+            DiscoverySource::Upstream(source) => {
+                let Some(config) = state.inner.config.upstreams.get(&source) else {
+                    continue;
+                };
+                if !config.search
+                    || config.access.as_ref().is_some_and(|access| !access.allows(identity))
+                {
+                    continue;
+                }
+                let Some(upstream) = state.inner.upstreams.get(&source) else {
+                    continue;
+                };
+                let upstream_packages = match upstream.fetch_org_packages(scope).await {
+                    Ok(FetchOutcome::Ok(packages)) => packages,
+                    Ok(FetchOutcome::NotFound) => continue,
+                    Err(err) => return err.into_response(),
+                };
+                for (name, permission) in upstream_packages {
+                    let resolved = RegistrySource::Upstream(source.clone());
+                    if !name.starts_with(&prefix)
+                        || !matches!(
+                            resolve_registry_source(state, &registry, &name),
+                            RegistrySource::Upstream(candidate) if candidate == source,
+                        )
+                        || authorize(state, identity, &resolved, &name, Action::Access).is_err()
+                    {
+                        continue;
+                    }
+                    packages.entry(name).or_insert(permission);
+                }
+            }
+        }
+    }
+    if packages.is_empty() {
+        return not_found();
+    }
+    match serde_json::to_vec(&packages) {
+        Ok(body) => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .expect("static-shape response always builds"),
+        Err(err) => RegistryError::Json(err).into_response(),
     }
 }
 

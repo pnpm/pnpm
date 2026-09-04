@@ -345,6 +345,7 @@ pub(super) async fn validate_publish_doc(
     )?;
 
     let attachments = extract_attachments(&mut incoming)?;
+    record_publisher(&mut incoming, identity);
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the
@@ -366,6 +367,18 @@ pub(super) async fn validate_publish_doc(
         prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
     Ok((ValidatedPublish { name, incoming, prepared }, target))
+}
+
+fn record_publisher(incoming: &mut Value, identity: &Identity) {
+    let Identity::User { username } = identity else {
+        return;
+    };
+    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
+        manifest.entry("_npmUser").or_insert_with(|| json!({ "name": username }));
+    }
 }
 
 /// A publish whose packument is merged and whose tarballs are fully

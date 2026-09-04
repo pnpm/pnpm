@@ -47,6 +47,7 @@ fn upstream_config_file(
         max_fails: None,
         fail_timeout: None,
         cache: None,
+        search: false,
         access: None,
     }
 }
@@ -386,6 +387,40 @@ registries:
     let upstream = &config.upstreams["npmjs"];
     assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
     assert_eq!(upstream.timeout, Duration::from_secs(45));
+}
+
+#[test]
+fn parses_cors_origins_and_upstream_search() {
+    let yaml = r"
+cors:
+  allowedOrigins:
+    - https://npmx.dev
+    - http://localhost:3000/
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    search: true
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(
+        config.cors.allowed_origins(),
+        ["https://npmx.dev".to_string(), "http://localhost:3000".to_string()],
+    );
+    assert!(config.upstreams["npmjs"].search);
+}
+
+#[test]
+fn rejects_non_origin_cors_urls() {
+    for origin in ["*", "null", "ftp://example.test", "https://example.test/path"] {
+        let yaml = format!("cors:\n  allowedOrigins: [{origin:?}]\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("CORS allowed origin")),
+            "expected an InvalidConfig for {origin:?}",
+        );
+    }
 }
 
 #[test]
@@ -2225,6 +2260,7 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     assert_eq!(upstream.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
     assert_eq!(upstream.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
     assert!(upstream.cache);
+    assert!(!upstream.search);
 }
 
 #[test]
@@ -2236,12 +2272,14 @@ fn resolve_upstream_config_parses_explicit_knobs() {
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
+    file.search = true;
     let upstream = resolve_upstream("npmjs", file).unwrap();
     assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
     assert_eq!(upstream.timeout, Duration::from_secs(45));
     assert_eq!(upstream.max_fails, 5);
     assert_eq!(upstream.fail_timeout, Duration::from_mins(1));
     assert!(!upstream.cache);
+    assert!(upstream.search);
 }
 
 #[test]

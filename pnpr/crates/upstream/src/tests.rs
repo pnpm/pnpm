@@ -663,6 +663,7 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             max_fails,
             fail_timeout: Duration::from_mins(5),
             cache: true,
+            search: false,
             access: None,
             rules: pnpr_policy::PackageRules::default(),
         },
