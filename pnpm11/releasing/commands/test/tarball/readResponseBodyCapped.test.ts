@@ -9,7 +9,13 @@ describe('readResponseBodyCapped', () => {
   })
 
   test('returns a response within the limit', async () => {
-    const body = await readResponseBodyCapped(new Response('abcd'), 4)
+    const body = await readResponseBodyCapped(new Response(new ReadableStream({
+      start: (controller) => {
+        controller.enqueue(new TextEncoder().encode('ab'))
+        controller.enqueue(new TextEncoder().encode('cd'))
+        controller.close()
+      },
+    })), 4)
     expect(body?.toString()).toBe('abcd')
   })
 
