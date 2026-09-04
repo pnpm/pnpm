@@ -724,7 +724,11 @@ impl ConfigOverrides {
         if let Some(value) = self.virtual_store_only {
             config.virtual_store_only = value;
             config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
-            config.apply_virtual_store_only_derivation();
+            if value {
+                config.apply_virtual_store_only_derivation();
+            } else {
+                config.restore_hoist_patterns_after_virtual_store_only();
+            }
         }
         if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
             let global_dir = lexical_normalize(&dir.join(value));

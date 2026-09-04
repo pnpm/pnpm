@@ -890,6 +890,56 @@ fn virtual_store_only_flag_empties_the_hoist_patterns() {
     assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
 }
 
+/// A lower layer's `virtualStoreOnly: true` empties the patterns when the
+/// config is built; `--no-virtual-store-only` outranks it and gets them
+/// back, from the layer that set them or from the defaults.
+#[test]
+fn no_virtual_store_only_restores_the_hoist_patterns() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--no-virtual-store-only"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(Vec::new()),
+        public_hoist_pattern: Some(Vec::new()),
+        ..Config::default()
+    };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.virtual_store_only);
+    assert_eq!(config.hoist_pattern, Config::default().hoist_pattern);
+    assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
+
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(Vec::new()),
+        public_hoist_pattern: Some(Vec::new()),
+        ..Config::default()
+    };
+    config.explicit_settings.insert("hoistPattern".to_string(), vec!["*eslint*"].into());
+    config.explicit_settings.insert("publicHoistPattern".to_string(), serde_json::Value::Null);
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(vec!["*eslint*".to_string()]));
+    assert_eq!(config.public_hoist_pattern, None);
+
+    // A pattern given on the same command line is what comes back.
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--hoist-pattern=foo",
+        "--no-virtual-store-only",
+    ]));
+    let mut config = Config {
+        virtual_store_only: true,
+        hoist_pattern: Some(Vec::new()),
+        public_hoist_pattern: Some(Vec::new()),
+        ..Config::default()
+    };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(vec!["foo".to_string()]));
+    assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
+}
+
 /// `linkWorkspacePackages` and `saveWorkspaceProtocol` are a boolean or a
 /// keyword, so they take every boolean spelling plus the keyword. pnpm
 /// types the first `[Boolean, 'deep']` and the second `Boolean`, so only
