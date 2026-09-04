@@ -481,6 +481,18 @@ impl ConfigOverrides {
         if let Some(value) = self.reverse {
             config.reverse = value;
         }
+        // Ahead of the hoist settings below: a `--no-virtual-store-only`
+        // gets the lower layers' patterns back first, and a pattern on the
+        // same command line then replaces them.
+        if let Some(value) = self.virtual_store_only {
+            config.virtual_store_only = value;
+            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
+            if value {
+                config.apply_virtual_store_only_derivation();
+            } else {
+                config.restore_hoist_patterns_after_virtual_store_only();
+            }
+        }
         if let Some(value) = self.shamefully_hoist {
             config.shamefully_hoist = value;
             config.explicit_settings.insert("shamefullyHoist".to_string(), value.into());
@@ -720,15 +732,6 @@ impl ConfigOverrides {
         if let Some(value) = self.verify_store_integrity {
             config.verify_store_integrity = value;
             config.explicit_settings.insert("verifyStoreIntegrity".to_string(), value.into());
-        }
-        if let Some(value) = self.virtual_store_only {
-            config.virtual_store_only = value;
-            config.explicit_settings.insert("virtualStoreOnly".to_string(), value.into());
-            if value {
-                config.apply_virtual_store_only_derivation();
-            } else {
-                config.restore_hoist_patterns_after_virtual_store_only();
-            }
         }
         if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
             let global_dir = lexical_normalize(&dir.join(value));

@@ -813,6 +813,20 @@ fn unsafe_perm_is_a_bare_flag_on_every_command() {
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.unsafe_perm);
     assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(false)));
+
+    for (flag, expected) in [
+        ("--unsafe-perm", true),
+        ("--unsafe-perm=true", true),
+        ("--no-unsafe-perm", false),
+        ("--unsafe-perm=false", false),
+    ] {
+        let (overrides, remaining) =
+            ConfigOverrides::extract(argv(["pacquet", "remove", "foo", flag]));
+        assert_eq!(remaining, argv(["pacquet", "remove", "foo"]), "{flag}");
+        let mut config = Config { unsafe_perm: !expected, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert_eq!(config.unsafe_perm, expected, "{flag}");
+    }
 }
 
 /// The boolean settings pnpm's `nopt` types make spellable on every
@@ -892,7 +906,7 @@ fn virtual_store_only_flag_empties_the_hoist_patterns() {
 
 /// A lower layer's `virtualStoreOnly: true` empties the patterns when the
 /// config is built; `--no-virtual-store-only` outranks it and gets them
-/// back, from the layer that set them or from the defaults.
+/// back exactly, an explicitly disabled pattern included.
 #[test]
 fn no_virtual_store_only_restores_the_hoist_patterns() {
     let (overrides, remaining) =
@@ -901,26 +915,17 @@ fn no_virtual_store_only_restores_the_hoist_patterns() {
 
     let mut config = Config {
         virtual_store_only: true,
-        hoist_pattern: Some(Vec::new()),
-        public_hoist_pattern: Some(Vec::new()),
+        hoist_pattern: Some(vec!["*eslint*".to_string()]),
+        public_hoist_pattern: None,
         ..Config::default()
     };
+    config.apply_virtual_store_only_derivation();
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.virtual_store_only);
-    assert_eq!(config.hoist_pattern, Config::default().hoist_pattern);
-    assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
-
-    let mut config = Config {
-        virtual_store_only: true,
-        hoist_pattern: Some(Vec::new()),
-        public_hoist_pattern: Some(Vec::new()),
-        ..Config::default()
-    };
-    config.explicit_settings.insert("hoistPattern".to_string(), vec!["*eslint*"].into());
-    config.explicit_settings.insert("publicHoistPattern".to_string(), serde_json::Value::Null);
-    overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.hoist_pattern, Some(vec!["*eslint*".to_string()]));
     assert_eq!(config.public_hoist_pattern, None);
+    assert_eq!(config.hoist_patterns_before_virtual_store_only, None);
 
     // A pattern given on the same command line is what comes back.
     let (overrides, _) = ConfigOverrides::extract(argv([
@@ -929,15 +934,24 @@ fn no_virtual_store_only_restores_the_hoist_patterns() {
         "--hoist-pattern=foo",
         "--no-virtual-store-only",
     ]));
-    let mut config = Config {
-        virtual_store_only: true,
-        hoist_pattern: Some(Vec::new()),
-        public_hoist_pattern: Some(Vec::new()),
-        ..Config::default()
-    };
+    let mut config = Config { virtual_store_only: true, ..Config::default() };
+    config.apply_virtual_store_only_derivation();
     overrides.apply(&mut config, Path::new("/workspace"));
     assert_eq!(config.hoist_pattern, Some(vec!["foo".to_string()]));
     assert_eq!(config.public_hoist_pattern, Config::default().public_hoist_pattern);
+
+    // Turning the mode on from the command line keeps the patterns
+    // empty whatever else the command line says about them.
+    let (overrides, _) = ConfigOverrides::extract(argv([
+        "pacquet",
+        "install",
+        "--virtual-store-only",
+        "--hoist-pattern=foo",
+    ]));
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert_eq!(config.hoist_pattern, Some(Vec::new()));
+    assert_eq!(config.public_hoist_pattern, Some(Vec::new()));
 }
 
 /// `linkWorkspacePackages` and `saveWorkspaceProtocol` are a boolean or a
@@ -1231,6 +1245,7 @@ fn extract_leaves_invalid_setting_values_for_clap() {
         &["--link-workspace-packages=shallow"],
         &["--save-workspace-protocol=sometimes"],
         &["--offline=maybe"],
+        &["--unsafe-perm=maybe"],
     ] {
         let command_line = ["pacquet", "install"]
             .into_iter()

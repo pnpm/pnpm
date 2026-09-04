@@ -922,6 +922,14 @@ pub enum PackageImportMethod {
 /// onto `Config` field-by-field, following pnpm 11's split between
 /// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
 /// (project-structural settings).
+/// The two hoist patterns as one value, for
+/// [`Config::hoist_patterns_before_virtual_store_only`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoistPatterns {
+    pub hoist_pattern: Option<Vec<String>>,
+    pub public_hoist_pattern: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
     /// Whether recursive commands stop after the first failure.
@@ -1060,6 +1068,14 @@ pub struct Config {
     /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
+
+    /// The patterns [`apply_virtual_store_only_derivation`] emptied, so
+    /// a command-line `--no-virtual-store-only` that outranks a lower
+    /// layer's `virtualStoreOnly: true` can bring them back exactly.
+    /// `None` until that derivation empties them.
+    ///
+    /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
+    pub hoist_patterns_before_virtual_store_only: Option<HoistPatterns>,
 
     /// `extendNodePath`: when `true` (the default) and the isolated
     /// `nodeLinker` runs with a hoist pattern, command shims set
@@ -2997,6 +3013,12 @@ impl Config {
         if !self.virtual_store_only {
             return;
         }
+        if self.hoist_patterns_before_virtual_store_only.is_none() {
+            self.hoist_patterns_before_virtual_store_only = Some(HoistPatterns {
+                hoist_pattern: self.hoist_pattern.take(),
+                public_hoist_pattern: self.public_hoist_pattern.take(),
+            });
+        }
         self.hoist_pattern = Some(Vec::new());
         self.public_hoist_pattern = Some(Vec::new());
     }
@@ -3004,34 +3026,17 @@ impl Config {
     /// Undo [`apply_virtual_store_only_derivation`] after a command-line
     /// `--no-virtual-store-only` outranks a lower layer's
     /// `virtualStoreOnly: true`, which emptied both patterns when the
-    /// config was built. Each pattern comes back from the setting that
-    /// supplied it, or from its default, and the derivations that run
-    /// over the patterns run again. pnpm merges the command line before
-    /// it derives, so it never empties them in the first place.
+    /// config was built. pnpm merges the command line before it derives,
+    /// so it never empties them in the first place.
     ///
     /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
     pub fn restore_hoist_patterns_after_virtual_store_only(&mut self) {
         if self.virtual_store_only {
             return;
         }
-        self.hoist_pattern = self.explicit_pattern("hoistPattern", default_hoist_pattern);
-        self.public_hoist_pattern =
-            self.explicit_pattern("publicHoistPattern", default_public_hoist_pattern);
-        if !self.hoist {
-            self.hoist_pattern = None;
-        }
-        self.apply_shamefully_hoist_derivation();
-    }
-
-    /// A pattern list from [`explicit_settings`], or `default` when no
-    /// layer set it. An explicit `null` keeps the pattern off.
-    ///
-    /// [`explicit_settings`]: Self::explicit_settings
-    fn explicit_pattern(&self, key: &str, default: fn() -> Vec<String>) -> Option<Vec<String>> {
-        match self.explicit_settings.get(key) {
-            None => Some(default()),
-            Some(serde_json::Value::Null) => None,
-            Some(value) => serde_json::from_value(value.clone()).ok().or_else(|| Some(default())),
+        if let Some(patterns) = self.hoist_patterns_before_virtual_store_only.take() {
+            self.hoist_pattern = patterns.hoist_pattern;
+            self.public_hoist_pattern = patterns.public_hoist_pattern;
         }
     }
 

@@ -57,6 +57,7 @@ fn create_config(
         hoist: false,
         hoist_pattern: None,
         public_hoist_pattern: None,
+        hoist_patterns_before_virtual_store_only: None,
         extend_node_path: true,
         prefer_symlinked_executables: None,
         shamefully_hoist: false,
