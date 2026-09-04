@@ -200,6 +200,19 @@ fn summarize_tarball_uses_the_final_duplicate_manifest() {
 }
 
 #[test]
+fn summarize_tarball_accepts_a_utf8_bom_before_the_manifest() {
+    let tarball = gzipped_tarball(&[(
+        "package/package.json",
+        "\u{feff}{\"name\":\"pkg\",\"version\":\"1.0.0\"}",
+    )]);
+
+    let summary = summarize_tarball(&tarball).expect("a manifest prefixed by a UTF-8 BOM");
+
+    assert_eq!(summary.name, "pkg");
+    assert_eq!(summary.version, "1.0.0");
+}
+
+#[test]
 fn summarize_tarball_validates_the_manifest_identity() {
     let invalid_name = summarize_tarball(&gzipped_tarball(&[(
         "package/package.json",

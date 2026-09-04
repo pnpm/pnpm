@@ -3,6 +3,7 @@ import util from 'node:util'
 import { gunzipSync } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
+import stripBom from 'strip-bom'
 import tar from 'tar-stream'
 
 import { extractBundledDependencies, type PublishSummary } from './publishSummary.js'
@@ -104,7 +105,7 @@ async function readTarballContents (tarballData: Buffer, includeSummary: boolean
 
   let parsedManifest: unknown
   try {
-    parsedManifest = JSON.parse(manifestText?.toString() ?? '')
+    parsedManifest = JSON.parse(stripBom(manifestText?.toString() ?? ''))
   } catch {
     throw new PnpmError('STAGE_TARBALL_MANIFEST_NOT_FOUND', 'Could not read package.json from tarball')
   }

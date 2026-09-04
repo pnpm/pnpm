@@ -31,6 +31,17 @@ describe('readTarballManifest', () => {
       code: 'ERR_PNPM_INVALID_PACKAGE_VERSION',
     })
   })
+
+  test('accepts a UTF-8 BOM before the manifest', async () => {
+    const tarball = await createTarball([
+      `\uFEFF${JSON.stringify({ name: 'pkg', version: '1.0.0' })}`,
+    ])
+
+    await expect(readTarballManifest(tarball)).resolves.toMatchObject({
+      name: 'pkg',
+      version: '1.0.0',
+    })
+  })
 })
 
 async function createTarball (manifests: string[]): Promise<Buffer> {

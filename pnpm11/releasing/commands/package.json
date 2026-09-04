@@ -90,6 +90,7 @@
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
     "semver": "catalog:",
+    "strip-bom": "catalog:",
     "tar-stream": "catalog:",
     "tempy": "catalog:",
     "tinyglobby": "catalog:",
