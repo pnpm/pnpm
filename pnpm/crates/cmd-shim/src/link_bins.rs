@@ -1156,52 +1156,31 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
 
 /// Whether `path` is a regular file (not a symlink — a raced link must
 /// not be accepted even when the read, which follows it, returns
-/// matching bytes) holding exactly `bytes`. The equivalence test both
-/// winner-acceptance arms use.
+/// matching bytes) holding exactly `bytes`. The winner-acceptance test
+/// of the fresh-create path.
 fn equivalent_regular_file<Sys: FsReadToString>(path: &Path, bytes: &[u8]) -> bool {
     std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
         && matches!(Sys::read_to_string(path), Ok(existing) if existing.as_bytes() == bytes)
 }
 
-/// Remove whatever occupies `path` and write `bytes` as a fresh regular
-/// file, creating it with `O_CREAT | O_EXCL` semantics so a dirent
-/// planted between the removal and the write — the classic
-/// unlink/symlink race in a shared or writable bin dir — fails the
-/// create instead of redirecting it. Nothing serializes bin linking
-/// across processes (installs sharing a global virtual store race over
-/// one slot's shims), so a lost create whose winner wrote these same
-/// bytes is accepted as done and other losses retry;
-/// a path still contested after the retries surfaces as a write error
-/// rather than silently keeping whatever won. A `Sys` without exclusive
-/// creation (the DI fakes' default) keeps the plain remove-then-write.
-fn replace_shim<Sys: FsReadToString + FsWrite>(
-    path: &Path,
-    bytes: &[u8],
-) -> Result<(), LinkBinsError> {
-    let mut last_error = None;
-    for _ in 0..3 {
-        remove_stale_bin(path)?;
-        match Sys::write_new(path, bytes) {
-            Ok(()) => return Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                if equivalent_regular_file::<Sys>(path, bytes) {
-                    return Ok(());
-                }
-                last_error = Some(error);
-            }
-            Err(error) if error.kind() == io::ErrorKind::Unsupported => {
-                return Sys::write(path, bytes)
-                    .map_err(|error| LinkBinsError::WriteShim { path: path.to_path_buf(), error });
-            }
-            Err(error) => {
-                return Err(LinkBinsError::WriteShim { path: path.to_path_buf(), error });
-            }
+/// Replace whatever occupies `path` with a fresh regular file holding
+/// `bytes`, atomically where `Sys` supports it (see
+/// [`FsWrite::write_replace`]): no reader observes a torn shim,
+/// concurrent installers writing the equivalent shim converge on
+/// last-writer-wins, and a symlink planted at the path — the classic
+/// unlink/symlink race in a shared or writable bin dir — is replaced as
+/// a dirent, never followed. A `Sys` without atomic replacement (the DI
+/// fakes' default) keeps the remove-then-write.
+fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsError> {
+    match Sys::write_replace(path, bytes) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::Unsupported => {
+            remove_stale_bin(path)?;
+            Sys::write(path, bytes)
+                .map_err(|error| LinkBinsError::WriteShim { path: path.to_path_buf(), error })
         }
+        Err(error) => Err(LinkBinsError::WriteShim { path: path.to_path_buf(), error }),
     }
-    Err(LinkBinsError::WriteShim {
-        path: path.to_path_buf(),
-        error: last_error.expect("loop exits early unless an AlreadyExists was recorded"),
-    })
 }
 
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by

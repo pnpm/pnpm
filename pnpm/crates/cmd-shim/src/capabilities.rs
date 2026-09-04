@@ -133,6 +133,20 @@ pub trait FsWrite {
     fn write_new(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
         Err(io::Error::from(io::ErrorKind::Unsupported))
     }
+
+    /// Atomically replace whatever occupies `path` with a regular file
+    /// holding `bytes`: written to a sibling temp file and renamed into
+    /// place. No reader observes a torn file, concurrent equivalent
+    /// writers converge on last-writer-wins, and a symlink at `path` is
+    /// replaced as a dirent rather than followed. The default impl opts
+    /// a fake out (the shim writer then falls back to
+    /// remove-then-[`write`]) rather than forcing fakes to model the
+    /// rename.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_replace(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -224,6 +238,37 @@ impl FsWrite for Host {
     fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
         use std::io::Write;
         std::fs::File::options().write(true).create_new(true).open(path)?.write_all(bytes)
+    }
+
+    fn write_replace(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        let parent = path.parent().ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let file_name = path
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        let pid = std::process::id();
+        // The attempt counter only steps past temp names a crashed run
+        // with this pid left behind, so the bound is never reached in
+        // practice; it exists so a pathological directory cannot spin
+        // this loop forever.
+        for attempt in 0u32..1024 {
+            let tmp_path = parent.join(format!(".{file_name}.{pid}.{attempt}.tmp"));
+            let mut tmp =
+                match std::fs::File::options().write(true).create_new(true).open(&tmp_path) {
+                    Ok(tmp) => tmp,
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                    Err(error) => return Err(error),
+                };
+            let written = tmp.write_all(bytes);
+            drop(tmp);
+            let result = written.and_then(|()| std::fs::rename(&tmp_path, path));
+            if result.is_err() {
+                let _ = std::fs::remove_file(&tmp_path);
+            }
+            return result;
+        }
+        Err(io::Error::from(io::ErrorKind::AlreadyExists))
     }
 }
 
