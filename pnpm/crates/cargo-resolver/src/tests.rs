@@ -155,3 +155,41 @@ fn merges_duplicate_feature_names_across_index_feature_maps() {
     let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
     assert_eq!(lockfile.packages.len(), 4);
 }
+
+#[test]
+fn propagates_features_from_the_selected_older_candidate() {
+    let metadata = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [
+      {
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0"
+      },
+      {
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "=1.0.0",
+        "rename": "foo-old"
+      }
+    ]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(metadata, &files).unwrap()).unwrap();
+
+    assert_eq!(lockfile.packages.len(), 4);
+    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}

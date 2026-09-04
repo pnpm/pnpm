@@ -3,6 +3,7 @@ use crate::{
     registry::{Registry, compatibility_line, matching_versions, validate_registry},
 };
 use miette::Result;
+use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 #[derive(Debug, Default)]
@@ -117,38 +118,40 @@ pub(crate) fn collect_feature_selections(
     root_dependencies: &[RegistryDependency],
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
     let mut selections = BTreeMap::<PackageKey, FeatureSelection>::new();
+    let mut candidate_versions = BTreeMap::<PackageKey, BTreeSet<Version>>::new();
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
         validate_registry(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let compatibility = matching_versions(versions, &dependency.requirement)
-            .next_back()
-            .map(|version| compatibility_line(&version.version))
-            .ok_or_else(|| {
+        let version =
+            matching_versions(versions, &dependency.requirement).next_back().ok_or_else(|| {
                 miette::miette!(
                     "no non-yanked version of {} satisfies {}",
                     dependency.name,
                     dependency.requirement,
                 )
             })?;
-        let package = PackageKey::Registry {
-            name: dependency.name.clone(),
-            compatibility: compatibility.clone(),
-        };
+        let compatibility = compatibility_line(&version.version);
+        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
+        let candidate_is_new =
+            candidate_versions.entry(package.clone()).or_default().insert(version.version.clone());
         let requested = dependency.feature_selection();
-        let is_new = !selections.contains_key(&package);
-        let selection = selections.entry(package).or_default();
+        let selection = selections.entry(package.clone()).or_default();
         let previous = selection.clone();
         selection.default_features |= requested.default_features;
         selection.features.extend(requested.features);
-        if !is_new && *selection == previous {
+        let selection_changed = *selection != previous;
+        let selection = selection.clone();
+        if !candidate_is_new && !selection_changed {
             continue;
         }
-        if let Some(version) = versions.iter().rfind(|version| {
-            !version.yanked && compatibility_line(&version.version) == compatibility
-        }) {
-            pending.extend(active_dependencies(version, selection)?);
+        for candidate_version in &candidate_versions[&package] {
+            let candidate = versions
+                .iter()
+                .find(|candidate| candidate.version == *candidate_version)
+                .expect("recorded candidate came from this registry package");
+            pending.extend(active_dependencies(candidate, &selection)?);
         }
     }
     Ok(selections)
