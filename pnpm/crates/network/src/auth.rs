@@ -401,8 +401,7 @@ impl AuthHeaders {
     /// Package-aware counterpart to [`Self::for_secure_url`].
     #[must_use]
     pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
-        let parsed = ParsedUrl::parse(url)?;
-        if !parsed.scheme.eq_ignore_ascii_case("https") && !is_loopback_host(parsed.host) {
+        if !is_url_secure_for_credentials(url) {
             return None;
         }
         self.for_url_with_package(url, pkg_name)
@@ -760,6 +759,16 @@ fn is_loopback_host(host: &str) -> bool {
             .trim_matches(['[', ']'])
             .parse::<std::net::IpAddr>()
             .is_ok_and(|address| address.is_loopback())
+}
+
+/// Whether credentials may be sent to `url` without crossing a cleartext
+/// network link. HTTPS and loopback HTTP endpoints are accepted.
+#[must_use]
+pub fn is_url_secure_for_credentials(url: &str) -> bool {
+    ParsedUrl::parse(url).is_some_and(|parsed| {
+        parsed.scheme.eq_ignore_ascii_case("https")
+            || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
+    })
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for

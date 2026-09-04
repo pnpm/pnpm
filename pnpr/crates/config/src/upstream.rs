@@ -47,6 +47,9 @@ pub struct UpstreamConfig {
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
+    /// Whether browser-facing discovery endpoints may query this upstream.
+    /// Disabled by default to preserve local-only search behavior.
+    pub search: bool,
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential, and reach it through its `/~<name>/` registry endpoint.
     /// `None` means the upstream is registry-proxy only and is never offered as
@@ -82,6 +85,7 @@ impl UpstreamConfig {
             max_fails: Self::DEFAULT_MAX_FAILS,
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
+            search: false,
             access: None,
             rules: PackageRules::default(),
         }
@@ -98,6 +102,7 @@ impl fmt::Debug for UpstreamConfig {
             .field("max_fails", &self.max_fails)
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
+            .field("search", &self.search)
             .field("access", &self.access)
             .field("rules", &self.rules)
             .finish()
@@ -142,6 +147,8 @@ pub(super) struct UpstreamConfigFile {
     pub(super) fail_timeout: Option<Interval>,
     #[serde(default)]
     pub(super) cache: Option<bool>,
+    #[serde(default)]
+    pub(super) search: bool,
     /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential. Its presence is what promotes a plain proxy upstream into a
     /// resolver private-route credential exposed at `/~<name>/`.
@@ -311,6 +318,7 @@ pub(super) fn resolve_upstream_config<Sys: EnvVar>(
         max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
+        search: file.search,
         access,
         // The `packages:` rules are attached by the caller
         // (`build_registries`) — this resolver only handles the serving

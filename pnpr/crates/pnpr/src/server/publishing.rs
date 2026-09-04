@@ -345,6 +345,7 @@ pub(super) async fn validate_publish_doc(
     )?;
 
     let attachments = extract_attachments(&mut incoming)?;
+    record_publisher(&mut incoming, identity);
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the
@@ -366,6 +367,22 @@ pub(super) async fn validate_publish_doc(
         prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
     Ok((ValidatedPublish { name, incoming, prepared }, target))
+}
+
+fn record_publisher(incoming: &mut Value, identity: &Identity) {
+    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
+        match identity {
+            Identity::User { username } => {
+                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
+            }
+            Identity::Anonymous => {
+                manifest.remove("_npmUser");
+            }
+        }
+    }
 }
 
 /// A publish whose packument is merged and whose tarballs are fully
@@ -678,3 +695,6 @@ async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }
 }
+
+#[cfg(test)]
+mod tests;
