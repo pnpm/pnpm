@@ -802,22 +802,11 @@ where
     let already_correct = sh_marker_ok && windows_ok;
 
     if !already_correct {
-        // Unlink any pre-existing entry before writing. `Sys::write` opens
-        // through a symlink, so without this a symlink planted at the bin
-        // path (e.g. in a shared/writable global bin dir) would redirect the
-        // write and clobber an arbitrary target. Removing first guarantees we
-        // create a fresh regular file.
-        remove_stale_bin(shim_path)?;
-        Sys::write(shim_path, sh_body.as_bytes())
-            .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
+        replace_shim::<Sys>(shim_path, sh_body.as_bytes())?;
         if let Some((cmd_path, cmd_body, powershell_shim)) = &windows_shims {
-            remove_stale_bin(cmd_path)?;
-            Sys::write(cmd_path, cmd_body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
+            replace_shim::<Sys>(cmd_path, cmd_body.as_bytes())?;
             if let Some((ps1_path, ps1_body)) = powershell_shim {
-                remove_stale_bin(ps1_path)?;
-                Sys::write(ps1_path, ps1_body.as_bytes())
-                    .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
+                replace_shim::<Sys>(ps1_path, ps1_body.as_bytes())?;
             }
         }
     }
@@ -850,21 +839,15 @@ where
         return Ok(false);
     }
     if cfg!(windows) {
-        // The Windows siblings keep the remove-then-write shape: a
-        // missing canonical shim proves nothing about `.cmd`/`.ps1`
-        // leftovers, and truncating a stale hardlinked `.exe`-adjacent
-        // entry through `write` must stay impossible.
+        // The Windows siblings keep the replace shape: a missing
+        // canonical shim proves nothing about `.cmd`/`.ps1` leftovers.
         let cmd_path = with_extension_appended(shim_path, "cmd");
         let cmd_body = generate_cmd_shim(target_path, &cmd_path, runtime.as_ref(), node_path);
-        remove_stale_bin(&cmd_path)?;
-        Sys::write(&cmd_path, cmd_body.as_bytes())
-            .map_err(|error| LinkBinsError::WriteShim { path: cmd_path, error })?;
+        replace_shim::<Sys>(&cmd_path, cmd_body.as_bytes())?;
         if make_powershell_shim {
             let ps1_path = with_extension_appended(shim_path, "ps1");
             let ps1_body = generate_pwsh_shim(target_path, &ps1_path, runtime.as_ref(), node_path);
-            remove_stale_bin(&ps1_path)?;
-            Sys::write(&ps1_path, ps1_body.as_bytes())
-                .map_err(|error| LinkBinsError::WriteShim { path: ps1_path, error })?;
+            replace_shim::<Sys>(&ps1_path, ps1_body.as_bytes())?;
         }
     }
     chmod_tolerating_removal(shim_path, Sys::set_executable)?;
@@ -1159,6 +1142,39 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
         }
     }
     Ok(filled)
+}
+
+/// Remove whatever occupies `path` and write `bytes` as a fresh regular
+/// file, creating it with `O_CREAT | O_EXCL` semantics so a dirent
+/// planted between the removal and the write — the classic
+/// unlink/symlink race in a shared or writable bin dir — fails the
+/// create instead of redirecting it. A concurrent installer laying down
+/// the same shim loses that race legitimately, so a few retries absorb
+/// it; a path still contested after that surfaces as a write error
+/// rather than silently keeping whatever won. A `Sys` without exclusive
+/// creation (the DI fakes' default) keeps the plain remove-then-write.
+fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsError> {
+    let mut last_error = None;
+    for _ in 0..3 {
+        remove_stale_bin(path)?;
+        match Sys::write_new(path, bytes) {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                last_error = Some(error);
+            }
+            Err(error) if error.kind() == io::ErrorKind::Unsupported => {
+                return Sys::write(path, bytes)
+                    .map_err(|error| LinkBinsError::WriteShim { path: path.to_path_buf(), error });
+            }
+            Err(error) => {
+                return Err(LinkBinsError::WriteShim { path: path.to_path_buf(), error });
+            }
+        }
+    }
+    Err(LinkBinsError::WriteShim {
+        path: path.to_path_buf(),
+        error: last_error.expect("loop exits early unless an AlreadyExists was recorded"),
+    })
 }
 
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by

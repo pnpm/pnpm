@@ -1732,3 +1732,109 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
     }
     assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
 }
+
+/// A stale-content rewrite goes through the exclusive create too: after
+/// the removal, a dirent that reappears (here: a fake losing the race
+/// once) is retried rather than written through.
+#[test]
+fn stale_shim_rewrite_retries_the_exclusive_create_after_losing_a_race() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static WRITE_NEW_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct RaceLosingHost;
+    impl FsReadHead for RaceLosingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for RaceLosingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for RaceLosingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWalkFiles for RaceLosingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsWrite for RaceLosingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            if WRITE_NEW_ATTEMPTS.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(io::Error::from(io::ErrorKind::AlreadyExists));
+            }
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsSetExecutable for RaceLosingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for RaceLosingHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    // Stale content forces the rewrite path past the marker checks.
+    write_file(bins_dir.join("foo"), "not a shim").unwrap();
+
+    link_bins_of_packages::<RaceLosingHost>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(WRITE_NEW_ATTEMPTS.load(Ordering::Relaxed), 2, "the lost race must be retried");
+    let body = read_to_string(bins_dir.join("foo")).unwrap();
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+/// A symlink squatting on a stale shim's path must end up replaced by a
+/// regular file, never written through.
+#[cfg(unix)]
+#[test]
+fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let victim = tmp.path().join("victim");
+    write_file(&victim, "precious").unwrap();
+    std::os::unix::fs::symlink(&victim, bins_dir.join("foo")).unwrap();
+
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(read_to_string(&victim).unwrap(), "precious", "the symlink target is untouched");
+    assert!(
+        !std::fs::symlink_metadata(bins_dir.join("foo")).unwrap().file_type().is_symlink(),
+        "the shim is a regular file",
+    );
+    let body = read_to_string(bins_dir.join("foo")).unwrap();
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
