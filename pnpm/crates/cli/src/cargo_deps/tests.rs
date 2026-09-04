@@ -1,7 +1,8 @@
 use super::{
     LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum, discover_manifests,
-    link_workspace, materialize, parse_lockfile, sparse_index_path, update_managed_config,
-    workspace_root, write_cargo_config,
+    ensure_workspace_directory, link_workspace, link_workspace_in, materialize, parse_lockfile,
+    sparse_index_path, update_managed_config, workspace_root, write_cargo_config,
+    write_cargo_config_in,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -290,10 +291,15 @@ fn discovery_skips_unreadable_unrelated_directories() {
     fs::create_dir_all(&unreadable).unwrap();
     fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
     fs::write(unreadable.join("Cargo.toml"), "[workspace]\n").unwrap();
+    let original_permissions = fs::metadata(&unreadable).unwrap().permissions();
     fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o0)).unwrap();
+    if fs::read_dir(&unreadable).is_ok() {
+        fs::set_permissions(&unreadable, original_permissions).unwrap();
+        return;
+    }
 
     let manifests = discover_manifests(repository.path());
-    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o700)).unwrap();
+    fs::set_permissions(&unreadable, original_permissions).unwrap();
     assert_eq!(manifests.unwrap(), [project.join("Cargo.toml")]);
 }
 
@@ -345,4 +351,44 @@ fn rejects_a_symlinked_cargo_config_parent() {
 
     assert!(error.contains("must be a real directory"), "{error}");
     assert_eq!(fs::read_to_string(external_config).unwrap(), "unchanged\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn config_write_stays_in_the_directory_pinned_before_a_parent_swap() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let cargo_dir = ensure_workspace_directory(workspace.path(), &[".cargo"]).unwrap();
+    let pinned_path = workspace.path().join(".cargo-pinned");
+    fs::rename(workspace.path().join(".cargo"), &pinned_path).unwrap();
+    fs::write(outside.path().join("config.toml"), "unchanged\n").unwrap();
+    symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
+
+    write_cargo_config_in(&cargo_dir).unwrap();
+
+    assert_eq!(fs::read_to_string(outside.path().join("config.toml")).unwrap(), "unchanged\n");
+    assert!(fs::read_to_string(pinned_path.join("config.toml")).unwrap().contains(MANAGED_CONFIG));
+}
+
+#[cfg(unix)]
+#[test]
+fn crate_link_stays_in_the_directory_pinned_before_a_parent_swap() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let slot = tempfile::tempdir().unwrap();
+    let source_dir =
+        ensure_workspace_directory(workspace.path(), &[".pnpm", "crates", "crates-io"]).unwrap();
+    let source_path = workspace.path().join(".pnpm/crates/crates-io");
+    let pinned_path = workspace.path().join(".pnpm/crates/crates-io-pinned");
+    fs::rename(&source_path, &pinned_path).unwrap();
+    symlink(outside.path(), &source_path).unwrap();
+
+    link_workspace_in(&source_dir, &[("example-1.0.0".to_string(), slot.path().to_path_buf())])
+        .unwrap();
+
+    assert_eq!(fs::read_dir(outside.path()).unwrap().count(), 0);
+    assert_eq!(
+        fs::read_link(pinned_path.join("example-1.0.0")).unwrap(),
+        pnpm_fs::relative_path(&source_path, slot.path()),
+    );
 }

@@ -67,6 +67,24 @@ fn discovers_dependencies_from_every_viable_version() {
 }
 
 #[test]
+fn validates_registry_metadata_before_deduplicating_dependencies() {
+    let metadata = METADATA.replacen(
+        "]\n  }],",
+        r#", {
+      "name": "foo",
+      "source": "registry+https://registry.example.test/index",
+      "req": "^1.0"
+    }]
+  }],"#,
+        1,
+    );
+
+    let error = missing_index_names(&metadata, &BTreeMap::new()).unwrap_err().to_string();
+
+    assert!(error.contains("alternate Cargo registry"), "{error}");
+}
+
+#[test]
 fn selects_the_latest_stable_non_yanked_version() {
     let index = r#"{"name":"foo","vers":"2.0.0-alpha.1","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
 {"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}

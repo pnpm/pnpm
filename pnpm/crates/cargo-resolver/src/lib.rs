@@ -121,6 +121,7 @@ pub fn missing_index_names(
     let mut missing = BTreeSet::new();
 
     while let Some(dependency) = pending.pop_front() {
+        validate_registry(dependency.registry.as_deref())?;
         let visit_key = (
             dependency.name.clone(),
             dependency.requirement.to_string(),
@@ -130,7 +131,6 @@ pub fn missing_index_names(
         if !visited.insert(visit_key) {
             continue;
         }
-        validate_registry(dependency.registry.as_deref())?;
         let normalized_name = normalize_name(&dependency.name);
         let Some(versions) = registry.packages.get(&normalized_name) else {
             missing.insert(dependency.name);

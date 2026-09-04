@@ -13,6 +13,7 @@ use ssri::{Algorithm, Integrity};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
+    io::{self, Write as _},
     path::{Path, PathBuf},
     process::Command,
     str::FromStr,
@@ -20,11 +21,17 @@ use std::{
     time::Duration,
 };
 
+#[cfg(unix)]
+use std::sync::atomic::{AtomicU64, Ordering};
+
 const CRATES_IO_DOWNLOAD_BASE: &str = "https://static.crates.io/crates";
 const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
+const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
 const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
 const MANAGED_CONFIG: &str = "# >>> pnpm-managed cargo sources >>>\n[source.crates-io]\nreplace-with = \"pnpm-crates-io\"\n\n[source.pnpm-crates-io]\ndirectory = \".pnpm/crates/crates-io\"\n# <<< pnpm-managed cargo sources <<<";
+#[cfg(unix)]
+static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CargoLockfilePolicy {
@@ -50,6 +57,14 @@ struct CargoWorkspaceMetadata {
     workspace_root: PathBuf,
 }
 
+struct ManagedDirectory {
+    path: PathBuf,
+    #[cfg(unix)]
+    handle: fs::File,
+    #[cfg(windows)]
+    _pinned_components: Vec<fs::File>,
+}
+
 pub async fn install<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     root_dir: &Path,
@@ -68,17 +83,24 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     } else {
         vec![root_dir.to_path_buf()]
     };
-    futures_util::future::try_join_all(roots.iter().map(|root| {
-        install_workspace::<Reporter>(
-            config,
-            root,
-            lockfile_only,
-            frozen_lockfile,
-            lockfile_policy,
-            Arc::clone(&http_client),
-        )
-    }))
-    .await?;
+    stream::iter(roots)
+        .map(|root| {
+            let http_client = Arc::clone(&http_client);
+            async move {
+                install_workspace::<Reporter>(
+                    config,
+                    &root,
+                    lockfile_only,
+                    frozen_lockfile,
+                    lockfile_policy,
+                    http_client,
+                )
+                .await
+            }
+        })
+        .buffer_unordered(WORKSPACE_INSTALL_CONCURRENCY)
+        .try_collect::<Vec<_>>()
+        .await?;
     Ok(())
 }
 
@@ -536,8 +558,12 @@ fn add_cargo_checksum(
 
 fn link_workspace(root_dir: &Path, slots: &[(String, PathBuf)]) -> Result<()> {
     let source_dir = ensure_workspace_directory(root_dir, &[".pnpm", "crates", "crates-io"])?;
+    link_workspace_in(&source_dir, slots)
+}
+
+fn link_workspace_in(source_dir: &ManagedDirectory, slots: &[(String, PathBuf)]) -> Result<()> {
     for (name, slot) in slots {
-        let outcome = pnpm_fs::force_symlink_dir(slot, &source_dir.join(name))
+        let outcome = force_workspace_symlink(source_dir, slot, name)
             .into_diagnostic()
             .wrap_err_with(|| format!("link cargo package {name}"))?;
         if let Some(warning) = outcome.warning {
@@ -549,10 +575,14 @@ fn link_workspace(root_dir: &Path, slots: &[(String, PathBuf)]) -> Result<()> {
 
 fn write_cargo_config(root_dir: &Path) -> Result<()> {
     let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
-    let config_path = cargo_dir.join("config.toml");
-    let existing = match fs::read_to_string(&config_path) {
+    write_cargo_config_in(&cargo_dir)
+}
+
+fn write_cargo_config_in(cargo_dir: &ManagedDirectory) -> Result<()> {
+    let config_path = cargo_dir.path.join("config.toml");
+    let (existing, mode) = match read_workspace_file(cargo_dir, "config.toml") {
         Ok(existing) => existing,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => (String::new(), None),
         Err(error) => {
             return Err(error)
                 .into_diagnostic()
@@ -561,39 +591,402 @@ fn write_cargo_config(root_dir: &Path) -> Result<()> {
     };
     let updated = update_managed_config(&existing)?;
     if updated != existing {
-        pnpm_fs::write_atomic(&config_path, updated.as_bytes())
+        write_workspace_file(cargo_dir, "config.toml", updated.as_bytes(), mode)
             .into_diagnostic()
             .wrap_err_with(|| format!("write {}", config_path.display()))?;
     }
     Ok(())
 }
 
-fn ensure_workspace_directory(root_dir: &Path, components: &[&str]) -> Result<PathBuf> {
-    let mut directory = root_dir.to_path_buf();
+fn ensure_workspace_directory(root_dir: &Path, components: &[&str]) -> Result<ManagedDirectory> {
+    #[cfg(unix)]
+    {
+        ensure_workspace_directory_unix(root_dir.to_path_buf(), components)
+    }
+    #[cfg(windows)]
+    {
+        let root = fs::canonicalize(root_dir).into_diagnostic().wrap_err_with(|| {
+            format!("resolve Cargo workspace directory {}", root_dir.display())
+        })?;
+        ensure_workspace_directory_windows(root, components)
+    }
+}
+
+#[cfg(unix)]
+fn ensure_workspace_directory_unix(root: PathBuf, components: &[&str]) -> Result<ManagedDirectory> {
+    use std::os::unix::fs::OpenOptionsExt as _;
+
+    let mut options = fs::OpenOptions::new();
+    options.read(true).custom_flags(libc::O_CLOEXEC | libc::O_DIRECTORY);
+    let mut handle = options
+        .open(&root)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("open Cargo workspace directory {}", root.display()))?;
+    let mut path = root;
     for component in components {
-        directory.push(component);
-        match fs::symlink_metadata(&directory) {
-            Ok(metadata) if metadata.file_type().is_dir() => {}
-            Ok(_) => {
-                let directory = directory.display();
-                return Err(miette::miette!(
-                    "managed Cargo directory {} must be a real directory",
-                    directory,
-                ));
+        path.push(component);
+        handle = loop {
+            match open_directory_at(&handle, component) {
+                Ok(handle) => break handle,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    match create_directory_at(&handle, component) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                        Err(error) => {
+                            return Err(error).into_diagnostic().wrap_err_with(|| {
+                                format!("create Cargo directory {}", path.display())
+                            });
+                        }
+                    }
+                }
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotADirectory
+                        || error.raw_os_error() == Some(libc::ELOOP) =>
+                {
+                    return Err(miette::miette!(
+                        "managed Cargo directory {} must be a real directory",
+                        path.display(),
+                    ));
+                }
+                Err(error) => {
+                    return Err(error)
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
+                }
             }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                fs::create_dir(&directory)
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("create Cargo directory {}", directory.display()))?;
+        };
+    }
+    Ok(ManagedDirectory { path, handle })
+}
+
+#[cfg(unix)]
+fn open_directory_at(parent: &fs::File, name: &str) -> io::Result<fs::File> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+
+    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    // SAFETY: `name` is NUL-terminated, `parent` stays open for the call, and
+    // the returned descriptor is owned immediately on success.
+    let descriptor = unsafe {
+        libc::openat(
+            parent.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_DIRECTORY | libc::O_NOFOLLOW,
+        )
+    };
+    file_from_descriptor(descriptor)
+}
+
+#[cfg(unix)]
+fn create_directory_at(parent: &fs::File, name: &str) -> io::Result<()> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+
+    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    // SAFETY: `name` is NUL-terminated and `parent` stays open for the call.
+    if unsafe { libc::mkdirat(parent.as_raw_fd(), name.as_ptr(), 0o777) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
+
+#[cfg(unix)]
+fn file_from_descriptor(descriptor: libc::c_int) -> io::Result<fs::File> {
+    use std::os::fd::{FromRawFd as _, OwnedFd};
+
+    if descriptor == -1 {
+        Err(io::Error::last_os_error())
+    } else {
+        // SAFETY: a successful `openat` returns a new descriptor owned by the caller.
+        let descriptor = unsafe { OwnedFd::from_raw_fd(descriptor) };
+        Ok(fs::File::from(descriptor))
+    }
+}
+
+#[cfg(windows)]
+fn ensure_workspace_directory_windows(
+    root: PathBuf,
+    components: &[&str],
+) -> Result<ManagedDirectory> {
+    let mut handles = vec![
+        open_pinned_windows_directory(&root)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("open Cargo workspace directory {}", root.display()))?,
+    ];
+    let mut path = root;
+    for component in components {
+        path.push(component);
+        let handle = loop {
+            match open_pinned_windows_directory(&path) {
+                Ok(handle) => break handle,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                    match fs::create_dir(&path) {
+                        Ok(()) => {}
+                        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+                        Err(error) => {
+                            return Err(error).into_diagnostic().wrap_err_with(|| {
+                                format!("create Cargo directory {}", path.display())
+                            });
+                        }
+                    }
+                }
+                Err(error) => {
+                    return Err(error)
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()));
+                }
             }
-            Err(error) => {
-                return Err(error)
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("inspect Cargo directory {}", directory.display()));
-            }
+        };
+        let metadata = handle
+            .metadata()
+            .into_diagnostic()
+            .wrap_err_with(|| format!("inspect Cargo directory {}", path.display()))?;
+        if !metadata.is_dir() || is_windows_reparse_point(&metadata) {
+            return Err(miette::miette!(
+                "managed Cargo directory {} must be a real directory",
+                path.display(),
+            ));
+        }
+        handles.push(handle);
+    }
+    // Windows lacks the descriptor-relative operations used on Unix. Keeping
+    // every component open without FILE_SHARE_DELETE prevents a checked parent
+    // from being renamed or replaced while the path-based helpers run.
+    Ok(ManagedDirectory { path, _pinned_components: handles })
+}
+
+#[cfg(windows)]
+fn open_pinned_windows_directory(path: &Path) -> io::Result<fs::File> {
+    use std::os::windows::fs::OpenOptionsExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+
+    fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+}
+
+#[cfg(windows)]
+fn is_windows_reparse_point(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+    use windows_sys::Win32::Storage::FileSystem::FILE_ATTRIBUTE_REPARSE_POINT;
+
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(unix)]
+fn read_workspace_file(
+    directory: &ManagedDirectory,
+    name: &str,
+) -> io::Result<(String, Option<u32>)> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+
+    let name = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    // SAFETY: `name` is NUL-terminated, and the directory descriptor remains
+    // valid for the call. `O_NOFOLLOW` prevents a file-level symlink redirect.
+    let descriptor = unsafe {
+        libc::openat(
+            directory.handle.as_raw_fd(),
+            name.as_ptr(),
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW,
+        )
+    };
+    let file = file_from_descriptor(descriptor)?;
+    let mode = file.metadata()?.permissions().mode();
+    let contents = io::read_to_string(file)?;
+    Ok((contents, Some(mode)))
+}
+
+#[cfg(windows)]
+fn read_workspace_file(
+    directory: &ManagedDirectory,
+    name: &str,
+) -> io::Result<(String, Option<u32>)> {
+    fs::read_to_string(directory.path.join(name)).map(|contents| (contents, None))
+}
+
+#[cfg(unix)]
+fn write_workspace_file(
+    directory: &ManagedDirectory,
+    name: &str,
+    bytes: &[u8],
+    mode: Option<u32>,
+) -> io::Result<()> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _, unix::fs::PermissionsExt as _};
+
+    let destination = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    let (temporary, mut file) = loop {
+        let temporary_name = format!(
+            ".{name}.pnpm-{}-{}",
+            std::process::id(),
+            MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
+        );
+        let temporary = std::ffi::CString::new(temporary_name.as_bytes())?;
+        // SAFETY: the name is NUL-terminated, the directory descriptor remains
+        // valid, and a successful call returns a new descriptor owned by this function.
+        let descriptor = unsafe {
+            libc::openat(
+                directory.handle.as_raw_fd(),
+                temporary.as_ptr(),
+                libc::O_WRONLY | libc::O_CLOEXEC | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW,
+                0o600,
+            )
+        };
+        match file_from_descriptor(descriptor) {
+            Ok(file) => break (temporary, file),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    };
+    let result = (|| {
+        file.write_all(bytes)?;
+        if let Some(mode) = mode {
+            file.set_permissions(fs::Permissions::from_mode(mode))?;
+        }
+        file.sync_all()?;
+        // SAFETY: both names are valid C strings and both directory descriptors
+        // refer to the same live, pinned directory.
+        if unsafe {
+            libc::renameat(
+                directory.handle.as_raw_fd(),
+                temporary.as_ptr(),
+                directory.handle.as_raw_fd(),
+                destination.as_ptr(),
+            )
+        } == 0
+        {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    })();
+    drop(file);
+    if result.is_err() {
+        // SAFETY: `temporary` is NUL-terminated and the directory handle is valid.
+        unsafe {
+            libc::unlinkat(directory.handle.as_raw_fd(), temporary.as_ptr(), 0);
         }
     }
-    Ok(directory)
+    result
+}
+
+#[cfg(windows)]
+fn write_workspace_file(
+    directory: &ManagedDirectory,
+    name: &str,
+    bytes: &[u8],
+    _mode: Option<u32>,
+) -> io::Result<()> {
+    pnpm_fs::write_atomic(&directory.path.join(name), bytes)
+}
+
+#[cfg(unix)]
+fn force_workspace_symlink(
+    directory: &ManagedDirectory,
+    target: &Path,
+    name: &str,
+) -> io::Result<pnpm_fs::ForceSymlinkOutcome> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStrExt as _};
+
+    let wanted = pnpm_fs::relative_path(&directory.path, target);
+    let wanted_c = std::ffi::CString::new(wanted.as_os_str().as_bytes())?;
+    let name_c = std::ffi::CString::new(std::ffi::OsStr::new(name).as_bytes())?;
+    let mut warning = None;
+    loop {
+        // SAFETY: both paths are NUL-terminated and the directory handle is valid.
+        if unsafe {
+            libc::symlinkat(wanted_c.as_ptr(), directory.handle.as_raw_fd(), name_c.as_ptr())
+        } == 0
+        {
+            return Ok(pnpm_fs::ForceSymlinkOutcome { reused: false, warning });
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::AlreadyExists {
+            return Err(error);
+        }
+        match read_link_at(&directory.handle, &name_c) {
+            Ok(existing) if existing == wanted => {
+                return Ok(pnpm_fs::ForceSymlinkOutcome { reused: true, warning });
+            }
+            Ok(_) => {
+                // SAFETY: `name_c` is NUL-terminated and the directory handle is valid.
+                if unsafe { libc::unlinkat(directory.handle.as_raw_fd(), name_c.as_ptr(), 0) } != 0
+                {
+                    let error = io::Error::last_os_error();
+                    if error.kind() != io::ErrorKind::NotFound {
+                        return Err(error);
+                    }
+                }
+            }
+            Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
+                let ignored = std::ffi::CString::new(format!(".ignored_{name}"))?;
+                // SAFETY: both names are NUL-terminated and both descriptors refer
+                // to the same valid directory.
+                if unsafe {
+                    libc::renameat(
+                        directory.handle.as_raw_fd(),
+                        name_c.as_ptr(),
+                        directory.handle.as_raw_fd(),
+                        ignored.as_ptr(),
+                    )
+                } != 0
+                {
+                    return Err(io::Error::last_os_error());
+                }
+                warning = Some(format!(
+                    "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => .ignored_{name}",
+                    directory.path,
+                    std::path::MAIN_SEPARATOR,
+                    name,
+                ));
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+#[cfg(unix)]
+fn read_link_at(directory: &fs::File, name: &std::ffi::CStr) -> io::Result<PathBuf> {
+    use std::os::{fd::AsRawFd as _, unix::ffi::OsStringExt as _};
+
+    let mut capacity = 256;
+    loop {
+        let mut contents = Vec::<u8>::with_capacity(capacity);
+        // SAFETY: the name and directory descriptor are valid, and the buffer has
+        // `capacity` writable bytes. `readlinkat` initializes the returned prefix.
+        let length = unsafe {
+            libc::readlinkat(
+                directory.as_raw_fd(),
+                name.as_ptr(),
+                contents.as_mut_ptr().cast(),
+                contents.capacity(),
+            )
+        };
+        if length == -1 {
+            return Err(io::Error::last_os_error());
+        }
+        let length = usize::try_from(length).expect("readlinkat returned a nonnegative length");
+        if length < contents.capacity() {
+            // SAFETY: `readlinkat` initialized exactly `length` bytes on success.
+            unsafe {
+                contents.set_len(length);
+            }
+            return Ok(std::ffi::OsString::from_vec(contents).into());
+        }
+        capacity *= 2;
+    }
+}
+
+#[cfg(windows)]
+fn force_workspace_symlink(
+    directory: &ManagedDirectory,
+    target: &Path,
+    name: &str,
+) -> io::Result<pnpm_fs::ForceSymlinkOutcome> {
+    pnpm_fs::force_symlink_dir(target, &directory.path.join(name))
 }
 
 fn update_managed_config(existing: &str) -> Result<String> {
