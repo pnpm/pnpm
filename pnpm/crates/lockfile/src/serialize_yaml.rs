@@ -240,7 +240,7 @@ mod tests {
         let mut remaining = maps.len();
         splice_lowered_maps(&mut document, nonce, &mut maps, &mut remaining);
         assert_eq!(remaining, 0);
-        assert_eq!(document, json!({ "a": decoy_high, "b": decoy_text, "c": {"real": true} }),);
+        assert_eq!(document, json!({ "a": decoy_high, "b": decoy_text, "c": {"real": true} }));
     }
 
     /// Each stash entry splices at most once; a repeat of a marker is
