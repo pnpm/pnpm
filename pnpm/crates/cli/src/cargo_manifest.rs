@@ -76,6 +76,7 @@ fn find_table(contents: &str, table: &str) -> Option<(usize, usize)> {
     let mut offset = 0;
     for line in contents.split_inclusive('\n') {
         let trimmed = line.trim();
+        let trimmed = comment_start(trimmed).map_or(trimmed, |start| &trimmed[..start]).trim_end();
         if section_start.is_some() && is_table_header(trimmed) {
             return section_start.map(|start| (start, offset));
         }

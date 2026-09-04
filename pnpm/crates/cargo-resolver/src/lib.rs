@@ -130,12 +130,13 @@ pub fn missing_index_names(
         if !visited.insert(visit_key) {
             continue;
         }
+        validate_registry(dependency.registry.as_deref())?;
         let normalized_name = normalize_name(&dependency.name);
         let Some(versions) = registry.packages.get(&normalized_name) else {
             missing.insert(dependency.name);
             continue;
         };
-        if let Some(version) = matching_versions(versions, &dependency.requirement).next_back() {
+        for version in matching_versions(versions, &dependency.requirement) {
             pending.extend(active_dependencies(version, &dependency.feature_selection())?);
         }
     }

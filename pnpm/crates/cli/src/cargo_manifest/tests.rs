@@ -15,6 +15,18 @@ fn adds_a_dependency_without_reformatting_the_manifest() {
 }
 
 #[test]
+fn recognizes_commented_table_headers_and_boundaries() {
+    let manifest = "[package]\nname = \"demo\"\n\n[dependencies] # direct crates\nold = \"1\"\n\n[features] # feature flags\ndefault = []\n";
+
+    let updated = upsert_dependency(manifest, "dependencies", "new", "2").unwrap();
+
+    assert_eq!(
+        updated,
+        "[package]\nname = \"demo\"\n\n[dependencies] # direct crates\nold = \"1\"\n\nnew = \"2\"\n[features] # feature flags\ndefault = []\n",
+    );
+}
+
+#[test]
 fn creates_the_selected_dependency_table() {
     let updated = upsert_dependency(
         "[package]\nname = \"app\"\n",

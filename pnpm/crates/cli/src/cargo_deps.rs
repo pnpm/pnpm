@@ -4,20 +4,22 @@ use pnpm_config::Config;
 use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
-use pnpm_store_dir::{SharedVerifiedFilesCache, StoreDir};
+use pnpm_store_dir::{
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
+};
 use pnpm_tarball::DownloadTarballToStore;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use ssri::{Algorithm, Integrity};
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
     fs,
     path::{Path, PathBuf},
     process::Command,
+    str::FromStr,
     sync::{Arc, atomic::AtomicU8},
     time::Duration,
 };
 
-const CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_DOWNLOAD_BASE: &str = "https://static.crates.io/crates";
 const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
 const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
@@ -37,23 +39,21 @@ struct LockedCrate {
     checksum: String,
 }
 
-#[derive(Debug, Default)]
-struct LockedPackageBuilder {
-    name: Option<String>,
-    version: Option<String>,
-    source: Option<String>,
-    checksum: Option<String>,
-}
-
 #[derive(Serialize)]
 struct CargoChecksum<'a> {
     files: BTreeMap<String, String>,
     package: &'a str,
 }
 
+#[derive(Deserialize)]
+struct CargoWorkspaceMetadata {
+    workspace_root: PathBuf,
+}
+
 pub async fn install<Reporter: self::Reporter + 'static>(
-    config: &Config,
+    config: &'static Config,
     root_dir: &Path,
+    discover_projects: bool,
     lockfile_only: bool,
     frozen_lockfile: bool,
     lockfile_policy: CargoLockfilePolicy,
@@ -63,6 +63,33 @@ pub async fn install<Reporter: self::Reporter + 'static>(
         return Ok(());
     }
 
+    let roots = if discover_projects {
+        discover_workspace_roots(root_dir).await?
+    } else {
+        vec![root_dir.to_path_buf()]
+    };
+    futures_util::future::try_join_all(roots.iter().map(|root| {
+        install_workspace::<Reporter>(
+            config,
+            root,
+            lockfile_only,
+            frozen_lockfile,
+            lockfile_policy,
+            Arc::clone(&http_client),
+        )
+    }))
+    .await?;
+    Ok(())
+}
+
+async fn install_workspace<Reporter: self::Reporter + 'static>(
+    config: &'static Config,
+    root_dir: &Path,
+    lockfile_only: bool,
+    frozen_lockfile: bool,
+    lockfile_policy: CargoLockfilePolicy,
+    http_client: Arc<ThrottledClient>,
+) -> Result<()> {
     let cargo_lock_path = root_dir.join("Cargo.lock");
     let cargo_lock = ensure_lockfile(
         config,
@@ -78,11 +105,14 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     }
     let packages = parse_lockfile(&cargo_lock)
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
-    let store_dir = Box::leak(Box::new(config.store_dir.clone()));
+    let store_dir = &config.store_dir;
     store_dir
         .init()
         .into_diagnostic()
         .wrap_err_with(|| format!("initialize cargo package store at {}", store_dir.display()))?;
+    let store_index = StoreIndex::shared_for(store_dir, config.frozen_store);
+    let (store_index_writer, writer_task) =
+        StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
 
     let auth_headers = Arc::new(AuthHeaders::default());
     let verified_files_cache = SharedVerifiedFilesCache::default();
@@ -101,6 +131,8 @@ pub async fn install<Reporter: self::Reporter + 'static>(
             materialize::<Reporter>(MaterializeOptions {
                 package,
                 store_dir,
+                store_index: store_index.clone(),
+                store_index_writer: Arc::clone(&store_index_writer),
                 http_client: Arc::clone(&http_client),
                 auth_headers: Arc::clone(&auth_headers),
                 verified_files_cache: Arc::clone(&verified_files_cache),
@@ -115,11 +147,67 @@ pub async fn install<Reporter: self::Reporter + 'static>(
         })
         .buffer_unordered(concurrency)
         .try_collect::<Vec<_>>()
-        .await?;
+        .await;
+    drop(store_index_writer);
+    StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
+    let slots = slots?;
 
     link_workspace(root_dir, &slots)?;
     write_cargo_config(root_dir)?;
     Ok(())
+}
+
+pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
+    let metadata = read_cargo_metadata_for_manifest(manifest_path).await?;
+    serde_json::from_str::<CargoWorkspaceMetadata>(&metadata)
+        .into_diagnostic()
+        .wrap_err("read Cargo workspace root from metadata")
+        .map(|metadata| metadata.workspace_root)
+}
+
+async fn discover_workspace_roots(search_root: &Path) -> Result<Vec<PathBuf>> {
+    let search_root = search_root.to_path_buf();
+    let manifests = tokio::task::spawn_blocking(move || discover_manifests(&search_root))
+        .await
+        .into_diagnostic()
+        .wrap_err("join Cargo project discovery task")??;
+    let roots = stream::iter(manifests)
+        .map(|manifest| async move { workspace_root(&manifest).await })
+        .buffer_unordered(8)
+        .try_collect::<BTreeSet<_>>()
+        .await?;
+    Ok(roots.into_iter().collect())
+}
+
+fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
+    let mut pending = vec![search_root.to_path_buf()];
+    let mut manifests = Vec::new();
+    while let Some(directory) = pending.pop() {
+        for entry in fs::read_dir(&directory).into_diagnostic().wrap_err_with(|| {
+            format!("read directory while discovering Cargo projects at {}", directory.display())
+        })? {
+            let entry = entry.into_diagnostic().wrap_err_with(|| {
+                format!("read entry while discovering Cargo projects at {}", directory.display())
+            })?;
+            let file_type = entry.file_type().into_diagnostic().wrap_err_with(|| {
+                format!("inspect Cargo project candidate {}", entry.path().display())
+            })?;
+            if file_type.is_symlink() {
+                continue;
+            }
+            if file_type.is_dir() {
+                if !matches!(
+                    entry.file_name().to_str(),
+                    Some(".git" | ".pnpm" | "node_modules" | "target")
+                ) {
+                    pending.push(entry.path());
+                }
+            } else if file_type.is_file() && entry.file_name() == "Cargo.toml" {
+                manifests.push(entry.path());
+            }
+        }
+    }
+    Ok(manifests)
 }
 
 async fn ensure_lockfile(
@@ -172,7 +260,11 @@ pub(crate) async fn latest_version(
 }
 
 async fn read_cargo_metadata(root_dir: &Path) -> Result<String> {
-    let manifest_path = root_dir.join("Cargo.toml");
+    read_cargo_metadata_for_manifest(&root_dir.join("Cargo.toml")).await
+}
+
+async fn read_cargo_metadata_for_manifest(manifest_path: &Path) -> Result<String> {
+    let manifest_path = manifest_path.to_path_buf();
     let output = tokio::task::spawn_blocking(move || {
         Command::new("cargo")
             .args(["metadata", "--no-deps", "--format-version", "1", "--manifest-path"])
@@ -291,6 +383,8 @@ fn sparse_index_path(name: &str) -> Result<String> {
 struct MaterializeOptions {
     package: LockedCrate,
     store_dir: &'static StoreDir,
+    store_index: Option<SharedReadonlyStoreIndex>,
+    store_index_writer: Arc<StoreIndexWriter>,
     http_client: Arc<ThrottledClient>,
     auth_headers: Arc<AuthHeaders>,
     verified_files_cache: SharedVerifiedFilesCache,
@@ -309,6 +403,8 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let MaterializeOptions {
         package,
         store_dir,
+        store_index,
+        store_index_writer,
         http_client,
         auth_headers,
         verified_files_cache,
@@ -322,10 +418,6 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     } = options;
     let link_name = package.link_name();
     let slot = package.store_slot(store_dir.root());
-    if slot_is_complete(&slot) {
-        return Ok((link_name, slot));
-    }
-
     let package_url = format!(
         "{CRATES_IO_DOWNLOAD_BASE}/{}/{}-{}.crate",
         package.name, package.name, package.version,
@@ -337,8 +429,8 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let mut cas_paths = DownloadTarballToStore {
         http_client: &http_client,
         store_dir,
-        store_index: None,
-        store_index_writer: None,
+        store_index,
+        store_index_writer: Some(store_index_writer),
         verify_store_integrity,
         strict_store_pkg_content_check,
         verified_files_cache,
@@ -411,33 +503,8 @@ fn add_cargo_checksum(
     Ok(())
 }
 
-fn slot_is_complete(slot: &Path) -> bool {
-    slot.join("package.json").is_file()
-        && slot.join("Cargo.toml").is_file()
-        && slot.join(".cargo-checksum.json").is_file()
-}
-
 fn link_workspace(root_dir: &Path, slots: &[(String, PathBuf)]) -> Result<()> {
-    let source_dir = root_dir.join(".pnpm").join("crates").join("crates-io");
-    fs::create_dir_all(&source_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("create cargo source directory {}", source_dir.display()))?;
-    let expected = slots.iter().map(|(name, _)| name.as_str()).collect::<BTreeSet<_>>();
-    for entry in fs::read_dir(&source_dir)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("read cargo source directory {}", source_dir.display()))?
-    {
-        let entry = entry.into_diagnostic().wrap_err("read cargo source entry")?;
-        let name = entry
-            .file_name()
-            .into_string()
-            .map_err(|_| miette::miette!("cargo source directory contains a non-UTF-8 entry"))?;
-        if !expected.contains(name.as_str()) {
-            pnpm_fs::remove_dirent(&entry.path())
-                .into_diagnostic()
-                .wrap_err_with(|| format!("remove stale cargo source entry {name}"))?;
-        }
-    }
+    let source_dir = ensure_workspace_directory(root_dir, &[".pnpm", "crates", "crates-io"])?;
     for (name, slot) in slots {
         let outcome = pnpm_fs::force_symlink_dir(slot, &source_dir.join(name))
             .into_diagnostic()
@@ -450,7 +517,8 @@ fn link_workspace(root_dir: &Path, slots: &[(String, PathBuf)]) -> Result<()> {
 }
 
 fn write_cargo_config(root_dir: &Path) -> Result<()> {
-    let config_path = root_dir.join(".cargo").join("config.toml");
+    let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
+    let config_path = cargo_dir.join("config.toml");
     let existing = match fs::read_to_string(&config_path) {
         Ok(existing) => existing,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -467,6 +535,33 @@ fn write_cargo_config(root_dir: &Path) -> Result<()> {
             .wrap_err_with(|| format!("write {}", config_path.display()))?;
     }
     Ok(())
+}
+
+fn ensure_workspace_directory(root_dir: &Path, components: &[&str]) -> Result<PathBuf> {
+    let mut directory = root_dir.to_path_buf();
+    for component in components {
+        directory.push(component);
+        match fs::symlink_metadata(&directory) {
+            Ok(metadata) if metadata.file_type().is_dir() => {}
+            Ok(_) => {
+                return Err(miette::miette!(
+                    "managed Cargo directory {} must be a real directory",
+                    directory.display(),
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::create_dir(&directory)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("create Cargo directory {}", directory.display()))?;
+            }
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("inspect Cargo directory {}", directory.display()));
+            }
+        }
+    }
+    Ok(directory)
 }
 
 fn update_managed_config(existing: &str) -> Result<String> {
@@ -492,30 +587,36 @@ fn update_managed_config(existing: &str) -> Result<String> {
 }
 
 fn parse_lockfile(input: &str) -> Result<Vec<LockedCrate>> {
-    let mut packages = Vec::new();
-    let mut current = None;
-    for (line_index, line) in input.lines().enumerate() {
-        let line = line.trim();
-        if line == "[[package]]" {
-            finish_package(current.take(), &mut packages)?;
-            current = Some(LockedPackageBuilder::default());
-            continue;
-        }
-        let Some(package) = current.as_mut() else { continue };
-        if let Some((key, value)) = line.split_once(" = ") {
-            let target = match key {
-                "name" => Some(&mut package.name),
-                "version" => Some(&mut package.version),
-                "source" => Some(&mut package.source),
-                "checksum" => Some(&mut package.checksum),
-                _ => None,
-            };
-            if let Some(target) = target {
-                *target = Some(parse_string(value, line_index + 1)?);
+    let lockfile =
+        cargo_lock::Lockfile::from_str(input).into_diagnostic().wrap_err("parse Cargo.lock")?;
+    let packages = lockfile
+        .packages
+        .into_iter()
+        .filter_map(|package| package.source.clone().map(|source| (package, source)))
+        .map(|(package, source)| {
+            if !source.is_default_registry() {
+                return Err(miette::miette!(
+                    "Cargo source {source:?} is not supported by the crates.io-only proof of concept"
+                ));
             }
-        }
-    }
-    finish_package(current, &mut packages)?;
+            let name = package.name.to_string();
+            let version = package.version.to_string();
+            let checksum = package
+                .checksum
+                .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?
+                .to_string();
+            validate_package_field("crate name", &name, |byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
+            })?;
+            validate_package_field("crate version", &version, |byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
+            })?;
+            if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err(miette::miette!("invalid checksum for crate {name} {version}"));
+            }
+            Ok(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() })
+        })
+        .collect::<Result<Vec<_>>>()?;
 
     let mut names = BTreeSet::new();
     for package in &packages {
@@ -530,47 +631,11 @@ fn parse_lockfile(input: &str) -> Result<Vec<LockedCrate>> {
     Ok(packages)
 }
 
-fn finish_package(
-    package: Option<LockedPackageBuilder>,
-    packages: &mut Vec<LockedCrate>,
-) -> Result<()> {
-    let Some(package) = package else { return Ok(()) };
-    let Some(source) = package.source else { return Ok(()) };
-    if source != CRATES_IO_SOURCE {
-        return Err(miette::miette!(
-            "Cargo source {source:?} is not supported by the crates.io-only proof of concept"
-        ));
-    }
-    let name = package.name.ok_or_else(|| miette::miette!("registry package has no name"))?;
-    let version =
-        package.version.ok_or_else(|| miette::miette!("registry package {name} has no version"))?;
-    let checksum = package
-        .checksum
-        .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?;
-    validate_package_field("crate name", &name, |byte| {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
-    })?;
-    validate_package_field("crate version", &version, |byte| {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
-    })?;
-    if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(miette::miette!("invalid checksum for crate {name} {version}"));
-    }
-    packages.push(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() });
-    Ok(())
-}
-
 fn validate_package_field(label: &str, value: &str, allowed: impl Fn(u8) -> bool) -> Result<()> {
     if value.is_empty() || !value.bytes().all(allowed) {
         return Err(miette::miette!("invalid {label} {value:?} in Cargo.lock"));
     }
     Ok(())
-}
-
-fn parse_string(value: &str, line: usize) -> Result<String> {
-    serde_json::from_str(value)
-        .into_diagnostic()
-        .wrap_err_with(|| format!("parse Cargo.lock string on line {line}"))
 }
 
 impl LockedCrate {

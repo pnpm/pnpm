@@ -1,9 +1,24 @@
 use super::{
-    LockedCrate, MANAGED_CONFIG, add_cargo_checksum, parse_lockfile, sparse_index_path,
-    update_managed_config,
+    LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum, discover_manifests,
+    link_workspace, materialize, parse_lockfile, sparse_index_path, update_managed_config,
+    workspace_root, write_cargo_config,
 };
-use pnpm_store_dir::StoreDir;
-use std::{collections::HashMap, fs};
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_reporter::SilentReporter;
+use pnpm_store_dir::{
+    CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    StoreIndexWriter, store_index_key,
+};
+use ssri::{Algorithm, Integrity};
+use std::{
+    collections::HashMap,
+    fs,
+    sync::{Arc, atomic::AtomicU8},
+    time::Duration,
+};
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
 
 #[test]
 fn parses_crates_io_packages_and_ignores_workspace_packages() {
@@ -19,9 +34,6 @@ name = "serde"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
-dependencies = [
- "serde_core",
-]
 "#;
 
     assert_eq!(
@@ -47,6 +59,34 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
     let error = parse_lockfile(lockfile).unwrap_err().to_string();
     assert!(error.contains("crates.io-only proof of concept"), "{error}");
+}
+
+#[test]
+fn ignores_fields_from_non_package_lockfile_tables() {
+    let lockfile = r#"
+version = 4
+
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+
+[[patch.unused]]
+name = "unselected"
+version = "2.0.0"
+source = "registry+https://registry.example/index"
+"#;
+
+    assert_eq!(
+        parse_lockfile(lockfile).unwrap(),
+        vec![LockedCrate {
+            name: "serde".to_string(),
+            version: "1.0.228".to_string(),
+            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+                .to_string(),
+        }],
+    );
 }
 
 #[test]
@@ -126,10 +166,166 @@ fn creates_the_cargo_checksum_manifest_from_cas_files() {
     );
 }
 
+#[tokio::test]
+async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let store_dir = Box::leak(Box::new(StoreDir::from(temp_dir.path().join("store"))));
+    store_dir.init().unwrap();
+    let cargo_toml = b"[package]\nname = \"demo\"\nversion = \"1.0.0\"\n";
+    let source = b"pub fn trusted() {}\n";
+    let (cargo_toml_path, cargo_toml_hash) = store_dir.write_cas_file(cargo_toml, false).unwrap();
+    let (source_path, source_hash) = store_dir.write_cas_file(source, false).unwrap();
+    let files = HashMap::from([
+        (
+            "Cargo.toml".to_string(),
+            CafsFileInfo {
+                digest: format!("{cargo_toml_hash:x}"),
+                mode: 0o644,
+                size: cargo_toml.len() as u64,
+                checked_at: None,
+            },
+        ),
+        (
+            "src/lib.rs".to_string(),
+            CafsFileInfo {
+                digest: format!("{source_hash:x}"),
+                mode: 0o644,
+                size: source.len() as u64,
+                checked_at: None,
+            },
+        ),
+    ]);
+    let checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let integrity = Integrity::from_hex(checksum, Algorithm::Sha256).unwrap();
+    let package_id = "crate:demo@1.0.0";
+    StoreIndex::open_in(store_dir)
+        .unwrap()
+        .set(
+            &store_index_key(&integrity.to_string(), package_id),
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files,
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+    let package = LockedCrate {
+        name: "demo".to_string(),
+        version: "1.0.0".to_string(),
+        checksum: checksum.to_string(),
+    };
+    let slot = package.store_slot(store_dir.root());
+    fs::create_dir_all(slot.join("src")).unwrap();
+    fs::write(slot.join("package.json"), "{}").unwrap();
+    fs::write(slot.join("Cargo.toml"), "attacker controlled").unwrap();
+    fs::write(slot.join("src/lib.rs"), "pub fn substituted() {}\n").unwrap();
+    fs::write(slot.join(".cargo-checksum.json"), "{}").unwrap();
+    let (store_index_writer, writer_task) = StoreIndexWriter::spawn(store_dir);
+
+    materialize::<SilentReporter>(MaterializeOptions {
+        package,
+        store_dir,
+        store_index: StoreIndex::shared_readonly_in(store_dir),
+        store_index_writer: Arc::clone(&store_index_writer),
+        http_client: Arc::new(ThrottledClient::default()),
+        auth_headers: Arc::new(AuthHeaders::default()),
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        logged_methods: Arc::new(AtomicU8::new(0)),
+        package_import_method: pnpm_config::PackageImportMethod::default(),
+        retry_opts: RetryOpts {
+            retries: 0,
+            factor: 1,
+            min_timeout: Duration::ZERO,
+            max_timeout: Duration::ZERO,
+        },
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        offline: true,
+        requester: "test".to_string(),
+    })
+    .await
+    .unwrap();
+    drop(store_index_writer);
+    StoreIndexWriter::drain(writer_task, "").await;
+
+    assert_eq!(fs::read(slot.join("Cargo.toml")).unwrap(), cargo_toml);
+    assert_eq!(fs::read(slot.join("src/lib.rs")).unwrap(), source);
+    assert!(slot.join(".cargo-checksum.json").is_file());
+    assert!(cargo_toml_path.is_file());
+    assert!(source_path.is_file());
+}
+
 #[test]
 fn maps_crate_names_to_sparse_index_paths() {
     assert_eq!(sparse_index_path("a").unwrap(), "1/a");
     assert_eq!(sparse_index_path("ab").unwrap(), "2/ab");
     assert_eq!(sparse_index_path("abc").unwrap(), "3/a/abc");
     assert_eq!(sparse_index_path("Serde_JSON").unwrap(), "se/rd/serde_json");
+}
+
+#[test]
+fn discovers_nested_cargo_manifests_without_scanning_generated_directories() {
+    let repository = tempfile::tempdir().unwrap();
+    let project = repository.path().join("rust/project");
+    let generated = repository.path().join("target/generated");
+    fs::create_dir_all(&project).unwrap();
+    fs::create_dir_all(&generated).unwrap();
+    fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
+    fs::write(generated.join("Cargo.toml"), "[workspace]\n").unwrap();
+
+    assert_eq!(discover_manifests(repository.path()).unwrap(), [project.join("Cargo.toml")]);
+}
+
+#[tokio::test]
+async fn asks_cargo_for_the_workspace_root_of_a_member() {
+    let repository = tempfile::tempdir().unwrap();
+    let cargo_root = repository.path().join("rust");
+    let member = cargo_root.join("member");
+    fs::create_dir_all(member.join("src")).unwrap();
+    fs::write(
+        cargo_root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n",
+    )
+    .unwrap();
+    fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(member.join("src/lib.rs"), "").unwrap();
+
+    assert_eq!(workspace_root(&member.join("Cargo.toml")).await.unwrap(), cargo_root);
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_symlinked_cargo_source_parent() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    fs::write(outside.path().join("keep"), "unchanged").unwrap();
+    symlink(outside.path(), workspace.path().join(".pnpm")).unwrap();
+
+    let error = link_workspace(workspace.path(), &[]).unwrap_err().to_string();
+
+    assert!(error.contains("must be a real directory"), "{error}");
+    assert_eq!(fs::read_to_string(outside.path().join("keep")).unwrap(), "unchanged");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_symlinked_cargo_config_parent() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let external_config = outside.path().join("config.toml");
+    fs::write(&external_config, "unchanged\n").unwrap();
+    symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
+
+    let error = write_cargo_config(workspace.path()).unwrap_err().to_string();
+
+    assert!(error.contains("must be a real directory"), "{error}");
+    assert_eq!(fs::read_to_string(external_config).unwrap(), "unchanged\n");
 }

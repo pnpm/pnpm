@@ -15,8 +15,9 @@ pub(crate) fn is_enabled(config: &Config) -> bool {
 
 /// Coordinates dependency installation across every configured ecosystem.
 pub(crate) struct EcosystemInstallCoordinator<'a> {
-    pub(crate) config: &'a Config,
+    pub(crate) config: &'static Config,
     pub(crate) root_dir: &'a Path,
+    pub(crate) discover_cargo_projects: bool,
     pub(crate) http_client: Arc<ThrottledClient>,
     pub(crate) lockfile_only: bool,
     pub(crate) frozen_lockfile: bool,
@@ -39,6 +40,7 @@ impl<'a> EcosystemInstallCoordinator<'a> {
         let cargo_install = cargo_deps::install::<Reporter>(
             self.config,
             self.root_dir,
+            self.discover_cargo_projects,
             self.lockfile_only,
             self.frozen_lockfile,
             self.cargo_lockfile_policy,

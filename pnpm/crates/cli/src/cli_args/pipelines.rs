@@ -480,6 +480,7 @@ impl InstallPipeline {
         ecosystem_install::EcosystemInstallCoordinator {
             config: cfg,
             root_dir: &config_root,
+            discover_cargo_projects: true,
             http_client,
             lockfile_only,
             frozen_lockfile,
@@ -580,8 +581,7 @@ impl AddPipeline {
             )
             .await?;
 
-            let cargo_root =
-                if config_root.join("Cargo.toml").is_file() { config_root } else { prefix };
+            let cargo_root = crate::cargo_deps::workspace_root(&cargo_manifest_path).await?;
             let lockfile_only = args.lockfile_only;
             let mut node_args = args;
             node_args.package_names = package_specifier_plan.node_packages;
@@ -597,6 +597,7 @@ impl AddPipeline {
             return ecosystem_install::EcosystemInstallCoordinator {
                 config: cfg,
                 root_dir: &cargo_root,
+                discover_cargo_projects: false,
                 http_client,
                 lockfile_only,
                 frozen_lockfile: false,

@@ -55,6 +55,18 @@ fn discovers_transitive_sparse_index_files() {
 }
 
 #[test]
+fn discovers_dependencies_from_every_viable_version() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"old-dependency","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"new-dependency","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert_eq!(
+        missing_index_names(METADATA, &files).unwrap(),
+        ["new-dependency", "old-dependency"],
+    );
+}
+
+#[test]
 fn selects_the_latest_stable_non_yanked_version() {
     let index = r#"{"name":"foo","vers":"2.0.0-alpha.1","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
 {"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}

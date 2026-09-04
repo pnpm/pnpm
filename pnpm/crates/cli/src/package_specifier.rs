@@ -61,10 +61,15 @@ fn parse_registry_specifier(
     if version_spec == Some("") {
         return Err(miette::miette!("missing version after `@` in {protocol}{specifier}"));
     }
-    if version_spec.is_some_and(|version| version.ends_with(':')) {
-        return Err(miette::miette!(
-            "{protocol}{specifier} is not supported by the crates.io-only proof of concept"
-        ));
+    if let Some(version) = version_spec {
+        if version.contains(':') {
+            return Err(miette::miette!(
+                "{protocol}{specifier} is not supported by the crates.io-only proof of concept"
+            ));
+        }
+        semver::VersionReq::parse(version).map_err(|_| {
+            miette::miette!("invalid Cargo version requirement in {protocol}{specifier}")
+        })?;
     }
     Ok(RegistryPackageSpecifier {
         name: name.to_string(),

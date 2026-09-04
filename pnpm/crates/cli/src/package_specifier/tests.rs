@@ -27,7 +27,9 @@ fn partitions_node_and_cargo_specifiers() {
 
 #[test]
 fn rejects_invalid_cargo_specifiers_before_manifest_initialization() {
-    for specifier in ["crate:", "crate:serde@", "crate:bad/name", "crate:serde@workspace:"] {
+    for specifier in
+        ["crate:", "crate:serde@", "crate:bad/name", "crate:serde@workspace:*", "crate:serde@^"]
+    {
         assert!(
             PackageSpecifierPlan::parse(&[specifier.to_string()]).is_err(),
             "{specifier} must be rejected",
