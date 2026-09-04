@@ -458,33 +458,30 @@ fn select_project(
     dir: &Path,
 ) -> miette::Result<SelectedProject> {
     let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-    let projects_by_path = projects
-        .iter()
-        .map(|project| {
-            let root_dir = lexical_normalize(&project.root_dir);
-            (
-                comparable_path_components(&root_dir),
-                ProjectInfo {
-                    name: project
-                        .manifest
-                        .value()
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .map(str::to_string),
-                    peer_dependencies: manifest_dependency_names(
-                        &project.manifest,
-                        &["peerDependencies"],
-                    ),
-                    declared_dependencies: manifest_dependency_names(
-                        &project.manifest,
-                        &["dependencies", "optionalDependencies"],
-                    )
-                    .into_iter()
-                    .collect(),
-                },
-            )
-        })
-        .collect::<HashMap<_, _>>();
+    let mut projects_by_path = HashMap::with_capacity(projects.len());
+    for project in &projects {
+        let root_dir = lexical_normalize(&project.root_dir);
+        projects_by_path.entry(comparable_path_components(&root_dir)).or_insert_with(|| {
+            ProjectInfo {
+                name: project
+                    .manifest
+                    .value()
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                peer_dependencies: manifest_dependency_names(
+                    &project.manifest,
+                    &["peerDependencies"],
+                ),
+                declared_dependencies: manifest_dependency_names(
+                    &project.manifest,
+                    &["dependencies", "optionalDependencies"],
+                )
+                .into_iter()
+                .collect(),
+            }
+        });
+    }
 
     let selected_root = {
         let selection =

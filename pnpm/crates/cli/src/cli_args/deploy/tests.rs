@@ -1,10 +1,14 @@
 use super::{
-    ConvertCtx, convert_package_key, convert_package_metadata, create_deploy_install_config,
+    ConvertCtx, ProjectInfo, comparable_path_components, convert_package_key,
+    convert_package_metadata, create_deploy_install_config, create_file_url_key,
     split_local_payload, validate_lockfile_local_path,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
@@ -133,6 +137,28 @@ fn convert_package_key_preserves_local_tarball_name() {
         "tar-pkg",
         "the tarball's package name must be kept, not the tarball filename",
     );
+}
+
+#[test]
+fn create_file_url_key_prefers_workspace_project_name() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let project_root = tmp.path().join("workspace/packages/local-pkg");
+    let resolved_path = project_root.join("../local-pkg");
+    let mut projects_by_path = HashMap::new();
+    projects_by_path.insert(
+        comparable_path_components(&project_root),
+        ProjectInfo {
+            name: Some("workspace-name".to_string()),
+            peer_dependencies: Vec::new(),
+            declared_dependencies: HashSet::default(),
+        },
+    );
+    let lockfile_name = "lockfile-name".parse().expect("parse package name");
+
+    let key = create_file_url_key(&resolved_path, "", &projects_by_path, Some(&lockfile_name))
+        .expect("create file URL key");
+
+    assert_eq!(key.name.to_string(), "workspace-name");
 }
 
 #[cfg(unix)]
