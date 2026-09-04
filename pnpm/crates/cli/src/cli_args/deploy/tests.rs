@@ -1,30 +1,26 @@
 use super::{
     ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
-    create_deploy_install_config, create_file_url_key, split_local_payload,
+    create_deploy_install_config, create_file_url_key, index_projects, split_local_payload,
     validate_lockfile_local_path,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::Project;
+use serde_json::json;
 use std::{
     collections::{HashMap, HashSet},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[cfg(unix)]
-use super::{DeployFiles, DeployWorkspaceConfig, index_projects, write_deploy_files};
+use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
 #[cfg(unix)]
 use pnpm_lockfile::Lockfile;
-#[cfg(unix)]
-use pnpm_package_manifest::PackageManifest;
-#[cfg(unix)]
-use pnpm_workspace::Project;
-#[cfg(unix)]
-use serde_json::json;
 #[cfg(unix)]
 use std::{
     ffi::OsStr,
     os::unix::{ffi::OsStrExt, fs::symlink},
-    path::PathBuf,
 };
 
 #[cfg(windows)]
@@ -171,21 +167,35 @@ fn create_file_url_key_prefers_workspace_project_name() {
 
 #[cfg(unix)]
 #[test]
-fn index_projects_keeps_the_first_project_per_comparison_key() {
-    let project = |name: &str, root_dir: &[u8]| {
-        let root_dir = PathBuf::from(OsStr::from_bytes(root_dir));
-        let manifest =
-            PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
-        Project { root_dir, manifest, dependency_manifest: None }
-    };
+fn index_projects_keeps_the_first_project_per_lossy_root() {
     // Both roots print as `a\u{FFFD}`, so they share a comparison key while
-    // staying distinct paths, as case variants do on Windows.
-    let projects = [
-        project("first", b"/workspace/packages/a\xff"),
-        project("second", b"/workspace/packages/a\xfe"),
-    ];
+    // staying distinct paths.
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xff"))),
+        workspace_project("second", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xfe"))),
+    ]);
+}
 
-    let index = index_projects(&projects);
+#[cfg(windows)]
+#[test]
+fn index_projects_keeps_the_first_project_per_case_variant_root() {
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(r"C:\Workspace\Packages\Lib")),
+        workspace_project("second", PathBuf::from(r"c:\workspace\packages\lib")),
+    ]);
+}
+
+fn workspace_project(name: &str, root_dir: PathBuf) -> Project {
+    let manifest =
+        PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
+    Project { root_dir, manifest, dependency_manifest: None }
+}
+
+/// The two projects must have distinct roots that share one comparison key.
+fn assert_first_project_wins(projects: &[Project; 2]) {
+    assert_ne!(projects[0].root_dir, projects[1].root_dir, "the roots must be distinct paths");
+
+    let index = index_projects(projects);
 
     assert_eq!(index.len(), 1, "comparison-equal roots share one entry");
     let project = index.get(&ProjectPathKey::new(&projects[1].root_dir)).expect("indexed project");
