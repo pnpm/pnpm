@@ -841,10 +841,7 @@ where
         // rather than fall into the replace path, whose removal would
         // yank a good shim out from under sibling installs racing over
         // a shared slot's `.bin`.
-        if matches!(
-            Sys::read_to_string(shim_path),
-            Ok(existing) if existing == sh_body,
-        ) {
+        if equivalent_regular_file::<Sys>(shim_path, sh_body.as_bytes()) {
             chmod_tolerating_removal(shim_path, Sys::set_executable)?;
             cache.ensure_target_executable_once::<Sys>(probe_path)?;
             return Ok(true);
@@ -1157,6 +1154,15 @@ fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usi
     Ok(filled)
 }
 
+/// Whether `path` is a regular file (not a symlink — a raced link must
+/// not be accepted even when the read, which follows it, returns
+/// matching bytes) holding exactly `bytes`. The equivalence test both
+/// winner-acceptance arms use.
+fn equivalent_regular_file<Sys: FsReadToString>(path: &Path, bytes: &[u8]) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+        && matches!(Sys::read_to_string(path), Ok(existing) if existing.as_bytes() == bytes)
+}
+
 /// Remove whatever occupies `path` and write `bytes` as a fresh regular
 /// file, creating it with `O_CREAT | O_EXCL` semantics so a dirent
 /// planted between the removal and the write — the classic
@@ -1178,10 +1184,7 @@ fn replace_shim<Sys: FsReadToString + FsWrite>(
         match Sys::write_new(path, bytes) {
             Ok(()) => return Ok(()),
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-                if matches!(
-                    Sys::read_to_string(path),
-                    Ok(existing) if existing.as_bytes() == bytes,
-                ) {
+                if equivalent_regular_file::<Sys>(path, bytes) {
                     return Ok(());
                 }
                 last_error = Some(error);

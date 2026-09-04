@@ -1733,9 +1733,6 @@ fn shared_shim_target_cache_probes_a_resolved_target_once() {
     assert_eq!(READ_HEAD_CALLS.load(Ordering::Relaxed), 1, "one probe for the shared target");
 }
 
-/// A stale-content rewrite goes through the exclusive create too: after
-/// the removal, a dirent that reappears (here: a fake losing the race
-/// once) is retried rather than written through.
 #[test]
 fn stale_shim_rewrite_retries_the_exclusive_create_after_losing_a_race() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1807,8 +1804,6 @@ fn stale_shim_rewrite_retries_the_exclusive_create_after_losing_a_race() {
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
 
-/// A symlink squatting on a stale shim's path must end up replaced by a
-/// regular file, never written through.
 #[cfg(unix)]
 #[test]
 fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
@@ -1839,9 +1834,6 @@ fn stale_shim_rewrite_replaces_a_symlink_instead_of_writing_through_it() {
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
 
-/// A lost exclusive create whose winner already wrote the equivalent
-/// shim is accepted instead of removed and retried, so concurrent
-/// installers sharing a slot's `.bin` converge without churn.
 #[test]
 fn stale_shim_rewrite_accepts_an_equivalent_concurrent_winner() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1912,10 +1904,6 @@ fn stale_shim_rewrite_accepts_an_equivalent_concurrent_winner() {
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
 
-/// Losing the fresh-create race to a winner that wrote the equivalent
-/// shim must not fall into the replace path: its removal would yank the
-/// good shim out from under sibling installs racing on one slot's
-/// `.bin`.
 #[test]
 fn fresh_shim_create_accepts_an_equivalent_concurrent_winner() {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1980,6 +1968,86 @@ fn fresh_shim_create_accepts_an_equivalent_concurrent_winner() {
     .unwrap();
 
     assert_eq!(WRITE_NEW_ATTEMPTS.load(Ordering::Relaxed), 1, "no replace-path churn");
+    let body = read_to_string(bins_dir.join("foo")).unwrap();
+    assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_raced_symlink_with_matching_target_bytes_is_not_accepted_as_a_shim() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static WRITE_NEW_ATTEMPTS: AtomicUsize = AtomicUsize::new(0);
+
+    struct SymlinkPlantingHost;
+    impl FsReadHead for SymlinkPlantingHost {
+        fn read_head(path: &Path, offset: u64, buf: &mut [u8]) -> io::Result<usize> {
+            <Host as FsReadHead>::read_head(path, offset, buf)
+        }
+    }
+    impl FsReadToString for SymlinkPlantingHost {
+        fn read_to_string(path: &Path) -> io::Result<String> {
+            <Host as FsReadToString>::read_to_string(path)
+        }
+    }
+    impl FsCreateDirAll for SymlinkPlantingHost {
+        fn create_dir_all(path: &Path) -> io::Result<()> {
+            <Host as FsCreateDirAll>::create_dir_all(path)
+        }
+    }
+    impl FsWrite for SymlinkPlantingHost {
+        fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            <Host as FsWrite>::write(path, bytes)
+        }
+        fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+            if WRITE_NEW_ATTEMPTS.fetch_add(1, Ordering::Relaxed) == 0 {
+                // The "attacker" wins the race with a symlink whose
+                // target holds exactly the bytes being written.
+                let victim = path.parent().unwrap().join("victim");
+                <Host as FsWrite>::write(&victim, bytes)?;
+                std::os::unix::fs::symlink(victim, path)?;
+                return Err(io::Error::from(io::ErrorKind::AlreadyExists));
+            }
+            <Host as FsWrite>::write_new(path, bytes)
+        }
+    }
+    impl FsWalkFiles for SymlinkPlantingHost {
+        fn walk_files(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
+            <Host as FsWalkFiles>::walk_files(path)
+        }
+    }
+    impl FsSetExecutable for SymlinkPlantingHost {
+        fn set_executable(path: &Path) -> io::Result<()> {
+            <Host as FsSetExecutable>::set_executable(path)
+        }
+    }
+    impl FsEnsureExecutableBits for SymlinkPlantingHost {
+        fn ensure_executable_bits(path: &Path) -> io::Result<()> {
+            <Host as FsEnsureExecutableBits>::ensure_executable_bits(path)
+        }
+    }
+
+    let manifest = serde_json::json!({"name": "foo", "bin": "cli.js"});
+    let tmp = tempdir().unwrap();
+    let pkg = tmp.path().join("foo");
+    create_dir_all(&pkg).unwrap();
+    write_file(pkg.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    write_file(bins_dir.join("foo"), "not a shim").unwrap();
+
+    link_bins_of_packages::<SymlinkPlantingHost>(
+        &[PackageBinSource::new(pkg.clone(), Arc::new(manifest))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+
+    assert_eq!(WRITE_NEW_ATTEMPTS.load(Ordering::Relaxed), 2, "the planted symlink is retried");
+    assert!(
+        !std::fs::symlink_metadata(bins_dir.join("foo")).unwrap().file_type().is_symlink(),
+        "the shim is a regular file",
+    );
     let body = read_to_string(bins_dir.join("foo")).unwrap();
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
