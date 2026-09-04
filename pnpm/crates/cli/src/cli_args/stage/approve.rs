@@ -13,6 +13,7 @@ use std::{
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
 use miette::{Diagnostic, IntoDiagnostic};
+use node_semver::{Range, Version};
 use pnpm_config::Config;
 use pnpm_network_web_auth::{Host as WebAuthHost, OtpSession, StdinIsTty, StdoutIsTty};
 use pnpm_package_manifest::PackageManifest;
@@ -354,10 +355,33 @@ async fn read_stage_approval_order(
     items: &[StageApprovalItem],
 ) -> miette::Result<StageApprovalOrder> {
     let mut projects = Vec::with_capacity(items.len());
+    let mut stage_id_by_package_version: HashMap<(String, String), String> = HashMap::new();
     for item in items {
         let root_dir = PathBuf::from(&item.id);
         let tarball = fetch_stage_tarball(context, &item.id).await?;
-        let manifest = manifest_for_graph(read_tarball_manifest(&tarball)?);
+        let manifest = read_tarball_manifest(&tarball)?;
+        let package_name = manifest
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or(StageError::TarballManifestNotFound)?
+            .to_owned();
+        let version = manifest
+            .get("version")
+            .and_then(Value::as_str)
+            .ok_or(StageError::TarballManifestNotFound)?
+            .to_owned();
+        if let Some(first_stage_id) = stage_id_by_package_version
+            .insert((package_name.clone(), version.clone()), item.id.clone())
+        {
+            return Err(StageError::DuplicateStagePackage {
+                first_stage_id,
+                second_stage_id: item.id.clone(),
+                package_name,
+                version,
+            }
+            .into());
+        }
+        let manifest = manifest_for_graph(manifest);
         projects.push(Project {
             manifest: PackageManifest::from_value(root_dir.join("package.json"), manifest),
             root_dir,
@@ -439,7 +463,15 @@ fn manifest_for_graph(mut manifest: Value) -> Value {
             .iter()
             .filter_map(|(name, spec)| {
                 let spec = spec.as_str()?;
-                let (name, spec) = PackageManifest::resolve_registry_dependency(name, spec);
+                let (registry_name, registry_spec) =
+                    PackageManifest::resolve_registry_dependency(name, spec);
+                let (name, spec) = if Version::parse(registry_spec).is_ok()
+                    || Range::parse(registry_spec).is_ok()
+                {
+                    (registry_name, registry_spec)
+                } else {
+                    (name.as_str(), spec)
+                };
                 Some((name.to_owned(), Value::String(spec.to_owned())))
             })
             .collect();

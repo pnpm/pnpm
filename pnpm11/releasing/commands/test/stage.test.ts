@@ -640,6 +640,75 @@ describe('stage command against the registry mock', () => {
     }
   })
 
+  test('stage approve does not bind an npm alias tag to a selected version', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: {
+        dependencies: { 'local-name': 'npm:@pnpmtest/stage-dependency@latest' },
+      },
+    })
+    const approved: string[] = []
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      const stageId = approvedStageId(request)
+      if (stageId) {
+        approved.push(stageId)
+        return { status: 201, body: { ok: true } }
+      }
+      return { status: 404, body: { error: 'not found' } }
+    })
+    try {
+      await stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])
+      expect(approved).toEqual([STAGE_ID, SECOND_STAGE_ID])
+    } finally {
+      await registry.close()
+    }
+  })
+
+  test('stage approve rejects duplicate package versions before approving the batch', async () => {
+    const items = [
+      { id: STAGE_ID, packageName: '@pnpmtest/stage-duplicate', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-duplicate', version: '1.0.0' },
+    ]
+    const tarballs = await createStageTarballs(items)
+    const registry = await createRegistry((request) => {
+      const describedStageIdOfRequest = describedStageId(request)
+      if (describedStageIdOfRequest) {
+        const item = items.find(({ id }) => id === describedStageIdOfRequest)
+        return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
+      }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
+      return { status: 500, body: { error: 'nothing should be approved' } }
+    })
+    try {
+      await expect(stage.handler({
+        ...stageOpts(registry.url),
+        cliOptions: { otp: '123456' },
+        otp: '123456',
+      }, ['approve', STAGE_ID, SECOND_STAGE_ID])).rejects.toMatchObject({
+        code: 'ERR_PNPM_STAGE_DUPLICATE_PACKAGE',
+      })
+      expect(registry.requests.filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
+      expect(registry.requests.filter((request) => approvedStageId(request) != null)).toHaveLength(0)
+    } finally {
+      await registry.close()
+    }
+  })
+
   test('stage approve without a stage id requires an interactive terminal', async () => {
     const registry = await createRegistry(() => ({ status: 500, body: { error: 'nothing should be requested' } }))
     const restoreTty = overrideTty(false)

@@ -99,6 +99,16 @@ fn published_npm_aliases_are_resolved_to_their_real_package_names() {
 }
 
 #[test]
+fn npm_aliases_to_tags_keep_their_alias_name() {
+    let manifest = manifest_for_graph(json!({
+        "name": "dependent",
+        "version": "1.0.0",
+        "dependencies": { "local-name": "npm:dependency@latest" },
+    }));
+    assert_eq!(manifest["dependencies"], json!({ "local-name": "npm:dependency@latest" }));
+}
+
+#[test]
 fn stage_ids_are_validated_as_uuids() {
     let params = vec![
         "approve".to_owned(),

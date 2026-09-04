@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import util from 'node:util'
 import { gunzipSync } from 'node:zlib'
 
 import { PnpmError } from '@pnpm/error'
@@ -6,6 +7,9 @@ import tar from 'tar-stream'
 
 import { extractBundledDependencies, type PublishSummary } from './publishSummary.js'
 import { createTarballFilename } from './safeTarballFilename.js'
+
+/** Maximum compressed or decompressed staged tarball size. */
+export const MAX_TARBALL_BYTES = 512 * 1024 * 1024
 
 export interface TarballManifest {
   _id?: string
@@ -118,8 +122,14 @@ async function readTarballContents (tarballData: Buffer, includeSummary: boolean
 
 function maybeGunzip (tarballData: Buffer): Buffer {
   try {
-    return gunzipSync(tarballData)
-  } catch {
+    return gunzipSync(tarballData, { maxOutputLength: MAX_TARBALL_BYTES })
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ERR_BUFFER_TOO_LARGE') {
+      throw new PnpmError(
+        'STAGE_REGISTRY_ERROR',
+        `Failed to read the staged tarball: tarball exceeded ${MAX_TARBALL_BYTES} bytes when decompressed`
+      )
+    }
     return tarballData
   }
 }

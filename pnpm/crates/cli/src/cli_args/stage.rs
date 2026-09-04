@@ -112,6 +112,21 @@ pub enum StageError {
     #[diagnostic(code(ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND))]
     TarballManifestNotFound,
 
+    #[display(
+        "Cannot approve stages {first_stage_id} and {second_stage_id} together because both publish {package_name}@{version}"
+    )]
+    #[diagnostic(code(ERR_PNPM_STAGE_DUPLICATE_PACKAGE))]
+    DuplicateStagePackage {
+        #[error(not(source))]
+        first_stage_id: String,
+        #[error(not(source))]
+        second_stage_id: String,
+        #[error(not(source))]
+        package_name: String,
+        #[error(not(source))]
+        version: String,
+    },
+
     #[display(r#"Invalid package name "{name}"."#)]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidPackageName {
