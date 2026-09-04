@@ -189,8 +189,7 @@ where
         map.iter().map(|(key, value)| (key.to_string(), value)).collect();
     entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
     if entries.len() >= PARALLEL_LOWERING_THRESHOLD
-        && let Some(marker) =
-            stash_parallel_lowered(&entries).map_err(serde::ser::Error::custom)?
+        && let Some(marker) = stash_parallel_lowered(&entries).map_err(serde::ser::Error::custom)?
     {
         return serializer.serialize_str(&marker);
     }
