@@ -107,7 +107,7 @@ catalog:
   '@commitlint/prompt-cli': ^21.2.2
   '@cyclonedx/cyclonedx-library': 10.2.0
   '@eslint/js': ^10.0.1
-  '@inquirer/prompts': ^8.7.0
+  '@inquirer/prompts': ^8.7.1
   # Jest 30.5.0 breaks ESM package imports in the Jest runtime.
   '@jest/globals': 30.4.1
   '@npm/types': ^2.1.0
@@ -332,7 +332,7 @@ catalog:
   semver-utils: ^1.1.4
   shlex: ^3.0.0
   shx: ^0.4.0
-  socks: ^2.8.9
+  socks: ^2.8.10
   sort-keys: ^6.0.1
   split-cmd: ^1.1.0
   split2: ^4.2.0
