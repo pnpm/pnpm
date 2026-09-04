@@ -4,7 +4,7 @@ use super::{
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
@@ -68,7 +68,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
     let lockfile_dir = tmp.path().join("workspace");
     let deploy_dir = lockfile_dir.join("deploy");
     let deployed_project_root = lockfile_dir.join("packages/app");
-    let all_projects = Vec::new();
+    let projects_by_path = HashMap::new();
     let metadata = PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "file:vendor/pkg.tgz".to_string(),
@@ -94,7 +94,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
         peer_dependencies_meta: None,
     };
     let ctx = ConvertCtx {
-        all_projects: &all_projects,
+        projects_by_path: &projects_by_path,
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
@@ -116,9 +116,9 @@ fn convert_package_key_preserves_local_tarball_name() {
     let lockfile_dir = tmp.path().join("workspace");
     let deploy_dir = lockfile_dir.join("deploy");
     let deployed_project_root = lockfile_dir.join("packages/app");
-    let all_projects = Vec::new();
+    let projects_by_path = HashMap::new();
     let ctx = ConvertCtx {
-        all_projects: &all_projects,
+        projects_by_path: &projects_by_path,
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
