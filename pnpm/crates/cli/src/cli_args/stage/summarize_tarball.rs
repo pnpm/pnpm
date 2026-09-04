@@ -14,48 +14,23 @@ use serde_json::Value;
 
 use super::StageError;
 
+struct TarballContents {
+    files: Vec<String>,
+    bundled: BTreeSet<String>,
+    manifest: Value,
+    unpacked_size: u64,
+}
+
 /// Parse a packed (gzipped or plain) tarball and return its
 /// [`PublishSummary`]. The tarball must contain a parseable
 /// `package/package.json` with a name and version.
 pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSummary> {
-    let tar_bytes = maybe_gunzip(tarball_data)?;
-    let mut archive = tar::Archive::new(tar_bytes.as_slice());
-    let mut files: Vec<String> = Vec::new();
-    let mut bundled: BTreeSet<String> = BTreeSet::new();
-    let mut manifest: Option<Value> = None;
-    let mut unpacked_size: u64 = 0;
-
-    let entries =
-        archive.entries().into_diagnostic().wrap_err("read the staged tarball's entries")?;
-    for entry in entries {
-        let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
-        let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
-        if entry.header().entry_type().is_file() {
-            unpacked_size += entry.header().size().unwrap_or(0);
-            files.push(path.strip_prefix("package/").unwrap_or(&path).to_owned());
-            if let Some(name) = bundled_dependency_name(&path) {
-                bundled.insert(name);
-            }
-        }
-        if path == "package/package.json" {
-            let mut text = String::new();
-            entry
-                .read_to_string(&mut text)
-                .into_diagnostic()
-                .wrap_err("read package/package.json from the staged tarball")?;
-            manifest =
-                Some(parse_manifest(&text).map_err(|_| StageError::TarballManifestNotFound)?);
-        }
-    }
-
-    let manifest = manifest.ok_or(StageError::TarballManifestNotFound)?;
-    let name = manifest_string(&manifest, "name");
-    let version = manifest_string(&manifest, "version");
-    if name.is_empty() || version.is_empty() {
-        return Err(StageError::TarballManifestNotFound.into());
-    }
+    let TarballContents { mut files, bundled, manifest, unpacked_size } =
+        read_tarball_contents(tarball_data, true)?;
 
     sort_paths_en_locale(&mut files);
+    let name = manifest_string(&manifest, "name");
+    let version = manifest_string(&manifest, "version");
     let filename = create_tarball_filename(&name, &version, None)?;
     let mut summary = create_publish_summary(
         &PackedPkgInfo {
@@ -77,6 +52,56 @@ pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSu
     Ok(summary)
 }
 
+/// Read the published `package.json` held in a packed tarball.
+pub(super) fn read_tarball_manifest(tarball_data: &[u8]) -> miette::Result<Value> {
+    Ok(read_tarball_contents(tarball_data, false)?.manifest)
+}
+
+fn read_tarball_contents(
+    tarball_data: &[u8],
+    include_summary: bool,
+) -> miette::Result<TarballContents> {
+    let tar_bytes = maybe_gunzip(tarball_data)?;
+    let mut archive = tar::Archive::new(tar_bytes.as_slice());
+    let mut files: Vec<String> = Vec::new();
+    let mut bundled: BTreeSet<String> = BTreeSet::new();
+    let mut manifest_text: Option<String> = None;
+    let mut unpacked_size: u64 = 0;
+
+    let entries =
+        archive.entries().into_diagnostic().wrap_err("read the staged tarball's entries")?;
+    for entry in entries {
+        let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
+        let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
+        if include_summary && entry.header().entry_type().is_file() {
+            unpacked_size += entry.header().size().unwrap_or(0);
+            files.push(path.strip_prefix("package/").unwrap_or(&path).to_owned());
+            if let Some(name) = bundled_dependency_name(&path) {
+                bundled.insert(name);
+            }
+        }
+        if path == "package/package.json" {
+            let mut text = String::new();
+            entry
+                .read_to_string(&mut text)
+                .into_diagnostic()
+                .wrap_err("read package/package.json from the staged tarball")?;
+            manifest_text = Some(text);
+        }
+    }
+
+    let manifest = parse_manifest(&manifest_text.ok_or(StageError::TarballManifestNotFound)?)
+        .map_err(|_| StageError::TarballManifestNotFound)?;
+    let name = manifest_string(&manifest, "name");
+    let version = manifest_string(&manifest, "version");
+    if name.is_empty() || version.is_empty() {
+        return Err(StageError::TarballManifestNotFound.into());
+    }
+    validate_package_identity(&name, &version)?;
+
+    Ok(TarballContents { files, bundled, manifest, unpacked_size })
+}
+
 /// The safe tarball basename `<normalized-name>-<version>[-<suffix>].tgz`,
 /// after validating that the name and version cannot smuggle path segments.
 pub(super) fn create_tarball_filename(
@@ -84,12 +109,7 @@ pub(super) fn create_tarball_filename(
     version: &str,
     suffix: Option<&str>,
 ) -> Result<String, StageError> {
-    if !is_valid_old_npm_package_name(name) {
-        return Err(StageError::InvalidPackageName { name: name.to_owned() });
-    }
-    if version.parse::<node_semver::Version>().is_err() {
-        return Err(StageError::InvalidPackageVersion { version: version.to_owned() });
-    }
+    validate_package_identity(name, version)?;
     let suffix = suffix.map(|suffix| format!("-{suffix}")).unwrap_or_default();
     let filename = format!("{}-{version}{suffix}.tgz", normalize_package_name(name));
     // The name/version validation above should already exclude separators;
@@ -98,6 +118,16 @@ pub(super) fn create_tarball_filename(
         return Err(StageError::InvalidTarballFilename { filename });
     }
     Ok(filename)
+}
+
+fn validate_package_identity(name: &str, version: &str) -> Result<(), StageError> {
+    if !is_valid_old_npm_package_name(name) {
+        return Err(StageError::InvalidPackageName { name: name.to_owned() });
+    }
+    if version.parse::<node_semver::Version>().is_err() {
+        return Err(StageError::InvalidPackageVersion { version: version.to_owned() });
+    }
+    Ok(())
 }
 
 /// `@scope/name` → `scope-name`: drop the first `@`, turn the first `/` into

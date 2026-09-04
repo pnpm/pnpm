@@ -8472,9 +8472,6 @@ importers:
       '@pnpm/workspace.projects-graph':
         specifier: workspace:*
         version: link:../../workspace/projects-graph
-      '@pnpm/workspace.projects-reader':
-        specifier: workspace:*
-        version: link:../../workspace/projects-reader
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: link:../../workspace/projects-sorter
@@ -8535,6 +8532,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      strip-bom:
+        specifier: 'catalog:'
+        version: 5.0.0
       tar-stream:
         specifier: 'catalog:'
         version: 3.2.1
