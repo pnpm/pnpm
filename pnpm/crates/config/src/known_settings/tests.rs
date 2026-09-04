@@ -21,6 +21,7 @@ fn recognizes_structured_and_config_only_keys() {
 #[test]
 fn recognizes_pacquet_only_settings_via_the_struct_fields() {
     assert!(is_known_setting_key("globalShims"));
+    assert!(is_known_setting_key("cargo"));
 }
 
 #[test]

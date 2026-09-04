@@ -101,20 +101,34 @@ impl State {
         config: &'static Config,
         lockfile: LazyLockfile,
     ) -> Result<Self, InitStateError> {
+        let http_client = Self::new_http_client(config)?;
+        Self::init_with_lockfile_and_http_client(manifest_path, config, lockfile, http_client)
+    }
+
+    /// Build the install-wide HTTP client shared by every ecosystem.
+    pub(crate) fn new_http_client(config: &Config) -> Result<Arc<ThrottledClient>, InitStateError> {
+        ThrottledClient::for_installs(
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            &config.network_settings(),
+        )
+        .map(|client| Arc::new(client.with_max_sockets_per_host(config.max_sockets)))
+        .map_err(InitStateError::Network)
+    }
+
+    /// [`Self::init_with_lockfile`] with a caller-owned install-wide HTTP client.
+    pub(crate) fn init_with_lockfile_and_http_client(
+        manifest_path: PathBuf,
+        config: &'static Config,
+        lockfile: LazyLockfile,
+        http_client: Arc<ThrottledClient>,
+    ) -> Result<Self, InitStateError> {
         Ok(State {
             config,
             manifest: load_or_create_manifest(manifest_path, config)?,
             lockfile,
-            http_client: std::sync::Arc::new(
-                ThrottledClient::for_installs(
-                    &config.proxy,
-                    &config.tls,
-                    &config.tls_by_uri,
-                    &config.network_settings(),
-                )
-                .map_err(InitStateError::Network)?
-                .with_max_sockets_per_host(config.max_sockets),
-            ),
+            http_client,
             tarball_mem_cache: Arc::new(MemCache::new()),
             resolved_packages: ResolvedPackages::new(),
         })

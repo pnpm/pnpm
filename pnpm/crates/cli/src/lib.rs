@@ -1,8 +1,10 @@
 mod boolean_negations;
+mod cargo_deps;
 mod checkbox_prompt;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod ecosystem_install;
 mod engine_pm;
 mod executable_link;
 mod flag_relocation;
