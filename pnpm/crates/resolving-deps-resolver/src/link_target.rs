@@ -58,23 +58,75 @@ impl ImporterAnchor {
     /// target, or one that carries `..` components.
     pub(crate) fn target_relative_to_importer(&self, target: &str) -> Option<String> {
         let rel = self.rel_components.as_deref()?;
-        let segments = relative_segments(target)?;
+        if target.starts_with(SEPARATORS) {
+            return None;
+        }
+        // Avoid splitting the target a second time for the rendering:
+        // when the kept tail is verbatim — nothing collapsed or
+        // dropped — it copies over as one slice.
         let mut shared = 0;
         let mut still_shared = true;
-        for segment in segments.clone() {
-            if segment == ".." {
+        let mut tail_start: Option<usize> = None;
+        let mut tail_verbatim = true;
+        let mut pos = 0;
+        loop {
+            let end = target[pos..].find(SEPARATORS).map_or(target.len(), |offset| pos + offset);
+            let segment = &target[pos..end];
+            if segment.is_empty() || segment == "." {
+                if tail_start.is_some() {
+                    tail_verbatim = false;
+                }
+            } else if segment == ".." {
                 return None;
-            }
-            if still_shared && rel.get(shared).is_some_and(|name| name == segment) {
-                shared += 1;
             } else {
-                still_shared = false;
+                #[cfg(windows)]
+                if pos == 0 && segment.contains(':') {
+                    return None;
+                }
+                if still_shared && rel.get(shared).is_some_and(|name| name == segment) {
+                    shared += 1;
+                } else {
+                    still_shared = false;
+                    if tail_start.is_none() {
+                        tail_start = Some(pos);
+                    }
+                }
             }
+            if end == target.len() {
+                break;
+            }
+            pos = end + 1;
         }
-        Some(render(
-            std::iter::repeat_n("..", rel.len() - shared).chain(segments.skip(shared)),
-            3 * (rel.len() - shared) + target.len(),
-        ))
+        let climb = rel.len() - shared;
+        let tail = match tail_start {
+            Some(tail_start) if tail_verbatim => &target[tail_start..],
+            None => "",
+            // A tail that dropped or collapsed segments re-renders
+            // through the general segment join.
+            Some(_) => {
+                return Some(render(
+                    std::iter::repeat_n("..", climb).chain(relative_segments(target)?.skip(shared)),
+                    3 * climb + target.len(),
+                ));
+            }
+        };
+        let mut rendered = String::with_capacity(3 * climb + tail.len());
+        for _ in 0..climb {
+            if !rendered.is_empty() {
+                rendered.push('/');
+            }
+            rendered.push_str("..");
+        }
+        if !tail.is_empty() {
+            if !rendered.is_empty() {
+                rendered.push('/');
+            }
+            rendered.push_str(tail);
+        }
+        if rendered.contains('\\') {
+            rendered = rendered.replace('\\', "/");
+        }
+        Some(rendered)
     }
 
     /// Express an importer-relative `target` (which typically climbs
