@@ -20,7 +20,7 @@ fn wanted(specifier: &str) -> WantedDependency {
 }
 
 fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
-    (
+    WantedKey::new((
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
         wanted.optional,
@@ -32,7 +32,7 @@ fn key(wanted: &WantedDependency, project_dir: &str) -> WantedKey {
         Vec::new(),
         None,
         false,
-    )
+    ))
 }
 
 fn opts(project_dir: &str) -> ResolveOptions {

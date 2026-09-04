@@ -350,7 +350,7 @@ where
         prior_key.as_ref().and_then(|key| key.suffix.version_semver()),
         depth,
     );
-    let cache_key: WantedKey = (
+    let cache_key = WantedKey::new((
         wanted.alias.clone(),
         wanted.bare_specifier.clone(),
         wanted.optional,
@@ -359,10 +359,10 @@ where
         opts.published_by,
         project_scope,
         prior_key.clone(),
-        overlay_versions.clone(),
+        overlay_versions,
         ctx.update_cache_scope(),
         update_target,
-    );
+    ));
     let result =
         match resolve_wanted_cached(ctx, resolver, &wanted, opts, pick_overlay.as_ref(), cache_key)
             .await
@@ -1256,25 +1256,12 @@ fn shared_workspace_key(
             "the importer-wide workspace-resolution key must describe every edge's options",
         );
     }
-    // The consumer scope is exactly what the shared key drops. Every
-    // `workspace:` selector carries one, so its absence means this edge is not
-    // the shape assumed here.
-    cache_key.6.as_ref()?;
-    let wanted_key = (
-        cache_key.0.clone(),
-        cache_key.1.clone(),
-        cache_key.2,
-        cache_key.3,
-        cache_key.4,
-        cache_key.5,
-        None,
-        cache_key.7.clone(),
-        cache_key.8.clone(),
-        cache_key.9.clone(),
-        cache_key.10,
-    );
+    // The consumer scope is exactly what the shared key's hash and
+    // equality drop. Every `workspace:` selector carries one, so its
+    // absence means this edge is not the shape assumed here.
+    cache_key.fields().6.as_ref()?;
     Some(SharedWorkspaceWantedKey::new(
-        wanted_key,
+        cache_key.clone(),
         wanted.prev_specifier.clone(),
         &ctx.workspace_resolution_options_key,
     ))
@@ -1312,8 +1299,8 @@ where
     // npm-aliases, folded from the jsr specifier for jsr deps) is in the
     // update target list — so the picker's held-back-update warning fires
     // only for the packages the user actually asked to update.
-    let needs_overlay = !cache_key.8.is_empty();
-    let update_target = cache_key.10;
+    let needs_overlay = !cache_key.fields().8.is_empty();
+    let update_target = cache_key.fields().10;
     let needs_update = update_target != opts.update_requested;
     let owned_opts;
     let opts = if needs_overlay || needs_update {
@@ -1605,7 +1592,7 @@ async fn warm_result_children<Chain>(
                 // into its own bucket and re-picks from the warm
                 // metadata caches.
                 let project_scope = project_relative_cache_scope(&wanted, opts);
-                let cache_key: WantedKey = (
+                let cache_key = WantedKey::new((
                     wanted.alias.clone(),
                     wanted.bare_specifier.clone(),
                     wanted.optional,
@@ -1619,7 +1606,7 @@ async fn warm_result_children<Chain>(
                     Vec::new(),
                     ctx.update_cache_scope(),
                     is_update_target(ctx.update_scope(), &wanted, None, depth + 1),
-                );
+                ));
                 let Ok(child) =
                     resolve_wanted_cached(ctx, resolver, &wanted, opts, None, cache_key).await
                 else {

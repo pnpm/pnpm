@@ -87,7 +87,7 @@ use super::{
 /// [`WantedDependency`]: pnpm_resolving_resolver_base::WantedDependency
 /// [`extend_tree`]: super::extend_tree
 /// [`fn@resolve_node`]: super::walk::resolve_node
-pub(super) type WantedKey = (
+pub(super) type WantedKeyFields = (
     Option<String>,
     Option<String>,
     Option<bool>,
@@ -100,6 +100,73 @@ pub(super) type WantedKey = (
     Option<String>,
     bool,
 );
+
+/// A [`WantedKeyFields`] tuple with its hashes fixed at construction —
+/// the full one, and a consumer-scope-less one for
+/// [`SharedWorkspaceWantedKey`] — so an edge's key is hashed once
+/// however many maps and derived keys carry it. Cloning is cheap.
+#[derive(Debug, Clone)]
+pub(super) struct WantedKey(Arc<WantedKeyInner>);
+
+#[derive(Debug)]
+struct WantedKeyInner {
+    full_hash: u64,
+    scopeless_hash: u64,
+    fields: WantedKeyFields,
+}
+
+impl WantedKey {
+    pub(super) fn new(fields: WantedKeyFields) -> Self {
+        // One pass over the fields serves both hashes: everything but
+        // the consumer scope feeds a hasher whose intermediate state is
+        // snapshotted for the scope-less hash before the scope joins.
+        let mut hasher = rustc_hash::FxHasher::default();
+        (
+            &fields.0, &fields.1, &fields.2, &fields.3, &fields.4, &fields.5, &fields.7, &fields.8,
+            &fields.9, &fields.10,
+        )
+            .hash(&mut hasher);
+        let scopeless_hash = hasher.clone().finish();
+        fields.6.hash(&mut hasher);
+        WantedKey(Arc::new(WantedKeyInner { full_hash: hasher.finish(), scopeless_hash, fields }))
+    }
+
+    pub(super) fn fields(&self) -> &WantedKeyFields {
+        &self.0.fields
+    }
+
+    /// Field-wise equality without the consumer-scope slot — the
+    /// equality [`SharedWorkspaceWantedKey`] shares between importers.
+    fn scopeless_eq(&self, other: &Self) -> bool {
+        let left = &self.0.fields;
+        let right = &other.0.fields;
+        left.0 == right.0
+            && left.1 == right.1
+            && left.2 == right.2
+            && left.3 == right.3
+            && left.4 == right.4
+            && left.5 == right.5
+            && left.7 == right.7
+            && left.8 == right.8
+            && left.9 == right.9
+            && left.10 == right.10
+    }
+}
+
+impl PartialEq for WantedKey {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+            || (self.0.full_hash == other.0.full_hash && self.0.fields == other.0.fields)
+    }
+}
+
+impl Eq for WantedKey {}
+
+impl Hash for WantedKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        state.write_u64(self.0.full_hash);
+    }
+}
 
 /// A path slot of a resolver cache key.
 ///
@@ -130,14 +197,17 @@ impl Hash for PathKey {
 
 /// A wanted dependency key without its consumer directory, plus the resolver
 /// inputs that may vary between importers.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+///
+/// Holds the edge's full [`WantedKey`]; `Hash`/`Eq` drop the consumer
+/// directory, so keys built by different importers match by value.
+#[derive(Debug, Clone)]
 pub(super) struct SharedWorkspaceWantedKey {
     wanted: WantedKey,
     previous_specifier: Option<String>,
     // Behind an `Arc` because the fields are invariant per importer
     // (see [`WorkspaceResolutionOptionsKey`]) while a key is built per
-    // dependency edge; the derived `Hash`/`Eq` see through the `Arc`,
-    // so keys built by different importers still match by value.
+    // dependency edge; `Hash`/`Eq` see through the `Arc`, so keys
+    // built by different importers still match by value.
     resolve_options: Arc<WorkspaceResolutionOptionsKey>,
 }
 
@@ -148,6 +218,24 @@ impl SharedWorkspaceWantedKey {
         resolve_options: &Arc<WorkspaceResolutionOptionsKey>,
     ) -> Self {
         Self { wanted, previous_specifier, resolve_options: Arc::clone(resolve_options) }
+    }
+}
+
+impl PartialEq for SharedWorkspaceWantedKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.wanted.scopeless_eq(&other.wanted)
+            && self.previous_specifier == other.previous_specifier
+            && self.resolve_options == other.resolve_options
+    }
+}
+
+impl Eq for SharedWorkspaceWantedKey {}
+
+impl Hash for SharedWorkspaceWantedKey {
+    fn hash<State: Hasher>(&self, state: &mut State) {
+        state.write_u64(self.wanted.0.scopeless_hash);
+        self.previous_specifier.hash(state);
+        self.resolve_options.hash(state);
     }
 }
 

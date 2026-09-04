@@ -10,6 +10,8 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
@@ -22,7 +24,7 @@ type LockedPackages = HashMap<PackageKey, pnpm_lockfile::PackageMetadata>;
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
 /// against importer records need no per-dependency conversions.
-type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, DependencyGroup)>;
+type ManifestDependencies<'manifest> = FxHashMap<PkgName, (&'manifest str, DependencyGroup)>;
 
 /// The prepared inputs [`apply_importers_update`] replays: each
 /// importer's manifest map, built once so detection and application share
@@ -51,23 +53,32 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     prune_stale_importers: bool,
     resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
-    let mut manifest_dependencies: Vec<(&String, &PackageManifest, ManifestDependencies<'_>)> =
-        Vec::new();
-    for (importer_id, manifest) in manifests {
-        // Later groups overwrite, so each alias ends at the group
-        // `satisfies_package_manifest` expects it recorded under when it
-        // appears in several: optional wins over prod, prod over dev.
-        let mut dependencies = HashMap::new();
-        for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-            for (name, specifier) in manifest.dependencies([group]) {
-                let Ok(name) = PkgName::parse(name) else {
-                    return Drift::Resolve;
-                };
-                dependencies.insert(name, (specifier, group));
+    // Each importer's map builds from its own manifest alone; an
+    // unparsable alias anywhere still sends the compose to the resolver.
+    let manifest_dependencies: Result<
+        Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>,
+        (),
+    > = manifests
+        .par_iter()
+        .map(|(importer_id, manifest)| {
+            // Later groups overwrite, so each alias ends at the group
+            // `satisfies_package_manifest` expects it recorded under when it
+            // appears in several: optional wins over prod, prod over dev.
+            let mut dependencies = ManifestDependencies::default();
+            for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+                for (name, specifier) in manifest.dependencies([group]) {
+                    let Ok(name) = PkgName::parse(name) else {
+                        return Err(());
+                    };
+                    dependencies.insert(name, (specifier, group));
+                }
             }
-        }
-        manifest_dependencies.push((importer_id, *manifest, dependencies));
-    }
+            Ok((importer_id, *manifest, dependencies))
+        })
+        .collect();
+    let Ok(manifest_dependencies) = manifest_dependencies else {
+        return Drift::Resolve;
+    };
     let stale: Vec<String> = if prune_stale_importers {
         let manifest_ids: HashSet<&str> =
             manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
@@ -80,9 +91,17 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     } else {
         Vec::new()
     };
+    // `Resolve` must win over `Absorbable` regardless of which importer
+    // reports it, which the fold preserves.
     let mut any_diverged = false;
-    for (importer_id, _, dependencies) in &manifest_dependencies {
-        match importer_divergence(lockfile, importer_id, dependencies) {
+    for divergence in manifest_dependencies
+        .par_iter()
+        .map(|(importer_id, _, dependencies)| {
+            importer_divergence(lockfile, importer_id, dependencies)
+        })
+        .collect::<Vec<_>>()
+    {
+        match divergence {
             ImporterDivergence::Clean => {}
             ImporterDivergence::Absorbable => any_diverged = true,
             // Bail before the compose clones the whole lockfile: the

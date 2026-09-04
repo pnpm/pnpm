@@ -1500,3 +1500,61 @@ fn rejects_adding_a_dependency_to_a_lockfile_that_records_publish_dates() {
         "only a resolution can record the publish date of a new direct dependency",
     );
 }
+
+const TWO_IMPORTERS: &str = r"
+lockfileVersion: '9.0'
+importers:
+  a:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+  b:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.1.0
+packages:
+  foo@1.1.0:
+    resolution:
+      integrity: sha512-deadbeef
+snapshots:
+  foo@1.1.0: {}
+";
+
+#[test]
+fn a_resolve_needing_importer_vetoes_absorbable_siblings_in_either_order() {
+    let lockfile = parsed_lockfile(TWO_IMPORTERS);
+    let absorbable = manifest(">=1 <2");
+    let needs_resolve = manifest("^2");
+    assert!(
+        try_fast_update_importers(
+            &lockfile,
+            &[("a".to_string(), &absorbable), ("b".to_string(), &needs_resolve)],
+        )
+        .is_none(),
+        "needs-resolve after absorbable must veto",
+    );
+    assert!(
+        try_fast_update_importers(
+            &lockfile,
+            &[("a".to_string(), &needs_resolve), ("b".to_string(), &absorbable)],
+        )
+        .is_none(),
+        "needs-resolve before absorbable must veto",
+    );
+
+    // Control: with both importers absorbable the compose applies.
+    let clean = manifest("^1.0.0");
+    let updated = try_fast_update_importers(
+        &lockfile,
+        &[("a".to_string(), &absorbable), ("b".to_string(), &clean)],
+    )
+    .expect("absorbable + clean should compose");
+    assert_eq!(
+        updated.importers["a"].dependencies.as_ref().expect("dependencies")
+            [&"foo".parse().expect("package name")]
+            .specifier,
+        ">=1 <2",
+    );
+}
