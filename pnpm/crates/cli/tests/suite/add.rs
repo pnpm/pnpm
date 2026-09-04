@@ -238,7 +238,7 @@ fn install_discovers_multiple_nested_cargo_workspaces() {
         std::fs::write(
             project.join("Cargo.toml"),
             format!(
-                "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"
+                "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
             ),
         )
         .expect("write Cargo manifest");

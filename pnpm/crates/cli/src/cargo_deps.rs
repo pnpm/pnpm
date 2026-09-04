@@ -198,7 +198,7 @@ fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
             if file_type.is_dir() {
                 if !matches!(
                     entry.file_name().to_str(),
-                    Some(".git" | ".pnpm" | "node_modules" | "target")
+                    Some(".git" | ".pnpm" | "node_modules" | "target"),
                 ) {
                     pending.push(entry.path());
                 }
@@ -544,9 +544,10 @@ fn ensure_workspace_directory(root_dir: &Path, components: &[&str]) -> Result<Pa
         match fs::symlink_metadata(&directory) {
             Ok(metadata) if metadata.file_type().is_dir() => {}
             Ok(_) => {
+                let directory = directory.display();
                 return Err(miette::miette!(
                     "managed Cargo directory {} must be a real directory",
-                    directory.display(),
+                    directory,
                 ));
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
