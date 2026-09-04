@@ -110,6 +110,13 @@ where
     /// [`crate::shim_link_options`] output — threaded into the
     /// per-importer `.bin` shim pass.
     pub link_options: &'a LinkBinsOptions,
+
+    /// Parsed manifests recovered from the store-index prefetch
+    /// ([`crate::PackageManifests`]), when the caller has them. Feeds
+    /// [`crate::link_direct_dep_bins_prefetched`] so an importer's bin
+    /// pass reads no `package.json` for a prefetched dep; `None` keeps
+    /// every dep on the disk-read fallback.
+    pub package_manifests: Option<&'a crate::PackageManifests>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -169,7 +176,12 @@ where
             public_hoist_targets,
             trusted_importer_ids,
             link_options,
+            package_manifests,
         } = self;
+
+        // One bin lookup for the whole pass: the `hasBin` gate and the
+        // shim probe memo are importer-invariant.
+        let bin_lookup = crate::PrefetchedBinLookup::new(packages, package_manifests);
 
         // Collect once so the same group order can drive every importer.
         // The group order is shared across all importers.
@@ -280,6 +292,7 @@ where
                     dedupe_against,
                     config.symlink,
                     link_options,
+                    &bin_lookup,
                 )
             })
         })
@@ -470,6 +483,7 @@ fn link_one_importer<Reporter: self::Reporter>(
     dedupe_against: Option<&BTreeMap<String, PathBuf>>,
     symlink: bool,
     link_options: &LinkBinsOptions,
+    bin_lookup: &crate::PrefetchedBinLookup<'_>,
 ) -> Result<(), SymlinkDirectDependenciesError> {
     let entries = collect_resolved_entries(
         layout,
@@ -598,9 +612,15 @@ fn link_one_importer<Reporter: self::Reporter>(
     // destination, so the bin pass gets the resolved location for
     // free.
     if symlink {
-        let deps: Vec<(String, PathBuf)> =
-            entries.iter().map(|entry| (entry.name_str.clone(), entry.target.clone())).collect();
-        crate::link_direct_dep_bins_resolved(modules_dir, &deps, link_options)
+        let deps: Vec<crate::PrefetchedDepBin> = entries
+            .iter()
+            .map(|entry| {
+                let metadata_key =
+                    entry.spec.version.resolved_key(entry.name).map(|key| key.without_peer());
+                (entry.name_str.clone(), entry.target.clone(), metadata_key)
+            })
+            .collect();
+        crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)
             .map_err(SymlinkDirectDependenciesError::LinkBins)?;
     } else {
         let locations: Vec<PathBuf> = entries.iter().map(|entry| entry.target.clone()).collect();

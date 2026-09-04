@@ -292,6 +292,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             public_hoist_targets: public_hoist_targets.as_ref(),
             trusted_importer_ids: Some(trusted_importer_ids),
             link_options,
+            package_manifests: Some(package_manifests),
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::SymlinkDirectDependencies)?;

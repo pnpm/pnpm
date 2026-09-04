@@ -119,6 +119,20 @@ pub trait FsCreateDirAll {
 /// lets every callsite see exactly what guarantees it gets.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
+
+    /// Create `path` as a brand-new file holding `bytes`, failing with
+    /// [`io::ErrorKind::AlreadyExists`] when any dirent — a dangling
+    /// symlink included — already occupies the path (`O_CREAT | O_EXCL`
+    /// semantics, which never follow a symlink). The shim writer uses
+    /// this to skip its stale-entry probes on a freshly created `.bin`
+    /// dir; on *any* error it falls back to the remove-then-[`write`]
+    /// path, so the default impl opts a fake out of the fast path
+    /// rather than forcing it to model exclusive creation.
+    ///
+    /// [`write`]: FsWrite::write
+    fn write_new(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+        Err(io::Error::from(io::ErrorKind::Unsupported))
+    }
 }
 
 /// Replace the permission bits at `path` with `0o755`. Used to chmod
@@ -205,6 +219,11 @@ impl FsCreateDirAll for Host {
 impl FsWrite for Host {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
         std::fs::write(path, bytes)
+    }
+
+    fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+        use std::io::Write;
+        std::fs::File::options().write(true).create_new(true).open(path)?.write_all(bytes)
     }
 }
 

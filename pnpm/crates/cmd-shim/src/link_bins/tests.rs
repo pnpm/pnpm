@@ -778,7 +778,7 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
     }
     impl FsReadToString for FailingProbe {
         fn read_to_string(_: &Path) -> io::Result<String> {
-            unreachable!()
+            Err(io::Error::from(io::ErrorKind::NotFound))
         }
     }
     impl FsReadHead for FailingProbe {
