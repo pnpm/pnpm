@@ -29,6 +29,11 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
+    // Only a glibc build is released for this architecture, so the specifier
+    // is a plain string rather than a libc pair: the libc ordering below maps
+    // over the pair's keys, and a missing one would yield an `undefined`
+    // specifier.
+    riscv64: '@pnpm/exe.linux-riscv64/pnpm',
   },
 }
 
