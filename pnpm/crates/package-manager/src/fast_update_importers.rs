@@ -54,7 +54,7 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
     // Each importer's map builds from its own manifest alone, so a
-    // workspace-scale set fans out across rayon; an unparseable alias
+    // workspace-scale set fans out across rayon; an unparsable alias
     // anywhere still sends the whole compose to the resolver.
     let manifest_dependencies: Result<
         Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>,
