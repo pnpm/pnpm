@@ -1,86 +1,113 @@
-import type { ProjectRootDir } from '@pnpm/types'
+import { graphSequencer } from '@pnpm/deps.graph-sequencer'
+import npa from '@pnpm/npm-package-arg'
+import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
-import { findWorkspaceProjectsNoCheck } from '@pnpm/workspace.projects-reader'
-import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 
-import { publishedName } from '../publishedNames.js'
-import type { ApprovalItem, StageOptions } from './types.js'
+import { readTarballManifest, type TarballManifest } from '../tarball/summarizeTarball.js'
+import type { StageContext } from './context.js'
+import { fetchStageTarball } from './tarball.js'
+import type { ApprovalItem } from './types.js'
 
-/**
- * Where each workspace package sits in the order its siblings have to be
- * published in, keyed by the name the package publishes under — the only name
- * a staged version carries.
- */
-export interface WorkspaceApprovalOrder {
-  /** Each package's index in one topological order. */
-  orderIndexByPackageName: Map<string, number>
-  /** The workspace siblings a package directly depends on. */
-  dependencyNamesByPackageName: Map<string, string[]>
+type DependencyField = 'dependencies' | 'devDependencies' | 'optionalDependencies' | 'peerDependencies'
+
+const DEPENDENCY_FIELDS: DependencyField[] = [
+  'peerDependencies',
+  'devDependencies',
+  'optionalDependencies',
+  'dependencies',
+]
+
+/** The dependency order derived from the exact tarballs being approved. */
+export interface StageApprovalOrder {
+  dependencyStageIdsByStageId: Map<string, string[]>
+  orderIndexByStageId: Map<string, number>
+  packageNameByStageId: Map<string, string>
 }
 
 /**
- * Reads the workspace the command runs in and derives the order its packages
- * have to be approved in.
- *
- * Returns `undefined` outside a workspace, where nothing is known about how
- * the staged versions relate and the selection order is kept as is.
+ * Downloads every selected staged package before approval and derives their
+ * dependency graph from the package.json files that will reach the registry.
  */
-export async function readWorkspaceApprovalOrder (opts: StageOptions): Promise<WorkspaceApprovalOrder | undefined> {
-  if (!opts.workspaceDir) return undefined
-  const projects = await findWorkspaceProjectsNoCheck(opts.workspaceDir, {
-    patterns: opts.workspacePackagePatterns,
-  })
-  const { graph } = createProjectsGraph(projects, {
-    linkWorkspacePackages: Boolean(opts.linkWorkspacePackages),
-  })
-  const publishedNameByRootDir = new Map<ProjectRootDir, string>()
-  for (const rootDir of Object.keys(graph) as ProjectRootDir[]) {
-    const name = publishedName(graph[rootDir].package.manifest)
-    if (name) publishedNameByRootDir.set(rootDir, name)
+export async function readStageApprovalOrder (
+  context: StageContext,
+  items: ApprovalItem[]
+): Promise<StageApprovalOrder> {
+  const projects: Array<{ manifest: BaseManifest, rootDir: ProjectRootDir }> = []
+  for (const item of items) {
+    // eslint-disable-next-line no-await-in-loop
+    const tarball = await fetchStageTarball(context, item.id)
+    // eslint-disable-next-line no-await-in-loop
+    const manifest = await readTarballManifest(tarball)
+    projects.push({
+      manifest: manifestForGraph(manifest),
+      rootDir: item.id as ProjectRootDir,
+    })
   }
-  const orderIndexByPackageName = new Map<string, number>()
-  const dependencyNamesByPackageName = new Map<string, string[]>()
-  sequenceGraph(graph).order.forEach((rootDir, orderIndex) => {
-    const name = publishedNameByRootDir.get(rootDir)
-    if (!name) return
-    orderIndexByPackageName.set(name, orderIndex)
-    dependencyNamesByPackageName.set(
-      name,
-      graph[rootDir].dependencies
-        .map((dependencyRootDir) => publishedNameByRootDir.get(dependencyRootDir))
-        .filter((dependencyName) => dependencyName != null)
-    )
+  const { graph } = createProjectsGraph(projects, { linkWorkspacePackages: true })
+  const orderIndexByStageId = new Map<string, number>()
+  const dependencyStageIdsByStageId = new Map<string, string[]>()
+  const packageNameByStageId = new Map<string, string>()
+  const dependencies = new Map<ProjectRootDir, ProjectRootDir[]>(
+    Object.entries(graph).map(([rootDir, node]) => [rootDir as ProjectRootDir, node.dependencies])
+  )
+  graphSequencer(dependencies).order.forEach((rootDir, orderIndex) => {
+    orderIndexByStageId.set(rootDir, orderIndex)
+    dependencyStageIdsByStageId.set(rootDir, graph[rootDir].dependencies)
+    const packageName = graph[rootDir].package.manifest.name
+    if (packageName) packageNameByStageId.set(rootDir, packageName)
   })
-  return { orderIndexByPackageName, dependencyNamesByPackageName }
+  return { dependencyStageIdsByStageId, orderIndexByStageId, packageNameByStageId }
 }
 
-/**
- * Orders staged versions so that a workspace package is approved after the
- * workspace packages it depends on. Staged versions of packages outside the
- * workspace keep their original relative order, after the workspace ones.
- */
-export function sortStageItemsForApproval (items: ApprovalItem[], order?: WorkspaceApprovalOrder): ApprovalItem[] {
+/** Approve staged dependencies before the selected packages that need them. */
+export function sortStageItemsForApproval (items: ApprovalItem[], order: StageApprovalOrder): ApprovalItem[] {
   return items
-    .map((item, index) => ({ item, index, orderIndex: orderIndexOf(item, order) }))
+    .map((item, index) => ({ item, index, orderIndex: order.orderIndexByStageId.get(item.id) ?? Number.MAX_SAFE_INTEGER }))
     .sort((left, right) => left.orderIndex - right.orderIndex || left.index - right.index)
     .map(({ item }) => item)
 }
 
-/**
- * The packages in `unpublishedPackageNames` that `item` depends on, and that
- * therefore will not be on the registry by the time `item` would be approved.
- */
+/** Selected staged dependencies of `item` whose approval failed or was skipped. */
 export function unavailableDependencies (
   item: ApprovalItem,
-  unpublishedPackageNames: Set<string>,
-  order?: WorkspaceApprovalOrder
+  unpublishedStageIds: Set<string>,
+  order: StageApprovalOrder
 ): string[] {
-  if (!order || !item.packageName) return []
-  return (order.dependencyNamesByPackageName.get(item.packageName) ?? [])
-    .filter((dependencyName) => unpublishedPackageNames.has(dependencyName))
+  return (order.dependencyStageIdsByStageId.get(item.id) ?? [])
+    .filter((stageId) => unpublishedStageIds.has(stageId))
+    .map((stageId) => order.packageNameByStageId.get(stageId) ?? stageId)
 }
 
-function orderIndexOf (item: ApprovalItem, order?: WorkspaceApprovalOrder): number {
-  const orderIndex = item.packageName ? order?.orderIndexByPackageName.get(item.packageName) : undefined
-  return orderIndex ?? Number.MAX_SAFE_INTEGER
+function manifestForGraph (manifest: TarballManifest): BaseManifest {
+  const graphManifest: BaseManifest = {
+    name: manifest.name,
+    version: manifest.version,
+  }
+  for (const field of DEPENDENCY_FIELDS) {
+    const dependencies = manifest[field]
+    if (!dependencies || typeof dependencies !== 'object') continue
+    const normalized: Record<string, string> = {}
+    for (const [name, spec] of Object.entries(dependencies)) {
+      if (typeof spec !== 'string') continue
+      const parsed = parseRegistryDependency(name, spec)
+      normalized[parsed.name] = parsed.spec
+    }
+    graphManifest[field] = normalized
+  }
+  return graphManifest
+}
+
+function parseRegistryDependency (name: string, spec: string): { name: string, spec: string } {
+  try {
+    const parsed = npa.resolve(name, spec, process.cwd())
+    const registrySpec = parsed.type === 'alias' ? parsed.subSpec : parsed
+    if (
+      registrySpec?.name &&
+      (registrySpec.type === 'version' || registrySpec.type === 'range') &&
+      typeof registrySpec.fetchSpec === 'string'
+    ) {
+      return { name: registrySpec.name, spec: registrySpec.fetchSpec }
+    }
+  } catch {}
+  return { name, spec }
 }

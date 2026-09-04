@@ -8,7 +8,7 @@ import chalk from 'chalk'
 import validateNpmPackageName from 'validate-npm-package-name'
 
 import {
-  readWorkspaceApprovalOrder,
+  readStageApprovalOrder,
   sortStageItemsForApproval,
   unavailableDependencies,
 } from './approvalOrder.js'
@@ -26,9 +26,8 @@ export type StageApproveResult = string | { output: string, exitCode: number }
  * them interactively when none are named.
  *
  * Several versions are approved through a single {@link StageOtpSession}, so
- * one proof of presence covers the whole batch, and in workspace dependency
- * order, so a package reaches the registry only after the workspace packages
- * it depends on.
+ * one proof of presence covers the whole batch. Every selected tarball is
+ * downloaded first, and its published manifest determines dependency order.
  */
 export async function stageApprove (opts: StageOptions, params: string[]): Promise<StageApproveResult> {
   const context = createStageContext(opts)
@@ -38,7 +37,7 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
     if (stagedPackages.length === 0) return 'There are no staged packages awaiting approval.'
     const selected = await promptForStagedPackages(stagedPackages)
     if (selected.length === 0) return 'No staged packages were selected.'
-    return approveStagedPackages(context, opts, selected)
+    return approveStagedPackages(context, selected)
   }
   const stageIds = dedupeStageIds(parseStageIds(params, 'approve'))
   if (stageIds.length === 1) {
@@ -46,7 +45,7 @@ export async function stageApprove (opts: StageOptions, params: string[]): Promi
     await approveStagedPackage(context, { id: stageId }, createStageOtpSession(context))
     return `Staged package ${stageId} approved and published successfully.`
   }
-  return approveStagedPackages(context, opts, await resolveStageItems(context, stageIds))
+  return approveStagedPackages(context, await resolveStageItems(context, stageIds))
 }
 
 /**
@@ -76,9 +75,7 @@ function dedupeStageIds (stageIds: string[]): string[] {
  * - the id has to be the same UUID the other subcommands address a staged
  *   version by, and the package name a name npm would accept — both checked
  *   before anything is stripped, so that removing a hidden character can
- *   never be what makes a value valid. A name that fails carries no workspace
- *   identity, so the version is approved outside the workspace order rather
- *   than under the name it resembles;
+ *   never be what makes a value valid. A name that fails is not displayed;
  * - the remaining fields are shown and nothing more, so they are stripped of
  *   the control characters that could redraw the prompt around a selection.
  */
@@ -150,8 +147,8 @@ async function promptForStagedPackages (stagedPackages: ApprovalItem[]): Promise
  *
  * A version the registry does not describe is kept as its bare id, so
  * approving it fails on the registry's own error rather than on a guess about
- * why it is missing; it also carries no package name, so it is approved
- * outside the workspace order.
+ * why it is missing. Its tarball still supplies the dependency graph if the
+ * registry serves it.
  */
 async function resolveStageItems (context: StageContext, stageIds: string[]): Promise<ApprovalItem[]> {
   return Promise.all(stageIds.map(async (stageId) => {
@@ -174,19 +171,18 @@ async function resolveStageItems (context: StageContext, stageIds: string[]): Pr
 
 async function approveStagedPackages (
   context: StageContext,
-  opts: StageOptions,
   items: ApprovalItem[]
 ): Promise<StageApproveResult> {
-  const order = await readWorkspaceApprovalOrder(opts)
+  const order = await readStageApprovalOrder(context, items)
   const sortedItems = sortStageItemsForApproval(items, order)
   const session = createStageOtpSession(context)
-  const unpublishedPackageNames = new Set<string>()
+  const unpublishedStageIds = new Set<string>()
   let approvedCount = 0
   for (const item of sortedItems) {
     const label = renderStageItemLabel(item)
-    const blockers = unavailableDependencies(item, unpublishedPackageNames, order)
+    const blockers = unavailableDependencies(item, unpublishedStageIds, order)
     if (blockers.length > 0) {
-      if (item.packageName) unpublishedPackageNames.add(item.packageName)
+      unpublishedStageIds.add(item.id)
       globalWarn(`Skipped ${label}, as it depends on ${blockers.join(', ')}, which could not be approved`)
       continue
     }
@@ -200,7 +196,7 @@ async function approveStagedPackages (
       // authentication failure or a broken connection applies to every
       // remaining version too, so it aborts the batch.
       if (!isStageRegistryError(err)) throw err
-      if (item.packageName) unpublishedPackageNames.add(item.packageName)
+      unpublishedStageIds.add(item.id)
       globalWarn(err.message)
     }
   }

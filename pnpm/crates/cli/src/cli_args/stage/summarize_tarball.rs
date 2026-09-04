@@ -14,10 +14,53 @@ use serde_json::Value;
 
 use super::StageError;
 
+struct TarballContents {
+    files: Vec<String>,
+    bundled: BTreeSet<String>,
+    manifest: Value,
+    unpacked_size: u64,
+}
+
 /// Parse a packed (gzipped or plain) tarball and return its
 /// [`PublishSummary`]. The tarball must contain a parseable
 /// `package/package.json` with a name and version.
 pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSummary> {
+    let TarballContents { mut files, bundled, manifest, unpacked_size } =
+        read_tarball_contents(tarball_data, true)?;
+
+    sort_paths_en_locale(&mut files);
+    let name = manifest_string(&manifest, "name");
+    let version = manifest_string(&manifest, "version");
+    let filename = create_tarball_filename(&name, &version, None)?;
+    let mut summary = create_publish_summary(
+        &PackedPkgInfo {
+            published_manifest: &manifest,
+            tarball_path: &filename,
+            contents: &files,
+            unpacked_size,
+        },
+        tarball_data,
+    );
+    // A registry-packed tarball's manifest carries an `_id`; prefer it over
+    // the derived `name@version`, matching pnpm's `summarizeTarball`.
+    if let Some(id) = manifest.get("_id").and_then(Value::as_str) {
+        id.clone_into(&mut summary.id);
+    }
+    if !bundled.is_empty() {
+        summary.bundled = bundled.into_iter().collect();
+    }
+    Ok(summary)
+}
+
+/// Read the published `package.json` held in a packed tarball.
+pub(super) fn read_tarball_manifest(tarball_data: &[u8]) -> miette::Result<Value> {
+    Ok(read_tarball_contents(tarball_data, false)?.manifest)
+}
+
+fn read_tarball_contents(
+    tarball_data: &[u8],
+    include_summary: bool,
+) -> miette::Result<TarballContents> {
     let tar_bytes = maybe_gunzip(tarball_data)?;
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
     let mut files: Vec<String> = Vec::new();
@@ -30,7 +73,7 @@ pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSu
     for entry in entries {
         let mut entry = entry.into_diagnostic().wrap_err("read a staged tarball entry")?;
         let path = String::from_utf8_lossy(&entry.path_bytes()).into_owned();
-        if entry.header().entry_type().is_file() {
+        if include_summary && entry.header().entry_type().is_file() {
             unpacked_size += entry.header().size().unwrap_or(0);
             files.push(path.strip_prefix("package/").unwrap_or(&path).to_owned());
             if let Some(name) = bundled_dependency_name(&path) {
@@ -55,26 +98,7 @@ pub(super) fn summarize_tarball(tarball_data: &[u8]) -> miette::Result<PublishSu
         return Err(StageError::TarballManifestNotFound.into());
     }
 
-    sort_paths_en_locale(&mut files);
-    let filename = create_tarball_filename(&name, &version, None)?;
-    let mut summary = create_publish_summary(
-        &PackedPkgInfo {
-            published_manifest: &manifest,
-            tarball_path: &filename,
-            contents: &files,
-            unpacked_size,
-        },
-        tarball_data,
-    );
-    // A registry-packed tarball's manifest carries an `_id`; prefer it over
-    // the derived `name@version`, matching pnpm's `summarizeTarball`.
-    if let Some(id) = manifest.get("_id").and_then(Value::as_str) {
-        id.clone_into(&mut summary.id);
-    }
-    if !bundled.is_empty() {
-        summary.bundled = bundled.into_iter().collect();
-    }
-    Ok(summary)
+    Ok(TarballContents { files, bundled, manifest, unpacked_size })
 }
 
 /// The safe tarball basename `<normalized-name>-<version>[-<suffix>].tgz`,

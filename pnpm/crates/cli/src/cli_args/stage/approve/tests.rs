@@ -1,11 +1,11 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use pretty_assertions::assert_eq;
 
 use serde_json::json;
 
 use super::{
-    StageApprovalItem, StageError, WorkspaceApprovalOrder, parse_stage_ids,
+    StageApprovalItem, StageApprovalOrder, StageError, manifest_for_graph, parse_stage_ids,
     sort_items_for_approval, unavailable_dependencies,
 };
 
@@ -20,30 +20,31 @@ fn item(id: &str, package_name: Option<&str>, version: Option<&str>) -> StageApp
     }
 }
 
-fn order(package_names: &[&str], dependencies: &[(&str, &[&str])]) -> WorkspaceApprovalOrder {
-    WorkspaceApprovalOrder {
-        order_index_by_package_name: package_names
+fn order(stage_ids: &[&str], dependencies: &[(&str, &[&str])]) -> StageApprovalOrder {
+    StageApprovalOrder {
+        order_indices: stage_ids
             .iter()
             .enumerate()
-            .map(|(order_index, name)| ((*name).to_owned(), order_index))
+            .map(|(order_index, stage_id)| ((*stage_id).to_owned(), order_index))
             .collect(),
-        dependency_names_by_package_name: dependencies
+        dependency_stage_ids: dependencies
             .iter()
-            .map(|(name, deps)| {
-                ((*name).to_owned(), deps.iter().map(|dep| (*dep).to_owned()).collect())
+            .map(|(stage_id, deps)| {
+                ((*stage_id).to_owned(), deps.iter().map(|dep| (*dep).to_owned()).collect())
             })
             .collect(),
+        package_names: HashMap::from([("id-dependency".to_owned(), "dependency".to_owned())]),
     }
 }
 
 #[test]
-fn workspace_dependencies_are_approved_before_their_dependents() {
+fn selected_dependencies_are_approved_before_their_dependents() {
     let items = vec![
         item("id-dependent", Some("dependent"), Some("1.0.0")),
         item("id-dependency", Some("dependency"), Some("1.0.0")),
     ];
-    let order = order(&["dependency", "dependent"], &[("dependent", &["dependency"])]);
-    let sorted = sort_items_for_approval(items, Some(&order));
+    let order = order(&["id-dependency", "id-dependent"], &[("id-dependent", &["id-dependency"])]);
+    let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
         sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
         ["id-dependency", "id-dependent"],
@@ -51,62 +52,50 @@ fn workspace_dependencies_are_approved_before_their_dependents() {
 }
 
 #[test]
-fn packages_outside_the_workspace_keep_their_order_after_the_workspace_ones() {
+fn packages_without_dependencies_keep_their_selection_order() {
     let items = vec![
         item("id-external", Some("external"), Some("1.0.0")),
         item("id-unlisted", None, None),
         item("id-dependency", Some("dependency"), Some("1.0.0")),
     ];
-    let order = order(&["dependency"], &[]);
-    let sorted = sort_items_for_approval(items, Some(&order));
+    let order = order(&["id-external", "id-unlisted", "id-dependency"], &[]);
+    let sorted = sort_items_for_approval(items, &order);
     assert_eq!(
         sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
-        ["id-dependency", "id-external", "id-unlisted"],
-    );
-}
-
-#[test]
-fn selection_order_is_kept_outside_a_workspace() {
-    let items = vec![
-        item("id-dependent", Some("dependent"), Some("1.0.0")),
-        item("id-dependency", Some("dependency"), Some("1.0.0")),
-    ];
-    let sorted = sort_items_for_approval(items, None);
-    assert_eq!(
-        sorted.iter().map(|item| item.id.as_str()).collect::<Vec<_>>(),
-        ["id-dependent", "id-dependency"],
+        ["id-external", "id-unlisted", "id-dependency"],
     );
 }
 
 #[test]
 fn a_dependent_of_an_unpublished_package_is_blocked() {
-    let order = order(&["dependency", "dependent"], &[("dependent", &["dependency"])]);
-    let unpublished: HashSet<String> = std::iter::once("dependency".to_owned()).collect();
+    let order = order(&["id-dependency", "id-dependent"], &[("id-dependent", &["id-dependency"])]);
+    let unpublished: HashSet<String> = std::iter::once("id-dependency".to_owned()).collect();
     assert_eq!(
         unavailable_dependencies(
-            &item("id", Some("dependent"), Some("1.0.0")),
+            &item("id-dependent", Some("dependent"), Some("1.0.0")),
             &unpublished,
-            Some(&order)
+            &order,
         ),
         ["dependency"],
     );
     assert!(
         unavailable_dependencies(
-            &item("id", Some("dependency"), Some("1.0.0")),
+            &item("id-dependency", Some("dependency"), Some("1.0.0")),
             &unpublished,
-            Some(&order),
+            &order,
         )
         .is_empty(),
     );
 }
 
 #[test]
-fn nothing_is_blocked_without_workspace_knowledge() {
-    let unpublished: HashSet<String> = std::iter::once("dependency".to_owned()).collect();
-    assert!(
-        unavailable_dependencies(&item("id", Some("dependent"), Some("1.0.0")), &unpublished, None)
-            .is_empty(),
-    );
+fn published_npm_aliases_are_resolved_to_their_real_package_names() {
+    let manifest = manifest_for_graph(json!({
+        "name": "dependent",
+        "version": "1.0.0",
+        "dependencies": { "local-name": "npm:dependency@^1.0.0" },
+    }));
+    assert_eq!(manifest["dependencies"], json!({ "dependency": "^1.0.0" }));
 }
 
 #[test]
@@ -158,8 +147,8 @@ fn a_described_staged_version_is_stripped_of_terminal_control_characters() {
     assert_eq!(described.choice(), "foo@1.0.0[2K (by zkochan)");
 }
 
-/// A name only npm would reject carries no workspace identity: sanitizing it
-/// must not be what makes it match a workspace package.
+/// Sanitizing registry-controlled text must not turn an invalid package name
+/// into one displayed as valid.
 #[test]
 fn a_described_staged_version_with_an_invalid_package_name_carries_no_name() {
     let described = StageApprovalItem::from_value(&json!({

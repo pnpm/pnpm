@@ -36,7 +36,13 @@ fn pacquet(workspace: &Path) -> Command {
 }
 
 fn stage(workspace: &Path, args: &[&str]) -> std::process::Output {
-    pacquet(workspace).with_arg("stage").with_args(args).output().expect("spawn pacquet stage")
+    let mut command = pacquet(workspace);
+    if let Ok(npmrc) = fs::read_to_string(workspace.join(".npmrc"))
+        && let Some(registry) = npmrc.lines().find_map(|line| line.strip_prefix("registry="))
+    {
+        command.env("PNPM_CONFIG_REGISTRY", registry);
+    }
+    command.with_arg("stage").with_args(args).output().expect("spawn pacquet stage")
 }
 
 fn write_project(dir: &Path, registry: &str, manifest: &Value) {
@@ -253,6 +259,20 @@ fn approve_shares_one_one_time_password_across_a_batch() {
                     .create()
             })
             .collect();
+    let tarball_mocks: Vec<mockito::Mock> =
+        [(STAGE_ID, "@scope/first"), (SECOND_STAGE_ID, "@scope/second")]
+            .into_iter()
+            .map(|(stage_id, package_name)| {
+                server
+                    .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
+                    .with_body(package_tarball(&json!({
+                        "name": package_name,
+                        "version": "1.0.0",
+                    })))
+                    .expect(1)
+                    .create()
+            })
+            .collect();
     let approve_mocks: Vec<mockito::Mock> = [STAGE_ID, SECOND_STAGE_ID]
         .into_iter()
         .map(|stage_id| {
@@ -271,7 +291,7 @@ fn approve_shares_one_one_time_password_across_a_batch() {
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    for mock in described_mocks.iter().chain(&approve_mocks) {
+    for mock in described_mocks.iter().chain(&tarball_mocks).chain(&approve_mocks) {
         mock.assert();
     }
     assert_success(&output);
@@ -281,38 +301,14 @@ fn approve_shares_one_one_time_password_across_a_batch() {
     );
 }
 
-/// A workspace whose `@scope/dependent` package depends on its
-/// `@scope/dependency` package.
-fn write_workspace_with_dependency(dir: &Path, registry: &str) {
-    write_registry_config(dir, registry);
-    fs::write(dir.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
-        .expect("write pnpm-workspace.yaml");
-    for (location, manifest) in [
-        ("dependency", json!({ "name": "@scope/dependency", "version": "1.0.0" })),
-        (
-            "dependent",
-            json!({
-                "name": "@scope/dependent",
-                "version": "1.0.0",
-                "dependencies": { "@scope/dependency": "workspace:*" },
-            }),
-        ),
-    ] {
-        let package_dir = dir.join("packages").join(location);
-        fs::create_dir_all(&package_dir).expect("create the package directory");
-        fs::write(package_dir.join("package.json"), manifest.to_string())
-            .expect("write package.json");
-    }
-}
-
 /// The dependency is approved first, so a dependency that never reaches the
 /// registry keeps its dependent from being published against it.
 #[test]
-fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approved() {
+fn approve_skips_a_staged_package_whose_selected_dependency_could_not_be_approved() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_workspace_with_dependency(dir.path(), &registry);
+    write_registry_config(dir.path(), &registry);
     let described_mocks: Vec<mockito::Mock> =
         [(STAGE_ID, "@scope/dependent"), (SECOND_STAGE_ID, "@scope/dependency")]
             .into_iter()
@@ -324,6 +320,29 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
                     .create()
             })
             .collect();
+    let tarball_mocks = [
+        (
+            STAGE_ID,
+            package_tarball(&json!({
+                "name": "@scope/dependent",
+                "version": "1.0.0",
+                "dependencies": { "@scope/dependency": "^1.0.0" },
+            })),
+        ),
+        (
+            SECOND_STAGE_ID,
+            package_tarball(&json!({ "name": "@scope/dependency", "version": "1.0.0" })),
+        ),
+    ]
+    .into_iter()
+    .map(|(stage_id, tarball)| {
+        server
+            .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
+            .with_body(tarball)
+            .expect(1)
+            .create()
+    })
+    .collect::<Vec<_>>();
     let dependency_mock = server
         .mock("POST", format!("/-/stage/{SECOND_STAGE_ID}/approve").as_str())
         .with_status(409)
@@ -338,7 +357,7 @@ fn approve_skips_a_staged_package_whose_workspace_dependency_could_not_be_approv
         &["approve", STAGE_ID, SECOND_STAGE_ID, "--otp", "123456", "--reporter=silent"],
     );
 
-    for mock in &described_mocks {
+    for mock in described_mocks.iter().chain(&tarball_mocks) {
         mock.assert();
     }
     dependency_mock.assert();
@@ -576,6 +595,11 @@ fn gzipped_tarball(entries: &[(&str, &str)]) -> Vec<u8> {
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
     encoder.write_all(&tar).expect("gzip the tarball");
     encoder.finish().expect("finish the gzip stream")
+}
+
+fn package_tarball(manifest: &Value) -> Vec<u8> {
+    let manifest = manifest.to_string();
+    gzipped_tarball(&[("package/package.json", &manifest)])
 }
 
 // --------------------------------------------------------------------

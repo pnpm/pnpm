@@ -297,25 +297,7 @@ impl StageArgs {
     async fn stage_download(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "download")?;
         let context = self.stage_context(config, None)?;
-        let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
-        let action = format!("download staged package {stage_id}");
-        let (_guard, response) = stage_send(&context, reqwest::Method::GET, url.as_str(), None)
-            .await
-            .map_err(|source| request_failed(&action, source))?;
-        if !response.status().is_success() {
-            return Err(registry_error_from_response(response, &action).await.into());
-        }
-        let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
-            .await
-            .map_err(|source| request_failed(&action, source))?;
-        if tarball_data.truncated {
-            return Err(StageError::RequestFailed {
-                operation: action,
-                reason: format!("registry response exceeded {STAGE_TARBALL_BODY_LIMIT} bytes"),
-            }
-            .into());
-        }
-        let tarball_data = tarball_data.bytes;
+        let tarball_data = fetch_stage_tarball(&context, stage_id).await?;
 
         let mut summary = summarize_tarball(&tarball_data)?;
         let filename = create_tarball_filename(&summary.name, &summary.version, Some(stage_id))?;
@@ -386,6 +368,29 @@ impl StageArgs {
             },
         })
     }
+}
+
+/// Download one staged package without writing it to disk.
+async fn fetch_stage_tarball(context: &StageContext, stage_id: &str) -> miette::Result<Vec<u8>> {
+    let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
+    let action = format!("download staged package {stage_id}");
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None)
+        .await
+        .map_err(|source| request_failed(&action, source))?;
+    if !response.status().is_success() {
+        return Err(registry_error_from_response(response, &action).await.into());
+    }
+    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
+        .await
+        .map_err(|source| request_failed(&action, source))?;
+    if tarball_data.truncated {
+        return Err(StageError::RequestFailed {
+            operation: action,
+            reason: format!("registry response exceeded {STAGE_TARBALL_BODY_LIMIT} bytes"),
+        }
+        .into());
+    }
+    Ok(tarball_data.bytes)
 }
 
 struct StageContext {

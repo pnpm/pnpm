@@ -7,13 +7,24 @@ import tar from 'tar-stream'
 import { extractBundledDependencies, type PublishSummary } from './publishSummary.js'
 import { createTarballFilename } from './safeTarballFilename.js'
 
-interface TarballManifest {
+export interface TarballManifest {
   _id?: string
   name?: string
   version?: string
   bundledDependencies?: unknown
   bundleDependencies?: unknown
   dependencies?: Record<string, unknown>
+  devDependencies?: Record<string, unknown>
+  optionalDependencies?: Record<string, unknown>
+  peerDependencies?: Record<string, unknown>
+}
+
+interface TarballContents {
+  bundled: Set<string>
+  entryCount: number
+  files: Array<{ path: string }>
+  manifest: TarballManifest
+  unpackedSize: number
 }
 
 /**
@@ -27,6 +38,30 @@ interface TarballManifest {
  *   does not contain `package/package.json`, or when that file is unparseable JSON.
  */
 export async function summarizeTarball (tarballData: Buffer): Promise<PublishSummary> {
+  const { bundled, entryCount, files, manifest, unpackedSize } = await readTarballContents(tarballData, true)
+
+  files.sort((a, b) => a.path.localeCompare(b.path, 'en'))
+  return {
+    id: manifest._id ?? `${manifest.name}@${manifest.version}`,
+    name: manifest.name!,
+    version: manifest.version!,
+    size: tarballData.byteLength,
+    unpackedSize,
+    shasum: createHash('sha1').update(tarballData).digest('hex'),
+    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
+    filename: createTarballFilename({ name: manifest.name!, version: manifest.version! }),
+    files,
+    entryCount,
+    bundled: bundled.size > 0 ? Array.from(bundled).sort() : extractBundledDependencies(manifest),
+  }
+}
+
+/** Read the published package.json held in a packed tarball. */
+export async function readTarballManifest (tarballData: Buffer): Promise<TarballManifest> {
+  return (await readTarballContents(tarballData, false)).manifest
+}
+
+async function readTarballContents (tarballData: Buffer, includeSummary: boolean): Promise<TarballContents> {
   const extract = tar.extract()
   const files: Array<{ path: string }> = []
   const bundled = new Set<string>()
@@ -37,7 +72,7 @@ export async function summarizeTarball (tarballData: Buffer): Promise<PublishSum
   await new Promise<void>((resolve, reject) => {
     extract.on('entry', (header, stream, next) => {
       const chunks: Buffer[] = []
-      if (header.type === 'file') {
+      if (includeSummary && header.type === 'file') {
         entryCount++
         unpackedSize += header.size ?? 0
         files.push({ path: header.name.replace(/^package\//, '') })
@@ -72,19 +107,12 @@ export async function summarizeTarball (tarballData: Buffer): Promise<PublishSum
     throw new PnpmError('STAGE_TARBALL_MANIFEST_NOT_FOUND', 'Could not read package.json from tarball')
   }
 
-  files.sort((a, b) => a.path.localeCompare(b.path, 'en'))
   return {
-    id: manifest._id ?? `${manifest.name}@${manifest.version}`,
-    name: manifest.name,
-    version: manifest.version,
-    size: tarballData.byteLength,
-    unpackedSize,
-    shasum: createHash('sha1').update(tarballData).digest('hex'),
-    integrity: `sha512-${createHash('sha512').update(tarballData).digest('base64')}`,
-    filename: createTarballFilename({ name: manifest.name, version: manifest.version }),
-    files,
+    bundled,
     entryCount,
-    bundled: bundled.size > 0 ? Array.from(bundled).sort() : extractBundledDependencies(manifest),
+    files,
+    manifest,
+    unpackedSize,
   }
 }
 

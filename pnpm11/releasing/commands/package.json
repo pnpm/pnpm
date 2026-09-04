@@ -70,7 +70,6 @@
     "@pnpm/types": "workspace:*",
     "@pnpm/workspace.projects-filter": "workspace:*",
     "@pnpm/workspace.projects-graph": "workspace:*",
-    "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.projects-sorter": "workspace:*",
     "@pnpm/workspace.task-scheduler": "workspace:*",
     "@pnpm/workspace.workspace-manifest-writer": "workspace:*",

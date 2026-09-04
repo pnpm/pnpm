@@ -69,18 +69,18 @@ See [#13578](https://github.com/pnpm/pnpm/issues/13578).
 6. After the workflow finishes, approve the staged npm packages. The TypeScript
    pnpm release stages `@pnpm/exe` and then `pnpm`. The Rust pnpm release
    stages its native packages, then its `@pnpm/napi` and `@pnpm/exe` wrappers, and finally
-   `pnpm`. Approve them from a maintainer's machine, from a checkout of this
-   repository so the staged packages are approved in workspace dependency
-   order:
+   `pnpm`. Approve them from a maintainer's machine:
 
    ```bash
    pnpm stage approve
    ```
 
-   The command lists every staged version, approves the ones selected in the
-   picker, and stops before publishing a package whose workspace dependency
-   failed to be approved. Passing the stage IDs from the completed job's
-   summary (`pnpm stage approve <stage-id> ...`) approves that set instead.
+   The command lists every staged version and approves the ones selected in the
+   picker. It downloads the selected tarballs first and reads their published
+   manifests to determine dependency order. It stops before publishing a
+   package whose selected dependency failed to be approved. Passing the stage
+   IDs from the completed job's summary (`pnpm stage approve <stage-id> ...`)
+   approves that set instead.
 
    Approval requires interactive 2FA, once for the whole selection — pnpm asks
    for another one-time password only when the registry stops accepting the

@@ -3,7 +3,7 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { describe, expect, test } from '@jest/globals'
-import { prepare, preparePackages, tempDir } from '@pnpm/prepare'
+import { prepare } from '@pnpm/prepare'
 import { stage } from '@pnpm/releasing.commands'
 import { overrideTty, REGISTRY_URL } from '@pnpm/testing.command-defaults'
 import { getRegistryMockToken, REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -388,6 +388,7 @@ describe('stage command against the registry mock', () => {
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-batch-b', version: '1.0.0' },
       { id: THIRD_STAGE_ID, packageName: '@pnpmtest/stage-batch-c', version: '1.0.0' },
     ]
+    const tarballs = await createStageTarballs(items)
     const passwordsByStageId = new Map<string, Array<string | undefined>>()
     let baseUrl = ''
     let acceptedOtp = 'otp-1'
@@ -397,6 +398,8 @@ describe('stage command against the registry mock', () => {
         const item = items.find(({ id }) => id === describedStageIdOfRequest)
         return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
       if (request.method === 'GET' && request.url.pathname === '/-/v1/done') {
         return { status: 200, body: { token: acceptedOtp } }
       }
@@ -441,12 +444,15 @@ describe('stage command against the registry mock', () => {
       { id: STAGE_ID, packageName: '@pnpmtest/stage-failing', version: '1.0.0' },
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-passing', version: '1.0.0' },
     ]
+    const tarballs = await createStageTarballs(items)
     const registry = await createRegistry((request) => {
       const describedStageIdOfRequest = describedStageId(request)
       if (describedStageIdOfRequest) {
         const item = items.find(({ id }) => id === describedStageIdOfRequest)
         return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
       const stageId = approvedStageId(request)
       if (stageId === STAGE_ID) return { status: 409, body: { error: 'version already exists' } }
       if (stageId === SECOND_STAGE_ID) return { status: 201, body: { ok: true } }
@@ -464,12 +470,14 @@ describe('stage command against the registry mock', () => {
     }
   })
 
-  test('stage approve publishes workspace dependencies before their dependents', async () => {
-    const workspaceDir = prepareWorkspaceWithDependency()
+  test('stage approve downloads every package and publishes dependencies before their dependents', async () => {
     const items = [
       { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
     ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: { dependencies: { '@pnpmtest/stage-dependency': '^1.0.0' } },
+    })
     const approved: string[] = []
     const registry = await createRegistry((request) => {
       const describedStageIdOfRequest = describedStageId(request)
@@ -477,6 +485,8 @@ describe('stage command against the registry mock', () => {
         const item = items.find(({ id }) => id === describedStageIdOfRequest)
         return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
       const stageId = approvedStageId(request)
       if (stageId) {
         approved.push(stageId)
@@ -488,24 +498,26 @@ describe('stage command against the registry mock', () => {
       const result = await stage.handler({
         ...stageOpts(registry.url),
         cliOptions: { otp: '123456' },
-        dir: workspaceDir,
         otp: '123456',
-        workspaceDir,
-        workspacePackagePatterns: ['packages/*'],
       }, ['approve', STAGE_ID, SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
       expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
+      const firstApproval = registry.requests.findIndex((request) => approvedStageId(request) != null)
+      expect(registry.requests.filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
+      expect(registry.requests.slice(0, firstApproval).filter((request) => downloadedStageId(request) != null)).toHaveLength(2)
     } finally {
       await registry.close()
     }
   })
 
-  test('stage approve skips a staged package whose workspace dependency could not be approved', async () => {
-    const workspaceDir = prepareWorkspaceWithDependency()
+  test('stage approve skips a staged package whose selected dependency could not be approved', async () => {
     const items = [
       { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
       { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency', version: '1.0.0' },
     ]
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: { dependencies: { '@pnpmtest/stage-dependency': '^1.0.0' } },
+    })
     const approveAttempts: string[] = []
     const registry = await createRegistry((request) => {
       const describedStageIdOfRequest = describedStageId(request)
@@ -513,6 +525,8 @@ describe('stage command against the registry mock', () => {
         const item = items.find(({ id }) => id === describedStageIdOfRequest)
         return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
       const stageId = approvedStageId(request)
       if (stageId) {
         approveAttempts.push(stageId)
@@ -524,10 +538,7 @@ describe('stage command against the registry mock', () => {
       const result = await stage.handler({
         ...stageOpts(registry.url),
         cliOptions: { otp: '123456' },
-        dir: workspaceDir,
         otp: '123456',
-        workspaceDir,
-        workspacePackagePatterns: ['packages/*'],
       }, ['approve', STAGE_ID, SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 1, output: 'Approved 0 of 2 staged packages.' })
       // The dependency is attempted (and retried by the registry client); the
@@ -588,13 +599,18 @@ describe('stage command against the registry mock', () => {
     }
   })
 
-  test('stage approve treats a package name the registry made up as no name at all', async () => {
+  test('stage approve derives package identity from the tarball instead of registry metadata', async () => {
     const items = [
-      { id: STAGE_ID, packageName: '@pnpmtest/stage-dependent', version: '1.0.0' },
-      // The dependency's name only looks like the workspace package's.
-      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/stage-dependency\u202E', version: '1.0.0' },
+      { id: STAGE_ID, packageName: '@pnpmtest/not-the-dependent', version: '1.0.0' },
+      { id: SECOND_STAGE_ID, packageName: '@pnpmtest/not-the-dependency', version: '1.0.0' },
     ]
-    const workspaceDir = prepareWorkspaceWithDependency()
+    const tarballs = await createStageTarballs(items, {
+      [STAGE_ID]: {
+        name: '@pnpmtest/stage-dependent',
+        dependencies: { '@pnpmtest/stage-dependency': 'npm:@pnpmtest/stage-dependency@1.0.0' },
+      },
+      [SECOND_STAGE_ID]: { name: '@pnpmtest/stage-dependency' },
+    })
     const approved: string[] = []
     const registry = await createRegistry((request) => {
       const describedStageIdOfRequest = describedStageId(request)
@@ -602,6 +618,8 @@ describe('stage command against the registry mock', () => {
         const item = items.find(({ id }) => id === describedStageIdOfRequest)
         return item ? { status: 200, body: item } : { status: 404, body: { error: 'not found' } }
       }
+      const downloadedStageIdOfRequest = downloadedStageId(request)
+      if (downloadedStageIdOfRequest) return stagedTarballResponse(tarballs, downloadedStageIdOfRequest)
       const stageId = approvedStageId(request)
       if (stageId) {
         approved.push(stageId)
@@ -613,15 +631,10 @@ describe('stage command against the registry mock', () => {
       const result = await stage.handler({
         ...stageOpts(registry.url),
         cliOptions: { otp: '123456' },
-        dir: workspaceDir,
         otp: '123456',
-        workspaceDir,
-        workspacePackagePatterns: ['packages/*'],
       }, ['approve', STAGE_ID, SECOND_STAGE_ID])
       expect(result).toStrictEqual({ exitCode: 0, output: 'Approved 2 staged packages successfully.' })
-      // Without a workspace identity it sorts after the workspace packages
-      // instead of ahead of the dependent it resembles.
-      expect(approved).toEqual([STAGE_ID, SECOND_STAGE_ID])
+      expect(approved).toEqual([SECOND_STAGE_ID, STAGE_ID])
     } finally {
       await registry.close()
     }
@@ -720,27 +733,10 @@ function approvedStageId (request: RegistryRequest): string | undefined {
   return match?.[1]
 }
 
-/**
- * A workspace whose `@pnpmtest/stage-dependent` package depends on its
- * `@pnpmtest/stage-dependency` package. Returns the workspace root.
- */
-function prepareWorkspaceWithDependency (): string {
-  const workspaceDir = tempDir()
-  preparePackages([
-    {
-      location: 'packages/dependency',
-      package: { name: '@pnpmtest/stage-dependency', version: '1.0.0' },
-    },
-    {
-      location: 'packages/dependent',
-      package: {
-        name: '@pnpmtest/stage-dependent',
-        version: '1.0.0',
-        dependencies: { '@pnpmtest/stage-dependency': 'workspace:*' },
-      },
-    },
-  ], { tempDir: path.join(workspaceDir, 'project') })
-  return workspaceDir
+function downloadedStageId (request: RegistryRequest): string | undefined {
+  if (request.method !== 'GET') return undefined
+  const match = /^\/-\/stage\/([^/]+)\/tarball$/.exec(request.url.pathname)
+  return match?.[1]
 }
 
 function configByUri (): Record<string, Record<string, { authToken: string }>> {
@@ -797,7 +793,28 @@ async function createRegistry (handler: RegistryHandler): Promise<{ close: () =>
   }
 }
 
-function createPackageTarball (manifest: { name: string, version: string }): Promise<Buffer> {
+async function createStageTarballs (
+  items: Array<{ id: string, packageName: string, version: string }>,
+  manifestOverrides: Record<string, Record<string, unknown>> = {}
+): Promise<Map<string, Buffer>> {
+  return new Map(await Promise.all(items.map(async (item) => [
+    item.id,
+    await createPackageTarball({
+      name: item.packageName,
+      version: item.version,
+      ...manifestOverrides[item.id],
+    }),
+  ] as const)))
+}
+
+function stagedTarballResponse (tarballs: Map<string, Buffer>, stageId: string): RegistryResponse {
+  const tarball = tarballs.get(stageId)
+  return tarball
+    ? { status: 200, body: tarball, headers: { 'content-type': 'application/octet-stream' } }
+    : { status: 404, body: { error: 'not found' } }
+}
+
+function createPackageTarball (manifest: Record<string, unknown> & { name: string, version: string }): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const pack = tar.pack()
     const chunks: Buffer[] = []
