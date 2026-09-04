@@ -7,11 +7,6 @@
 //! query for a guaranteed-not-to-exist string returns "No packages
 //! found", which an upstream proxy can't guarantee because npm's
 //! search returns dozens of fuzzy matches for almost anything.
-//!
-//! Package-name searches count matching storage names without loading every
-//! packument, then load metadata only for the requested page. Maintainer
-//! searches inspect packuments because pnpr does not maintain a separate
-//! ownership index.
 
 use pnpr_error::Result;
 use pnpr_package_name::PackageName;
@@ -113,9 +108,6 @@ pub fn parse_from(query_string: &str) -> usize {
     0
 }
 
-/// Return the sorted package names that match one hosted search source. A
-/// package-name query needs only the storage listing. A maintainer query reads
-/// candidate packuments because that metadata is not indexed separately.
 pub async fn local_search_names(
     storage: &Storage,
     query: &SearchText,
@@ -148,9 +140,6 @@ pub async fn local_search_names(
     Ok(matches)
 }
 
-/// Build the npm search object for one already-selected hosted package. A
-/// package can disappear or become malformed between listing and reading; the
-/// minimal object preserves stable pagination without inventing metadata.
 pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
     let entry = async {
         let parsed = PackageName::parse(name).ok()?;
