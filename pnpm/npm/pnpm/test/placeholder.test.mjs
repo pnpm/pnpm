@@ -1,11 +1,156 @@
+// Exercises the `pnpm` placeholder bin the way a script-less install leaves it:
+// the install script never replaced it with the native binary, so it is what
+// runs — as an `sh` script, since it carries no shebang for the kernel to read.
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
-import { test } from 'node:test'
+import process from 'node:process'
+import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-const wrapperDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 
-test('the placeholder is not a Node.js script', () => {
-  assert.doesNotMatch(fs.readFileSync(path.join(wrapperDir, 'pnpm'), 'utf8'), /^#!/)
+const WRAPPER_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const WRAPPER_FILES = ['pnpm', 'native-binary.mjs', 'bin/pnpm.mjs']
+const FAKE_BINARY_OUTPUT = /^installed: --version\n$/
+
+const IS_UNIX = process.platform !== 'win32'
+// Windows runs neither the placeholder nor the stand-in for the native binary:
+// it has no ENOEXEC fallback for an extension-less file, and no `sh`.
+const RUNS_THE_PLACEHOLDER = !IS_UNIX && 'Windows cannot run an extension-less file'
+
+describe('placeholder bin', () => {
+  // The constraint the whole file exists under: a bin shim generated from a
+  // shebang records that interpreter, and pnpm 11 generates the shim before it
+  // puts the native binary at this path.
+  it('carries no shebang', () => {
+    assert.doesNotMatch(fs.readFileSync(path.join(WRAPPER_DIR, 'pnpm'), 'utf8'), /^#!/)
+  })
+
+  it('parses as an sh script', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const result = await run('sh', ['-n', path.join(WRAPPER_DIR, 'pnpm')])
+    assert.equal(result.status, 0, result.stderr)
+  })
+
+  it('runs the installed native binary', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const fixture = createFixture()
+
+    const result = await run(fixture.placeholder, ['--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+    // Not a terminal, so no notice.
+    assert.equal(result.stderr, '')
+    assert.equal(fs.readFileSync(fixture.placeholder, 'utf8'), fs.readFileSync(path.join(WRAPPER_DIR, 'pnpm'), 'utf8'))
+  })
+
+  // How pnpm links a bin when it symlinks executables, which is what pnpm 10
+  // does for the version store it delegates a `packageManager` pin to.
+  it('runs from a symlink to itself', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const fixture = createFixture()
+    const binDir = path.join(fixture.dir, 'node_modules', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const link = path.join(binDir, 'pnpm')
+    fs.symlinkSync(path.relative(binDir, fixture.placeholder), link)
+
+    const result = await run(link, ['--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  // What a bin linker writes for a target with no shebang, and the shape pnpm 11
+  // leaves behind: an `exec` of the file itself, so the same shim keeps working
+  // once the native binary takes its place.
+  it('runs from a bin shim that execs it', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const fixture = createFixture()
+    const binDir = path.join(fixture.dir, 'node_modules', '.bin')
+    fs.mkdirSync(binDir, { recursive: true })
+    const shim = path.join(binDir, 'pnpm')
+    fs.writeFileSync(shim, `#!/bin/sh\nbasedir=$(dirname "$0")\nexec "$basedir/${path.relative(binDir, fixture.placeholder)}" "$@"\n`, { mode: 0o755 })
+
+    const result = await run(shim, ['--version'])
+    assert.equal(result.status, 0, result.stderr)
+    assert.match(result.stdout, FAKE_BINARY_OUTPUT)
+  })
+
+  it('hands over to the entry point when no platform package is installed', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const fixture = createFixture({ installPlatformPackage: false })
+
+    const result = await run(fixture.placeholder, ['--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
+  })
+
+  // A project the wrapper sits under can hold anything under the platform
+  // package's name; only what was installed with the wrapper is its binary.
+  it('does not run a platform package from an ancestor node_modules', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+    const fixture = createFixture({ installPlatformPackage: false, nestedUnder: ['node_modules', 'tool', 'node_modules'] })
+    writePlatformPackage(path.join(fixture.dir, 'node_modules'))
+
+    const result = await run(fixture.placeholder, ['--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /Network access is disabled/)
+    assert.doesNotMatch(result.stdout, FAKE_BINARY_OUTPUT)
+  })
 })
+
+/**
+ * Spawn `command` with `args`, `env` overriding the inherited environment.
+ * Resolves once the child has exited, with its exit status and decoded output;
+ * rejects only if it could not be spawned.
+ *
+ * @returns {Promise<{status: number | null, stdout: string, stderr: string}>}
+ */
+function run (command, args, env) {
+  const child = spawn(command, args, { env: { ...process.env, ...env } })
+
+  let stdout = ''
+  let stderr = ''
+  child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk })
+  child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk })
+
+  return new Promise((resolve, reject) => {
+    child.on('error', reject)
+    child.on('close', (status) => { resolve({ status, stdout, stderr }) })
+  })
+}
+
+/**
+ * A wrapper directory as a script-less install leaves it: the placeholder still
+ * in place, and — unless told otherwise — the platform package that carries the
+ * binary installed in the wrapper's own `node_modules`, since only the scripts
+ * were skipped. `nestedUnder` places the wrapper that many directories below
+ * the fixture root, which then stands for a project the wrapper sits under.
+ */
+function createFixture ({ installPlatformPackage = true, nestedUnder = [] } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-placeholder-'))
+  after(() => fs.rmSync(dir, { force: true, recursive: true }))
+  const wrapperDir = path.join(dir, ...nestedUnder, nestedUnder.length > 0 ? 'pnpm' : '')
+
+  for (const file of WRAPPER_FILES) {
+    fs.mkdirSync(path.dirname(path.join(wrapperDir, file)), { recursive: true })
+    fs.copyFileSync(path.join(WRAPPER_DIR, file), path.join(wrapperDir, file))
+  }
+  fs.chmodSync(path.join(wrapperDir, 'pnpm'), 0o755)
+  fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({ name: 'pnpm', version: '99.0.0' }))
+
+  if (installPlatformPackage) {
+    writePlatformPackage(path.join(wrapperDir, 'node_modules'))
+  }
+
+  return { dir, placeholder: path.join(wrapperDir, 'pnpm') }
+}
+
+/**
+ * Create the host's `@pnpm/exe.<target>` package under `modulesDir` (created if
+ * missing): a manifest and the stand-in binary, an executable `sh` script.
+ * Filesystem errors propagate.
+ */
+function writePlatformPackage (modulesDir) {
+  const { packageName, binFile } = splitBinSpecifier(getBinCandidates()[0])
+  const packageDir = path.join(modulesDir, packageName)
+  fs.mkdirSync(packageDir, { recursive: true })
+  fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: packageName, version: '99.0.0' }))
+  fs.writeFileSync(path.join(packageDir, binFile), '#!/bin/sh\necho "installed: $*"\n', { mode: 0o755 })
+}
