@@ -21,6 +21,9 @@ use std::{
 #[cfg(unix)]
 use std::os::unix::fs::{PermissionsExt, symlink};
 
+#[cfg(windows)]
+use super::ensure_workspace_directory_windows;
+
 #[test]
 fn parses_crates_io_packages_and_ignores_workspace_packages() {
     let lockfile = r#"
@@ -391,4 +394,41 @@ fn crate_link_stays_in_the_directory_pinned_before_a_parent_swap() {
         fs::read_link(pinned_path.join("example-1.0.0")).unwrap(),
         pnpm_fs::relative_path(&source_path, slot.path()),
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn crate_link_does_not_overwrite_a_nonempty_stale_backup() {
+    let workspace = tempfile::tempdir().unwrap();
+    let slot = tempfile::tempdir().unwrap();
+    let source_path = workspace.path().join(".pnpm/crates/crates-io");
+    let stale_backup = source_path.join(".ignored_example-1.0.0");
+    fs::create_dir_all(source_path.join("example-1.0.0")).unwrap();
+    fs::create_dir(&stale_backup).unwrap();
+    fs::write(stale_backup.join("keep"), "unchanged").unwrap();
+
+    link_workspace(workspace.path(), &[("example-1.0.0".to_string(), slot.path().to_path_buf())])
+        .unwrap();
+
+    assert_eq!(fs::read_to_string(stale_backup.join("keep")).unwrap(), "unchanged");
+    assert_eq!(
+        fs::read_link(source_path.join("example-1.0.0")).unwrap(),
+        pnpm_fs::relative_path(&source_path, slot.path()),
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn rejects_a_reparse_point_swapped_into_the_workspace_root() {
+    let parent = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let swapped_root = parent.path().join("workspace");
+    pnpm_fs::symlink_dir(outside.path(), &swapped_root).unwrap();
+
+    let error = ensure_workspace_directory_windows(swapped_root, &[])
+        .err()
+        .expect("a reparse-point workspace root must be rejected")
+        .to_string();
+
+    assert!(error.contains("must be a real directory"), "{error}");
 }

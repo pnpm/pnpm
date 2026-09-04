@@ -708,11 +708,21 @@ fn ensure_workspace_directory_windows(
     root: PathBuf,
     components: &[&str],
 ) -> Result<ManagedDirectory> {
-    let mut handles = vec![
-        open_pinned_windows_directory(&root)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("open Cargo workspace directory {}", root.display()))?,
-    ];
+    let root_handle = open_pinned_windows_directory(&root)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("open Cargo workspace directory {}", root.display()))?;
+    let root_metadata = root_handle
+        .metadata()
+        .into_diagnostic()
+        .wrap_err_with(|| format!("inspect Cargo workspace directory {}", root.display()))?;
+    if !root_metadata.is_dir() || is_windows_reparse_point(&root_metadata) {
+        let root = root.display();
+        return Err(miette::miette!(
+            "managed Cargo workspace directory {} must be a real directory",
+            root,
+        ));
+    }
+    let mut handles = vec![root_handle];
     let mut path = root;
     for component in components {
         path.push(component);
@@ -923,7 +933,12 @@ fn force_workspace_symlink(
                 }
             }
             Err(error) if error.raw_os_error() == Some(libc::EINVAL) => {
-                let ignored = std::ffi::CString::new(format!(".ignored_{name}"))?;
+                let ignored_name = format!(
+                    ".ignored_{name}-{}-{}",
+                    std::process::id(),
+                    MANAGED_TEMP_ID.fetch_add(1, Ordering::Relaxed),
+                );
+                let ignored = std::ffi::CString::new(ignored_name.as_bytes())?;
                 // SAFETY: both names are NUL-terminated and both descriptors refer
                 // to the same valid directory.
                 if unsafe {
@@ -938,7 +953,7 @@ fn force_workspace_symlink(
                     return Err(io::Error::last_os_error());
                 }
                 warning = Some(format!(
-                    "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => .ignored_{name}",
+                    "Symlink wanted name was occupied by directory or file. Old entity moved: {:?}{}{} => {ignored_name}",
                     directory.path,
                     std::path::MAIN_SEPARATOR,
                     name,
