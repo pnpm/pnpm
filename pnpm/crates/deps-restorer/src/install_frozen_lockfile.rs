@@ -841,6 +841,7 @@ where
                 package_map_project_manifests,
                 dependency_groups: &dependency_groups,
                 package_manifests: &package_manifests,
+                requires_build_by_snapshot: Some(&requires_build_by_snapshot),
                 cas_paths_by_pkg_id,
                 link_options: &link_options,
                 workspace_root,

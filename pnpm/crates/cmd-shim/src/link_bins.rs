@@ -220,6 +220,12 @@ impl ShimTargetCache {
     /// [`search_script_runtime`] with the result memoized under
     /// `probe_path`. Errors are not cached, so a transient failure does
     /// not poison later lookups.
+    ///
+    /// Concurrency note: the lock is not held across the probe, so two
+    /// workers racing on one key may both probe. That's benign — the
+    /// probe is idempotent and the memo converges — and it keeps a slow
+    /// read from serializing every other target's probe behind it. Same
+    /// trade as the store's `verifiedFilesCache`.
     fn runtime_for<Sys: FsReadHead>(&self, probe_path: &Path) -> io::Result<Option<ScriptRuntime>> {
         if let Some(runtime) = self.0.runtimes.lock().expect("runtime memo lock").get(probe_path) {
             return Ok(runtime.clone());

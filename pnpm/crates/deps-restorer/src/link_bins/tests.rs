@@ -702,9 +702,6 @@ fn build_has_bin_set_includes_runtime_resolutions_even_when_has_bin_is_absent() 
     assert!(!set.contains(&directory), "directory without has_bin must be filtered out");
 }
 
-/// An authoritative `hasBin` gate skips a dep before any IO: the dep's
-/// on-disk manifest declares a bin, but its lockfile row is absent from
-/// the gate set, so no shim may be written.
 #[test]
 fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
     let tmp = tempdir().unwrap();
@@ -723,7 +720,8 @@ fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
             Some(false),
         ),
     )]);
-    let lookup = PrefetchedBinLookup::new(Some(&packages), None);
+    let requires_build = HashMap::from([(key.clone(), false)]);
+    let lookup = PrefetchedBinLookup::new(Some(&packages), None, Some(&requires_build));
     link_direct_dep_bins_prefetched(
         &modules,
         &[("foo".to_string(), foo_dir, Some(key))],
@@ -734,9 +732,40 @@ fn prefetched_bin_pass_trusts_the_has_bin_gate_over_the_disk_manifest() {
     assert!(!modules.join(".bin").exists(), "hasBin: false must skip the dep without IO");
 }
 
-/// A store-index manifest hit replaces the per-importer `package.json`
-/// read entirely: only the bin *target* exists on disk, yet the shim is
-/// written from the prefetched manifest.
+/// The lockfile `hasBin` gate cannot judge a snapshot that may run
+/// build scripts: a script can add a bin the lockfile knows nothing
+/// about, so such a dep must reach the on-disk manifest.
+#[test]
+fn prefetched_bin_pass_reads_a_may_build_dep_from_disk() {
+    let tmp = tempdir().unwrap();
+    let modules = tmp.path().join("node_modules");
+    let foo_dir = modules.join("foo");
+    create_dir_all(&foo_dir).unwrap();
+    write_file(foo_dir.join("package.json"), json!({"name": "foo", "bin": "cli.js"}).to_string())
+        .unwrap();
+    write_file(foo_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+
+    let key: PackageKey = "foo@1.0.0".parse().expect("parse key");
+    let packages = HashMap::from([(
+        key.clone(),
+        metadata_with_resolution(
+            LockfileResolution::Directory(DirectoryResolution { directory: "foo".into() }),
+            Some(false),
+        ),
+    )]);
+    let requires_build = HashMap::from([(key.clone(), true)]);
+    let lookup = PrefetchedBinLookup::new(Some(&packages), None, Some(&requires_build));
+    link_direct_dep_bins_prefetched(
+        &modules,
+        &[("foo".to_string(), foo_dir.clone(), Some(key))],
+        &lookup,
+        &LinkBinsOptions::default(),
+    )
+    .unwrap();
+    let body = read_to_string(modules.join(".bin/foo")).expect("may-build dep read from disk");
+    assert!(is_shim_pointing_at(&body, &foo_dir.join("cli.js")));
+}
+
 #[test]
 fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifest() {
     let tmp = tempdir().unwrap();
@@ -758,7 +787,8 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
         key.clone(),
         std::sync::Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
     )]);
-    let lookup = PrefetchedBinLookup::new(Some(&packages), Some(&manifests));
+    let requires_build = HashMap::from([(key.clone(), false)]);
+    let lookup = PrefetchedBinLookup::new(Some(&packages), Some(&manifests), Some(&requires_build));
     link_direct_dep_bins_prefetched(
         &modules,
         &[("foo".to_string(), foo_dir.clone(), Some(key))],
@@ -771,9 +801,6 @@ fn prefetched_bin_pass_links_from_the_prefetched_manifest_without_a_disk_manifes
     assert!(is_shim_pointing_at(&body, &foo_dir.join("cli.js")));
 }
 
-/// A dep with no lockfile metadata key (a `link:` workspace sibling)
-/// keeps the disk-read fallback even when an authoritative gate is
-/// present.
 #[test]
 fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     let tmp = tempdir().unwrap();
@@ -788,7 +815,7 @@ fn prefetched_bin_pass_reads_a_link_dep_from_disk() {
     write_file(sibling_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
 
     let packages = HashMap::new();
-    let lookup = PrefetchedBinLookup::new(Some(&packages), None);
+    let lookup = PrefetchedBinLookup::new(Some(&packages), None, None);
     link_direct_dep_bins_prefetched(
         &modules,
         &[("sibling".to_string(), sibling_dir.clone(), None)],

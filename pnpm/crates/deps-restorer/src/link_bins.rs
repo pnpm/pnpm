@@ -97,8 +97,8 @@ pub fn link_direct_dep_bins_resolved(
 
 /// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
 /// the alias under `node_modules/`, the symlink's destination, and the
-/// lockfile metadata key of the resolved snapshot (`None` for `link:`
-/// workspace siblings, which have no lockfile row).
+/// resolved snapshot key (`None` for `link:` workspace siblings, which
+/// have no lockfile row).
 pub type PrefetchedDepBin = (String, PathBuf, Option<PackageKey>);
 
 /// The lockfile- and store-index-derived facts that let an importer's
@@ -114,6 +114,12 @@ pub struct PrefetchedBinLookup<'a> {
     /// replaces the per-importer `package.json` read; a miss falls back
     /// to disk.
     package_manifests: Option<&'a PackageManifests>,
+    /// Per-snapshot `requiresBuild` flags from the same prefetch. The
+    /// no-IO path is only sound for a snapshot known not to run build
+    /// scripts: a persisted global-virtual-store slot that was built may
+    /// carry a `package.json` its scripts rewrote, and only the disk
+    /// read sees those bins. A missing entry counts as "may build".
+    requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
     /// Per-target shim probe memo, shared so each virtual-store bin
     /// file's shebang read and executable-bit fix-up run once per pass
     /// rather than once per importer.
@@ -125,22 +131,25 @@ impl<'a> PrefetchedBinLookup<'a> {
     pub fn new(
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         package_manifests: Option<&'a PackageManifests>,
+        requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
     ) -> Self {
         PrefetchedBinLookup {
             has_bin: build_has_bin_set(packages),
             package_manifests,
+            requires_build,
             shim_cache: ShimTargetCache::default(),
         }
     }
 }
 
 /// [`link_direct_dep_bins_resolved`] with the per-dep `package.json`
-/// read replaced by lockfile metadata: deps whose lockfile row says
-/// `hasBin: false` are skipped without touching the filesystem, and
-/// deps with bins take their manifest from the store-index prefetch
-/// when it has one. Deps outside the lookup's reach (`link:` siblings,
-/// prefetch misses, a lockfile without a `packages:` section) keep the
-/// `NotFound`-tolerant disk read.
+/// read replaced by lockfile metadata for snapshots the prefetch
+/// proved build-free: those whose lockfile row says `hasBin: false`
+/// are skipped without touching the filesystem, and those with bins
+/// take their manifest from the store-index prefetch. Deps outside the
+/// lookup's reach (`link:` siblings, snapshots that may run build
+/// scripts, prefetch misses, a lockfile without a `packages:` section)
+/// keep the `NotFound`-tolerant disk read.
 pub fn link_direct_dep_bins_prefetched(
     modules_dir: &Path,
     deps: &[PrefetchedDepBin],
@@ -149,15 +158,22 @@ pub fn link_direct_dep_bins_prefetched(
 ) -> Result<(), LinkBinsError> {
     let bin_sources: Vec<PackageBinSource> = deps
         .par_iter()
-        .filter_map(|(name, target, metadata_key)| {
-            if let Some(metadata_key) = metadata_key {
+        .filter_map(|(name, target, snapshot_key)| {
+            // The no-IO path only covers snapshots the prefetch proved
+            // build-free (see [`PrefetchedBinLookup::requires_build`]);
+            // anything else reads the on-disk manifest, which reflects
+            // whatever a build script did to it.
+            if let Some(snapshot_key) = snapshot_key
+                && lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) == Some(&false)
+            {
+                let metadata_key = snapshot_key.without_peer();
                 if let Some(has_bin) = &lookup.has_bin
-                    && !has_bin.contains(metadata_key)
+                    && !has_bin.contains(&metadata_key)
                 {
                     return None;
                 }
                 if let Some(manifest) =
-                    lookup.package_manifests.and_then(|manifests| manifests.get(metadata_key))
+                    lookup.package_manifests.and_then(|manifests| manifests.get(&metadata_key))
                 {
                     return Some(Ok(PackageBinSource::new(
                         modules_dir.join(name),

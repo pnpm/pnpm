@@ -1684,6 +1684,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             publicly_hoisted_for_post_build,
         } = pnpm_deps_restorer::linking::run_link_phase::<Reporter>(
             pnpm_deps_restorer::linking::LinkPhaseInputs {
+                requires_build_by_snapshot: None,
                 symlink_root,
                 trusted_importer_ids: &project_anchor_importer_ids,
                 root_component_importers: &root_component_importers,

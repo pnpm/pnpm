@@ -1635,9 +1635,6 @@ fn linking_the_pnpm_cli_deletes_a_stale_powershell_shim() {
     assert!(!bins_dir.join("pnpm.ps1").exists());
 }
 
-/// A dangling symlink squatting on the shim path defeats the exclusive
-/// create of the fresh-`.bin` fast path; the general path must then
-/// replace it with a real shim.
 #[cfg(unix)]
 #[test]
 fn dangling_symlink_at_shim_path_is_replaced_with_a_shim() {
@@ -1661,9 +1658,6 @@ fn dangling_symlink_at_shim_path_is_replaced_with_a_shim() {
     assert!(is_shim_pointing_at(&body, &pkg.join("cli.js")));
 }
 
-/// Two linking calls sharing one [`ShimTargetCache`] probe a shared
-/// resolved target's script runtime once. The counting fake stands in
-/// for the many importers that link the same virtual-store bin file.
 #[test]
 fn shared_shim_target_cache_probes_a_resolved_target_once() {
     use std::sync::atomic::{AtomicUsize, Ordering};

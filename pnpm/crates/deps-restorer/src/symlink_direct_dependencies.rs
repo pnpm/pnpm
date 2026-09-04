@@ -117,6 +117,11 @@ where
     /// pass reads no `package.json` for a prefetched dep; `None` keeps
     /// every dep on the disk-read fallback.
     pub package_manifests: Option<&'a crate::PackageManifests>,
+
+    /// Per-snapshot `requiresBuild` flags from the same prefetch,
+    /// gating [`Self::package_manifests`] — see
+    /// [`crate::link_direct_dep_bins_prefetched`].
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
 }
 
 /// Error type of [`SymlinkDirectDependencies`].
@@ -177,11 +182,16 @@ where
             trusted_importer_ids,
             link_options,
             package_manifests,
+            requires_build_by_snapshot,
         } = self;
 
         // One bin lookup for the whole pass: the `hasBin` gate and the
         // shim probe memo are importer-invariant.
-        let bin_lookup = crate::PrefetchedBinLookup::new(packages, package_manifests);
+        let bin_lookup = crate::PrefetchedBinLookup::new(
+            packages,
+            package_manifests,
+            requires_build_by_snapshot,
+        );
 
         // Collect once so the same group order can drive every importer.
         // The group order is shared across all importers.
@@ -615,9 +625,8 @@ fn link_one_importer<Reporter: self::Reporter>(
         let deps: Vec<crate::PrefetchedDepBin> = entries
             .iter()
             .map(|entry| {
-                let metadata_key =
-                    entry.spec.version.resolved_key(entry.name).map(|key| key.without_peer());
-                (entry.name_str.clone(), entry.target.clone(), metadata_key)
+                let snapshot_key = entry.spec.version.resolved_key(entry.name);
+                (entry.name_str.clone(), entry.target.clone(), snapshot_key)
             })
             .collect();
         crate::link_direct_dep_bins_prefetched(modules_dir, &deps, bin_lookup, link_options)

@@ -265,6 +265,7 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         // `link_only` keeps only `link:` siblings, which have no
         // lockfile row for a prefetched manifest to serve.
         package_manifests: None,
+        requires_build_by_snapshot: None,
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;
