@@ -131,6 +131,12 @@ fn splice_lowered_maps(
     }
 }
 
+/// How many maps [`stash_parallel_lowered`] has lowered in this
+/// process. Lets tests assert the parallel path actually ran, not just
+/// that its output matched.
+pub(crate) static PARALLEL_LOWERINGS: std::sync::atomic::AtomicU64 =
+    std::sync::atomic::AtomicU64::new(0);
+
 /// Lower a large sorted map's values across rayon and stash the
 /// assembled object, returning the marker to serialize in its place.
 /// `None` when no [`to_string`] stash is active on this thread — the
@@ -140,12 +146,6 @@ fn splice_lowered_maps(
 /// lowering: rayon may run some closures inline on this thread, and a
 /// nested large map inside an entry must lower serially into its own
 /// entry rather than stash itself into the outer document.
-/// How many maps [`stash_parallel_lowered`] has lowered in this
-/// process. Lets tests assert the parallel path actually ran, not just
-/// that its output matched.
-pub(crate) static PARALLEL_LOWERINGS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-
 fn stash_parallel_lowered<Value: Serialize + Sync>(
     entries: &[(String, &Value)],
 ) -> Result<Option<String>, serde_json::Error> {
