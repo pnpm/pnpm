@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -185,6 +186,62 @@ describe('checkPkgFilesIntegrity()', () => {
         }],
       ]),
     }).passed).toBeFalsy()
+  })
+
+  it('leaves a mismatched file in place for the re-fetch to replace atomically', () => {
+    const storeDir = temporaryDirectory()
+    const actual = Buffer.from('actual bytes!!!')
+    const claimedDigest = crypto.createHash('sha512').update('claimed content').digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, claimedDigest, 420)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, actual)
+    expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest: claimedDigest, mode: 420, size: actual.length }],
+      ]),
+    }).passed).toBeFalsy()
+    // A concurrent install sharing the store may be importing from this
+    // path right now; the re-fetch replaces it via temp+rename instead.
+    expect(fs.existsSync(filename)).toBeTruthy()
+  })
+
+  // Windows ignores the 0o000 mode, and root reads through it, so the open
+  // cannot be made to fail in either case.
+  const itOnPosix = process.platform === 'win32' || process.getuid?.() === 0 ? it.skip : it
+  itOnPosix('leaves an unreadable file in place', () => {
+    const storeDir = temporaryDirectory()
+    const content = Buffer.from('guarded content')
+    const digest = crypto.createHash('sha512').update(content).digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, digest, 420)
+    fs.mkdirSync(path.dirname(filename), { recursive: true })
+    fs.writeFileSync(filename, content)
+    fs.chmodSync(filename, 0)
+    // A non-ENOENT read failure surfaces as an error (graceful-fs already
+    // absorbs transient EMFILE pressure); what matters here is that the
+    // blob is not deleted on the way out.
+    expect(() => checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest, mode: 420, size: content.length }],
+      ]),
+    })).toThrow()
+    fs.chmodSync(filename, 0o644)
+    expect(fs.existsSync(filename)).toBeTruthy()
+  })
+
+  it('removes a directory squatting at a blob path so the re-fetch can land', () => {
+    const storeDir = temporaryDirectory()
+    const claimedDigest = crypto.createHash('sha512').update('some content').digest('hex')
+    const filename = getFilePathByModeInCafs(storeDir, claimedDigest, 420)
+    fs.mkdirSync(filename, { recursive: true })
+    expect(checkPkgFilesIntegrity(storeDir, {
+      algo: 'sha512',
+      files: new Map([
+        ['foo', { digest: claimedDigest, mode: 420, size: 1_000_000 }],
+      ]),
+    }).passed).toBeFalsy()
+    expect(fs.existsSync(filename)).toBeFalsy()
   })
 })
 
