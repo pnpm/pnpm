@@ -143,7 +143,6 @@ fn splice_lowered_maps(
 /// How many maps [`stash_parallel_lowered`] has lowered in this
 /// process. Lets tests assert the parallel path actually ran, not just
 /// that its output matched.
-#[cfg(test)]
 pub(crate) static PARALLEL_LOWERINGS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
@@ -153,7 +152,6 @@ fn stash_parallel_lowered<Value: Serialize + Sync>(
     let Some(mut stash) = LOWERED_MAPS.with_borrow_mut(Option::take) else {
         return Ok(None);
     };
-    #[cfg(test)]
     PARALLEL_LOWERINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let lowered: Result<Vec<serde_json::Value>, serde_json::Error> =
         entries.par_iter().map(|(_, value)| serde_json::to_value(value)).collect();
