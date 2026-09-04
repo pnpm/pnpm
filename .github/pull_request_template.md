@@ -26,8 +26,8 @@ Explain what changed and why. Reference issues here too (Closes pnpm/pnpm#123).
 
 - [ ] I checked the referenced issue and verified that none of the PRs
   already linked to it solves it.
-- [ ] The change is implemented in both the TypeScript CLI and the Rust
-  `pnpm/` port, or the description notes what still needs porting.
+- [ ] New features are implemented only in the Rust pnpm v12 CLI. Bug fixes
+  are implemented in every affected version.
 - [ ] Added a changeset (`pnpm changeset`) if this PR changes any published
   package. Keep it short and written for pnpm users — it becomes a release note.
 - [ ] Added or updated tests.

@@ -4,65 +4,63 @@ This document provides context and instructions for AI agents working on the pnp
 
 The repository contains three products:
 
-- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pnpm/` and `pnpr/`.
-- The **Rust pacquet port** — `pnpm/`. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+- The **TypeScript pnpm v11 CLI** — `pnpm11/`.
+- The **Rust pnpm v12 CLI (pacquet)** — `pnpm/`. pnpm v12 is the target for new feature development. See [`pnpm/AGENTS.md`](./pnpm/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
 - The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
 
 Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pnpm/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
-## Keep pnpm and pacquet in sync
+## pnpm v12 and v11 development policy
 
-The two stacks are parallel implementations of the same CLI, kept behaviorally identical — the same flags, defaults, error codes, file formats, and lockfile shape. They are now at near-complete feature parity and are developed together, so **any user-visible change has to land in both at the same time.** Neither stack is downstream of the other: pacquet is a source of truth in its own right, not a port that trails the TypeScript CLI.
+pnpm v12, implemented in Rust under `pnpm/`, is the target for new development. pnpm v11, implemented in TypeScript under `pnpm11/`, is maintained for bug fixes.
 
-When you change one side, do the equivalent change on the other in the same PR if you can. If you can't (different expertise, scope too large, or pacquet hasn't ported the surrounding feature yet), open the PR with just your side — call out in the description what still needs porting, and someone else will push the matching commits to the same PR before it lands.
+**Implement new features only in pnpm v12. Do not add them to pnpm v11.** A feature that intentionally exists only in v12 is not a parity gap.
 
-"User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
+For bug fixes, first determine which versions contain the bug. If the bug is present in both v11 and v12, implement and test the fix in both stacks. Keep their observable behavior aligned for the affected functionality, including command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file formats, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, and hook semantics. If the bug exists in only one version, fix only that version.
 
-**Any user-visible change to either stack must be replicated in the other.**
+When a shared bug fix cannot be completed in both stacks in the same PR, call out the missing implementation in the PR description so it can be added before the PR lands.
 
-The pacquet-side conventions for keeping the two stacks aligned are in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#the-cardinal-rule).
+The pacquet-side version policy is in [`pnpm/AGENTS.md`](./pnpm/AGENTS.md#version-policy).
 
 ## Repository Structure
 
 The pnpm codebase is a monorepo managed by pnpm itself. The root contains functional directories organized by domain:
 
-### Core Directories
+### TypeScript pnpm v11 Core Directories
 
--   `pnpm/`: The CLI entry point and main package.
--   `pkg-manager/`: Core package management logic (installation, linking, etc.).
--   `resolving/`: Dependency resolution logic (resolvers for npm, tarballs, git, etc.).
--   `fetching/`: Package fetching logic.
--   `store/`: Store management logic (content-addressable storage).
--   `lockfile/`: Lockfile handling, parsing, and utilities.
+-   `pnpm11/pnpm/`: The CLI entry point and main package.
+-   `pnpm11/pkg-manager/`: Core package management logic (installation, linking, etc.).
+-   `pnpm11/resolving/`: Dependency resolution logic (resolvers for npm, tarballs, git, etc.).
+-   `pnpm11/fetching/`: Package fetching logic.
+-   `pnpm11/store/`: Store management logic (content-addressable storage).
+-   `pnpm11/lockfile/`: Lockfile handling, parsing, and utilities.
 
 ### CLI & Configuration
 
--   `cli/`: CLI command implementations and infrastructure.
--   `config/`: Configuration management and parsing.
--   `hooks/`: pnpm hooks (readPackage, etc.).
--   `completion/`: Shell completion support.
+-   `pnpm11/cli/`: CLI command implementations and infrastructure.
+-   `pnpm11/config/`: Configuration management and parsing.
+-   `pnpm11/hooks/`: pnpm hooks (readPackage, etc.).
+-   `pnpm11/cli/commands/src/completion/`: Shell completion support.
 
 ### Other Functional Directories
 
--   `network/`: Network-related utilities (proxy, fetch, auth).
--   `workspace/`: Workspace-related utilities.
--   `exec/`: Execution-related commands (run, exec, dlx).
--   `env/`: Node.js environment management.
--   `cache/`: Cache-related commands and utilities.
--   `patching/`: Package patching functionality.
--   `reviewing/`: License and dependency review tools.
--   `releasing/`: Release and publishing utilities.
+-   `pnpm11/network/`: Network-related utilities (proxy, fetch, auth).
+-   `pnpm11/workspace/`: Workspace-related utilities.
+-   `pnpm11/exec/`: Execution-related commands (run, exec, dlx).
+-   `pnpm11/engine/runtime/commands/`: Node.js environment management.
+-   `pnpm11/cache/`: Cache-related commands and utilities.
+-   `pnpm11/patching/`: Package patching functionality.
+-   `pnpm11/releasing/`: Release and publishing utilities.
 
 ### Shared Utilities
 
--   `packages/`: Shared utility packages (constants, error handling, logger, types, etc.).
--   `fs/`: Filesystem utilities.
--   `crypto/`: Cryptographic utilities.
--   `text/`: Text processing utilities.
+-   `pnpm11/fs/`: Filesystem utilities.
+-   `pnpm11/crypto/`: Cryptographic utilities.
+-   `pnpm11/text/`: Text processing utilities.
 
 ### Rust Projects
 
--   `pnpm/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpm/AGENTS.md`](./pnpm/AGENTS.md).
+-   `pnpm/`: The Rust pnpm v12 CLI. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpm/AGENTS.md`](./pnpm/AGENTS.md).
 -   `pnpr/`: The pnpm-compatible npm registry server. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpr/AGENTS.md`](./pnpr/AGENTS.md).
 
 ## Setup & Build (TypeScript only)
@@ -80,13 +78,13 @@ To compile a specific package:
 pnpm --filter <package_name> run compile
 ```
 
-**Important:** The pnpm CLI e2e tests (in `pnpm/test/`) use the **bundled** `pnpm/dist/pnpm.mjs`, not the individual package `lib/` outputs. After changing any package, you must rebuild the bundle before running e2e tests:
+**Important:** The TypeScript pnpm v11 CLI e2e tests (in `pnpm11/pnpm/test/`) use the **bundled** `pnpm11/pnpm/dist/pnpm.mjs`, not the individual package `lib/` outputs. After changing any TypeScript package, you must rebuild the bundle before running e2e tests:
 
 ```bash
 pnpm --filter pnpm run compile
 ```
 
-This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all packages into `pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
+This runs `tsgo --build`, linting, and `pnpm run bundle` (which bundles all TypeScript packages into `pnpm11/pnpm/dist/pnpm.mjs`). Without this step, e2e tests will use a stale bundle and your changes won't be tested.
 
 ## Testing (TypeScript only)
 
@@ -128,7 +126,7 @@ Do not dismiss a failing test as a "pre-existing" failure that is unrelated to y
 
 ## AI Review Guidance
 
-The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/parity expectations. Apply it when reviewing pull requests. (TypeScript-specific code style and engineering conventions for the CLI are documented in the "Code Style" section of this file; pacquet and pnpr follow their own `AGENTS.md` and style guides.)
+The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/version-coverage expectations. Apply it when reviewing pull requests. (TypeScript-specific code style and engineering conventions for the CLI are documented in the "Code Style" section of this file; pacquet and pnpr follow their own `AGENTS.md` and style guides.)
 
 Security is the first review priority and performance the second. Surface only issues tied to the changed code, and explain the exploit path, impact, or hot path affected. See the guide's Security and Performance review sections for the full checklist.
 
@@ -194,23 +192,21 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
 
-**IMPORTANT: Always explicitly include `"pnpm"` in the changeset** with the appropriate version bump (patch, minor, or major). The pnpm CLI will only receive automatic patch bumps from its dependencies, so if your change warrants a minor or major version bump for the CLI, you must specify it explicitly. The changeset description will appear on the release notes page.
+**IMPORTANT: For changes to the TypeScript pnpm v11 CLI, always explicitly include `"pnpm"` in the changeset with a patch bump.** The changeset description will appear on the release notes page. For pnpm v12 changes, follow the Rust-product rules below and target `pacquet` instead.
 
 Example:
 
-```
+```text
 ---
-"@pnpm/installing.deps-installer": minor
-"pnpm": minor
+"@pnpm/installing.deps-installer": patch
+"pnpm": patch
+"pacquet": patch
 ---
 
-Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic protocols in transitive dependencies [#10352](https://github.com/pnpm/pnpm/issues/10352).
+Fixed a `pnpm install` bug that affected both pnpm v11 and v12.
 ```
 
-**Versioning Guidelines for pnpm CLI:**
-- **patch**: Bug fixes, internal refactors, and changes that don't require documentation updates
-- **minor**: New features, settings, or commands that should be documented (anything users should know about)
-- **major**: Breaking changes
+The TypeScript pnpm v11 CLI is maintenance-only. Its changesets use patch bumps for bug fixes and internal maintenance. Do not implement new features or breaking changes in v11.
 
 ### Changeset style
 
@@ -253,13 +249,13 @@ After:
 
 The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
 
-- `pacquet` — the Rust pnpm CLI (published to npm as `pnpm` and `@pnpm/exe` under its `next-<major>` dist-tag; named `pacquet` in-repo so its name can't collide with the TypeScript CLI). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
+- `pacquet` — the Rust pnpm v12 CLI (published to npm as `pnpm` and `@pnpm/exe`; named `pacquet` in-repo so its name can't collide with the TypeScript CLI). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
 - `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
 - `@pnpm/pnpr` — the pnpr registry server (published as `@pnpm/pnpr` and its platform packages, plus the `ghcr.io/pnpm/pnpr` Docker image).
 
-The Rust products release on prerelease lanes (`versioning.lanes` in `pnpm-workspace.yaml`): each run of `pnpm version -r` that consumes an intent for one of them cuts an `X.Y.Z-<lane>.N` prerelease — `rc` for the Rust CLI and its NAPI addon, `alpha` for pnpr — while the TypeScript CLI keeps releasing stable versions on the main lane. `pnpm lane main --filter …` graduates a product to a stable version.
+pnpm v12 and its NAPI addon release as stable versions on the main lane. pnpr releases on the `alpha` prerelease lane configured in `pnpm-workspace.yaml`; `pnpm lane main --filter …` graduates it to a stable version.
 
-Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript CLI package. A changeset whose implementation is Rust-only and targets `pacquet` must omit `"pnpm"`. A parity change that lands in both stacks carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
+Do not add `"pnpm"` to a Rust-only changeset: in changesets, `pnpm` always means the TypeScript v11 CLI package. A changeset for a pnpm v12 feature or v12-only bug fix targets `pacquet` and omits `"pnpm"`. A shared bug fix that lands in both versions carries one changeset naming both the affected TypeScript packages (plus `"pnpm"`) and the Rust wrapper(s).
 
 Use `pacquet` as the changeset package name, but use `pnpm` in its release-note prose and command examples (`pnpm add`, not `pacquet add`). The published Rust CLI's executable is `pnpm`; `pacquet` is only its in-repo package identifier.
 
