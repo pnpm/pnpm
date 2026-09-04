@@ -3586,6 +3586,13 @@ pacquet@12.3.2:
     - unchanged-local-tarballs
     - update-ignore-scripts
     - warm-gvs-restore
+pacquet@12.3.3:
+  dir: pnpm/npm/pnpm
+  intents:
+    - keep-cas-blobs-on-verify-failure
+    - parallel-lockfile-lowering
+    - parallel-manifest-transforms
+    - sh-placeholder-bin
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:

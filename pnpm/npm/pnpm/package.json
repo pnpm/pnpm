@@ -11,7 +11,7 @@
       "./dist/node_modules/node-gyp/gyp/gyp"
     ]
   },
-  "version": "12.3.2",
+  "version": "12.3.3",
   "description": "Fast, disk space efficient package manager",
   "keywords": [
     "pnpm",
