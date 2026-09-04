@@ -4,15 +4,16 @@ import { temporaryFileTask } from 'tempy'
 
 /**
  * Read a response into memory up to `maxBytes` without retaining a second
- * in-memory copy. Returns `undefined` and cancels the stream as soon as the
- * response exceeds the limit.
+ * in-memory copy. A missing body returns an empty buffer. A response over the
+ * limit returns `undefined` after a best-effort stream cancellation. Stream
+ * and temporary-file errors are propagated.
  */
 export async function readResponseBodyCapped (response: Response, maxBytes: number): Promise<Buffer | undefined> {
   const reader = response.body?.getReader()
   if (reader == null) return Buffer.alloc(0)
 
   return temporaryFileTask(async (temporaryPath) => {
-    const file = await open(temporaryPath, 'w')
+    const file = await open(temporaryPath, 'wx', 0o600)
     let total = 0
     try {
       for (;;) {

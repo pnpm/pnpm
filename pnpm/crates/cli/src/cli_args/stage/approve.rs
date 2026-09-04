@@ -13,12 +13,15 @@ use std::{
 use derive_more::{Display, Error};
 use dialoguer::MultiSelect;
 use miette::{Diagnostic, IntoDiagnostic};
-use node_semver::{Range, Version};
+use node_semver::Version;
 use pnpm_config::Config;
 use pnpm_network_web_auth::{Host as WebAuthHost, OtpSession, StdinIsTty, StdoutIsTty};
 use pnpm_package_manifest::PackageManifest;
 use pnpm_reporter::Reporter;
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
+use pnpm_resolving_resolver_base::{
+    ANY_VERSION_RANGE, is_any_version_range, is_valid_semver_range,
+};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use serde_json::Value;
@@ -483,15 +486,10 @@ fn registry_spec_for_graph(spec: &str) -> Option<&str> {
     if Version::parse(spec).is_ok() {
         return Some(spec);
     }
-    let mut contains_empty_set = false;
-    for set in spec.split("||") {
-        if set.trim().is_empty() {
-            contains_empty_set = true;
-        } else if Range::parse(set.trim()).is_err() {
-            return None;
-        }
+    if !is_valid_semver_range(spec) {
+        return None;
     }
-    if contains_empty_set { Some("*") } else { Range::parse(spec).ok().map(|_| spec) }
+    Some(if is_any_version_range(spec) { ANY_VERSION_RANGE } else { spec })
 }
 
 fn render_package_count(count: usize) -> String {

@@ -250,7 +250,7 @@ fn staged_item_of(stage_id: &str, package_name: &str) -> Value {
 }
 
 #[test]
-fn approve_shares_one_one_time_password_across_a_batch() {
+fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());

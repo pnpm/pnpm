@@ -65,7 +65,7 @@ fn read_tarball_contents(
     let mut archive = tar::Archive::new(tar_bytes.as_slice());
     let mut files: Vec<String> = Vec::new();
     let mut bundled: BTreeSet<String> = BTreeSet::new();
-    let mut manifest: Option<Value> = None;
+    let mut manifest_text: Option<String> = None;
     let mut unpacked_size: u64 = 0;
 
     let entries =
@@ -86,17 +86,18 @@ fn read_tarball_contents(
                 .read_to_string(&mut text)
                 .into_diagnostic()
                 .wrap_err("read package/package.json from the staged tarball")?;
-            manifest =
-                Some(parse_manifest(&text).map_err(|_| StageError::TarballManifestNotFound)?);
+            manifest_text = Some(text);
         }
     }
 
-    let manifest = manifest.ok_or(StageError::TarballManifestNotFound)?;
+    let manifest = parse_manifest(&manifest_text.ok_or(StageError::TarballManifestNotFound)?)
+        .map_err(|_| StageError::TarballManifestNotFound)?;
     let name = manifest_string(&manifest, "name");
     let version = manifest_string(&manifest, "version");
     if name.is_empty() || version.is_empty() {
         return Err(StageError::TarballManifestNotFound.into());
     }
+    validate_package_identity(&name, &version)?;
 
     Ok(TarballContents { files, bundled, manifest, unpacked_size })
 }
@@ -108,12 +109,7 @@ pub(super) fn create_tarball_filename(
     version: &str,
     suffix: Option<&str>,
 ) -> Result<String, StageError> {
-    if !is_valid_old_npm_package_name(name) {
-        return Err(StageError::InvalidPackageName { name: name.to_owned() });
-    }
-    if version.parse::<node_semver::Version>().is_err() {
-        return Err(StageError::InvalidPackageVersion { version: version.to_owned() });
-    }
+    validate_package_identity(name, version)?;
     let suffix = suffix.map(|suffix| format!("-{suffix}")).unwrap_or_default();
     let filename = format!("{}-{version}{suffix}.tgz", normalize_package_name(name));
     // The name/version validation above should already exclude separators;
@@ -122,6 +118,16 @@ pub(super) fn create_tarball_filename(
         return Err(StageError::InvalidTarballFilename { filename });
     }
     Ok(filename)
+}
+
+fn validate_package_identity(name: &str, version: &str) -> Result<(), StageError> {
+    if !is_valid_old_npm_package_name(name) {
+        return Err(StageError::InvalidPackageName { name: name.to_owned() });
+    }
+    if version.parse::<node_semver::Version>().is_err() {
+        return Err(StageError::InvalidPackageVersion { version: version.to_owned() });
+    }
+    Ok(())
 }
 
 /// `@scope/name` → `scope-name`: drop the first `@`, turn the first `/` into

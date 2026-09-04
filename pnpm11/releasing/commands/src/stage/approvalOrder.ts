@@ -1,8 +1,8 @@
 import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import { PnpmError } from '@pnpm/error'
+import npa from '@pnpm/npm-package-arg'
 import type { BaseManifest, ProjectRootDir } from '@pnpm/types'
 import { createProjectsGraph } from '@pnpm/workspace.projects-graph'
-import { valid, validRange } from 'semver'
 
 import { readTarballManifest, type TarballManifest } from '../tarball/summarizeTarball.js'
 import type { StageContext } from './context.js'
@@ -42,16 +42,16 @@ export async function readStageApprovalOrder (
     const tarball = await fetchStageTarball(context, item.id)
     // eslint-disable-next-line no-await-in-loop
     const manifest = await readTarballManifest(tarball)
-    const stageIdByVersion = stageIdByVersionByPackageName.get(manifest.name!) ?? new Map<string, string>()
-    const duplicateStageId = stageIdByVersion.get(manifest.version!)
+    const stageIdByVersion = stageIdByVersionByPackageName.get(manifest.name) ?? new Map<string, string>()
+    const duplicateStageId = stageIdByVersion.get(manifest.version)
     if (duplicateStageId != null) {
       throw new PnpmError(
         'STAGE_DUPLICATE_PACKAGE',
         `Cannot approve stages ${duplicateStageId} and ${item.id} together because both publish ${manifest.name}@${manifest.version}`
       )
     }
-    stageIdByVersion.set(manifest.version!, item.id)
-    stageIdByVersionByPackageName.set(manifest.name!, stageIdByVersion)
+    stageIdByVersion.set(manifest.version, item.id)
+    stageIdByVersionByPackageName.set(manifest.name, stageIdByVersion)
     projects.push({
       manifest: manifestForGraph(manifest),
       rootDir: item.id as ProjectRootDir,
@@ -113,10 +113,10 @@ function manifestForGraph (manifest: TarballManifest): BaseManifest {
 
 function parseRegistryDependency (name: string, spec: string): { name: string, spec: string } {
   if (!spec.startsWith('npm:')) return { name, spec }
-  const alias = spec.slice('npm:'.length)
-  const separator = alias.lastIndexOf('@')
-  const parsed = separator >= 1
-    ? { name: alias.slice(0, separator), spec: alias.slice(separator + 1) }
-    : { name: alias, spec: 'latest' }
-  return valid(parsed.spec) || validRange(parsed.spec) ? parsed : { name, spec }
+  const parsed = npa.resolve(name, spec, process.cwd())
+  return (parsed.type === 'version' || parsed.type === 'range') &&
+    typeof parsed.name === 'string' &&
+    typeof parsed.fetchSpec === 'string'
+    ? { name: parsed.name, spec: parsed.fetchSpec }
+    : { name, spec }
 }
