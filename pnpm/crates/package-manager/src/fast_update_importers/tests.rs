@@ -1522,8 +1522,6 @@ snapshots:
   foo@1.1.0: {}
 ";
 
-/// One importer needing the resolver must veto the compose no matter
-/// where it sits relative to importers whose drift is absorbable.
 #[test]
 fn a_resolve_needing_importer_vetoes_absorbable_siblings_in_either_order() {
     let lockfile = parsed_lockfile(TWO_IMPORTERS);
