@@ -154,6 +154,7 @@ pub struct ConfigOverrides {
     trust_policy: Option<TrustPolicy>,
     trust_policy_exclude: Option<Vec<String>>,
     trust_policy_ignore_after: Option<u64>,
+    unsafe_perm: Option<bool>,
     verify_deps_before_run: Option<VerifyDepsBeforeRun>,
     https_proxy: Option<String>,
     http_proxy: Option<String>,
@@ -255,6 +256,7 @@ impl ConfigOverrides {
             "sort" => self.sort = parse_bool(value),
             "strict-peer-dependencies" => self.strict_peer_dependencies = parse_bool(value),
             "trust-lockfile" => self.trust_lockfile = parse_bool(value),
+            "unsafe-perm" => self.unsafe_perm = parse_bool(value),
             "use-beta-cli" => self.use_beta_cli = parse_bool(value),
             _ => {}
         }
@@ -617,6 +619,10 @@ impl ConfigOverrides {
             config.trust_policy_ignore_after = Some(value);
             config.explicit_settings.insert("trustPolicyIgnoreAfter".to_string(), value.into());
         }
+        if let Some(value) = self.unsafe_perm {
+            config.unsafe_perm = value;
+            config.explicit_settings.insert("unsafePerm".to_string(), value.into());
+        }
         if let Some(value) = self.global_dir.as_deref().filter(|value| !value.is_empty()) {
             let global_dir = lexical_normalize(&dir.join(value));
             config.global_pkg_dir = Some(global_dir.join(GLOBAL_LAYOUT_VERSION));
@@ -773,7 +779,7 @@ enum SettingArity {
 /// setting the invoked command declares as its own option is left for
 /// clap; a setting that collides with a *global* option would be claimed
 /// on every command line and so must not appear here at all.
-const BARE_SETTING_FLAGS: [(&str, SettingArity); 21] = [
+const BARE_SETTING_FLAGS: [(&str, SettingArity); 22] = [
     ("allow-unused-patches", SettingArity::Boolean),
     ("child-concurrency", SettingArity::Parsed(is_i32)),
     ("global-dir", SettingArity::Text),
@@ -794,6 +800,7 @@ const BARE_SETTING_FLAGS: [(&str, SettingArity); 21] = [
     ("trust-policy", SettingArity::Parsed(is_enum::<TrustPolicy>)),
     ("trust-policy-exclude", SettingArity::Text),
     ("trust-policy-ignore-after", SettingArity::Parsed(is_u64)),
+    ("unsafe-perm", SettingArity::Boolean),
     ("virtual-store-dir", SettingArity::Text),
 ];
 

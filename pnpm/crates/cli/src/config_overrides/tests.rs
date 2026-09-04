@@ -793,6 +793,27 @@ fn trust_lockfile_is_a_bare_flag_where_no_command_declares_it() {
     assert!(config.trust_lockfile);
 }
 
+/// Vercel runs every pnpm install as `pnpm install --unsafe-perm`
+/// ([pnpm/pnpm#14346](https://github.com/pnpm/pnpm/issues/14346)).
+#[test]
+fn unsafe_perm_is_a_bare_flag_on_every_command() {
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "install", "--unsafe-perm"]));
+    assert_eq!(remaining, argv(["pacquet", "install"]));
+    let mut config = Config { unsafe_perm: false, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.unsafe_perm);
+    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(true)));
+
+    let (overrides, remaining) =
+        ConfigOverrides::extract(argv(["pacquet", "rebuild", "--no-unsafe-perm"]));
+    assert_eq!(remaining, argv(["pacquet", "rebuild"]));
+    let mut config = Config { unsafe_perm: true, ..Config::default() };
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(!config.unsafe_perm);
+    assert_eq!(config.explicit_settings.get("unsafePerm"), Some(&serde_json::Value::Bool(false)));
+}
+
 #[test]
 fn install_keeps_the_trust_lockfile_pair_for_clap() {
     for flag in ["--trust-lockfile", "--no-trust-lockfile"] {
