@@ -11,6 +11,7 @@ import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 
 const wrapperDir = path.resolve(fileURLToPath(import.meta.url), '../..')
 const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
+const HAS_A_SHELL = process.platform === 'win32' && 'Windows has no sh'
 
 test('npm installs a shim that runs the native pnpm binary', (t) => {
   assert.equal(wrapperManifest.bin.pnpm, 'pnpm')
@@ -30,18 +31,18 @@ test('npm installs a shim that runs the native pnpm binary', (t) => {
   }
 })
 
-// npm's shim execs the placeholder rather than naming an interpreter for it,
-// which is what keeps it working once the native binary takes the same path.
-// Windows has no such fallback: its shims can only run what the shell can.
+// npm's bin points straight at the placeholder rather than naming an
+// interpreter for it, which is what keeps it working once the native binary
+// takes the same path. Windows has no shell that could run it instead.
 test('the shim runs pnpm through Node.js when npm skipped the install scripts', {
-  skip: process.platform === 'win32' && 'Windows cannot run an extension-less file',
+  skip: HAS_A_SHELL,
 }, (t) => {
   const { prefix, fixtureDir } = installFixtureWithNpm(t, ['--ignore-scripts'])
   const placeholder = fs.readFileSync(path.join(fixtureDir, 'pnpm'), 'utf8')
   const installedPlaceholder = path.join(prefix, 'lib', 'node_modules', 'pnpm-install-fixture', 'pnpm')
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 
-  assert.equal(execFileSync(path.join(prefix, 'bin', 'pnpm'), ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  assert.equal(runThroughShell(path.join(prefix, 'bin', 'pnpm'), ['works']), 'fixture:works\n')
   // The binary never arrived, so the placeholder is still what the shim runs.
   assert.equal(fs.readFileSync(installedPlaceholder, 'utf8'), placeholder)
 })
@@ -50,11 +51,8 @@ test('the shim runs pnpm through Node.js when npm skipped the install scripts', 
 // pnpm leaves behind when a `packageManager` pin sends it to fetch a newer one.
 // Its two bin-link shapes are covered separately: a shim that execs the target,
 // and a symlink to it.
-const PNPM_SKIPS_THE_PLACEHOLDER = process.platform === 'win32' &&
-  'Windows cannot run an extension-less file'
-
 test('pnpm links a shim that runs the placeholder when it skipped the build scripts', {
-  skip: PNPM_SKIPS_THE_PLACEHOLDER,
+  skip: HAS_A_SHELL,
 }, (t) => {
   const { projectDir } = installFixtureWithPnpm(t, [])
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
@@ -66,13 +64,13 @@ test('pnpm links a shim that runs the placeholder when it skipped the build scri
 // The shape `installPnpmToTools` produces for the version store a
 // `packageManager` pin is delegated to.
 test('pnpm links a symlink that runs the placeholder when executables are symlinked', {
-  skip: PNPM_SKIPS_THE_PLACEHOLDER,
+  skip: HAS_A_SHELL,
 }, (t) => {
   const { projectDir } = installFixtureWithPnpm(t, ['--config.node-linker=hoisted'])
   const bin = path.join(projectDir, 'node_modules', '.bin', 'pnpm')
   assert.equal(fs.lstatSync(bin).isSymbolicLink(), true)
 
-  assert.equal(execFileSync(bin, ['works'], { encoding: 'utf8' }), 'fixture:works\n')
+  assert.equal(runThroughShell(bin, ['works']), 'fixture:works\n')
 })
 
 /**
@@ -176,6 +174,19 @@ function writeFixture (t) {
   }))
 
   return { tempDir, fixtureDir }
+}
+
+/**
+ * Run `bin` from a shell, as a user's `pnpm` is run. A shebang-less bin is
+ * reached only that way outside Linux, whose libc retries ENOEXEC under `/bin/sh`
+ * itself. Throws when it exits non-zero.
+ *
+ * @param {string} bin Absolute path to the bin to run.
+ * @param {string[]} args Arguments to pass to it.
+ * @returns {string} Its stdout, decoded as UTF-8.
+ */
+function runThroughShell (bin, args) {
+  return execFileSync('sh', ['-c', 'exec "$0" "$@"', bin, ...args], { encoding: 'utf8' })
 }
 
 function runNpm (args, cwd) {

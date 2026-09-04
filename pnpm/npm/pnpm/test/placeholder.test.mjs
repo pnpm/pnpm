@@ -17,9 +17,14 @@ const WRAPPER_FILES = ['pnpm', 'native-binary.mjs', 'bin/pnpm.mjs']
 const FAKE_BINARY_OUTPUT = /^installed: --version\n$/
 
 const IS_UNIX = process.platform !== 'win32'
-// Windows runs neither the placeholder nor the stand-in for the native binary:
-// it has no ENOEXEC fallback for an extension-less file, and no `sh`.
-const RUNS_THE_PLACEHOLDER = !IS_UNIX && 'Windows cannot run an extension-less file'
+// A shebang-less file runs only where something retries it under a shell after
+// the kernel answers ENOEXEC. Every shell does, and so does glibc's `execvp` —
+// but Apple's libc does not, and Windows has neither. So a shim or a shell
+// reaches the placeholder wherever `sh` exists, while a bare `spawn` of it
+// reaches it on Linux alone.
+const HAS_A_SHELL = !IS_UNIX && 'Windows has no sh'
+const SPAWNS_A_SHEBANGLESS_FILE = process.platform !== 'linux' &&
+  `${process.platform} does not retry a shebang-less file under a shell`
 
 describe('placeholder bin', () => {
   // The constraint the whole file exists under: a bin shim generated from a
@@ -29,12 +34,13 @@ describe('placeholder bin', () => {
     assert.doesNotMatch(fs.readFileSync(path.join(WRAPPER_DIR, 'pnpm'), 'utf8'), /^#!/)
   })
 
-  it('parses as an sh script', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  it('parses as an sh script', { skip: HAS_A_SHELL }, async () => {
     const result = await run('sh', ['-n', path.join(WRAPPER_DIR, 'pnpm')])
     assert.equal(result.status, 0, result.stderr)
   })
 
-  it('runs the installed native binary', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  // Spawned with no shell in between, which only Linux resolves.
+  it('runs the installed native binary', { skip: SPAWNS_A_SHEBANGLESS_FILE }, async () => {
     const fixture = createFixture()
 
     const result = await run(fixture.placeholder, ['--version'])
@@ -46,15 +52,17 @@ describe('placeholder bin', () => {
   })
 
   // How pnpm links a bin when it symlinks executables, which is what pnpm 10
-  // does for the version store it delegates a `packageManager` pin to.
-  it('runs from a symlink to itself', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  // does for the version store it delegates a `packageManager` pin to. Started
+  // from a shell, as a user's `pnpm` is, so the symlink chain `$0` walks is
+  // exercised on macOS too.
+  it('runs from a symlink to itself', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture()
     const binDir = path.join(fixture.dir, 'node_modules', '.bin')
     fs.mkdirSync(binDir, { recursive: true })
     const link = path.join(binDir, 'pnpm')
     fs.symlinkSync(path.relative(binDir, fixture.placeholder), link)
 
-    const result = await run(link, ['--version'])
+    const result = await run('sh', ['-c', 'exec "$0" "$@"', link, '--version'])
     assert.equal(result.status, 0, result.stderr)
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
@@ -62,7 +70,7 @@ describe('placeholder bin', () => {
   // What a bin linker writes for a target with no shebang, and the shape pnpm 11
   // leaves behind: an `exec` of the file itself, so the same shim keeps working
   // once the native binary takes its place.
-  it('runs from a bin shim that execs it', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  it('runs from a bin shim that execs it', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture()
     const binDir = path.join(fixture.dir, 'node_modules', '.bin')
     fs.mkdirSync(binDir, { recursive: true })
@@ -74,10 +82,10 @@ describe('placeholder bin', () => {
     assert.match(result.stdout, FAKE_BINARY_OUTPUT)
   })
 
-  it('hands over to the entry point when no platform package is installed', { skip: RUNS_THE_PLACEHOLDER }, async () => {
+  it('hands over to the entry point when no platform package is installed', { skip: HAS_A_SHELL }, async () => {
     const fixture = createFixture({ installPlatformPackage: false })
 
-    const result = await run(fixture.placeholder, ['--version'], { COREPACK_ENABLE_NETWORK: '0' })
+    const result = await run('sh', ['-c', 'exec "$0" "$@"', fixture.placeholder, '--version'], { COREPACK_ENABLE_NETWORK: '0' })
     assert.notEqual(result.status, 0)
     assert.match(result.stderr, /Network access is disabled/)
   })
