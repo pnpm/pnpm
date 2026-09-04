@@ -370,14 +370,18 @@ pub(super) async fn validate_publish_doc(
 }
 
 fn record_publisher(incoming: &mut Value, identity: &Identity) {
-    let Identity::User { username } = identity else {
-        return;
-    };
     let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
         return;
     };
     for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
-        manifest.insert("_npmUser".to_string(), json!({ "name": username }));
+        match identity {
+            Identity::User { username } => {
+                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
+            }
+            Identity::Anonymous => {
+                manifest.remove("_npmUser");
+            }
+        }
     }
 }
 
@@ -691,3 +695,6 @@ async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }
 }
+
+#[cfg(test)]
+mod tests;
