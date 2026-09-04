@@ -67,14 +67,14 @@ fn registry_version_from_index(package: IndexPackage<'_>) -> Result<Option<Regis
     }
     let dependencies =
         package.deps.into_iter().map(registry_dependency_from_index).collect::<Result<Vec<_>>>()?;
-    let features = package
-        .features
-        .into_iter()
-        .chain(package.features2.unwrap_or_default())
-        .map(|(name, values)| {
-            (name.into_owned(), values.into_iter().map(std::borrow::Cow::into_owned).collect())
-        })
-        .collect();
+    let mut features: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (name, values) in package.features.into_iter().chain(package.features2.unwrap_or_default())
+    {
+        features
+            .entry(name.into_owned())
+            .or_default()
+            .extend(values.into_iter().map(std::borrow::Cow::into_owned));
+    }
     Ok(Some(RegistryVersion {
         version: package.vers,
         dependencies,

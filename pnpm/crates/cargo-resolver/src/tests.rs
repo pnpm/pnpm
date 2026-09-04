@@ -26,6 +26,10 @@ const OPTIONAL_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name"
 
 const DEFAULT_FEATURE_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"features2":{"default":["dep:bar"]},"yanked":false,"v":2}"#;
 
+const SPLIT_DEFAULT_FEATURE_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"default":["dep:bar"]},"features2":{"default":["dep:baz"]},"yanked":false,"v":2}"#;
+
+const BAZ_INDEX: &str = r#"{"name":"baz","vers":"1.0.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+
 const WORKSPACE_OPTIONAL_METADATA: &str = r#"{
   "packages": [{
     "id": "path+file:///workspace#app@0.1.0",
@@ -136,4 +140,18 @@ fn resolves_the_feature_unified_lock_graph() {
     ]);
     let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
     assert_eq!(lockfile.packages.len(), 3);
+}
+
+#[test]
+fn merges_duplicate_feature_names_across_index_feature_maps() {
+    let files = BTreeMap::from([("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string())]);
+    assert_eq!(missing_index_names(METADATA, &files).unwrap(), ["bar", "baz"]);
+
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string()),
+    ]);
+    let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
+    assert_eq!(lockfile.packages.len(), 4);
 }
