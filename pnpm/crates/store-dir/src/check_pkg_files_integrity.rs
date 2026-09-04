@@ -439,25 +439,57 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
 /// process-local, and [`verify_file_integrity`] reports a transient
 /// read failure the same way as a real mismatch.
 ///
-/// `remove_dir_all` itself refuses a non-directory (a file or a
-/// symlink at the path errors without deleting anything), so the
-/// dirent-type decision and the removal are one call with no window
-/// between them. Best-effort: a failure is logged at `debug` and the
-/// next install retries.
+/// A check-then-delete on the live path could delete whatever a
+/// concurrent process put there in between, so the dirent is renamed
+/// aside first and only then inspected: a directory is removed at its
+/// scrub name, and anything else — including a blob a concurrent
+/// re-fetch landed after the failed verification — is renamed back
+/// where it was. `remove_dir_all` is never pointed at the live path
+/// (it would unlink a terminal symlink there, not just a directory).
+///
+/// Best-effort throughout: a failure is logged at `debug` and the next
+/// install retries. A crash between the two renames leaves an inert
+/// `*.pacquet-scrub-*` entry in the shard directory, which nothing
+/// ever resolves.
 fn scrub_directory_at_cafs_path(path: &Path) {
-    if let Err(error) = fs::remove_dir_all(path) {
-        // A non-directory dirent (or nothing at all) at the path makes
-        // `remove_dir_all` fail without deleting anything — exactly the
-        // leave-it-alone outcome — so only a directory that could not
-        // be removed is worth a log line.
-        if fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
-            tracing::debug!(
-                target: "pacquet::store_index",
-                ?path,
-                ?error,
-                "failed to scrub a directory at a CAFS path; next install will retry",
-            );
-        }
+    // Cheap gate only — the rename + inspect below re-decides
+    // authoritatively, so a dirent swapped after this stat is still
+    // handled correctly. Without the gate every mismatched *file*
+    // would pay the rename round-trip and briefly vanish from its
+    // path.
+    if !fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_dir()) {
+        return;
+    }
+    static SCRUB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let mut scrub_path = path.as_os_str().to_owned();
+    scrub_path.push(format!(
+        ".pacquet-scrub-{}-{}",
+        std::process::id(),
+        SCRUB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    ));
+    let scrub_path = Path::new(&scrub_path);
+    if fs::rename(path, scrub_path).is_err() {
+        // Nothing left at the path (a concurrent scrubber won), or the
+        // rename is not possible; either way the next install retries.
+        return;
+    }
+    let is_dir = fs::symlink_metadata(scrub_path).is_ok_and(|meta| meta.file_type().is_dir());
+    let result = if is_dir {
+        fs::remove_dir_all(scrub_path)
+    } else {
+        // The dirent changed between the failed verification and the
+        // rename — a concurrent process replaced the squatter. Put the
+        // newcomer back where every reader expects it.
+        fs::rename(scrub_path, path)
+    };
+    if let Err(error) = result {
+        tracing::debug!(
+            target: "pacquet::store_index",
+            ?path,
+            ?scrub_path,
+            ?error,
+            "failed to scrub a directory at a CAFS path; next install will retry",
+        );
     }
 }
 

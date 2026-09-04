@@ -225,17 +225,48 @@ function verifyFile (
  * atomically (writeBufferToCafs), and unlinking here would race installs in
  * other processes importing from this very path (the pnpm/pnpm#14353 error
  * class) — verification also reports a transient read failure the same way as
- * a real mismatch. The non-recursive rmdir refuses a non-directory without
- * deleting anything; only its ENOTEMPTY (a directory, observed as such by the
- * removal itself) falls back to the recursive removal.
+ * a real mismatch.
+ *
+ * A check-then-delete on the live path could delete whatever a concurrent
+ * process put there in between, so the dirent is renamed aside first and only
+ * then inspected: a directory is removed at its scrub name, and anything
+ * else — including a blob a concurrent re-fetch landed after the failed
+ * verification — is renamed back where it was. Best-effort throughout; a
+ * crash between the two renames leaves an inert `*.pnpm-scrub-*` entry in the
+ * shard directory, which nothing ever resolves.
  */
+let scrubCounter = 0
 function scrubDirectoryAtCafsPath (filename: string): void {
+  let stats
   try {
-    fs.rmdirSync(filename)
-  } catch (err: unknown) {
-    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOTEMPTY') {
-      rimrafSync(filename)
+    stats = fs.lstatSync(filename)
+  } catch {
+    return
+  }
+  // Cheap gate only — the rename + inspect below re-decides
+  // authoritatively, so a dirent swapped after this stat is still handled
+  // correctly. Without the gate every mismatched *file* would pay the
+  // rename round-trip and briefly vanish from its path.
+  if (!stats.isDirectory()) return
+  const scrubName = `${filename}.pnpm-scrub-${process.pid}-${scrubCounter++}`
+  try {
+    fs.renameSync(filename, scrubName)
+  } catch {
+    // Nothing left at the path (a concurrent scrubber won), or the rename
+    // is not possible; either way the next install retries.
+    return
+  }
+  try {
+    if (fs.lstatSync(scrubName).isDirectory()) {
+      rimrafSync(scrubName)
+    } else {
+      // The dirent changed between the failed verification and the
+      // rename — a concurrent process replaced the squatter. Put the
+      // newcomer back where every reader expects it.
+      fs.renameSync(scrubName, filename)
     }
+  } catch {
+    // Best-effort; the next install retries.
   }
 }
 

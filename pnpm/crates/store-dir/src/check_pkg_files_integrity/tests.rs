@@ -253,6 +253,32 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     );
 }
 
+/// A symlink at a blob path fails verification (its target's bytes are
+/// not the store's), but only a *directory* may be scrubbed — the
+/// symlink itself must survive, like every other non-directory dirent.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_symlink_at_cafs_path() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"claimed content";
+    let digest = sha512_hex(content);
+    let target = tmp.path().join("elsewhere");
+    fs::write(&target, b"other bytes!!!!").unwrap();
+    let link = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    assert!(
+        fs::symlink_metadata(&link).is_ok(),
+        "a symlink at the blob path is not a directory and must not be scrubbed",
+    );
+}
+
 /// A blob the verifier cannot open reports a miss like a mismatch
 /// would, and the failure may be transient — so the file must survive
 /// for the concurrent installs that may be importing from it.

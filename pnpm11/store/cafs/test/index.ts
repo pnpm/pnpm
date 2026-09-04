@@ -206,8 +206,9 @@ describe('checkPkgFilesIntegrity()', () => {
     expect(fs.existsSync(filename)).toBeTruthy()
   })
 
-  // Windows ignores the 0o000 mode, so the open cannot be made to fail there.
-  const itOnPosix = process.platform === 'win32' ? it.skip : it
+  // Windows ignores the 0o000 mode, and root reads through it, so the open
+  // cannot be made to fail in either case.
+  const itOnPosix = process.platform === 'win32' || process.getuid?.() === 0 ? it.skip : it
   itOnPosix('leaves an unreadable file in place', () => {
     const storeDir = temporaryDirectory()
     const content = Buffer.from('guarded content')
