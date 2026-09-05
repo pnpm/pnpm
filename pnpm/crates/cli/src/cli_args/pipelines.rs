@@ -441,6 +441,31 @@ impl InstallPipeline {
         }
         let workspace_inventory =
             ecosystem_install::EcosystemWorkspaceInventory::new(config_root.clone());
+        let python_development = args
+            .dependency_options
+            .dependency_groups(cfg.optional)
+            .any(|group| group == pnpm_package_manifest::DependencyGroup::Dev);
+        let python_production = args
+            .dependency_options
+            .dependency_groups(cfg.optional)
+            .any(|group| group == pnpm_package_manifest::DependencyGroup::Prod);
+        let python_metadata = if cfg.python.enabled {
+            let paths = workspace_inventory
+                .manifests(ecosystem_install::EcosystemManifest::Python)
+                .await?
+                .iter()
+                .map(|manifest| manifest.with_file_name("pylock.toml"))
+                .collect::<Vec<_>>();
+            Some(
+                ecosystem_install::MetadataMutation::capture(
+                    cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone()),
+                    paths,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
         let node_install = run_node_install::<Reporter>(
             plan,
             args,
@@ -453,7 +478,7 @@ impl InstallPipeline {
         let cargo_install = crate::cargo_deps::install::<Reporter>(
             ecosystem_install::InstallContext {
                 config: cfg,
-                http_client,
+                http_client: Arc::clone(&http_client),
                 lockfile_only,
                 frozen_lockfile,
             },
@@ -462,10 +487,40 @@ impl InstallPipeline {
                 lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
             },
         );
-        ecosystem_install::EcosystemInstallCoordinator::new(node_install)
+        let mut python_prepared = Vec::new();
+        let python_install = async {
+            python_prepared = crate::python::prepare::<Reporter>(
+                ecosystem_install::InstallContext {
+                    config: cfg,
+                    http_client,
+                    lockfile_only,
+                    frozen_lockfile,
+                },
+                crate::python::InstallOptions {
+                    projects: crate::python::Projects::Workspace(&workspace_inventory),
+                    resolve: false,
+                    selection: crate::python::manifest::DependencySelection {
+                        production: python_production,
+                        development: python_development,
+                    },
+                },
+            )
+            .await?;
+            Ok(())
+        };
+        let coordinator = ecosystem_install::EcosystemInstallCoordinator::new(node_install)
             .with_install(cargo_install)
-            .run()
-            .await
+            .with_install(python_install);
+        let outcome = if cfg.python.enabled {
+            coordinator.run_to_settlement().await
+        } else {
+            coordinator.run().await
+        };
+        let outcome = match outcome {
+            Ok(()) => crate::python::publish(python_prepared),
+            Err(error) => Err(error),
+        };
+        if let Some(metadata) = python_metadata { metadata.finish(outcome) } else { outcome }
     }
 }
 
@@ -583,8 +638,8 @@ impl AddPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        if package_specifier_plan.has_cargo() {
-            return run_add_with_cargo::<Reporter>(
+        if !package_specifier_plan.ecosystem_packages.is_empty() {
+            return run_add_with_ecosystems::<Reporter>(
                 args,
                 cfg,
                 prefix,
@@ -653,7 +708,7 @@ impl AddPipeline {
     }
 }
 
-async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
+async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     args: AddArgs,
     cfg: &'static mut Config,
     prefix: PathBuf,
@@ -662,14 +717,29 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
 ) -> miette::Result<()> {
     if cfg.recursive {
         return Err(miette::miette!(
-            "crate: dependencies cannot yet be added through a recursive or filtered selection"
+            "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
         ));
     }
     if args.save_catalog || args.save_catalog_name.is_some() {
         return Err(miette::miette!("crate: dependencies cannot be saved to an npm catalog"));
     }
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
-    let cargo_dependency_kind = args.dependency_options.cargo_dependency_kind(has_node_packages)?;
+    let has_cargo = package_specifier_plan.has_cargo();
+    let has_python = package_specifier_plan.has_python();
+    let python_development = has_python
+        .then(|| args.dependency_options.python_development())
+        .transpose()?
+        .unwrap_or(false);
+    let cargo_dependency_kind = if has_cargo {
+        args.dependency_options.cargo_dependency_kind(has_node_packages)?
+    } else {
+        crate::cargo_manifest::CargoDependencyKind::Normal
+    };
+    if has_python && !cfg.python.enabled {
+        return Err(miette::miette!(
+            "pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml"
+        ));
+    }
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir =
             manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
@@ -677,20 +747,57 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cargo_manifest_path = prefix.join("Cargo.toml");
-    let cargo_root = crate::cargo_deps::workspace_root(&cargo_manifest_path).await?;
+    let cargo_root = if has_cargo {
+        crate::cargo_deps::workspace_root(&cargo_manifest_path).await?
+    } else {
+        prefix.clone()
+    };
+    let mut metadata_paths = add_metadata_paths(
+        cfg,
+        &manifest_path,
+        &cargo_manifest_path,
+        &cargo_root,
+        has_node_packages,
+    );
+    if !has_cargo {
+        metadata_paths.retain(|path| {
+            ![
+                cargo_manifest_path.clone(),
+                cargo_root.join("Cargo.lock"),
+                cargo_root.join(".cargo/config.toml"),
+            ]
+            .contains(path)
+        });
+    }
+    if has_python {
+        metadata_paths.extend([prefix.join("pyproject.toml"), prefix.join("pylock.toml")]);
+    }
     let metadata_mutation = ecosystem_install::MetadataMutation::capture(
-        cargo_root.clone(),
-        add_metadata_paths(
-            cfg,
-            &manifest_path,
-            &cargo_manifest_path,
-            &cargo_root,
-            has_node_packages,
-        ),
+        cfg.workspace_dir.clone().unwrap_or_else(|| cargo_root.clone()),
+        metadata_paths,
     )
     .await?;
     let lockfile_only = args.lockfile_only;
+    let python_requirements = package_specifier_plan
+        .ecosystem_packages
+        .iter()
+        .filter_map(|package| match package {
+            crate::package_specifier::EcosystemPackageSpecifier::Python(requirement) => {
+                Some(requirement.clone())
+            }
+            crate::package_specifier::EcosystemPackageSpecifier::Cargo(_) => None,
+        })
+        .collect::<Vec<_>>();
+    let python_save_exact = args.save_exact;
+    let python_save_prefix = args.save_prefix.clone();
     let outcome = async {
+        if has_python {
+            crate::python::manifest::add(
+                &prefix.join("pyproject.toml"),
+                &python_requirements,
+                python_development,
+            )?;
+        }
         ecosystem_add::prepare(
             cfg,
             &cargo_manifest_path,
@@ -713,22 +820,63 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
             let state = init_shared_state(manifest_path, cfg, false, None, node_http_client)?;
             Box::pin(node_args.run::<Reporter>(state, None)).await
         };
-        let cargo_install = crate::cargo_deps::install::<Reporter>(
-            ecosystem_install::InstallContext {
-                config: cfg,
-                http_client,
-                lockfile_only,
-                frozen_lockfile: false,
-            },
-            crate::cargo_deps::CargoInstallOptions {
-                projects: crate::cargo_deps::CargoInstallProjects::Root(&cargo_root),
-                lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
-            },
-        );
+        let cargo_http_client = Arc::clone(&http_client);
+        let cargo_install = async {
+            if !has_cargo {
+                return Ok(());
+            }
+            crate::cargo_deps::install::<Reporter>(
+                ecosystem_install::InstallContext {
+                    config: cfg,
+                    http_client: cargo_http_client,
+                    lockfile_only,
+                    frozen_lockfile: false,
+                },
+                crate::cargo_deps::CargoInstallOptions {
+                    projects: crate::cargo_deps::CargoInstallProjects::Root(&cargo_root),
+                    lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
+                },
+            )
+            .await
+        };
+        let mut python_prepared = Vec::new();
+        let python_install = async {
+            if has_python {
+                python_prepared = crate::python::prepare::<Reporter>(
+                    ecosystem_install::InstallContext {
+                        config: cfg,
+                        http_client,
+                        lockfile_only,
+                        frozen_lockfile: false,
+                    },
+                    crate::python::InstallOptions {
+                        projects: crate::python::Projects::Root(&prefix),
+                        resolve: true,
+                        selection: crate::python::manifest::DependencySelection::ALL,
+                    },
+                )
+                .await?;
+            }
+            Ok(())
+        };
         ecosystem_install::EcosystemInstallCoordinator::new(node_install)
             .with_install(cargo_install)
+            .with_install(python_install)
             .run_to_settlement()
-            .await
+            .await?;
+        if has_python {
+            crate::python::save_added(
+                &mut python_prepared,
+                cfg,
+                crate::python::AddOptions {
+                    requirements: &python_requirements,
+                    development: python_development,
+                    exact: python_save_exact,
+                    prefix: python_save_prefix.as_deref(),
+                },
+            )?;
+        }
+        crate::python::publish(python_prepared)
     }
     .await;
     metadata_mutation.finish(outcome)

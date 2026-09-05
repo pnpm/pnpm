@@ -107,6 +107,7 @@ fn create_config(
         registries_by_scope: Default::default(),
         pnpr_server: None,
         cargo: Default::default(),
+        python: Default::default(),
         remote_side_effects_cache: None,
         registries_by_prefix: Default::default(),
         registry_options_by_url: Default::default(),

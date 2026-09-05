@@ -380,6 +380,7 @@ impl InstallArgs {
             || self.force
             || self.verify_deps_before_run_install
             || config.cargo.enabled
+            || config.python.enabled
         {
             return false;
         }

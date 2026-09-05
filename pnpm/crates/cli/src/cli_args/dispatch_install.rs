@@ -47,6 +47,9 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
         if package_specifier_plan.has_cargo() {
             return Err(miette::miette!("crate: dependencies cannot be installed globally"));
         }
+        if package_specifier_plan.has_python() {
+            return Err(miette::miette!("pypi: dependencies cannot be installed globally"));
+        }
         let config = (ctx.global_config)()?;
         args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
@@ -69,6 +72,9 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     // `State::init`, and an invalid selector must be rejected before that.
     if args.config && package_specifier_plan.has_cargo() {
         return Err(miette::miette!("crate: dependencies cannot be configuration dependencies"));
+    }
+    if args.config && package_specifier_plan.has_python() {
+        return Err(miette::miette!("pypi: dependencies cannot be configuration dependencies"));
     }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.dir;

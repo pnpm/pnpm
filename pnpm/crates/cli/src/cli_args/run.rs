@@ -584,7 +584,7 @@ pub(super) fn run_stage(
         args,
         pkg_root: ctx.dir,
         init_cwd: ctx.init_cwd,
-        extra_bin_paths: &ctx.config.extra_bin_paths,
+        extra_bin_paths: &crate::python::execution_paths(ctx.config, ctx.dir),
         script_shell: ctx.config.script_shell.as_deref().map(Path::new),
         shell_emulator: ctx.config.shell_emulator,
         scripts_prepend_node_path: exec_scripts_prepend_node_path(

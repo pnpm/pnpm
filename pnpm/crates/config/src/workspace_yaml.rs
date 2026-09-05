@@ -195,6 +195,28 @@ pub struct CargoSettings {
     pub enabled: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct PythonSettings {
+    pub enabled: bool,
+    pub executable: String,
+    pub index_url: String,
+    pub extras: Vec<String>,
+    pub groups: Vec<String>,
+}
+
+impl Default for PythonSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            executable: if cfg!(windows) { "python" } else { "python3" }.to_string(),
+            index_url: "https://pypi.org/simple/".to_string(),
+            extras: Vec::new(),
+            groups: vec!["dev".to_string()],
+        }
+    }
+}
+
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.
 #[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
@@ -406,6 +428,7 @@ pub struct WorkspaceSettings {
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
     pub cargo: Option<CargoSettings>,
+    pub python: Option<PythonSettings>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
@@ -1547,6 +1570,7 @@ impl WorkspaceSettings {
         }
         self.versioning = None;
         self.cargo = None;
+        self.python = None;
         self.packages = None;
         self.catalog = None;
         // Task declarations describe the workspace's own scripts; pnpm's
@@ -2110,6 +2134,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.cargo {
             config.cargo = v;
+        }
+        if let Some(v) = self.python {
+            config.python = v;
         }
         if let Some(v) = self.remote_side_effects_cache {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);

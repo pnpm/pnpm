@@ -9,6 +9,7 @@ const CARGO_PROTOCOL: &str = "crate:";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum EcosystemPackageSpecifier {
     Cargo(RegistryPackageSpecifier),
+    Python(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +33,21 @@ impl PackageSpecifierPlan {
                 ecosystem_packages.push(EcosystemPackageSpecifier::Cargo(
                     parse_registry_specifier(specifier, CARGO_PROTOCOL)?,
                 ));
+            } else if let Some(specifier) = package_name.strip_prefix("pypi:") {
+                let requirement = if let Some((name, version)) = specifier.rsplit_once('@') {
+                    if version.is_empty() {
+                        return Err(miette::miette!(
+                            "missing version after `@` in pypi:{specifier}"
+                        ));
+                    }
+                    let operator =
+                        if version.starts_with(['<', '>', '=', '!', '~']) { "" } else { "==" };
+                    format!("{name}{operator}{version}")
+                } else {
+                    specifier.to_string()
+                };
+                let requirement = crate::python::manifest::parse_requirement(&requirement)?;
+                ecosystem_packages.push(EcosystemPackageSpecifier::Python(requirement.to_string()));
             } else {
                 node_packages.push(package_name.clone());
             }
@@ -43,6 +59,12 @@ impl PackageSpecifierPlan {
         self.ecosystem_packages
             .iter()
             .any(|specifier| matches!(specifier, EcosystemPackageSpecifier::Cargo(_)))
+    }
+
+    pub(crate) fn has_python(&self) -> bool {
+        self.ecosystem_packages
+            .iter()
+            .any(|specifier| matches!(specifier, EcosystemPackageSpecifier::Python(_)))
     }
 }
 

@@ -69,6 +69,11 @@ jobs:
         with:
           tool: cargo-llvm-cov
 
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@5bf6ce016fd2e72eefc647cbca1e4213f65955b8 # v2.87.5
         with:

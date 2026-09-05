@@ -53,6 +53,17 @@ pub struct AddDependencyOptions {
 }
 
 impl AddDependencyOptions {
+    pub(crate) fn python_development(&self) -> miette::Result<bool> {
+        if self.save_build
+            || self.save_optional
+            || self.save_peer
+            || (self.save_prod && self.save_dev)
+        {
+            return Err(miette::miette!("pypi: dependencies support --save-prod or --save-dev"));
+        }
+        Ok(self.save_dev)
+    }
+
     pub(crate) fn save_build(&self) -> bool {
         self.save_build
     }

@@ -60,7 +60,7 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
@@ -1837,6 +1837,7 @@ pub struct Config {
 
     /// Cargo dependency management declared by the workspace.
     pub cargo: CargoSettings,
+    pub python: PythonSettings,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 

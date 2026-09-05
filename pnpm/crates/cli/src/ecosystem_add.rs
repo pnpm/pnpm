@@ -21,8 +21,9 @@ pub(crate) async fn prepare(
 ) -> Result<()> {
     let cargo_packages = packages
         .iter()
-        .map(|package| match package {
-            EcosystemPackageSpecifier::Cargo(package) => package.clone(),
+        .filter_map(|package| match package {
+            EcosystemPackageSpecifier::Cargo(package) => Some(package.clone()),
+            EcosystemPackageSpecifier::Python(_) => None,
         })
         .collect::<Vec<_>>();
     if cargo_packages.is_empty() {

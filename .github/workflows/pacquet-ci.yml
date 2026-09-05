@@ -161,6 +161,11 @@ jobs:
         with:
           tool: cargo-nextest
 
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+
       - name: Test pacquet
         shell: bash
         run: |

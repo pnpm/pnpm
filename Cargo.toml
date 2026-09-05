@@ -176,6 +176,8 @@ p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkc
 pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
 pubgrub = { version = "0.4.0" }
+pep440_rs = { version = "0.7.3" }
+pep508_rs = { version = "0.9.2" }
 pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }

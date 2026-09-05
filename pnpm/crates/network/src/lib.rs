@@ -629,12 +629,26 @@ impl ThrottledClient {
         url: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
+        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None).await
+    }
+
+    /// Negotiate an ecosystem's metadata representation while retaining the
+    /// shared request budget and URL-scoped authorization on redirects.
+    pub async fn get_bytes_with_secure_auth_and_accept(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             let client = self
                 .acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                 .await;
             let mut request = client.get(&current_url);
+            if let Some(accept) = accept {
+                request = request.header(reqwest::header::ACCEPT, accept);
+            }
             if let Some(authorization) = auth_headers.for_secure_url(&current_url) {
                 request = request.header("authorization", authorization);
             }
@@ -642,22 +656,22 @@ impl ThrottledClient {
             if !is_redirect_status(response.status()) || redirect_count == MAX_REDIRECT_HOPS {
                 let status = response.status();
                 let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
+                return Ok(SecureAuthResponse { status, body, url: current_url });
             }
             let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
                 let status = response.status();
                 let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
+                return Ok(SecureAuthResponse { status, body, url: current_url });
             };
             let Ok(location) = location.to_str() else {
                 let status = response.status();
                 let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
+                return Ok(SecureAuthResponse { status, body, url: current_url });
             };
             let Ok(target) = response.url().join(location) else {
                 let status = response.status();
                 let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
+                return Ok(SecureAuthResponse { status, body, url: current_url });
             };
             current_url = target.to_string();
         }
@@ -688,6 +702,7 @@ impl ThrottledClient {
 pub struct SecureAuthResponse {
     pub status: reqwest::StatusCode,
     pub body: Vec<u8>,
+    pub url: String,
 }
 
 fn ignore_warning(_: &str) {}

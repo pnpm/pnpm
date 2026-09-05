@@ -194,7 +194,7 @@ fn command_in_dir(
     // directory) and then the `extraBinPaths`.
     let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
     prepend.push(dir.join("node_modules").join(".bin"));
-    prepend.extend(config.extra_bin_paths.iter().cloned());
+    prepend.extend(crate::python::execution_paths(config, dir).iter().cloned());
     let path = prepend_dirs_to_path(&prepend)?;
 
     let mut cmd = if shell_mode {

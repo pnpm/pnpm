@@ -526,6 +526,7 @@ async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
     let mut target = mockito::Server::new_async().await;
     let target_mock = target
         .mock("GET", "/final")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
         .match_header("authorization", mockito::Matcher::Missing)
         .with_status(200)
         .with_body("ok")
@@ -535,6 +536,7 @@ async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
     let mut registry = mockito::Server::new_async().await;
     let start_mock = registry
         .mock("GET", "/start")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
         .match_header("authorization", "Bearer registry-token")
         .with_status(302)
         .with_header("location", "/same-origin")
@@ -555,12 +557,17 @@ async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
     )]);
 
     let response = ThrottledClient::default()
-        .get_bytes_with_secure_auth_headers(&format!("{}/start", registry.url()), &auth_headers)
+        .get_bytes_with_secure_auth_and_accept(
+            &format!("{}/start", registry.url()),
+            &auth_headers,
+            Some("application/vnd.pypi.simple.v1+json"),
+        )
         .await
         .expect("follow redirects with per-target authentication");
 
     assert_eq!(response.status, 200);
     assert_eq!(response.body, b"ok");
+    assert_eq!(response.url, format!("{}/final", target.url()));
     start_mock.assert_async().await;
     same_origin_mock.assert_async().await;
     target_mock.assert_async().await;

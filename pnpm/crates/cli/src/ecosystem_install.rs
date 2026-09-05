@@ -13,7 +13,7 @@ type Installer<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a
 
 /// Report whether a non-Node.js ecosystem participates in this install.
 pub(crate) fn is_enabled(config: &Config) -> bool {
-    config.cargo.enabled
+    config.cargo.enabled || config.python.enabled
 }
 
 pub(crate) struct InstallContext {
@@ -56,6 +56,3 @@ impl<'a> EcosystemInstallCoordinator<'a> {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod python_spike;

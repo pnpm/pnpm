@@ -1025,6 +1025,23 @@ cargo:
     assert!(error.contains("unknown field `registry`"), "{error}");
 }
 
+#[test]
+fn python_settings_parse_apply_and_remain_workspace_only() {
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extras: [speed]\n  groups: [test]\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert!(config.python.enabled);
+    assert_eq!(config.python.executable, "python3.13");
+    assert_eq!(config.python.index_url, "https://example.org/simple/");
+    assert_eq!(config.python.extras, ["speed"]);
+    assert_eq!(config.python.groups, ["test"]);
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.python.is_none());
+    assert!(serde_saphyr::from_str::<WorkspaceSettings>("python:\n  unknown: true\n").is_err());
+}
+
 /// `allowBuilds` is a map of `name[@version]` → bool. Same camelCase
 /// rename + `apply_to` wiring as the other yaml-sourced settings.
 /// pnpm 10+ moved this out of `package.json#pnpm` (matches
