@@ -381,7 +381,7 @@ fn clone_file(source_file: &Path, target_link: &Path) -> io::Result<()> {
 /// short-circuit and the link / reflink call. Falling back to
 /// `fs::copy` on that signal would overwrite the other process's
 /// freshly-installed file.
-fn is_cross_device(err: &io::Error) -> bool {
+pub(crate) fn is_cross_device(err: &io::Error) -> bool {
     #[cfg(unix)]
     return err.raw_os_error() == Some(18);
     #[cfg(windows)]

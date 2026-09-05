@@ -1,5 +1,5 @@
 use crate::{
-    LinkFileError, import_into_fresh_target,
+    LinkFileError, import_into_fresh_target, link_file::is_cross_device,
     remove_quarantine::remove_quarantine_from_native_binaries,
 };
 use derive_more::{Display, Error};
@@ -724,7 +724,7 @@ fn preserve_modules_dir(
     destination: &Path,
     backup: &Path,
 ) -> Result<PreservedModules, PreserveModulesFailure> {
-    match fs::rename(source, destination) {
+    match move_dirent_or_copy_across_device(source, destination) {
         Ok(()) => return Ok(PreservedModules::Directory),
         Err(error) if is_modules_dir_collision(&error) => {}
         Err(error) => {
@@ -732,7 +732,7 @@ fn preserve_modules_dir(
         }
     }
 
-    fs::rename(source, backup)
+    move_dirent_or_copy_across_device(source, backup)
         .map_err(|error| PreserveModulesFailure { error, preserved: PreservedModules::None })?;
 
     let destination_entries = fs::read_dir(destination)
@@ -766,18 +766,83 @@ fn preserve_modules_dir(
         if destination_entries.contains(&name) {
             continue;
         }
-        fs::rename(entry.path(), destination.join(&name)).map_err(|error| {
-            PreserveModulesFailure {
+        move_dirent_or_copy_across_device(&entry.path(), &destination.join(&name)).map_err(
+            |error| PreserveModulesFailure {
                 error,
                 preserved: PreservedModules::Merged {
                     backup: backup.to_path_buf(),
                     moved_entries: moved_entries.clone(),
                 },
-            }
-        })?;
+            },
+        )?;
         moved_entries.push(name);
     }
     Ok(PreservedModules::Merged { backup: backup.to_path_buf(), moved_entries })
+}
+
+fn move_dirent_or_copy_across_device(source: &Path, destination: &Path) -> io::Result<()> {
+    match fs::rename(source, destination) {
+        Ok(()) => Ok(()),
+        Err(error) => copy_dirent_after_cross_device_rename_error(error, source, destination),
+    }
+}
+
+fn copy_dirent_after_cross_device_rename_error(
+    rename_error: io::Error,
+    source: &Path,
+    destination: &Path,
+) -> io::Result<()> {
+    if !is_cross_device(&rename_error) {
+        return Err(rename_error);
+    }
+
+    let file_type = fs::symlink_metadata(source)?.file_type();
+    copy_dirent(source, destination, file_type)?;
+    if file_type.is_dir() {
+        pnpm_fs::remove_dir_all_with_retry(source)
+    } else {
+        remove_non_dir_dirent(source, file_type)
+    }
+}
+
+fn copy_dirent(source: &Path, destination: &Path, file_type: fs::FileType) -> io::Result<()> {
+    if file_type.is_symlink() {
+        copy_symlink(source, destination)
+    } else if file_type.is_dir() {
+        copy_dir(source, destination)
+    } else if file_type.is_file() {
+        fs::copy(source, destination).map(|_| ())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "cannot copy unsupported node_modules entry",
+        ))
+    }
+}
+
+fn copy_dir(source: &Path, destination: &Path) -> io::Result<()> {
+    let permissions = fs::symlink_metadata(source)?.permissions();
+    fs::create_dir(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        copy_dirent(&entry.path(), &destination.join(entry.file_name()), file_type)?;
+    }
+    fs::set_permissions(destination, permissions)
+}
+
+fn copy_symlink(source: &Path, destination: &Path) -> io::Result<()> {
+    let target = fs::read_link(source)?;
+    #[cfg(unix)]
+    return std::os::unix::fs::symlink(target, destination);
+    #[cfg(windows)]
+    {
+        if matches!(fs::metadata(source), Ok(meta) if meta.is_dir()) {
+            std::os::windows::fs::symlink_dir(target, destination)
+        } else {
+            std::os::windows::fs::symlink_file(target, destination)
+        }
+    }
 }
 
 fn is_modules_dir_collision(error: &io::Error) -> bool {
