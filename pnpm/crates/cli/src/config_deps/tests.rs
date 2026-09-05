@@ -127,10 +127,8 @@ async fn update_config_can_set_extra_env() {
     );
 }
 
-/// A hook receives and returns config values without a workspace-manifest
-/// path context. Relative `scriptShell` output therefore stays relative,
-/// matching TypeScript's direct adoption of the hook result rather than the
-/// manifest reader's one-time path anchoring.
+/// pnpm adopts the hook's result as-is, so a relative `scriptShell` set by a
+/// hook is not anchored at the workspace root the way the manifest's is.
 #[tokio::test]
 async fn update_config_script_shell_output_is_not_resolved_again() {
     let root = tempfile::tempdir().expect("workspace tempdir");
@@ -181,6 +179,26 @@ async fn update_config_hook_deleting_script_shell_clears_value() {
     fs::write(
         root.path().join(".pnpmfile.cjs"),
         "module.exports = { hooks: { updateConfig (config) { delete config.scriptShell; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.script_shell.is_some());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell, None);
+}
+
+#[tokio::test]
+async fn update_config_hook_setting_script_shell_to_null_clears_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell = null; return config } } }",
     )
     .expect("write pnpmfile");
     let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");

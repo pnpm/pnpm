@@ -635,6 +635,7 @@ scriptShell: ./ünicode-shell
 
     let base = Path::new("/workspace/root");
     let mut config = Config::new();
+    settings.resolve_script_shell(base);
     settings.apply_to(&mut config, base);
 
     assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
@@ -2620,17 +2621,27 @@ nodeOptions: --max-old-space-size=4096
 #[test]
 fn resolves_relative_script_shell_against_workspace_root() {
     let base = Path::new("/workspace/root");
-    for script_shell in ["./scripts/shell.sh", "../scripts/shell.sh", "bash", "/usr/bin/bash"] {
-        let settings: WorkspaceSettings =
+    for script_shell in ["./scripts/shell.sh", "../scripts/shell.sh", "scripts/shell.sh"] {
+        let mut settings: WorkspaceSettings =
             serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
+        settings.resolve_script_shell(base);
         let mut config = Config::new();
         settings.apply_to(&mut config, base);
-        let expected = if script_shell == "bash" || script_shell == "/usr/bin/bash" {
-            script_shell.to_owned()
-        } else {
-            pnpm_fs::lexical_normalize(&base.join(script_shell)).to_string_lossy().into_owned()
-        };
+        let expected =
+            pnpm_fs::lexical_normalize(&base.join(script_shell)).to_string_lossy().into_owned();
         assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+    }
+}
+
+#[test]
+fn keeps_bare_and_absolute_script_shell_values() {
+    for script_shell in ["bash", "/usr/bin/bash"] {
+        let mut settings: WorkspaceSettings =
+            serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
+        settings.resolve_script_shell(Path::new("/workspace/root"));
+        let mut config = Config::new();
+        settings.apply_to(&mut config, Path::new("/workspace/root"));
+        assert_eq!(config.script_shell.as_deref(), Some(script_shell));
     }
 }
 
@@ -2641,34 +2652,37 @@ fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
     fs::create_dir_all(&nested).unwrap();
     fs::write(root.path().join(WORKSPACE_MANIFEST_FILENAME), "scriptShell: ./a.sh\n").unwrap();
 
-    let (manifest, settings) =
+    let (manifest, mut settings) =
         WorkspaceSettings::find_and_load(&nested).unwrap().expect("ancestor workspace manifest");
     assert_eq!(manifest.parent(), Some(root.path()));
 
     let mut config = Config::new();
-    settings.apply_to(&mut config, manifest.parent().unwrap());
+    settings.resolve_script_shell(root.path());
+    settings.apply_to(&mut config, root.path());
     let expected = root.path().join("a.sh").to_string_lossy().into_owned();
     assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
 }
 
+/// The global config file, `PNPM_CONFIG_*`, and `updateConfig` hooks reach
+/// `apply_to` without the resolution step, and their `scriptShell` stays as
+/// written.
 #[test]
-fn preserves_relative_script_shell_for_sources_without_a_workspace_root() {
+fn apply_to_copies_script_shell_verbatim() {
     let settings: WorkspaceSettings =
         serde_saphyr::from_str("scriptShell: ./scripts/shell.sh").unwrap();
     let mut config = Config::new();
-    settings.apply_to_without_script_shell_resolution(&mut config, Path::new("/workspace/root"));
+    settings.apply_to(&mut config, Path::new("/workspace/root"));
     assert_eq!(config.script_shell.as_deref(), Some("./scripts/shell.sh"));
 }
 
+/// A drive-relative path (`C:tools\shell.cmd`) has a prefix but no root.
+/// Node's `path.win32.join` keeps the workspace base in front of it.
 #[cfg_attr(not(windows), ignore = "Windows path semantics")]
 #[test]
 fn resolves_drive_relative_script_shell_against_workspace_base() {
-    // A drive-relative path has a Windows prefix but no root. Rust's
-    // PathBuf::join treats that prefix as a replacement signal, while
-    // Node's path.win32.join keeps the existing workspace base. Keep the
-    // candidate literal when appending it so both implementations agree.
-    let settings: WorkspaceSettings =
+    let mut settings: WorkspaceSettings =
         serde_saphyr::from_str(r"scriptShell: 'C:tools\shell.cmd'").unwrap();
+    settings.resolve_script_shell(Path::new(r"C:\workspace\root"));
     let mut config = Config::new();
     settings.apply_to(&mut config, Path::new(r"C:\workspace\root"));
     assert_eq!(config.script_shell.as_deref(), Some(r"C:\workspace\root\C:tools\shell.cmd"));

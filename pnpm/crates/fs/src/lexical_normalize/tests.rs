@@ -46,3 +46,30 @@ fn strips_redundant_separators() {
     assert_eq!(lexical_normalize(Path::new("foo//bar")), Path::new("foo/bar"));
     assert_eq!(lexical_normalize(Path::new("/foo//bar/")), Path::new("/foo/bar"));
 }
+
+/// A drive letter followed by a colon is a legal file name component
+/// once it is past the start of the path.
+#[test]
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+fn keeps_a_drive_like_component_in_the_middle_of_the_path() {
+    assert_eq!(
+        lexical_normalize(Path::new(r"C:\workspace\root\C:tools\shell.cmd")),
+        Path::new(r"C:\workspace\root\C:tools\shell.cmd"),
+    );
+    assert_eq!(
+        lexical_normalize(Path::new(r"C:\workspace\root\.\C:tools\..\shell.cmd")),
+        Path::new(r"C:\workspace\root\shell.cmd"),
+    );
+}
+
+#[test]
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+fn keeps_windows_prefixes() {
+    assert_eq!(lexical_normalize(Path::new(r"C:\foo\..\bar")), Path::new(r"C:\bar"));
+    assert_eq!(lexical_normalize(Path::new(r"C:foo\.\bar")), Path::new(r"C:foo\bar"));
+    assert_eq!(
+        lexical_normalize(Path::new(r"\\server\share\foo\..\bar")),
+        Path::new(r"\\server\share\bar"),
+    );
+    assert_eq!(lexical_normalize(Path::new(r"\foo\..\bar")), Path::new(r"\bar"));
+}

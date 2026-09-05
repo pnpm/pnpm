@@ -3599,7 +3599,7 @@ impl Config {
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
             global_settings.expand_global_dir_home_prefixes::<Sys>();
-            global_settings.apply_to_without_script_shell_resolution(&mut self, start_dir);
+            global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
                 configured_state_dir.as_deref().filter(|value| !value.is_empty())
@@ -3684,6 +3684,7 @@ impl Config {
                 self.workspace_key_issues = settings.key_issues.clone();
                 note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
+                settings.resolve_script_shell(&base_dir);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
                 // yaml (the global config.yaml is stripped of the key,
@@ -3731,7 +3732,7 @@ impl Config {
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
         env_settings.expand_global_dir_home_prefixes::<Sys>();
-        env_settings.apply_to_without_script_shell_resolution(&mut self, start_dir);
+        env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
         if let Some(configured_state_dir) =

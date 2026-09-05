@@ -1864,7 +1864,7 @@ impl WorkspaceSettings {
                 continue;
             };
             if let Some(expanded) = Sys::home_dir()
-                .map(|home_dir| join_home_relative(&home_dir, relative))
+                .map(|home_dir| join_fragment(&home_dir, relative))
                 .and_then(|expanded| expanded.into_os_string().into_string().ok())
             {
                 *dir = Some(expanded);
@@ -1890,30 +1890,32 @@ impl WorkspaceSettings {
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
 
+    /// Resolve a path-like `scriptShell` against the workspace root, the
+    /// way pnpm does for the settings of `pnpm-workspace.yaml` and for no
+    /// other source: a relative shell path in the global config file, in
+    /// `PNPM_CONFIG_SCRIPT_SHELL`, or in an `updateConfig` hook's output
+    /// stays as written. A bare command name (`bash`) is left for `PATH`
+    /// lookup, and an absolute path is kept.
+    ///
+    /// Call this after environment substitution and before
+    /// [`Self::apply_to`], which copies the value verbatim.
+    pub fn resolve_script_shell(&mut self, workspace_dir: &Path) {
+        let Some(Some(script_shell)) = self.script_shell.as_mut() else { return };
+        // `has_root` rather than `is_absolute`: Node's win32 `isAbsolute`
+        // accepts a rooted path without a drive (`\tools\bash.exe`), which
+        // Rust's `is_absolute` rejects. On POSIX the two agree.
+        if Path::new(script_shell.as_str()).has_root() || !script_shell.contains(['/', '\\']) {
+            return;
+        }
+        *script_shell = join_fragment(workspace_dir, script_shell).to_string_lossy().into_owned();
+    }
+
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
+    /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
-        self.apply_to_inner(config, base_dir, true);
-    }
-
-    /// Apply settings from a source that has no workspace root (the global
-    /// config file or `PNPM_CONFIG_*` environment variables).
-    ///
-    /// Most path-valued settings still use `base_dir` for pacquet's config
-    /// cascade, but `scriptShell` is intentionally left untouched here:
-    /// TypeScript pnpm passes `manifestDir: undefined` for these sources and
-    /// therefore only resolves a path-like shell from a workspace manifest.
-    pub(crate) fn apply_to_without_script_shell_resolution(
-        self,
-        config: &mut Config,
-        base_dir: &Path,
-    ) {
-        self.apply_to_inner(config, base_dir, false);
-    }
-
-    fn apply_to_inner(self, config: &mut Config, base_dir: &Path, resolve_script_shell_path: bool) {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
         // Captured before the `apply!` macro and audit if-lets below move
@@ -2233,11 +2235,7 @@ impl WorkspaceSettings {
             config.scripts_prepend_node_path = v;
         }
         if let Some(v) = self.script_shell {
-            config.script_shell = if resolve_script_shell_path {
-                v.map(|value| resolve_script_shell(base_dir, &value))
-            } else {
-                v
-            };
+            config.script_shell = v;
         }
         if let Some(v) = self.node_options {
             config.node_options = v;
@@ -2442,53 +2440,21 @@ fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
-/// Join a `~/`-relative suffix onto the home directory the way pnpm's
-/// `path.join` does: concatenate with the separator, then normalize. Node
-/// treats every argument after the first as a fragment, so `Path::join` is
-/// the wrong primitive here — it lets a suffix that parses as rooted
-/// (`~//bin`) replace the home directory outright, which is how the tilde
-/// would end up naming somewhere else entirely.
-fn join_home_relative(home: &Path, relative: &str) -> PathBuf {
-    let mut joined = home.as_os_str().to_os_string();
+/// Join `fragment` onto `base` the way pnpm's `path.join` does: concatenate
+/// with the separator, then normalize. Node treats every argument after the
+/// first as a fragment, so [`Path::join`] is the wrong primitive here — it
+/// lets a fragment that parses as rooted (`//bin`) or drive-prefixed
+/// (`C:bin`, drive-relative on Windows) replace `base` outright.
+fn join_fragment(base: &Path, fragment: &str) -> PathBuf {
+    let mut joined = base.as_os_str().to_os_string();
     joined.push(std::path::MAIN_SEPARATOR_STR);
-    joined.push(relative);
+    joined.push(fragment);
     pnpm_fs::lexical_normalize(Path::new(&joined))
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {
     let candidate = Path::new(value);
     if candidate.is_absolute() { candidate.to_path_buf() } else { base.join(candidate) }
-}
-
-fn resolve_script_shell(base: &Path, value: &str) -> String {
-    let candidate = Path::new(value);
-    // Node's win32 path parser treats root-relative values (`\\foo` and
-    // `/foo`) as absolute; Rust's Windows `is_absolute` additionally
-    // requires a drive/UNC prefix. Preserve the root so Windows can supply
-    // the process drive when it executes the shell.
-    if candidate.is_absolute()
-        || cfg!(windows) && candidate.has_root()
-        || !value.contains('/') && !value.contains('\\')
-    {
-        return value.to_owned();
-    }
-    // `PathBuf::join` treats any Windows drive prefix as a replacement,
-    // including drive-relative `C:tools\\shell.cmd`. Node's
-    // `path.win32.join` keeps the workspace base for that input. Replace the
-    // drive separator with a NUL sentinel while joining: this makes it a
-    // literal component for Rust's path parser and still lets lexical
-    // normalization handle `.`/`..`; restore the separator afterwards.
-    let bytes = value.as_bytes();
-    if cfg!(windows)
-        && bytes.get(1) == Some(&b':')
-        && bytes.first().is_some_and(u8::is_ascii_alphabetic)
-    {
-        let mut joined = base.as_os_str().to_os_string();
-        joined.push(std::path::MAIN_SEPARATOR_STR);
-        joined.push(value.replacen(':', "\0", 1));
-        return pnpm_fs::lexical_normalize(Path::new(&joined)).to_string_lossy().replace('\0', ":");
-    }
-    pnpm_fs::lexical_normalize(&base.join(candidate)).to_string_lossy().into_owned()
 }
 
 pub(crate) fn find_workspace_manifest(start: &Path) -> Option<PathBuf> {

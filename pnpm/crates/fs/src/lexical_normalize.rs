@@ -1,4 +1,7 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    ffi::OsString,
+    path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf},
+};
 
 /// Lexically resolve `.` and `..` components without touching the
 /// filesystem.
@@ -34,11 +37,26 @@ pub fn lexical_normalize(path: &Path) -> PathBuf {
             other => kept.push(other),
         }
     }
-    let mut out = PathBuf::with_capacity(path.as_os_str().len());
+    // Concatenated by hand rather than through `PathBuf::push`: on Windows,
+    // `push` takes a component that looks like a drive prefix (`C:tools`,
+    // legal in the middle of a path) for the start of a new path and
+    // discards everything before it.
+    let mut out = OsString::with_capacity(path.as_os_str().len());
+    let mut needs_separator = false;
     for component in kept {
-        out.push(component.as_os_str());
+        match component {
+            Component::Prefix(prefix) => out.push(prefix.as_os_str()),
+            Component::RootDir => out.push(MAIN_SEPARATOR_STR),
+            component => {
+                if needs_separator {
+                    out.push(MAIN_SEPARATOR_STR);
+                }
+                out.push(component.as_os_str());
+                needs_separator = true;
+            }
+        }
     }
-    out
+    PathBuf::from(out)
 }
 
 #[cfg(test)]
