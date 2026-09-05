@@ -134,8 +134,8 @@ fn a_url_header_overlays_only_its_request_route() {
     auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
 
     assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
-    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()),);
-    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()),);
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
 }
 
 /// Records every `(url, package)` it is asked about and answers with a
