@@ -195,6 +195,68 @@ fn propagates_features_from_the_selected_older_candidate() {
 }
 
 #[test]
+fn ignores_features_from_an_unselected_newer_candidate() {
+    let metadata = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [
+      {
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0"
+      },
+      {
+        "name": "qux",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "=1.0.0"
+      }
+    ]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.1.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let qux_index = r#"{"name":"qux","vers":"1.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}
+{"name":"qux","vers":"1.1.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+        ("qux".to_string(), qux_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(metadata, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
+    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}
+
+#[test]
+fn propagates_dependency_features_without_default_features() {
+    let metadata = METADATA.replacen(
+        r#""req": "^1.0""#,
+        r#""req": "^1.0", "uses_default_features": false"#,
+        1,
+    );
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(&metadata, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}
+
+#[test]
 fn dep_activation_suppresses_the_implicit_optional_feature() {
     let metadata =
         METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["codec"]"#, 1);

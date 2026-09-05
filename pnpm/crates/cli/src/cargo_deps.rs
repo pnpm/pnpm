@@ -201,10 +201,17 @@ async fn discover_workspace_roots(search_root: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
+    discover_manifests_with(search_root, |directory| fs::read_dir(directory))
+}
+
+fn discover_manifests_with(
+    search_root: &Path,
+    mut read_dir: impl FnMut(&Path) -> io::Result<fs::ReadDir>,
+) -> Result<Vec<PathBuf>> {
     let mut pending = vec![search_root.to_path_buf()];
     let mut manifests = Vec::new();
     while let Some(directory) = pending.pop() {
-        let entries = match fs::read_dir(&directory) {
+        let entries = match read_dir(&directory) {
             Ok(entries) => entries,
             Err(error) if directory != search_root && is_ignorable_discovery_error(&error) => {
                 continue;

@@ -1,8 +1,8 @@
 use super::{
     LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum, discover_manifests,
-    ensure_workspace_directory, link_workspace, link_workspace_in, materialize, parse_lockfile,
-    sparse_index_path, update_managed_config, workspace_root, write_cargo_config,
-    write_cargo_config_in,
+    discover_manifests_with, ensure_workspace_directory, link_workspace, link_workspace_in,
+    materialize, parse_lockfile, sparse_index_path, update_managed_config, workspace_root,
+    write_cargo_config, write_cargo_config_in,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -19,7 +19,7 @@ use std::{
 };
 
 #[cfg(unix)]
-use std::os::unix::fs::{PermissionsExt, symlink};
+use std::os::unix::fs::symlink;
 
 #[cfg(windows)]
 use super::ensure_workspace_directory_windows;
@@ -284,7 +284,6 @@ fn discovers_nested_cargo_manifests_without_scanning_generated_directories() {
     assert_eq!(discover_manifests(repository.path()).unwrap(), [project.join("Cargo.toml")]);
 }
 
-#[cfg(unix)]
 #[test]
 fn discovery_skips_unreadable_unrelated_directories() {
     let repository = tempfile::tempdir().unwrap();
@@ -293,17 +292,16 @@ fn discovery_skips_unreadable_unrelated_directories() {
     fs::create_dir_all(&project).unwrap();
     fs::create_dir_all(&unreadable).unwrap();
     fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
-    fs::write(unreadable.join("Cargo.toml"), "[workspace]\n").unwrap();
-    let original_permissions = fs::metadata(&unreadable).unwrap().permissions();
-    fs::set_permissions(&unreadable, fs::Permissions::from_mode(0o0)).unwrap();
-    if fs::read_dir(&unreadable).is_ok() {
-        fs::set_permissions(&unreadable, original_permissions).unwrap();
-        return;
-    }
+    let manifests = discover_manifests_with(repository.path(), |directory| {
+        if directory == unreadable {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        } else {
+            fs::read_dir(directory)
+        }
+    })
+    .unwrap();
 
-    let manifests = discover_manifests(repository.path());
-    fs::set_permissions(&unreadable, original_permissions).unwrap();
-    assert_eq!(manifests.unwrap(), [project.join("Cargo.toml")]);
+    assert_eq!(manifests, [project.join("Cargo.toml")]);
 }
 
 #[tokio::test]

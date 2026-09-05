@@ -1,8 +1,11 @@
 use crate::{
-    features::{active_dependencies, collect_feature_selections, supports_features},
+    features::{
+        active_dependencies, feature_selections_for_solution, root_feature_selections,
+        supports_features,
+    },
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
-    model::{PackageKey, RegistryDependency},
+    model::{FeatureSelection, PackageKey, RegistryDependency},
     registry::{Registry, compatibility_line, matching_versions, validate_registry},
 };
 use miette::Result;
@@ -54,10 +57,32 @@ pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) 
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new(index_files)?;
     let root_dependencies = root_dependencies(&metadata)?;
-    let feature_selections = collect_feature_selections(&registry, &root_dependencies)?;
+    let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
+    let mut previous_selections = Vec::new();
+
+    loop {
+        if previous_selections.contains(&feature_selections) {
+            return Err(miette::miette!("Cargo feature resolution did not converge"));
+        }
+        previous_selections.push(feature_selections.clone());
+        let solution = resolve_with_features(&registry, &root_dependencies, &feature_selections)?;
+        let selected_features =
+            feature_selections_for_solution(&registry, &root_dependencies, &solution)?;
+        if selected_features == feature_selections {
+            return lockfile_from_solution(&metadata, &registry, &solution, &feature_selections);
+        }
+        feature_selections = selected_features;
+    }
+}
+
+fn resolve_with_features(
+    registry: &Registry,
+    root_dependencies: &[RegistryDependency],
+    feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+) -> Result<pubgrub::SelectedDependencies<PackageKey, Version>> {
     let mut provider = OfflineDependencyProvider::<PackageKey, Ranges<Version>>::new();
     let mut pending = VecDeque::new();
-    let root_constraints = constraints_for(&registry, &root_dependencies, &mut pending)?;
+    let root_constraints = constraints_for(registry, root_dependencies, &mut pending)?;
     provider.add_dependencies(PackageKey::Root, Version::new(0, 0, 0), root_constraints);
 
     let mut registered = BTreeSet::new();
@@ -80,24 +105,23 @@ pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) 
             if dependencies.iter().any(|dependency| registry.versions(&dependency.name).is_none()) {
                 continue;
             }
-            let constraints = constraints_for(&registry, &dependencies, &mut pending)?;
+            let constraints = constraints_for(registry, &dependencies, &mut pending)?;
             provider.add_dependencies(package.clone(), version.version.clone(), constraints);
         }
     }
 
-    let solution = match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
-        Ok(solution) => solution,
+    match resolve(&provider, PackageKey::Root, Version::new(0, 0, 0)) {
+        Ok(solution) => Ok(solution),
         Err(PubGrubError::NoSolution(mut tree)) => {
             tree.collapse_no_versions();
             let report = DefaultStringReporter::report(&tree);
-            return Err(miette::miette!(report));
+            Err(miette::miette!(report))
         }
         Err(error) => {
             let message = error.to_string();
-            return Err(miette::miette!(message));
+            Err(miette::miette!(message))
         }
-    };
-    lockfile_from_solution(&metadata, &registry, &solution, &feature_selections)
+    }
 }
 
 fn constraints_for(

@@ -3,6 +3,7 @@ use crate::{
     registry::{Registry, compatibility_line, matching_versions, validate_registry},
 };
 use miette::Result;
+use pubgrub::SelectedDependencies;
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
@@ -142,21 +143,34 @@ fn implicit_optional_aliases<'a>(
         .collect()
 }
 
-pub(crate) fn collect_feature_selections(
+pub(crate) fn root_feature_selections(
     registry: &Registry,
     root_dependencies: &[RegistryDependency],
 ) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
+    collect_feature_selections(registry, root_dependencies, None)
+}
+
+pub(crate) fn feature_selections_for_solution(
+    registry: &Registry,
+    root_dependencies: &[RegistryDependency],
+    solution: &SelectedDependencies<PackageKey, Version>,
+) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
+    collect_feature_selections(registry, root_dependencies, Some(solution))
+}
+
+fn collect_feature_selections(
+    registry: &Registry,
+    root_dependencies: &[RegistryDependency],
+    solution: Option<&SelectedDependencies<PackageKey, Version>>,
+) -> Result<BTreeMap<PackageKey, FeatureSelection>> {
     let mut selections = BTreeMap::<PackageKey, FeatureSelection>::new();
-    let mut candidate_versions = BTreeMap::<PackageKey, BTreeSet<Version>>::new();
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
         validate_registry(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
-        let eligible_versions =
-            matching_versions(versions, &dependency.requirement).collect::<Vec<_>>();
-        let compatibility = eligible_versions
-            .last()
+        let compatibility = matching_versions(versions, &dependency.requirement)
+            .next_back()
             .map(|version| compatibility_line(&version.version))
             .ok_or_else(|| {
                 miette::miette!(
@@ -165,39 +179,29 @@ pub(crate) fn collect_feature_selections(
                     dependency.requirement,
                 )
             })?;
-        let package = PackageKey::Registry {
-            name: dependency.name.clone(),
-            compatibility: compatibility.clone(),
-        };
-        let candidates = candidate_versions.entry(package.clone()).or_default();
-        let previous_candidate_count = candidates.len();
-        candidates.extend(
-            eligible_versions
-                .into_iter()
-                .filter(|version| compatibility_line(&version.version) == compatibility)
-                .map(|version| version.version.clone()),
-        );
-        let candidates_changed = candidates.len() != previous_candidate_count;
+        let package = PackageKey::Registry { name: dependency.name.clone(), compatibility };
         let requested = dependency.feature_selection();
+        let previous = selections.get(&package).cloned();
         let selection = selections.entry(package.clone()).or_default();
-        let previous = selection.clone();
         selection.default_features |= requested.default_features;
         selection.features.extend(requested.features);
-        let selection_changed = *selection != previous;
-        let selection = selection.clone();
-        if !candidates_changed && !selection_changed {
+        if previous.as_ref() == Some(selection) {
             continue;
         }
-        for candidate_version in &candidate_versions[&package] {
-            let candidate = versions
-                .iter()
-                .find(|candidate| candidate.version == *candidate_version)
-                .expect("recorded candidate came from this registry package");
-            if !supports_features(candidate, &selection) {
-                continue;
-            }
-            pending.extend(active_dependencies(candidate, &selection)?);
-        }
+        let Some(selected_version) = solution.and_then(|solution| solution.get(&package)) else {
+            continue;
+        };
+        let selected = versions
+            .iter()
+            .find(|candidate| candidate.version == *selected_version)
+            .ok_or_else(|| {
+                miette::miette!(
+                    "selected {} {} is absent from the index",
+                    dependency.name,
+                    selected_version,
+                )
+            })?;
+        pending.extend(active_dependencies(selected, selection)?);
     }
     Ok(selections)
 }
