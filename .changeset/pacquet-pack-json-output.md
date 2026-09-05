@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Fix `pnpm pack --json` to report errors as JSON and preserve lifecycle script stdout and stderr before the final JSON output.
+`pnpm pack --json` now reports errors as JSON. Lifecycle script stdout and stderr appear before the final JSON output.

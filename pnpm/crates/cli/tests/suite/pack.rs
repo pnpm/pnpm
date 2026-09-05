@@ -598,11 +598,13 @@ fn pack_json_prints_structured_errors_without_lifecycle_scripts() {
         .expect("write package.json");
 
     let output = pacquet.with_args(["pack", "--json"]).output().expect("run pack --json");
-    eprintln!("output: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let stderr = String::from_utf8(output.stderr).expect("UTF-8 stderr");
+    eprintln!("status: {}; stdout:\n{stdout}\nstderr:\n{stderr}", output.status);
     assert!(!output.status.success());
-    assert_eq!(output.stderr, b"");
+    assert_eq!(stderr, "");
     assert_eq!(
-        String::from_utf8(output.stdout).expect("UTF-8 stdout"),
+        stdout,
         "{\n  \"error\": {\n    \"code\": \"ERR_PNPM_PACKAGE_VERSION_NOT_FOUND\",\n    \"message\": \"Package version is not defined in the package.json.\"\n  }\n}\n",
     );
     drop(root);

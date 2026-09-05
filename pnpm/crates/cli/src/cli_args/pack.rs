@@ -42,7 +42,12 @@ use std::{
 /// share one definition.
 pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
 
-/// Keep lifecycle output on its original stream before the final pack JSON.
+/// The reporter for `pack --json`. It stands in for the selected
+/// `--reporter` / `--loglevel` (which pnpm skips entirely under `--json`)
+/// and mirrors pnpm running the pack lifecycle scripts with inherited stdio:
+/// the `$ <script>` banner goes to stderr, each script line stays on the
+/// stream it was written to, and every other event is dropped so the JSON
+/// result (or JSON error) is the last thing on stdout.
 pub(super) struct PackJsonReporter;
 
 impl Reporter for PackJsonReporter {
