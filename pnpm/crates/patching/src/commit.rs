@@ -374,10 +374,12 @@ fn is_diff_path_line(line: &str) -> bool {
 
 fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> String {
     let mut out = line.to_string();
-    for (prefix, folder) in [('a', folder_a), ('b', folder_b)] {
+    for folder in [folder_a, folder_b] {
         let trimmed = folder.trim_matches('/');
-        out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));
-        out = out.replace(&format!("{prefix}{folder}/"), &format!("{prefix}/"));
+        for prefix in ['a', 'b'] {
+            out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));
+            out = out.replace(&format!("{prefix}{folder}/"), &format!("{prefix}/"));
+        }
         out = out.replace(&format!("{folder}/"), "");
     }
     out

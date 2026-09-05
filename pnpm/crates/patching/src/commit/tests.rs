@@ -4,6 +4,7 @@ use super::{
     prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, safe_package_file_path,
     temporary_filtered_dir,
 };
+use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -22,6 +23,44 @@ fn patch_commit_diff_dirs_strips_absolute_temp_paths() {
     assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
     assert!(!diff.contains(&before.path().display().to_string()), "diff: {diff}");
     assert!(!diff.contains(&after.path().display().to_string()), "diff: {diff}");
+}
+
+#[test]
+fn patch_commit_diff_dirs_preserves_deleted_file_paths() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("readme.md"), "package documentation\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+    eprintln!("{diff}");
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches.next().expect("deleted file patch").expect("parse generated patch");
+    let FileOperation::Delete(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file deletion");
+    };
+
+    assert_eq!(path.as_ref(), "readme.md");
+    assert!(patches.next().is_none(), "expected one file patch");
+}
+
+#[test]
+fn patch_commit_diff_dirs_preserves_created_file_paths() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::create_dir(after.path().join("docs")).unwrap();
+    fs::write(after.path().join("docs/readme.md"), "package documentation\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+    eprintln!("{diff}");
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches.next().expect("created file patch").expect("parse generated patch");
+    let FileOperation::Create(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file creation");
+    };
+
+    assert_eq!(diff.lines().next(), Some("diff --git a/docs/readme.md b/docs/readme.md"));
+    assert_eq!(path.as_ref(), "docs/readme.md");
+    assert!(patches.next().is_none(), "expected one file patch");
 }
 
 #[test]
