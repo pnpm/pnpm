@@ -16,8 +16,11 @@ fn uses_configured_node_metadata_locations() {
         ..Config::default()
     };
 
+    let metadata_paths = add_metadata_paths(&config, &node_manifest, &cargo_manifest, &root, true);
+    eprintln!("metadata paths: {metadata_paths:#?}");
+
     assert_eq!(
-        add_metadata_paths(&config, &node_manifest, &cargo_manifest, &root, true),
+        metadata_paths,
         vec![
             cargo_manifest,
             root.join("Cargo.lock"),
