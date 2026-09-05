@@ -41,15 +41,30 @@ pub(crate) async fn prepare(
         ));
     }
 
+    let auth_headers = cargo_packages
+        .iter()
+        .any(|package| package.version_spec.is_none())
+        .then(|| cargo_deps::crates_io_auth_headers(config))
+        .transpose()?;
+
     let resolved = stream::iter(cargo_packages)
         .map(|package| {
             let http_client = Arc::clone(&http_client);
+            let auth_headers = auth_headers.clone();
             async move {
                 let version_spec = if let Some(version_spec) = package.version_spec.as_deref() {
                     version_spec.to_string()
                 } else {
-                    let version =
-                        cargo_deps::latest_version(config, &package.name, &http_client).await?;
+                    let auth_headers = auth_headers
+                        .as_deref()
+                        .expect("auth is prepared when a version lookup is needed");
+                    let version = cargo_deps::latest_version(
+                        config,
+                        auth_headers,
+                        &package.name,
+                        &http_client,
+                    )
+                    .await?;
                     saved_version(&version, save_exact, save_prefix)
                 };
                 Ok::<_, miette::Report>((package.name.clone(), version_spec))

@@ -1,6 +1,27 @@
-use super::{crates_io_from_sources, token_from_credentials};
+use super::{crates_io, crates_io_from_sources, token_from_credentials};
+use pnpm_config::{EnvVar, EnvVarOs, GetHomeDir};
 use pnpm_network::AuthHeaders;
-use std::{fs, sync::Arc};
+use std::{ffi::OsString, fs, path::PathBuf, sync::Arc};
+
+struct NoCredentialAccess;
+
+impl EnvVar for NoCredentialAccess {
+    fn var(_name: &str) -> Option<String> {
+        panic!("offline auth resolution must not read environment variables")
+    }
+}
+
+impl EnvVarOs for NoCredentialAccess {
+    fn var_os(_name: &str) -> Option<OsString> {
+        panic!("offline auth resolution must not read environment variables")
+    }
+}
+
+impl GetHomeDir for NoCredentialAccess {
+    fn home_dir() -> Option<PathBuf> {
+        panic!("offline auth resolution must not inspect the home directory")
+    }
+}
 
 fn configured() -> Arc<AuthHeaders> {
     Arc::new(AuthHeaders::from_creds_map([
@@ -20,6 +41,15 @@ fn no_cargo_token_reuses_the_configured_auth_map() {
         resolved.for_url("https://index.crates.io/config.json"),
         Some("Bearer pnpm-token".to_string()),
     );
+}
+
+#[test]
+fn offline_mode_does_not_read_cargo_credentials() {
+    let configured = configured();
+
+    let resolved = crates_io::<NoCredentialAccess>(&configured, true).unwrap();
+
+    assert!(Arc::ptr_eq(&resolved, &configured));
 }
 
 #[test]

@@ -312,22 +312,26 @@ async fn ensure_lockfile(
 
 pub(crate) async fn latest_version(
     config: &Config,
+    auth_headers: &AuthHeaders,
     name: &str,
     http_client: &ThrottledClient,
 ) -> Result<String> {
-    let auth_headers = registry_auth::crates_io::<pnpm_config::Host>(&config.auth_headers)?;
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
     let index_file = fetch_sparse_index_file(
         name,
         CRATES_IO_SPARSE_INDEX,
         &cache_dir,
         http_client,
-        &auth_headers,
+        auth_headers,
         config.offline,
     )
     .await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
+}
+
+pub(crate) fn crates_io_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {
+    registry_auth::crates_io::<pnpm_config::Host>(&config.auth_headers, config.offline)
 }
 
 async fn read_cargo_metadata(root_dir: &Path) -> Result<String> {
@@ -363,7 +367,7 @@ async fn fetch_sparse_index(
     metadata: &str,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<BTreeMap<String, String>> {
-    let auth_headers = registry_auth::crates_io::<pnpm_config::Host>(&config.auth_headers)?;
+    let auth_headers = crates_io_auth_headers(config)?;
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
     let mut index_files = BTreeMap::new();
 

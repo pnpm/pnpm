@@ -21,10 +21,16 @@ struct RegistryCredentials {
     token: Option<String>,
 }
 
-pub(super) fn crates_io<Sys>(configured: &Arc<AuthHeaders>) -> Result<Arc<AuthHeaders>>
+pub(super) fn crates_io<Sys>(
+    configured: &Arc<AuthHeaders>,
+    offline: bool,
+) -> Result<Arc<AuthHeaders>>
 where
     Sys: EnvVar + EnvVarOs + GetHomeDir,
 {
+    if offline {
+        return Ok(Arc::clone(configured));
+    }
     let cargo_home = cargo_home::<Sys>();
     crates_io_from_sources(configured, Sys::var(CRATES_IO_TOKEN_ENV), cargo_home.as_deref())
 }
