@@ -43,7 +43,7 @@ fn normalizes_literal_and_glob_patterns() {
         );
     }
     assert_eq!(find_project_names(tmp.path(), &["./packages/.hidden"]), vec!["root", "hidden"]);
-    assert_eq!(find_project_names(tmp.path(), &["./projects/foo/bar/baz"]), vec!["root", "nested"],);
+    assert_eq!(find_project_names(tmp.path(), &["./projects/foo/bar/baz"]), vec!["root", "nested"]);
     assert_eq!(find_project_names(tmp.path(), &["././", "packages/../"]), vec!["root"]);
     assert_eq!(
         find_project_names(tmp.path(), &["packages/alpha", "./packages/./alpha"]),
