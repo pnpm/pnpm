@@ -115,10 +115,6 @@ pub(crate) enum PackageContentCheck {
     Skip,
 }
 
-/// This subroutine ingests a tarball into the content-addressable store.
-///
-/// It returns a CAS map of files in the tarball.
-///
 /// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
 /// `Arc` — so a caller can keep a copy to retry through a different entry
 /// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
