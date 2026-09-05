@@ -427,6 +427,18 @@ impl InstallPipeline {
         let http_client = State::new_http_client(cfg).wrap_err("initialize the install network")?;
         let cfg: &'static Config = cfg;
         let lockfile_only = args.lockfile_only;
+        if !ecosystem_install::is_enabled(cfg) {
+            return run_node_install::<Reporter>(
+                plan,
+                args,
+                cfg,
+                manifest_path,
+                require_lockfile,
+                lockfile,
+                http_client,
+            )
+            .await;
+        }
         let node_install = run_node_install::<Reporter>(
             plan,
             args,
@@ -436,17 +448,23 @@ impl InstallPipeline {
             lockfile,
             Arc::clone(&http_client),
         );
-        ecosystem_install::EcosystemInstallCoordinator {
-            config: cfg,
-            root_dir: &config_root,
-            discover_cargo_projects: true,
-            http_client,
-            lockfile_only,
-            frozen_lockfile,
-            cargo_lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
-        }
-        .run::<Reporter, _>(node_install)
-        .await
+        let cargo_install = crate::cargo_deps::install::<Reporter>(
+            ecosystem_install::InstallContext {
+                config: cfg,
+                http_client,
+                lockfile_only,
+                frozen_lockfile,
+            },
+            crate::cargo_deps::CargoInstallOptions {
+                root_dir: &config_root,
+                discover_projects: true,
+                lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
+            },
+        );
+        ecosystem_install::EcosystemInstallCoordinator::new(node_install)
+            .with_install(cargo_install)
+            .run()
+            .await
     }
 }
 
@@ -682,17 +700,23 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
         let state = init_shared_state(manifest_path, cfg, false, None, node_http_client)?;
         Box::pin(node_args.run::<Reporter>(state, None)).await
     };
-    ecosystem_install::EcosystemInstallCoordinator {
-        config: cfg,
-        root_dir: &cargo_root,
-        discover_cargo_projects: false,
-        http_client,
-        lockfile_only,
-        frozen_lockfile: false,
-        cargo_lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
-    }
-    .run::<Reporter, _>(node_install)
-    .await
+    let cargo_install = crate::cargo_deps::install::<Reporter>(
+        ecosystem_install::InstallContext {
+            config: cfg,
+            http_client,
+            lockfile_only,
+            frozen_lockfile: false,
+        },
+        crate::cargo_deps::CargoInstallOptions {
+            root_dir: &cargo_root,
+            discover_projects: false,
+            lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
+        },
+    );
+    ecosystem_install::EcosystemInstallCoordinator::new(node_install)
+        .with_install(cargo_install)
+        .run()
+        .await
 }
 
 pub(crate) struct UpdatePipeline {
