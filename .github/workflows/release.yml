@@ -622,7 +622,21 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
+      - name: Prepare unsigned Windows binary
+        if: runner.os == 'Windows'
+        shell: bash
+        run: mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
+
+      - name: Upload unsigned Windows binary
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: unsigned-binary-rust-${{ matrix.code-target }}
+          path: pnpm.exe
+
       - name: Download node-gyp payload
+        if: runner.os != 'Windows'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: node-gyp-payload
@@ -630,7 +644,9 @@ jobs:
           # `*.tar.gz` glob the Upload Binary step publishes.
           path: node-gyp-payload
 
-      # The binary is archived to fix permission loss
+      # Non-Windows binaries are archived here. Windows binaries are handed to
+      # sign-rust-windows as raw build outputs and archived only after signing.
+      # The archives fix permission loss
       # (https://github.com/actions/upload-artifact#permission-loss) and ships
       # under its final name: `pnpm-<target>` archives with a plain `pnpm`
       # binary at the root beside a `dist/` holding node-gyp — the layout the
@@ -638,14 +654,6 @@ jobs:
       # the binary resolves node-gyp from at `<exe dir>/dist/node-gyp-bin` — so
       # the github-release-rust job can upload them to the GitHub release
       # byte-for-byte as attested here.
-      - name: Archive Binary
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mv target/${{ matrix.target }}/release/pnpm.exe pnpm.exe
-          tar xzf node-gyp-payload/node-gyp-payload.tar.gz
-          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
-
       - name: Archive Binary
         if: runner.os != 'Windows'
         # Everything is staged in a scratch directory because the repo root
@@ -659,11 +667,13 @@ jobs:
           tar czf pnpm-${{ matrix.code-target }}.tar.gz -C stage pnpm dist
 
       - name: Attest build provenance
+        if: runner.os != 'Windows'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: pnpm-${{ matrix.code-target }}.*
 
       - name: Upload Binary
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           if-no-files-found: error
@@ -671,6 +681,86 @@ jobs:
           path: |
             *.zip
             *.tar.gz
+
+  # Keep the signing identity in the protected release environment instead of
+  # exposing it to every target build. Only this job can turn the raw Windows
+  # build outputs into the binaries-rust-* artifacts consumed downstream.
+  sign-rust-windows:
+    name: Sign pnpm (Rust) ${{ matrix.code-target }}
+    needs:
+      - plan
+      - build-node-gyp-payload
+      - build-rust
+    if: needs.plan.outputs.rust == 'true' && !inputs.verify_ts_release
+    runs-on: blacksmith-8vcpu-windows-2025
+    environment: release
+    permissions:
+      contents: read
+      id-token: write # authenticate to Azure Artifact Signing and attest the signed archive
+      attestations: write
+    strategy:
+      matrix:
+        include:
+          - code-target: win32-x64
+          - code-target: win32-arm64
+    steps:
+      - name: Download unsigned binary
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: unsigned-binary-rust-${{ matrix.code-target }}
+
+      - name: Log in to Azure
+        uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign pnpm.exe
+        uses: azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          endpoint: ${{ secrets.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ secrets.AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME }}
+          files: ${{ github.workspace }}\pnpm.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: pnpm
+          description-url: https://pnpm.io
+
+      - name: Verify Authenticode signature
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature pnpm.exe
+          if ($signature.Status -ne 'Valid') {
+            throw "Invalid Authenticode signature: $($signature.StatusMessage)"
+          }
+          $signature.SignerCertificate | Format-List Subject, Issuer, NotBefore, NotAfter, Thumbprint
+
+      - name: Download node-gyp payload
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: node-gyp-payload
+          path: node-gyp-payload
+
+      - name: Archive signed binary
+        shell: bash
+        run: |
+          tar xzf node-gyp-payload/node-gyp-payload.tar.gz
+          7z a pnpm-${{ matrix.code-target }}.zip pnpm.exe dist
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: pnpm-${{ matrix.code-target }}.zip
+
+      - name: Upload signed binary
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          if-no-files-found: error
+          name: binaries-rust-${{ matrix.code-target }}
+          path: pnpm-${{ matrix.code-target }}.zip
 
   build-rust-napi:
     # Deliberately not waiting on build-node-gyp-payload: the addon ships no
@@ -788,6 +878,7 @@ jobs:
       - plan
       - build-rust
       - build-rust-napi
+      - sign-rust-windows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -933,6 +1024,7 @@ jobs:
       - plan
       - build-rust
       - build-rust-napi
+      - sign-rust-windows
       - verify-rust-artifacts
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

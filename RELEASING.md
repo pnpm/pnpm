@@ -179,6 +179,38 @@ The key's user ID must carry the same email as `user.email`, and that address
 must be verified on the GitHub account — otherwise the signature is valid but
 GitHub still renders it Unverified.
 
+<!-- cspell:ignore Authenticode -->
+
+### Windows executable signing
+
+The Rust pnpm release signs `pnpm.exe` through Azure Artifact Signing before
+creating the Windows release archives. The signing job runs in the protected
+`release` environment and authenticates through GitHub OIDC. Its Microsoft
+Entra application must have a federated credential with these claims:
+
+- Issuer: `https://token.actions.githubusercontent.com`
+- Subject: `repo:pnpm/pnpm:environment:release`
+- Audience: `api://AzureADTokenExchange`
+
+Assign that application the `Artifact Signing Certificate Profile Signer` role
+at the certificate-profile scope. The profile must use Public Trust so Windows
+can validate the Authenticode chain without installing a private root.
+
+Configure these secrets on the GitHub `release` environment:
+
+- `AZURE_CLIENT_ID`
+- `AZURE_TENANT_ID`
+- `AZURE_SUBSCRIPTION_ID`
+- `AZURE_ARTIFACT_SIGNING_ENDPOINT`
+- `AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME`
+- `AZURE_ARTIFACT_SIGNING_CERTIFICATE_PROFILE_NAME`
+
+The release fails before packaging if signing fails or Windows does not report
+the resulting Authenticode signature as valid. Unsigned intermediate binaries
+are uploaded under `unsigned-binary-rust-*`; only the signed
+`binaries-rust-*` artifacts are downloaded by the verification, npm publish,
+and GitHub release jobs.
+
 ## Known gap
 
 The release commit itself is created by `create-release-pr.yml` and merged
