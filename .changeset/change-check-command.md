@@ -5,4 +5,4 @@
 "pacquet": minor
 ---
 
-Added `pnpm change check`, which validates that the committed package versions satisfy the `versioning.epics` major-band and `versioning.fixed` shared-version rules configured in `pnpm-workspace.yaml`, failing with every violation listed. The release engine only enforces these when a package actually releases; `pnpm change check` validates the whole workspace up front, so it can run in CI to catch version drift before a release reaches the registry.
+Added `pnpm change check`. It validates the committed package versions against the `versioning.epics` bands and the `versioning.fixed` groups in `pnpm-workspace.yaml` and lists every violation. It is meant to run in CI, because `pnpm version -r` only checks the packages it releases.

@@ -290,12 +290,7 @@ export function renderReleasePlan (plan: ReleasePlan): string {
   return output
 }
 
-/**
- * Validates that the committed versions satisfy the configured epic bands and
- * fixed-group lockstep, failing with every violation listed when they don't.
- * Meant for CI: it catches version drift the release engine would otherwise
- * only reject once a release happens to touch the offending package.
- */
+/** Fails with every violation `checkVersioningInvariants` found, listed. */
 function renderCheck (workspaceDir: string, opts: ChangeCommandOptions): string {
   const violations = checkVersioningInvariants({
     workspaceDir,

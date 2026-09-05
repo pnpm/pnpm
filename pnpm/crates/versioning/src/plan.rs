@@ -256,9 +256,7 @@ pub fn check_versioning_invariants(
     let empty_new_versions = BTreeMap::new();
     let mut violations = Vec::new();
     for epic in &epics {
-        let band_major = epic_band_major(epic, &participants, &empty_new_versions);
-        let low = band_major * 100;
-        let high = low + 99;
+        let band = epic_band(epic, &participants, &empty_new_versions);
         let mut member_dirs: Vec<&String> = epic.member_dirs.iter().collect();
         member_dirs.sort();
         for member_dir in member_dirs {
@@ -266,12 +264,12 @@ pub fn check_versioning_invariants(
             let member_major = Version::parse(member.current_version)
                 .expect("participants have valid versions")
                 .major;
-            if member_major < low || member_major > high {
+            if !band.contains(member_major) {
                 violations.push(VersioningInvariantViolation {
                     code: VersioningInvariantCode::EpicOutOfBand,
                     message: format!(
-                        r#"{} is at {}, whose major {member_major} is outside the band {low}-{high} of the epic led by "{}" (major {band_major})."#,
-                        member.name, member.current_version, epic.lead_ref,
+                        r#"{} is at {}, whose major {member_major} is outside the band {}-{} of the epic led by "{}" (major {})."#,
+                        member.name, member.current_version, band.low, band.high, epic.lead_ref, band.major,
                     ),
                 });
             }
@@ -1286,19 +1284,33 @@ fn apply_epic_band_versions(
 /// for the lead — its re-based major when the lead crosses to a new stable
 /// major, otherwise the lead's current major (a prerelease lead does not open
 /// the next band).
-fn epic_band_major(
+struct EpicBand {
+    major: u64,
+    low: u64,
+    high: u64,
+}
+
+impl EpicBand {
+    fn contains(&self, member_major: u64) -> bool {
+        (self.low..=self.high).contains(&member_major)
+    }
+}
+
+fn epic_band(
     epic: &ResolvedEpic,
     participants: &BTreeMap<String, Participant<'_>>,
     new_versions: &BTreeMap<String, String>,
-) -> u64 {
-    match epic_rebase_floor(epic, participants, new_versions) {
+) -> EpicBand {
+    let major = match epic_rebase_floor(epic, participants, new_versions) {
         Some(floor) => floor / 100,
         None => {
             Version::parse(participants[epic.lead_dir.as_str()].current_version)
                 .expect("participants have valid versions")
                 .major
         }
-    }
+    };
+    let low = major * 100;
+    EpicBand { major, low, high: low + 99 }
 }
 
 /// Enforces that every released member's new major stays inside its epic's
@@ -1312,22 +1324,20 @@ fn enforce_epic_bands(
     new_versions: &BTreeMap<String, String>,
 ) -> Result<(), VersioningError> {
     for epic in epics {
-        let band_major = epic_band_major(epic, participants, new_versions);
-        let low = band_major * 100;
-        let high = low + 99;
+        let band = epic_band(epic, participants, new_versions);
         for member_dir in &epic.member_dirs {
             let Some(member_version) = new_versions.get(member_dir) else {
                 continue;
             };
             let member_major =
                 Version::parse(member_version).expect("participants have valid versions").major;
-            if member_major < low || member_major > high {
+            if !band.contains(member_major) {
                 return Err(VersioningError::EpicOutOfBand {
                     pkg_name: participants[member_dir.as_str()].name.to_string(),
                     new_version: member_version.clone(),
                     member_major,
                     lead: epic.lead_ref.clone(),
-                    band_major,
+                    band_major: band.major,
                 });
             }
         }

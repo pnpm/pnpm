@@ -337,10 +337,7 @@ async fn render_status(
     Ok(output)
 }
 
-/// Validates that the committed versions satisfy the configured epic bands and
-/// fixed-group lockstep, failing with every violation listed when they don't.
-/// Meant for CI: it catches version drift the release engine would otherwise
-/// only reject once a release happens to touch the offending package.
+/// Fails with every violation [`check_versioning_invariants`] found, listed.
 fn run_check(
     workspace_dir: &Path,
     projects: &[WorkspaceProject],

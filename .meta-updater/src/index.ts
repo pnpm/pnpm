@@ -99,9 +99,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           pnpmMajorKeyword,
           ...Array.from(new Set((manifest.keywords ?? []).filter((keyword) => keyword !== 'pnpm' && !/^pnpm\d+$/.test(keyword)))).sort(),
         ]
-        // Library-package major versions are banded to the pnpm CLI's major by
-        // the `versioning.epics` release engine (see pnpm-workspace.yaml), not
-        // rewritten here.
         if (manifest.name !== CLI_PKG_NAME) {
           for (const depType of ['dependencies', 'devDependencies', 'optionalDependencies'] as const) {
             if (!manifest[depType]) continue
@@ -150,8 +147,6 @@ export default async (workspaceDir: string) => { // eslint-disable-line
           }
         }
         if (dir.includes('artifacts') || manifest.name === '@pnpm/exe') {
-          // Versions are kept in lockstep with the pnpm CLI by the
-          // `versioning.fixed` group in pnpm-workspace.yaml, not rewritten here.
           if (manifest.name === '@pnpm/exe') {
             for (const depName of [
               '@pnpm/linux-arm64',

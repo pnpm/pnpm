@@ -73,8 +73,7 @@ versioning:
   #   - the Rust CLI wrapper and its NAPI addon;
   #   - the pnpm CLI with its prebuilt executable (@pnpm/exe) and the
   #     per-platform binary packages under pnpm11/pnpm/artifacts/. Those ship the
-  #     same build and must carry the CLI's exact version; this lockstep
-  #     previously lived as a version-forcing hack in .meta-updater.
+  #     same build and must carry the CLI's exact version.
   fixed:
     - [ 'pacquet', '@pnpm/napi' ]
     - [ 'pnpm', '@pnpm/exe', '@pnpm/macos-arm64', '@pnpm/linux-arm64', '@pnpm/linuxstatic-arm64', '@pnpm/linux-x64', '@pnpm/linuxstatic-x64', '@pnpm/win-arm64', '@pnpm/win-x64' ]
@@ -85,8 +84,7 @@ versioning:
   # carry one past the band ceiling, and re-bases every member to the next band
   # floor when the CLI crosses to a new stable major. The built release
   # artifacts under pnpm11/pnpm/artifacts/ are excluded from the band — they ride
-  # the CLI's exact version through the fixed group above. The banding here
-  # previously lived as a version-forcing hack in .meta-updater.
+  # the CLI's exact version through the fixed group above.
   epics:
     - lead: pnpm
       packages:
