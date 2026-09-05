@@ -188,8 +188,6 @@ fn spurious_not_found_with_an_existing_target_is_adopted() {
     assert_eq!(dst_mode, 0o755, "the adopted target must be restored to 0o755");
 }
 
-/// A `NotFound` with nothing at the target is a missing parent
-/// directory or source, not a race, and must surface.
 #[test]
 fn not_found_without_a_target_propagates() {
     let tmp = tempdir().unwrap();
@@ -204,8 +202,6 @@ fn not_found_without_a_target_propagates() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 
-/// A store blob that is really gone stays an error even when something
-/// occupies the target.
 #[test]
 fn not_found_without_a_source_propagates() {
     let tmp = tempdir().unwrap();
@@ -219,8 +215,29 @@ fn not_found_without_a_source_propagates() {
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
 
-/// Only the two race codes are recovered; anything else surfaces even
-/// with both files present.
+/// A dangling symlink at either path also opens as `NotFound` for the
+/// copy tier, and no concurrent importer will ever heal it.
+#[test]
+#[cfg(unix)]
+fn not_found_with_a_dangling_symlink_at_either_path_propagates() {
+    let tmp = tempdir().unwrap();
+    let dangling = |name: &str| {
+        let link = tmp.path().join(name);
+        std::os::unix::fs::symlink(tmp.path().join("missing-target"), &link).unwrap();
+        link
+    };
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = write_source(tmp.path(), "dst", b"data\n");
+
+    for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src"), dst)] {
+        let error =
+            recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+                .expect_err("a dangling symlink is corruption, not a concurrent writer");
+        let LinkFileError::Import { error, .. } = error;
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+}
+
 #[test]
 fn other_import_errors_propagate() {
     let tmp = tempdir().unwrap();

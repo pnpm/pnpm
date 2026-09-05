@@ -217,17 +217,10 @@ pub fn link_file<Reporter: self::Reporter>(
 /// runs against a directory it just created — that protection is
 /// unneeded.
 ///
-/// EEXIST from the import syscall means a concurrent install (or a
-/// sibling rayon worker writing the same CAFS path) raced past the
-/// freshness guarantee. The content is content-addressed so the
-/// existing dirent is equivalent — but a reflink the winner used
-/// drops the exec bit, so we re-assert it from the `-exec` suffix
-/// instead of adopting a possibly-`0o644` binary. That re-assertion
-/// also heals a target an earlier failed restore left non-executable,
-/// which is why the clone tier no longer deletes on restore failure.
-/// A `NotFound` whose target dirent turns out to exist is the same
-/// race reported under the wrong code; see
-/// `recover_from_concurrent_import`.
+/// A concurrent install (or a sibling rayon worker writing the same
+/// CAFS path) can race past the freshness guarantee;
+/// `recover_from_concurrent_import` decides which import failures mean
+/// that and adopts the file it placed.
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
@@ -252,14 +245,17 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 /// returns here without touching disk, but pnpm's clone preserves the
 /// mode and pacquet's reflink does not — so re-assert the exec bit from
 /// the `-exec` suffix (idempotent, a no-op for non-exec entries) before
-/// adopting the dirent.
+/// adopting the dirent. That re-assertion also heals a target an earlier
+/// failed restore left non-executable, which is why the clone tier no
+/// longer deletes on restore failure.
 ///
-/// `NotFound` is the same race when the target dirent exists: APFS
-/// `clonefile` intermittently reports a destination that another process
-/// renamed into place moments earlier as missing instead of existing
-/// (pnpm/pnpm#14560). The source check keeps a store blob that really is
-/// gone an error, and a target that is absent too means the parent
-/// directory vanished, which no concurrent importer of this slot does.
+/// `NotFound` is the same race when a regular file now sits at the
+/// target: APFS `clonefile` intermittently reports a destination that
+/// another process renamed into place moments earlier as missing instead
+/// of existing (pnpm/pnpm#14560). Both checks follow symlinks, so a
+/// dangling link squatting at either path is not mistaken for the race:
+/// a store blob that really is gone stays an error, and so does a target
+/// the copy tier could not open through.
 ///
 /// Every other error is the caller's to surface.
 fn recover_from_concurrent_import(
@@ -275,7 +271,8 @@ fn recover_from_concurrent_import(
     let placed_concurrently = match error.kind() {
         io::ErrorKind::AlreadyExists => true,
         io::ErrorKind::NotFound => {
-            fs::symlink_metadata(target_link).is_ok() && fs::symlink_metadata(source_file).is_ok()
+            fs::metadata(target_link).is_ok_and(|meta| meta.is_file())
+                && fs::metadata(source_file).is_ok()
         }
         _ => false,
     };
