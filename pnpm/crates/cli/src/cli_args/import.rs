@@ -1,7 +1,7 @@
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
-use pnpm_lockfile::EnvLockfile;
+use pnpm_lockfile::{EnvLockfile, Lockfile};
 use pnpm_lockfile_import::{read_foreign_lockfile_versions, to_preferred_versions};
 use pnpm_network::redact_url_for_display;
 use pnpm_package_manager::{Install, ProjectMutation};
@@ -24,10 +24,15 @@ impl ImportArgs {
         let State { tarball_mem_cache, http_client, config, manifest, resolved_packages, .. } =
             &state;
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let lockfile_path = dir.join("pnpm-lock.yaml");
-        let env_lockfile = EnvLockfile::read(dir)
-            .into_diagnostic()
-            .wrap_err("reading the env lockfile before import")?;
+        let lockfile_dir = state.lockfile_dir();
+        let lockfile_path = state.lockfile_path();
+        let env_lockfile = if config.wanted_lockfile_name() == Lockfile::FILE_NAME {
+            EnvLockfile::read(lockfile_dir)
+                .into_diagnostic()
+                .wrap_err("reading the env lockfile before import")?
+        } else {
+            None
+        };
 
         if let Some(pnpr_server) = self.pnpr_server.as_deref().or(config.pnpr_server.as_deref()) {
             let pnpr_server = redact_url_for_display(pnpr_server);
@@ -94,7 +99,7 @@ impl ImportArgs {
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
                 env_lockfile
-                    .write(dir)
+                    .write(lockfile_dir)
                     .into_diagnostic()
                     .wrap_err("preserving the env lockfile after import")?;
             }
