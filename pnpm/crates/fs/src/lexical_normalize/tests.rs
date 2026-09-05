@@ -1,4 +1,4 @@
-use super::lexical_normalize;
+use super::{lexical_normalize, lexical_normalize_posix};
 use std::path::Path;
 
 #[test]
@@ -72,4 +72,32 @@ fn keeps_windows_prefixes() {
         Path::new(r"\\server\share\bar"),
     );
     assert_eq!(lexical_normalize(Path::new(r"\foo\..\bar")), Path::new(r"\bar"));
+}
+
+#[test]
+fn posix_normalization_preserves_relative_roots_and_trailing_slashes() {
+    for (path, expected) in [
+        ("", "."),
+        ("././", "./"),
+        ("foo/../", "./"),
+        ("foo/../../bar//", "../bar/"),
+        ("../../foo/../bar", "../../bar"),
+        ("///foo/../../bar//", "/bar/"),
+        ("/../../", "/"),
+    ] {
+        assert_eq!(lexical_normalize_posix(path), expected, "path: {path}");
+    }
+}
+
+#[test]
+fn posix_normalization_preserves_backslashes_and_drive_like_components() {
+    for (path, expected) in [
+        (r"./packages/foo\[bar\]", r"packages/foo\[bar\]"),
+        (r"foo\bar/../baz", "baz"),
+        (r"C:\foo\..\bar", r"C:\foo\..\bar"),
+        ("C:/../bar", "bar"),
+        ("./.hidden/../visible", "visible"),
+    ] {
+        assert_eq!(lexical_normalize_posix(path), expected, "path: {path}");
+    }
 }

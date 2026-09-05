@@ -1,5 +1,5 @@
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::{Component, MAIN_SEPARATOR_STR, Path, PathBuf},
 };
 
@@ -20,30 +20,13 @@ use std::{
 /// not exist yet, where [`std::fs::canonicalize`] cannot help.
 #[must_use]
 pub fn lexical_normalize(path: &Path) -> PathBuf {
-    // Always rebuilt component-by-component, never copied verbatim:
-    // besides the dot components, the rebuild also strips trailing and
-    // doubled separators, and callers compare and hash the results.
-    let mut kept: Vec<Component<'_>> = Vec::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => match kept.last() {
-                Some(Component::Normal(_)) => {
-                    kept.pop();
-                }
-                Some(Component::RootDir | Component::Prefix(_)) => {}
-                _ => kept.push(Component::ParentDir),
-            },
-            Component::CurDir => {}
-            other => kept.push(other),
-        }
-    }
     // Concatenated by hand rather than through `PathBuf::push`: on Windows,
     // `push` takes a component that looks like a drive prefix (`C:tools`,
     // legal in the middle of a path) for the start of a new path and
     // discards everything before it.
     let mut out = OsString::with_capacity(path.as_os_str().len());
     let mut needs_separator = false;
-    for component in kept {
+    for component in normalize_components(path.components()) {
         match component {
             Component::Prefix(prefix) => out.push(prefix.as_os_str()),
             Component::RootDir => out.push(MAIN_SEPARATOR_STR),
@@ -57,6 +40,62 @@ pub fn lexical_normalize(path: &Path) -> PathBuf {
         }
     }
     PathBuf::from(out)
+}
+
+/// Normalize a POSIX path lexically on every platform, preserving a trailing
+/// slash and returning `.` for an empty result. Backslashes remain literal.
+#[must_use]
+pub fn lexical_normalize_posix(path: &str) -> String {
+    let root = path.starts_with('/').then_some(Component::RootDir);
+    let components = path.split('/').filter(|part| !part.is_empty()).map(|part| match part {
+        "." => Component::CurDir,
+        ".." => Component::ParentDir,
+        _ => Component::Normal(OsStr::new(part)),
+    });
+    let mut normalized = String::with_capacity(path.len());
+    for component in normalize_components(root.into_iter().chain(components)) {
+        if component == Component::RootDir {
+            normalized.push('/');
+        } else {
+            if !normalized.is_empty() && !normalized.ends_with('/') {
+                normalized.push('/');
+            }
+            normalized
+                .push_str(component.as_os_str().to_str().expect("components came from UTF-8"));
+        }
+    }
+    if normalized.is_empty() {
+        normalized.push('.');
+    }
+    if path.ends_with('/') && !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized
+}
+
+/// Drop `.` components and cancel each `..` against the component it follows,
+/// keeping the components the callers rebuild a path from. Callers rebuild
+/// component-by-component and never copy verbatim: besides the dot
+/// components, the rebuild also strips trailing and doubled separators, and
+/// callers compare and hash the results.
+fn normalize_components<'path>(
+    components: impl Iterator<Item = Component<'path>>,
+) -> Vec<Component<'path>> {
+    let mut kept = Vec::new();
+    for component in components {
+        match component {
+            Component::ParentDir => match kept.last() {
+                Some(Component::Normal(_)) => {
+                    kept.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => kept.push(Component::ParentDir),
+            },
+            Component::CurDir => {}
+            other => kept.push(other),
+        }
+    }
+    kept
 }
 
 #[cfg(test)]
