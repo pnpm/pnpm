@@ -262,10 +262,13 @@ jobs:
         id: mastodon
         uses: cbrgm/mastodon-github-action@9ba8763f1daa436d73fb76abbc3e8b2ac8dfa943 # v2.2.4
         with:
+          # The instance and the token are `with:` inputs, not environment
+          # variables: the action turns each input into an argv entry for the
+          # container, and reads nothing from the environment. Supplied any
+          # other way they arrive empty, and posting fails on a URL of "".
+          url: "https://fosstodon.org/"
+          access-token: ${{ secrets.MASTODON_ACCESS_TOKEN }}
           message: |
             pnpm@${{ github.event.inputs.version }} is out!
             https://github.com/pnpm/pnpm/releases/tag/v${{ github.event.inputs.version }}
           visibility: "public"
-        env:
-          MASTODON_URL: "https://fosstodon.org/"
-          MASTODON_ACCESS_TOKEN: ${{ secrets.MASTODON_ACCESS_TOKEN }} # access token
