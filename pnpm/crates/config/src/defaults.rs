@@ -53,7 +53,7 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
         get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
 
     if current_drive == home_drive {
-        return home_dir.join("AppData/Local/pnpm/store");
+        return home_dir.join("AppData").join("Local").join("pnpm").join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
@@ -242,7 +242,7 @@ where
 
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
+    env::current_dir().expect("current directory is unavailable").join("node_modules").join(".pnpm")
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` — every project keeps
