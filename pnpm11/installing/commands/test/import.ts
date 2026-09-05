@@ -111,6 +111,80 @@ test('import preserves the env document in an external lockfile', async () => {
   expect(await readEnvLockfile(lockfileDir)).toEqual(envLockfile)
 })
 
+test.each(['missing', 'malformed', 'unresolvable'])('failed import preserves the external lockfile with %s input', async (input) => {
+  f.prepare('has-package-lock-json')
+  const dir = process.cwd()
+  const lockfileDir = path.join(dir, 'lockfile')
+  await fs.mkdir(lockfileDir)
+  const lockfilePath = path.join(lockfileDir, 'pnpm-lock.yaml')
+  await fs.writeFile(lockfilePath, "lockfileVersion: '9.0'\nimporters: {}\n")
+  const envLockfile = createEnvLockfile()
+  envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = { specifier: '1.0.0', version: '1.0.0' }
+  await writeEnvLockfile(lockfileDir, envLockfile)
+  const originalLockfile = await fs.readFile(lockfilePath, 'utf8')
+  if (input === 'missing') {
+    await fs.unlink(path.join(dir, 'package-lock.json'))
+  } else if (input === 'malformed') {
+    await fs.writeFile(path.join(dir, 'package-lock.json'), '{')
+  } else {
+    await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({
+      dependencies: { '@pnpm.e2e/hello-world-js-bin-parent': '99.99.99' },
+    }))
+  }
+
+  await expect(importCommand.handler({ ...DEFAULT_OPTS, dir, lockfileDir }, [])).rejects.toThrow()
+
+  expect(await fs.readFile(lockfilePath, 'utf8')).toBe(originalLockfile)
+  expect(await fs.readdir(lockfileDir)).toEqual(['pnpm-lock.yaml'])
+})
+
+test.each([
+  { failure: false, existingBranch: true },
+  { failure: true, existingBranch: true },
+  { failure: true, existingBranch: false },
+])('import preserves the shared lockfile with branch lockfiles ($failure, $existingBranch)', async ({ failure, existingBranch }) => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  f.prepare('has-package-lock-json')
+  const dir = process.cwd()
+  const lockfileDir = path.join(dir, 'lockfile')
+  await fs.mkdir(lockfileDir)
+  await fs.mkdir(path.join(dir, '.git'))
+  await fs.writeFile(path.join(dir, '.git/HEAD'), 'ref: refs/heads/feature/import\n')
+  const sharedLockfilePath = path.join(lockfileDir, 'pnpm-lock.yaml')
+  await fs.writeFile(sharedLockfilePath, "lockfileVersion: '9.0'\nimporters: {}\n")
+  const envLockfile = createEnvLockfile()
+  envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = { specifier: '1.0.0', version: '1.0.0' }
+  await writeEnvLockfile(lockfileDir, envLockfile)
+  const sharedLockfile = await fs.readFile(sharedLockfilePath, 'utf8')
+  const branchLockfilePath = path.join(lockfileDir, 'pnpm-lock.feature!import.yaml')
+  const branchLockfile = '# existing branch lockfile\n'
+  if (existingBranch) {
+    await fs.writeFile(branchLockfilePath, branchLockfile)
+  }
+  if (failure) {
+    await fs.writeFile(path.join(dir, 'package.json'), JSON.stringify({
+      dependencies: { '@pnpm.e2e/hello-world-js-bin-parent': '99.99.99' },
+    }))
+  }
+
+  const result = importCommand.handler({ ...DEFAULT_OPTS, dir, lockfileDir, useGitBranchLockfile: true }, [])
+  if (failure) {
+    await expect(result).rejects.toThrow()
+    if (existingBranch) {
+      expect(await fs.readFile(branchLockfilePath, 'utf8')).toBe(branchLockfile)
+    }
+  } else {
+    await result
+    const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false, useGitBranchLockfile: true })
+    expect(lockfile?.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+    expect(lockfile?.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  }
+  expect(await fs.readFile(sharedLockfilePath, 'utf8')).toBe(sharedLockfile)
+  expect((await fs.readdir(lockfileDir)).sort()).toEqual(existingBranch
+    ? ['pnpm-lock.feature!import.yaml', 'pnpm-lock.yaml']
+    : ['pnpm-lock.yaml'])
+})
+
 test('import from yarn.lock', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
