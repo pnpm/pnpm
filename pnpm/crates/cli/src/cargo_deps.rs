@@ -139,7 +139,7 @@ async fn install_workspace<Reporter: self::Reporter + 'static>(
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
 
-    let auth_headers = Arc::new(AuthHeaders::default());
+    let auth_headers = Arc::clone(&config.auth_headers);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let retry_opts = RetryOpts {
@@ -313,11 +313,16 @@ pub(crate) async fn latest_version(
     name: &str,
     http_client: &ThrottledClient,
 ) -> Result<String> {
-    let auth_headers = AuthHeaders::default();
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
-    let index_file =
-        fetch_sparse_index_file(name, &cache_dir, http_client, &auth_headers, config.offline)
-            .await?;
+    let index_file = fetch_sparse_index_file(
+        name,
+        CRATES_IO_SPARSE_INDEX,
+        &cache_dir,
+        http_client,
+        &config.auth_headers,
+        config.offline,
+    )
+    .await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
 }
@@ -355,7 +360,7 @@ async fn fetch_sparse_index(
     metadata: &str,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<BTreeMap<String, String>> {
-    let auth_headers = Arc::new(AuthHeaders::default());
+    let auth_headers = Arc::clone(&config.auth_headers);
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
     let mut index_files = BTreeMap::new();
 
@@ -373,6 +378,7 @@ async fn fetch_sparse_index(
                 async move {
                     let contents = fetch_sparse_index_file(
                         &name,
+                        CRATES_IO_SPARSE_INDEX,
                         &cache_dir,
                         &http_client,
                         &auth_headers,
@@ -391,6 +397,7 @@ async fn fetch_sparse_index(
 
 async fn fetch_sparse_index_file(
     name: &str,
+    sparse_index: &str,
     cache_dir: &Path,
     http_client: &ThrottledClient,
     auth_headers: &AuthHeaders,
@@ -404,7 +411,7 @@ async fn fetch_sparse_index_file(
             .wrap_err_with(|| format!("read cached sparse index entry for {name}"));
     }
 
-    let url = format!("{CRATES_IO_SPARSE_INDEX}/{relative_path}");
+    let url = format!("{}/{relative_path}", sparse_index.trim_end_matches('/'));
     let response = http_client
         .get_bytes_with_secure_auth_headers(&url, auth_headers)
         .await
