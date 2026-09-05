@@ -206,6 +206,7 @@ tower-http         = { version = "0.7.0", features = ["compression-gzip", "cors"
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+toml               = { version = "1.1.5" }
 url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
 webpki-root-certs  = { version = "1.0.7" }

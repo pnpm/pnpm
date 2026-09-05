@@ -21,6 +21,8 @@ use std::{
     time::Duration,
 };
 
+mod registry_auth;
+
 #[cfg(unix)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -313,13 +315,14 @@ pub(crate) async fn latest_version(
     name: &str,
     http_client: &ThrottledClient,
 ) -> Result<String> {
+    let auth_headers = registry_auth::crates_io::<pnpm_config::Host>(&config.auth_headers)?;
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
     let index_file = fetch_sparse_index_file(
         name,
         CRATES_IO_SPARSE_INDEX,
         &cache_dir,
         http_client,
-        &config.auth_headers,
+        &auth_headers,
         config.offline,
     )
     .await?;
@@ -360,7 +363,7 @@ async fn fetch_sparse_index(
     metadata: &str,
     http_client: &Arc<ThrottledClient>,
 ) -> Result<BTreeMap<String, String>> {
-    let auth_headers = Arc::clone(&config.auth_headers);
+    let auth_headers = registry_auth::crates_io::<pnpm_config::Host>(&config.auth_headers)?;
     let cache_dir = config.cache_dir.join("v11").join("cargo-index").join("crates-io");
     let mut index_files = BTreeMap::new();
 
