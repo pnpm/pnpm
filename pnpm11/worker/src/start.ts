@@ -368,6 +368,12 @@ function addFilesFromDir (
       }
     }
     if (hasSymlinks) {
+      if (existingFilesIndex.sideEffects?.delete(sideEffectsCacheKey)) {
+        if (existingFilesIndex.sideEffects.size === 0) {
+          existingFilesIndex.sideEffects = undefined
+        }
+        indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
+      }
       return {
         status: 'success',
         value: {
@@ -375,6 +381,7 @@ function addFilesFromDir (
           manifest: bundledManifest,
           requiresBuild: existingFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, filesMap),
         },
+        indexWrites,
       }
     }
     if (!existingFilesIndex.sideEffects) {

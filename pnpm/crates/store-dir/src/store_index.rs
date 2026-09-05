@@ -91,6 +91,10 @@ enum WriteMsg {
         current_files: HashMap<String, CafsFileInfo>,
         response: Option<std::sync::mpsc::SyncSender<Option<SideEffectsDiff>>>,
     },
+    InvalidateSideEffects {
+        key: String,
+        cache_key: String,
+    },
     RemoteSideEffects {
         key: String,
         cache_key: String,
@@ -293,6 +297,16 @@ fn apply_write_msg(
                 let _ = response.send(diff);
             }
         }
+        WriteMsg::InvalidateSideEffects { key, cache_key } => {
+            if let Some(row) = load_pending_row(index, pending, &key)
+                && let Some(side_effects) = &mut row.side_effects
+            {
+                side_effects.remove(&cache_key);
+                if side_effects.is_empty() {
+                    row.side_effects = None;
+                }
+            }
+        }
         WriteMsg::RemoteSideEffects { key, cache_key, diff } => {
             if let Some(row) = load_pending_row(index, pending, &key) {
                 row.side_effects.get_or_insert_with(HashMap::new).insert(cache_key, diff);
@@ -406,6 +420,10 @@ impl StoreIndexWriter {
             response: Some(response),
         });
         result.recv().ok().flatten()
+    }
+
+    pub(crate) fn queue_side_effects_invalidation(&self, key: String, cache_key: String) {
+        self.send_msg(WriteMsg::InvalidateSideEffects { key, cache_key });
     }
 
     pub fn queue_remote_side_effects(&self, key: String, cache_key: String, diff: SideEffectsDiff) {
