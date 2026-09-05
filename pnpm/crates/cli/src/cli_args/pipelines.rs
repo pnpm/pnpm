@@ -752,8 +752,8 @@ fn add_metadata_paths(
         paths.extend([
             node_manifest_path.to_path_buf(),
             config.lockfile_dir_for(node_project_dir).join(config.wanted_lockfile_name()),
-            config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
-            node_project_dir.join("node_modules/.modules.yaml"),
+            config.effective_virtual_store_dir().join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+            config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
         ]);
         if let Some(workspace_dir) = config.workspace_dir.as_deref() {
             paths.push(workspace_dir.join("pnpm-workspace.yaml"));
@@ -761,6 +761,9 @@ fn add_metadata_paths(
     }
     paths
 }
+
+#[cfg(test)]
+mod add_metadata_paths_tests;
 
 pub(crate) struct UpdatePipeline {
     pub(crate) args: UpdateArgs,
