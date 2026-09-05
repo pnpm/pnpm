@@ -93,13 +93,9 @@ export async function lockfileToHoistedDepGraph (
 
 interface SkipFetchingOption {
   /**
-   * When true, never reach the store: the graph is built without
-   * `fetching` and `filesIndexFile`. Set for the previous graph, whose
-   * only consumer diffs its keys against the new graph's to find
-   * directories to remove. That walk runs with `force: true` and an
-   * empty skip list, so it visits packages an earlier install skipped
-   * and never downloaded; fetching them would download tarballs that
-   * are then discarded.
+   * Build the graph without reaching the store. The previous graph is
+   * only diffed by directory name, and its forced walk visits packages
+   * the earlier install skipped and never downloaded.
    */
   skipFetching?: boolean
 }

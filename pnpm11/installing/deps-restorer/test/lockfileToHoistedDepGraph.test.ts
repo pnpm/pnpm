@@ -189,10 +189,6 @@ function fileVariantLockfile (): LockfileObject {
   } as unknown as LockfileObject
 }
 
-// The previous graph is only diffed by directory name, and its walk runs
-// with `force: true` and an empty skip list so it also names directories
-// an earlier install could have left behind. Reaching the store from
-// there downloads every optional dependency that install skipped.
 test('lockfileToHoistedDepGraph does not fetch anything for the previous graph', async () => {
   const dir = tempDir(false)
   const opts = hoistedOpts(dir)
