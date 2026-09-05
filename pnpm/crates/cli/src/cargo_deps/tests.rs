@@ -1,7 +1,7 @@
 use super::{
     ArchiveStoreProjection, LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum,
-    discover_manifests, discover_manifests_with, fetch_sparse_index_file, materialize,
-    parse_lockfile, sparse_index_path, update_managed_config, workspace_root,
+    fetch_sparse_index_file, materialize, parse_lockfile, sparse_index_path, update_managed_config,
+    workspace_root,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -306,39 +306,6 @@ async fn sparse_index_fetch_uses_configured_request_auth() {
 
     assert_eq!(contents, response);
     request.assert_async().await;
-}
-
-#[test]
-fn discovers_nested_cargo_manifests_without_scanning_generated_directories() {
-    let repository = tempfile::tempdir().unwrap();
-    let project = repository.path().join("rust/project");
-    let generated = repository.path().join("target/generated");
-    fs::create_dir_all(&project).unwrap();
-    fs::create_dir_all(&generated).unwrap();
-    fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
-    fs::write(generated.join("Cargo.toml"), "[workspace]\n").unwrap();
-
-    assert_eq!(discover_manifests(repository.path()).unwrap(), [project.join("Cargo.toml")]);
-}
-
-#[test]
-fn discovery_skips_unreadable_unrelated_directories() {
-    let repository = tempfile::tempdir().unwrap();
-    let project = repository.path().join("rust/project");
-    let unreadable = repository.path().join("unrelated");
-    fs::create_dir_all(&project).unwrap();
-    fs::create_dir_all(&unreadable).unwrap();
-    fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
-    let manifests = discover_manifests_with(repository.path(), |directory| {
-        if directory == unreadable {
-            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
-        } else {
-            fs::read_dir(directory)
-        }
-    })
-    .unwrap();
-
-    assert_eq!(manifests, [project.join("Cargo.toml")]);
 }
 
 #[tokio::test]

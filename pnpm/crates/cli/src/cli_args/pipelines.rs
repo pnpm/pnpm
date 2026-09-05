@@ -439,6 +439,8 @@ impl InstallPipeline {
             )
             .await;
         }
+        let workspace_inventory =
+            ecosystem_install::EcosystemWorkspaceInventory::new(config_root.clone());
         let node_install = run_node_install::<Reporter>(
             plan,
             args,
@@ -456,8 +458,7 @@ impl InstallPipeline {
                 frozen_lockfile,
             },
             crate::cargo_deps::CargoInstallOptions {
-                root_dir: &config_root,
-                discover_projects: true,
+                projects: crate::cargo_deps::CargoInstallProjects::Workspace(&workspace_inventory),
                 lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
             },
         );
@@ -720,8 +721,7 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
                 frozen_lockfile: false,
             },
             crate::cargo_deps::CargoInstallOptions {
-                root_dir: &cargo_root,
-                discover_projects: false,
+                projects: crate::cargo_deps::CargoInstallProjects::Root(&cargo_root),
                 lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
             },
         );

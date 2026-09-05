@@ -4,8 +4,10 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 mod metadata_file;
 mod mutation;
+mod workspace_inventory;
 
 pub(crate) use mutation::MetadataMutation;
+pub(crate) use workspace_inventory::EcosystemWorkspaceInventory;
 
 type Installer<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
 
