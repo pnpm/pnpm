@@ -1,10 +1,12 @@
 /// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { assertProject } from '@pnpm/assert-project'
 import { PnpmError } from '@pnpm/error'
 import { importCommand } from '@pnpm/installing.commands'
+import { createEnvLockfile, readEnvLockfile, readWantedLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { prepare } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
 import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
@@ -64,6 +66,49 @@ test('import from package-lock.json', async () => {
   // node_modules is not created
   project.hasNot('@pnpm.e2e/dep-of-pkg-with-1-dep')
   project.hasNot('@pnpm.e2e/pkg-with-1-dep')
+})
+
+test('import preserves the project lockfile when lockfileDir points elsewhere', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  f.prepare('has-package-lock-json')
+  const dir = process.cwd()
+  const lockfileDir = path.join(dir, 'lockfile')
+  await fs.mkdir(lockfileDir)
+  const projectLockfile = '# project lockfile must stay unchanged\n'
+  await fs.writeFile(path.join(dir, 'pnpm-lock.yaml'), projectLockfile)
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir,
+    lockfileDir,
+  }, [])
+
+  const lockfile = assertProject(lockfileDir).readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(await fs.readFile(path.join(dir, 'pnpm-lock.yaml'), 'utf8')).toBe(projectLockfile)
+})
+
+test('import preserves the env document in an external lockfile', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  f.prepare('has-package-lock-json')
+  const dir = process.cwd()
+  const lockfileDir = path.join(dir, 'lockfile')
+  await fs.mkdir(lockfileDir)
+  const envLockfile = createEnvLockfile()
+  envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = { specifier: '1.0.0', version: '1.0.0' }
+  await writeEnvLockfile(lockfileDir, envLockfile)
+
+  await importCommand.handler({
+    ...DEFAULT_OPTS,
+    dir,
+    lockfileDir,
+  }, [])
+
+  const lockfile = await readWantedLockfile(lockfileDir, { ignoreIncompatible: false })
+  expect(lockfile?.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile?.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+  expect(await readEnvLockfile(lockfileDir)).toEqual(envLockfile)
 })
 
 test('import from yarn.lock', async () => {

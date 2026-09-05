@@ -24,8 +24,9 @@ impl ImportArgs {
         let State { tarball_mem_cache, http_client, config, manifest, resolved_packages, .. } =
             &state;
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let lockfile_path = dir.join("pnpm-lock.yaml");
-        let env_lockfile = EnvLockfile::read(dir)
+        let lockfile_dir = state.lockfile_dir();
+        let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
+        let env_lockfile = EnvLockfile::read(lockfile_dir)
             .into_diagnostic()
             .wrap_err("reading the env lockfile before import")?;
 
@@ -94,7 +95,7 @@ impl ImportArgs {
         let import_result = install_result.and_then(|()| {
             if let Some(env_lockfile) = env_lockfile {
                 env_lockfile
-                    .write(dir)
+                    .write(lockfile_dir)
                     .into_diagnostic()
                     .wrap_err("preserving the env lockfile after import")?;
             }

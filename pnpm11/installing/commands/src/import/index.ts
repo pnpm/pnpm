@@ -7,6 +7,7 @@ import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
+import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
 import {
   createStoreController,
@@ -117,9 +118,14 @@ export async function handler (
   opts: ImportCommandOptions,
   params: string[]
 ): Promise<void> {
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const envLockfile = await readEnvLockfile(lockfileDir)
   // Removing existing pnpm lockfile
   // it should not influence the new one
-  await rimraf(path.join(opts.dir, WANTED_LOCKFILE))
+  await rimraf(path.join(lockfileDir, WANTED_LOCKFILE))
+  if (envLockfile) {
+    await writeEnvLockfile(lockfileDir, envLockfile)
+  }
   const versionsByPackageNames = {}
   let preferredVersions = {}
   if (fs.existsSync(path.join(opts.dir, 'yarn.lock'))) {
