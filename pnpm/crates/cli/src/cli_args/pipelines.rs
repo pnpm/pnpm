@@ -677,13 +677,18 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cargo_manifest_path = prefix.join("Cargo.toml");
     let cargo_root = crate::cargo_deps::workspace_root(&cargo_manifest_path).await?;
-    let metadata_mutation = ecosystem_install::MetadataMutation::capture(add_metadata_paths(
-        cfg,
-        &manifest_path,
-        &cargo_manifest_path,
-        &cargo_root,
-        has_node_packages,
-    ))?;
+    let metadata_mutation = ecosystem_install::MetadataMutation::capture(
+        cfg.store_dir.tmp().join("metadata-mutation-locks"),
+        cargo_root.clone(),
+        add_metadata_paths(
+            cfg,
+            &manifest_path,
+            &cargo_manifest_path,
+            &cargo_root,
+            has_node_packages,
+        ),
+    )
+    .await?;
     let lockfile_only = args.lockfile_only;
     let outcome = async {
         ecosystem_add::prepare(
@@ -723,7 +728,7 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
         );
         ecosystem_install::EcosystemInstallCoordinator::new(node_install)
             .with_install(cargo_install)
-            .run()
+            .run_to_settlement()
             .await
     }
     .await;

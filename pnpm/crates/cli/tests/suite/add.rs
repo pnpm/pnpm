@@ -173,7 +173,12 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
     assert_eq!(std::fs::read_to_string(node_manifest_path).unwrap(), node_manifest);
     assert_eq!(std::fs::read(cargo_manifest_path).unwrap(), cargo_manifest);
     assert_eq!(std::fs::read(cargo_lock_path).unwrap(), cargo_lock);
+    eprintln!("wanted lockfile after rollback: {}", root.path().join("pnpm-lock.yaml").display());
     assert!(!root.path().join("pnpm-lock.yaml").exists());
+    eprintln!(
+        "current lockfile after rollback: {}",
+        root.path().join("node_modules/.pnpm/lock.yaml").display(),
+    );
     assert!(!root.path().join("node_modules/.pnpm/lock.yaml").exists());
 }
 
