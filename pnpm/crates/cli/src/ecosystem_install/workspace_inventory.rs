@@ -7,14 +7,22 @@ const IGNORED_DIRECTORY_BASENAMES: &[&str] = &[".git", ".pnpm", "node_modules", 
 #[derive(Clone, Copy)]
 pub(crate) enum EcosystemManifest {
     Cargo,
+    #[cfg(test)]
+    Python,
 }
 
 impl EcosystemManifest {
-    const ALL: &[Self] = &[Self::Cargo];
+    const ALL: &[Self] = &[
+        Self::Cargo,
+        #[cfg(test)]
+        Self::Python,
+    ];
 
     const fn basename(self) -> &'static str {
         match self {
             Self::Cargo => "Cargo.toml",
+            #[cfg(test)]
+            Self::Python => "pyproject.toml",
         }
     }
 }

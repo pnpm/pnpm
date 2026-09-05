@@ -56,3 +56,6 @@ impl<'a> EcosystemInstallCoordinator<'a> {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod python_spike;
