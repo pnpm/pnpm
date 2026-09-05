@@ -1,7 +1,7 @@
 use super::{
     Add, AddError, node_runtime_version_spec, normalized_save_specifier,
-    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
-    workspace_save_specifier,
+    persist_selected_manifests, prepare_selected_manifests, protocol_prefixed_selector_name,
+    selected_project_indices, split_name_spec, workspace_save_specifier,
 };
 use crate::ResolvedPackages;
 use pnpm_config::{Config, LinkWorkspacePackages};
@@ -36,6 +36,25 @@ fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
         ),
         None,
     );
+}
+
+#[test]
+fn split_protocol_prefixed_add_selector_keeps_the_protocol_specifier() {
+    for (input, expected_name) in [
+        ("npm:foo@^1.0.0", "foo"),
+        ("jsr:@scope/foo@^1.0.0", "@scope/foo"),
+        ("workspace:@scope/foo@^1.0.0", "@scope/foo"),
+        ("catalog:@scope/foo", "@scope/foo"),
+    ] {
+        assert_eq!(split_name_spec(input), (expected_name, Some(input)));
+    }
+}
+
+#[test]
+fn workspace_protocol_local_path_is_not_a_named_protocol_selector() {
+    for input in ["workspace:./pkg", "workspace:../pkg", "workspace:/tmp/pkg", "workspace:~/pkg"] {
+        assert_eq!(protocol_prefixed_selector_name(input), None);
+    }
 }
 
 #[tokio::test]
