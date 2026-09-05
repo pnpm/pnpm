@@ -278,9 +278,9 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
                 }));
                 server
                     .mock("GET", format!("/-/stage/{stage_id}/tarball").as_str())
-                    .with_chunked_body(move |writer| {
+                    .with_body_from_request(move |_| {
                         events.lock().expect("lock events").push(format!("tarball:{stage_id}"));
-                        writer.write_all(&tarball)
+                        tarball.clone()
                     })
                     .expect(1)
                     .create()
@@ -294,9 +294,9 @@ fn approve_downloads_every_tarball_before_approving_any_stage_with_one_otp() {
                 .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
                 .match_header("npm-otp", "123456")
                 .with_status(201)
-                .with_chunked_body(move |writer| {
+                .with_body_from_request(move |_| {
                     events.lock().expect("lock events").push(format!("approve:{stage_id}"));
-                    writer.write_all(br#"{"ok":true}"#)
+                    br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
                 .create()
@@ -442,9 +442,9 @@ fn approve_derives_package_identity_and_aliases_from_tarballs() {
             server
                 .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
                 .with_status(201)
-                .with_chunked_body(move |writer| {
+                .with_body_from_request(move |_| {
                     approved.lock().expect("lock approvals").push(stage_id);
-                    writer.write_all(br#"{"ok":true}"#)
+                    br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
                 .create()
@@ -512,9 +512,9 @@ fn approve_does_not_bind_an_npm_alias_tag_to_a_selected_version() {
             server
                 .mock("POST", format!("/-/stage/{stage_id}/approve").as_str())
                 .with_status(201)
-                .with_chunked_body(move |writer| {
+                .with_body_from_request(move |_| {
                     approved.lock().expect("lock approvals").push(stage_id);
-                    writer.write_all(br#"{"ok":true}"#)
+                    br#"{"ok":true}"#.to_vec()
                 })
                 .expect(1)
                 .create()
