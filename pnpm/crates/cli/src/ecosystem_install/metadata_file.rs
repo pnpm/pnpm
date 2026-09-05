@@ -34,13 +34,14 @@ pub(super) struct MetadataFile {
 impl MetadataFile {
     pub(super) fn capture(path: PathBuf) -> Result<Self> {
         let path = absolute_path(path)?;
+        let path_display = path.display().to_string();
         let name = path
             .file_name()
-            .ok_or_else(|| miette::miette!("metadata path has no file name: {}", path.display()))?
+            .ok_or_else(|| miette::miette!("metadata path has no file name: {path_display}"))?
             .to_os_string();
         let parent_path = path
             .parent()
-            .ok_or_else(|| miette::miette!("metadata path has no parent: {}", path.display()))?;
+            .ok_or_else(|| miette::miette!("metadata path has no parent: {path_display}"))?;
         let (parent, remaining_parent) = PinnedDirectory::nearest_existing(parent_path)
             .wrap_err_with(|| format!("pin parent of {}", path.display()))?;
         let state = read_from(&parent, &remaining_parent, &name)
@@ -85,16 +86,14 @@ fn absolute_path(path: PathBuf) -> Result<PathBuf> {
     } else {
         std::env::current_dir().into_diagnostic()?.join(path)
     };
+    let path_display = path.display().to_string();
     let mut normalized = PathBuf::new();
     for component in path.components() {
         match component {
             Component::CurDir => {}
             Component::ParentDir => {
                 if !normalized.pop() {
-                    return Err(miette::miette!(
-                        "metadata path escapes its root: {}",
-                        path.display()
-                    ));
+                    return Err(miette::miette!("metadata path escapes its root: {path_display}"));
                 }
             }
             component => normalized.push(component.as_os_str()),
@@ -113,6 +112,7 @@ struct PinnedDirectory {
 
 impl PinnedDirectory {
     fn nearest_existing(path: &Path) -> Result<(Self, Vec<OsString>)> {
+        let path_display = path.display().to_string();
         let mut existing = path;
         let mut remaining = Vec::new();
         loop {
@@ -120,11 +120,11 @@ impl PinnedDirectory {
                 Ok(_) => break,
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
                     let name = existing.file_name().ok_or_else(|| {
-                        miette::miette!("no existing ancestor for {}", path.display())
+                        miette::miette!("no existing ancestor for {path_display}")
                     })?;
                     remaining.push(name.to_os_string());
                     existing = existing.parent().ok_or_else(|| {
-                        miette::miette!("no existing ancestor for {}", path.display())
+                        miette::miette!("no existing ancestor for {path_display}")
                     })?;
                 }
                 Err(error) => {
