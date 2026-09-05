@@ -53,7 +53,7 @@ impl MetadataMutation {
         };
         self.restore().map_err(|restore_error| {
             restore_error.wrap_err(format!(
-                "restore project metadata after dependency operation failed: {operation_error}"
+                "restore project metadata after dependency operation failed: {operation_error}",
             ))
         })?;
         Err(operation_error)
