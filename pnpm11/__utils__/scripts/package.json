@@ -8,6 +8,7 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
+    "@pnpm/releasing.versioning": "workspace:*",
     "@pnpm/workspace.projects-reader": "workspace:*",
     "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
     "execa": "catalog:",

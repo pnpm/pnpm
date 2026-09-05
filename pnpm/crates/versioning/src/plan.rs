@@ -214,6 +214,93 @@ pub fn assemble_release_plan(
     }
 }
 
+/// The kind of committed-version invariant [`check_versioning_invariants`]
+/// found broken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VersioningInvariantCode {
+    /// An epic member's major is outside the band selected by its lead.
+    EpicOutOfBand,
+    /// The members of a fixed group do not share one version.
+    FixedGroupMismatch,
+}
+
+/// A committed-version invariant the `versioning` configuration declares that
+/// the workspace currently violates.
+#[derive(Debug, Clone)]
+pub struct VersioningInvariantViolation {
+    /// The machine-readable kind of invariant that failed.
+    pub code: VersioningInvariantCode,
+    /// A human-readable description of the packages and versions involved.
+    pub message: String,
+}
+
+/// Checks committed versions against the epic bands and fixed groups that the
+/// versioning configuration declares.
+///
+/// Valid configuration returns `Ok` containing every
+/// [`VersioningInvariantViolation`], including an empty vector when all
+/// invariants hold. Invalid configuration returns `Err` containing a
+/// [`VersioningError`] before committed versions are checked.
+pub fn check_versioning_invariants(
+    projects: &[WorkspaceProject],
+    workspace_dir: &Path,
+    versioning: Option<&VersioningSettings>,
+) -> Result<Vec<VersioningInvariantViolation>, VersioningError> {
+    let refs = index_project_refs(projects, workspace_dir);
+    let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
+    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
+    let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
+    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
+    let epics = resolve_epics(&refs, &participants, versioning)?;
+    validate_epics(&epics, &fixed_groups)?;
+
+    // With no plan (no new versions), the band derives from the lead's current
+    // major, and members are checked against their current versions.
+    let empty_new_versions = BTreeMap::new();
+    let mut violations = Vec::new();
+    for epic in &epics {
+        let band = epic_band(epic, &participants, &empty_new_versions);
+        let mut member_dirs: Vec<&String> = epic.member_dirs.iter().collect();
+        member_dirs.sort();
+        for member_dir in member_dirs {
+            let member = &participants[member_dir.as_str()];
+            let member_major = Version::parse(member.current_version)
+                .expect("participants have valid versions")
+                .major;
+            if !band.contains(member_major) {
+                violations.push(VersioningInvariantViolation {
+                    code: VersioningInvariantCode::EpicOutOfBand,
+                    message: format!(
+                        r#"{} is at {}, whose major {member_major} is outside the band {}-{} of the epic led by "{}" (major {})."#,
+                        member.name, member.current_version, band.low, band.high, epic.lead_ref, band.major,
+                    ),
+                });
+            }
+        }
+    }
+    for (index, group) in fixed_groups.iter().enumerate() {
+        let distinct: BTreeSet<&str> =
+            group.iter().map(|dir| participants[dir.as_str()].current_version).collect();
+        if distinct.len() > 1 {
+            let detail = group
+                .iter()
+                .map(|dir| {
+                    let member = &participants[dir.as_str()];
+                    format!("{}@{}", member.name, member.current_version)
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            let declared =
+                versioning.map(|settings| settings.fixed[index].join(", ")).unwrap_or_default();
+            violations.push(VersioningInvariantViolation {
+                code: VersioningInvariantCode::FixedGroupMismatch,
+                message: format!("The fixed group [{declared}] is not in lockstep: {detail}."),
+            });
+        }
+    }
+    Ok(violations)
+}
+
 struct Participant<'a> {
     name: &'a str,
     dir: String,
@@ -1158,8 +1245,16 @@ fn epic_rebase_floor(
     if !new_lead.pre_release.is_empty() {
         return None;
     }
-    let current_major = Version::parse(lead.current_version).ok()?.major;
+    let current_major = epic_lead_band_major(&Version::parse(lead.current_version).ok()?);
     (new_lead.major > current_major).then_some(new_lead.major * 100)
+}
+
+fn epic_lead_band_major(version: &Version) -> u64 {
+    if !version.pre_release.is_empty() && version.minor == 0 && version.patch == 0 {
+        version.major.saturating_sub(1)
+    } else {
+        version.major
+    }
 }
 
 /// Overrides the computed version of every bumped epic member with the band
@@ -1200,19 +1295,32 @@ fn apply_epic_band_versions(
 /// for the lead — its re-based major when the lead crosses to a new stable
 /// major, otherwise the lead's current major (a prerelease lead does not open
 /// the next band).
-fn epic_band_major(
+struct EpicBand {
+    major: u64,
+    low: u64,
+    high: u64,
+}
+
+impl EpicBand {
+    fn contains(&self, member_major: u64) -> bool {
+        (self.low..=self.high).contains(&member_major)
+    }
+}
+
+fn epic_band(
     epic: &ResolvedEpic,
     participants: &BTreeMap<String, Participant<'_>>,
     new_versions: &BTreeMap<String, String>,
-) -> u64 {
-    match epic_rebase_floor(epic, participants, new_versions) {
+) -> EpicBand {
+    let major = match epic_rebase_floor(epic, participants, new_versions) {
         Some(floor) => floor / 100,
-        None => {
-            Version::parse(participants[epic.lead_dir.as_str()].current_version)
-                .expect("participants have valid versions")
-                .major
-        }
-    }
+        None => epic_lead_band_major(
+            &Version::parse(participants[epic.lead_dir.as_str()].current_version)
+                .expect("participants have valid versions"),
+        ),
+    };
+    let low = major * 100;
+    EpicBand { major, low, high: low + 99 }
 }
 
 /// Enforces that every released member's new major stays inside its epic's
@@ -1226,22 +1334,20 @@ fn enforce_epic_bands(
     new_versions: &BTreeMap<String, String>,
 ) -> Result<(), VersioningError> {
     for epic in epics {
-        let band_major = epic_band_major(epic, participants, new_versions);
-        let low = band_major * 100;
-        let high = low + 99;
+        let band = epic_band(epic, participants, new_versions);
         for member_dir in &epic.member_dirs {
             let Some(member_version) = new_versions.get(member_dir) else {
                 continue;
             };
             let member_major =
                 Version::parse(member_version).expect("participants have valid versions").major;
-            if member_major < low || member_major > high {
+            if !band.contains(member_major) {
                 return Err(VersioningError::EpicOutOfBand {
                     pkg_name: participants[member_dir.as_str()].name.to_string(),
                     new_version: member_version.clone(),
                     member_major,
                     lead: epic.lead_ref.clone(),
-                    band_major,
+                    band_major: band.major,
                 });
             }
         }
