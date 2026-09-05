@@ -1629,7 +1629,7 @@ mod selector_name_tests {
     // Regression: Windows drive-letter paths
     #[test]
     fn windows_drive_letter_path() {
-        assert_eq!(protocol_prefixed_selector_name("workspace:C:\\repo\\pkg"), None);
+        assert_eq!(protocol_prefixed_selector_name(r"workspace:C:\repo\pkg"), None);
     }
 
     #[test]
@@ -1640,7 +1640,7 @@ mod selector_name_tests {
     // Regression: UNC paths
     #[test]
     fn unc_path() {
-        assert_eq!(protocol_prefixed_selector_name("workspace:\\\\server\\pkg"), None);
+        assert_eq!(protocol_prefixed_selector_name(r"workspace:\\server\pkg"), None);
     }
 
     // Named packages still work
