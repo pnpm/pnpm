@@ -70,6 +70,8 @@ allow = [
 ]
 confidence-threshold = 0.8
 exceptions = [
+  # `cap-primitives` uses winx for descriptor-relative traversal on Windows.
+  { name = "winx", allow = ["Apache-2.0 WITH LLVM-exception"] },
   # The first-party `pnpr*` crates are licensed under PolyForm Shield (see
   # `pnpr/LICENSE.md`), not the MIT used by the rest of the workspace.
   # cargo-deny only recognizes the PolyForm-Noncommercial identifier for this
