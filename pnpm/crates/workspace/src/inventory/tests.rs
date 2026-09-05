@@ -22,10 +22,10 @@ fn discovers_multiple_manifest_kinds_in_one_inventory() {
     )
     .unwrap();
 
-    assert_eq!(inventory.manifests("package.json"), [node.join("package.json")]);
-    assert_eq!(inventory.manifests("Cargo.toml"), [rust.join("Cargo.toml")]);
-    assert!(inventory.manifests("pyproject.toml").is_empty());
-    assert!(inventory.manifests("unknown").is_empty());
+    assert_eq!(inventory.manifests("package.json").unwrap(), [node.join("package.json")]);
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [rust.join("Cargo.toml")]);
+    assert!(inventory.manifests("pyproject.toml").unwrap().is_empty());
+    assert!(inventory.manifests("unknown").is_none());
 }
 
 #[test]
@@ -41,7 +41,7 @@ fn prunes_generated_directories() {
     let inventory =
         find_workspace_inventory(workspace.path(), &["Cargo.toml"], &["target"]).unwrap();
 
-    assert_eq!(inventory.manifests("Cargo.toml"), [project.join("Cargo.toml")]);
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
 }
 
 #[test]
@@ -63,7 +63,28 @@ fn skips_unreadable_unrelated_directories() {
         })
         .unwrap();
 
-    assert_eq!(inventory.manifests("Cargo.toml"), [project.join("Cargo.toml")]);
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [project.join("Cargo.toml")]);
+}
+
+#[test]
+fn reports_the_nested_directory_that_failed() {
+    let workspace = tempfile::tempdir().unwrap();
+    let broken = workspace.path().join("broken");
+    fs::create_dir_all(&broken).unwrap();
+
+    let error =
+        find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |directory| {
+            if directory == broken {
+                Err(std::io::Error::other("injected read failure"))
+            } else {
+                fs::read_dir(directory)
+            }
+        })
+        .unwrap_err()
+        .to_string();
+
+    assert!(error.contains(&broken.display().to_string()), "{error}");
+    assert!(error.contains("injected read failure"), "{error}");
 }
 
 #[cfg(unix)]
@@ -76,5 +97,5 @@ fn does_not_follow_directory_symlinks() {
 
     let inventory = find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[]).unwrap();
 
-    assert!(inventory.manifests("Cargo.toml").is_empty());
+    assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
 }

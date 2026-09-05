@@ -1,4 +1,4 @@
-use crate::ecosystem_install::{EcosystemWorkspaceInventory, InstallContext};
+use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
@@ -90,7 +90,7 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     let roots = match projects {
         CargoInstallProjects::Root(root_dir) => vec![root_dir.to_path_buf()],
         CargoInstallProjects::Workspace(inventory) => {
-            discover_workspace_roots(inventory.manifests("Cargo.toml").await?).await?
+            discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?
         }
     };
     stream::iter(roots)

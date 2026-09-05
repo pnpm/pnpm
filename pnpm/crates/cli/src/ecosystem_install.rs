@@ -7,7 +7,7 @@ mod mutation;
 mod workspace_inventory;
 
 pub(crate) use mutation::MetadataMutation;
-pub(crate) use workspace_inventory::EcosystemWorkspaceInventory;
+pub(crate) use workspace_inventory::{EcosystemManifest, EcosystemWorkspaceInventory};
 
 type Installer<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
 

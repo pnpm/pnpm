@@ -7,7 +7,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Manifest paths found by one repository traversal.
+/// Manifest paths grouped by basename.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct WorkspaceInventory {
     manifests: BTreeMap<String, Vec<PathBuf>>,
@@ -15,22 +15,41 @@ pub struct WorkspaceInventory {
 
 impl WorkspaceInventory {
     /// Paths whose final component equals `basename`.
-    pub fn manifests(&self, basename: &str) -> &[PathBuf] {
-        self.manifests.get(basename).map_or(&[], Vec::as_slice)
+    pub fn manifests(&self, basename: &str) -> Option<&[PathBuf]> {
+        self.manifests.get(basename).map(Vec::as_slice)
     }
 }
 
 /// Error returned while building a [`WorkspaceInventory`].
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("Failed to walk workspace inventory under {}: {source}", root.display())]
-#[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_WALK_ERROR))]
-pub struct FindWorkspaceInventoryError {
-    root: PathBuf,
-    #[error(source)]
-    source: io::Error,
+#[non_exhaustive]
+pub enum FindWorkspaceInventoryError {
+    #[display("Failed to read workspace inventory directory {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_READ_DIRECTORY))]
+    ReadDirectory {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to read an entry in workspace inventory directory {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_READ_ENTRY))]
+    ReadEntry {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Failed to inspect workspace inventory candidate {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_INVENTORY_INSPECT_CANDIDATE))]
+    InspectCandidate {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
-/// Find the requested manifest basenames with one recursive traversal.
+/// Find paths whose final components match the requested manifest basenames.
 ///
 /// Directory symlinks are not followed. An entry that disappears or becomes
 /// unreadable during a nested traversal is skipped, while failure to read the
@@ -67,17 +86,34 @@ fn find_workspace_inventory_with(
                 continue;
             }
             Err(source) => {
-                return Err(workspace_inventory_error(workspace_root, source));
+                return Err(FindWorkspaceInventoryError::ReadDirectory { path: directory, source });
             }
         };
         for entry in entries {
-            match entry.and_then(|entry| {
-                collect_inventory_entry(&entry, &requested, &ignored, &mut pending, &mut manifests)
-            }) {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) if is_ignorable_discovery_error(&error) => continue,
+                Err(source) => {
+                    return Err(FindWorkspaceInventoryError::ReadEntry {
+                        path: directory.clone(),
+                        source,
+                    });
+                }
+            };
+            match collect_inventory_entry(
+                &entry,
+                &requested,
+                &ignored,
+                &mut pending,
+                &mut manifests,
+            ) {
                 Ok(()) => {}
                 Err(error) if is_ignorable_discovery_error(&error) => continue,
                 Err(source) => {
-                    return Err(workspace_inventory_error(workspace_root, source));
+                    return Err(FindWorkspaceInventoryError::InspectCandidate {
+                        path: entry.path(),
+                        source,
+                    });
                 }
             }
         }
@@ -113,13 +149,6 @@ fn collect_inventory_entry(
         manifest_paths.push(entry.path());
     }
     Ok(())
-}
-
-fn workspace_inventory_error(
-    workspace_root: &Path,
-    source: io::Error,
-) -> FindWorkspaceInventoryError {
-    FindWorkspaceInventoryError { root: workspace_root.to_path_buf(), source }
 }
 
 fn is_ignorable_discovery_error(error: &io::Error) -> bool {

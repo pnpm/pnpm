@@ -2,10 +2,24 @@ use miette::{IntoDiagnostic, Result, WrapErr};
 use std::path::PathBuf;
 use tokio::sync::OnceCell;
 
-const MANIFEST_BASENAMES: &[&str] = &["Cargo.toml"];
 const IGNORED_DIRECTORY_BASENAMES: &[&str] = &[".git", ".pnpm", "node_modules", "target"];
 
-/// Lazily populated manifest inventory shared by enabled ecosystem installers.
+#[derive(Clone, Copy)]
+pub(crate) enum EcosystemManifest {
+    Cargo,
+}
+
+impl EcosystemManifest {
+    const ALL: &[Self] = &[Self::Cargo];
+
+    const fn basename(self) -> &'static str {
+        match self {
+            Self::Cargo => "Cargo.toml",
+        }
+    }
+}
+
+/// Manifest paths available to every ecosystem participating in an install.
 pub(crate) struct EcosystemWorkspaceInventory {
     workspace_root: PathBuf,
     contents: OnceCell<pnpm_workspace::WorkspaceInventory>,
@@ -16,16 +30,20 @@ impl EcosystemWorkspaceInventory {
         Self { workspace_root, contents: OnceCell::new() }
     }
 
-    pub(crate) async fn manifests(&self, basename: &str) -> Result<&[PathBuf]> {
+    pub(crate) async fn manifests(&self, manifest: EcosystemManifest) -> Result<&[PathBuf]> {
         let inventory = self
             .contents
             .get_or_try_init(|| {
                 let workspace_root = self.workspace_root.clone();
                 async move {
                     tokio::task::spawn_blocking(move || {
+                        let manifest_basenames = EcosystemManifest::ALL
+                            .iter()
+                            .map(|manifest| manifest.basename())
+                            .collect::<Vec<_>>();
                         pnpm_workspace::find_workspace_inventory(
                             &workspace_root,
-                            MANIFEST_BASENAMES,
+                            &manifest_basenames,
                             IGNORED_DIRECTORY_BASENAMES,
                         )
                     })
@@ -36,7 +54,9 @@ impl EcosystemWorkspaceInventory {
                 }
             })
             .await?;
-        Ok(inventory.manifests(basename))
+        Ok(inventory
+            .manifests(manifest.basename())
+            .expect("every ecosystem manifest basename is inventoried"))
     }
 }
 
