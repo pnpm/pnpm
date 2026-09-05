@@ -1,8 +1,57 @@
 use super::{WriteMsg, apply_write_msg};
-use crate::store_index::{StoreIndex, tests::sample_index};
+use crate::store_index::{SideEffectsDiff, StoreIndex, tests::sample_index};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 use tempfile::tempdir;
+
+#[test]
+fn side_effects_invalidation_does_not_queue_unchanged_rows() {
+    let dir = tempdir().unwrap();
+    let index = StoreIndex::open(dir.path()).unwrap();
+    let key = "built-package";
+    for side_effects in [
+        None,
+        Some(HashMap::new()),
+        Some(HashMap::from([(
+            "other-engine".to_string(),
+            SideEffectsDiff { added: None, deleted: None, remote_origin: None },
+        )])),
+    ] {
+        let mut row = sample_index();
+        row.side_effects = side_effects;
+        index.set(key, &row).unwrap();
+        let mut pending = HashMap::new();
+        apply_write_msg(
+            &index,
+            &mut pending,
+            WriteMsg::InvalidateSideEffects {
+                key: key.to_string(),
+                cache_key: "test-engine".to_string(),
+            },
+        );
+        dbg!(&row, &pending);
+        assert!(pending.is_empty());
+
+        row.requires_build = Some(true);
+        let mut replacement = index.get(key).unwrap().unwrap();
+        replacement.requires_build = Some(true);
+        apply_write_msg(
+            &index,
+            &mut pending,
+            WriteMsg::Replace { key: key.to_string(), value: replacement },
+        );
+        apply_write_msg(
+            &index,
+            &mut pending,
+            WriteMsg::InvalidateSideEffects {
+                key: key.to_string(),
+                cache_key: "test-engine".to_string(),
+            },
+        );
+        dbg!(&pending);
+        assert_eq!(pending.remove(key).unwrap(), row);
+    }
+}
 
 #[test]
 fn side_effects_invalidation_preserves_pending_uploads_and_ignores_algorithm_mismatch() {
@@ -64,4 +113,3 @@ fn side_effects_invalidation_preserves_pending_uploads_and_ignores_algorithm_mis
     );
     assert!(pending.is_empty());
 }
-
