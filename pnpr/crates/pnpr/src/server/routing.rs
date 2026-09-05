@@ -28,9 +28,9 @@ use pnpr_upstream::Upstream;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, compute_upstream_cache_namespace,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, cargo, compute_upstream_cache_namespace,
     default_registry_target, delete_package, delete_session_token, delete_tarball,
-    delete_token_by_key, ecosystem, get_dist_tags, get_org_teams, get_profile, get_team_members,
+    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
     get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
     private_if_caller_gated, private_no_cache, publish_package, put_login, pypi,
     reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
@@ -105,39 +105,8 @@ pub(super) fn router_with_auth_and_osv(
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
-    // The account endpoints — adduser/login, whoami, profile, token
-    // listing/revocation, logout — are pnpr account management, not
-    // npm-registry functionality: they mint and manage the tokens every
-    // authenticated surface demands, so they ride every tier alongside
-    // `/-/ping`. A resolver- or artifacts-only tier can then issue its own credentials
-    // (`pnpm login --registry https://<resolver-host>/`) instead of
-    // depending on a registry-serving replica that shares the auth backend.
-    //
-    // Each endpoint also answers under any `/~<prefix>/`, so a client whose
-    // registry URL is a registry endpoint can log in against it. The identity
-    // endpoints are global and consult no registry state; a registry-table lookup
-    // would gate nothing while turning the 401-vs-404 split into an
-    // existence oracle for private registry names that the content handlers
-    // carefully mask.
-    router = router
-        .route("/-/whoami", get(get_whoami))
-        .route("/{prefix}/-/whoami", get(get_whoami))
-        .route(
-            "/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route(
-            "/{prefix}/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route("/-/user/token/{token}", delete(delete_session_token))
-        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
-        .route("/-/npm/v1/user", get(get_profile))
-        .route("/{prefix}/-/npm/v1/user", get(get_profile))
-        .route("/-/npm/v1/tokens", get(get_token_list))
-        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
-        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
-        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key));
+    let account = account_routes();
+    router = router.merge(account.clone());
     // The install-accelerator and shared-artifact surfaces live under the
     // reserved `/-/pnpr` namespace. The handshake advertises each protocol
     // independently, so either surface can be mounted on its own.
@@ -206,62 +175,20 @@ pub(super) fn router_with_auth_and_osv(
     // declared, or `--disable-registry`), none of these routes are mounted.
     // Resolver- and artifacts-only tiers expose no registry surface at all.
     if registry_enabled {
+        let npm = npm_registry_routes();
         router = router
-            // Batch publish: one request carrying many packages' publish
-            // documents. Not part of the standard npm registry API —
-            // `pnpm publish --batch` opts into it explicitly.
-            .route("/-/pnpm/v1/publish", put(serve_batch_publish))
-            // Staged (two-phase) publishing — the `pnpm stage` surface.
-            // Static `-`/`stage` segments take priority over the generic
-            // segment-count routes below, so these never shadow package
-            // reads. Each route has a `/~<name>/`-prefixed twin so a client
-            // whose registry URL is a registry endpoint can stage through it.
-            .route("/-/stage", get(staged::list_staged))
-            .route("/-/stage/package/{name}", post(staged::post_staged_publish))
-            .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-            .route("/-/stage/{id}/approve", post(staged::approve_staged))
-            .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-            .route("/{prefix}/-/stage", get(staged::list_staged))
-            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
-            .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
-            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-            .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-            .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-            .route(
-                "/{first}/{second}/{third}",
-                get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-            )
-            .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-            .route(
-                "/{a}/{b}/{c}/{d}",
-                get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
-            )
-            .route(
-                "/{a}/{b}/{c}/{d}/{e}",
-                get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-            )
-            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
-            // plus the registry-addressed dist-tag write and unscoped tarball delete.
-            .route(
-                "/{a}/{b}/{c}/{d}/{e}/{f}",
-                get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
-            )
-            // Registry-addressed scoped tarball delete:
-            // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`, plus the Cargo
-            // crates API (`/~<name>/api/v1/crates/<crate>/<version>/download`,
-            // `.../yank`, `.../unyank`).
-            .route(
-                "/{a}/{b}/{c}/{d}/{e}/{f}/{g}",
-                get(get_seven_segments).put(put_seven_segments).delete(delete_seven_segments),
-            )
-            // The Python Simple API's trailing-slash URLs and the legacy upload
-            // API. Registered on their own because a trailing slash is not a
-            // segment, so the segment-count routes above never match them.
-            .route("/{prefix}/simple/", get(pypi::get_project_list))
-            .route("/{prefix}/simple/{project}/", get(pypi::get_project_page))
-            .route("/{prefix}/legacy", post(pypi::upload))
-            .route("/{prefix}/legacy/", post(pypi::upload));
+            // The npm surface keeps its original addresses (the path-less base
+            // and `/~<name>/`) and gains the ecosystem-scoped alias every
+            // surface has: `/npm/...` and `/npm/~<name>/...`. The account
+            // endpoints ride along under the alias so a client can log in
+            // against `/npm/~<name>/`. Under the original addresses the first
+            // segments `npm`, `cargo`, and `pypi` are reserved for the
+            // ecosystem prefixes, so the npm packages of those names are
+            // reached through the alias (`/npm/npm`).
+            .merge(npm.clone())
+            .nest("/npm", account.merge(npm))
+            .merge(cargo::routes())
+            .merge(pypi::routes());
     }
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -334,50 +261,90 @@ pub(super) fn router_with_auth_and_osv(
     Ok(router.with_state(state))
 }
 
-// --------------------------------------------------------------------
-// Ecosystem dispatch. A `/~<name>/...` request on a registry that speaks Cargo
-// or Python is handed to that surface before any npm reading of the path;
-// `None` means the registry is npm (or undefined) and the npm handler goes
-// on. Every `/~<name>/` response is caller-scoped, like the npm ones.
-// --------------------------------------------------------------------
-
-async fn ecosystem_get(
-    state: &AppState,
-    identity: &pnpr_policy::Identity,
-    headers: &HeaderMap,
-    first: &str,
-    segments: &[&str],
-) -> Option<Response> {
-    let registry = tilde_registry(first)?;
-    let kind = ecosystem::non_npm_ecosystem(state, registry)?;
-    Some(private_no_cache(
-        ecosystem::serve_get(state, identity, headers, registry, kind, segments).await,
-    ))
+/// The account endpoints — adduser/login, whoami, profile, token
+/// listing/revocation, logout. They are pnpr account management, not
+/// npm-registry functionality: they mint and manage the tokens every
+/// authenticated surface demands, so they ride every tier alongside
+/// `/-/ping`. A resolver- or artifacts-only tier can then issue its own
+/// credentials (`pnpm login --registry https://<resolver-host>/`) instead of
+/// depending on a registry-serving replica that shares the auth backend.
+///
+/// Each endpoint also answers under any `/~<prefix>/`, so a client whose
+/// registry URL is a registry endpoint can log in against it. The identity
+/// endpoints are global and consult no registry state; a registry-table lookup
+/// would gate nothing while turning the 401-vs-404 split into an existence
+/// oracle for private registry names that the content handlers carefully mask.
+fn account_routes() -> Router<AppState> {
+    Router::new()
+        .route("/-/whoami", get(get_whoami))
+        .route("/{prefix}/-/whoami", get(get_whoami))
+        .route(
+            "/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(
+            "/{prefix}/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route("/-/user/token/{token}", delete(delete_session_token))
+        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
+        .route("/-/npm/v1/user", get(get_profile))
+        .route("/{prefix}/-/npm/v1/user", get(get_profile))
+        .route("/-/npm/v1/tokens", get(get_token_list))
+        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
+        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
 }
 
-async fn ecosystem_put(
-    state: &AppState,
-    identity: &pnpr_policy::Identity,
-    first: &str,
-    segments: &[&str],
-    body: &axum::body::Bytes,
-) -> Option<Response> {
-    let registry = tilde_registry(first)?;
-    let kind = ecosystem::non_npm_ecosystem(state, registry)?;
-    Some(private_no_cache(
-        ecosystem::serve_put(state, identity, registry, kind, segments, body.clone()).await,
-    ))
-}
-
-async fn ecosystem_delete(
-    state: &AppState,
-    identity: &pnpr_policy::Identity,
-    first: &str,
-    segments: &[&str],
-) -> Option<Response> {
-    let registry = tilde_registry(first)?;
-    let kind = ecosystem::non_npm_ecosystem(state, registry)?;
-    Some(private_no_cache(ecosystem::serve_delete(state, identity, registry, kind, segments).await))
+/// The npm-registry surface: every packument/tarball read, publish,
+/// unpublish, dist-tag, and search. Mounted only when the registry feature is
+/// on (registries declared and not `--disable-registry`), so resolver- and
+/// artifacts-only tiers expose no registry surface at all.
+fn npm_registry_routes() -> Router<AppState> {
+    Router::new()
+        // Batch publish: one request carrying many packages' publish
+        // documents. Not part of the standard npm registry API —
+        // `pnpm publish --batch` opts into it explicitly.
+        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+        // Staged (two-phase) publishing — the `pnpm stage` surface.
+        // Static `-`/`stage` segments take priority over the generic
+        // segment-count routes below, so these never shadow package
+        // reads. Each route has a `/~<name>/`-prefixed twin so a client
+        // whose registry URL is a registry endpoint can stage through it.
+        .route("/-/stage", get(staged::list_staged))
+        .route("/-/stage/package/{name}", post(staged::post_staged_publish))
+        .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+        .route("/-/stage/{id}/approve", post(staged::approve_staged))
+        .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+        .route("/{prefix}/-/stage", get(staged::list_staged))
+        .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
+        .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+        .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
+        .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
+        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
+        .route(
+            "/{first}/{second}/{third}",
+            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+        )
+        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
+        .route(
+            "/{a}/{b}/{c}/{d}",
+            get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
+        )
+        .route(
+            "/{a}/{b}/{c}/{d}/{e}",
+            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
+        )
+        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
+        // plus the registry-addressed dist-tag write and unscoped tarball delete.
+        .route(
+            "/{a}/{b}/{c}/{d}/{e}/{f}",
+            get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
+        )
+        // Registry-addressed scoped tarball delete:
+        // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
+        .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments))
 }
 
 // --------------------------------------------------------------------
@@ -401,9 +368,6 @@ async fn get_two_segments(
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_get(&state, &identity, &headers, &first, &[&second]).await {
-        return response;
-    }
     // `/~<name>/<pkg>` — unscoped packument through a registry endpoint. The
     // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
     // canonical for the registry the client actually addressed.
@@ -432,11 +396,6 @@ async fn get_three_segments(
     headers: HeaderMap,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
-    if let Some(response) =
-        ecosystem_get(&state, &identity, &headers, &first, &[&second, &third]).await
-    {
-        return response;
-    }
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
         // Search results are filtered per caller (registry access + per-package
@@ -491,11 +450,6 @@ async fn get_tarball_scoped(
     AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
-    if let Some(response) =
-        ecosystem_get(&state, &identity, &HeaderMap::new(), &scope, &[&name, "-", &filename]).await
-    {
-        return response;
-    }
     // `/~<name>/<pkg>/-/<file>` — unscoped tarball through a registry endpoint.
     if let Some(registry) = tilde_registry(&scope) {
         return private_no_cache(
@@ -520,12 +474,8 @@ async fn get_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     OriginalUri(uri): OriginalUri,
-    headers: HeaderMap,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_get(&state, &identity, &headers, &a, &[&b, &c, &d]).await {
-        return response;
-    }
     if a == "-" && b == "tarballs" && c == "sha512" {
         let Some(registry) = default_registry_target(&state) else { return not_found() };
         return serve_revision_tarball(&state, &identity, &registry, &d).await;
@@ -571,13 +521,8 @@ async fn get_four_segments(
 async fn get_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    headers: HeaderMap,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_get(&state, &identity, &headers, &a, &[&b, &c, &d, &e]).await
-    {
-        return response;
-    }
     if a == "-" && b == "team" && e == "user" {
         return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
     }
@@ -612,14 +557,8 @@ async fn get_five_segments(
 async fn get_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    headers: HeaderMap,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(response) =
-        ecosystem_get(&state, &identity, &headers, &a, &[&b, &c, &d, &e, &f]).await
-    {
-        return response;
-    }
     if let Some(registry) = tilde_registry(&a)
         && b == "-"
         && c == "team"
@@ -654,9 +593,6 @@ async fn put_two_segments(
     Path((first, second)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(response) = ecosystem_put(&state, &identity, &first, &[&second], &body).await {
-        return response;
-    }
     // `PUT /~<name>/<pkg>` — publish an unscoped package through a registry.
     if let Some(registry) = tilde_registry(&first) {
         return publish_package(&state, &identity, Some(registry), &second, body).await;
@@ -675,11 +611,6 @@ async fn put_three_segments(
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(response) =
-        ecosystem_put(&state, &identity, &first, &[&second, &third], &body).await
-    {
-        return response;
-    }
     // `PUT /~<name>/@scope/<pkg>` — publish a scoped package through a registry.
     if let Some(registry) = tilde_registry(&first)
         && second.starts_with('@')
@@ -707,9 +638,6 @@ async fn put_four_segments(
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(response) = ecosystem_put(&state, &identity, &a, &[&b, &c, &d], &body).await {
-        return response;
-    }
     // `PUT /-/org/{scope}/team` — team create; config-managed, rejected.
     if a == "-" && b == "org" && d == "team" {
         return reject_team_mutation(&state, &identity, None, &c, "create a team");
@@ -751,9 +679,6 @@ async fn put_five_segments(
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(response) = ecosystem_put(&state, &identity, &a, &[&b, &c, &d, &e], &body).await {
-        return response;
-    }
     if a == "-" && b == "package" && d == "dist-tags" {
         return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
     }
@@ -781,10 +706,6 @@ async fn put_six_segments(
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(response) = ecosystem_put(&state, &identity, &a, &[&b, &c, &d, &e, &f], &body).await
-    {
-        return response;
-    }
     if let Some(registry) = tilde_registry(&a)
         && b == "-"
     {
@@ -814,9 +735,6 @@ async fn delete_four_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_delete(&state, &identity, &a, &[&b, &c, &d]).await {
-        return response;
-    }
     if a == "-" && b == "team" {
         let _ = d; // team name — the mutation is rejected regardless
         return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
@@ -843,9 +761,6 @@ async fn delete_five_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_delete(&state, &identity, &a, &[&b, &c, &d, &e]).await {
-        return response;
-    }
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &identity, None, &c, &e).await;
     }
@@ -884,9 +799,6 @@ async fn delete_six_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_delete(&state, &identity, &a, &[&b, &c, &d, &e, &f]).await {
-        return response;
-    }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
@@ -913,34 +825,6 @@ async fn delete_six_segments(
     not_found()
 }
 
-/// 7-segment GET:
-/// * `/~<name>/api/v1/crates/{crate}/{version}/download` — a crate download
-///   through a Cargo registry endpoint. No npm URL has this shape.
-async fn get_seven_segments(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    headers: HeaderMap,
-    Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
-) -> Response {
-    ecosystem_get(&state, &identity, &headers, &a, &[&b, &c, &d, &e, &f, &g])
-        .await
-        .unwrap_or_else(not_found)
-}
-
-/// 7-segment PUT:
-/// * `/~<name>/api/v1/crates/{crate}/{version}/unyank` — unyank through a
-///   Cargo registry endpoint. No npm URL has this shape.
-async fn put_seven_segments(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
-    body: axum::body::Bytes,
-) -> Response {
-    ecosystem_put(&state, &identity, &a, &[&b, &c, &d, &e, &f, &g], &body)
-        .await
-        .unwrap_or_else(not_found)
-}
-
 /// 7-segment DELETE:
 /// * `/~<name>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
 ///   tarball through a registry endpoint (the unencoded literal-slash form the
@@ -950,10 +834,6 @@ async fn delete_seven_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(response) = ecosystem_delete(&state, &identity, &a, &[&b, &c, &d, &e, &f, &g]).await
-    {
-        return response;
-    }
     if let Some(registry) = tilde_registry(&a)
         && b.starts_with('@')
         && d == "-"

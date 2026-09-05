@@ -25,9 +25,10 @@ const JSON: &str = "application/vnd.pypi.simple.v1+json";
 const BOUNDARY: &str = "pnprTestBoundary";
 
 /// A registry graph with a hosted Python registry (`internal`, claiming
-/// `demo-pkg`), a Python upstream (`pypiorg`, everything else) at
-/// `upstream_url`, and the router `pypi` in front of both — beside the stock
-/// npm registries.
+/// `demo-pkg`) and a Python upstream (`pypiorg`, everything else) at
+/// `upstream_url`, both added to the stock `main` router beside the npm
+/// registries, so `/pypi/...` is the default-target form and
+/// `/pypi/~internal/...` the named form.
 fn pypi_config(storage: PathBuf, upstream_url: &str) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
@@ -56,9 +57,13 @@ fn pypi_config(storage: PathBuf, upstream_url: &str) -> Config {
         Registry::Hosted { patterns: vec![PackagePattern::parse("demo-pkg").unwrap()] },
     );
     graph.insert("pypiorg".to_string(), Registry::Upstream { patterns: vec![] });
+    // One router fronts every ecosystem: `/pypi/...` requests only see the
+    // Python sources.
     graph.insert(
-        "pypi".to_string(),
-        Registry::Router { sources: vec!["internal".to_string(), "pypiorg".to_string()] },
+        "main".to_string(),
+        Registry::Router {
+            sources: ["local", "npmjs", "internal", "pypiorg"].map(str::to_string).to_vec(),
+        },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
         .with_ecosystem("internal", Ecosystem::Pypi)
@@ -122,7 +127,7 @@ fn wheel_upload(name: &str, version: &str, filename: &str, content: &[u8]) -> Ve
 
 /// `twine` sends the token as `Basic __token__:<token>`.
 fn upload_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
-    let mut request = Request::post("/~pypi/legacy/")
+    let mut request = Request::post("/pypi/legacy/")
         .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={BOUNDARY}"));
     if let Some(token) = token {
         let credentials = BASE64_STANDARD.encode(format!("__token__:{token}"));
@@ -172,17 +177,18 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert!(tmp.path().join("python/demo-pkg").join(filename).is_file());
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
-    let response = app.clone().oneshot(get("/~pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], JSON);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    // A public project through the default target stays cacheable.
+    assert!(response.headers().get(header::CACHE_CONTROL).is_none());
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["meta"]["api-version"], "1.1");
     assert_eq!(page["name"], "demo-pkg");
     assert_eq!(page["versions"], json!(["1.0.0"]));
     let file = &page["files"][0];
     assert_eq!(file["filename"], filename);
-    assert_eq!(file["url"], format!("{PUBLIC_URL}/~pypi/files/demo-pkg/{filename}"));
+    assert_eq!(file["url"], format!("{PUBLIC_URL}/pypi/files/demo-pkg/{filename}"));
     assert_eq!(file["hashes"]["sha256"], sha256_hex(&wheel));
     assert_eq!(file["requires-python"], ">=3.9");
     assert_eq!(file["yanked"], false);
@@ -190,13 +196,13 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert!(file["upload-time"].is_string());
 
     // PEP 503 HTML for clients that do not ask for JSON.
-    let response = app.clone().oneshot(get("/~pypi/simple/demo-pkg/", None)).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_TYPE], "text/html; charset=utf-8");
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     let expected_anchor = format!(
         concat!(
-            r#"<a href="{PUBLIC_URL}/~pypi/files/demo-pkg/{filename}#sha256={digest}""#,
+            r#"<a href="{PUBLIC_URL}/pypi/files/demo-pkg/{filename}#sha256={digest}""#,
             r#" data-requires-python="&gt;=3.9">{filename}</a>"#,
         ),
         PUBLIC_URL = PUBLIC_URL,
@@ -206,37 +212,45 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
     assert!(html.contains(&expected_anchor), "{html}");
 
     // The trailing-slash-less form and the project list.
-    let response = app.clone().oneshot(get("/~pypi/simple/demo-pkg", Some(JSON))).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let response = app.clone().oneshot(get("/~pypi/simple/", Some(JSON))).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let list: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(list["projects"], json!([{ "name": "demo-pkg" }]));
-    let response = app.clone().oneshot(get("/~pypi/simple", None)).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple", None)).await.unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(
-        html.contains(&format!(r#"<a href="{PUBLIC_URL}/~pypi/simple/demo-pkg/">demo-pkg</a>"#)),
+        html.contains(&format!(r#"<a href="{PUBLIC_URL}/pypi/simple/demo-pkg/">demo-pkg</a>"#)),
         "{html}",
     );
 
     // A non-normalized spelling redirects to the canonical page.
-    let response = app.clone().oneshot(get("/~pypi/simple/Demo_Pkg/", None)).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/Demo_Pkg/", None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::MOVED_PERMANENTLY);
-    assert_eq!(
-        response.headers()[header::LOCATION],
-        format!("{PUBLIC_URL}/~pypi/simple/demo-pkg/"),
-    );
+    assert_eq!(response.headers()[header::LOCATION], format!("{PUBLIC_URL}/pypi/simple/demo-pkg/"));
 
     // The file itself.
     let response =
-        app.clone().oneshot(get(&format!("/~pypi/files/demo-pkg/{filename}"), None)).await.unwrap();
+        app.clone().oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 
-    // An npm registry has no Simple API, and a Python registry no packuments.
-    let response = app.clone().oneshot(get("/~main/simple/demo-pkg/", None)).await.unwrap();
+    // The named form is caller-scoped and points file URLs at itself.
+    let response =
+        app.clone().oneshot(get("/pypi/~internal/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(
+        page["files"][0]["url"],
+        format!("{PUBLIC_URL}/pypi/~internal/files/demo-pkg/{filename}"),
+    );
+    // npm-shaped paths mean nothing on the Python surface, and the old
+    // npm-only address of a registry has no Simple API.
+    let response = app.clone().oneshot(get("/pypi/demo-pkg", None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
-    let response = app.oneshot(get("/~pypi/demo-pkg", None)).await.unwrap();
+    let response = app.oneshot(get("/~internal/simple/demo-pkg/", None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -330,7 +344,7 @@ async fn upload_is_authenticated_and_validated() {
     assert!(text.contains("upstream registry"), "{text}");
 
     // Only the one wheel landed.
-    let response = app.oneshot(get("/~pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    let response = app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["files"].as_array().unwrap().len(), 1);
 }
@@ -383,24 +397,24 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     );
 
     // The page is re-rendered with file URLs pointing back at this registry.
-    let response = app.clone().oneshot(get("/~pypi/simple/requests/", Some(JSON))).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/requests/", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(page["name"], "requests");
-    assert_eq!(page["files"][0]["url"], format!("{PUBLIC_URL}/~pypi/files/requests/{filename}"));
+    assert_eq!(page["files"][0]["url"], format!("{PUBLIC_URL}/pypi/files/requests/{filename}"));
     assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
     assert_eq!(page["files"][0]["requires-python"], ">=3.8");
 
     // The HTML form is rendered from the same cached page.
-    let response = app.clone().oneshot(get("/~pypi/simple/requests/", None)).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/requests/", None)).await.unwrap();
     let html = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
-    assert!(html.contains(&format!("/~pypi/files/requests/{filename}#sha256=")), "{html}");
+    assert!(html.contains(&format!("/pypi/files/requests/{filename}#sha256=")), "{html}");
 
     // The file is fetched from the page's URL, verified, and cached.
     for _ in 0..2 {
         let response = app
             .clone()
-            .oneshot(get(&format!("/~pypi/files/requests/{filename}"), None))
+            .oneshot(get(&format!("/pypi/files/requests/{filename}"), None))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -413,14 +427,14 @@ async fn proxies_a_simple_page_and_verified_downloads_through_an_upstream() {
     // A file the page does not list is never fetched.
     let response = app
         .clone()
-        .oneshot(get("/~pypi/files/requests/requests-9.9.9-py3-none-any.whl", None))
+        .oneshot(get("/pypi/files/requests/requests-9.9.9-py3-none-any.whl", None))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // An unknown project is a definitive 404.
     let missing = upstream.mock("GET", "/simple/nope/").with_status(404).create_async().await;
-    let response = app.oneshot(get("/~pypi/simple/nope/", Some(JSON))).await.unwrap();
+    let response = app.oneshot(get("/pypi/simple/nope/", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     missing.assert_async().await;
 }
@@ -462,10 +476,10 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
         AuthState::in_memory(),
     );
 
-    let response = app.clone().oneshot(get("/~pypi/simple/html-only/", Some(JSON))).await.unwrap();
+    let response = app.clone().oneshot(get("/pypi/simple/html-only/", Some(JSON))).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
-    let response = app.oneshot(get(&format!("/~pypi/files/lying/{filename}"), None)).await.unwrap();
+    let response = app.oneshot(get(&format!("/pypi/files/lying/{filename}"), None)).await.unwrap();
     let _ = body_bytes(response.into_body()).await;
     assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
 }

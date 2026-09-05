@@ -168,11 +168,11 @@ fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
 fn pattern_less_concrete_registry_resolves_to_itself_for_any_name() {
     let registry = registries(vec![("acme", hosted(&[])), ("npmjs", upstream(&[]))], None);
     assert_eq!(
-        registry.resolve("acme", "@acme/foo"),
+        registry.resolve("acme", Ecosystem::Npm, "@acme/foo"),
         Resolved::Concrete { registry: "acme", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        registry.resolve("npmjs", "react"),
+        registry.resolve("npmjs", Ecosystem::Npm, "react"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -185,22 +185,22 @@ fn concrete_registry_does_not_resolve_an_unclaimed_name() {
     let registry =
         registries(vec![("acme", hosted(&["@acme/*"])), ("corp", upstream(&["@corp/*"]))], None);
     assert_eq!(
-        registry.resolve("acme", "@acme/foo"),
+        registry.resolve("acme", Ecosystem::Npm, "@acme/foo"),
         Resolved::Concrete { registry: "acme", kind: ConcreteKind::Hosted },
     );
-    assert_eq!(registry.resolve("acme", "@typo/foo"), Resolved::Unclaimed);
+    assert_eq!(registry.resolve("acme", Ecosystem::Npm, "@typo/foo"), Resolved::Unclaimed);
     // A private upstream's bound: a public name can't be pulled through it.
     assert_eq!(
-        registry.resolve("corp", "@corp/foo"),
+        registry.resolve("corp", Ecosystem::Npm, "@corp/foo"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
     );
-    assert_eq!(registry.resolve("corp", "lodash"), Resolved::Unclaimed);
+    assert_eq!(registry.resolve("corp", Ecosystem::Npm, "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
 fn unknown_registry_resolves_to_unknown() {
     let registry = registries(vec![("npmjs", upstream(&[]))], None);
-    assert_eq!(registry.resolve("nope", "react"), Resolved::UnknownRegistry);
+    assert_eq!(registry.resolve("nope", Ecosystem::Npm, "react"), Resolved::UnknownRegistry);
 }
 
 #[test]
@@ -216,15 +216,15 @@ fn router_resolves_first_claiming_source_authoritatively() {
     );
 
     assert_eq!(
-        registry.resolve("main", "@acme/foo"),
+        registry.resolve("main", Ecosystem::Npm, "@acme/foo"),
         Resolved::Concrete { registry: "acme", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        registry.resolve("main", "@corp/foo"),
+        registry.resolve("main", Ecosystem::Npm, "@corp/foo"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
     );
     assert_eq!(
-        registry.resolve("main", "lodash"),
+        registry.resolve("main", Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -242,7 +242,7 @@ fn router_earlier_source_wins_over_later_catch_all() {
         None,
     );
     assert_eq!(
-        registry.resolve("main", "@acme/secret"),
+        registry.resolve("main", Ecosystem::Npm, "@acme/secret"),
         Resolved::Concrete { registry: "acme", kind: ConcreteKind::Hosted },
     );
 }
@@ -251,7 +251,7 @@ fn router_earlier_source_wins_over_later_catch_all() {
 fn router_with_no_claiming_source_is_unclaimed_not_fallthrough() {
     let registry =
         registries(vec![("acme", hosted(&["@acme/*"])), ("main", router(&["acme"]))], None);
-    assert_eq!(registry.resolve("main", "lodash"), Resolved::Unclaimed);
+    assert_eq!(registry.resolve("main", Ecosystem::Npm, "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
@@ -259,7 +259,7 @@ fn resolve_default_uses_default_registry() {
     let registry =
         registries(vec![("npmjs", upstream(&[])), ("main", router(&["npmjs"]))], Some("main"));
     assert_eq!(
-        registry.resolve_default("react"),
+        registry.resolve_default(Ecosystem::Npm, "react"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -267,7 +267,7 @@ fn resolve_default_uses_default_registry() {
 #[test]
 fn resolve_default_without_target_is_unknown() {
     let registry = registries(vec![("npmjs", upstream(&[]))], None);
-    assert_eq!(registry.resolve_default("react"), Resolved::UnknownRegistry);
+    assert_eq!(registry.resolve_default(Ecosystem::Npm, "react"), Resolved::UnknownRegistry);
 }
 
 // --- validation ------------------------------------------------------------
@@ -528,38 +528,94 @@ fn registries_are_npm_unless_declared_otherwise() {
         vec![
             ("local", hosted(&["@acme/*"])),
             ("crates", hosted(&["demo"])),
-            ("cratesio", upstream(&[])),
-            ("cargo", router(&["crates", "cratesio"])),
+            ("crates-io", upstream(&[])),
+            ("cargo", router(&["crates", "crates-io"])),
         ],
         None,
     )
     .with_ecosystem("crates", Ecosystem::Cargo)
-    .with_ecosystem("cratesio", Ecosystem::Cargo);
-    set.validate().expect("one ecosystem per router is valid");
+    .with_ecosystem("crates-io", Ecosystem::Cargo);
+    set.validate().expect("graph is valid");
     assert_eq!(set.ecosystem("local"), Some(Ecosystem::Npm));
     assert_eq!(set.ecosystem("crates"), Some(Ecosystem::Cargo));
-    assert_eq!(set.ecosystem("cargo"), Some(Ecosystem::Cargo));
+    assert_eq!(set.ecosystem("cargo"), None);
     assert_eq!(set.ecosystem("nope"), None);
+    assert_eq!(set.sources("cargo", Ecosystem::Cargo), vec!["crates", "crates-io"]);
+    assert_eq!(set.sources("cargo", Ecosystem::Npm), Vec::<&str>::new());
+    assert_eq!(set.sources("crates", Ecosystem::Cargo), vec!["crates"]);
+    assert_eq!(set.sources("crates", Ecosystem::Npm), Vec::<&str>::new());
 }
 
 #[test]
-fn a_router_cannot_mix_ecosystems() {
+fn a_router_serves_every_ecosystem_its_sources_speak() {
+    // Both catch-all sources are reachable: each ecosystem's requests only see the
+    // sources that speak it.
     let set = registries(
         vec![
-            ("crates", hosted(&["demo"])),
+            ("local", hosted(&["@acme/*"])),
             ("npmjs", upstream(&[])),
-            ("mixed", router(&["crates", "npmjs"])),
+            ("crates", hosted(&["demo"])),
+            ("crates-io", upstream(&[])),
+            ("python", hosted(&["demo"])),
+            ("main", router(&["local", "npmjs", "crates", "crates-io", "python"])),
+        ],
+        Some("main"),
+    )
+    .with_ecosystem("crates", Ecosystem::Cargo)
+    .with_ecosystem("crates-io", Ecosystem::Cargo)
+    .with_ecosystem("python", Ecosystem::Pypi);
+    set.validate().expect("a mixed router is valid");
+    assert_eq!(
+        set.resolve("main", Ecosystem::Npm, "demo"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
+    );
+    assert_eq!(
+        set.resolve("main", Ecosystem::Cargo, "demo"),
+        Resolved::Concrete { registry: "crates", kind: ConcreteKind::Hosted },
+    );
+    assert_eq!(
+        set.resolve_default(Ecosystem::Cargo, "serde"),
+        Resolved::Concrete { registry: "crates-io", kind: ConcreteKind::Upstream },
+    );
+    assert_eq!(
+        set.resolve("main", Ecosystem::Pypi, "demo"),
+        Resolved::Concrete { registry: "python", kind: ConcreteKind::Hosted },
+    );
+    assert_eq!(set.resolve("main", Ecosystem::Pypi, "requests"), Resolved::Unclaimed);
+    // A concrete registry addressed with another ecosystem's protocol claims nothing.
+    assert_eq!(set.resolve("crates", Ecosystem::Npm, "demo"), Resolved::Unclaimed);
+    assert_eq!(set.sources("main", Ecosystem::Pypi), vec!["python"]);
+}
+
+#[test]
+fn shadowing_is_decided_within_one_ecosystem() {
+    let set = registries(
+        vec![
+            ("crates-io", upstream(&[])),
+            ("npmjs", upstream(&[])),
+            ("main", router(&["crates-io", "npmjs"])),
         ],
         None,
     )
+    .with_ecosystem("crates-io", Ecosystem::Cargo);
+    set.validate().expect("catch-all sources of different ecosystems do not shadow each other");
+
+    let set = registries(
+        vec![
+            ("crates-io", upstream(&[])),
+            ("crates", hosted(&["demo"])),
+            ("main", router(&["crates-io", "crates"])),
+        ],
+        None,
+    )
+    .with_ecosystem("crates-io", Ecosystem::Cargo)
     .with_ecosystem("crates", Ecosystem::Cargo);
     assert_eq!(
         set.validate(),
-        Err(RegistryConfigError::MixedEcosystemRouter {
-            router: "mixed".to_string(),
-            source: "npmjs".to_string(),
-            ecosystem: Ecosystem::Npm,
-            expected: Ecosystem::Cargo,
+        Err(RegistryConfigError::UnreachableSource {
+            router: "main".to_string(),
+            index: 1,
+            source: "crates".to_string(),
         }),
     );
 }

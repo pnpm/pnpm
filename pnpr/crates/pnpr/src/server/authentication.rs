@@ -260,15 +260,18 @@ pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
 }
 
 fn is_python_upload_path(path: &str) -> bool {
-    let path = path.trim_end_matches('/');
-    let upload = pnpr_pypi::UPLOAD_PATH;
-    path.strip_suffix(upload).is_some_and(|prefix| {
-        // `/~<name>/legacy`: exactly one registry segment ahead of the
-        // upload segment.
-        let mut segments = prefix.trim_matches('/').split('/');
-        segments.next().is_some_and(|segment| super::tilde_registry(segment).is_some())
-            && segments.next().is_none()
-    })
+    // `/pypi/legacy` or `/pypi/~<name>/legacy`.
+    let mut segments = path.trim_matches('/').split('/');
+    if segments.next() != Some(pnpr_registry::Ecosystem::Pypi.as_str()) {
+        return false;
+    }
+    match (segments.next(), segments.next(), segments.next()) {
+        (Some(upload), None, None) => upload == pnpr_pypi::UPLOAD_PATH,
+        (Some(registry), Some(upload), None) => {
+            super::tilde_registry(registry).is_some() && upload == pnpr_pypi::UPLOAD_PATH
+        }
+        _ => false,
+    }
 }
 
 /// Whether `peer` falls inside any range of a token's CIDR whitelist. An

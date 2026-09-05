@@ -1,22 +1,19 @@
-//! The non-npm registry surfaces.
+//! What the non-npm registry surfaces share.
 //!
-//! A `/~<name>/` request whose registry speaks Cargo or Python is handed here
-//! by the npm segment handlers before any npm-shaped reading of the path, so
-//! an npm registry keeps every URL it served before and a Cargo or Python
-//! registry never has its documents read as packuments. This module holds
-//! the dispatch and what the two surfaces share: the registry endpoint URL
-//! they write into their own metadata, the anonymous-readability check, and
-//! the proxy cache for an upstream's metadata documents and artifacts.
+//! Every ecosystem is served under its own URL prefix — `/npm/`, `/cargo/`,
+//! `/pypi/` — where `/<ecosystem>/~<name>/...` addresses a registry and
+//! `/<ecosystem>/...` the default target. The prefix selects the protocol and
+//! the registry graph is consulted for that ecosystem only, so one router can
+//! front every ecosystem. This module holds the pieces the Cargo and Python
+//! surfaces both need: addressing (which registry, which endpoint URL, which
+//! cache headers), the anonymous-readability check, and the proxy cache for
+//! an upstream's metadata documents and artifacts.
 
 use super::{
-    AppState, MAX_TARBALL_BYTES, cached_upstream_tarball, cargo, not_found, pypi, tarball_response,
-    tarball_stream_error,
+    AppState, MAX_TARBALL_BYTES, cached_upstream_tarball, default_registry_target, not_found,
+    private_no_cache, resolves_to_private_source, tarball_response, tarball_stream_error,
 };
-use axum::{
-    body::Bytes,
-    http::HeaderMap,
-    response::{IntoResponse, Response},
-};
+use axum::response::{IntoResponse, Response};
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
@@ -26,99 +23,89 @@ use pnpr_upstream::{FetchOutcome, FetchedDocument, Upstream};
 use sha2::{Digest, Sha256};
 use ssri::{Algorithm, Integrity};
 
-/// The ecosystem `registry` speaks when it is not npm, so a segment handler
-/// knows to hand the request to that surface instead of reading it as npm.
-pub(super) fn non_npm_ecosystem(state: &AppState, registry: &str) -> Option<Ecosystem> {
-    match state.inner.config.registries.ecosystem(registry)? {
-        Ecosystem::Npm => None,
-        ecosystem @ (Ecosystem::Cargo | Ecosystem::Pypi) => Some(ecosystem),
+/// The registry a request addressed: the `~<name>` it named, else the
+/// configured default target. `None` when the path-less form has no default.
+pub(super) fn addressed_registry(state: &AppState, registry: Option<&str>) -> Option<String> {
+    registry.map(str::to_string).or_else(|| default_registry_target(state))
+}
+
+/// The URL clients reach the addressed registry at for `ecosystem`, for the
+/// URLs a surface writes into the metadata it serves (a Cargo `config.json`,
+/// a Simple API page): `<public_url>/<ecosystem>` for the default target,
+/// `<public_url>/<ecosystem>/~<name>` for a named registry.
+pub(super) fn registry_endpoint(
+    state: &AppState,
+    ecosystem: Ecosystem,
+    registry: Option<&str>,
+) -> String {
+    let base = format!("{}/{ecosystem}", state.inner.config.public_url.trim_end_matches('/'));
+    match registry {
+        Some(registry) => format!("{base}/~{registry}"),
+        None => base,
     }
 }
 
-/// Serve a `GET /~<registry>/<segments...>` on a non-npm registry.
-pub(super) async fn serve_get(
+/// The cache headers a response on an ecosystem surface needs: a named
+/// registry's responses are always caller-scoped (like npm's `/~<name>/`
+/// surface), the default target's only when `package` resolves to a
+/// caller-gated source, so the hot public install path stays cacheable.
+pub(super) fn caller_scoped(
     state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
+    ecosystem: Ecosystem,
+    registry: Option<&str>,
+    package: Option<&str>,
+    response: Response,
+) -> Response {
+    if registry.is_some() {
+        return private_no_cache(response);
+    }
+    match (default_registry_target(state), package) {
+        (Some(target), Some(package))
+            if resolves_to_private_source(state, &target, ecosystem, package) =>
+        {
+            private_no_cache(response)
+        }
+        _ => response,
+    }
+}
+
+/// Whether some read of `ecosystem` through `registry` is closed to anonymous
+/// callers: a hosted source whose registry-level default denies them, or an
+/// upstream source with an `access:` gate. Drives the Cargo `auth-required`
+/// flag, which makes `cargo` send its token on index and download requests too.
+pub(super) fn registry_requires_auth(
+    state: &AppState,
     registry: &str,
     ecosystem: Ecosystem,
-    segments: &[&str],
-) -> Response {
-    match ecosystem {
-        Ecosystem::Cargo => cargo::serve_get(state, identity, registry, segments).await,
-        Ecosystem::Pypi => pypi::serve_get(state, identity, headers, registry, segments).await,
-        Ecosystem::Npm => not_found(),
-    }
-}
-
-/// Serve a `PUT /~<registry>/<segments...>` on a non-npm registry.
-pub(super) async fn serve_put(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    ecosystem: Ecosystem,
-    segments: &[&str],
-    body: Bytes,
-) -> Response {
-    match ecosystem {
-        Ecosystem::Cargo => cargo::serve_put(state, identity, registry, segments, body).await,
-        Ecosystem::Pypi | Ecosystem::Npm => not_found(),
-    }
-}
-
-/// Serve a `DELETE /~<registry>/<segments...>` on a non-npm registry.
-pub(super) async fn serve_delete(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    ecosystem: Ecosystem,
-    segments: &[&str],
-) -> Response {
-    match ecosystem {
-        Ecosystem::Cargo => cargo::serve_delete(state, identity, registry, segments).await,
-        Ecosystem::Pypi | Ecosystem::Npm => not_found(),
-    }
-}
-
-/// The URL clients reach `registry` at, for the URLs a surface writes into
-/// the metadata it serves (a Cargo `config.json`, a Simple API page).
-pub(super) fn registry_endpoint(state: &AppState, registry: &str) -> String {
-    format!("{}/~{registry}", state.inner.config.public_url.trim_end_matches('/'))
-}
-
-/// Whether some read through `registry` is closed to anonymous callers: a
-/// hosted source whose registry-level default denies them, or an upstream
-/// source with an `access:` gate. Drives the Cargo `auth-required` flag,
-/// which makes `cargo` send its token on index and download requests too.
-pub(super) fn registry_requires_auth(state: &AppState, registry: &str) -> bool {
+) -> bool {
     let config = &state.inner.config;
-    match config.registries.get(registry) {
-        Some(Registry::Hosted { .. }) => config
-            .hosted
-            .get(registry)
-            .is_some_and(|hosted| !hosted.rules.default_access().allows(&Identity::Anonymous)),
-        Some(Registry::Upstream { .. }) => {
-            config.upstreams.get(registry).is_some_and(|upstream| upstream.access.is_some())
+    config.registries.sources(registry, ecosystem).into_iter().any(|source| {
+        match config.registries.get(source) {
+            Some(Registry::Hosted { .. }) => config
+                .hosted
+                .get(source)
+                .is_some_and(|hosted| !hosted.rules.default_access().allows(&Identity::Anonymous)),
+            Some(Registry::Upstream { .. }) => {
+                config.upstreams.get(source).is_some_and(|upstream| upstream.access.is_some())
+            }
+            Some(Registry::Router { .. }) | None => false,
         }
-        Some(Registry::Router { sources }) => {
-            sources.iter().any(|source| registry_requires_auth(state, source))
-        }
-        None => false,
-    }
+    })
 }
 
-/// The hosted registries a request through `registry` can land on.
-pub(super) fn hosted_sources(state: &AppState, registry: &str) -> Vec<String> {
+/// The hosted registries of `ecosystem` a request through `registry` can land on.
+pub(super) fn hosted_sources(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+) -> Vec<String> {
     let registries = &state.inner.config.registries;
-    match registries.get(registry) {
-        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
-        Some(Registry::Router { sources }) => sources
-            .iter()
-            .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
-            .cloned()
-            .collect(),
-        Some(Registry::Upstream { .. }) | None => Vec::new(),
-    }
+    registries
+        .sources(registry, ecosystem)
+        .into_iter()
+        .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
+        .map(str::to_string)
+        .collect()
 }
 
 /// An upstream metadata document to read through the proxy cache.

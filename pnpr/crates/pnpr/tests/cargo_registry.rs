@@ -23,9 +23,10 @@ use tower::ServiceExt;
 const PUBLIC_URL: &str = "http://pnpr.test";
 
 /// A registry graph with a hosted Cargo registry (`crates`, claiming `demo`
-/// and `inflector`), a Cargo upstream (`cratesio`, everything else) at
-/// `upstream_url`, and the router `cargo` in front of both — beside the stock
-/// npm registries.
+/// and `inflector`) and a Cargo upstream (`cratesio`, everything else) at
+/// `upstream_url`, both added to the stock `main` router beside the npm
+/// registries, so `/cargo/...` is the default-target form and
+/// `/cargo/~crates/...` the named form.
 fn cargo_config(storage: PathBuf, upstream_url: &str, hosted_access: &str) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
@@ -55,9 +56,13 @@ fn cargo_config(storage: PathBuf, upstream_url: &str, hosted_access: &str) -> Co
         .collect();
     graph.insert("crates".to_string(), Registry::Hosted { patterns: claimed });
     graph.insert("cratesio".to_string(), Registry::Upstream { patterns: vec![] });
+    // One router fronts every ecosystem: `/cargo/...` requests only see the
+    // Cargo sources, `/webpack`-style npm requests only the npm ones.
     graph.insert(
-        "cargo".to_string(),
-        Registry::Router { sources: vec!["crates".to_string(), "cratesio".to_string()] },
+        "main".to_string(),
+        Registry::Router {
+            sources: ["local", "npmjs", "crates", "cratesio"].map(str::to_string).to_vec(),
+        },
     );
     let registries = Registries::new(graph, Some("main".to_string()))
         .with_ecosystem("crates", Ecosystem::Cargo)
@@ -137,7 +142,7 @@ async fn body_bytes(body: Body) -> Vec<u8> {
 
 /// `cargo` sends a registry token as the bare header value, with no scheme.
 fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
-    let mut request = Request::put("/~cargo/api/v1/crates/new");
+    let mut request = Request::put("/cargo/api/v1/crates/new");
     if let Some(token) = token {
         request = request.header(header::AUTHORIZATION, token);
     }
@@ -168,29 +173,37 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
 
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/config.json").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let config: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         config,
-        json!({ "dl": "http://pnpr.test/~cargo/api/v1/crates", "api": "http://pnpr.test/~cargo" }),
+        json!({ "dl": "http://pnpr.test/cargo/api/v1/crates", "api": "http://pnpr.test/cargo" }),
     );
 
-    // The hosted registry addressed directly advertises itself.
-    let response = app
-        .clone()
-        .oneshot(Request::get("/~crates/index/config.json").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let config: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(config["api"], "http://pnpr.test/~crates");
+    // A registry addressed by name advertises its own endpoint.
+    for registry in ["crates", "main"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/cargo/~{registry}/index/config.json"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{registry}");
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+        let config: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(config["api"], format!("http://pnpr.test/cargo/~{registry}"));
+    }
 
-    // An npm registry has no sparse index.
+    // The old npm-only address of a registry has no sparse index.
     let response = app
-        .oneshot(Request::get("/~main/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~crates/index/config.json").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -219,11 +232,12 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     // The sparse-index file: one JSON line per version.
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    // A public crate through the default target stays cacheable.
+    assert!(response.headers().get(header::CACHE_CONTROL).is_none());
     let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     let lines: Vec<Value> = index.lines().map(|line| serde_json::from_str(line).unwrap()).collect();
     assert_eq!(lines.len(), 1);
@@ -238,7 +252,7 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -250,22 +264,29 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     assert!(tmp.path().join("crates/demo/package.json").is_file());
 
     // The crate is reachable at its one sparse-index path only.
-    for wrong in ["/~cargo/index/3/d/demo", "/~cargo/index/de/mo/Demo", "/~cargo/index/DE/MO/demo"]
-    {
+    for wrong in ["/cargo/index/3/d/demo", "/cargo/index/de/mo/Demo", "/cargo/index/DE/MO/demo"] {
         let response =
             app.clone().oneshot(Request::get(wrong).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{wrong}");
     }
-    // npm-shaped paths mean nothing on a Cargo registry.
+    // The same crate through the named registry, caller-scoped.
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/demo").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/~crates/index/de/mo/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    // npm-shaped paths mean nothing on the Cargo surface.
+    let response = app
+        .clone()
+        .oneshot(Request::get("/cargo/demo").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = app
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/demo/0.2.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.2.0/download").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -345,7 +366,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
 
     let yanked_flag = |app: axum::Router| async move {
         let response = app
-            .oneshot(Request::get("/~cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
             .await
             .unwrap();
         let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
@@ -357,7 +378,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::delete("/~cargo/api/v1/crates/demo/0.1.0/yank").body(Body::empty()).unwrap(),
+            Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -367,7 +388,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::delete("/~cargo/api/v1/crates/demo/0.1.0/yank")
+            Request::delete("/cargo/api/v1/crates/demo/0.1.0/yank")
                 .header(header::AUTHORIZATION, &token)
                 .body(Body::empty())
                 .unwrap(),
@@ -381,7 +402,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -390,7 +411,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
     let response = app
         .clone()
         .oneshot(
-            Request::put("/~cargo/api/v1/crates/demo/0.1.0/unyank")
+            Request::put("/cargo/api/v1/crates/demo/0.1.0/unyank")
                 .header(header::AUTHORIZATION, &token)
                 .body(Body::empty())
                 .unwrap(),
@@ -403,7 +424,7 @@ async fn yank_and_unyank_flip_the_index_entry() {
     // An unknown version is a 404.
     let response = app
         .oneshot(
-            Request::delete("/~cargo/api/v1/crates/demo/9.9.9/yank")
+            Request::delete("/cargo/api/v1/crates/demo/9.9.9/yank")
                 .header(header::AUTHORIZATION, &token)
                 .body(Body::empty())
                 .unwrap(),
@@ -436,7 +457,7 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
     // `cargo` requests the lowercase path; the entry keeps the published case.
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/in/fl/inflector").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/in/fl/inflector").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -447,7 +468,7 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
     // Downloads use the name as the index spells it.
     let response = app
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/Inflector/0.11.4/download")
+            Request::get("/cargo/api/v1/crates/Inflector/0.11.4/download")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -468,7 +489,7 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     );
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/config.json").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let config: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -487,21 +508,21 @@ async fn private_hosted_registry_advertises_auth_required_and_masks_anonymous_re
     // The registry-level default masks the crate from anonymous callers.
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = app
         .clone()
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // With the raw token `cargo` sends once `auth-required` is set, both serve.
-    for path in ["/~cargo/index/de/mo/demo", "/~cargo/api/v1/crates/demo/0.1.0/download"] {
+    for path in ["/cargo/index/de/mo/demo", "/cargo/api/v1/crates/demo/0.1.0/download"] {
         let response = app
             .clone()
             .oneshot(
@@ -560,7 +581,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     // The index file is proxied verbatim.
     let response = app
         .clone()
-        .oneshot(Request::get("/~cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -572,7 +593,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/~cargo/api/v1/crates/serde/1.0.0/download")
+                Request::get("/cargo/api/v1/crates/serde/1.0.0/download")
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -590,7 +611,7 @@ async fn proxies_the_sparse_index_and_verified_downloads_through_an_upstream() {
     // An unknown crate is a definitive 404, and the cache holds nothing for it.
     let missing = upstream.mock("GET", "/no/pe/nope").with_status(404).create_async().await;
     let response = app
-        .oneshot(Request::get("/~cargo/index/no/pe/nope").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/cargo/index/no/pe/nope").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -631,7 +652,7 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
     );
     let response = app
         .oneshot(
-            Request::get("/~cargo/api/v1/crates/serde/1.0.0/download").body(Body::empty()).unwrap(),
+            Request::get("/cargo/api/v1/crates/serde/1.0.0/download").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();

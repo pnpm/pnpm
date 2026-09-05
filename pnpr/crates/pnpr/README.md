@@ -47,14 +47,29 @@ search term when a query reaches that limit.
 
 ## Cargo and Python registries
 
-A registry serves one package ecosystem. Every registry is npm unless its
-`ecosystem:` says otherwise; `cargo` and `pypi` registries speak those
-ecosystems' protocols at the same `/~<name>/` endpoint an npm registry uses.
-Hosted, upstream, and router registries work the same way for every ecosystem,
-with one rule: a router's sources must all share one ecosystem.
+pnpr serves npm, Cargo, and Python registries from one instance. Every
+ecosystem has its own URL prefix: `/<ecosystem>/~<name>/` addresses a
+registry and `/<ecosystem>/` the default registry, with `npm`, `cargo`, and
+`pypi` as the codes. The original npm addresses, the path-less base and
+`/~<name>/`, keep working as aliases of `/npm/`; under them the first
+segments `npm`, `cargo`, and `pypi` are reserved for the prefixes, so the npm
+packages of those names are reached as `/npm/npm` and so on.
+
+A hosted or upstream registry declares the ecosystem it serves (`ecosystem:`,
+npm by default). A router may list sources of every ecosystem: a request only
+ever sees the sources that speak its protocol, so one router can be the
+default target for all of them.
 
 ```yaml
 registries:
+  local:
+    type: hosted
+    packages:
+      '@example/*': {}
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
   crates:
     type: hosted
     ecosystem: cargo
@@ -66,10 +81,6 @@ registries:
     ecosystem: cargo
     url: https://index.crates.io/
     public: true
-  cargo:
-    type: router
-    sources: [crates, crates-io]
-
   python:
     type: hosted
     ecosystem: pypi
@@ -81,18 +92,21 @@ registries:
     ecosystem: pypi
     url: https://pypi.org/simple/
     public: true
-  pypi:
+  main:
     type: router
-    sources: [python, pypi-org]
+    sources: [local, npmjs, crates, crates-io, python, pypi-org]
+
+defaultRegistry: main
 ```
 
-A **Cargo** registry serves a sparse index at `/~<name>/index/` and the
-crates API at `/~<name>/api/v1/crates/`. Point `cargo` at it with:
+A **Cargo** registry serves a sparse index at `/cargo/index/` and the crates
+API at `/cargo/api/v1/crates/` (or `/cargo/~<name>/...` for a named
+registry). Point `cargo` at it with:
 
 ```toml
 # .cargo/config.toml
 [registries.pnpr]
-index = "sparse+https://pnpr.example.com/~cargo/index/"
+index = "sparse+https://pnpr.example.com/cargo/index/"
 ```
 
 `cargo publish --registry pnpr`, `cargo yank --registry pnpr`, and
@@ -105,14 +119,14 @@ alongside `Bearer`. A registry that is not anonymously readable advertises
 too. Crate names are compared case-insensitively, and exact `packages:` keys
 must be valid crate names.
 
-A **Python** registry serves the Simple Repository API at `/~<name>/simple/`
+A **Python** registry serves the Simple Repository API at `/pypi/simple/`
 (PEP 503 HTML and PEP 691 JSON, chosen by `Accept`) and files at
-`/~<name>/files/<project>/<filename>`, and accepts uploads on the legacy API at
-`/~<name>/legacy/`:
+`/pypi/files/<project>/<filename>`, and accepts uploads on the legacy API at
+`/pypi/legacy/` (or `/pypi/~<name>/...` for a named registry):
 
 ```sh
-pip install --index-url https://pnpr.example.com/~pypi/simple/ my-package
-twine upload --repository-url https://pnpr.example.com/~pypi/legacy/ dist/*
+pip install --index-url https://pnpr.example.com/pypi/simple/ my-package
+twine upload --repository-url https://pnpr.example.com/pypi/legacy/ dist/*
 ```
 
 Use `__token__` as the username and a pnpr token as the password, the PyPI
@@ -120,9 +134,9 @@ convention. Project names are compared PEP 503 normalized, so `My_Package`,
 `my.package`, and `my-package` are one project, and exact `packages:` keys are
 normalized the same way. Proxied files are fetched from the URL the upstream
 page lists, verified against its `sha256`, and cached. The project list at
-`/~<name>/simple/` enumerates hosted projects only. Upstream credentials are
-sent only to the upstream's own origin, never to the separate host an index
-points downloads at.
+`/pypi/simple/` enumerates hosted projects only. Upstream credentials are sent
+only to the upstream's own origin, never to the separate host an index points
+downloads at.
 
 ## License
 

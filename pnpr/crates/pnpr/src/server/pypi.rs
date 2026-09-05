@@ -1,4 +1,4 @@
-//! The Python package index surface at `/~<name>/`.
+//! The Python package index surface at `/pypi/`.
 //!
 //! The **Simple Repository API** — `simple/` (the project list) and
 //! `simple/<project>/` (a project's files) — is served as PEP 691 JSON or
@@ -10,33 +10,37 @@
 //! **legacy upload API** (`POST legacy/`) accepts what `twine upload` sends
 //! into a hosted registry.
 //!
-//! Project names are compared normalized (PEP 503); a page requested under a
-//! non-normalized spelling redirects to the normalized URL, as pypi.org does.
+//! Every endpoint answers under `/pypi/` (the default target) and
+//! `/pypi/~<name>/` (a named registry). Project names are compared normalized
+//! (PEP 503); a page requested under a non-normalized spelling redirects to
+//! the normalized URL, as pypi.org does.
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
     authorized_upstream, cached_upstream_tarball,
     ecosystem::{
-        UpstreamDocument, hosted_sources, is_fetchable_artifact_url, load_upstream_document,
-        non_npm_ecosystem, registry_endpoint, serve_upstream_artifact, sha256_hex,
-        sha256_integrity,
+        UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
+        is_fetchable_artifact_url, load_upstream_document, registry_endpoint,
+        serve_upstream_artifact, sha256_hex, sha256_integrity,
     },
-    hosted_gate, hosted_read_namespace, not_found, private_no_cache,
-    publishing::PublishTarget,
-    resolve_publish_target, resolve_registry_source, tarball_response, upstream_cache_namespace,
+    hosted_gate, hosted_read_namespace, not_found,
+    publishing::{PublishTarget, resolve_publish_target_for},
+    resolve_ecosystem_source, tarball_response, upstream_cache_namespace,
 };
 use axum::{
+    Router,
     body::{Body, Bytes},
     extract::{Path, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
+    routing::{get, post},
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{PackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
 use pnpr_pypi::{
     DistributionKind, FILES_PATH, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, ProjectDocument,
-    ProjectFile, SIMPLE_PATH, Yanked, multipart, normalize_name, normalize_version,
+    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Yanked, multipart, normalize_name, normalize_version,
     parse_distribution_filename, parse_upload, render_project_list_html, render_project_list_json,
     wants_json, wants_versioned_html,
 };
@@ -44,10 +48,29 @@ use pnpr_registry::Ecosystem;
 use pnpr_storage::{PACKUMENT_WRITE_RETRIES, publish::now_iso};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.
 const PAGE_LIMIT: usize = 64 * 1024 * 1024;
+
+/// The Python routes, each registered for the default target (`/pypi/...`)
+/// and for a named registry (`/pypi/~<name>/...`), with and without the
+/// trailing slash the Simple API spells its URLs with.
+pub(super) fn routes() -> Router<AppState> {
+    let mut router = Router::new();
+    for base in ["/pypi", "/pypi/{prefix}"] {
+        router = router
+            .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
+            .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))
+            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}"), get(get_project_page))
+            .route(&format!("{base}/{SIMPLE_PATH}/{{project}}/"), get(get_project_page))
+            .route(&format!("{base}/{FILES_PATH}/{{project}}/{{filename}}"), get(get_file))
+            .route(&format!("{base}/{UPLOAD_PATH}"), post(post_upload))
+            .route(&format!("{base}/{UPLOAD_PATH}/"), post(post_upload));
+    }
+    router
+}
 
 /// An upstream project page as cached: the JSON body beside the URL it was
 /// served from, which its relative file URLs resolve against.
@@ -55,69 +78,6 @@ const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 struct CachedPage {
     url: String,
     body: Box<RawValue>,
-}
-
-pub(super) async fn serve_get(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    registry: &str,
-    segments: &[&str],
-) -> Response {
-    match segments {
-        [SIMPLE_PATH] => project_list(state, identity, headers, registry).await,
-        [SIMPLE_PATH, project] => project_page(state, identity, headers, registry, project).await,
-        [FILES_PATH, project, filename] => file(state, identity, registry, project, filename).await,
-        _ => not_found(),
-    }
-}
-
-/// `GET /~<name>/simple/` — the trailing-slash form of the project list.
-pub(super) async fn get_project_list(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    headers: HeaderMap,
-) -> Response {
-    let Some(registry) = registry.filter(|registry| is_pypi(&state, registry)) else {
-        return not_found();
-    };
-    private_no_cache(project_list(&state, &identity, &headers, &registry).await)
-}
-
-/// `GET /~<name>/simple/<project>/` — the trailing-slash form of a project page.
-pub(super) async fn get_project_page(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    headers: HeaderMap,
-    Path((_, project)): Path<(String, String)>,
-) -> Response {
-    let Some(registry) = registry.filter(|registry| is_pypi(&state, registry)) else {
-        return not_found();
-    };
-    private_no_cache(project_page(&state, &identity, &headers, &registry, &project).await)
-}
-
-/// `POST /~<name>/legacy/` — the legacy upload API `twine` speaks.
-pub(super) async fn upload(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    TargetRegistry(registry): TargetRegistry,
-    headers: HeaderMap,
-    body: Bytes,
-) -> Response {
-    let Some(registry) = registry.filter(|registry| is_pypi(&state, registry)) else {
-        return not_found();
-    };
-    private_no_cache(match upload_file(&state, &identity, &registry, &headers, &body).await {
-        Ok(()) => StatusCode::OK.into_response(),
-        Err(err) => err.into_response(),
-    })
-}
-
-fn is_pypi(state: &AppState, registry: &str) -> bool {
-    non_npm_ecosystem(state, registry) == Some(Ecosystem::Pypi)
 }
 
 fn bad_request(reason: impl std::fmt::Display) -> RegistryError {
@@ -147,18 +107,21 @@ fn accepts_json(headers: &HeaderMap) -> bool {
     wants_json(headers.get(header::ACCEPT).and_then(|value| value.to_str().ok()))
 }
 
-/// The project list: every hosted project the caller may read through
-/// `registry`. Upstream sources are not enumerated — an upstream index's
-/// full project list is not something installers ask for, and pypi.org's runs
-/// to hundreds of thousands of names.
-async fn project_list(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    registry: &str,
+/// `GET simple/` — every hosted project the caller may read through the
+/// addressed registry. Upstream sources are not enumerated: an upstream
+/// index's full project list is not something installers ask for, and
+/// pypi.org's runs to hundreds of thousands of names.
+async fn get_project_list(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
 ) -> Response {
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let mut names = BTreeSet::new();
-    for source in hosted_sources(state, registry) {
+    for source in hosted_sources(&state, &target, ECOSYSTEM) {
         let Some(hosted) = state.inner.config.hosted.get(&source) else { continue };
         let listed = match state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await
         {
@@ -167,69 +130,79 @@ async fn project_list(
         };
         for name in listed {
             let routed_here = matches!(
-                resolve_registry_source(state, registry, &name),
+                resolve_ecosystem_source(&state, &target, ECOSYSTEM, &name),
                 RegistrySource::Hosted(selected) if selected == source,
             );
             if routed_here
-                && matches!(hosted_gate(state, identity, &source, &name), HostedGate::Allowed(_))
+                && matches!(hosted_gate(&state, &identity, &source, &name), HostedGate::Allowed(_))
             {
                 names.insert(name);
             }
         }
     }
-    if accepts_json(headers) {
+    let response = if accepts_json(&headers) {
         json_page_response(&render_project_list_json(names.iter().map(String::as_str)))
     } else {
-        let simple_base = format!("{}/{SIMPLE_PATH}", registry_endpoint(state, registry));
+        let simple_base =
+            format!("{}/{SIMPLE_PATH}", registry_endpoint(&state, ECOSYSTEM, registry.as_deref()));
         html_response(
-            headers,
+            &headers,
             render_project_list_html(&simple_base, names.iter().map(String::as_str)),
         )
-    }
+    };
+    // The list is filtered per caller, so it is never shareable.
+    super::private_no_cache(response)
 }
 
-async fn project_page(
-    state: &AppState,
-    identity: &Identity,
-    headers: &HeaderMap,
-    registry: &str,
-    raw_project: &str,
+/// `GET simple/<project>/`.
+async fn get_project_page(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    Path(params): Path<HashMap<String, String>>,
 ) -> Response {
+    let Some(raw_project) = params.get("project") else { return not_found() };
     let Ok(project) = normalize_name(raw_project) else { return not_found() };
-    if project != raw_project {
-        let location = format!("{}/{SIMPLE_PATH}/{project}/", registry_endpoint(state, registry));
+    let endpoint = registry_endpoint(&state, ECOSYSTEM, registry.as_deref());
+    if project != *raw_project {
         return Response::builder()
             .status(StatusCode::MOVED_PERMANENTLY)
-            .header(header::LOCATION, location)
+            .header(header::LOCATION, format!("{endpoint}/{SIMPLE_PATH}/{project}/"))
             .body(Body::empty())
             .expect("static-shape response always builds");
     }
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let key = match PackageName::parse(&project) {
         Ok(key) => key,
         Err(err) => return err.into_response(),
     };
-    let document = match resolve_registry_source(state, registry, &project) {
+    let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
         RegistrySource::Hosted(source) => {
-            read_hosted_document(state, identity, &source, &key).await
+            read_hosted_document(&state, &identity, &source, &key).await
         }
         source @ RegistrySource::Upstream(_) => {
-            load_upstream_page(state, identity, &source, &key, &project)
+            load_upstream_page(&state, &identity, &source, &key, &project)
                 .await
                 .map(|page| page.map(|(document, _)| document))
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     };
-    let document = match document {
-        Ok(Some(document)) => document,
-        Ok(None) => return not_found(),
-        Err(err) => return err.into_response(),
+    let response = match document {
+        Ok(Some(document)) => {
+            let file_base = format!("{endpoint}/{FILES_PATH}/{project}");
+            if accepts_json(&headers) {
+                json_page_response(&document.render_json(&file_base))
+            } else {
+                html_response(&headers, document.render_html(&file_base))
+            }
+        }
+        Ok(None) => not_found(),
+        Err(err) => err.into_response(),
     };
-    let file_base = format!("{}/{FILES_PATH}/{project}", registry_endpoint(state, registry));
-    if accepts_json(headers) {
-        json_page_response(&document.render_json(&file_base))
-    } else {
-        html_response(headers, document.render_html(&file_base))
-    }
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(&project), response)
 }
 
 async fn read_hosted_document(
@@ -305,38 +278,47 @@ async fn load_upstream_page(
 }
 
 /// `GET files/<project>/<filename>`.
-async fn file(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    raw_project: &str,
-    filename: &str,
+async fn get_file(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(params): Path<HashMap<String, String>>,
 ) -> Response {
+    let (Some(raw_project), Some(filename)) = (params.get("project"), params.get("filename"))
+    else {
+        return not_found();
+    };
     let Ok(project) = normalize_name(raw_project) else { return not_found() };
     if !is_safe_path_segment(filename) {
         return not_found();
     }
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let key = match PackageName::parse(&project) {
         Ok(key) => key,
         Err(err) => return err.into_response(),
     };
-    match resolve_registry_source(state, registry, &project) {
+    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
         RegistrySource::Hosted(source) => {
-            let org = match hosted_read_namespace(state, identity, &source, &project) {
-                Ok(org) => org,
-                Err(err) => return err.into_response(),
-            };
-            match state.inner.storage.for_hosted(&org).open_hosted_tarball(&key, filename).await {
-                Ok(Some((body, len))) => tarball_response(body, len),
-                Ok(None) => not_found(),
+            match hosted_read_namespace(&state, &identity, &source, &project) {
+                Ok(org) => {
+                    let storage = state.inner.storage.for_hosted(&org);
+                    match storage.open_hosted_tarball(&key, filename).await {
+                        Ok(Some((body, len))) => tarball_response(body, len),
+                        Ok(None) => not_found(),
+                        Err(err) => err.into_response(),
+                    }
+                }
                 Err(err) => err.into_response(),
             }
         }
         source @ RegistrySource::Upstream(_) => {
-            file_via_upstream(state, identity, &source, &key, &project, filename).await
+            file_via_upstream(&state, &identity, &source, &key, &project, filename).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
-    }
+    };
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(&project), response)
 }
 
 /// Proxy a file download: bind the request to the page's entry for the
@@ -382,10 +364,26 @@ async fn file_via_upstream(
         .await
 }
 
+/// `POST legacy/` — the legacy upload API `twine` speaks.
+async fn post_upload(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Response {
+    let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
+    {
+        Ok(()) => StatusCode::OK.into_response(),
+        Err(err) => err.into_response(),
+    };
+    super::private_no_cache(response)
+}
+
 async fn upload_file(
     state: &AppState,
     identity: &Identity,
-    registry: &str,
+    registry: Option<&str>,
     headers: &HeaderMap,
     body: &[u8],
 ) -> Result<(), RegistryError> {
@@ -420,12 +418,13 @@ async fn upload_file(
         }
     }
     let key = PackageName::parse(&project)?;
-    let (source, org) = match resolve_publish_target(state, identity, Some(registry), &project) {
-        PublishTarget::Hosted { source, org } => (source, org),
-        PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
-        PublishTarget::Denied(err) => return Err(err),
-        PublishTarget::NotFound => return Err(RegistryError::NotFound),
-    };
+    let (source, org) =
+        match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, &project) {
+            PublishTarget::Hosted { source, org } => (source, org),
+            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
+            PublishTarget::Denied(err) => return Err(err),
+            PublishTarget::NotFound => return Err(RegistryError::NotFound),
+        };
     authorize(state, identity, &RegistrySource::Hosted(source), &project, Action::Publish)?;
     let sha256 = sha256_hex(&upload.content);
     if upload.sha256_digest.as_deref().is_some_and(|declared| declared != sha256) {

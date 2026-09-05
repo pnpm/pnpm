@@ -1,4 +1,4 @@
-//! The Cargo registry surface at `/~<name>/`.
+//! The Cargo registry surface at `/cargo/`.
 //!
 //! Two URL families make up a Cargo registry. The **sparse index** —
 //! `index/config.json` and one `index/<prefix>/<crate>` file per crate — is
@@ -10,25 +10,31 @@
 //! checksum when proxied), accepts `cargo publish` (`PUT api/v1/crates/new`)
 //! and yank / unyank on hosted registries.
 //!
-//! Crate names are case-insensitive: the index path `cargo` requests is
-//! lowercase, so hosted documents and cache entries are keyed by the
-//! lowercase name while archives keep the name as published.
+//! Both families answer under `/cargo/` (the default target) and
+//! `/cargo/~<name>/` (a named registry). Crate names are case-insensitive:
+//! the index path `cargo` requests is lowercase, so hosted documents and cache
+//! entries are keyed by the lowercase name while archives keep the name as
+//! published.
 
 use super::{
-    Action, AppState, RegistrySource, authorize, authorized_upstream, cached_upstream_tarball,
+    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize, authorized_upstream,
+    cached_upstream_tarball,
     ecosystem::{
-        UpstreamDocument, load_upstream_document, registry_endpoint, registry_requires_auth,
-        serve_upstream_artifact, sha256_hex, sha256_integrity,
+        UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
+        load_upstream_document, registry_endpoint, registry_requires_auth, serve_upstream_artifact,
+        sha256_hex, sha256_integrity,
     },
     hosted_read_namespace, json_response, not_found,
-    publishing::PublishTarget,
-    resolve_publish_target, resolve_registry_source, resolve_write_target, tarball_response,
-    upstream_cache_namespace,
+    publishing::{PublishTarget, resolve_publish_target_for},
+    resolve_ecosystem_source, resolve_write_target_for, tarball_response, upstream_cache_namespace,
 };
 use axum::{
+    Router,
     body::{Body, Bytes},
+    extract::{Path, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
+    routing::{delete, get, put},
 };
 use pnpr_cargo::{
     CrateDocument, IndexConfig, crate_filename, download_url, errors_json, ok_json, parse_index,
@@ -38,9 +44,11 @@ use pnpr_cargo::{
 use pnpr_error::RegistryError;
 use pnpr_package_name::{PackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
+use pnpr_registry::Ecosystem;
 use pnpr_storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate};
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
+const ECOSYSTEM: Ecosystem = Ecosystem::Cargo;
 /// The largest sparse-index file accepted from an upstream.
 const INDEX_FILE_LIMIT: usize = 64 * 1024 * 1024;
 const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
@@ -48,51 +56,26 @@ const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
 /// `.`, so it can never collide with a crate's own entry.
 const INDEX_CONFIG_KEY: &str = "config.json";
 
-pub(super) async fn serve_get(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    segments: &[&str],
-) -> Response {
-    match segments {
-        ["index", "config.json"] => index_config(state, registry),
-        ["index", a, b] => index_file(state, identity, registry, &[a, b]).await,
-        ["index", a, b, c] => index_file(state, identity, registry, &[a, b, c]).await,
-        ["api", "v1", "crates", name, version, "download"] => {
-            download(state, identity, registry, name, version).await
-        }
-        _ => not_found(),
+/// The Cargo routes, each registered for the default target (`/cargo/...`)
+/// and for a named registry (`/cargo/~<name>/...`). A static `index` or `api`
+/// segment wins over `{prefix}` at the same position, and a registry name
+/// always carries its `~`, so the two forms never overlap.
+pub(super) fn routes() -> Router<AppState> {
+    let mut router = Router::new();
+    for base in ["/cargo", "/cargo/{prefix}"] {
+        router = router
+            .route(&format!("{base}/index/config.json"), get(get_index_config))
+            .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))
+            .route(&format!("{base}/index/{{a}}/{{b}}/{{c}}"), get(get_index_file))
+            .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
+            .route(
+                &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
+                get(get_download),
+            )
+            .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/yank"), delete(delete_yank))
+            .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
     }
-}
-
-pub(super) async fn serve_put(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    segments: &[&str],
-    body: Bytes,
-) -> Response {
-    match segments {
-        ["api", "v1", "crates", "new"] => publish(state, identity, registry, body).await,
-        ["api", "v1", "crates", name, version, "unyank"] => {
-            set_yanked(state, identity, registry, name, version, false).await
-        }
-        _ => not_found(),
-    }
-}
-
-pub(super) async fn serve_delete(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    segments: &[&str],
-) -> Response {
-    match segments {
-        ["api", "v1", "crates", name, version, "yank"] => {
-            set_yanked(state, identity, registry, name, version, true).await
-        }
-        _ => not_found(),
-    }
+    router
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the
@@ -114,12 +97,23 @@ fn crate_key(name: &str) -> Result<PackageName, RegistryError> {
     PackageName::parse(&name.to_ascii_lowercase())
 }
 
-fn index_config(state: &AppState, registry: &str) -> Response {
+/// `GET index/config.json`.
+async fn get_index_config(
+    State(state): State<AppState>,
+    TargetRegistry(registry): TargetRegistry,
+) -> Response {
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let config = IndexConfig::for_registry(
-        &registry_endpoint(state, registry),
-        registry_requires_auth(state, registry),
+        &registry_endpoint(&state, ECOSYSTEM, registry.as_deref()),
+        registry_requires_auth(&state, &target, ECOSYSTEM),
     );
-    json_response(StatusCode::OK, &serde_json::to_value(config).expect("index config serializes"))
+    let response = json_response(
+        StatusCode::OK,
+        &serde_json::to_value(config).expect("index config serializes"),
+    );
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), None, response)
 }
 
 fn index_response(text: String) -> Response {
@@ -132,13 +126,15 @@ fn index_response(text: String) -> Response {
 
 /// `GET index/<prefix>/<crate>`. The requested path must be exactly the
 /// crate's sparse-index path, so a crate is reachable at one URL only.
-async fn index_file(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    segments: &[&str],
+async fn get_index_file(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(params): Path<HashMap<String, String>>,
 ) -> Response {
-    let Some(name) = segments.last() else { return not_found() };
+    let segments: Vec<&str> =
+        ["a", "b", "c"].iter().filter_map(|key| params.get(*key).map(String::as_str)).collect();
+    let Some(name) = segments.last().copied() else { return not_found() };
     if validate_crate_name(name).is_err() {
         return not_found();
     }
@@ -146,27 +142,31 @@ async fn index_file(
     if path != segments.join("/") {
         return not_found();
     }
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let key = match crate_key(name) {
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
-    match resolve_registry_source(state, registry, key.as_str()) {
+    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            match read_hosted_document(state, identity, &source, &key).await {
+            match read_hosted_document(&state, &identity, &source, &key).await {
                 Ok(Some(document)) => index_response(document.render_index()),
                 Ok(None) => not_found(),
                 Err(err) => error_response(err),
             }
         }
         source @ RegistrySource::Upstream(_) => {
-            match load_upstream_index(state, identity, &source, &key, &path).await {
+            match load_upstream_index(&state, &identity, &source, &key, &path).await {
                 Ok(Some(bytes)) => index_response(String::from_utf8_lossy(&bytes).into_owned()),
                 Ok(None) => not_found(),
                 Err(err) => error_response(err),
             }
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
-    }
+    };
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
 }
 
 async fn read_hosted_document(
@@ -217,38 +217,46 @@ async fn load_upstream_index(
 }
 
 /// `GET api/v1/crates/<crate>/<version>/download`.
-async fn download(
-    state: &AppState,
-    identity: &Identity,
-    registry: &str,
-    name: &str,
-    version: &str,
+async fn get_download(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(params): Path<HashMap<String, String>>,
 ) -> Response {
+    let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
+        return not_found();
+    };
     if validate_crate_name(name).is_err() || !is_safe_path_segment(version) {
         return not_found();
     }
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
     let key = match crate_key(name) {
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
     let filename = crate_filename(name, version);
-    match resolve_registry_source(state, registry, key.as_str()) {
+    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            let org = match hosted_read_namespace(state, identity, &source, key.as_str()) {
-                Ok(org) => org,
-                Err(err) => return error_response(err),
-            };
-            match state.inner.storage.for_hosted(&org).open_hosted_tarball(&key, &filename).await {
-                Ok(Some((body, len))) => tarball_response(body, len),
-                Ok(None) => not_found(),
+            match hosted_read_namespace(&state, &identity, &source, key.as_str()) {
+                Ok(org) => {
+                    let storage = state.inner.storage.for_hosted(&org);
+                    match storage.open_hosted_tarball(&key, &filename).await {
+                        Ok(Some((body, len))) => tarball_response(body, len),
+                        Ok(None) => not_found(),
+                        Err(err) => error_response(err),
+                    }
+                }
                 Err(err) => error_response(err),
             }
         }
         source @ RegistrySource::Upstream(_) => {
-            download_via_upstream(state, identity, &source, &key, name, version).await
+            download_via_upstream(&state, &identity, &source, &key, name, version).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
-    }
+    };
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
 }
 
 /// Proxy a crate download: bind the request to the upstream index entry's
@@ -323,7 +331,7 @@ async fn download_via_upstream(
         Err(err) => return error_response(err),
     };
     let url = download_url(&config.dl, &entry.name, &entry.vers, &entry.cksum);
-    if !url::Url::parse(&url).is_ok_and(|url| super::ecosystem::is_fetchable_artifact_url(&url)) {
+    if !url::Url::parse(&url).is_ok_and(|url| is_fetchable_artifact_url(&url)) {
         return error_response(RegistryError::UpstreamResponse {
             url: INDEX_CONFIG_KEY.to_string(),
             reason: "the upstream `dl` template does not produce an HTTP(S) URL".to_string(),
@@ -334,7 +342,12 @@ async fn download_via_upstream(
 }
 
 /// `PUT api/v1/crates/new` — `cargo publish`.
-async fn publish(state: &AppState, identity: &Identity, registry: &str, body: Bytes) -> Response {
+async fn put_publish(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    body: Bytes,
+) -> Response {
     let (metadata, archive) = match parse_publish_body(&body) {
         Ok(parsed) => parsed,
         Err(err) => return bad_request(err),
@@ -349,15 +362,16 @@ async fn publish(state: &AppState, identity: &Identity, registry: &str, body: By
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
-    let (source, org) = match resolve_publish_target(state, identity, Some(registry), key.as_str())
-    {
+    let target =
+        resolve_publish_target_for(&state, &identity, registry.as_deref(), ECOSYSTEM, key.as_str());
+    let (source, org) = match target {
         PublishTarget::Hosted { source, org } => (source, org),
         PublishTarget::Reject(reason) => return bad_request(reason),
         PublishTarget::Denied(err) => return error_response(err),
         PublishTarget::NotFound => return not_found(),
     };
     if let Err(err) =
-        authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)
+        authorize(&state, &identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)
     {
         return error_response(err);
     }
@@ -419,21 +433,43 @@ async fn publish(state: &AppState, identity: &Identity, registry: &str, body: By
     }
 }
 
-/// `DELETE .../yank` and `PUT .../unyank`. Yanking is an owner action on
-/// crates.io, so it takes the same `publish` permission a new version does.
+/// `DELETE api/v1/crates/<crate>/<version>/yank`.
+async fn delete_yank(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(params): Path<HashMap<String, String>>,
+) -> Response {
+    set_yanked(&state, &identity, registry.as_deref(), &params, true).await
+}
+
+/// `PUT api/v1/crates/<crate>/<version>/unyank`.
+async fn put_unyank(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(params): Path<HashMap<String, String>>,
+) -> Response {
+    set_yanked(&state, &identity, registry.as_deref(), &params, false).await
+}
+
+/// Yanking is an owner action on crates.io, so it takes the same `publish`
+/// permission a new version does.
 async fn set_yanked(
     state: &AppState,
     identity: &Identity,
-    registry: &str,
-    name: &str,
-    version: &str,
+    registry: Option<&str>,
+    params: &HashMap<String, String>,
     yanked: bool,
 ) -> Response {
+    let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
+        return not_found();
+    };
     let key = match crate_key(name) {
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
-    let target = match resolve_write_target(state, identity, Some(registry), &key) {
+    let target = match resolve_write_target_for(state, identity, registry, ECOSYSTEM, &key) {
         Ok(target) => target,
         Err(err) => return error_response(err),
     };

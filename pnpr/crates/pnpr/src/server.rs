@@ -17,7 +17,7 @@ use self::{
         update_packument,
     },
     publishing::{
-        PublishTarget, commit_publishes, publish_package, resolve_publish_target,
+        PublishTarget, commit_publishes, publish_package, resolve_publish_target_for,
         serve_batch_publish, stage_publish, validate_publish_doc,
     },
     routing::router_with_auth_and_osv,
@@ -44,7 +44,7 @@ use pnpr_config::{Config, HostedConfig};
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::{ConcreteKind, Registry, Resolved};
+use pnpr_registry::{ConcreteKind, Ecosystem, Registry, Resolved};
 use pnpr_storage::{
     Storage,
     publish::{iso_from_unix_millis, now_iso},
@@ -1328,17 +1328,13 @@ async fn serve_hosted_revision_tarball(
 }
 
 fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {
-    match state.inner.config.registries.get(registry) {
-        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
-        Some(Registry::Router { sources }) => sources
-            .iter()
-            .filter(|source| {
-                matches!(state.inner.config.registries.get(source), Some(Registry::Hosted { .. }))
-            })
-            .cloned()
-            .collect(),
-        Some(Registry::Upstream { .. }) | None => Vec::new(),
-    }
+    let registries = &state.inner.config.registries;
+    registries
+        .sources(registry, Ecosystem::Npm)
+        .into_iter()
+        .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
+        .map(str::to_string)
+        .collect()
 }
 
 async fn hosted_revision_refs(
@@ -1586,8 +1582,20 @@ fn default_registry_target(state: &AppState) -> Option<String> {
     state.inner.config.registries.default_registry().map(str::to_string)
 }
 
+/// Resolve an npm request; see [`resolve_ecosystem_source`].
 fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> RegistrySource {
-    match state.inner.config.registries.resolve(registry, package) {
+    resolve_ecosystem_source(state, registry, Ecosystem::Npm, package)
+}
+
+/// Resolve `package` through `registry` for one ecosystem's surface: only
+/// the sources that speak that ecosystem's protocol are considered.
+fn resolve_ecosystem_source(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+    package: &str,
+) -> RegistrySource {
+    match state.inner.config.registries.resolve(registry, ecosystem, package) {
         Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
             RegistrySource::Upstream(registry.to_string())
         }
@@ -1610,8 +1618,13 @@ fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> R
 /// callers, or an upstream registry that declares `access:`. Responses from such
 /// an origin vary by `Authorization` and must never land in a shared HTTP
 /// cache, whichever URL surface (path-less or `/~<name>/`) served them.
-fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -> bool {
-    match resolve_registry_source(state, registry, package) {
+fn resolves_to_private_source(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+    package: &str,
+) -> bool {
+    match resolve_ecosystem_source(state, registry, ecosystem, package) {
         RegistrySource::Hosted(source) => {
             state.inner.config.hosted.get(&source).is_some_and(|hosted| {
                 !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
@@ -1646,7 +1659,7 @@ fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -
 /// path-less base is the hot install path.
 fn private_if_caller_gated(state: &AppState, package: &str, response: Response) -> Response {
     match default_registry_target(state) {
-        Some(target) if resolves_to_private_source(state, &target, package) => {
+        Some(target) if resolves_to_private_source(state, &target, Ecosystem::Npm, package) => {
             private_no_cache(response)
         }
         _ => response,
@@ -2464,19 +2477,16 @@ async fn append_upstream_search(
 }
 
 fn discovery_sources(state: &AppState, registry: &str) -> Vec<DiscoverySource> {
-    match state.inner.config.registries.get(registry) {
-        Some(Registry::Hosted { .. }) => vec![DiscoverySource::Hosted(registry.to_string())],
-        Some(Registry::Upstream { .. }) => vec![DiscoverySource::Upstream(registry.to_string())],
-        Some(Registry::Router { sources }) => sources
-            .iter()
-            .filter_map(|source| match state.inner.config.registries.get(source.as_str()) {
-                Some(Registry::Hosted { .. }) => Some(DiscoverySource::Hosted(source.clone())),
-                Some(Registry::Upstream { .. }) => Some(DiscoverySource::Upstream(source.clone())),
-                Some(Registry::Router { .. }) | None => None,
-            })
-            .collect(),
-        None => Vec::new(),
-    }
+    let registries = &state.inner.config.registries;
+    registries
+        .sources(registry, Ecosystem::Npm)
+        .into_iter()
+        .filter_map(|source| match registries.get(source) {
+            Some(Registry::Hosted { .. }) => Some(DiscoverySource::Hosted(source.to_string())),
+            Some(Registry::Upstream { .. }) => Some(DiscoverySource::Upstream(source.to_string())),
+            Some(Registry::Router { .. }) | None => None,
+        })
+        .collect()
 }
 
 fn search_object_name(object: &Value) -> Option<&str> {
@@ -2714,7 +2724,18 @@ fn resolve_write_target(
     registry: Option<&str>,
     name: &PackageName,
 ) -> Result<WriteTarget, RegistryError> {
-    match resolve_publish_target(state, identity, registry, name.as_str()) {
+    resolve_write_target_for(state, identity, registry, Ecosystem::Npm, name)
+}
+
+/// [`resolve_write_target`] for one ecosystem's surface.
+fn resolve_write_target_for(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    ecosystem: Ecosystem,
+    name: &PackageName,
+) -> Result<WriteTarget, RegistryError> {
+    match resolve_publish_target_for(state, identity, registry, ecosystem, name.as_str()) {
         PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
         PublishTarget::Reject(reason) => Err(RegistryError::BadRequest { reason }),
         PublishTarget::Denied(response) => Err(response),

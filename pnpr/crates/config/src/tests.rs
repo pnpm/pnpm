@@ -465,16 +465,16 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     // The flat-root hosted org serves the registry-mock fixture scopes.
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        config.registries.resolve_default(Ecosystem::Npm, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        config.registries.resolve_default("create-touch-file-one-bin"),
+        config.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
-        config.registries.resolve_default("is-positive"),
+        config.registries.resolve_default(Ecosystem::Npm, "is-positive"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -488,7 +488,7 @@ fn static_constructor_serves_everything_from_one_hosted() {
     // flat storage root (its `org` namespace is empty).
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default("anything"),
+        config.registries.resolve_default(Ecosystem::Npm, "anything"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
@@ -505,14 +505,14 @@ fn from_default_yaml_parses_bundled_file() {
     // everything else — including the rest of those real scopes — to npmjs.
     for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
-            config.registries.resolve_default(local),
+            config.registries.resolve_default(Ecosystem::Npm, local),
             Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.registries.resolve_default(upstream),
+            config.registries.resolve_default(Ecosystem::Npm, upstream),
             Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
@@ -906,11 +906,11 @@ defaultRegistry: main
     assert!(config.upstreams["corp"].access.is_some());
     assert_eq!(config.registries.default_registry(), Some("main"));
     assert!(config.registries.is_router("main"));
-    match config.registries.resolve("main", "@corp/secret") {
+    match config.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
-    match config.registries.resolve("main", "lodash") {
+    match config.registries.resolve("main", Ecosystem::Npm, "lodash") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
@@ -2217,10 +2217,10 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
-        config.registries.resolve("corp", "@corp/tool"),
+        config.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
     );
-    assert_eq!(config.registries.resolve("corp", "lodash"), Resolved::Unclaimed);
+    assert_eq!(config.registries.resolve("corp", Ecosystem::Npm, "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
@@ -2316,7 +2316,7 @@ fn bundled_default_config_enforces_its_protections() {
     // resolves to the npmjs catch-all through the router.
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
-        config.registries.resolve_default("lodash"),
+        config.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -2561,30 +2561,42 @@ registries:
     let registries = &config.registries;
     assert_eq!(registries.ecosystem("crates"), Some(Ecosystem::Cargo));
     assert_eq!(registries.ecosystem("cratesio"), Some(Ecosystem::Cargo));
-    assert_eq!(registries.ecosystem("cargo"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("cargo"), None);
     assert_eq!(registries.ecosystem("internal"), Some(Ecosystem::Pypi));
     assert_eq!(registries.ecosystem("local"), Some(Ecosystem::Npm));
     // Exact-name keys are canonicalized the way each ecosystem compares names.
     assert!(matches!(
-        registries.resolve("cargo", "demo_crate"),
+        registries.resolve("cargo", Ecosystem::Cargo, "demo_crate"),
         pnpr_registry::Resolved::Concrete { registry: "crates", .. }
     ));
     assert!(matches!(
-        registries.resolve("internal", "demo-pkg-extra"),
+        registries.resolve("internal", Ecosystem::Pypi, "demo-pkg-extra"),
         pnpr_registry::Resolved::Concrete { registry: "internal", .. }
     ));
 }
 
 #[test]
-fn from_yaml_str_rejects_mixed_ecosystem_routers_and_unknown_ecosystems() {
+fn from_yaml_str_accepts_mixed_routers_and_rejects_unknown_ecosystems_and_bad_keys() {
     let mixed = "
 registries:
   crates: { type: hosted, ecosystem: cargo, org: crates }
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
   main: { type: router, sources: [crates, npmjs] }
+defaultRegistry: main
 ";
-    let err = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap_err();
-    assert!(err.to_string().contains("a router serves one ecosystem"), "{err}");
+    let config = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap();
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Cargo, "serde"),
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
+    ));
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Npm, "serde"),
+        pnpr_registry::Resolved::Concrete { registry: "npmjs", .. }
+    ));
+    assert_eq!(
+        config.registries.resolve_default(Ecosystem::Pypi, "serde"),
+        pnpr_registry::Resolved::Unclaimed,
+    );
 
     let unknown = "
 registries:

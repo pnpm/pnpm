@@ -204,15 +204,19 @@ registries:
     sources: [local, npmjs]
 
   # A registry serves one package ecosystem, npm unless `ecosystem:` says
-  # otherwise. A `cargo` registry speaks the Cargo sparse-index and crates
-  # API at `/~<name>/` (index at `sparse+https://<pnpr>/~<name>/index/`,
-  # `cargo publish`, yank, downloads); a `pypi` registry speaks the Python
-  # Simple Repository API and the legacy upload API (index at
-  # `https://<pnpr>/~<name>/simple/`, `twine upload` to
-  # `https://<pnpr>/~<name>/legacy/`). Routers may only combine sources of one
-  # ecosystem. Exact `packages:` keys are compared the way the ecosystem
-  # compares names: case-insensitively for crates, PEP 503 normalized for
-  # Python projects.
+  # otherwise. Every ecosystem has its own URL prefix: `/<ecosystem>/~<name>/`
+  # addresses a registry and `/<ecosystem>/` the default registry, with
+  # `npm`, `cargo`, and `pypi` as the codes (`/npm/` is an alias of the
+  # original path-less and `/~<name>/` npm addresses, which keep working).
+  # A `cargo` registry speaks the Cargo sparse-index and crates API (index at
+  # `sparse+https://<pnpr>/cargo/index/`, `cargo publish`, yank, downloads);
+  # a `pypi` registry speaks the Python Simple Repository API and the legacy
+  # upload API (index at `https://<pnpr>/pypi/simple/`, `twine upload` to
+  # `https://<pnpr>/pypi/legacy/`). A router may mix ecosystems: a request
+  # only ever sees the sources that speak its protocol, so the `main` router
+  # above can list Cargo and Python sources beside the npm ones. Exact
+  # `packages:` keys are compared the way the ecosystem compares names:
+  # case-insensitively for crates, PEP 503 normalized for Python projects.
   #crates:
   #  type: hosted
   #  ecosystem: cargo
@@ -225,9 +229,6 @@ registries:
   #  ecosystem: cargo
   #  url: https://index.crates.io/
   #  public: true
-  #cargo:
-  #  type: router
-  #  sources: [crates, crates-io]
   #python:
   #  type: hosted
   #  ecosystem: pypi
@@ -239,9 +240,7 @@ registries:
   #  ecosystem: pypi
   #  url: https://pypi.org/simple/
   #  public: true
-  #pypi:
-  #  type: router
-  #  sources: [python, pypi-org]
+  # ... and add them to the router: `sources: [local, npmjs, crates, crates-io, python, pypi-org]`.
 
 # The path-less base URL (`https://<pnpr>/`) aliases this registry.
 defaultRegistry: main

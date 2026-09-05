@@ -187,10 +187,12 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::OPTIONS, "/foo"));
     assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve")); // resolver reads are POSTs
     // The Python legacy upload API is the one mutating POST.
-    assert!(is_write_request(&Method::POST, "/~pypi/legacy/"));
-    assert!(is_write_request(&Method::POST, "/~pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/pypi/~internal/legacy/"));
     assert!(!is_write_request(&Method::POST, "/legacy/"));
-    assert!(!is_write_request(&Method::POST, "/~pypi/simple/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
 }
 
 #[test]
