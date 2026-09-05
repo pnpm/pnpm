@@ -124,6 +124,20 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
 }
 
+#[test]
+fn a_url_header_overlays_only_its_request_route() {
+    let mut auth = AuthHeaders::from_creds_map([
+        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
+    ]);
+
+    auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
+
+    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
+}
+
 /// Records every `(url, package)` it is asked about and answers with a
 /// fixed header, so a test can assert the hook — not the client
 /// credentials — drove the lookup.
@@ -566,6 +580,17 @@ fn secure_lookup_rejects_plain_http_but_allows_loopback() {
     assert_eq!(local.as_deref(), Some("Bearer local"));
     let ipv6_local = headers.for_secure_url("http://[::1]:4873/pkg");
     assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
+}
+
+#[test]
+fn classifies_urls_that_are_secure_for_credentials() {
+    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("not a url"));
 }
 
 /// Specifically exercises the trailing-slash-append branch in

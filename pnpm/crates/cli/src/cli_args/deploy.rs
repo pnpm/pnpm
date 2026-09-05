@@ -113,7 +113,6 @@ enum DeployError {
 
 #[derive(Clone)]
 struct ProjectInfo {
-    root_dir: PathBuf,
     name: Option<String>,
     peer_dependencies: Vec<PkgName>,
     /// Names the project declares as prod or optional dependencies. A peer it
@@ -124,7 +123,7 @@ struct ProjectInfo {
 
 struct SelectedProject {
     project: Project,
-    all_projects: Vec<ProjectInfo>,
+    projects_by_path: HashMap<ProjectPathKey, ProjectInfo>,
 }
 
 struct DeployWorkspaceConfig {
@@ -145,7 +144,7 @@ enum DeployInstallMode {
 }
 
 struct ConvertCtx<'a> {
-    all_projects: &'a [ProjectInfo],
+    projects_by_path: &'a HashMap<ProjectPathKey, ProjectInfo>,
     deploy_dir: &'a Path,
     lockfile_dir: &'a Path,
     deployed_project_root: &'a Path,
@@ -459,20 +458,7 @@ fn select_project(
     dir: &Path,
 ) -> miette::Result<SelectedProject> {
     let (projects, _patterns) = discover_workspace_projects(workspace_dir, config)?;
-    let all_projects = projects
-        .iter()
-        .map(|project| ProjectInfo {
-            root_dir: lexical_normalize(&project.root_dir),
-            name: project.manifest.value().get("name").and_then(Value::as_str).map(str::to_string),
-            peer_dependencies: manifest_dependency_names(&project.manifest, &["peerDependencies"]),
-            declared_dependencies: manifest_dependency_names(
-                &project.manifest,
-                &["dependencies", "optionalDependencies"],
-            )
-            .into_iter()
-            .collect(),
-        })
-        .collect::<Vec<_>>();
+    let projects_by_path = index_projects(&projects);
 
     let selected_root = {
         let selection =
@@ -488,7 +474,36 @@ fn select_project(
         .into_iter()
         .find(|project| lexical_normalize(&project.root_dir) == selected_root)
         .ok_or(DeployError::NothingToDeploy)?;
-    Ok(SelectedProject { project, all_projects })
+    Ok(SelectedProject { project, projects_by_path })
+}
+
+/// Index the workspace projects by [`ProjectPathKey`]. When two roots compare
+/// equal, the first discovered project wins.
+fn index_projects(projects: &[Project]) -> HashMap<ProjectPathKey, ProjectInfo> {
+    let mut projects_by_path = HashMap::with_capacity(projects.len());
+    for project in projects {
+        projects_by_path.entry(ProjectPathKey::new(&project.root_dir)).or_insert_with(|| {
+            ProjectInfo {
+                name: project
+                    .manifest
+                    .value()
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
+                peer_dependencies: manifest_dependency_names(
+                    &project.manifest,
+                    &["peerDependencies"],
+                ),
+                declared_dependencies: manifest_dependency_names(
+                    &project.manifest,
+                    &["dependencies", "optionalDependencies"],
+                )
+                .into_iter()
+                .collect(),
+            }
+        });
+    }
+    projects_by_path
 }
 
 fn resolve_target_dir(dir: &Path, target: &Path) -> PathBuf {
@@ -757,7 +772,7 @@ fn create_deploy_files(
     let deployed_project_root =
         validate_lockfile_local_path(&lockfile_dir.join(project_id), lockfile_dir)?;
     let ctx = ConvertCtx {
-        all_projects: &selected.all_projects,
+        projects_by_path: &selected.projects_by_path,
         deploy_dir,
         lockfile_dir,
         deployed_project_root: &deployed_project_root,
@@ -834,7 +849,7 @@ fn create_deploy_files(
         }
         let project_root =
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
-        let package_key = create_file_url_key(&project_root, "", &selected.all_projects, None)?;
+        let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
         packages.insert(
             package_key,
             PackageMetadata {
@@ -863,14 +878,6 @@ fn create_deploy_files(
             snapshots.insert(output_key, convert_snapshot(snapshot, &ctx, lockfile_dir)?);
         }
     }
-    // Indexed on the same components `same_path` compares, so the importer loop
-    // below costs one lookup per importer rather than a scan of every project.
-    let peer_bearing_projects = selected
-        .all_projects
-        .iter()
-        .filter(|project| !project.peer_dependencies.is_empty())
-        .map(|project| (comparable_path_components(&project.root_dir), project))
-        .collect::<HashMap<_, _>>();
     let mut linked_workspace_projects = HashMap::new();
     for (importer_path, project_snapshot) in &lockfile.importers {
         if importer_path == project_id {
@@ -879,10 +886,11 @@ fn create_deploy_files(
         let project_root =
             validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
-        let package_key = create_file_url_key(&project_root, "", &selected.all_projects, None)?;
-        if let Some(project) = peer_bearing_projects.get(&comparable_path_components(&project_root))
+        let package_key = create_file_url_key(&project_root, "", &selected.projects_by_path, None)?;
+        if let Some(project) = selected.projects_by_path.get(&ProjectPathKey::new(&project_root))
+            && !project.peer_dependencies.is_empty()
         {
-            linked_workspace_projects.insert(package_key.clone(), (*project).clone());
+            linked_workspace_projects.insert(package_key.clone(), project.clone());
         }
         snapshots.insert(
             package_key,
@@ -1427,7 +1435,8 @@ fn local_to_importer_dep_version(
     if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(ImporterDepVersion::Link(".".to_string()));
     }
-    let key = create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects, Some(alias))?;
+    let key =
+        create_file_url_key(&resolved_path, &local.suffix, ctx.projects_by_path, Some(alias))?;
     Ok(ImporterDepVersion::Alias(key))
 }
 
@@ -1443,7 +1452,7 @@ fn local_to_snapshot_dep_ref(
     Ok(SnapshotDepRef::Alias(create_file_url_key(
         &resolved_path,
         &local.suffix,
-        ctx.all_projects,
+        ctx.projects_by_path,
         Some(alias),
     )?))
 }
@@ -1451,7 +1460,7 @@ fn local_to_snapshot_dep_ref(
 fn convert_package_key(key: &PackageKey, ctx: &ConvertCtx) -> miette::Result<PackageKey> {
     let VersionPart::File(path) = key.suffix.version() else { return Ok(key.clone()) };
     let resolved = validate_lockfile_local_path(&ctx.lockfile_dir.join(path), ctx.lockfile_dir)?;
-    create_file_url_key(&resolved, key.suffix.peer(), ctx.all_projects, Some(&key.name))
+    create_file_url_key(&resolved, key.suffix.peer(), ctx.projects_by_path, Some(&key.name))
 }
 
 fn validate_lockfile_local_path(path: &Path, lockfile_dir: &Path) -> miette::Result<PathBuf> {
@@ -1466,7 +1475,7 @@ fn validate_lockfile_local_path(path: &Path, lockfile_dir: &Path) -> miette::Res
 fn create_file_url_key(
     resolved_path: &Path,
     suffix: &str,
-    all_projects: &[ProjectInfo],
+    projects_by_path: &HashMap<ProjectPathKey, ProjectInfo>,
     package_name: Option<&PkgName>,
 ) -> miette::Result<PkgNameVerPeer> {
     let normalized = lexical_normalize(resolved_path);
@@ -1474,9 +1483,8 @@ fn create_file_url_key(
     let dep_file_url = url::Url::from_file_path(&normalized)
         .map_err(|()| miette::miette!("could not convert {} to a file URL", normalized_display))?
         .to_string();
-    let name = all_projects
-        .iter()
-        .find(|project| same_path(&project.root_dir, &normalized))
+    let name = projects_by_path
+        .get(&ProjectPathKey::new(&normalized))
         .and_then(|project| project.name.as_deref())
         .map(str::to_string)
         .or_else(|| package_name.map(PkgName::to_string))
@@ -1492,6 +1500,17 @@ fn same_path(left: &Path, right: &Path) -> bool {
     let left = lexical_normalize(left);
     let right = lexical_normalize(right);
     path_components_match(&left, &right)
+}
+
+/// Hash key under which two paths collide exactly when [`same_path`] equates
+/// them.
+#[derive(PartialEq, Eq, Hash)]
+struct ProjectPathKey(Vec<String>);
+
+impl ProjectPathKey {
+    fn new(path: &Path) -> Self {
+        Self(comparable_path_components(&lexical_normalize(path)))
+    }
 }
 
 fn has_path_prefix(child: &Path, parent: &Path) -> bool {

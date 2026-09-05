@@ -1,4 +1,5 @@
 use super::{AddDependencyOptions, apply_allow_build};
+use crate::cargo_manifest::CargoDependencyKind;
 use pnpm_config::Config;
 use pnpm_package_manifest::DependencyGroup;
 use pretty_assertions::assert_eq;
@@ -51,6 +52,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: false,
+            save_build: false,
             save_peer: false,
             no_save_peer: false,
         }),
@@ -62,6 +64,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: true,
             save_dev: false,
             save_optional: false,
+            save_build: false,
             save_peer: false,
             no_save_peer: false,
         }),
@@ -73,6 +76,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: true,
             save_optional: false,
+            save_build: false,
             save_peer: false,
             no_save_peer: false,
         }),
@@ -84,6 +88,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: true,
+            save_build: false,
             save_peer: false,
             no_save_peer: false,
         }),
@@ -95,6 +100,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: false,
+            save_build: false,
             save_peer: true,
             no_save_peer: false,
         }),
@@ -106,6 +112,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: true,
             save_dev: false,
             save_optional: false,
+            save_build: false,
             save_peer: true,
             no_save_peer: false,
         }),
@@ -117,6 +124,7 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: true,
             save_optional: false,
+            save_build: false,
             save_peer: true,
             no_save_peer: false,
         }),
@@ -128,9 +136,45 @@ fn dependency_options_to_dependency_groups() {
             save_prod: false,
             save_dev: false,
             save_optional: true,
+            save_build: false,
             save_peer: true,
             no_save_peer: false,
         }),
         [Optional, Peer],
     );
+}
+
+#[test]
+fn save_build_selects_only_the_cargo_build_table() {
+    let options = AddDependencyOptions {
+        save_prod: false,
+        save_dev: false,
+        save_optional: false,
+        save_build: true,
+        save_peer: false,
+        no_save_peer: false,
+    };
+
+    assert_eq!(options.cargo_dependency_kind(false).unwrap(), CargoDependencyKind::Build);
+    assert_eq!(options.dependency_groups().collect::<Vec<_>>(), []);
+}
+
+#[test]
+fn save_build_rejects_mixed_packages_and_conflicting_cargo_targets() {
+    let save_build = AddDependencyOptions {
+        save_prod: false,
+        save_dev: false,
+        save_optional: false,
+        save_build: true,
+        save_peer: false,
+        no_save_peer: false,
+    };
+    assert!(save_build.cargo_dependency_kind(true).is_err());
+
+    for options in [
+        AddDependencyOptions { save_prod: true, ..save_build.clone() },
+        AddDependencyOptions { save_dev: true, ..save_build },
+    ] {
+        assert!(options.cargo_dependency_kind(false).is_err());
+    }
 }

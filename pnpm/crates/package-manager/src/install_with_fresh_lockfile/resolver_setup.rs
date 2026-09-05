@@ -308,7 +308,8 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
     node_resolver.cache_dir = Some(config.cache_dir.clone());
     let deno_resolver = DenoResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
     let bun_resolver = BunResolver::new(Arc::clone(http_client_arc), Arc::clone(&npm_resolver));
-    let yarn_resolver = YarnResolver::new(Arc::clone(http_client_arc));
+    let yarn_resolver =
+        YarnResolver::new(Arc::clone(http_client_arc), config.tls.strict_ssl.unwrap_or(true));
     let named_registry_resolver = NamedRegistryResolver {
         registries_by_prefix: registries_by_prefix.clone(),
         registry_names: registries_by_prefix.keys().cloned().collect(),
@@ -388,7 +389,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         Box::new(local_path_resolver),
     ]);
 
-    // The install pass later calls `DownloadTarballToStore::run_with_mem_cache`
+    // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
     // for the same URLs and either picks up `CacheValue::Available`
     // immediately or briefly blocks on the per-URL `Notify`. See
     // `prefetching_resolver.rs` for the full design rationale.

@@ -993,6 +993,38 @@ configDependencies:
     assert!(settings.config_dependencies.is_none());
 }
 
+#[test]
+fn cargo_settings_parse_apply_and_remain_workspace_only() {
+    let yaml = r"
+cargo:
+  enabled: true
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.cargo.map(|cargo| cargo.enabled), Some(true));
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.cargo.enabled);
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.cargo.is_none());
+}
+
+#[test]
+fn cargo_settings_reject_unknown_fields() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        r"
+cargo:
+  enabled: true
+  registry: https://example.com
+",
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("unknown field `registry`"), "{error}");
+}
+
 /// `allowBuilds` is a map of `name[@version]` → bool. Same camelCase
 /// rename + `apply_to` wiring as the other yaml-sourced settings.
 /// pnpm 10+ moved this out of `package.json#pnpm` (matches

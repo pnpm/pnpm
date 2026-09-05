@@ -67,6 +67,9 @@ pub struct Config {
     /// `dist.tarball` URLs in served packuments so tarball requests
     /// flow through this server.
     pub public_url: String,
+    /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
+    /// response headers unless an operator explicitly names trusted origins.
+    pub cors: CorsConfig,
     /// Directory under which authoritative packuments and tarballs
     /// live: packages published to this server and the content served
     /// in static mode. This is the source of truth — it is never
@@ -170,6 +173,32 @@ pub struct HostedConfig {
     /// list them. Membership is config-declared: the API serves reads only,
     /// and team mutations are rejected.
     pub teams: Teams,
+}
+
+/// Exact browser origins allowed to call pnpr across origins.
+#[derive(Debug, Default, Clone)]
+pub struct CorsConfig {
+    allowed_origins: Vec<String>,
+}
+
+impl CorsConfig {
+    pub fn from_allowed_origins(
+        origins: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Result<Self, RegistryError> {
+        let mut allowed_origins = Vec::new();
+        for origin in origins {
+            let origin = normalize_cors_origin(origin.as_ref())?;
+            if !allowed_origins.contains(&origin) {
+                allowed_origins.push(origin);
+            }
+        }
+        Ok(Self { allowed_origins })
+    }
+
+    #[must_use]
+    pub fn allowed_origins(&self) -> &[String] {
+        &self.allowed_origins
+    }
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -918,6 +947,9 @@ struct UpstreamFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
+    /// Opt an upstream into browser-facing search and organization discovery.
+    #[serde(default)]
+    search: bool,
     /// Which pnpr callers may reach this registry at `/~<name>/`. Required for a
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
@@ -959,6 +991,10 @@ struct ConfigFile {
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     cache: Option<String>,
+    /// pnpr-only browser access policy. Cross-origin access stays disabled
+    /// when this block is absent or its allowlist is empty.
+    #[serde(default)]
+    cors: CorsFile,
     /// pnpr-only block: store the hosted (published) packages in an
     /// S3-compatible object store instead of `storage`. Absent on a
     /// stock verdaccio config (silently ignored there).
@@ -1026,6 +1062,13 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CorsFile {
+    #[serde(default)]
+    allowed_origins: Vec<String>,
 }
 
 /// Marker for a present top-level `packages:` key, whatever its value.
@@ -1265,6 +1308,7 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cors: CorsConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams,
@@ -1314,6 +1358,7 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cors: CorsConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams: IndexMap::new(),
@@ -1531,6 +1576,7 @@ impl Config {
         };
         let backend = build_backend_config(file.backend, base_dir)?;
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
+        let cors = build_cors_config(file.cors)?;
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         // The global ACL and group blocks are gone, not ignorable: they used
@@ -1588,6 +1634,7 @@ impl Config {
         let config = Self {
             listen,
             public_url,
+            cors,
             storage,
             cache_storage,
             upstreams,
@@ -1727,6 +1774,30 @@ impl Config {
         }
         self.registries.validate().map_err(|err| registry_err(&err))
     }
+}
+
+fn build_cors_config(file: CorsFile) -> Result<CorsConfig, RegistryError> {
+    CorsConfig::from_allowed_origins(file.allowed_origins)
+}
+
+fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
+    let parsed = url::Url::parse(raw).map_err(|_| RegistryError::InvalidConfig {
+        reason: format!("CORS allowed origin {raw:?} is not an absolute URL"),
+    })?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() != "/"
+    {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "CORS allowed origin {raw:?} must contain only an http(s) scheme, host, and optional port",
+            ),
+        });
+    }
+    Ok(parsed.origin().ascii_serialization())
 }
 
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
@@ -2031,6 +2102,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
         max_fails: file.max_fails,
         fail_timeout: file.fail_timeout,
         cache: file.cache,
+        search: file.search,
         access,
     };
     resolve_upstream_config::<Sys>(name, upstream_config_file, teams)

@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{Parser, builder::BoolishValueParser};
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
 use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
@@ -10,11 +10,11 @@ struct Args {
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
-    #[arg(short = 'c', long)]
+    #[arg(short = 'c', long, env = "PNPR_CONFIG")]
     config: Option<PathBuf>,
 
     /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN)]
+    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
     listen: SocketAddr,
 
     /// Override the storage path from the loaded config (bundled or
@@ -22,52 +22,52 @@ struct Args {
     /// storage directory without writing a custom YAML. Unless
     /// `--cache` is also given, the disposable proxy cache is
     /// re-derived as a subdirectory of this path.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_STORAGE")]
     storage: Option<PathBuf>,
 
     /// Override the proxy-cache path — the disposable mirror of
     /// upstream registries plus the resolver's cache. Point
     /// it at separate, ephemeral disk to keep published packages and
     /// cached upstream content on different volumes.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_CACHE")]
     cache: Option<PathBuf>,
 
     /// URL clients should use to reach this server. Used when
     /// rewriting `dist.tarball` URLs in served packuments. Defaults
     /// to `http://<listen>`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_PUBLIC_URL")]
     public_url: Option<String>,
 
     /// Seconds before a cached packument is considered stale and
     /// refetched. When omitted, the loaded config's value wins.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
     packument_ttl_secs: Option<u64>,
 
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
     /// npm database zip at `--osv-db` or `<cache>/osv/npm/all.zip`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_OSV", value_parser = BoolishValueParser::new())]
     osv: bool,
 
     /// Path to the local OSV npm database zip or extracted JSON directory.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_OSV_DB")]
     osv_db: Option<PathBuf>,
 
     /// Disable the npm-registry surface (packument/tarball reads, publish,
     /// unpublish, dist-tag, search) on this tier. Without the flag the
     /// surface is served whenever the loaded config declares at least one
     /// registry under `registries:`.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_DISABLE_REGISTRY", value_parser = BoolishValueParser::new())]
     disable_registry: bool,
 
     /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
     /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
     /// loaded config.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_DISABLE_RESOLVER", value_parser = BoolishValueParser::new())]
     disable_resolver: bool,
 
     /// Disable the signed shared-artifact surface. Overrides
     /// `artifacts.enabled` from the loaded config.
-    #[arg(long)]
+    #[arg(long, env = "PNPR_DISABLE_ARTIFACTS", value_parser = BoolishValueParser::new())]
     disable_artifacts: bool,
 }
 

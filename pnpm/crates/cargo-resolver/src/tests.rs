@@ -1,0 +1,304 @@
+use super::{latest_version, missing_index_names, resolve_lockfile};
+use cargo_lock::Lockfile;
+use std::{collections::BTreeMap, str::FromStr};
+
+const METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": "^1.0"
+    }]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+const FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^2","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+
+const BAR_INDEX: &str = r#"{"name":"bar","vers":"2.0.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":false}
+{"name":"bar","vers":"2.1.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":true}"#;
+
+const OPTIONAL_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#;
+
+const DEFAULT_FEATURE_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"features2":{"default":["dep:bar"]},"yanked":false,"v":2}"#;
+
+const SPLIT_DEFAULT_FEATURE_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"default":["dep:bar"]},"features2":{"default":["dep:baz"]},"yanked":false,"v":2}"#;
+
+const BAZ_INDEX: &str = r#"{"name":"baz","vers":"1.0.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+
+const WORKSPACE_OPTIONAL_METADATA: &str = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [{
+      "name": "foo",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "req": "^1.0",
+      "optional": true
+    }],
+    "features": {"foo": ["dep:foo"]}
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+
+#[test]
+fn discovers_transitive_sparse_index_files() {
+    let mut files = BTreeMap::new();
+    assert_eq!(missing_index_names(METADATA, &files).unwrap(), ["foo"]);
+
+    files.insert("foo".to_string(), FOO_INDEX.to_string());
+    assert_eq!(missing_index_names(METADATA, &files).unwrap(), ["bar"]);
+
+    files.insert("bar".to_string(), BAR_INDEX.to_string());
+    assert!(missing_index_names(METADATA, &files).unwrap().is_empty());
+}
+
+#[test]
+fn discovers_dependencies_from_every_viable_version() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"old-dependency","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"new-dependency","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert_eq!(
+        missing_index_names(METADATA, &files).unwrap(),
+        ["new-dependency", "old-dependency"],
+    );
+}
+
+#[test]
+fn validates_registry_metadata_before_deduplicating_dependencies() {
+    let metadata = METADATA.replacen(
+        "]\n  }],",
+        r#", {
+      "name": "foo",
+      "source": "registry+https://registry.example.test/index",
+      "req": "^1.0"
+    }]
+  }],"#,
+        1,
+    );
+
+    let error = missing_index_names(&metadata, &BTreeMap::new()).unwrap_err().to_string();
+
+    assert!(error.contains("alternate Cargo registry"), "{error}");
+}
+
+#[test]
+fn selects_the_latest_stable_non_yanked_version() {
+    let index = r#"{"name":"foo","vers":"2.0.0-alpha.1","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}
+{"name":"foo","vers":"1.2.0","deps":[],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{},"yanked":true}"#;
+
+    assert_eq!(latest_version("foo", index).unwrap(), "1.1.0");
+}
+
+#[test]
+fn resolves_newest_non_yanked_versions_into_a_cargo_lockfile() {
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), FOO_INDEX.to_string()),
+    ]);
+    let encoded = resolve_lockfile(METADATA, &files).unwrap();
+    let lockfile = Lockfile::from_str(&encoded).unwrap();
+
+    assert_eq!(lockfile.version, cargo_lock::ResolveVersion::V4);
+    assert_eq!(lockfile.packages.len(), 3);
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 1, 0)
+    }));
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "bar" && package.version == semver::Version::new(2, 0, 0)
+    }));
+    assert!(
+        lockfile
+            .packages
+            .iter()
+            .any(|package| package.name.as_str() == "app" && package.source.is_none()),
+    );
+}
+
+#[test]
+fn resolves_the_feature_unified_lock_graph() {
+    let files = BTreeMap::from([("foo".to_string(), OPTIONAL_FOO_INDEX.to_string())]);
+    assert!(missing_index_names(METADATA, &files).unwrap().is_empty());
+    assert_eq!(
+        missing_index_names(WORKSPACE_OPTIONAL_METADATA, &BTreeMap::new()).unwrap(),
+        ["foo"],
+    );
+
+    let files = BTreeMap::from([("foo".to_string(), DEFAULT_FEATURE_FOO_INDEX.to_string())]);
+    assert_eq!(missing_index_names(METADATA, &files).unwrap(), ["bar"]);
+
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("foo".to_string(), DEFAULT_FEATURE_FOO_INDEX.to_string()),
+    ]);
+    let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
+    assert_eq!(lockfile.packages.len(), 3);
+}
+
+#[test]
+fn merges_duplicate_feature_names_across_index_feature_maps() {
+    let files = BTreeMap::from([("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string())]);
+    assert_eq!(missing_index_names(METADATA, &files).unwrap(), ["bar", "baz"]);
+
+    let files = BTreeMap::from([
+        ("bar".to_string(), BAR_INDEX.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), SPLIT_DEFAULT_FEATURE_FOO_INDEX.to_string()),
+    ]);
+    let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
+    assert_eq!(lockfile.packages.len(), 4);
+}
+
+#[test]
+fn propagates_features_from_the_selected_older_candidate() {
+    let metadata = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [
+      {
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0"
+      },
+      {
+        "name": "bar",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "=1.0.0"
+      }
+    ]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"=1.0.0","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"=1.1.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:baz"]},"yanked":false}
+{"name":"bar","vers":"1.1.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(metadata, &files).unwrap()).unwrap();
+
+    assert_eq!(lockfile.packages.len(), 4);
+    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}
+
+#[test]
+fn ignores_features_from_an_unselected_newer_candidate() {
+    let metadata = r#"{
+  "packages": [{
+    "id": "path+file:///workspace#app@0.1.0",
+    "name": "app",
+    "version": "0.1.0",
+    "dependencies": [
+      {
+        "name": "foo",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "^1.0"
+      },
+      {
+        "name": "qux",
+        "source": "registry+https://github.com/rust-lang/crates.io-index",
+        "req": "=1.0.0"
+      }
+    ]
+  }],
+  "workspace_members": ["path+file:///workspace#app@0.1.0"]
+}"#;
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.1.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let qux_index = r#"{"name":"qux","vers":"1.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}
+{"name":"qux","vers":"1.1.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+        ("qux".to_string(), qux_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(metadata, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
+    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}
+
+#[test]
+fn propagates_dependency_features_without_default_features() {
+    let metadata = METADATA.replacen(
+        r#""req": "^1.0""#,
+        r#""req": "^1.0", "uses_default_features": false"#,
+        1,
+    );
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"baz","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{"extra":["dep:baz"]},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("baz".to_string(), BAZ_INDEX.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(&metadata, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| package.name.as_str() == "baz"));
+}
+
+#[test]
+fn backtracks_when_a_candidate_feature_conflicts_with_that_candidate() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"qux","req":"=1.1.0","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:qux"]},"yanked":false}"#;
+    let qux_index = r#"{"name":"qux","vers":"1.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}
+{"name":"qux","vers":"1.1.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+        ("qux".to_string(), qux_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
+    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "qux"));
+}
+
+#[test]
+fn dep_activation_suppresses_the_implicit_optional_feature() {
+    let metadata =
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["codec"]"#, 1);
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"codec","req":"^1","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"full":["dep:codec"]},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    assert!(missing_index_names(&metadata, &files).unwrap().is_empty());
+    assert!(resolve_lockfile(&metadata, &files).is_err());
+}
+
+#[test]
+fn selects_an_older_candidate_that_provides_a_requested_feature() {
+    let metadata =
+        METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["special"]"#, 1);
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"special":[]},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([("foo".to_string(), foo_index.to_string())]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(&metadata, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
+}

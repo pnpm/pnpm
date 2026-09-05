@@ -26,23 +26,108 @@ use pnpm_store_dir::{
 };
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
 
-/// This subroutine downloads and extracts a tarball to the store directory.
+/// Controls how archive files are projected into pnpm's content-addressable store.
 ///
-/// It returns a CAS map of files in the tarball.
-///
+/// Package archives get pnpm's `package.json` completion marker and may receive a
+/// synthesized manifest. Raw archives preserve their regular-file contents exactly;
+/// their ecosystem adapter owns any additional metadata and install layout.
+#[derive(Debug, Clone, Copy)]
+pub enum ArchiveStoreProjection<'a> {
+    /// Project the archive as an npm-compatible package. The archive receives
+    /// pnpm's completion marker when it has no `package.json`; runtime archives
+    /// may additionally supply the manifest that should be synthesized.
+    Package { append_manifest: Option<&'a [u8]> },
+    /// Preserve the archive's regular files without adding npm package files.
+    /// The ecosystem adapter owns all post-ingestion metadata and layout.
+    RawArchive,
+}
+
+impl<'a> ArchiveStoreProjection<'a> {
+    /// Ordinary package keys stay byte-for-byte compatible with pnpm's existing
+    /// store. Projections that change the archive's file set use separate
+    /// namespaces so they cannot reuse an incompatible row.
+    #[must_use]
+    pub fn store_index_key(self, integrity: &str, package_id: &str) -> String {
+        let base_key = store_index_key(integrity, package_id);
+        match self {
+            Self::Package { append_manifest: None } => base_key,
+            Self::Package { append_manifest: Some(manifest) } => {
+                format!("package-manifest\t{}\t{base_key}", manifest_integrity(manifest))
+            }
+            Self::RawArchive => format!("raw-archive\t{base_key}"),
+        }
+    }
+
+    /// Ordinary package keys stay byte-for-byte compatible with the URL keys
+    /// inserted by resolve-time fetches. Only projections that can produce a
+    /// different file set receive a discriminator; synthesized manifests are
+    /// content-addressed so equal projections still share work.
+    pub(crate) fn mem_cache_key(self, package_url: &str, revision_addressed: bool) -> String {
+        match (self, revision_addressed) {
+            (Self::Package { append_manifest: None }, false) => package_url.to_string(),
+            (Self::Package { append_manifest: None }, true) => {
+                format!("revision-addressed:{package_url}")
+            }
+            (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
+            (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
+            (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
+                let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
+                format!(
+                    "{revision_prefix}package-manifest:{}:{package_url}",
+                    manifest_integrity(manifest),
+                )
+            }
+        }
+    }
+
+    pub(crate) fn package_content_check(self, strict: bool) -> PackageContentCheck {
+        match self {
+            Self::Package { .. } if strict => PackageContentCheck::Strict,
+            Self::Package { .. } => PackageContentCheck::Warn,
+            Self::RawArchive => PackageContentCheck::Skip,
+        }
+    }
+
+    pub(crate) fn legacy_synthesized_store_row(
+        self,
+        integrity: &str,
+        package_id: &str,
+    ) -> Option<(String, &'a [u8])> {
+        match self {
+            Self::Package { append_manifest: Some(manifest) } => {
+                Some((store_index_key(integrity, package_id), manifest))
+            }
+            Self::Package { append_manifest: None } | Self::RawArchive => None,
+        }
+    }
+}
+
+fn manifest_integrity(manifest: &[u8]) -> Integrity {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha256);
+    opts.input(manifest);
+    opts.result()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackageContentCheck {
+    Strict,
+    Warn,
+    Skip,
+}
+
 /// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
 /// `Arc` — so a caller can keep a copy to retry through a different entry
 /// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
 /// best-effort [`Self::run_with_mem_cache`] reports a sibling failure).
 #[derive(Clone)]
 #[must_use]
-pub struct DownloadTarballToStore<'a> {
+pub struct IngestTarballToStore<'a> {
     pub http_client: &'a ThrottledClient,
     pub store_dir: &'static StoreDir,
     /// Shared read-only handle to the `SQLite` store index. `None` when the
     /// store does not (yet) have an `index.db`, in which case every cache
     /// lookup short-circuits to a network fetch. Callers open this once per
-    /// install and pass the same handle to every [`DownloadTarballToStore`]
+    /// install and pass the same handle to every [`IngestTarballToStore`]
     /// so we don't reopen the DB per package.
     pub store_index: Option<SharedReadonlyStoreIndex>,
     /// Handle to the batched store-index writer. Each successful tarball
@@ -86,7 +171,7 @@ pub struct DownloadTarballToStore<'a> {
     /// per-file stat in `check_pkg_files_integrity` once per
     /// (snapshot × file) instead of once per (file). Allocate one
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
-    /// handle to every [`DownloadTarballToStore`].
+    /// handle to every [`IngestTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
     /// Expected hash of the tarball bytes. `None` for a lockfile entry
     /// recording no `integrity`, the shape pnpm wrote for git-host
@@ -170,18 +255,9 @@ pub struct DownloadTarballToStore<'a> {
     /// threads this set through, because resolve-time prefetches can
     /// otherwise report the same package again in the warm batch.
     pub progress_reported: Option<SharedReportedProgressKeys>,
-    /// Synthesized `package.json` to fold into the freshly extracted
-    /// archive, mirroring pnpm's `appendManifest`. Runtime archives
-    /// (Node.js / Bun / Deno) ship no manifest of their own, so without
-    /// this the store-index row records no `package.json`: every later
-    /// *warm* materialization then lands a manifest-less slot, and the
-    /// warm-batch bin linker (which reads `PackageFilesIndex.manifest`)
-    /// links no bin. When `Some`, the bytes are written to the CAFS and
-    /// recorded in the row's `files` map and bundled `manifest` before
-    /// the row is queued, so warm and cold installs see the same slot.
-    /// `None` (ordinary registry/tarball packages) is a no-op — they
-    /// carry their own `package.json`. See `apply_append_manifest`.
-    pub append_manifest: Option<&'a [u8]>,
+    /// Ecosystem-owned projection policy applied after verified extraction and
+    /// before the store-index row is queued.
+    pub store_projection: ArchiveStoreProjection<'a>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -1054,10 +1130,12 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
 /// Store-index key a tarball fetch reads and writes its
 /// [`PackageFilesIndex`] row at, or `None` when the resolution carries
 /// no integrity to address the row by. See
-/// [`DownloadTarballToStore::package_integrity`].
+/// [`IngestTarballToStore::package_integrity`].
 pub(crate) fn store_index_cache_key(
     package_integrity: Option<&Integrity>,
     package_id: &str,
+    store_projection: ArchiveStoreProjection<'_>,
 ) -> Option<String> {
-    package_integrity.map(|integrity| store_index_key(&integrity.to_string(), package_id))
+    package_integrity
+        .map(|integrity| store_projection.store_index_key(&integrity.to_string(), package_id))
 }

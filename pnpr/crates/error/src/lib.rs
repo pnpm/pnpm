@@ -22,6 +22,14 @@ pub enum RegistryError {
         body: String,
     },
 
+    #[display("Invalid response from upstream {url}: {reason}")]
+    #[from(skip)]
+    UpstreamResponse {
+        #[error(not(source))]
+        url: String,
+        reason: String,
+    },
+
     /// The upstream's circuit breaker is open: it reached `max_fails`
     /// consecutive failures and is still inside its `fail_timeout`
     /// cooldown, so pnpr short-circuits the request instead of hammering
@@ -286,6 +294,7 @@ impl RegistryError {
         match self {
             RegistryError::Upstream { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
+            RegistryError::UpstreamResponse { .. } => "upstream_response",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
@@ -368,9 +377,9 @@ impl RegistryError {
                     StatusCode::BAD_GATEWAY
                 }
             }
-            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
-                StatusCode::BAD_GATEWAY
-            }
+            RegistryError::UpstreamStatus { .. }
+            | RegistryError::UpstreamResponse { .. }
+            | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }

@@ -212,6 +212,21 @@ fn unclaimed_name_still_answers_with_defaults() {
 }
 
 #[test]
+fn all_access_admit_requires_the_default_and_every_refinement() {
+    let public = PackageRules::default();
+    assert!(public.all_access_admit(&Identity::Anonymous));
+
+    let private_default = PackageRules::new(Vec::new(), Some(list("$authenticated")));
+    assert!(!private_default.all_access_admit(&Identity::Anonymous));
+    assert!(private_default.all_access_admit(&user("alice")));
+
+    let private_refinement =
+        PackageRules::new(vec![rule("@private/*", Some("$authenticated"))], None);
+    assert!(!private_refinement.all_access_admit(&Identity::Anonymous));
+    assert!(private_refinement.all_access_admit(&user("alice")));
+}
+
+#[test]
 fn falls_back_to_safe_defaults_when_no_rules_match() {
     let policies = PackageRules::default();
     let effective = policies.for_package("anything");

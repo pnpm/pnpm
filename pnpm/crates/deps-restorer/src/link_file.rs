@@ -217,14 +217,10 @@ pub fn link_file<Reporter: self::Reporter>(
 /// runs against a directory it just created — that protection is
 /// unneeded.
 ///
-/// EEXIST from the import syscall means a concurrent install (or a
-/// sibling rayon worker writing the same CAFS path) raced past the
-/// freshness guarantee. The content is content-addressed so the
-/// existing dirent is equivalent — but a reflink the winner used
-/// drops the exec bit, so we re-assert it from the `-exec` suffix
-/// instead of adopting a possibly-`0o644` binary. That re-assertion
-/// also heals a target an earlier failed restore left non-executable,
-/// which is why the clone tier no longer deletes on restore failure.
+/// A concurrent install (or a sibling rayon worker writing the same
+/// CAFS path) can race past the freshness guarantee;
+/// `recover_from_concurrent_import` decides which import failures mean
+/// that and adopts the file it placed.
 pub fn import_into_fresh_target<Reporter: self::Reporter>(
     logged: &AtomicU8,
     method: PackageImportMethod,
@@ -237,52 +233,78 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
     // Current pnpm's indexed-pkg-importer does not guard against this
     // either — postinstall handling lives in the script runner, not the
     // import layer — so there's nothing to gate on here.
-    match try_import::<Reporter>(method, logged, source_file, target_link) {
-        Ok(()) => Ok(()),
-        // A concurrent writer beat us to the target; its content is
-        // content-addressed and equivalent. pnpm's `linkOrCopy` returns
-        // here without touching disk, but pnpm's clone preserves the mode
-        // and pacquet's reflink does not — so re-assert the exec bit from
-        // the `-exec` suffix (idempotent, a no-op for non-exec entries)
-        // before adopting the dirent.
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            match pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link) {
-                Ok(()) => Ok(()),
-                // Nothing serializes shared-slot imports across
-                // processes: the writer that owns the target may
-                // replace it again before this chmod lands. Whoever
-                // unlinked the path writes an equivalent
-                // content-addressed file and restores its exec bit in
-                // turn, so `NotFound` with the dirent actually gone
-                // means another writer finished the job — the same
-                // tolerance the bin-shim chmod applies
-                // (`chmod_tolerating_removal` in `pnpm-cmd-shim`,
-                // pnpm/pnpm#14353). The dirent check keeps the
-                // dangling-symlink detection this recovery is
-                // responsible for: a symlink squatting at the path
-                // also opens as `NotFound`, but its dirent is still
-                // there and no concurrent writer will heal it.
-                Err(error)
-                    if error.kind() == io::ErrorKind::NotFound
-                        && matches!(
-                            fs::symlink_metadata(target_link),
-                            Err(ref stat_error) if stat_error.kind() == io::ErrorKind::NotFound,
-                        ) =>
-                {
-                    Ok(())
-                }
-                Err(error) => Err(LinkFileError::Import {
-                    from: source_file.to_path_buf(),
-                    to: target_link.to_path_buf(),
-                    error,
-                }),
-            }
+    try_import::<Reporter>(method, logged, source_file, target_link)
+        .or_else(|error| recover_from_concurrent_import(error, source_file, target_link))
+}
+
+/// Resolve an import syscall failure against a target the caller
+/// believed fresh.
+///
+/// `AlreadyExists` means a concurrent writer beat us to the target; its
+/// content is content-addressed and equivalent. pnpm's `linkOrCopy`
+/// returns here without touching disk, but pnpm's clone preserves the
+/// mode and pacquet's reflink does not — so re-assert the exec bit from
+/// the `-exec` suffix (idempotent, a no-op for non-exec entries) before
+/// adopting the dirent. That re-assertion also heals a target that an
+/// earlier failed restore left non-executable; the clone tier relies on
+/// it and keeps such a target in place.
+///
+/// `NotFound` is the same race when a regular file now sits at the
+/// target: APFS `clonefile` intermittently reports a destination that
+/// another process renamed into place moments earlier as missing instead
+/// of existing (pnpm/pnpm#14560). Both checks follow symlinks, so a
+/// dangling link squatting at either path is not mistaken for the race:
+/// a store blob that really is gone stays an error, and so does a target
+/// the copy tier could not open through.
+///
+/// Every other error is the caller's to surface.
+fn recover_from_concurrent_import(
+    error: io::Error,
+    source_file: &Path,
+    target_link: &Path,
+) -> Result<(), LinkFileError> {
+    let import_error = |error| LinkFileError::Import {
+        from: source_file.to_path_buf(),
+        to: target_link.to_path_buf(),
+        error,
+    };
+    let placed_concurrently = match error.kind() {
+        io::ErrorKind::AlreadyExists => true,
+        io::ErrorKind::NotFound => {
+            fs::metadata(target_link).is_ok_and(|meta| meta.is_file())
+                && fs::metadata(source_file).is_ok()
         }
-        Err(error) => Err(LinkFileError::Import {
-            from: source_file.to_path_buf(),
-            to: target_link.to_path_buf(),
-            error,
-        }),
+        _ => false,
+    };
+    if !placed_concurrently {
+        return Err(import_error(error));
+    }
+    match pnpm_fs::file_mode::restore_exec_bit_from_cas_suffix(source_file, target_link) {
+        Ok(()) => Ok(()),
+        // Nothing serializes shared-slot imports across
+        // processes: the writer that owns the target may
+        // replace it again before this chmod lands. Whoever
+        // unlinked the path writes an equivalent
+        // content-addressed file and restores its exec bit in
+        // turn, so `NotFound` with the dirent actually gone
+        // means another writer finished the job — the same
+        // tolerance the bin-shim chmod applies
+        // (`chmod_tolerating_removal` in `pnpm-cmd-shim`,
+        // pnpm/pnpm#14353). The dirent check keeps the
+        // dangling-symlink detection this recovery is
+        // responsible for: a symlink squatting at the path
+        // also opens as `NotFound`, but its dirent is still
+        // there and no concurrent writer will heal it.
+        Err(error)
+            if error.kind() == io::ErrorKind::NotFound
+                && matches!(
+                    fs::symlink_metadata(target_link),
+                    Err(ref stat_error) if stat_error.kind() == io::ErrorKind::NotFound,
+                ) =>
+        {
+            Ok(())
+        }
+        Err(error) => Err(import_error(error)),
     }
 }
 

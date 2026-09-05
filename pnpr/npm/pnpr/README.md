@@ -45,6 +45,19 @@ pnpm config set registry http://127.0.0.1:7677/
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. |
+| `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
+| `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
+| `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
+| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve`, `/-/pnpr/v0/verify-lockfile`). |
+| `--disable-artifacts` | Disable the signed shared-artifact surface. |
+
+Every flag can also be set through an environment variable named after
+it: `PNPR_` followed by the flag name in upper case with dashes replaced
+by underscores. `--public-url` becomes `PNPR_PUBLIC_URL` and
+`--packument-ttl-secs` becomes `PNPR_PACKUMENT_TTL_SECS`. A flag given on
+the command line wins over its environment variable. Boolean flags such
+as `--disable-registry` accept `true`, `1`, `yes`, `on`, `false`, `0`,
+`no`, and `off`.
 
 Log level is controlled via the standard `RUST_LOG` environment
 variable (e.g. `RUST_LOG=debug pnpr`).

@@ -13,7 +13,7 @@ use pnpm_resolving_default_resolver::standalone::{StandaloneChainOptions, build_
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pnpm_resolving_resolver_base::{ResolveOptions, WantedDependency};
 use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
-use pnpm_tarball::DownloadTarballToStore;
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{path::Path, sync::Arc};
 
@@ -198,7 +198,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         .into());
     };
 
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client,
         store_dir: &config.store_dir,
         store_index,
@@ -223,7 +223,7 @@ async fn add_one<Reporter: self::Reporter>(args: AddOne<'_>) -> miette::Result<S
         ignore_file_pattern: None,
         offline: config.offline,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<Reporter>()
     .await

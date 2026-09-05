@@ -341,6 +341,17 @@ impl PackageRules {
                 .iter()
                 .any(|rule| rule.access.as_ref().is_some_and(|access| access.allows(identity)))
     }
+
+    /// Whether every package-specific access refinement and the registry
+    /// default admit `identity`.
+    #[must_use]
+    pub fn all_access_admit(&self, identity: &Identity) -> bool {
+        self.default_access.allows(identity)
+            && self
+                .rules
+                .iter()
+                .all(|rule| rule.access.as_ref().is_none_or(|access| access.allows(identity)))
+    }
 }
 
 #[cfg(test)]

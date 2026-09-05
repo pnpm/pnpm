@@ -15,7 +15,7 @@ pub use pnpr_auth::{
     identify,
 };
 pub use pnpr_config::{
-    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource,
+    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
     DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig,
     LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
     PublicRoute, RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings,

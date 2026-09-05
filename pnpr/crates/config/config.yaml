@@ -7,6 +7,13 @@ storage: ./storage
 # to a `.pnpr-cache` subdirectory of `storage`; point it at a separate,
 # ephemeral volume to keep cached upstream content off the durable disk.
 #cache: ./cache
+# Cross-origin browser access is disabled unless exact origins are listed.
+# This is enough to let a separately hosted registry UI read metadata, search,
+# organization listings, and tarballs without opening pnpr to every website.
+#cors:
+#  allowedOrigins:
+#    - https://npmx.dev
+#    - http://localhost:3000
 # Store the hosted (published) packages and enabled shared artifacts in an
 # S3-compatible object store instead of local directories. Works with AWS S3 (omit
 # `endpoint`), Cloudflare R2 (`region: auto` + the account endpoint),
@@ -185,6 +192,9 @@ registries:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
+    # Opt in to upstream search and organization discovery for browser UIs.
+    # Omit this to retain pnpr's local-only search behavior.
+    #search: true
   # One URL routing each package to the first listed source whose declared
   # packages claim it. The fixture names are authoritative-local; everything
   # else is npm. A router refuses to start on an unreachable source, so the

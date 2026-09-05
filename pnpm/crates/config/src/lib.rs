@@ -59,7 +59,7 @@ use crate::defaults::{
     default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
@@ -1834,6 +1834,9 @@ pub struct Config {
     /// compute runs remotely, the result is materialized locally).
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
+
+    /// Cargo dependency management declared by the workspace.
+    pub cargo: CargoSettings,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 

@@ -90,7 +90,7 @@ pub struct GitFetcher<'a> {
 }
 
 /// Output of [`GitFetcher::run`]. Mirrors the shape of
-/// `DownloadTarballToStore::run_without_mem_cache`'s return so the
+/// `IngestTarballToStore::run_without_mem_cache`'s return so the
 /// caller can hand it straight into `CreateVirtualDirBySnapshot`.
 #[derive(Debug)]
 pub struct GitFetchOutput {

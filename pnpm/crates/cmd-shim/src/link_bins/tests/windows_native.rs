@@ -1,7 +1,6 @@
 use crate::{
     capabilities::Host,
     link_bins::{LinkBinsOptions, PackageBinSource, link_bins_of_packages, remove_bin},
-    shim::is_shim_pointing_at,
 };
 use pnpm_fs::test_support::with_file_removal_observer;
 use serde_json::json;
@@ -62,18 +61,20 @@ fn cleanup_recovers_after_transient_lock() {
 #[test]
 fn replacement_recovers_after_transient_lock() {
     let root = tempdir().unwrap();
-    let package = root.path().join("foo");
+    let package = root.path().join("node");
     fs::create_dir(&package).unwrap();
-    let target = package.join("cli.js");
-    let content = "#!/usr/bin/env node\nconsole.log('new target')\n";
+    let target = package.join("node.exe");
+    let content = "new node binary";
     fs::write(&target, content).unwrap();
     let bins = root.path().join(".bin");
     fs::create_dir(&bins).unwrap();
-    let shim = bins.join("foo");
-    fs::write(&shim, "stale shim pointing at an obsolete program").unwrap();
+    let shim = bins.join("node.exe");
+    let old_target = root.path().join("old-node.exe");
+    fs::write(&old_target, "old node binary").unwrap();
+    fs::hard_link(&old_target, &shim).unwrap();
     let packages = [PackageBinSource::new(
         package,
-        Arc::new(json!({"name": "foo", "version": "1.0.0", "bin": "cli.js"})),
+        Arc::new(json!({"name": "node", "version": "1.0.0", "bin": "node.exe"})),
     )];
     let pool = rayon::ThreadPoolBuilder::new().num_threads(2).build().unwrap();
 
@@ -83,12 +84,7 @@ fn replacement_recovers_after_transient_lock() {
         })
     });
 
-    let body = fs::read_to_string(&shim).unwrap();
-    eprintln!("replacement shim:\n{body}");
-    assert!(is_shim_pointing_at(&body, &target));
-    for suffix in ["cmd", "ps1"] {
-        let body = fs::read_to_string(bins.join(format!("foo.{suffix}"))).unwrap();
-        assert!(!body.is_empty(), "missing Windows shim body for {suffix}");
-    }
+    assert_eq!(fs::read_to_string(shim).unwrap(), content);
+    assert_eq!(fs::read_to_string(old_target).unwrap(), "old node binary");
     assert_eq!(fs::read_to_string(target).unwrap(), content);
 }

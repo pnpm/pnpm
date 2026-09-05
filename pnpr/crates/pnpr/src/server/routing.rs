@@ -4,7 +4,7 @@ use axum::{
     Router,
     body::Body,
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
-    http::HeaderMap,
+    http::{HeaderMap, HeaderValue, Method, header},
     middleware,
     response::Response,
     routing::{any, delete, get, post, put},
@@ -15,6 +15,7 @@ use tower_http::{
         CompressionLayer,
         predicate::{DefaultPredicate, NotForContentType, Predicate as _},
     },
+    cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
 use tracing::Span;
@@ -33,11 +34,12 @@ use super::{
     get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
     private_if_caller_gated, private_no_cache, publish_package, put_login, reject_team_mutation,
     remove_dist_tag, require_artifact_caller, require_resolver_caller, serve_artifact_blob,
-    serve_batch_publish, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
-    serve_registry_packument, serve_registry_tarball, serve_registry_version_manifest,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, tilde_registry,
-    update_packument, upstream_tarball_base,
+    serve_batch_publish, serve_org_packages, serve_packument, serve_ping, serve_pnpr_handshake,
+    serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
+    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
+    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
+    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
+    upstream_tarball_base,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -45,6 +47,16 @@ pub(super) fn router_with_auth_and_osv(
     auth: AuthState,
     osv_index: Option<Arc<pnpr_osv::OsvIndex>>,
 ) -> pnpr_error::Result<Router> {
+    let cors_origins = config
+        .cors
+        .allowed_origins()
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin).map_err(|_| pnpr_error::RegistryError::InvalidConfig {
+                reason: format!("CORS allowed origin {origin:?} is not a valid HTTP header value"),
+            })
+        })
+        .collect::<pnpr_error::Result<Vec<_>>>()?;
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
     let registry_enabled = config.registry.enabled;
@@ -239,14 +251,23 @@ pub(super) fn router_with_auth_and_osv(
             // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
             .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
     }
-    Ok(router
+    let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
         // enforce bearer-token read-only / CIDR restrictions (so a
         // restricted token is rejected before a write handler buffers its
         // up-to-100-MiB body), and stash the identity for handlers to read.
         // Inside the trace layer below, so a rejection is still one record.
-        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate));
+    if !cors_origins.is_empty() {
+        router = router.layer(
+            CorsLayer::new()
+                .allow_origin(AllowOrigin::list(cors_origins))
+                .allow_methods([Method::GET, Method::HEAD, Method::OPTIONS])
+                .allow_headers([header::AUTHORIZATION, header::ACCEPT, header::CONTENT_TYPE]),
+        );
+    }
+    let router = router
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
@@ -297,8 +318,8 @@ pub(super) fn router_with_auth_and_osv(
                     );
                 })
                 .on_failure(()),
-        )
-        .with_state(state))
+        );
+    Ok(router.with_state(state))
 }
 
 // --------------------------------------------------------------------
@@ -441,6 +462,9 @@ async fn get_four_segments(
     if a == "-" && b == "org" && d == "team" {
         return private_no_cache(get_org_teams(&state, &identity, None, &c));
     }
+    if a == "-" && b == "org" && d == "package" {
+        return private_no_cache(serve_org_packages(&state, &identity, None, &c).await);
+    }
     if let Some(registry) = tilde_registry(&a) {
         if b == "-" && c == "v1" && d == "search" {
             let query = uri.query().unwrap_or("");
@@ -492,6 +516,11 @@ async fn get_five_segments(
         }
         if b == "-" && c == "org" && e == "team" {
             return private_no_cache(get_org_teams(&state, &identity, Some(registry), &d));
+        }
+        if b == "-" && c == "org" && e == "package" {
+            return private_no_cache(
+                serve_org_packages(&state, &identity, Some(registry), &d).await,
+            );
         }
     }
     not_found()

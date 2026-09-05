@@ -3175,6 +3175,14 @@ fn seed_hosted(storage: &Path, pkg: &str) {
     std::fs::write(storage.join(pkg).join("package.json"), packument.to_string()).unwrap();
 }
 
+fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
+    seed_hosted(storage, pkg);
+    let path = storage.join(pkg).join("package.json");
+    let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    packument["maintainers"] = json!([{ "username": maintainer }]);
+    std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();
+}
+
 #[tokio::test]
 async fn hosted_registry_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
@@ -3341,10 +3349,15 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let body = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
-        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
-            "integrity": sha512_integrity(tarball),
-        } } },
+        "versions": { "1.0.0": {
+            "name": "@acme/widget",
+            "version": "1.0.0",
+            "_npmUser": { "name": "mallory" },
+            "dist": {
+                "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+                "integrity": sha512_integrity(tarball),
+            },
+        } },
         "_attachments": { "@acme/widget-1.0.0.tgz": {
             "content_type": "application/octet-stream",
             "data": BASE64.encode(tarball),
@@ -3390,6 +3403,26 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(read.status(), StatusCode::OK);
     let doc = body_json(read.into_body()).await;
     assert!(doc["versions"]["1.0.0"].is_object());
+    assert_eq!(
+        doc["versions"]["1.0.0"]["_npmUser"]["name"],
+        json!("alice"),
+        "the authenticated publisher must replace client-supplied attribution",
+    );
+
+    let search = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/-/v1/search?text=maintainer%3Aalice")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search.status(), StatusCode::OK);
+    let search = body_json(search.into_body()).await;
+    assert_eq!(search["total"], json!(1));
+    assert_eq!(search["objects"][0]["package"]["name"], json!("@acme/widget"));
 
     // ...and its tarball serves from the org namespace.
     let tar = app
@@ -3995,6 +4028,404 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
+}
+
+#[tokio::test]
+async fn search_paginates_visible_results_and_filters_by_maintainer() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted_with_maintainer(tmp.path(), "tool-a", "alice");
+    seed_hosted_with_maintainer(tmp.path(), "tool-b", "bob");
+    seed_hosted_with_maintainer(tmp.path(), "tool-c", "alice");
+    let app = router(Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    ));
+
+    let page = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=tool&from=1&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let page = body_json(page.into_body()).await;
+    assert_eq!(page["total"], json!(3));
+    assert_eq!(page["objects"][0]["package"]["name"], json!("tool-b"));
+
+    let maintained = app
+        .oneshot(
+            Request::get("/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let maintained = body_json(maintained.into_body()).await;
+    assert_eq!(maintained["total"], json!(2));
+    assert_eq!(maintained["objects"][0]["package"]["name"], json!("tool-c"));
+}
+
+#[tokio::test]
+async fn organization_packages_are_available_on_both_registry_routes() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "@acme/alpha");
+    seed_hosted(tmp.path(), "@acme/beta");
+    seed_hosted(tmp.path(), "@other/ignored");
+    let app = router(Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    ));
+
+    for route in ["/-/org/acme/package", "/~main/-/org/acme/package"] {
+        let response =
+            app.clone().oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let packages = body_json(response.into_body()).await;
+        assert_eq!(packages["@acme/alpha"], json!("read"));
+        assert_eq!(packages["@acme/beta"], json!("read"));
+        assert!(packages.get("@other/ignored").is_none());
+    }
+}
+
+#[tokio::test]
+async fn cors_allows_only_configured_origins_and_handles_preflight() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    );
+    config.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
+    let app = router(config);
+
+    let allowed = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ping")
+                .header(header::ORIGIN, "https://npmx.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        allowed.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+    assert!(allowed.headers().get(header::VARY).is_some_and(|value| {
+        value.to_str().is_ok_and(|value| {
+            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("origin"))
+        })
+    }));
+
+    let missing = app
+        .clone()
+        .oneshot(
+            Request::get("/missing")
+                .header(header::ORIGIN, "https://npmx.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        missing.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+
+    let denied = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ping")
+                .header(header::ORIGIN, "https://other.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(denied.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+
+    let preflight = app
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/-/v1/search?text=tool")
+                .header(header::ORIGIN, "https://npmx.example")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preflight.status(), StatusCode::OK);
+    assert_eq!(
+        preflight.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+    assert!(preflight.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).is_some_and(|value| {
+        value.to_str().is_ok_and(|value| {
+            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("authorization"))
+        })
+    }),);
+}
+
+#[tokio::test]
+async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
+    let mut upstream = mockito::Server::new_async().await;
+    let search = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{
+                    "package": { "name": "remote-package", "version": "1.0.0" },
+                    "score": { "final": 1.0 },
+                    "searchScore": 1.0,
+                }],
+                "total": 1,
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    let org = upstream
+        .mock("GET", "/-/org/acme/package")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "@acme/remote": "write" }).to_string())
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/v1/search?text=remote&size=5")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let response = body_json(response.into_body()).await;
+    assert_eq!(response["total"], json!(1));
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-package"));
+
+    let response = app
+        .oneshot(
+            Request::get("/-/org/acme/package")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("read"));
+    search.assert_async().await;
+    org.assert_async().await;
+}
+
+#[tokio::test]
+async fn search_paginates_across_hosted_and_upstream_sources() {
+    let mut upstream = mockito::Server::new_async().await;
+    let shadowed = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
+            mockito::Matcher::UrlEncoded("from".into(), "0".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "ajv" } },
+                    { "package": { "name": "ajv-keywords" } },
+                ],
+                "total": 4,
+            })
+            .to_string(),
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let visible = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
+            mockito::Matcher::UrlEncoded("from".into(), "2".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "ajv-remote-a" } },
+                    { "package": { "name": "ajv-remote-b" } },
+                ],
+                "total": 4,
+            })
+            .to_string(),
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "ajv");
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let first_page = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(first_page.status(), StatusCode::OK);
+    let first_page = body_json(first_page.into_body()).await;
+    assert_eq!(first_page["total"], json!(3));
+    assert_eq!(first_page["objects"][0]["package"]["name"], json!("ajv"));
+    assert_eq!(first_page["objects"][1]["package"]["name"], json!("ajv-remote-a"));
+
+    let second_page = app
+        .oneshot(Request::get("/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(second_page.status(), StatusCode::OK);
+    let second_page = body_json(second_page.into_body()).await;
+    assert_eq!(second_page["total"], json!(3));
+    assert_eq!(second_page["objects"][0]["package"]["name"], json!("ajv-remote-b"));
+    shadowed.assert_async().await;
+    visible.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_exhausts_results_to_return_an_exact_total() {
+    let mut upstream = mockito::Server::new_async().await;
+    let first = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "remote-a" } },
+                    { "package": { "name": "remote-b" } },
+                ],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let last = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=2&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "remote-c" } }],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = body_json(response.into_body()).await;
+    assert_eq!(response["total"], json!(3));
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-a"));
+    first.assert_async().await;
+    last.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
+    let mut upstream = mockito::Server::new_async().await;
+    let oversized = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "objects": [], "total": 2_001 }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let offset = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
+
+    let result_set = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
+    oversized.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_more_than_eight_short_pages() {
+    let mut upstream = mockito::Server::new_async().await;
+    let short_page = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "repeated" } }],
+                "total": 9,
+            })
+            .to_string(),
+        )
+        .expect(8)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    short_page.assert_async().await;
 }
 
 /// Every registry operation routes through the registry graph when addressed as

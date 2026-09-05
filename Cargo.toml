@@ -16,6 +16,7 @@ repository  = "https://github.com/pnpm/pacquet"
 pnpm-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol          = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-auth-commands                     = { path = "pnpm/crates/auth-commands" }
+pnpm-cargo-resolver                    = { path = "pnpm/crates/cargo-resolver" }
 pnpm-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
 pnpm-catalogs-resolver                 = { path = "pnpm/crates/catalogs-resolver" }
@@ -127,6 +128,9 @@ command-extra = { version = "1.0.0" }
 base64 = { version = "0.23.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
+cap-primitives = { version = "4.0.3" }
+cargo-lock = { version = "11.1.0" }
+cargo-util-schemas = { version = "0.14.2" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
@@ -171,6 +175,7 @@ node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
 pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
+pubgrub = { version = "0.4.0" }
 pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }
@@ -180,6 +185,7 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+semver = { version = "1.0.28" }
 shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
@@ -197,10 +203,11 @@ tabled             = { version = "0.21", features = ["ansi"] }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.7.0", features = ["compression-gzip", "trace"] }
+tower-http         = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+toml               = { version = "1.1.5" }
 url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
 webpki-root-certs  = { version = "1.0.7" }
