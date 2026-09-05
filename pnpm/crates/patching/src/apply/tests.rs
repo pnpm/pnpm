@@ -91,6 +91,27 @@ fn applies_modify_against_existing_file() {
 }
 
 #[test]
+fn applies_patch_with_crlf_line_endings() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("file.txt");
+    fs::write(&target, "one\ntwo\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let hunk = text_block_fnl! {
+        "@@ -1,2 +1,3 @@"
+        " one"
+        "+added"
+        " two"
+    };
+    let crlf_patch = format!("{FILE_TXT_PATCH_HEADER}{hunk}").replace('\n', "\r\n");
+    let patch = write_patch(patch_dir.path(), &crlf_patch);
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let after = fs::read_to_string(target).unwrap();
+    assert_eq!(after, "one\nadded\r\ntwo\n");
+}
+
+#[test]
 fn applies_an_insertion_with_context_on_both_sides() {
     let original = text_block_fnl! {
         "one"
