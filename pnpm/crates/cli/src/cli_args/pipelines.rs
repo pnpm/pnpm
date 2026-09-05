@@ -754,6 +754,7 @@ fn add_metadata_paths(
             node_manifest_path.to_path_buf(),
             config.lockfile_dir_for(node_project_dir).join(config.wanted_lockfile_name()),
             config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+            node_project_dir.join("node_modules/.modules.yaml"),
         ]);
         if let Some(workspace_dir) = config.workspace_dir.as_deref() {
             paths.push(workspace_dir.join("pnpm-workspace.yaml"));

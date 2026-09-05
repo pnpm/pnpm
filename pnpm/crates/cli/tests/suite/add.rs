@@ -180,6 +180,11 @@ fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
         root.path().join("node_modules/.pnpm/lock.yaml").display(),
     );
     assert!(!root.path().join("node_modules/.pnpm/lock.yaml").exists());
+    eprintln!(
+        "modules manifest after rollback: {}",
+        root.path().join("node_modules/.modules.yaml").display(),
+    );
+    assert!(!root.path().join("node_modules/.modules.yaml").exists());
 }
 
 #[test]
