@@ -1,10 +1,135 @@
 use super::{build_zip, fast_retry_opts, gzipped_tar, tempdir_with_leaked_path};
 use crate::{ArchiveStoreProjection, IngestTarballToStore, IngestZipArchiveToStore, TarballError};
-use pnpm_network::{AuthHeaders, ThrottledClient};
-use pnpm_reporter::SilentReporter;
+use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_reporter::{LogEvent, Reporter, SilentReporter};
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
 use ssri::Integrity;
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+
+#[tokio::test]
+async fn archive_requests_preserve_the_deployments_redirect_guard() {
+    let mut source = mockito::Server::new_async().await;
+    let mut target = mockito::Server::new_async().await;
+    let blocked = target.mock("GET", "/private").expect(0).create_async().await;
+    let redirect = source
+        .mock("GET", "/artifact")
+        .with_status(302)
+        .with_header("location", &format!("{}/private", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let allowed = source.url();
+    let client = ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+        url.as_str().starts_with(&allowed)
+    });
+    let result = crate::archive_request::request_archive::<SilentReporter>(
+        &client,
+        &format!("{}/artifact", source.url()),
+        "fixture",
+        &AuthHeaders::default(),
+        0,
+        0,
+        false,
+    )
+    .await;
+    let error = result.err().expect("off-allowlist redirect must fail");
+    eprintln!("error={error}");
+    assert!(matches!(error, TarballError::FetchTarball(_)));
+    redirect.assert_async().await;
+    blocked.assert_async().await;
+}
+
+#[tokio::test]
+async fn archive_retry_redacts_secrets_and_accepts_the_maximum_retry_budget() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+    let mut server = mockito::Server::new_async().await;
+    let url = format!(
+        "{}/artifact?token=secret#fragment",
+        server.url().replacen("http://", "http://user:password@", 1),
+    );
+    let failed = server
+        .mock("GET", "/artifact?token=secret")
+        .with_status(503)
+        .expect(1)
+        .create_async()
+        .await;
+    let success = server
+        .mock("GET", "/artifact?token=secret")
+        .with_body("done")
+        .expect(1)
+        .create_async()
+        .await;
+    let client = ThrottledClient::default();
+    let auth = AuthHeaders::default();
+    crate::archive_retry::retry_archive::<RecordingReporter, _, _>(
+        &url,
+        "fixture",
+        "test",
+        None,
+        RetryOpts { retries: u32::MAX, ..fast_retry_opts() },
+        |attempt| {
+            crate::archive_request::request_archive::<RecordingReporter>(
+                &client, &url, "fixture", &auth, 0, attempt, false,
+            )
+        },
+    )
+    .await
+    .unwrap();
+    let events = EVENTS.lock().unwrap().clone();
+    eprintln!("events={events:?}");
+    let retry = events
+        .iter()
+        .find_map(|event| match event {
+            LogEvent::RequestRetry(retry) => Some(retry),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(retry.max_retries, u32::MAX);
+    assert_eq!(retry.url, format!("{}/artifact", server.url()));
+    for secret in ["password", "token", "secret", "fragment"] {
+        assert!(!retry.error.message.contains(secret));
+    }
+    failed.assert_async().await;
+    success.assert_async().await;
+}
+
+#[tokio::test]
+async fn archive_network_errors_remove_urls_from_the_source_chain() {
+    let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = socket.local_addr().unwrap();
+    drop(socket);
+    let url = format!("http://user:password@{address}/artifact?token=secret#fragment");
+    let client = ThrottledClient::default();
+    let result = crate::archive_request::request_archive::<SilentReporter>(
+        &client,
+        &url,
+        "fixture",
+        &AuthHeaders::default(),
+        0,
+        u32::MAX,
+        false,
+    )
+    .await;
+    let error = result.err().expect("closed port must fail");
+    eprintln!("error={error:?}");
+    let mut source: Option<&dyn std::error::Error> = Some(&error);
+    while let Some(error) = source {
+        for secret in ["password", "token", "secret", "fragment"] {
+            assert!(!error.to_string().contains(secret), "exposed {secret}");
+        }
+        source = error.source();
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 enum Container {

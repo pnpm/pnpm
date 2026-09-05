@@ -33,14 +33,13 @@ pub(crate) async fn request_archive<'client, Reporter: self::Reporter>(
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
         level: LogLevel::Debug,
         message: FetchingProgressMessage::Started {
-            attempt: attempt + 1,
+            attempt: attempt.saturating_add(1),
             package_id: package_id.to_owned(),
             size,
         },
     }));
-    let response = sent.map_err(|error| {
-        TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error })
-    })?;
+    let response =
+        sent.map_err(|error| TarballError::FetchTarball(NetworkError::new(package_url, error)))?;
     let status = response.status();
     if !status.is_success() {
         // Fully draining a small error body lets the connection be reused.

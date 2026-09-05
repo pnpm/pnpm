@@ -155,7 +155,7 @@ pub async fn send_with_retry_at_priority<'client>(
                     url = %redact_url_credentials(url),
                     ?status,
                     attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
+                    max_attempts = u64::from(retry_opts.retries) + 1,
                     ?delay,
                     "Request failed; retrying after backoff",
                 );
@@ -177,7 +177,7 @@ pub async fn send_with_retry_at_priority<'client>(
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
+                    max_attempts = u64::from(retry_opts.retries) + 1,
                     ?delay,
                     "Request errored; retrying after backoff",
                 );
@@ -228,7 +228,7 @@ where
                     url = %redact_url_credentials(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
-                    max_attempts = retry_opts.retries + 1,
+                    max_attempts = u64::from(retry_opts.retries) + 1,
                     ?delay,
                     "Reading response body failed; retrying after backoff",
                 );
@@ -246,6 +246,7 @@ pub(crate) async fn get_secure_bytes(
     auth: &AuthHeaders,
     accept: Option<&str>,
     retry_opts: RetryOpts,
+    body_limit: usize,
 ) -> Result<SecureAuthResponse, reqwest::Error> {
     let result = retry_async(
         url,
@@ -256,10 +257,10 @@ pub(crate) async fn get_secure_bytes(
         },
         || async {
             let response = client
-                .get_bytes_with_secure_auth_and_accept(url, auth, accept)
+                .get_limited_bytes_with_secure_auth_and_accept(url, auth, accept, body_limit)
                 .await
                 .map_err(SecureAttemptError::Request)?;
-            if should_retry_status(response.status) {
+            if !response.body_truncated && should_retry_status(response.status) {
                 Err(SecureAttemptError::Response(response))
             } else {
                 Ok(response)

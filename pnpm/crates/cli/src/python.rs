@@ -140,10 +140,11 @@ async fn prepare<Reporter: self::Reporter + 'static>(
     let interpreter: Interpreter =
         host::run(&config.python.executable, "probe", serde_json::json!({})).await?;
     let mut index: url::Url = config.python.index_url.parse().into_diagnostic()?;
-    let mut auth = (*config.auth_headers).clone();
+    // A repository-selected Python index must not select user-level npm credentials.
+    let mut auth = pnpm_network::AuthHeaders::default();
     if !index.username().is_empty() || index.password().is_some() {
-        let username = percent_decode(index.username())?;
-        let password = percent_decode(index.password().unwrap_or(""))?;
+        let username = pnpm_network::percent_decode_str(index.username());
+        let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));
         index.set_username("").map_err(|()| miette::miette!("invalid Python index URL"))?;
         index.set_password(None).map_err(|()| miette::miette!("invalid Python index URL"))?;
         auth.insert_url_header(
@@ -206,9 +207,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
             let lock = if fresh && !resolve {
                 let lock = existing.expect("fresh lockfile exists");
                 lock.seed(&mut registry)?;
-                for package in &lock.packages {
-                    registry.fetch_wheel::<Reporter>(&package.name, &package.version).await?;
-                }
+                registry.fetch_wheels::<Reporter>(&lock.packages).await?;
                 resolver::validate_locked(&registry, &requirements)?;
                 lock
             } else {
@@ -327,8 +326,21 @@ fn validate_environment_link(root: &Path) -> Result<Option<PathBuf>> {
                 bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
             }
             let target = root.join(pnpm_fs::read_symlink_dir(&link).into_diagnostic()?);
-            let target = dunce::canonicalize(target).into_diagnostic()?;
-            let managed = dunce::canonicalize(root.join(".pnpm/python-envs")).into_diagnostic()?;
+            let target = dunce::canonicalize(&target).into_diagnostic().wrap_err_with(|| {
+                format!(
+                    "resolve Python environment target {} for {}",
+                    target.display(),
+                    link.display(),
+                )
+            })?;
+            let managed = root.join(".pnpm/python-envs");
+            let managed = dunce::canonicalize(&managed).into_diagnostic().wrap_err_with(|| {
+                format!(
+                    "resolve managed Python directory {} for {}",
+                    managed.display(),
+                    link.display(),
+                )
+            })?;
             if target.parent() != Some(managed.as_path()) {
                 bail!("pnpm will not replace an unmanaged Python environment: {}", link.display());
             }
@@ -358,13 +370,6 @@ fn publish_link(root: &Path, target: &Path) -> Result<()> {
         std::os::unix::fs::symlink(target, &staged).into_diagnostic()?;
         fs::rename(&staged, root.join(".venv")).into_diagnostic()
     }
-}
-
-fn percent_decode(value: &str) -> Result<String> {
-    url::form_urlencoded::parse(format!("value={}", value.replace('+', "%2B")).as_bytes())
-        .next()
-        .map(|(_, value)| value.into_owned())
-        .ok_or_else(|| miette::miette!("invalid Python index credential"))
 }
 
 pub(crate) fn execution_paths<'a>(

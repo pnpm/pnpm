@@ -155,7 +155,8 @@ pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Re
                 original[span.end..].find('\n').map_or(original.len(), |end| span.end + end + 1);
             updated.insert_str(end, &format!("\n{key} = {array}\n"));
         } else if original[span.clone()].trim_start().starts_with('{') {
-            updated.insert_str(span.end - 1, &format!(", {key} = {array}"));
+            let separator = if table.get_ref().is_empty() { "" } else { "," };
+            updated.insert_str(span.end - 1, &format!("{separator} {key} = {array}"));
         } else {
             bail!("cannot add {table_name}.{key} to this TOML table representation");
         }

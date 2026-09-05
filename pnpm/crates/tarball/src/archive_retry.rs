@@ -2,7 +2,7 @@ use crate::{
     SharedReportedProgressKeys, TarballError,
     download::{emit_progress_fetched, is_transient_error, tarball_error_to_request_retry},
 };
-use pnpm_network::RetryOpts;
+use pnpm_network::{RetryOpts, redact_url_for_display};
 use pnpm_reporter::{LogEvent, LogLevel, Reporter, RequestRetryLog};
 use std::future::Future;
 
@@ -33,9 +33,9 @@ where
             Err(err) if attempt >= max_retries => {
                 tracing::warn!(
                     target: "pacquet::download",
-                    ?package_url,
-                    attempts = attempt + 1,
-                    ?err,
+                    package_url = %redact_url_for_display(package_url),
+                    attempts = u64::from(attempt) + 1,
+                    %err,
                     "Archive fetch retry budget exhausted",
                 );
                 return Err(err);
@@ -44,21 +44,21 @@ where
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet::download",
-                    ?package_url,
-                    attempt = attempt + 1,
-                    max_attempts = max_retries + 1,
+                    package_url = %redact_url_for_display(package_url),
+                    attempt = u64::from(attempt) + 1,
+                    max_attempts = u64::from(max_retries) + 1,
                     ?delay,
-                    ?err,
+                    %err,
                     "Archive fetch failed; retrying after backoff",
                 );
                 Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
                     level: LogLevel::Debug,
-                    attempt: attempt + 1,
+                    attempt: attempt.saturating_add(1),
                     error: tarball_error_to_request_retry(&err),
                     max_retries,
                     method: "GET".to_string(),
                     timeout: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
-                    url: package_url.to_string(),
+                    url: redact_url_for_display(package_url),
                 }));
                 tokio::time::sleep(delay).await;
                 attempt += 1;

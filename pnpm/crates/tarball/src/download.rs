@@ -504,8 +504,7 @@ where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
-    let network_error =
-        |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
 
     let (chunk_tx, chunk_rx) = body_chunk_channel();
     let extractor_ignore = ignore_file_pattern.clone();
@@ -694,8 +693,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let network_error =
-        |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
 
     if let Some(path) = local_file_tarball_path(package_url) {
         let (file, size) = open_local_tarball(&path).await?;

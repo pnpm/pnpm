@@ -1,7 +1,8 @@
 use super::{
     host::{self, Interpreter, Wheel, WheelMetadata},
-    lockfile::LockedWheel,
+    lockfile::{LockedPackage, LockedWheel},
 };
+use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::{Version, VersionSpecifiers};
 use pep508_rs::PackageName;
@@ -12,7 +13,11 @@ use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIn
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
+use tokio::io::AsyncReadExt;
 use url::Url;
+
+const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
+const MAX_CACHE_BYTES: usize = MAX_INDEX_BYTES + 64 * 1024;
 
 #[derive(Deserialize)]
 struct SimpleIndex {
@@ -22,7 +27,7 @@ struct SimpleIndex {
 #[derive(Serialize, Deserialize)]
 struct CachedIndex {
     url: Url,
-    body: Vec<u8>,
+    body: Box<serde_json::value::RawValue>,
 }
 
 #[derive(Deserialize)]
@@ -55,30 +60,51 @@ impl Registry<'_> {
         let cache = self
             .config
             .cache_dir
-            .join("python-index")
+            .join("python-index-v2")
             .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(index_url.as_str())));
         let cached = if self.config.offline {
-            let contents = tokio::fs::read(&cache).await.into_diagnostic().wrap_err_with(|| {
-                format!("Python index for {name} is not cached for offline resolution")
-            })?;
+            let file =
+                tokio::fs::File::open(&cache).await.into_diagnostic().wrap_err_with(|| {
+                    format!("Python index for {name} is not cached for offline resolution")
+                })?;
+            let mut contents = Vec::new();
+            file.take(MAX_CACHE_BYTES as u64 + 1)
+                .read_to_end(&mut contents)
+                .await
+                .into_diagnostic()?;
+            if contents.len() > MAX_CACHE_BYTES {
+                bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
+            }
             serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()?
         } else {
             let response = self
                 .client
-                .get_bytes_with_secure_auth_and_retry(
+                .get_limited_bytes_with_secure_auth_and_retry(
                     index_url.as_str(),
                     &self.auth,
                     Some("application/vnd.pypi.simple.v1+json"),
                     self.config.retry_opts(),
+                    MAX_INDEX_BYTES,
                 )
                 .await
                 .into_diagnostic()?;
+            if response.body_truncated {
+                bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
+            }
             if !response.status.is_success() {
                 bail!("Python index request for {name} returned {}", response.status);
             }
-            CachedIndex { url: response.url.parse().into_diagnostic()?, body: response.body }
+            CachedIndex {
+                url: response.url.parse().into_diagnostic()?,
+                body: serde_json::from_slice(&response.body)
+                    .into_diagnostic()
+                    .wrap_err("Python index must support the Simple JSON API")?,
+            }
         };
-        let index: SimpleIndex = serde_json::from_slice(&cached.body)
+        if cached.body.get().len() > MAX_INDEX_BYTES {
+            bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
+        }
+        let index: SimpleIndex = serde_json::from_str(cached.body.get())
             .into_diagnostic()
             .wrap_err("Python index must support the Simple JSON API")?;
         let mut candidates = BTreeMap::<Version, (usize, LockedWheel)>::new();
@@ -115,8 +141,11 @@ impl Registry<'_> {
             tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
                 .await
                 .into_diagnostic()?;
-            pnpm_fs::write_atomic(&cache, &serde_json::to_vec(&cached).into_diagnostic()?)
-                .into_diagnostic()?;
+            let contents = serde_json::to_vec(&cached).into_diagnostic()?;
+            if contents.len() > MAX_CACHE_BYTES {
+                bail!("Python index cache for {name} exceeds {MAX_CACHE_BYTES} bytes");
+            }
+            pnpm_fs::write_atomic(&cache, &contents).into_diagnostic()?;
         }
         self.candidates.insert(
             name.clone(),
@@ -130,6 +159,39 @@ impl Registry<'_> {
         name: &PackageName,
         version: &Version,
     ) -> Result<()> {
+        let wheel = self.download_wheel::<Reporter>(name, version).await?;
+        self.wheels.insert((name.clone(), version.clone()), wheel);
+        Ok(())
+    }
+
+    pub(super) async fn fetch_wheels<Reporter: self::Reporter + 'static>(
+        &mut self,
+        packages: &[LockedPackage],
+    ) -> Result<()> {
+        let packages = packages
+            .iter()
+            .map(|package| (package.name.clone(), package.version.clone()))
+            .collect::<Vec<_>>();
+        let registry = &*self;
+        let results = stream::iter(packages)
+            .map(|(name, version)| async move {
+                registry
+                    .download_wheel::<Reporter>(&name, &version)
+                    .await
+                    .map(|wheel| ((name, version), wheel))
+            })
+            .buffered(self.config.network_concurrency.clamp(1, 16))
+            .collect::<Vec<_>>()
+            .await;
+        self.wheels.extend(results.into_iter().collect::<Result<BTreeMap<_, _>>>()?);
+        Ok(())
+    }
+
+    async fn download_wheel<Reporter: self::Reporter + 'static>(
+        &self,
+        name: &PackageName,
+        version: &Version,
+    ) -> Result<Wheel> {
         let wheel = &self.candidates[name][version];
         validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
         let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, self.interpreter)?
@@ -165,9 +227,12 @@ impl Registry<'_> {
         .await
         .into_diagnostic()?;
         let files = files.into_iter().collect::<BTreeMap<_, _>>();
-        let metadata: WheelMetadata =
-            host::run(&self.interpreter.executable, "inspect", serde_json::json!({"files": files}))
-                .await?;
+        let metadata: WheelMetadata = host::run(
+            &self.interpreter.executable,
+            "inspect",
+            serde_json::json!({"files": files, "filename": wheel.name}),
+        )
+        .await?;
         if metadata.name.parse::<PackageName>().into_diagnostic()? != *name
             || metadata.version.parse::<Version>().into_diagnostic()? != *version
         {
@@ -185,8 +250,7 @@ impl Registry<'_> {
         {
             bail!("Python dist-info directory identity mismatch for {name}=={version}");
         }
-        self.wheels.insert((name.clone(), version.clone()), Wheel { files, metadata });
-        Ok(())
+        Ok(Wheel { files, metadata })
     }
 }
 

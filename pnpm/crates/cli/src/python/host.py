@@ -55,6 +55,13 @@ def inspect_wheel(request):
         raise ValueError("unsupported Wheel-Version: " + str(wheel["Wheel-Version"]))
     if wheel["Root-Is-Purelib"] not in ("true", "false"):
         raise ValueError("invalid Root-Is-Purelib")
+    _, tags = packaging_modules()
+    filename_tags = tags.parse_tag("-".join(request["filename"].removesuffix(".whl").rsplit("-", 3)[1:]))
+    declared_tags = set()
+    for tag in wheel.get_all("Tag", []):
+        declared_tags.update(tags.parse_tag(tag))
+    if declared_tags != filename_tags:
+        raise ValueError("wheel Tag fields do not match filename: " + request["filename"])
     metadata = read_headers(files, dist_info + "/METADATA")
     for field in ("Name", "Version", "Metadata-Version"):
         if len(metadata.get_all(field, [])) != 1:
@@ -140,8 +147,10 @@ def install(request):
             else:
                 destination = site.joinpath(*parts)
             contents = Path(source).read_bytes()
-            if executable and (contents.startswith(b"#!python\n") or contents.startswith(b"#!pythonw\n")):
-                contents = ("#!" + str(interpreter) + "\n").encode() + contents.split(b"\n", 1)[1]
+            if executable and contents.startswith(b"#!python"):
+                first_line, newline, body = contents.partition(b"\n")
+                if first_line.removesuffix(b"\r") in (b"#!python", b"#!pythonw"):
+                    contents = ("#!" + str(interpreter)).encode() + newline + body
             write(destination, contents, executable)
 
         entry_points = files.get(dist_info + "/entry_points.txt")

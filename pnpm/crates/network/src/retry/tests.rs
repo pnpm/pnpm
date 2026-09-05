@@ -23,6 +23,34 @@ fn instant_retry_opts(retries: u32) -> RetryOpts {
 }
 
 #[tokio::test]
+async fn maximum_retry_budget_does_not_overflow_logging_counters() {
+    let mut registry = mockito::Server::new_async().await;
+    let failure = registry.mock("GET", "/metadata").with_status(503).expect(1).create_async().await;
+    let success = registry.mock("GET", "/metadata").with_body("ok").expect(1).create_async().await;
+    let url = format!("{}/metadata", registry.url());
+    let client = ThrottledClient::default();
+    let response = crate::send_with_retry(&client, &url, instant_retry_opts(u32::MAX), |client| {
+        client.get(&url)
+    })
+    .await
+    .unwrap();
+    eprintln!("response={:?}", response.1);
+    assert_eq!(response.1.status(), StatusCode::OK);
+    failure.assert_async().await;
+    success.assert_async().await;
+    let attempts = AtomicU32::new(0);
+    retry_async(
+        &url,
+        instant_retry_opts(u32::MAX),
+        |(): &()| true,
+        || async { if attempts.fetch_add(1, Ordering::Relaxed) == 0 { Err(()) } else { Ok(()) } },
+    )
+    .await
+    .unwrap();
+    assert_eq!(attempts.load(Ordering::Relaxed), 2);
+}
+
+#[tokio::test]
 async fn authenticated_metadata_uses_the_shared_status_policy_and_preserves_final_response() {
     for (status, attempts) in [(408, 3), (429, 3), (503, 3), (401, 1), (403, 1), (404, 1), (200, 1)]
     {
@@ -42,6 +70,7 @@ async fn authenticated_metadata_uses_the_shared_status_policy_and_preserves_fina
             &AuthHeaders::default(),
             None,
             instant_retry_opts(2),
+            usize::MAX,
         )
         .await
         .unwrap();
@@ -87,6 +116,7 @@ async fn metadata_retry_restarts_redirects_without_forwarding_origin_credentials
         &auth,
         Some("application/example+json"),
         instant_retry_opts(2),
+        usize::MAX,
     )
     .await
     .unwrap();
@@ -100,6 +130,7 @@ fn metadata_retry_diagnostics_do_not_include_response_body_or_url() {
     let error = SecureAttemptError::Response(SecureAuthResponse {
         status: StatusCode::SERVICE_UNAVAILABLE,
         body: b"secret response".to_vec(),
+        body_truncated: false,
         url: "https://example.test/private-token".to_string(),
     });
     let debug = format!("{error:?}");
@@ -143,6 +174,7 @@ async fn metadata_retry_recovers_an_interrupted_response_body() {
             &AuthHeaders::default(),
             None,
             instant_retry_opts(1),
+            usize::MAX,
         ),
     )
     .await
@@ -159,6 +191,71 @@ fn default_matches_pnpm_fetch_retries() {
     assert_eq!(opts.factor, 10);
     assert_eq!(opts.min_timeout, Duration::from_secs(10));
     assert_eq!(opts.max_timeout, Duration::from_mins(1));
+}
+
+#[tokio::test]
+async fn bounded_metadata_stops_at_limit_without_retrying_oversized_bodies() {
+    for status in [200, 503, 302] {
+        for chunked in [false, true] {
+            eprintln!("status={status}, chunked={chunked}");
+            let mut server = mockito::Server::new_async().await;
+            let request = server.mock("GET", "/metadata").with_status(status).expect(1);
+            let request = if chunked {
+                request.with_chunked_body(|writer| writer.write_all(b"0123456789abcdefEXCESS"))
+            } else {
+                request.with_body("0123456789abcdefEXCESS")
+            }
+            .create_async()
+            .await;
+            let response = ThrottledClient::default()
+                .get_limited_bytes_with_secure_auth_and_retry(
+                    &format!("{}/metadata", server.url()),
+                    &AuthHeaders::default(),
+                    None,
+                    instant_retry_opts(2),
+                    16,
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.body, b"0123456789abcdef");
+            assert!(response.body_truncated, "oversized response was accepted");
+            assert_eq!(response.status.as_u16(), status as u16);
+            request.assert_async().await;
+        }
+    }
+}
+
+#[tokio::test]
+async fn bounded_metadata_accepts_exact_limit_after_redirect() {
+    let mut server = mockito::Server::new_async().await;
+    let initial = server
+        .mock("GET", "/start")
+        .with_status(302)
+        .with_header("location", "/metadata")
+        .expect(1)
+        .create_async()
+        .await;
+    let request = server
+        .mock("GET", "/metadata")
+        .with_body("0123456789abcdef")
+        .expect(1)
+        .create_async()
+        .await;
+    let response = ThrottledClient::default()
+        .get_limited_bytes_with_secure_auth_and_retry(
+            &format!("{}/start", server.url()),
+            &AuthHeaders::default(),
+            None,
+            instant_retry_opts(2),
+            16,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.body, b"0123456789abcdef");
+    assert!(!response.body_truncated, "exact-limit response was rejected");
+    assert_eq!(response.url, format!("{}/metadata", server.url()));
+    initial.assert_async().await;
+    request.assert_async().await;
 }
 
 #[test]

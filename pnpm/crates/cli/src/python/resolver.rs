@@ -4,7 +4,7 @@ use pep440_rs::Version;
 use pep508_rs::{ExtraName, MarkerEnvironment, PackageName, Requirement, VersionOrUrl};
 use pnpm_reporter::Reporter as InstallReporter;
 use pubgrub::{
-    DefaultStringReporter, Dependencies, DependencyConstraints, DependencyProvider,
+    DefaultStringReporter, Dependencies, DependencyConstraints, DependencyProvider, DerivationTree,
     PackageResolutionStatistics, PubGrubError, Ranges, Reporter as _,
 };
 use std::{collections::BTreeMap, fmt};
@@ -204,12 +204,8 @@ pub(super) async fn resolve<Reporter: InstallReporter + 'static>(
                 | PubGrubError::ErrorChoosingVersion { source, .. }
                 | PubGrubError::ErrorInShouldCancel(source),
             ) => source,
-            Err(PubGrubError::NoSolution(mut tree)) => {
-                tree.collapse_no_versions();
-                bail!(
-                    "Python dependency resolution failed:\n{}",
-                    DefaultStringReporter::report(&tree),
-                );
+            Err(PubGrubError::NoSolution(tree)) => {
+                bail!("Python dependency resolution failed:\n{}", report_no_solution(tree));
             }
         };
         match needed {
@@ -245,6 +241,14 @@ pub(super) fn locked_solution(
                 _ => None,
             })
             .collect()),
+        Err(PubGrubError::NoSolution(tree)) => {
+            bail!("Python lockfile does not satisfy the project:\n{}", report_no_solution(tree));
+        }
         Err(error) => bail!("Python lockfile does not satisfy the project: {error:?}"),
     }
+}
+
+fn report_no_solution(mut tree: DerivationTree<Package, Ranges<Version>, String>) -> String {
+    tree.collapse_no_versions();
+    DefaultStringReporter::report(&tree)
 }

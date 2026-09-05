@@ -16,7 +16,7 @@ pub use auth::{
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component};
+pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
 
 mod url_encoding;
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
@@ -641,7 +641,28 @@ impl ThrottledClient {
         accept: Option<&str>,
         retry_opts: RetryOpts,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
-        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts).await
+        self.get_limited_bytes_with_secure_auth_and_retry(
+            url,
+            auth_headers,
+            accept,
+            retry_opts,
+            usize::MAX,
+        )
+        .await
+    }
+
+    /// An authenticated GET with a byte limit on the final response, including
+    /// error responses. Oversized bodies are marked by [`SecureAuthResponse::body_truncated`]
+    /// and are not retried.
+    pub async fn get_limited_bytes_with_secure_auth_and_retry(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        retry_opts: RetryOpts,
+        body_limit: usize,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit).await
     }
 
     /// Negotiate an ecosystem's metadata representation while retaining the
@@ -651,6 +672,17 @@ impl ThrottledClient {
         url: &str,
         auth_headers: &AuthHeaders,
         accept: Option<&str>,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        self.get_limited_bytes_with_secure_auth_and_accept(url, auth_headers, accept, usize::MAX)
+            .await
+    }
+
+    async fn get_limited_bytes_with_secure_auth_and_accept(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        body_limit: usize,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
@@ -665,27 +697,26 @@ impl ThrottledClient {
                 request = request.header("authorization", authorization);
             }
             let response = request.send().await?;
-            if !is_redirect_status(response.status()) || redirect_count == MAX_REDIRECT_HOPS {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body, url: current_url });
+            let target = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|location| location.to_str().ok())
+                .and_then(|location| response.url().join(location).ok());
+            if is_redirect_status(response.status())
+                && redirect_count < MAX_REDIRECT_HOPS
+                && let Some(target) = target
+            {
+                current_url = target.to_string();
+                continue;
             }
-            let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body, url: current_url });
-            };
-            let Ok(location) = location.to_str() else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body, url: current_url });
-            };
-            let Ok(target) = response.url().join(location) else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body, url: current_url });
-            };
-            current_url = target.to_string();
+            let status = response.status();
+            let body = read_limited_body(response, body_limit).await?;
+            return Ok(SecureAuthResponse {
+                status,
+                body: body.bytes,
+                body_truncated: body.truncated,
+                url: current_url,
+            });
         }
         unreachable!()
     }
@@ -714,6 +745,7 @@ impl ThrottledClient {
 pub struct SecureAuthResponse {
     pub status: reqwest::StatusCode,
     pub body: Vec<u8>,
+    pub body_truncated: bool,
     pub url: String,
 }
 

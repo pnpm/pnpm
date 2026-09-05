@@ -14,9 +14,9 @@
 use super::{
     AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,
     NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
-    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url,
+    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url, percent_decode_str,
 };
-use crate::proxy::{percent_decode_str, strip_userinfo};
+use crate::proxy::strip_userinfo;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,

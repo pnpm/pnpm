@@ -274,8 +274,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     archive_prefix: Option<&str>,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let network_error =
-        |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
 
     let (client, response_head) = crate::archive_request::request_archive::<Reporter>(
         http_client,

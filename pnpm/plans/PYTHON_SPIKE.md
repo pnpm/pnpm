@@ -53,9 +53,12 @@ without changing the complete lockfile. `--lockfile-only` creates no environment
   Accept headers survive redirects; credentials are reselected for each
   target. Relative artifact URLs use the final response URL.
 - Credentials in the configured Python index URL become a Basic authorization
-  route and are stripped before caching or locking. Existing pnpm URL-scoped
-  authorization is also available. Routes do not automatically expand to
-  other paths or hosts.
+  route and are stripped before caching or locking. Python does not inherit
+  npm credentials. Repository-selected indexes cannot choose destinations for
+  user-level npm tokens. Routes do not automatically expand to other paths or hosts.
+- Python index responses are limited to 64 MiB, including error bodies and
+  responses without a content length. The bounded index cache stores raw JSON
+  in `python-index-v2`; older index caches require an online refresh.
 - Wheel integrity, ZIP extraction, CAS, store-index persistence and download
   reporting use pnpm's shared artifact pipeline. Python has no separate
   downloader, artifact cache or network budget.

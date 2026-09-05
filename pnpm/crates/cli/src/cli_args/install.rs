@@ -357,7 +357,7 @@ impl InstallArgs {
     /// every input that would make [`Install::run`] skip its own
     /// short-circuit or do extra pre-install work: an explicit
     /// `--frozen-lockfile` / `--lockfile-only`, config
-    /// dependencies, Cargo dependency management, and pnpmfile
+    /// dependencies, Cargo or Python dependency management, and pnpmfile
     /// `updateConfig` hooks (these can mutate state the npm-only check does
     /// not cover). A configured
     /// pnpr server deliberately does NOT bail: the check decides
