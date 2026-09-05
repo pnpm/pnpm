@@ -134,7 +134,7 @@ fn assert_failure_contains(command: &mut Command, expected: &str) {
     let result = command.assert().failure();
     let stderr = String::from_utf8_lossy(&result.get_output().stderr);
     eprintln!("stderr:\n{stderr}");
-    assert!(flatten_report(&stderr).contains(&flatten_report(expected)));
+    assert!(flatten_report(&stderr).contains(&flatten_report(expected)), "expected: {expected}");
 }
 
 fn cargo_project(root: &Path, name: &str) {
@@ -610,7 +610,7 @@ fn broken_python_environment_errors_identify_the_missing_path() {
         let project_root = dunce::canonicalize(root.path()).unwrap();
         project(&project_root, "https://unused.invalid", &[]);
         let target = if missing_target {
-            project_root.join(".pnpm/python-envs/env-missing")
+            project_root.join(".pnpm").join("python-envs").join("env-missing")
         } else {
             project_root.join("unmanaged")
         };
