@@ -620,6 +620,32 @@ pub struct WorkspaceSettings {
     /// `true`.
     pub git_checks: Option<bool>,
 
+    /// `publishBranch` from `pnpm-workspace.yaml`. See
+    /// [`Config::publish_branch`]. Workspace-only — cleared from the global
+    /// `config.yaml` by [`Self::clear_workspace_only_fields`].
+    pub publish_branch: Option<String>,
+
+    /// `access` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::access`].
+    pub access: Option<String>,
+
+    /// `tag` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::tag`].
+    pub tag: Option<String>,
+
+    /// `provenance` from `pnpm-workspace.yaml` / global `config.yaml`. See
+    /// [`Config::provenance`].
+    pub provenance: Option<bool>,
+
+    /// `otp` from `PNPM_CONFIG_OTP`. See [`Config::otp`].
+    ///
+    /// Never deserialized: a one-time password is valid for about thirty
+    /// seconds, so it is not a property of a project or of a machine and has
+    /// no meaning in a file that is read on every invocation. `--otp` and
+    /// `PNPM_CONFIG_OTP` are its channels; this field carries the latter.
+    #[serde(skip_deserializing)]
+    pub otp: Option<String>,
+
     /// `engineStrict` from `pnpm-workspace.yaml` / global `config.yaml`.
     /// See [`Config::engine_strict`]. Default `false`.
     pub engine_strict: Option<bool>,
@@ -1618,6 +1644,7 @@ impl WorkspaceSettings {
         self.allow_unused_patches = None;
         self.save_catalog_name = None;
         self.save_peer = None;
+        self.publish_branch = None;
     }
 
     /// Read `<dir>/pnpm-workspace.yaml` without walking ancestors.
@@ -1796,6 +1823,7 @@ impl WorkspaceSettings {
     /// [`Config`].
     pub fn substitute_env_trusted<Sys: EnvVar>(&mut self) {
         self.substitute_env_scalars::<Sys>();
+        substitute_optional_string::<Sys>(&mut self.otp);
         substitute_optional_string::<Sys>(&mut self.pnpr_server);
         substitute_optional_string::<Sys>(&mut self.registry);
         substitute_optional_string::<Sys>(&mut self.https_proxy);
@@ -1813,6 +1841,14 @@ impl WorkspaceSettings {
     /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
     /// are filtered instead of expanding environment variables into
     /// request URLs.
+    ///
+    /// `SECURITY.md` states the policy this implements, and its bounds: this
+    /// is hardening against silent credential exfiltration that survives
+    /// `--ignore-scripts`, not a general-purpose sandbox. A setting outside
+    /// the request-destination group — `tag` and `access` reach the registry
+    /// too — is deliberately still expanded. The one auth value a repository
+    /// could otherwise have reached, `otp`, is not readable from a file at
+    /// all (see [`Self::otp`]), so there is nothing here to filter.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
@@ -1874,6 +1910,9 @@ impl WorkspaceSettings {
 
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
+        substitute_optional_string::<Sys>(&mut self.publish_branch);
+        substitute_optional_string::<Sys>(&mut self.access);
+        substitute_optional_string::<Sys>(&mut self.tag);
         substitute_optional_string::<Sys>(&mut self.store_dir);
         substitute_optional_string::<Sys>(&mut self.state_dir);
         substitute_optional_string::<Sys>(&mut self.modules_dir);
@@ -2104,6 +2143,21 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.scope {
             config.scope = Some(v);
+        }
+        if let Some(v) = self.publish_branch {
+            config.publish_branch = Some(v);
+        }
+        if let Some(v) = self.access {
+            config.access = Some(v);
+        }
+        if let Some(v) = self.tag {
+            config.tag = Some(v);
+        }
+        if let Some(v) = self.provenance {
+            config.provenance = Some(v);
+        }
+        if let Some(v) = self.otp {
+            config.otp = Some(v);
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);

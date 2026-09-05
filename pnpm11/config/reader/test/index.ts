@@ -968,6 +968,52 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     expect(warnings).toContainEqual(expect.stringContaining('This is not a pnpm setting'))
   })
 
+  // A repository could otherwise write `otp: ${NPM_TOKEN}` beside its own
+  // `registry:` and have the publisher's environment sent to a registry of its
+  // choosing, in the `npm-otp` header of the first request.
+  test('a manifest cannot supply the one-time password', async () => {
+    prepareEmpty()
+
+    const previousToken = process.env.NPM_TOKEN
+    process.env.NPM_TOKEN = 'secret-token'
+    writeYamlFileSync('pnpm-workspace.yaml', { otp: '${NPM_TOKEN}' })
+    let config: Config
+    let warnings: string[]
+    try {
+      ;({ config, warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousToken == null) {
+        delete process.env.NPM_TOKEN
+      } else {
+        process.env.NPM_TOKEN = previousToken
+      }
+    }
+
+    expect((config as { otp?: string }).otp).toBeUndefined()
+    expect(warnings).toContainEqual(expect.stringContaining('"otp"'))
+    expect(warnings).toContainEqual(expect.stringContaining('PNPM_CONFIG_OTP'))
+  })
+
+  // The manifest pass merges the CLI options in again, so the refusal has to
+  // land on the manifest's value only.
+  test('refusing the manifest\'s one-time password keeps the one --otp passed', async () => {
+    prepareEmpty()
+
+    writeYamlFileSync('pnpm-workspace.yaml', { otp: 'from-the-repository' })
+
+    const { config } = await getConfig({
+      cliOptions: { otp: '123456' },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+
+    expect((config as { otp?: string }).otp).toBe('123456')
+  })
+
   test('a setting unknown to this version of pnpm in pnpm-workspace.yaml is reported', async () => {
     prepareEmpty()
 
@@ -1197,6 +1243,40 @@ describe("a project's pnpm-workspace.yaml cannot redirect where pnpm reads and w
     const aboutConfigDir = warnings.filter((warning) => warning.includes('"configDir"'))
     expect(aboutConfigDir).not.toEqual([])
     for (const warning of aboutConfigDir) {
+      expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
+    }
+  })
+
+  test('the global config file cannot supply the one-time password either', async () => {
+    prepareEmpty()
+
+    const xdgConfigHome = process.cwd()
+    const configDir = path.join(xdgConfigHome, 'pnpm')
+    fs.mkdirSync(configDir, { recursive: true })
+    writeYamlFileSync(path.join(configDir, 'config.yaml'), { otp: '123456' })
+
+    const previousXdgConfigHome = process.env.XDG_CONFIG_HOME
+    process.env.XDG_CONFIG_HOME = xdgConfigHome
+    let config: Config
+    let warnings: string[]
+    try {
+      ;({ config, warnings } = await getConfig({
+        cliOptions: {},
+        packageManager: { name: 'pnpm', version: '1.0.0' },
+        workspaceDir: process.cwd(),
+      }))
+    } finally {
+      if (previousXdgConfigHome == null) {
+        delete process.env.XDG_CONFIG_HOME
+      } else {
+        process.env.XDG_CONFIG_HOME = previousXdgConfigHome
+      }
+    }
+
+    expect((config as { otp?: string }).otp).toBeUndefined()
+    const aboutOtp = warnings.filter((warning) => warning.includes('"otp"'))
+    expect(aboutOtp).not.toEqual([])
+    for (const warning of aboutOtp) {
       expect(warning).not.toContain('Move them to a project-level pnpm-workspace.yaml')
     }
   })

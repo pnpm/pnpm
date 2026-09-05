@@ -78,3 +78,15 @@ fn refusal_is_spelling_insensitive() {
     assert!(!is_refused_by_a_project_manifest("storeDir"));
     assert!(!is_refused_by_a_project_manifest("node-linker"));
 }
+
+/// The global config file refuses a per-invocation key too, so the route
+/// offered for it must name neither file — otherwise the warning sends the
+/// user to the one that also drops it.
+#[test]
+fn a_per_invocation_key_is_routed_to_the_flag_and_the_environment() {
+    assert!(is_refused_by_a_project_manifest("otp"));
+    assert_eq!(
+        where_refused_key_belongs("otp"),
+        "Pass it per run instead: --otp on the command line, or PNPM_CONFIG_OTP",
+    );
+}

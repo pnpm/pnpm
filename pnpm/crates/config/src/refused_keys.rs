@@ -6,7 +6,7 @@
 //! was dropped from a config file or on the route a warning offers for it.
 
 use crate::{
-    config_types::is_config_file_key,
+    config_types::{is_config_file_key, is_never_a_file_setting},
     naming_cases::{to_camel_case, to_kebab_case},
 };
 use std::{collections::HashSet, sync::OnceLock};
@@ -68,6 +68,7 @@ fn refused_keys() -> &'static HashSet<&'static str> {
 #[must_use]
 pub fn is_refused_by_a_project_manifest(key: &str) -> bool {
     refused_keys().contains(to_camel_case(key).as_str())
+        || is_never_a_file_setting(&to_kebab_case(key))
 }
 
 /// The global config file key that sets a refused setting, where it is not
@@ -92,6 +93,13 @@ fn global_equivalent_key(camel_key: &str) -> Option<&'static str> {
 pub fn where_refused_key_belongs(camel_key: &str) -> String {
     if camel_key == "dir" {
         return "Pass --dir on the command line instead".to_string();
+    }
+    if is_never_a_file_setting(&to_kebab_case(camel_key)) {
+        let kebab_key = to_kebab_case(camel_key);
+        let env_key = kebab_key.to_uppercase().replace('-', "_");
+        return format!(
+            "Pass it per run instead: --{kebab_key} on the command line, or PNPM_CONFIG_{env_key}",
+        );
     }
     let kebab_key =
         global_equivalent_key(camel_key).map_or_else(|| to_kebab_case(camel_key), str::to_string);
