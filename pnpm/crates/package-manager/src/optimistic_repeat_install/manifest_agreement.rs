@@ -138,6 +138,7 @@ pub(crate) fn modified_manifests_match_lockfile(
             pnpm_workspace::importer_id_from_root_dir(workspace_root, project.root_dir);
         if let Err(error) = crate::install::check_importer_satisfies(
             wanted,
+            workspace_root,
             project.manifest,
             &importer_id,
             config,

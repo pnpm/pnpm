@@ -760,6 +760,7 @@ where
             Some(current) if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile => {
                 check_lockfile_freshness(
                     current,
+                    &workspace_root,
                     &manifest_freshness_inputs,
                     config,
                     &catalogs,
@@ -804,6 +805,7 @@ where
         let fast_updated_lockfile = if can_fast_update_lockfile {
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile,
+                lockfile_dir: &workspace_root,
                 manifests: &manifest_freshness_inputs,
                 project_manifests: &project_manifests,
                 config,
@@ -984,6 +986,7 @@ where
             // again inside the frozen branch below.
             check_lockfile_freshness(
                 lockfile,
+                &workspace_root,
                 &manifest_freshness_inputs,
                 config,
                 &catalogs,
@@ -1014,6 +1017,7 @@ where
             if prefer_frozen_lockfile {
                 match check_lockfile_freshness(
                     lockfile,
+                    &workspace_root,
                     &manifest_freshness_inputs,
                     config,
                     &catalogs,
