@@ -257,6 +257,27 @@ fn propagates_dependency_features_without_default_features() {
 }
 
 #[test]
+fn backtracks_when_a_candidate_feature_conflicts_with_that_candidate() {
+    let foo_index = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^1","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}
+{"name":"foo","vers":"1.1.0","deps":[{"name":"bar","req":"^1","features":["extra"],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null},{"name":"qux","req":"=1.0.0","features":[],"optional":false,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","features":{},"yanked":false}"#;
+    let bar_index = r#"{"name":"bar","vers":"1.0.0","deps":[{"name":"qux","req":"=1.1.0","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","features":{"extra":["dep:qux"]},"yanked":false}"#;
+    let qux_index = r#"{"name":"qux","vers":"1.0.0","deps":[],"cksum":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","features":{},"yanked":false}
+{"name":"qux","vers":"1.1.0","deps":[],"cksum":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","features":{},"yanked":false}"#;
+    let files = BTreeMap::from([
+        ("bar".to_string(), bar_index.to_string()),
+        ("foo".to_string(), foo_index.to_string()),
+        ("qux".to_string(), qux_index.to_string()),
+    ]);
+
+    let lockfile = Lockfile::from_str(&resolve_lockfile(METADATA, &files).unwrap()).unwrap();
+
+    assert!(lockfile.packages.iter().any(|package| {
+        package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
+    }));
+    assert!(!lockfile.packages.iter().any(|package| package.name.as_str() == "qux"));
+}
+
+#[test]
 fn dep_activation_suppresses_the_implicit_optional_feature() {
     let metadata =
         METADATA.replacen(r#""req": "^1.0""#, r#""req": "^1.0", "features": ["codec"]"#, 1);
