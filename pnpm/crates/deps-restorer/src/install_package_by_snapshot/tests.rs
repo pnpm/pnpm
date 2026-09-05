@@ -1482,7 +1482,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
 
     let resolution = session
         .resolve_tarball_integrity::<pnpm_reporter::SilentReporter>(
-            pnpm_tarball::DownloadTarballToStore {
+            pnpm_tarball::IngestTarballToStore {
                 http_client: &pnpm_network::ThrottledClient::default(),
                 store_dir: &config.store_dir,
                 store_index: None,
@@ -1502,7 +1502,9 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                 ignore_file_pattern: None,
                 offline: true,
                 progress_reported: None,
-                append_manifest: None,
+                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                    append_manifest: None,
+                },
             },
             &unpinned,
             serde_json::json!({ "lockfileDir": store_tmp.path() }),

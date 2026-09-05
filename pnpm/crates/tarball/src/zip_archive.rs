@@ -5,12 +5,12 @@
 //! same CAS write and progress reporting, different container format.
 
 use super::{
-    Arc, Component, Cursor, Duration, HashMap, HttpStatusError, IgnoreEntryFilter, Instant,
-    NetworkError, PathBuf, PrefetchedCasPaths, Read, STREAM_ENTRY_BUFFER_MAX, TarballError,
-    UNIX_EPOCH, VerifyChecksumError, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, auth_header_for_package_download, emit_progress_found_in_store,
-    is_transient_error, load_cached_cas_paths, post_download_semaphore,
-    tarball_error_to_request_retry,
+    Arc, ArchiveStoreProjection, Component, Cursor, Duration, HashMap, HttpStatusError,
+    IgnoreEntryFilter, Instant, NetworkError, PathBuf, PrefetchedCasPaths, Read,
+    STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, VerifyChecksumError,
+    allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
+    auth_header_for_package_download, emit_progress_found_in_store, is_transient_error,
+    load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -506,7 +506,7 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     }
 }
 
-/// Counterpart to [`crate::download::DownloadTarballToStore`] for zip-archive binary
+/// Counterpart to [`crate::download::IngestTarballToStore`] for zip-archive binary
 /// resolutions: the zip flow downloads the body, verifies the
 /// integrity hash, then walks zip entries and writes each to the CAFS
 /// — with the `prefix` field stripped from each entry path before the
@@ -515,17 +515,17 @@ pub(crate) async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
 /// downstream consumers' paths.
 ///
 /// The store-index lookup, prefetch cache reuse, and store-index
-/// writer queueing match [`crate::download::DownloadTarballToStore`] — runtime
+/// writer queueing match [`crate::download::IngestTarballToStore`] — runtime
 /// artifacts share the same `index.db` schema as ordinary npm
 /// packages.
 #[must_use]
-pub struct DownloadZipArchiveToStore<'a> {
+pub struct IngestZipArchiveToStore<'a> {
     pub http_client: &'a ThrottledClient,
     pub store_dir: &'static StoreDir,
     pub store_index: Option<SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub verify_store_integrity: bool,
-    /// See [`crate::download::DownloadTarballToStore::strict_store_pkg_content_check`].
+    /// See [`crate::download::IngestTarballToStore::strict_store_pkg_content_check`].
     pub strict_store_pkg_content_check: bool,
     pub verified_files_cache: SharedVerifiedFilesCache,
     pub package_integrity: &'a Integrity,
@@ -546,32 +546,30 @@ pub struct DownloadZipArchiveToStore<'a> {
     /// consumers see paths relative to the package root rather than
     /// the runtime-version-stamped wrapper directory.
     pub archive_prefix: Option<&'a str>,
-    /// See [`crate::download::DownloadTarballToStore::ignore_file_pattern`] — the
+    /// See [`crate::download::IngestTarballToStore::ignore_file_pattern`] — the
     /// per-fetch archive filter is shared by both archive types.
     pub ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
-    /// See [`crate::download::DownloadTarballToStore::offline`]. Same semantics for
+    /// See [`crate::download::IngestTarballToStore::offline`]. Same semantics for
     /// the zip-archive path: when both cache lookups miss and
     /// `offline` is `true`, the fetcher fails with
     /// [`TarballError::NoOfflineTarball`] rather than hitting the
     /// network.
     pub offline: bool,
     /// Synthesized `package.json` to fold into the extracted archive.
-    /// See [`crate::download::DownloadTarballToStore::append_manifest`] — same
-    /// `appendManifest` semantics for the zip path, used for the
-    /// runtime archives (e.g. Deno / Bun) that arrive as zips.
-    pub append_manifest: Option<&'a [u8]>,
+    /// Ecosystem-owned projection policy applied after verified extraction.
+    pub store_projection: ArchiveStoreProjection<'a>,
 }
 
-impl DownloadZipArchiveToStore<'_> {
+impl IngestZipArchiveToStore<'_> {
     /// Execute the subroutine without an in-memory cache. Mirrors
-    /// [`crate::download::DownloadTarballToStore::run_without_mem_cache`] — same
+    /// [`crate::download::IngestTarballToStore::run_without_mem_cache`] — same
     /// prefetch-cas-paths reuse, same SQLite-index lookup, same
     /// store-index writer queue — only the network and extract
     /// path differs (zip instead of gzip + tar).
     pub async fn run_without_mem_cache<Reporter: self::Reporter>(
         &self,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let &DownloadZipArchiveToStore {
+        let &IngestZipArchiveToStore {
             http_client,
             store_dir,
             package_integrity,
@@ -584,14 +582,14 @@ impl DownloadZipArchiveToStore<'_> {
             retry_opts,
             auth_headers,
             archive_prefix,
-            append_manifest,
+            store_projection,
             ..
         } = self;
         let store_index = self.store_index.clone();
         let store_index_writer = self.store_index_writer.clone();
         let verified_files_cache = Arc::clone(&self.verified_files_cache);
         // See the matching note in
-        // [`crate::download::DownloadTarballToStore::run_without_mem_cache`]: the
+        // [`crate::download::IngestTarballToStore::run_without_mem_cache`]: the
         // Arc-wrapped filter can't ride along in the deref pattern,
         // so clone it out by hand.
         let ignore_file_pattern = self.ignore_file_pattern.clone();
@@ -614,7 +612,7 @@ impl DownloadZipArchiveToStore<'_> {
             store_dir,
             cache_key,
             verify_store_integrity,
-            strict_store_pkg_content_check,
+            store_projection.package_content_check(strict_store_pkg_content_check),
             verified_files_cache,
         )
         .await?;
@@ -656,12 +654,22 @@ impl DownloadZipArchiveToStore<'_> {
         )
         .await?;
 
-        // Fold the synthesized runtime `package.json` into the row before
-        // it is persisted, so warm reinstalls (which read the row) get it.
-        if let Some(manifest_bytes) = append_manifest {
-            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+        match store_projection {
+            ArchiveStoreProjection::Package { append_manifest } => {
+                // Fold a synthesized runtime `package.json` into the row before
+                // it is persisted, so warm reinstalls get the same package view.
+                if let Some(manifest_bytes) = append_manifest {
+                    apply_append_manifest(
+                        store_dir,
+                        manifest_bytes,
+                        &mut cas_paths,
+                        &mut pkg_files_idx,
+                    )?;
+                }
+                apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+            }
+            ArchiveStoreProjection::RawArchive => {}
         }
-        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         let index_key = store_index_key(&package_integrity.to_string(), package_id);
         if let Some(writer) = store_index_writer {

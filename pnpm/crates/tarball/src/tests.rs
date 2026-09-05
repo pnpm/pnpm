@@ -1,9 +1,9 @@
 use super::{
-    FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
-    SharedReportedProgressKeys, auth_header_for_package_download,
+    ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
+    RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
-        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
-        is_transient_error, slow_download_warning,
+        IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+        slow_download_warning,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
@@ -281,7 +281,7 @@ fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
 #[cfg(not(target_os = "windows"))]
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
-    let cas_files = DownloadTarballToStore {
+    let cas_files = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -301,7 +301,7 @@ async fn packages_under_orgs_should_work() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -347,7 +347,7 @@ async fn network_fetch_records_progress_key() {
     let pkg_id = "@fastify/error@3.3.0";
     let progress_reported = SharedReportedProgressKeys::default();
 
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -367,7 +367,7 @@ async fn network_fetch_records_progress_key() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -385,7 +385,7 @@ async fn network_fetch_records_progress_key() {
 #[tokio::test]
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -405,7 +405,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -468,7 +468,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // key to prevent a later warm/cold pass from counting the same
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
-    let download = DownloadTarballToStore {
+    let download = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -492,7 +492,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
     let cas_paths = download
         .run_without_mem_cache::<SilentReporter>()
@@ -543,7 +543,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     // somewhere to point even though we never read it.
     let (_keep, store_path) = tempdir_with_leaked_path();
 
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         // No SQLite handle: any fall-through to the per-snapshot
@@ -567,7 +567,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -841,7 +841,7 @@ async fn falls_through_when_cafs_file_missing() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -861,7 +861,7 @@ async fn falls_through_when_cafs_file_missing() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -912,7 +912,7 @@ async fn store_row_holding_another_package_fails_the_read() {
     let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
     seed_row_holding_another_package(store_path, &index_key);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -932,7 +932,7 @@ async fn store_row_holding_another_package_fails_the_read() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -973,7 +973,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
     seed_row_holding_another_package(store_path, &index_key);
 
     EVENTS.lock().unwrap().clear();
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -995,7 +995,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -1053,7 +1053,7 @@ async fn falls_through_when_digest_is_malformed() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1073,7 +1073,7 @@ async fn falls_through_when_digest_is_malformed() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1123,7 +1123,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1143,7 +1143,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1203,7 +1203,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1223,7 +1223,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2203,6 +2203,106 @@ fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
     encoder.finish().expect("finish gzip")
 }
 
+#[tokio::test]
+async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"raw")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "artifact@1.0.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a local raw archive should be ingested");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), ["README.md"]);
+    drop((store_dir, local_dir));
+}
+
+#[tokio::test]
+async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let contents = b"raw artifact";
+    let (cas_path, file_hash) = store_path.write_cas_file(contents, false).unwrap();
+    let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
+    let package_id = "crate:artifact@1.0.0";
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &store_index_key(&integrity.to_string(), package_id),
+            &PackageFilesIndex {
+                manifest: Some(serde_json::json!({ "name": "unrelated", "version": "2.0.0" })),
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    "README.md".to_string(),
+                    CafsFileInfo {
+                        digest: format!("{file_hash:x}"),
+                        mode: 0o644,
+                        size: contents.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "https://example.test/artifact.tgz",
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("raw archive cache hits must not use npm package identity semantics");
+
+    assert_eq!(cas_paths, HashMap::from([("README.md".to_string(), cas_path)]));
+    drop(store_dir);
+}
+
 /// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
 /// so the error kind has to survive.
 #[tokio::test]
@@ -2238,7 +2338,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let expected = package_integrity.unwrap_or(&sha512);
         let (store_dir, store_path) = tempdir_with_leaked_path();
         let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
-        let result = DownloadTarballToStore {
+        let result = IngestTarballToStore {
             http_client: &client,
             store_dir: store_path,
             store_index: None,
@@ -2258,7 +2358,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
             ignore_file_pattern: None,
             offline: true,
             progress_reported: None,
-            append_manifest: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: None },
         }
         .fetch_and_extract::<SilentReporter>()
         .await
@@ -2298,7 +2398,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
     let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2318,7 +2418,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2470,7 +2570,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
     let mem_cache = MemCache::default();
     let auth_headers = AuthHeaders::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let download = || DownloadTarballToStore {
+    let download = || IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2490,7 +2590,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     let (first, second) = futures_util::future::join(
@@ -2542,7 +2642,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
     let mem_cache = MemCache::default();
     let auth_headers = AuthHeaders::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let download = || DownloadTarballToStore {
+    let download = || IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2562,7 +2662,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     download()
@@ -3054,7 +3154,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
 
                 let auth_headers: &'static AuthHeaders =
                     Box::leak(Box::new(AuthHeaders::default()));
-                let make_dts = |url: &'static str| DownloadTarballToStore {
+                let make_dts = |url: &'static str| IngestTarballToStore {
                     http_client: client,
                     store_dir: store_path,
                     store_index: None,
@@ -3074,7 +3174,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     ignore_file_pattern: None,
                     offline: false,
                     progress_reported: None,
-                    append_manifest: None,
+                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -3354,7 +3454,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
     // First requester: silent legacy owner.
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3374,7 +3474,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&mem_cache)
     .await
@@ -3385,7 +3485,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     // because no shared progress set says this package status was
     // already reported.
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3405,7 +3505,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3483,7 +3583,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     let pkg_id = "@fastify/error@3.3.0";
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3503,7 +3603,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3523,7 +3623,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     );
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3543,7 +3643,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3598,7 +3698,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 
     let url = format!("{}/pkg.tgz", server.url());
     // Leak the inputs so concurrent tasks can each construct a
-    // borrow-style `DownloadTarballToStore` without lifetime
+    // borrow-style `IngestTarballToStore` without lifetime
     // gymnastics on the spawned futures. The test scope is short and
     // the leak is negligible.
     let client: &'static ThrottledClient = Box::leak(Box::new(ThrottledClient::default()));
@@ -3607,7 +3707,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     let mem_cache: &'static MemCache = Box::leak(Box::new(MemCache::default()));
     let auth_headers: &'static AuthHeaders = Box::leak(Box::<AuthHeaders>::default());
 
-    let make_dts = || DownloadTarballToStore {
+    let make_dts = || IngestTarballToStore {
         http_client: client,
         store_dir: store_path,
         store_index: None,
@@ -3627,7 +3727,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     // Drive both calls concurrently. One hits the `else` branch and
@@ -3898,7 +3998,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3918,7 +4018,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -3940,7 +4040,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .expect("index opens after the first install");
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: Some(store_index),
@@ -3960,7 +4060,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -4418,7 +4518,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let pkg_id = "@fastify/error@3.3.0";
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -4438,7 +4538,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -4492,7 +4592,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     let mut prefetched: PrefetchedCasPaths = HashMap::new();
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -4512,7 +4612,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await

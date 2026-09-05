@@ -193,7 +193,7 @@ pub struct FetchedTarball {
     pub requires_build: bool,
 }
 
-impl<'a> DownloadTarballToStore<'a> {
+impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
     /// # Caller invariant: stable filter per URL
@@ -206,7 +206,7 @@ impl<'a> DownloadTarballToStore<'a> {
     /// it holds because URLs encode `(name, version, integrity)` and filters
     /// are keyed by package name.
     ///
-    /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
+    /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
@@ -228,7 +228,7 @@ impl<'a> DownloadTarballToStore<'a> {
         mem_cache: &'a MemCache,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             package_url,
             package_id,
             package_integrity,
@@ -418,7 +418,7 @@ impl<'a> DownloadTarballToStore<'a> {
         &self,
         revision_addressed: bool,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             store_dir,
             package_integrity,
             package_url,
@@ -427,6 +427,7 @@ impl<'a> DownloadTarballToStore<'a> {
             verify_store_integrity,
             strict_store_pkg_content_check,
             prefetched_cas_paths,
+            store_projection,
             ..
         } = self;
 
@@ -445,7 +446,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // Deep-clones the inner map, unlike the `Arc`-preserving path
         // in `run_with_mem_cache`: this signature returns an owned
         // `HashMap`, and widening it would reach into
-        // `DownloadTarballToStore`'s return type. Affordable because
+        // `IngestTarballToStore`'s return type. Affordable because
         // only cache-miss snapshots reach here, where the clone is
         // dwarfed by the download it avoids.
         if let Some(prefetched) = prefetched_cas_paths
@@ -467,7 +468,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 store_dir,
                 cache_key,
                 verify_store_integrity,
-                strict_store_pkg_content_check,
+                store_projection.package_content_check(strict_store_pkg_content_check),
                 Arc::clone(&self.verified_files_cache),
             )
             .await?;
@@ -496,7 +497,7 @@ impl<'a> DownloadTarballToStore<'a> {
         record_computed_integrity: bool,
         revision_addressed: bool,
     ) -> Result<FetchedTarball, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             http_client,
             store_dir,
             package_integrity,
@@ -507,7 +508,7 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             retry_opts,
             auth_headers,
-            append_manifest,
+            store_projection,
             ..
         } = self;
         let cache_key = store_index_cache_key(package_integrity, package_id);
@@ -568,12 +569,22 @@ impl<'a> DownloadTarballToStore<'a> {
             )
             .await?;
 
-        // Fold the synthesized runtime `package.json` into the row before
-        // it is persisted, so warm reinstalls (which read the row) get it.
-        if let Some(manifest_bytes) = append_manifest {
-            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+        match store_projection {
+            ArchiveStoreProjection::Package { append_manifest } => {
+                // Fold a synthesized runtime `package.json` into the row before
+                // it is persisted, so warm reinstalls get the same package view.
+                if let Some(manifest_bytes) = append_manifest {
+                    apply_append_manifest(
+                        store_dir,
+                        manifest_bytes,
+                        &mut cas_paths,
+                        &mut pkg_files_idx,
+                    )?;
+                }
+                apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+            }
+            ArchiveStoreProjection::RawArchive => {}
         }
-        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         let manifest = pkg_files_idx.manifest.clone();
         // Only legacy cache rows omit this; fresh extraction always records it.
@@ -638,7 +649,7 @@ pub struct ResolvedTarball {
 /// fetch here to fill `manifest` + `integrity` into its
 /// `ResolveResult`. Passing a `mem_cache` warms it (keyed by URL) so
 /// the install pass's
-/// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
+/// [`IngestTarballToStore::run_with_mem_cache`] reuses the extraction
 /// without a second download.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,

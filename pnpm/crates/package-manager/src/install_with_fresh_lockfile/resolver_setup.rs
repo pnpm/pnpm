@@ -388,7 +388,7 @@ pub(super) async fn build_resolver_chain<Reporter: pnpm_reporter::Reporter + 'st
         Box::new(local_path_resolver),
     ]);
 
-    // The install pass later calls `DownloadTarballToStore::run_with_mem_cache`
+    // The install pass later calls `IngestTarballToStore::run_with_mem_cache`
     // for the same URLs and either picks up `CacheValue::Available`
     // immediately or briefly blocks on the per-URL `Notify`. See
     // `prefetching_resolver.rs` for the full design rationale.

@@ -8,7 +8,7 @@ use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
 };
-use pnpm_tarball::DownloadTarballToStore;
+use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
 use serde::{Deserialize, Serialize};
 use ssri::{Algorithm, Integrity};
 use std::{
@@ -489,7 +489,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let integrity = Integrity::from_hex(&package.checksum, Algorithm::Sha256)
         .into_diagnostic()
         .wrap_err_with(|| format!("decode checksum for {package_id}"))?;
-    let mut cas_paths = DownloadTarballToStore {
+    let mut cas_paths = IngestTarballToStore {
         http_client: &http_client,
         store_dir,
         store_index,
@@ -509,7 +509,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
         ignore_file_pattern: None,
         offline,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
     }
     .run_without_mem_cache::<Reporter>()
     .await
