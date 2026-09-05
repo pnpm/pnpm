@@ -13,6 +13,7 @@ use super::{
     reporter::{LogLevelSetting, ReporterType},
     store::StoreCommand,
     unlink::UnlinkArgs,
+    version::VersionArgs,
 };
 use clap::Parser;
 use pnpm_config::ColorMode;
@@ -35,6 +36,13 @@ fn add_args(argv: &[&str]) -> AddArgs {
     match CliArgs::try_parse_from(argv).expect("parses").command {
         CliCommand::Add(add) => add,
         other => panic!("expected add, got {other:?}"),
+    }
+}
+
+fn version_args(argv: &[&str]) -> VersionArgs {
+    match CliArgs::try_parse_from(argv).expect("parses").command {
+        CliCommand::Version(version) => version,
+        other => panic!("expected version, got {other:?}"),
     }
 }
 
@@ -566,6 +574,12 @@ fn runtime_alias_and_flags_parse() {
     assert!(!args.save_dev);
     assert!(args.save_prod);
     assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn version_message_short_flag_is_an_alias_of_message() {
+    let args = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
+    assert_eq!(args.message.as_deref(), Some("release %s"));
 }
 
 #[test]

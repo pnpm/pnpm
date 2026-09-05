@@ -50,7 +50,7 @@ pub struct VersionArgs {
     pub allow_same_version: bool,
 
     /// Commit message. "%s" is replaced with the new version. Default is "%s".
-    #[clap(long)]
+    #[clap(long, short = 'm')]
     pub message: Option<String>,
 
     /// Don't create a commit or tag for the version bump. Git commits and
