@@ -678,7 +678,6 @@ async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
     let cargo_manifest_path = prefix.join("Cargo.toml");
     let cargo_root = crate::cargo_deps::workspace_root(&cargo_manifest_path).await?;
     let metadata_mutation = ecosystem_install::MetadataMutation::capture(
-        cfg.store_dir.tmp().join("metadata-mutation-locks"),
         cargo_root.clone(),
         add_metadata_paths(
             cfg,

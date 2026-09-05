@@ -5,9 +5,7 @@ async fn capture(
     directory: &tempfile::TempDir,
     paths: impl IntoIterator<Item = std::path::PathBuf>,
 ) -> MetadataMutation {
-    MetadataMutation::capture(directory.path().join("locks"), directory.path().to_path_buf(), paths)
-        .await
-        .unwrap()
+    MetadataMutation::capture(directory.path().to_path_buf(), paths).await.unwrap()
 }
 
 #[tokio::test]
@@ -59,16 +57,14 @@ async fn attempts_every_restoration_after_one_fails() {
 }
 
 #[tokio::test]
-async fn serializes_metadata_transactions_for_the_same_workspace() {
+async fn serializes_metadata_transactions_for_the_same_workspace_without_a_store_key() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("manifest");
     fs::write(&path, "before").unwrap();
     let first = capture(&directory, [path.clone()]).await;
-    let lock_directory = directory.path().join("locks");
     let transaction_key = directory.path().to_path_buf();
-    let second = tokio::spawn(async move {
-        MetadataMutation::capture(lock_directory, transaction_key, [path]).await
-    });
+    let second =
+        tokio::spawn(async move { MetadataMutation::capture(transaction_key, [path]).await });
 
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     eprintln!(

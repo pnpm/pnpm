@@ -6,10 +6,10 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 static TEMPORARY_FILE_ID: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, PartialEq, Eq)]
@@ -332,13 +332,56 @@ fn write_symlink(parent: &PinnedDirectory, name: &OsStr, target: &Path) -> io::R
 
 #[cfg(windows)]
 fn write_symlink(parent: &PinnedDirectory, name: &OsStr, target: &Path) -> io::Result<()> {
-    let path = parent.path.join(name);
-    match fs::remove_file(&path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error),
+    let destination = parent.path.join(name);
+    let temporary = loop {
+        let temporary = windows_temporary_path(parent, name);
+        match std::os::windows::fs::symlink_file(target, &temporary) {
+            Ok(()) => break temporary,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error),
+        }
+    };
+    let result = replace_windows_path(&temporary, &destination);
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
     }
-    std::os::windows::fs::symlink_file(target, path)
+    result
+}
+
+#[cfg(windows)]
+fn windows_temporary_path(parent: &PinnedDirectory, name: &OsStr) -> PathBuf {
+    let mut temporary = OsString::from(".");
+    temporary.push(name);
+    temporary.push(format!(
+        ".pnpm-{}-{}",
+        std::process::id(),
+        TEMPORARY_FILE_ID.fetch_add(1, Ordering::Relaxed),
+    ));
+    parent.path.join(temporary)
+}
+
+#[cfg(windows)]
+fn replace_windows_path(source: &Path, destination: &Path) -> io::Result<()> {
+    use std::os::windows::ffi::OsStrExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+
+    let source = source.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    let destination = destination.as_os_str().encode_wide().chain(Some(0)).collect::<Vec<_>>();
+    // SAFETY: both paths are NUL-terminated and remain alive for the call.
+    if unsafe {
+        MoveFileExW(
+            source.as_ptr(),
+            destination.as_ptr(),
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+        )
+    } != 0
+    {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
 }
 
 #[cfg(unix)]
