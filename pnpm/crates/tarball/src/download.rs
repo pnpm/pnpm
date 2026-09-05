@@ -43,8 +43,6 @@ pub enum ArchiveStoreProjection<'a> {
 }
 
 impl ArchiveStoreProjection<'_> {
-    /// Build the store-index key for this projection.
-    ///
     /// Package keys must stay byte-for-byte compatible with pnpm's existing
     /// store. Raw archives use a separate namespace so they never reuse legacy
     /// rows that were projected as npm packages (and therefore may contain a
@@ -55,6 +53,28 @@ impl ArchiveStoreProjection<'_> {
             Self::Package { .. } => store_index_key(integrity, package_id),
             Self::RawArchive => {
                 format!("raw-archive\t{}", store_index_key(integrity, package_id))
+            }
+        }
+    }
+
+    /// Ordinary package keys stay byte-for-byte compatible with the URL keys
+    /// inserted by resolve-time fetches. Only projections that can produce a
+    /// different file set receive a discriminator; synthesized manifests are
+    /// content-addressed so equal projections still share work.
+    pub(crate) fn mem_cache_key(self, package_url: &str, revision_addressed: bool) -> String {
+        match (self, revision_addressed) {
+            (Self::Package { append_manifest: None }, false) => package_url.to_string(),
+            (Self::Package { append_manifest: None }, true) => {
+                format!("revision-addressed:{package_url}")
+            }
+            (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
+            (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
+            (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
+                let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha256);
+                opts.input(manifest);
+                let manifest_integrity = opts.result();
+                let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
+                format!("{revision_prefix}package-manifest:{manifest_integrity}:{package_url}")
             }
         }
     }

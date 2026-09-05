@@ -163,8 +163,9 @@ pub enum CacheValue {
 
 /// Internal in-memory cache of tarballs.
 ///
-/// The key is the tarball URL, prefixed for revision-addressed fetches so
-/// redirect and retry policies never share a result.
+/// Ordinary package entries retain their tarball URL key. Revision-addressed
+/// fetches and projections that produce different file sets add a discriminator
+/// so incompatible network policies or archive views never share a result.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
 /// Install-scoped set of store-index cache keys
@@ -198,13 +199,13 @@ impl<'a> IngestTarballToStore<'a> {
     ///
     /// # Caller invariant: stable filter per URL
     ///
-    /// The cache is keyed on `package_url` and whether the request uses the
-    /// revision-addressed network policy. Within either policy, a second
-    /// caller fetching the same URL with a different [`ignore_file_pattern`]
-    /// silently receives the map the first caller's filter produced. Every
-    /// fetch of a URL must use the same filter. Nothing enforces this; today
-    /// it holds because URLs encode `(name, version, integrity)` and filters
-    /// are keyed by package name.
+    /// The cache is keyed on `package_url`, the archive projection, and
+    /// whether the request uses the revision-addressed network policy. Within
+    /// one key, a second caller fetching the same URL with a different
+    /// [`ignore_file_pattern`] silently receives the map the first caller's
+    /// filter produced. Every fetch of a URL must use the same filter. Nothing
+    /// enforces this; today it holds because URLs encode
+    /// `(name, version, integrity)` and filters are keyed by package name.
     ///
     /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
@@ -237,18 +238,14 @@ impl<'a> IngestTarballToStore<'a> {
             store_projection,
             ..
         } = &self;
-        let mem_cache_key = if revision_addressed {
-            format!("revision-addressed:{package_url}")
-        } else {
-            package_url.to_string()
-        };
+        let mem_cache_key = store_projection.mem_cache_key(package_url, revision_addressed);
         let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         // Hands the `Arc` on without deep-cloning the per-file map:
         // on a warm install every snapshot takes this path, and by 1k+
         // snapshots that clone dominates the memory traffic. The `Arc`
-        // is also stashed in `mem_cache` by URL so peer-resolved
+        // is also stashed under a projection-aware URL key so peer-resolved
         // variants of one package share it.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
@@ -572,8 +569,6 @@ impl<'a> IngestTarballToStore<'a> {
 
         match store_projection {
             ArchiveStoreProjection::Package { append_manifest } => {
-                // Fold a synthesized runtime `package.json` into the row before
-                // it is persisted, so warm reinstalls get the same package view.
                 if let Some(manifest_bytes) = append_manifest {
                     apply_append_manifest(
                         store_dir,

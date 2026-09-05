@@ -2218,6 +2218,153 @@ fn package_projection_preserves_existing_store_index_keys() {
     );
 }
 
+#[test]
+fn ordinary_package_projection_preserves_existing_mem_cache_keys() {
+    let package_url = "https://example.test/artifact.tgz";
+    let package = ArchiveStoreProjection::Package { append_manifest: None };
+
+    assert_eq!(package.mem_cache_key(package_url, false), package_url);
+    assert_eq!(
+        package.mem_cache_key(package_url, true),
+        format!("revision-addressed:{package_url}"),
+    );
+}
+
+#[test]
+fn mem_cache_keys_include_every_file_set_discriminator() {
+    let package_url = "https://example.test/artifact.tgz";
+    let raw = ArchiveStoreProjection::RawArchive.mem_cache_key(package_url, false);
+    let first_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let same_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let second_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"second"}"#) }
+            .mem_cache_key(package_url, false);
+
+    assert_ne!(raw, package_url);
+    assert_eq!(first_manifest, same_manifest);
+    assert_ne!(first_manifest, second_manifest);
+}
+
+#[tokio::test]
+async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"archive")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+
+    for package_first in [true, false] {
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let mem_cache = MemCache::default();
+        let ingest = |store_projection| IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: None,
+            store_index_writer: None,
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: None,
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id: "artifact@1.0.0",
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection,
+        };
+
+        let (package_files, raw_files) = if package_first {
+            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            let raw_files = ingest(ArchiveStoreProjection::RawArchive)
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            (package_files, raw_files)
+        } else {
+            let raw_files = ingest(ArchiveStoreProjection::RawArchive)
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            (package_files, raw_files)
+        };
+
+        let mut package_names = package_files.keys().map(String::as_str).collect::<Vec<_>>();
+        package_names.sort_unstable();
+        assert_eq!(package_names, ["README.md", "package.json"]);
+        assert_eq!(raw_files.keys().map(String::as_str).collect::<Vec<_>>(), ["README.md"]);
+        assert_eq!(mem_cache.len(), 2);
+        drop(store_dir);
+    }
+
+    drop(local_dir);
+}
+
+#[tokio::test]
+async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"archive")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let mem_cache = MemCache::default();
+    let ingest = |append_manifest| IngestTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "artifact@1.0.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: Some(append_manifest),
+        },
+    };
+    let first_manifest = br#"{"name":"first"}"#;
+    let second_manifest = br#"{"name":"second"}"#;
+
+    let first =
+        ingest(first_manifest).run_with_mem_cache::<SilentReporter>(&mem_cache).await.unwrap();
+    let second =
+        ingest(second_manifest).run_with_mem_cache::<SilentReporter>(&mem_cache).await.unwrap();
+
+    assert_eq!(std::fs::read(&first["package.json"]).unwrap(), first_manifest);
+    assert_eq!(std::fs::read(&second["package.json"]).unwrap(), second_manifest);
+    assert_eq!(mem_cache.len(), 2);
+    drop((store_dir, local_dir));
+}
+
 #[tokio::test]
 async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
     let local_dir = tempdir().unwrap();

@@ -555,7 +555,6 @@ pub struct IngestZipArchiveToStore<'a> {
     /// [`TarballError::NoOfflineTarball`] rather than hitting the
     /// network.
     pub offline: bool,
-    /// Synthesized `package.json` to fold into the extracted archive.
     /// Ecosystem-owned projection policy applied after verified extraction.
     pub store_projection: ArchiveStoreProjection<'a>,
 }
@@ -657,8 +656,6 @@ impl IngestZipArchiveToStore<'_> {
 
         match store_projection {
             ArchiveStoreProjection::Package { append_manifest } => {
-                // Fold a synthesized runtime `package.json` into the row before
-                // it is persisted, so warm reinstalls get the same package view.
                 if let Some(manifest_bytes) = append_manifest {
                     apply_append_manifest(
                         store_dir,
