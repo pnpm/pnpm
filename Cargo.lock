@@ -5985,6 +5985,7 @@ dependencies = [
  "pnpm-shared-artifact-protocol",
  "pnpm-store-dir",
  "pnpm-tarball",
+ "pnpm-testing-utils",
  "pnpr-auth",
  "pnpr-config",
  "pnpr-error",

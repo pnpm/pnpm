@@ -89,11 +89,12 @@ wax                           = { workspace = true }
 zip                           = { workspace = true }
 
 [dev-dependencies]
-mockito    = { workspace = true }
-pipe-trait = { workspace = true }
-tempfile   = { workspace = true }
-tokio      = { workspace = true }
-tower      = { workspace = true }
+mockito            = { workspace = true }
+pipe-trait         = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+tempfile           = { workspace = true }
+tokio              = { workspace = true }
+tower              = { workspace = true }
 
 [lints]
 workspace = true

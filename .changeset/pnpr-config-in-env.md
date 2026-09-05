@@ -2,4 +2,4 @@
 "@pnpm/pnpr": minor
 ---
 
-pnpr now reads its command-line options from environment variables when the corresponding flag is omitted: `PNPR_CONFIG`, `PNPR_LISTEN`, `PNPR_STORAGE`, `PNPR_CACHE`, `PNPR_PUBLIC_URL`, `PNPR_PACKUMENT_TTL_SECS`, `PNPR_OSV`, `PNPR_OSV_DB`, `PNPR_DISABLE_REGISTRY`, `PNPR_DISABLE_RESOLVER`, and `PNPR_DISABLE_ARTIFACTS`. Boolean flags accept common truthy and falsy strings such as `true`, `1`, `yes`, `false`, `0`, and `no`.
+pnpr now reads every command-line option from an environment variable when the flag is omitted. The variable is named after the flag with a `PNPR_` prefix, so `--public-url` becomes `PNPR_PUBLIC_URL` and `--disable-resolver` becomes `PNPR_DISABLE_RESOLVER`. A flag given on the command line wins over its environment variable. Boolean flags accept `true`, `1`, `yes`, `on`, `false`, `0`, `no`, and `off`.
