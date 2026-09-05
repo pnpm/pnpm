@@ -101,11 +101,13 @@ pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 # Registry (sibling project — pnpm-compatible registry server)
 pnpr                  = { path = "pnpr/crates/pnpr" }
 pnpr-auth             = { path = "pnpr/crates/auth" }
+pnpr-cargo            = { path = "pnpr/crates/cargo" }
 pnpr-config           = { path = "pnpr/crates/config" }
 pnpr-error            = { path = "pnpr/crates/error" }
 pnpr-osv              = { path = "pnpr/crates/osv" }
 pnpr-package-name     = { path = "pnpr/crates/package-name" }
 pnpr-policy           = { path = "pnpr/crates/policy" }
+pnpr-pypi             = { path = "pnpr/crates/pypi" }
 pnpr-registry         = { path = "pnpr/crates/registry" }
 pnpr-storage          = { path = "pnpr/crates/storage" }
 pnpr-route            = { path = "pnpr/crates/route" }

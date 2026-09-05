@@ -240,3 +240,32 @@ async fn static_mode_returns_404_for_unknown_tarball() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn serves_the_npm_surface_under_its_ecosystem_prefix() {
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
+
+    // `/npm/...` is the default target, `/npm/~<name>/...` a named registry;
+    // both are the same surface as the original path-less and `/~<name>/`
+    // addresses.
+    for path in ["/npm/@foo/no-deps", "/npm/~main/@foo/no-deps", "/npm/~local/@foo/no-deps"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(doc["name"], "@foo/no-deps", "{path}");
+    }
+    let response = app
+        .clone()
+        .oneshot(Request::get("/npm/@foo/no-deps/-/no-deps-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    // The account endpoints ride along under the alias.
+    let response = app
+        .oneshot(Request::get("/npm/~main/-/whoami").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+}

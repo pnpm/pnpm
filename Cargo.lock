@@ -6110,11 +6110,13 @@ dependencies = [
  "pnpm-tarball",
  "pnpm-testing-utils",
  "pnpr-auth",
+ "pnpr-cargo",
  "pnpr-config",
  "pnpr-error",
  "pnpr-osv",
  "pnpr-package-name",
  "pnpr-policy",
+ "pnpr-pypi",
  "pnpr-registry",
  "pnpr-route",
  "pnpr-search",
@@ -6129,6 +6131,7 @@ dependencies = [
  "sha2",
  "sqlx",
  "ssri",
+ "tar",
  "tempfile",
  "tokio",
  "tower 0.5.3",
@@ -6161,6 +6164,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-cargo"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "flate2",
+ "semver",
+ "serde",
+ "serde_json",
+ "tar",
+]
+
+[[package]]
 name = "pnpr-config"
 version = "0.0.1"
 dependencies = [
@@ -6171,9 +6186,11 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-env-replace",
  "pnpm-testing-utils",
+ "pnpr-cargo",
  "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
+ "pnpr-pypi",
  "pnpr-registry",
  "reqwest",
  "serde",
@@ -6252,12 +6269,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pnpr-pypi"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pep440_rs",
+ "pep508_rs",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pnpr-registry"
 version = "0.0.1"
 dependencies = [
  "indexmap 2.14.0",
  "pnpr-error",
  "pnpr-package-name",
+ "serde",
  "wax",
 ]
 

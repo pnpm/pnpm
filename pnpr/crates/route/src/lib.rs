@@ -419,7 +419,7 @@ impl RouteContext {
                 // package data to key.
                 return RouteClass::Public;
             };
-            return match self.registries.resolve_default(package) {
+            return match self.registries.resolve_default(pnpr_registry::Ecosystem::Npm, package) {
                 Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
                     self.classify_hosted(identity, registry, Some(package))
                 }

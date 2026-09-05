@@ -14,7 +14,7 @@ use object_store::{
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
-use pnpr_registry::{PackagePattern, Registries, Registry, RegistryConfigError};
+use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
@@ -898,6 +898,10 @@ enum RegistryFile {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct HostedFile {
+    /// The package ecosystem this registry serves, which selects the protocol
+    /// spoken at its `/~<name>/` endpoint. Omitted ⇒ `npm`.
+    #[serde(default)]
+    ecosystem: Ecosystem,
     /// Storage namespace for this registry's packages, so two hosted registries can
     /// hold the same `name@version` without colliding. Omitted ⇒ the flat
     /// `storage` root (`""`).
@@ -928,6 +932,12 @@ struct HostedFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpstreamFile {
+    /// The package ecosystem the origin serves, which selects the protocol
+    /// pnpr proxies at `/~<name>/` and speaks to `url`. Omitted ⇒ `npm`. For
+    /// `cargo`, `url` is a sparse index root (`https://index.crates.io/`); for
+    /// `pypi`, a Simple API root (`https://pypi.org/simple/`).
+    #[serde(default)]
+    ecosystem: Ecosystem,
     url: String,
     /// An anonymous, world-readable origin (e.g. the public npm registry).
     /// Mutually exclusive with `auth`.
@@ -1862,6 +1872,7 @@ fn build_registries(
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
     let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
     let mut graph: IndexMap<String, Registry> = IndexMap::new();
+    let mut ecosystems: IndexMap<String, Ecosystem> = IndexMap::new();
     // Every configured upstream is, by definition, an upstream registry addressable
     // at `/~<name>/`. No declared patterns ⇒ it serves every name.
     for name in upstreams.keys() {
@@ -1888,9 +1899,12 @@ fn build_registries(
                 }
                 let teams = build_teams(&name, &registry.teams)?;
                 let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
-                let rules = build_rules(&name, &registry.packages, access, &teams)?;
+                let packages =
+                    ecosystem_package_keys(&name, registry.ecosystem, registry.packages)?;
+                let rules = build_rules(&name, &packages, access, &teams)?;
                 let patterns = rules.patterns();
                 hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
+                ecosystems.insert(name.clone(), registry.ecosystem);
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
@@ -1902,7 +1916,10 @@ fn build_registries(
                 // write can land on — fails startup on every tier too.
                 let teams = build_teams(&name, &upstream.teams)?;
                 let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
-                let rules = build_rules(&name, &upstream.packages, access, &teams)?;
+                let packages =
+                    ecosystem_package_keys(&name, upstream.ecosystem, upstream.packages.clone())?;
+                let rules = build_rules(&name, &packages, access, &teams)?;
+                ecosystems.insert(name.clone(), upstream.ecosystem);
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
@@ -1925,9 +1942,48 @@ fn build_registries(
             }
         }
     }
-    let registries = Registries::new(graph, default_registry);
+    let registries = ecosystems
+        .iter()
+        .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
+        .fold(Registries::new(graph, default_registry), |registries, (name, ecosystem)| {
+            registries.with_ecosystem(name, *ecosystem)
+        });
     registries.validate().map_err(|err| registry_err(&err))?;
     Ok((hosted, registries))
+}
+
+/// A registry's `packages:` keys in the spelling its ecosystem matches
+/// requests by. Crate names are compared lowercase and Python project names
+/// normalized (PEP 503), so a `cargo` or `pypi` registry's exact-name keys
+/// are canonicalized here, and a key no registry of that ecosystem could
+/// serve is a config error. The wildcard shapes and npm keys pass through
+/// unchanged.
+fn ecosystem_package_keys(
+    registry: &str,
+    ecosystem: Ecosystem,
+    packages: IndexMap<String, Option<PackageAccess>>,
+) -> Result<IndexMap<String, Option<PackageAccess>>, RegistryError> {
+    let canonical = |key: &str| -> Result<String, String> {
+        match ecosystem {
+            Ecosystem::Npm => Ok(key.to_string()),
+            Ecosystem::Cargo => pnpr_cargo::validate_crate_name(key)
+                .map(|()| key.to_ascii_lowercase())
+                .map_err(|err| err.to_string()),
+            Ecosystem::Pypi => pnpr_pypi::normalize_name(key).map_err(|err| err.to_string()),
+        }
+    };
+    packages
+        .into_iter()
+        .map(|(key, access)| {
+            if key.contains('*') {
+                return Ok((key, access));
+            }
+            let key = canonical(&key).map_err(|reason| RegistryError::InvalidConfig {
+                reason: format!("{ecosystem} registry {registry:?} `packages:` key: {reason}"),
+            })?;
+            Ok((key, access))
+        })
+        .collect()
 }
 
 /// Two hosted registries sharing an `org` would read and write the same

@@ -10,6 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::TokenRecord;
 use pnpr_error::RegistryError;
 use pnpr_policy::{Identity, PackageRules};
@@ -86,9 +87,10 @@ pub(super) async fn authenticate(
         Err(err) => return err.into_response(),
     };
     let method = request.method().clone();
+    let path = request.uri().path().to_owned();
     let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
 
-    let identity = match resolve_caller(&state, header.as_deref(), &method, peer).await {
+    let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),
     };
@@ -97,31 +99,58 @@ pub(super) async fn authenticate(
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
-/// backend exactly once. A bearer token is looked up as a full record so
-/// its read-only / CIDR restrictions can be enforced here (a violation is
-/// a `Forbidden` error); an unknown bearer token, a non-`Bearer` scheme
-/// (e.g. legacy `Basic`), and a missing header all resolve to
-/// [`Identity::Anonymous`]. `Err` is a backing-store failure, surfaced as a
-/// 5xx so an outage isn't mistaken for "not authenticated".
+/// backend exactly once. A pnpr token — however the client carried it, see
+/// [`token_credentials`] — is looked up as a full record so its read-only /
+/// CIDR restrictions can be enforced here (a violation is a `Forbidden`
+/// error); an unknown token, any other credential shape, and a missing
+/// header all resolve to [`Identity::Anonymous`]. `Err` is a backing-store
+/// failure, surfaced as a 5xx so an outage isn't mistaken for "not
+/// authenticated".
 async fn resolve_caller(
     state: &AppState,
     header: Option<&str>,
     method: &Method,
+    path: &str,
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
-    if let Some(raw_token) = header.and_then(bearer_credentials) {
-        let Some(record) = state.inner.auth.tokens.lookup_record(raw_token).await? else {
+    if let Some(raw_token) = header.and_then(token_credentials) {
+        let Some(record) = state.inner.auth.tokens.lookup_record(&raw_token).await? else {
             return Ok(Identity::Anonymous);
         };
-        check_token_restrictions(&record, method, peer)?;
+        check_token_restrictions(&record, method, path, peer)?;
         return Ok(Identity::user(record.username));
     }
-    // Anything that is not a bearer token — Basic, another scheme, or no
-    // credentials — carries no request identity. Going through `identify`
-    // here would re-run the bearer lookup and bypass the restriction checks
-    // above, so resolve straight to anonymous.
+    // Anything that is not a pnpr token — a user:password Basic pair, another
+    // scheme, or no credentials — carries no request identity. Going through
+    // `identify` here would re-run the token lookup and bypass the
+    // restriction checks above, so resolve straight to anonymous.
     Ok(Identity::Anonymous)
 }
+
+/// The pnpr token an `Authorization` header carries, in any of the shapes
+/// the supported clients send: `Bearer <token>` (npm, pnpm), the bare
+/// `<token>` with no scheme (`cargo`, which sends registry tokens raw), or
+/// `Basic` with the pypi.org `__token__` pseudo-user and the token as password
+/// (`twine`, `pip`). A `Basic` pair with any other username is not a token.
+pub(super) fn token_credentials(header_value: &str) -> Option<String> {
+    let value = header_value.trim();
+    if let Some(bearer) = bearer_credentials(value) {
+        return Some(bearer.to_string());
+    }
+    let Some((scheme, credentials)) = value.split_once(' ') else {
+        return (!value.is_empty()).then(|| value.to_string());
+    };
+    if !scheme.eq_ignore_ascii_case("Basic") {
+        return None;
+    }
+    let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
+    let decoded = String::from_utf8(decoded).ok()?;
+    let (username, password) = decoded.split_once(':')?;
+    (username == PYPI_TOKEN_USERNAME && !password.is_empty()).then(|| password.to_string())
+}
+
+/// The username pypi.org clients pair an API token with in `Basic` credentials.
+const PYPI_TOKEN_USERNAME: &str = "__token__";
 
 /// Enforce a bearer token's own restrictions. A read-only token may not
 /// drive a mutating request; a CIDR-pinned token may only be used from a
@@ -130,9 +159,10 @@ async fn resolve_caller(
 fn check_token_restrictions(
     record: &TokenRecord,
     method: &Method,
+    path: &str,
     peer: Option<SocketAddr>,
 ) -> Result<(), RegistryError> {
-    if record.readonly && is_write_method(method) {
+    if record.readonly && is_write_request(method, path) {
         return Err(RegistryError::Forbidden {
             user: record.username.clone(),
             action: "write with",
@@ -219,12 +249,29 @@ pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
     scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
 }
 
-/// Whether `method` mutates registry state. Every write surface (publish,
-/// unpublish, dist-tag add/remove, adduser, logout, token revoke) is a
-/// PUT or DELETE; reads and the resolver POSTs are not. A read-only token
-/// is confined to the non-mutating methods.
-pub(super) fn is_write_method(method: &Method) -> bool {
+/// Whether a request mutates registry state. Every npm and Cargo write
+/// surface (publish, unpublish, dist-tag add/remove, yank, adduser, logout,
+/// token revoke) is a PUT or DELETE; reads and the resolver POSTs are not.
+/// The one mutating POST is the Python legacy upload API, recognized by its
+/// path. A read-only token is confined to the non-mutating requests.
+pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
     matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
+        || (*method == Method::POST && is_python_upload_path(path))
+}
+
+fn is_python_upload_path(path: &str) -> bool {
+    // `/pypi/legacy` or `/pypi/~<name>/legacy`.
+    let mut segments = path.trim_matches('/').split('/');
+    if segments.next() != Some(pnpr_registry::Ecosystem::Pypi.as_str()) {
+        return false;
+    }
+    match (segments.next(), segments.next(), segments.next()) {
+        (Some(upload), None, None) => upload == pnpr_pypi::UPLOAD_PATH,
+        (Some(registry), Some(upload), None) => {
+            super::tilde_registry(registry).is_some() && upload == pnpr_pypi::UPLOAD_PATH
+        }
+        _ => false,
+    }
 }
 
 /// Whether `peer` falls inside any range of a token's CIDR whitelist. An

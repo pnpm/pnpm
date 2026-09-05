@@ -28,14 +28,14 @@ use pnpr_upstream::Upstream;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, compute_upstream_cache_namespace,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, cargo, compute_upstream_cache_namespace,
     default_registry_target, delete_package, delete_session_token, delete_tarball,
     delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
     get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
-    private_if_caller_gated, private_no_cache, publish_package, put_login, reject_team_mutation,
-    remove_dist_tag, require_artifact_caller, require_resolver_caller, serve_artifact_blob,
-    serve_batch_publish, serve_org_packages, serve_packument, serve_ping, serve_pnpr_handshake,
-    serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
+    private_if_caller_gated, private_no_cache, publish_package, put_login, pypi,
+    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
+    serve_artifact_blob, serve_batch_publish, serve_org_packages, serve_packument, serve_ping,
+    serve_pnpr_handshake, serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
     serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
     serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
     serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
@@ -105,39 +105,8 @@ pub(super) fn router_with_auth_and_osv(
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
-    // The account endpoints — adduser/login, whoami, profile, token
-    // listing/revocation, logout — are pnpr account management, not
-    // npm-registry functionality: they mint and manage the tokens every
-    // authenticated surface demands, so they ride every tier alongside
-    // `/-/ping`. A resolver- or artifacts-only tier can then issue its own credentials
-    // (`pnpm login --registry https://<resolver-host>/`) instead of
-    // depending on a registry-serving replica that shares the auth backend.
-    //
-    // Each endpoint also answers under any `/~<prefix>/`, so a client whose
-    // registry URL is a registry endpoint can log in against it. The identity
-    // endpoints are global and consult no registry state; a registry-table lookup
-    // would gate nothing while turning the 401-vs-404 split into an
-    // existence oracle for private registry names that the content handlers
-    // carefully mask.
-    router = router
-        .route("/-/whoami", get(get_whoami))
-        .route("/{prefix}/-/whoami", get(get_whoami))
-        .route(
-            "/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route(
-            "/{prefix}/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route("/-/user/token/{token}", delete(delete_session_token))
-        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
-        .route("/-/npm/v1/user", get(get_profile))
-        .route("/{prefix}/-/npm/v1/user", get(get_profile))
-        .route("/-/npm/v1/tokens", get(get_token_list))
-        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
-        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
-        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key));
+    let account = account_routes();
+    router = router.merge(account.clone());
     // The install-accelerator and shared-artifact surfaces live under the
     // reserved `/-/pnpr` namespace. The handshake advertises each protocol
     // independently, so either surface can be mounted on its own.
@@ -206,50 +175,20 @@ pub(super) fn router_with_auth_and_osv(
     // declared, or `--disable-registry`), none of these routes are mounted.
     // Resolver- and artifacts-only tiers expose no registry surface at all.
     if registry_enabled {
+        let npm = npm_registry_routes();
         router = router
-            // Batch publish: one request carrying many packages' publish
-            // documents. Not part of the standard npm registry API —
-            // `pnpm publish --batch` opts into it explicitly.
-            .route("/-/pnpm/v1/publish", put(serve_batch_publish))
-            // Staged (two-phase) publishing — the `pnpm stage` surface.
-            // Static `-`/`stage` segments take priority over the generic
-            // segment-count routes below, so these never shadow package
-            // reads. Each route has a `/~<name>/`-prefixed twin so a client
-            // whose registry URL is a registry endpoint can stage through it.
-            .route("/-/stage", get(staged::list_staged))
-            .route("/-/stage/package/{name}", post(staged::post_staged_publish))
-            .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-            .route("/-/stage/{id}/approve", post(staged::approve_staged))
-            .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-            .route("/{prefix}/-/stage", get(staged::list_staged))
-            .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
-            .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-            .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
-            .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-            .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-            .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-            .route(
-                "/{first}/{second}/{third}",
-                get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-            )
-            .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-            .route(
-                "/{a}/{b}/{c}/{d}",
-                get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
-            )
-            .route(
-                "/{a}/{b}/{c}/{d}/{e}",
-                get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-            )
-            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
-            // plus the registry-addressed dist-tag write and unscoped tarball delete.
-            .route(
-                "/{a}/{b}/{c}/{d}/{e}/{f}",
-                get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
-            )
-            // Registry-addressed scoped tarball delete:
-            // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
-            .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
+            // The npm surface keeps its original addresses (the path-less base
+            // and `/~<name>/`) and gains the ecosystem-scoped alias every
+            // surface has: `/npm/...` and `/npm/~<name>/...`. The account
+            // endpoints ride along under the alias so a client can log in
+            // against `/npm/~<name>/`. Under the original addresses the first
+            // segments `npm`, `cargo`, and `pypi` are reserved for the
+            // ecosystem prefixes, so the npm packages of those names are
+            // reached through the alias (`/npm/npm`).
+            .merge(npm.clone())
+            .nest("/npm", account.merge(npm))
+            .merge(cargo::routes())
+            .merge(pypi::routes());
     }
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -320,6 +259,92 @@ pub(super) fn router_with_auth_and_osv(
                 .on_failure(()),
         );
     Ok(router.with_state(state))
+}
+
+/// The account endpoints — adduser/login, whoami, profile, token
+/// listing/revocation, logout. They are pnpr account management, not
+/// npm-registry functionality: they mint and manage the tokens every
+/// authenticated surface demands, so they ride every tier alongside
+/// `/-/ping`. A resolver- or artifacts-only tier can then issue its own
+/// credentials (`pnpm login --registry https://<resolver-host>/`) instead of
+/// depending on a registry-serving replica that shares the auth backend.
+///
+/// Each endpoint also answers under any `/~<prefix>/`, so a client whose
+/// registry URL is a registry endpoint can log in against it. The identity
+/// endpoints are global and consult no registry state; a registry-table lookup
+/// would gate nothing while turning the 401-vs-404 split into an existence
+/// oracle for private registry names that the content handlers carefully mask.
+fn account_routes() -> Router<AppState> {
+    Router::new()
+        .route("/-/whoami", get(get_whoami))
+        .route("/{prefix}/-/whoami", get(get_whoami))
+        .route(
+            "/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(
+            "/{prefix}/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route("/-/user/token/{token}", delete(delete_session_token))
+        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
+        .route("/-/npm/v1/user", get(get_profile))
+        .route("/{prefix}/-/npm/v1/user", get(get_profile))
+        .route("/-/npm/v1/tokens", get(get_token_list))
+        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
+        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+}
+
+/// The npm-registry surface: every packument/tarball read, publish,
+/// unpublish, dist-tag, and search. Mounted only when the registry feature is
+/// on (registries declared and not `--disable-registry`), so resolver- and
+/// artifacts-only tiers expose no registry surface at all.
+fn npm_registry_routes() -> Router<AppState> {
+    Router::new()
+        // Batch publish: one request carrying many packages' publish
+        // documents. Not part of the standard npm registry API —
+        // `pnpm publish --batch` opts into it explicitly.
+        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+        // Staged (two-phase) publishing — the `pnpm stage` surface.
+        // Static `-`/`stage` segments take priority over the generic
+        // segment-count routes below, so these never shadow package
+        // reads. Each route has a `/~<name>/`-prefixed twin so a client
+        // whose registry URL is a registry endpoint can stage through it.
+        .route("/-/stage", get(staged::list_staged))
+        .route("/-/stage/package/{name}", post(staged::post_staged_publish))
+        .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+        .route("/-/stage/{id}/approve", post(staged::approve_staged))
+        .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+        .route("/{prefix}/-/stage", get(staged::list_staged))
+        .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
+        .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
+        .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
+        .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
+        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
+        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
+        .route(
+            "/{first}/{second}/{third}",
+            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+        )
+        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
+        .route(
+            "/{a}/{b}/{c}/{d}",
+            get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
+        )
+        .route(
+            "/{a}/{b}/{c}/{d}/{e}",
+            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
+        )
+        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
+        // plus the registry-addressed dist-tag write and unscoped tarball delete.
+        .route(
+            "/{a}/{b}/{c}/{d}/{e}/{f}",
+            get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
+        )
+        // Registry-addressed scoped tarball delete:
+        // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
+        .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments))
 }
 
 // --------------------------------------------------------------------

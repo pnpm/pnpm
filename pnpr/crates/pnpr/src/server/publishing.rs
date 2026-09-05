@@ -13,7 +13,7 @@ use ssri::Integrity;
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::Registry;
+use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedPackumentVersion, PackumentWrite, TarballFinalize,
     journal::{JournaledPublish, JournaledRevisionRef},
@@ -26,7 +26,7 @@ use pnpr_storage::{
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
     authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    resolve_registry_source, resolve_write_target,
+    resolve_ecosystem_source, resolve_write_target,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -59,10 +59,11 @@ pub(super) enum PublishTarget {
 /// path-less base routes through its default-target registry; with no default
 /// target the bare host has no registry and the publish is a not-found,
 /// exactly like a read.
-pub(super) fn resolve_publish_target(
+pub(super) fn resolve_publish_target_for(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
+    ecosystem: Ecosystem,
     package: &str,
 ) -> PublishTarget {
     let (target, context) = match registry {
@@ -72,7 +73,7 @@ pub(super) fn resolve_publish_target(
             None => return PublishTarget::NotFound,
         },
     };
-    match resolve_registry_source(state, &target, package) {
+    match resolve_ecosystem_source(state, &target, ecosystem, package) {
         RegistrySource::Hosted(registry) => {
             match hosted_gate(state, identity, &registry, package) {
                 HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
