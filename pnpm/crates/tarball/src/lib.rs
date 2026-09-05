@@ -234,6 +234,7 @@ impl<'a> IngestTarballToStore<'a> {
             package_integrity,
             prefetched_cas_paths,
             requester,
+            store_projection,
             ..
         } = &self;
         let mem_cache_key = if revision_addressed {
@@ -241,7 +242,7 @@ impl<'a> IngestTarballToStore<'a> {
         } else {
             package_url.to_string()
         };
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         // Hands the `Arc` on without deep-cloning the per-file map:
@@ -441,7 +442,7 @@ impl<'a> IngestTarballToStore<'a> {
         // The lookup is best-effort. A missing `index.db`, a missing row,
         // an undecodable entry, or any CAFS file that has gone missing
         // from disk all fall through to the download path below.
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         // Deep-clones the inner map, unlike the `Arc`-preserving path
         // in `run_with_mem_cache`: this signature returns an owned
@@ -511,7 +512,7 @@ impl<'a> IngestTarballToStore<'a> {
             store_projection,
             ..
         } = self;
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         let store_index_writer = self.store_index_writer.clone();
         // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
@@ -601,8 +602,9 @@ impl<'a> IngestTarballToStore<'a> {
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
         let cache_key = cache_key.or_else(|| {
-            record_computed_integrity
-                .then(|| store_index_key(&computed_integrity.to_string(), package_id))
+            record_computed_integrity.then(|| {
+                store_projection.store_index_key(&computed_integrity.to_string(), package_id)
+            })
         });
         match (cache_key, store_index_writer) {
             (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),

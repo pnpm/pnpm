@@ -20,7 +20,7 @@ use pnpm_reporter::{
 };
 use pnpm_store_dir::{
     CafsFileInfo, FileHash, PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache,
-    StoreDir, StoreIndexWriter, WriteCasFileFromReaderError, store_index_key,
+    StoreDir, StoreIndexWriter, WriteCasFileFromReaderError,
 };
 use ssri::Integrity;
 
@@ -594,7 +594,8 @@ impl IngestZipArchiveToStore<'_> {
         // so clone it out by hand.
         let ignore_file_pattern = self.ignore_file_pattern.clone();
 
-        let cache_key = store_index_key(&package_integrity.to_string(), package_id);
+        let cache_key =
+            store_projection.store_index_key(&package_integrity.to_string(), package_id);
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cas_paths) = prefetched.get(&cache_key)
         {
@@ -671,7 +672,8 @@ impl IngestZipArchiveToStore<'_> {
             ArchiveStoreProjection::RawArchive => {}
         }
 
-        let index_key = store_index_key(&package_integrity.to_string(), package_id);
+        let index_key =
+            store_projection.store_index_key(&package_integrity.to_string(), package_id);
         if let Some(writer) = store_index_writer {
             writer.queue(index_key, pkg_files_idx);
         } else {

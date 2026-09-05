@@ -43,6 +43,22 @@ pub enum ArchiveStoreProjection<'a> {
 }
 
 impl ArchiveStoreProjection<'_> {
+    /// Build the store-index key for this projection.
+    ///
+    /// Package keys must stay byte-for-byte compatible with pnpm's existing
+    /// store. Raw archives use a separate namespace so they never reuse legacy
+    /// rows that were projected as npm packages (and therefore may contain a
+    /// synthesized `package.json`).
+    #[must_use]
+    pub fn store_index_key(self, integrity: &str, package_id: &str) -> String {
+        match self {
+            Self::Package { .. } => store_index_key(integrity, package_id),
+            Self::RawArchive => {
+                format!("raw-archive\t{}", store_index_key(integrity, package_id))
+            }
+        }
+    }
+
     pub(crate) fn package_content_check(self, strict: bool) -> PackageContentCheck {
         match self {
             Self::Package { .. } if strict => PackageContentCheck::Strict,
@@ -1082,6 +1098,8 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
 pub(crate) fn store_index_cache_key(
     package_integrity: Option<&Integrity>,
     package_id: &str,
+    store_projection: ArchiveStoreProjection<'_>,
 ) -> Option<String> {
-    package_integrity.map(|integrity| store_index_key(&integrity.to_string(), package_id))
+    package_integrity
+        .map(|integrity| store_projection.store_index_key(&integrity.to_string(), package_id))
 }

@@ -3,7 +3,7 @@ use super::{
     RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
         IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
-        slow_download_warning,
+        slow_download_warning, store_index_cache_key,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
@@ -2203,6 +2203,21 @@ fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
     encoder.finish().expect("finish gzip")
 }
 
+#[test]
+fn package_projection_preserves_existing_store_index_keys() {
+    let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
+    let package_id = "artifact@1.0.0";
+
+    assert_eq!(
+        store_index_cache_key(
+            Some(&integrity),
+            package_id,
+            ArchiveStoreProjection::Package { append_manifest: None },
+        ),
+        Some(store_index_key(&integrity.to_string(), package_id)),
+    );
+}
+
 #[tokio::test]
 async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
     let local_dir = tempdir().unwrap();
@@ -2252,7 +2267,12 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
     StoreIndex::open_in(store_path)
         .unwrap()
         .set(
-            &store_index_key(&integrity.to_string(), package_id),
+            &store_index_cache_key(
+                Some(&integrity),
+                package_id,
+                ArchiveStoreProjection::RawArchive,
+            )
+            .unwrap(),
             &PackageFilesIndex {
                 manifest: Some(serde_json::json!({ "name": "unrelated", "version": "2.0.0" })),
                 requires_build: Some(false),
@@ -2301,6 +2321,92 @@ async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
 
     assert_eq!(cas_paths, HashMap::from([("README.md".to_string(), cas_path)]));
     drop(store_dir);
+}
+
+#[tokio::test]
+async fn raw_archive_projection_ignores_legacy_package_rows() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    let archive = gzipped_tar(&[("artifact/README.md", b"fresh raw artifact")]);
+    std::fs::write(&tarball_path, &archive).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let mut integrity_opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    integrity_opts.input(&archive);
+    let integrity = integrity_opts.result();
+    let package_id = "crate:artifact@1.0.0";
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let legacy_contents = b"{}";
+    let (_, legacy_file_hash) = store_path.write_cas_file(legacy_contents, false).unwrap();
+    let legacy_key = store_index_key(&integrity.to_string(), package_id);
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &legacy_key,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    "package.json".to_string(),
+                    CafsFileInfo {
+                        digest: format!("{legacy_file_hash:x}"),
+                        mode: 0o644,
+                        size: legacy_contents.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: Some(Arc::clone(&writer)),
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a legacy npm-projected row must not satisfy a raw archive read");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), ["README.md"]);
+    assert_eq!(std::fs::read(&cas_paths["README.md"]).unwrap(), b"fresh raw artifact");
+
+    drop(writer);
+    writer_task.await.expect("writer task").expect("writer flushed");
+    let raw_key =
+        store_index_cache_key(Some(&integrity), package_id, ArchiveStoreProjection::RawArchive)
+            .unwrap();
+    assert_ne!(raw_key, legacy_key);
+
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    assert!(index.get(&legacy_key).unwrap().is_some(), "legacy row is retained");
+    let raw_entry = index.get(&raw_key).unwrap().expect("raw row is indexed separately");
+    assert_eq!(raw_entry.files.keys().collect::<Vec<_>>(), ["README.md"]);
+
+    drop((index, store_dir, local_dir));
 }
 
 /// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
