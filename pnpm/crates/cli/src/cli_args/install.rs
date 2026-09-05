@@ -357,8 +357,9 @@ impl InstallArgs {
     /// every input that would make [`Install::run`] skip its own
     /// short-circuit or do extra pre-install work: an explicit
     /// `--frozen-lockfile` / `--lockfile-only`, config
-    /// dependencies, and pnpmfile `updateConfig` hooks (both can
-    /// mutate the config the check compares against). A configured
+    /// dependencies, Cargo dependency management, and pnpmfile
+    /// `updateConfig` hooks (these can mutate state the npm-only check does
+    /// not cover). A configured
     /// pnpr server deliberately does NOT bail: the check decides
     /// purely locally that nothing changed, and asking the server
     /// cannot change that answer
@@ -378,6 +379,7 @@ impl InstallArgs {
             || self.fix_lockfile
             || self.force
             || self.verify_deps_before_run_install
+            || config.cargo.enabled
         {
             return false;
         }

@@ -189,6 +189,12 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct CargoSettings {
+    pub enabled: bool,
+}
+
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.
 #[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
@@ -399,6 +405,7 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub cargo: Option<CargoSettings>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
@@ -1539,6 +1546,7 @@ impl WorkspaceSettings {
             }
         }
         self.versioning = None;
+        self.cargo = None;
         self.packages = None;
         self.catalog = None;
         // Task declarations describe the workspace's own scripts; pnpm's
@@ -2099,6 +2107,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
+        }
+        if let Some(v) = self.cargo {
+            config.cargo = v;
         }
         if let Some(v) = self.remote_side_effects_cache {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);

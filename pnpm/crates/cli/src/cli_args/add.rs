@@ -1,5 +1,6 @@
 use crate::{
     State,
+    cargo_manifest::CargoDependencyKind,
     cli_args::{
         install::resolve_bool_override, lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
@@ -39,6 +40,9 @@ pub struct AddDependencyOptions {
     /// Install the specified packages as optionalDependencies.
     #[clap(short = 'O', long)]
     save_optional: bool,
+    /// Install crate: packages as Cargo build dependencies.
+    #[clap(long = "save-build")]
+    save_build: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
     #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
@@ -49,6 +53,10 @@ pub struct AddDependencyOptions {
 }
 
 impl AddDependencyOptions {
+    pub(crate) fn save_build(&self) -> bool {
+        self.save_build
+    }
+
     /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
     fn with_save_peer_setting(self, save_peer: bool) -> Self {
         Self {
@@ -63,10 +71,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_prod || (!save_dev && !save_optional && !save_peer)
+        save_prod || (!save_dev && !save_optional && !save_build && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
@@ -75,10 +84,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_dev || (!save_prod && !save_optional && save_peer)
+        save_dev || (!save_prod && !save_optional && !save_build && save_peer)
     }
 
     /// Whether to add entry to `"optionalDependencies"`.
@@ -89,6 +99,38 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"peerDependencies"`.
     fn save_peer(&self) -> bool {
         self.save_peer
+    }
+
+    pub(crate) fn cargo_dependency_kind(
+        &self,
+        has_node_packages: bool,
+    ) -> miette::Result<CargoDependencyKind> {
+        if self.save_optional || self.save_peer {
+            return Err(miette::miette!(
+                "crate: dependencies do not support --save-optional or --save-peer"
+            ));
+        }
+        if self.save_build && has_node_packages {
+            return Err(miette::miette!(
+                "--save-build cannot be applied to Node.js packages in a mixed add"
+            ));
+        }
+        let selected = [self.save_prod, self.save_dev, self.save_build]
+            .into_iter()
+            .filter(|selected| *selected)
+            .count();
+        if selected > 1 {
+            return Err(miette::miette!(
+                "crate: dependencies can be added to only one dependency table at a time"
+            ));
+        }
+        Ok(if self.save_dev {
+            CargoDependencyKind::Development
+        } else if self.save_build {
+            CargoDependencyKind::Build
+        } else {
+            CargoDependencyKind::Normal
+        })
     }
 
     /// Convert the `--save-*` flags to an iterator of [`DependencyGroup`]
@@ -110,10 +152,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_peer)
+        (save_prod || save_dev || save_optional || save_build || save_peer)
             .then(|| self.dependency_groups().collect())
     }
 }

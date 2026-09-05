@@ -31,7 +31,7 @@ use super::{
     update::UpdateArgs,
     update_notifier,
 };
-use crate::State;
+use crate::{State, package_specifier::PackageSpecifierPlan};
 use miette::Context;
 use pnpm_config::Config;
 use pnpm_default_reporter::DefaultReporter;
@@ -39,7 +39,14 @@ use pnpm_reporter::{NdjsonReporter, SilentReporter};
 use std::path::Path;
 
 pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<CommandFuture<'a>> {
+    let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
+    if args.dependency_options.save_build() && !package_specifier_plan.has_cargo() {
+        return Err(miette::miette!("--save-build requires at least one crate: dependency"));
+    }
     if args.global {
+        if package_specifier_plan.has_cargo() {
+            return Err(miette::miette!("crate: dependencies cannot be installed globally"));
+        }
         let config = (ctx.global_config)()?;
         args.lockfile_dir.apply_to_global(config)?;
         args.apply_cli_config(config);
@@ -60,6 +67,9 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     }
     // Parsed up front: `AddPipeline::run` scaffolds a `package.json` through
     // `State::init`, and an invalid selector must be rejected before that.
+    if args.config && package_specifier_plan.has_cargo() {
+        return Err(miette::miette!("crate: dependencies cannot be configuration dependencies"));
+    }
     let config_dependencies = args.parse_config_dependencies()?;
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
@@ -91,6 +101,7 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
             manifest_path: manifest_path.to_path_buf(),
             recursive_sort,
             config_dependencies,
+            package_specifier_plan,
         };
         let added = match reporter {
             ReporterType::Default | ReporterType::AppendOnly => {

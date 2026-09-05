@@ -16,6 +16,7 @@ path = "src/bin/main.rs"
 
 [dependencies]
 pnpm-auth-commands                     = { workspace = true }
+pnpm-cargo-resolver                    = { workspace = true }
 pnpm-catalogs-config                   = { workspace = true }
 pnpm-catalogs-protocol-parser          = { workspace = true }
 pnpm-catalogs-resolver                 = { workspace = true }
@@ -73,6 +74,7 @@ pnpm-workspace-projects-filter         = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
 pnpm-workspace-task-scheduler          = { workspace = true }
 
+cargo-lock           = { workspace = true }
 chrono               = { workspace = true }
 clap                 = { workspace = true }
 console              = { workspace = true }
@@ -100,6 +102,7 @@ rmp-serde            = { workspace = true }
 same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
+semver               = { workspace = true }
 shell-words          = { workspace = true }
 ssri                 = { workspace = true }
 tabled               = { workspace = true }
