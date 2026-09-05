@@ -1,6 +1,7 @@
 mod download;
 mod error;
 mod extract;
+mod extraction_task;
 mod local_tarball;
 mod prefetch;
 mod zip_archive;
