@@ -92,7 +92,7 @@ Please unset the scriptShell option, or configure it to a .exe instead.
   }
   if (opts.args?.length && m.scripts?.[stage]) {
     // It is impossible to quote a command line argument that contains newline for Windows cmd.
-    const escapedArgs = isWindows()
+    const escapedArgs = isWindows() && !opts.shellEmulator
       ? opts.args.map((arg) => JSON.stringify(arg)).join(' ')
       : shellQuote(opts.args)
     m.scripts[stage] = `${m.scripts[stage]} ${escapedArgs}`
