@@ -4,7 +4,7 @@ import path from 'node:path'
 import { expect, test } from '@jest/globals'
 import { createHash } from '@pnpm/crypto.hash'
 import { prepare, preparePackages } from '@pnpm/prepare'
-import { getIntegrity } from '@pnpm/testing.registry-mock'
+import { getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { PackageManifest } from '@pnpm/types'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -292,6 +292,35 @@ export const hooks = {
 
   const nodeModulesFiles = fs.readdirSync('node_modules')
   expect(nodeModulesFiles).toContain('kind-of')
+  expect(nodeModulesFiles).toContain('is-number')
+})
+
+test('the command line outranks the updateConfig hook', async () => {
+  prepare()
+
+  fs.writeFileSync('.pnpmfile.mjs', `
+export const hooks = {
+  updateConfig: (config) => ({
+    ...config,
+    nodeLinker: 'isolated',
+    registriesByScope: {
+      ...config.registriesByScope,
+      default: 'http://localhost:1/',
+    },
+  }),
+}`, 'utf8')
+  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
+
+  await execPnpm([
+    'add',
+    'is-odd@1.0.0',
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '--node-linker=hoisted',
+    '--fetch-retries=0',
+  ])
+
+  const nodeModulesFiles = fs.readdirSync('node_modules')
+  expect(nodeModulesFiles).toContain('is-odd')
   expect(nodeModulesFiles).toContain('is-number')
 })
 

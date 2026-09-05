@@ -320,9 +320,11 @@ impl CliArgs {
                 }
                 if let Some(store_dir) = store_dir.as_deref() {
                     apply_store_dir_override::<Host>(&mut cfg, store_dir, anchor)?;
+                    cfg.cli_settings.insert("storeDir".to_string());
                 }
                 if let Some(state_dir) = state_dir.as_deref() {
                     apply_state_dir_override::<Host>(&mut cfg, state_dir, anchor);
+                    cfg.cli_settings.insert("stateDir".to_string());
                 }
                 // `--recursive` / `--filter` / `--filter-prod` /
                 // `--workspace-root` / `--fail-if-no-match` are CLI-only

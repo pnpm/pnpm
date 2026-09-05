@@ -231,6 +231,7 @@ fn create_config(
         tls_by_uri: Default::default(),
         package_manager_bootstrap: Default::default(),
         explicit_settings: Default::default(),
+        cli_settings: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
     }

@@ -7,7 +7,7 @@
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
 //! separately.
 
-use crate::config_overrides::apply_store_dir_override;
+use crate::config_overrides::{apply_registry_override, apply_store_dir_override};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_config::{Config, Host, PNPM_VERSION, WorkspaceSettings};
@@ -483,10 +483,13 @@ pub async fn prepare_config<Reporter: self::Reporter>(
 /// Config round-trips through [`WorkspaceSettings`], so any settings key a
 /// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
 /// the keys a hook actually changed are applied, so values resolved from
-/// `.npmrc` or CLI flags that the hooks leave untouched are not clobbered.
-/// The `catalog:`/`catalogs:` blocks — which pacquet models outside
-/// `WorkspaceSettings` — are seeded into the hook input and, when changed,
-/// captured into [`Config::catalogs`] for install and packing commands.
+/// `.npmrc` or the global config that the hooks leave untouched are not
+/// clobbered, and the settings the command line set
+/// ([`Config::cli_settings`]) stay as the command line set them whatever
+/// a hook returns for them. The `catalog:`/`catalogs:` blocks — which
+/// pacquet models outside `WorkspaceSettings` — are seeded into the hook
+/// input and, when changed, captured into [`Config::catalogs`] for install
+/// and packing commands.
 pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     config: &mut Config,
     root_dir: &Path,
@@ -516,8 +519,12 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     if let Some(object) = input.as_object_mut() {
-        if let Some(store_dir) = config.explicit_settings.get("storeDir") {
-            object.insert("storeDir".to_string(), store_dir.clone());
+        // Seed the settings the other config layers set (the global
+        // config, the environment, the command line), which the workspace
+        // manifest alone does not carry, so a hook reads the effective
+        // value rather than the yaml's.
+        for (key, val) in &config.explicit_settings {
+            object.insert(key.clone(), val.clone());
         }
         object.insert(
             "catalogs".to_string(),
@@ -580,7 +587,10 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
             .unwrap_or_default(),
     );
 
-    let delta = config_delta(&input, &current);
+    let mut delta = config_delta(&input, &current);
+    if let Some(delta) = delta.as_object_mut() {
+        delta.retain(|key, _| !config.cli_settings.contains(key));
+    }
     if delta.as_object().is_none_or(serde_json::Map::is_empty) {
         return Ok(hooks);
     }
@@ -607,7 +617,9 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
+    let cli_registries = cli_registries(config);
     delta_settings.apply_to(config, &base_dir);
+    restore_cli_registries(config, cli_registries);
     if let Some(extra_bin_paths) = changed_extra_bin_paths {
         config.extra_bin_paths = extra_bin_paths;
     }
@@ -646,10 +658,42 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     Ok(hooks)
 }
 
+/// The registry routes the command line set, as `(scope, url)` pairs with
+/// `default` for `--registry`. Read off `config` before the hook delta is
+/// applied: a hook that replaces the `registries` map reroutes these
+/// scopes, and [`restore_cli_registries`] puts the command line's routes
+/// back afterwards.
+fn cli_registries(config: &Config) -> Vec<(String, String)> {
+    config
+        .cli_settings
+        .iter()
+        .filter_map(|key| {
+            if key == "registry" {
+                return Some(("default".to_string(), config.registry.clone()));
+            }
+            let scope = key.strip_suffix(":registry").filter(|scope| scope.starts_with('@'))?;
+            let url = config.registries_by_scope.get(scope)?;
+            Some((scope.to_string(), url.clone()))
+        })
+        .collect()
+}
+
+fn restore_cli_registries(config: &mut Config, registries: Vec<(String, String)>) {
+    for (scope, url) in registries {
+        if scope == "default" {
+            apply_registry_override(config, &url);
+        } else {
+            config.registries_by_scope.insert(scope.clone(), url.clone());
+            config.package_manager_bootstrap.registries.insert(scope, url);
+        }
+    }
+}
+
 /// The keys whose value the hooks changed between the serialized input
 /// config and the hooks' output. Applying only these avoids clobbering
-/// config resolved elsewhere (`.npmrc`, CLI flags) that a hook left
-/// untouched.
+/// config resolved elsewhere (`.npmrc`, the global config) that a hook
+/// left untouched; the caller then drops the keys the command line set,
+/// which a hook cannot change at all.
 fn config_delta(input: &Value, output: &Value) -> Value {
     let (Some(input_obj), Some(output_obj)) = (input.as_object(), output.as_object()) else {
         return output.clone();

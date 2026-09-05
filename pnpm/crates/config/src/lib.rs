@@ -2499,6 +2499,16 @@ pub struct Config {
     /// raw value. The `config` command turns this into the record it prints.
     pub explicit_settings: serde_json::Map<String, serde_json::Value>,
 
+    /// Camel-cased names of the settings the command line set: every
+    /// `--config.<key>` override and bare setting flag, `registry` for
+    /// `--registry`, `storeDir` / `stateDir` for `--store-dir` /
+    /// `--state-dir`. A `--config.@<scope>:registry` override is recorded
+    /// under that `@<scope>:registry` key. Recorded by the CLI as it layers
+    /// the flags onto the loaded config; the `updateConfig` hooks cannot
+    /// change these settings, since the command line outranks every other
+    /// layer.
+    pub cli_settings: BTreeSet<String>,
+
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
     /// [`config_types::is_ini_config_key`] holds: `registry`, `@scope:registry`,
     /// `//host/:_authToken`, `username`, `ca`, ...), post-`${VAR}` substitution
