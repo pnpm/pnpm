@@ -71,6 +71,58 @@ fn get_registry_name_default_port_omitted() {
     assert_eq!(got, "npm.example");
 }
 
+#[test]
+fn get_registry_name_with_path() {
+    let got =
+        get_registry_name("https://releases.jfrog.io/artifactory/api/npm/coding-agents-npm-a/")
+            .expect("encode");
+    assert_eq!(got, "releases.jfrog.io_artifactory+api+npm+coding-agents-npm-a");
+}
+
+#[test]
+fn get_registry_name_with_port_and_path() {
+    let got = get_registry_name("https://npm.example:8443/registry/A/").expect("encode");
+    assert_eq!(got, "npm.example+8443_registry+A");
+}
+
+#[test]
+fn get_registry_name_ipv6() {
+    let got = get_registry_name("http://[::1]:8080/").expect("encode");
+    assert_eq!(got, "[++1]+8080");
+}
+
+#[test]
+fn get_registry_name_disambiguates_host_path_boundaries() {
+    assert_eq!(
+        get_registry_name("https://repo.example/foo-bar/").expect("encode"),
+        "repo.example_foo-bar",
+    );
+    assert_eq!(
+        get_registry_name("https://repo.example-foo/bar/").expect("encode"),
+        "repo.example-foo_bar",
+    );
+}
+
+#[test]
+fn get_registry_name_with_special_characters_in_path() {
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a+b/").expect("encode"),
+        "npm.example_path+a%2Bb",
+    );
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a:b/").expect("encode"),
+        "npm.example_path+a%3Ab",
+    );
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a_b/").expect("encode"),
+        "npm.example_path+a%5Fb",
+    );
+    assert_eq!(
+        get_registry_name("https://npm.example/path/a%2Bb/").expect("encode"),
+        "npm.example_path+a%252Bb",
+    );
+}
+
 /// Callers (notably the cached fetcher) downgrade to a cache-less
 /// fetch on this error instead of failing the install.
 #[test]

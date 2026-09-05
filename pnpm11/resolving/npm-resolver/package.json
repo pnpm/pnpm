@@ -55,7 +55,6 @@
     "@pnpm/workspace.range-resolver": "workspace:*",
     "@pnpm/workspace.spec-parser": "workspace:*",
     "@zkochan/retry": "catalog:",
-    "encode-registry": "catalog:",
     "lru-cache": "catalog:",
     "normalize-path": "catalog:",
     "p-limit": "catalog:",

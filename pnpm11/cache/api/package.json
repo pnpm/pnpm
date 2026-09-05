@@ -31,12 +31,12 @@
     "compile": "tsgo --build && pn lint --fix"
   },
   "dependencies": {
+    "@pnpm/config.normalize-registries": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "encode-registry": "catalog:",
     "tinyglobby": "catalog:"
   },
   "peerDependencies": {

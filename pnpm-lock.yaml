@@ -425,9 +425,6 @@ catalogs:
     empathic:
       specifier: ^2.0.1
       version: 2.0.1
-    encode-registry:
-      specifier: ^3.0.1
-      version: 3.0.1
     esbuild:
       specifier: ^0.28.2
       version: 0.28.2
@@ -1905,6 +1902,9 @@ importers:
 
   pnpm11/cache/api:
     dependencies:
+      '@pnpm/config.normalize-registries':
+        specifier: workspace:*
+        version: link:../../config/normalize-registries
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -1920,9 +1920,6 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
@@ -2367,6 +2364,9 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types
@@ -8962,9 +8962,6 @@ importers:
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
       lru-cache:
         specifier: 'catalog:'
         version: 11.5.2
