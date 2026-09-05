@@ -22,7 +22,7 @@ fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
         ("bash", "_pnpm_completion"),
         ("fish", "complete -c pnpm"),
         ("pwsh", "Register-ArgumentCompleter -Native -CommandName pnpm"),
-        ("zsh", "#compdef pnpm"),
+        ("zsh", "#compdef pnpm pn"),
     ];
 
     for (shell, marker) in cases {
@@ -72,6 +72,19 @@ fn completion_scripts_preserve_current_token_for_fish_and_pwsh() {
 fn completion_server_lists_top_level_commands() {
     let output = pacquet()
         .args(["completion-server", "--", "pnpm", ""])
+        .output()
+        .expect("run pnpm completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "install"), "{reply}");
+    assert!(reply.lines().any(|line| line == "completion"), "{reply}");
+    assert!(reply.lines().any(|line| line == "add"), "{reply}");
+}
+
+#[test]
+fn completion_server_lists_top_level_commands_for_pn_alias() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pn", ""])
         .output()
         .expect("run pnpm completion-server");
     let reply = stdout(output);
