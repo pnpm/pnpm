@@ -516,6 +516,14 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     if let Some(object) = input.as_object_mut() {
+        // The serialized settings carry `scriptShell` as written in the
+        // manifest; hooks see the workspace-root-resolved value pnpm gives
+        // them, or no key at all when nothing set one.
+        if let Some(script_shell) = &config.script_shell {
+            object.insert("scriptShell".to_string(), Value::String(script_shell.clone()));
+        } else {
+            object.remove("scriptShell");
+        }
         if let Some(store_dir) = config.explicit_settings.get("storeDir") {
             object.insert("storeDir".to_string(), store_dir.clone());
         }
@@ -581,7 +589,12 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     );
 
     let delta = config_delta(&input, &current);
-    if delta.as_object().is_none_or(serde_json::Map::is_empty) {
+    // `config_delta` only walks keys present in the hook output, so a
+    // `scriptShell` the hook deleted (pnpm: `undefined`, no shell) leaves no
+    // trace in the delta.
+    let script_shell_deleted =
+        input.get("scriptShell").is_some() && current.get("scriptShell").is_none();
+    if delta.as_object().is_none_or(serde_json::Map::is_empty) && !script_shell_deleted {
         return Ok(hooks);
     }
     let changed_store_dir = delta.get("storeDir").and_then(Value::as_str).map(str::to_owned);
@@ -608,6 +621,9 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
     delta_settings.apply_to(config, &base_dir);
+    if script_shell_deleted {
+        config.script_shell = None;
+    }
     if let Some(extra_bin_paths) = changed_extra_bin_paths {
         config.extra_bin_paths = extra_bin_paths;
     }

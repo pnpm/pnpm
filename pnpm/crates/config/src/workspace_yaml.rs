@@ -1888,7 +1888,7 @@ impl WorkspaceSettings {
                 continue;
             };
             if let Some(expanded) = Sys::home_dir()
-                .map(|home_dir| join_home_relative(&home_dir, relative))
+                .map(|home_dir| join_fragment(&home_dir, relative))
                 .and_then(|expanded| expanded.into_os_string().into_string().ok())
             {
                 *dir = Some(expanded);
@@ -1914,10 +1914,31 @@ impl WorkspaceSettings {
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
 
+    /// Resolve a path-like `scriptShell` against the workspace root, the
+    /// way pnpm does for the settings of `pnpm-workspace.yaml` and for no
+    /// other source: a relative shell path in the global config file, in
+    /// `PNPM_CONFIG_SCRIPT_SHELL`, or in an `updateConfig` hook's output
+    /// stays as written. A bare command name (`bash`) is left for `PATH`
+    /// lookup, and an absolute path is kept.
+    ///
+    /// Call this after environment substitution and before
+    /// [`Self::apply_to`], which copies the value verbatim.
+    pub fn resolve_script_shell(&mut self, workspace_dir: &Path) {
+        let Some(Some(script_shell)) = self.script_shell.as_mut() else { return };
+        // `has_root` rather than `is_absolute`: Node's win32 `isAbsolute`
+        // accepts a rooted path without a drive (`\tools\bash.exe`), which
+        // Rust's `is_absolute` rejects. On POSIX the two agree.
+        if Path::new(script_shell.as_str()).has_root() || !script_shell.contains(['/', '\\']) {
+            return;
+        }
+        *script_shell = join_fragment(workspace_dir, script_shell).to_string_lossy().into_owned();
+    }
+
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
+    /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
@@ -2446,16 +2467,15 @@ fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
-/// Join a `~/`-relative suffix onto the home directory the way pnpm's
-/// `path.join` does: concatenate with the separator, then normalize. Node
-/// treats every argument after the first as a fragment, so `Path::join` is
-/// the wrong primitive here — it lets a suffix that parses as rooted
-/// (`~//bin`) replace the home directory outright, which is how the tilde
-/// would end up naming somewhere else entirely.
-fn join_home_relative(home: &Path, relative: &str) -> PathBuf {
-    let mut joined = home.as_os_str().to_os_string();
+/// Join `fragment` onto `base` the way pnpm's `path.join` does: concatenate
+/// with the separator, then normalize. Node treats every argument after the
+/// first as a fragment, so [`Path::join`] is the wrong primitive here — it
+/// lets a fragment that parses as rooted (`//bin`) or drive-prefixed
+/// (`C:bin`, drive-relative on Windows) replace `base` outright.
+fn join_fragment(base: &Path, fragment: &str) -> PathBuf {
+    let mut joined = base.as_os_str().to_os_string();
     joined.push(std::path::MAIN_SEPARATOR_STR);
-    joined.push(relative);
+    joined.push(fragment);
     pnpm_fs::lexical_normalize(Path::new(&joined))
 }
 

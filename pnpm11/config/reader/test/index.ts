@@ -4998,6 +4998,56 @@ describe('global config.yaml', () => {
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
   })
 
+  test('resolves a path-like scriptShell from pnpm-workspace.yaml against the workspace root', async () => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { scriptShell: './workspace-shell.sh' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe(path.join(process.cwd(), 'workspace-shell.sh'))
+  })
+
+  test('keeps a path-like scriptShell from global config.yaml unresolved', async () => {
+    prepareEmpty()
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', { scriptShell: './global-shell.sh' })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./global-shell.sh')
+  })
+
+  test('keeps a path-like scriptShell from PNPM_CONFIG_* unresolved', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        PNPM_CONFIG_SCRIPT_SHELL: './env-shell.sh',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./env-shell.sh')
+  })
+
   test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
     prepareEmpty()
 

@@ -3696,6 +3696,7 @@ impl Config {
                 self.workspace_key_issues = settings.key_issues.clone();
                 note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
+                settings.resolve_script_shell(&base_dir);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
                 // yaml (the global config.yaml is stripped of the key,

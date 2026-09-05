@@ -127,6 +127,90 @@ async fn update_config_can_set_extra_env() {
     );
 }
 
+/// pnpm adopts the hook's result as-is, so a relative `scriptShell` set by a
+/// hook is not anchored at the workspace root the way the manifest's is.
+#[tokio::test]
+async fn update_config_script_shell_output_is_not_resolved_again() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell = './hook-shell.sh'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let expected_manifest_shell =
+        root.path().join("manifest-shell.sh").to_string_lossy().into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_manifest_shell.as_str()));
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell.as_deref(), Some("./hook-shell.sh"));
+}
+
+#[tokio::test]
+async fn update_config_hook_reads_resolved_script_shell_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell += '-from-hook'; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    let expected = format!("{}-from-hook", root.path().join("manifest-shell.sh").display());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+#[tokio::test]
+async fn update_config_hook_deleting_script_shell_clears_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { delete config.scriptShell; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.script_shell.is_some());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell, None);
+}
+
+#[tokio::test]
+async fn update_config_hook_setting_script_shell_to_null_clears_value() {
+    let root = tempfile::tempdir().expect("workspace tempdir");
+    fs::write(root.path().join("pnpm-workspace.yaml"), "scriptShell: ./manifest-shell.sh\n")
+        .expect("write workspace settings");
+    fs::write(
+        root.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) { config.scriptShell = null; return config } } }",
+    )
+    .expect("write pnpmfile");
+    let mut config = Config::default().current::<Host>(root.path()).expect("load configuration");
+    assert!(config.script_shell.is_some());
+
+    run_update_config_hooks::<SilentReporter>(&mut config, root.path())
+        .await
+        .expect("run updateConfig hook");
+
+    assert_eq!(config.script_shell, None);
+}
+
 /// `Accept` header the resolver sends for full metadata
 /// (`ACCEPT_FULL_DOC`); only the full packument carries the per-version
 /// `time` map and trust evidence the no-downgrade check reads.
