@@ -132,20 +132,23 @@ async fn discovery_rejects_redirects_before_configured_headers_reach_the_target(
     let result = upstream.fetch_search("text=foo").await;
 
     assert!(
-        matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })),
-        "expected the first redirect response, got {result:?}",
+        matches!(&result, Err(RegistryError::Upstream { source, .. }) if source.is_redirect()),
+        "expected a blocked cross-origin redirect, got {result:?}",
     );
     redirect.assert_async().await;
     redirected.assert_async().await;
 }
 
 #[test]
-fn discovery_omits_configured_headers_on_insecure_remote_urls() {
-    let upstream = upstream("http://registry.example".to_string(), auth_and_custom_headers());
-
-    assert!(upstream.discovery_headers("http://registry.example/-/v1/search").is_empty());
-    assert!(!upstream.discovery_headers("https://registry.example/-/v1/search").is_empty());
-    assert!(!upstream.discovery_headers("http://127.0.0.1/-/v1/search").is_empty());
+fn configured_headers_require_a_secure_same_origin_destination() {
+    for base in ["http://registry.example", "https://registry.example", "http://127.0.0.1"] {
+        let upstream = upstream(base.to_string(), auth_and_custom_headers());
+        assert_eq!(
+            upstream.request_headers(&format!("{base}/metadata")).is_empty(),
+            base == "http://registry.example",
+        );
+        assert!(upstream.request_headers("https://other.example/metadata").is_empty());
+    }
 }
 
 #[tokio::test]
@@ -871,11 +874,14 @@ async fn fetch_document_forwards_headers_and_accept_and_reports_the_final_url() 
 #[tokio::test]
 async fn fetch_document_rejects_a_body_over_the_limit() {
     let mut server = mockito::Server::new_async().await;
-    server.mock("GET", "/se/rd/serde").with_body("x".repeat(64)).create_async().await;
-
-    let upstream = upstream(server.url(), HeaderMap::new());
-    let err = upstream.fetch_document("se/rd/serde", None, 16).await.unwrap_err();
-    assert!(matches!(err, RegistryError::UpstreamResponse { .. }), "{err:?}");
+    let mock =
+        server.mock("GET", "/se/rd/serde").with_body("x".repeat(64)).expect(2).create_async().await;
+    let upstream = breaking_upstream(server.url(), 1);
+    for _ in 0..2 {
+        let err = upstream.fetch_document("se/rd/serde", None, 16).await.unwrap_err();
+        assert!(matches!(err, RegistryError::UpstreamResponse { .. }), "{err:?}");
+    }
+    mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -909,4 +915,43 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
     assert_eq!(response.bytes().await.unwrap(), "wheel bytes");
     same_origin.assert_async().await;
     other_origin.assert_async().await;
+}
+
+#[tokio::test]
+async fn configured_headers_cannot_cross_origins_on_redirects() {
+    let mut source = mockito::Server::new_async().await;
+    let mut target = mockito::Server::new_async().await;
+    let target_mock = target.mock("GET", "/leak").expect(0).create_async().await;
+    let redirect = source
+        .mock("GET", "/metadata")
+        .with_status(302)
+        .with_header("location", &format!("{}/leak", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let upstream = upstream(source.url(), auth_and_custom_headers());
+    assert!(upstream.fetch_document("metadata", None, 1024).await.is_err());
+    target_mock.assert_async().await;
+    redirect.assert_async().await;
+}
+
+#[tokio::test]
+async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
+    let mut source = mockito::Server::new_async().await;
+    let mut target = mockito::Server::new_async().await;
+    let target_mock = target.mock("GET", "/artifact").expect(0).create_async().await;
+    let redirect = source
+        .mock("GET", "/artifact")
+        .with_status(302)
+        .with_header("location", &format!("{}/artifact", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let allowed = reqwest::Url::parse(&source.url()).unwrap().origin();
+    let upstream = upstream(source.url(), HeaderMap::new())
+        .with_fetch_guard(std::sync::Arc::new(move |url| url.origin() == allowed));
+    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", target.url())).await.is_err());
+    assert!(upstream.fetch_artifact_response(&format!("{}/artifact", source.url())).await.is_err());
+    target_mock.assert_async().await;
+    redirect.assert_async().await;
 }

@@ -4,7 +4,7 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{
-    ThrottledClient, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+    RedirectGuard, ThrottledClient, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
@@ -41,6 +41,7 @@ pub struct SearchResponse {
 #[derive(Clone)]
 pub struct Upstream {
     client: Arc<ThrottledClient>,
+    fetch_guard: Option<RedirectGuard>,
     base: String,
     /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
     /// client-facing errors so an open circuit names the upstream rather
@@ -68,6 +69,7 @@ impl fmt::Debug for Upstream {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Upstream")
             .field("client", &self.client)
+            .field("fetch_guard", &self.fetch_guard.is_some())
             .field("base", &self.base)
             .field("name", &self.name)
             .field("headers", &RedactedHeaders(&self.headers))
@@ -230,7 +232,15 @@ impl Upstream {
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
-            client: Arc::new(ThrottledClient::new_for_installs()),
+            client: Arc::new(if config.headers.is_empty() {
+                ThrottledClient::new_for_installs()
+            } else {
+                let base = config.url.clone();
+                ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+                    same_origin(&base, url.as_str())
+                })
+            }),
+            fetch_guard: None,
             base: config.url.clone(),
             name: name.to_string(),
             headers: config.headers.clone(),
@@ -239,6 +249,19 @@ impl Upstream {
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
         }
+    }
+
+    /// Restrict initial requests and redirects to operator-approved destinations.
+    #[must_use]
+    pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
+        let redirect_guard = Arc::clone(&guard);
+        let base = self.base.clone();
+        let carries_headers = !self.headers.is_empty();
+        self.client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            redirect_guard(url) && (!carries_headers || same_origin(&base, url.as_str()))
+        }));
+        self.fetch_guard = Some(guard);
+        self
     }
 
     /// Per-upstream packument freshness window (`maxage`), or `None` to
@@ -272,7 +295,8 @@ impl Upstream {
         self.ensure_available()?;
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
         let client = self.client.acquire_for_url(&url).await;
-        let mut request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let mut request =
+            client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         let mut sent_conditional = false;
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
@@ -325,7 +349,7 @@ impl Upstream {
         self.ensure_available()?;
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
         let client = self.client.acquire_for_url(&url).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -359,7 +383,8 @@ impl Upstream {
             relative_path.trim_start_matches('/'),
         );
         let client = self.client.acquire_for_url(&url).await;
-        let mut request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let mut request =
+            client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         if let Some(accept) = accept
             && let Ok(value) = HeaderValue::from_str(accept)
         {
@@ -377,7 +402,7 @@ impl Upstream {
             RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
         })?;
         if body.truncated {
-            self.breaker.record_failure();
+            self.breaker.record_success();
             return Err(RegistryError::UpstreamResponse {
                 url,
                 reason: format!("response body exceeds the {limit}-byte limit"),
@@ -402,10 +427,7 @@ impl Upstream {
     ) -> Result<FetchOutcome<reqwest::Response>> {
         self.ensure_available()?;
         let client = self.client.acquire_for_url(url).await;
-        let mut request = client.get(url).timeout(self.timeout);
-        if same_origin(&self.base, url) {
-            request = request.headers(self.headers.clone());
-        }
+        let request = client.get(url).timeout(self.timeout).headers(self.request_headers(url));
         let response = self.run(request, url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -424,7 +446,7 @@ impl Upstream {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
         let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -458,7 +480,7 @@ impl Upstream {
         let url = format!("{}{path_and_query}", self.base.trim_end_matches('/'));
         let client =
             self.client.acquire_for_url_without_redirects_with_priority(&url, UNPRIORITIZED).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.discovery_headers(&url));
+        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
@@ -487,8 +509,8 @@ impl Upstream {
         Ok(FetchOutcome::Ok(parsed))
     }
 
-    fn discovery_headers(&self, url: &str) -> HeaderMap {
-        if is_url_secure_for_credentials(url) {
+    fn request_headers(&self, url: &str) -> HeaderMap {
+        if same_origin(&self.base, url) && is_url_secure_for_credentials(url) {
             return self.headers.clone();
         }
         HeaderMap::new()
@@ -507,6 +529,14 @@ impl Upstream {
     /// Send a built request, mapping a transport error to
     /// [`RegistryError::Upstream`] and counting it against the breaker.
     async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
+        if let Some(guard) = &self.fetch_guard
+            && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
+        {
+            return Err(RegistryError::UpstreamResponse {
+                url: url.to_string(),
+                reason: "URL is not allowed by the fetch allowlist".to_string(),
+            });
+        }
         request.send().await.map_err(|source| {
             self.breaker.record_failure();
             RegistryError::Upstream { url: url.to_string(), source }

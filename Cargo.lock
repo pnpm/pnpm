@@ -6173,6 +6173,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tar",
+ "toml",
 ]
 
 [[package]]
@@ -6275,6 +6276,7 @@ dependencies = [
  "derive_more",
  "pep440_rs",
  "pep508_rs",
+ "regex",
  "serde",
  "serde_json",
 ]

@@ -487,6 +487,10 @@ pub enum CrateArchiveError {
     MissingManifest { expected: String },
     #[display("crate archive unpacks to more than {MAX_CRATE_ARCHIVE_UNPACKED_BYTES} bytes")]
     TooLarge,
+    #[display("crate archive entry {path:?} is not a regular file or directory")]
+    UnsupportedEntry { path: String },
+    #[display("crate archive Cargo.toml does not declare package {name:?} version {version:?}")]
+    InvalidManifest { name: String, version: String },
 }
 
 /// Check that `archive` is a gzip-compressed tar whose every entry sits
@@ -498,24 +502,58 @@ pub fn validate_crate_archive(
     name: &str,
     version: &str,
 ) -> Result<(), CrateArchiveError> {
+    validate_crate_archive_with_limit(archive, name, version, MAX_CRATE_ARCHIVE_UNPACKED_BYTES)
+}
+
+fn validate_crate_archive_with_limit(
+    archive: &[u8],
+    name: &str,
+    version: &str,
+    limit: u64,
+) -> Result<(), CrateArchiveError> {
     let expected = format!("{name}-{version}");
     let decoder = flate2::read::GzDecoder::new(archive);
-    let mut limited = decoder.take(MAX_CRATE_ARCHIVE_UNPACKED_BYTES);
+    let mut limited = decoder.take(limit + 1);
     let mut tar = tar::Archive::new(&mut limited);
     let mut found_manifest = false;
     let entries = tar.entries().map_err(CrateArchiveError::Read)?;
     for entry in entries {
-        let entry = entry.map_err(CrateArchiveError::Read)?;
+        let mut entry = entry.map_err(CrateArchiveError::Read)?;
         let path = entry.path().map_err(CrateArchiveError::Read)?;
         let path = path.to_string_lossy().into_owned();
         let Some(inner) = path.strip_prefix(&expected).and_then(|rest| rest.strip_prefix('/'))
         else {
             return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
         };
-        if inner == "Cargo.toml" {
+        if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
+            return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
+        }
+        let entry_type = entry.header().entry_type();
+        if !entry_type.is_file() && !entry_type.is_dir() {
+            return Err(CrateArchiveError::UnsupportedEntry { path });
+        }
+        if inner == "Cargo.toml" && entry_type.is_file() {
+            let mut manifest = String::new();
+            entry.read_to_string(&mut manifest).map_err(CrateArchiveError::Read)?;
+            let matches = toml::from_str::<toml::Value>(&manifest).ok().is_some_and(|manifest| {
+                let package = manifest.get("package");
+                package.and_then(|package| package.get("name")).and_then(toml::Value::as_str)
+                    == Some(name)
+                    && package
+                        .and_then(|package| package.get("version"))
+                        .and_then(toml::Value::as_str)
+                        == Some(version)
+            });
+            if !matches {
+                return Err(CrateArchiveError::InvalidManifest {
+                    name: name.to_string(),
+                    version: version.to_string(),
+                });
+            }
             found_manifest = true;
         }
     }
+    io::copy(&mut limited, &mut io::sink()).map_err(CrateArchiveError::Read)?;
     if limited.limit() == 0 {
         return Err(CrateArchiveError::TooLarge);
     }

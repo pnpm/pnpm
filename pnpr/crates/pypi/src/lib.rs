@@ -298,18 +298,63 @@ pub fn escape_html(text: &str) -> String {
 }
 
 /// Whether a request's `Accept` header prefers the PEP 691 JSON page over
-/// HTML. Clients that speak JSON list it first, so a substring check is a
-/// reliable signal without full q-value parsing.
+/// HTML: the JSON type is listed with a non-zero quality at least as high as
+/// any HTML type's. `*/*` alone does not select JSON, since browsers and
+/// unaware clients send it.
 #[must_use]
 pub fn wants_json(accept: Option<&str>) -> bool {
-    accept.is_some_and(|accept| accept.contains(JSON_CONTENT_TYPE))
+    let Some(accept) = accept else { return false };
+    let json = quality(accept, JSON_CONTENT_TYPE);
+    let html = [HTML_CONTENT_TYPE, "text/html"]
+        .into_iter()
+        .filter_map(|media| media_quality(accept, media))
+        .fold(0.0_f32, f32::max);
+    json.is_some_and(|json| json > 0.0 && json >= html)
 }
 
-/// Whether a request's `Accept` header names the versioned HTML type, so the
-/// response should be labelled with it rather than plain `text/html`.
+/// Whether the versioned HTML type has positive quality at least as high
+/// as plain HTML in the request's `Accept` header.
 #[must_use]
 pub fn wants_versioned_html(accept: Option<&str>) -> bool {
-    accept.is_some_and(|accept| accept.contains(HTML_CONTENT_TYPE))
+    accept.is_some_and(|accept| {
+        quality(accept, HTML_CONTENT_TYPE).is_some_and(|quality| {
+            quality > 0.0 && quality >= media_quality(accept, "text/html").unwrap_or(0.0)
+        })
+    })
+}
+
+fn media_quality(accept: &str, media: &str) -> Option<f32> {
+    let (kind, _) = media.split_once('/')?;
+    quality(accept, media)
+        .or_else(|| quality(accept, &format!("{kind}/*")))
+        .or_else(|| quality(accept, "*/*"))
+}
+
+/// The quality an `Accept` header assigns to exactly `media`, `None` when
+/// the type is not listed. A listed type without `q` has quality 1.
+fn quality(accept: &str, media: &str) -> Option<f32> {
+    accept
+        .split(',')
+        .filter_map(|entry| {
+            let mut parameters = entry.split(';');
+            let listed = parameters.next()?.trim();
+            if !listed.eq_ignore_ascii_case(media) {
+                return None;
+            }
+            let weight = parameters
+                .filter_map(|parameter| parameter.trim().split_once('='))
+                .find(|(name, _)| name.trim().eq_ignore_ascii_case("q"))
+                .map_or(1.0, |(_, value)| {
+                    value
+                        .trim()
+                        .parse::<f32>()
+                        .ok()
+                        .filter(|weight| (0.0..=1.0).contains(weight))
+                        .unwrap_or(0.0)
+                });
+            Some(weight)
+        })
+        .fold(None, |best: Option<f32>, q| Some(best.map_or(q, |best| best.max(q))))
 }
 
 /// The kind of distribution a filename denotes.

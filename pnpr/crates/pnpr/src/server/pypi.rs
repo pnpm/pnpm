@@ -17,7 +17,6 @@
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    cached_upstream_tarball,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, read_hosted_document, registry_endpoint,
@@ -31,7 +30,7 @@ use super::{
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, State},
+    extract::{FromRequest, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -296,11 +295,7 @@ async fn file_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return err.into_response(),
     };
-    if upstream.caches()
-        && let Some(response) = cached_upstream_tarball(state, &namespace, key, filename).await
-    {
-        return response;
-    }
+
     let (document, base) = match load_upstream_page(state, identity, source, key, project).await {
         Ok(Some(page)) => page,
         Ok(None) => return not_found(),
@@ -330,8 +325,18 @@ async fn post_upload(
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
     headers: HeaderMap,
-    body: Bytes,
+    request: Request,
 ) -> Response {
+    if matches!(identity, Identity::Anonymous) {
+        return private_no_cache(
+            RegistryError::Unauthenticated { resource: "Python uploads".to_string() }
+                .into_response(),
+        );
+    }
+    let body = match Bytes::from_request(request, &state).await {
+        Ok(body) => body,
+        Err(err) => return private_no_cache(err.into_response()),
+    };
     let response = match upload_file(&state, &identity, registry.as_deref(), &headers, &body).await
     {
         Ok(()) => StatusCode::OK.into_response(),

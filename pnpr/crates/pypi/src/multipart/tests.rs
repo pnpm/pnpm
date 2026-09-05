@@ -98,3 +98,24 @@ fn rejects_malformed_bodies() {
         Err(MultipartError::MissingClosingBoundary),
     );
 }
+
+#[test]
+fn preserves_boundary_prefixes_in_binary_data() {
+    let data = b"--xyz\r\nstart\0\xff\r\n--xyzordinary\r\n--xyz-\r\nend";
+    let body = encode_form("xyz", &[("content", Some("demo.whl"), data)]);
+    let parts = parse_form("multipart/form-data; boundary=xyz", &body).unwrap();
+    assert_eq!(parts[0].data, data);
+}
+
+#[test]
+fn rejects_invalid_boundaries_before_scanning() {
+    for boundary in
+        ["a".repeat(71), "bad\r\nboundary".to_string(), "trailing ".to_string(), "é".to_string()]
+    {
+        assert_eq!(
+            parse_form(&format!(r#"multipart/form-data; boundary="{boundary}""#), b""),
+            Err(MultipartError::InvalidBoundary),
+        );
+    }
+    assert!(boundary(&format!("multipart/form-data; boundary={}", "a".repeat(70))).is_ok());
+}

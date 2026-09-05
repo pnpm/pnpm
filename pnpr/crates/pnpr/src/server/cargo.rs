@@ -18,7 +18,6 @@
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
-    cached_upstream_tarball,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
         load_upstream_document, read_hosted_document, registry_endpoint, registry_requires_auth,
@@ -235,12 +234,6 @@ async fn download_via_upstream(
         Ok(upstream) => upstream,
         Err(err) => return error_response(err),
     };
-    let filename = crate_filename(name, version);
-    if upstream.caches()
-        && let Some(response) = cached_upstream_tarball(state, &namespace, key, &filename).await
-    {
-        return response;
-    }
     let index =
         match load_upstream_index(state, identity, source, key, &sparse_index_path(name)).await {
             Ok(Some(bytes)) => bytes,

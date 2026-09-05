@@ -2553,7 +2553,7 @@ registries:
     org: python
     packages:
       Demo_Pkg.Extra: {}
-      '@scope/*': {}
+      '**': {}
   local:
     type: hosted
 ";
@@ -2615,4 +2615,43 @@ registries:
 ";
     let err = Config::from_yaml_str(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains(r#"cargo registry "crates" `packages:` key"#), "{err}");
+}
+
+#[test]
+fn non_npm_router_sources_reject_scoped_wildcard_claims() {
+    for ecosystem in ["cargo", "pypi"] {
+        let yaml = format!(
+            r"
+registries:
+  hosted:
+    type: hosted
+    ecosystem: {ecosystem}
+    packages:
+      '@scope/*': {{}}
+  upstream:
+    type: upstream
+    ecosystem: {ecosystem}
+    url: https://upstream.test/
+    public: true
+  main:
+    type: router
+    sources: [hosted, upstream]
+defaultRegistry: main
+",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
+        assert!(err.to_string().contains("packages:"), "{err}");
+    }
+}
+
+#[test]
+fn rejects_package_keys_that_normalize_to_the_same_name() {
+    for (ecosystem, first, second) in [("cargo", "Demo", "demo"), ("pypi", "Foo.Bar", "foo-bar")] {
+        let yaml = format!(
+            "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{ access: '$authenticated' }}\n      {second}: {{ access: '$all' }}\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(err.to_string().contains("duplicates normalized key"), "{err}");
+    }
 }

@@ -421,3 +421,114 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
     let _ = body_bytes(response.into_body()).await;
     assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
 }
+
+#[tokio::test]
+async fn cached_files_follow_current_page_checksums_and_removals() {
+    common::assert_cache_tracks_metadata(Ecosystem::Pypi).await;
+}
+
+#[tokio::test]
+async fn anonymous_uploads_are_rejected_before_reading_the_body() {
+    let tmp = TempDir::new().unwrap();
+    let app = router_with_auth(
+        pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"),
+        AuthState::in_memory(),
+    );
+    for path in ["/pypi/legacy", "/pypi/legacy/", "/pypi/~internal/legacy/"] {
+        let body = Body::from_stream(futures_util::stream::poll_fn(
+            |_| -> std::task::Poll<Option<Result<axum::body::Bytes, std::io::Error>>> {
+                panic!("anonymous upload body must not be polled");
+            },
+        ));
+        let response = app.clone().oneshot(Request::post(path).body(body).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+#[tokio::test]
+async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_staged_bytes() {
+    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use pnpr::HostedStoreConfig;
+    use std::sync::Arc;
+
+    let tmp = TempDir::new().unwrap();
+    let store = Arc::new(InMemory::new());
+    let filename = "demo_pkg-1.0.0-py3-none-any.whl";
+    let object = ObjectPath::from(format!("python/demo-pkg/{filename}"));
+    store.put(&object, axum::body::Bytes::from_static(b"winning artifact").into()).await.unwrap();
+    let mut config = pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/");
+    config.hosted_store = HostedStoreConfig::ObjectStore {
+        store: Arc::<InMemory>::clone(&store),
+        prefix: String::new(),
+    };
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+    let response = app
+        .clone()
+        .oneshot(upload_request(
+            Some(&token),
+            wheel_upload("demo-pkg", "1.0.0", filename, b"losing artifact"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    assert_eq!(store.get(&object).await.unwrap().bytes().await.unwrap(), "winning artifact");
+    assert_eq!(
+        app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap().status(),
+        StatusCode::NOT_FOUND,
+    );
+    fn assert_no_staged_files(path: &std::path::Path) {
+        for entry in std::fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                assert_no_staged_files(&path);
+            } else {
+                assert!(!path.to_string_lossy().contains(".tmp"), "{}", path.display());
+            }
+        }
+    }
+    assert_no_staged_files(tmp.path());
+}
+
+#[tokio::test]
+async fn upstream_file_hosts_must_be_approved_by_the_operator() {
+    use pnpr::PublicRoute;
+    let mut upstream = mockito::Server::new_async().await;
+    let mut files = mockito::Server::new_async().await;
+    let filename = "requests-1.0.0-py3-none-any.whl";
+    let bytes = b"wheel bytes";
+    let page = upstream
+        .mock("GET", "/requests/")
+        .with_body(
+            json!({
+                "meta": { "api-version": "1.0" }, "name": "requests", "files": [{
+                    "filename": filename, "url": format!("{}/artifact", files.url()),
+                    "hashes": { "sha256": sha256_hex(bytes) },
+                }],
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let artifact = files.mock("GET", "/artifact").with_body(bytes).expect(0).create_async().await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = pypi_config(tmp.path().to_path_buf(), &upstream.url());
+    let app = router_with_auth(config.clone(), AuthState::in_memory());
+    let response =
+        app.oneshot(get(&format!("/pypi/files/requests/{filename}"), None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    artifact.assert_async().await;
+    artifact.remove_async().await;
+
+    config.route_policy.public.push(PublicRoute { registry: Some(files.url()), package: None });
+    let app = router_with_auth(config, AuthState::in_memory());
+    let artifact = files.mock("GET", "/artifact").with_body(bytes).expect(1).create_async().await;
+    let response =
+        app.oneshot(get(&format!("/pypi/files/requests/{filename}"), None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    artifact.assert_async().await;
+    page.assert_async().await;
+}

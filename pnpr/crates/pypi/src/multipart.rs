@@ -5,6 +5,7 @@
 //! so this reads the whole body at once rather than streaming parts.
 
 use derive_more::{Display, Error};
+use regex::bytes::Regex;
 
 /// One part of a `multipart/form-data` body.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +24,10 @@ pub enum MultipartError {
     NotMultipart,
     #[display("multipart/form-data content type carries no boundary")]
     MissingBoundary,
+    #[display(
+        "multipart boundary must contain 1 to 70 valid ASCII characters and end without a space"
+    )]
+    InvalidBoundary,
     #[display("multipart body has no opening boundary")]
     MissingOpeningBoundary,
     #[display("multipart body ends without a closing boundary")]
@@ -42,22 +47,30 @@ pub fn boundary(content_type: &str) -> Result<&str, MultipartError> {
     if !media_type.eq_ignore_ascii_case("multipart/form-data") {
         return Err(MultipartError::NotMultipart);
     }
-    params
+    let boundary = params
         .filter_map(|param| param.trim().split_once('='))
         .find(|(key, _)| key.trim().eq_ignore_ascii_case("boundary"))
         .map(|(_, value)| value.trim().trim_matches('"'))
         .filter(|value| !value.is_empty())
-        .ok_or(MultipartError::MissingBoundary)
+        .ok_or(MultipartError::MissingBoundary)?;
+    if boundary.len() > 70
+        || boundary.ends_with(' ')
+        || !boundary
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"'()+_,-./:=? ".contains(&byte))
+    {
+        return Err(MultipartError::InvalidBoundary);
+    }
+    Ok(boundary)
 }
 
 /// Split a `multipart/form-data` body (RFC 7578) into its parts.
 pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, MultipartError> {
     let boundary = boundary(content_type)?;
-    let delimiter = format!("--{boundary}");
-    let delimiter = delimiter.as_bytes();
-    // The first delimiter may start the body or follow a preamble line.
-    let mut cursor =
-        find(body, delimiter).ok_or(MultipartError::MissingOpeningBoundary)? + delimiter.len();
+    let matcher = Regex::new(&format!(r"(?-u)(?:\A|\r\n)--{}(?:\r\n|--)", regex::escape(boundary)))
+        .expect("escaped ASCII boundary forms a valid byte regex");
+    let opening = matcher.find(body).ok_or(MultipartError::MissingOpeningBoundary)?;
+    let mut cursor = opening.end() - 2;
     let mut parts = Vec::new();
     loop {
         let rest = &body[cursor..];
@@ -74,11 +87,14 @@ pub fn parse_form(content_type: &str, body: &[u8]) -> Result<Vec<FormPart>, Mult
         let (name, filename) = content_disposition(headers)?;
         let data_start = header_end + 4;
         let data = &rest[data_start..];
-        let mut next_delimiter = b"\r\n".to_vec();
-        next_delimiter.extend_from_slice(delimiter);
-        let data_end = find(data, &next_delimiter).ok_or(MultipartError::MissingClosingBoundary)?;
-        parts.push(FormPart { name, filename, data: data[..data_end].to_vec() });
-        cursor = body.len() - rest.len() + data_start + data_end + next_delimiter.len();
+        let data_offset = body.len() - data.len();
+        let next =
+            matcher.find_at(body, data_offset).ok_or(MultipartError::MissingClosingBoundary)?;
+        if !body[next.start()..].starts_with(b"\r\n") {
+            return Err(MultipartError::MissingClosingBoundary);
+        }
+        parts.push(FormPart { name, filename, data: body[data_offset..next.start()].to_vec() });
+        cursor = next.end() - 2;
     }
 }
 

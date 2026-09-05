@@ -102,3 +102,85 @@ pub fn find_file(root: &Path, filename: &str) -> Option<PathBuf> {
     }
     None
 }
+
+pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
+    use axum::http::{Request, StatusCode};
+    use pnpr::{AuthState, router_with_auth};
+    use serde_json::json;
+    use tempfile::TempDir;
+    use tower::ServiceExt;
+
+    let mut upstream = mockito::Server::new_async().await;
+    let (name, filename, index_path, download_path) = match ecosystem {
+        Ecosystem::Cargo => (
+            "serde",
+            "serde-1.0.0.crate",
+            "/se/rd/serde",
+            "/cargo/api/v1/crates/serde/1.0.0/download",
+        ),
+        Ecosystem::Pypi => (
+            "requests",
+            "requests-1.0.0-py3-none-any.whl",
+            "/requests/",
+            "/pypi/files/requests/requests-1.0.0-py3-none-any.whl",
+        ),
+        Ecosystem::Npm => unreachable!(),
+    };
+    upstream
+        .mock("GET", "/config.json")
+        .with_body(
+            json!({ "dl": format!("{}/artifact/{{crate}}/{{version}}", upstream.url()) })
+                .to_string(),
+        )
+        .create_async()
+        .await;
+    let artifact_path = match ecosystem {
+        Ecosystem::Cargo => format!("/artifact/{name}/1.0.0"),
+        _ => "/artifact".to_string(),
+    };
+    let tmp = TempDir::new().unwrap();
+    let mut config = mixed_router_config(
+        tmp.path().to_path_buf(),
+        ecosystem,
+        HostedSource { name: "hosted", org: "hosted", access: "$all", packages: &["demo"] },
+        ("upstream", &upstream.url()),
+    );
+    config.packument_ttl = Duration::ZERO;
+    let app = router_with_auth(config, AuthState::in_memory());
+    for bytes in [b"old artifact".as_slice(), b"new artifact".as_slice()] {
+        let entry = match ecosystem {
+            Ecosystem::Cargo => json!({ "name": name, "vers": "1.0.0", "deps": [], "cksum": sha256_hex(bytes), "features": {}, "yanked": false }).to_string(),
+            _ => json!({ "meta": { "api-version": "1.0" }, "name": name, "files": [{ "filename": filename, "url": format!("{}/artifact", upstream.url()), "hashes": { "sha256": sha256_hex(bytes) } }] }).to_string(),
+        };
+        let index =
+            upstream.mock("GET", index_path).with_body(entry).expect(2).create_async().await;
+        let artifact = upstream
+            .mock("GET", artifact_path.as_str())
+            .with_body(bytes)
+            .expect(1)
+            .create_async()
+            .await;
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(Request::get(download_path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(body_bytes(response.into_body()).await, bytes);
+        }
+        index.assert_async().await;
+        artifact.assert_async().await;
+        index.remove_async().await;
+        artifact.remove_async().await;
+    }
+    let empty = match ecosystem {
+        Ecosystem::Cargo => String::new(),
+        _ => json!({ "meta": { "api-version": "1.0" }, "name": name, "files": [] }).to_string(),
+    };
+    let index = upstream.mock("GET", index_path).with_body(empty).expect(1).create_async().await;
+    let response =
+        app.oneshot(Request::get(download_path).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    index.assert_async().await;
+}

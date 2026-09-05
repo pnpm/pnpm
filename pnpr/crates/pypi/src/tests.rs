@@ -243,3 +243,23 @@ fn upload_form_rejects_other_actions_and_missing_fields() {
     }
     assert_eq!(parse_upload(parts).unwrap_err(), UploadError::UnsupportedProtocolVersion);
 }
+
+#[test]
+fn accept_negotiation_respects_quality_and_exact_media_types() {
+    for accept in [
+        "text/html, application/vnd.pypi.simple.v1+json;q=0",
+        "text/html;q=0.9, application/vnd.pypi.simple.v1+json;q=0.1",
+        "application/vnd.pypi.simple.v1+json;q=NaN",
+        "application/vnd.pypi.simple.v1+json;q=2",
+        "application/vnd.pypi.simple.v1+json-extra",
+        "*/*",
+        "text/*;q=0.9, application/vnd.pypi.simple.v1+json;q=0.1",
+    ] {
+        assert!(!wants_json(Some(accept)), "{accept}");
+    }
+    assert!(wants_json(Some("text/html;q=0.1, APPLICATION/VND.PYPI.SIMPLE.V1+JSON; Q=0.9")));
+    assert!(!wants_versioned_html(Some("application/vnd.pypi.simple.v1+html;q=0")));
+    assert!(!wants_versioned_html(Some(
+        "application/vnd.pypi.simple.v1+html;q=0.1, text/html;q=0.9"
+    )));
+}

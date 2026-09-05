@@ -23,10 +23,11 @@ use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::ProjectDocument;
 use pnpr_registry::{Ecosystem, Registry};
-use pnpr_storage::{PACKUMENT_WRITE_RETRIES, streaming};
+use pnpr_storage::{PACKUMENT_WRITE_RETRIES, TarballFinalize, streaming};
 use pnpr_upstream::{FetchOutcome, FetchedDocument, Upstream};
 use sha2::{Digest, Sha256};
 use ssri::{Algorithm, Integrity};
+use std::sync::Arc;
 
 /// The registry a request addressed: the `~<name>` it named, else the
 /// configured default target. `None` when the path-less form has no default.
@@ -75,7 +76,7 @@ pub(super) fn caller_scoped(
 }
 
 /// Whether some read of `ecosystem` through `registry` is closed to anonymous
-/// callers: a hosted source whose registry-level default denies them, or an
+/// callers: a hosted source whose default or package rules deny them, or an
 /// upstream source with an `access:` gate. Drives the Cargo `auth-required`
 /// flag, which makes `cargo` send its token on index and download requests too.
 pub(super) fn registry_requires_auth(
@@ -89,7 +90,7 @@ pub(super) fn registry_requires_auth(
             Some(Registry::Hosted { .. }) => config
                 .hosted
                 .get(source)
-                .is_some_and(|hosted| !hosted.rules.default_access().allows(&Identity::Anonymous)),
+                .is_some_and(|hosted| !hosted.rules.all_access_admit(&Identity::Anonymous)),
             Some(Registry::Upstream { .. }) => {
                 config.upstreams.get(source).is_some_and(|upstream| upstream.access.is_some())
             }
@@ -208,7 +209,16 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     }
     let slot = storage.reserve_hosted_tarball(key, filename).await?;
     tokio::fs::write(&slot.tmp_path, bytes).await?;
-    storage.finalize_tarball_slot(slot).await?;
+    let tmp_path = slot.tmp_path.clone();
+    match storage.finalize_tarball_slot(slot).await? {
+        TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+        TarballFinalize::Conflict => {
+            tokio::fs::remove_file(tmp_path).await?;
+            return Err(RegistryError::PackumentWriteConflict {
+                package: key.as_str().to_string(),
+            });
+        }
+    }
     storage
         .update_hosted_packument_with_retry(key, PACKUMENT_WRITE_RETRIES, |existing| {
             let mut document = match existing {
@@ -308,6 +318,8 @@ pub(super) async fn serve_upstream_artifact(
     url: &str,
     integrity: &Integrity,
 ) -> Response {
+    let namespace = format!("{namespace}-{}", sha256_hex(integrity.to_string().as_bytes()));
+    let namespace = namespace.as_str();
     if upstream.caches()
         && let Some(response) = cached_upstream_tarball(state, namespace, name, filename).await
     {
@@ -353,6 +365,25 @@ pub(super) fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
+pub(super) fn upstream_fetch_guard(
+    config: &pnpr_config::Config,
+    upstream: &pnpr_config::UpstreamConfig,
+) -> pnpm_network::RedirectGuard {
+    let context = pnpr_route::RouteContext::from_config(config);
+    let base = url::Url::parse(&upstream.url).ok();
+    Arc::new(move |url| {
+        let Some(base) = &base else { return false };
+        is_fetchable_artifact_url(url)
+            && (url.origin() == base.origin()
+                || context.allows_registry(url.as_str())
+                || (base.as_str() == "https://index.crates.io/"
+                    && url.origin().ascii_serialization() == "https://static.crates.io")
+                || (base.origin().ascii_serialization() == "https://pypi.org"
+                    && base.path().trim_end_matches('/') == "/simple"
+                    && url.origin().ascii_serialization() == "https://files.pythonhosted.org"))
+    })
+}
+
 /// Whether an artifact URL published by an upstream may be fetched: HTTP(S)
 /// without embedded credentials.
 pub(super) fn is_fetchable_artifact_url(url: &url::Url) -> bool {
@@ -360,3 +391,6 @@ pub(super) fn is_fetchable_artifact_url(url: &url::Url) -> bool {
         && url.username().is_empty()
         && url.password().is_none()
 }
+
+#[cfg(test)]
+mod tests;

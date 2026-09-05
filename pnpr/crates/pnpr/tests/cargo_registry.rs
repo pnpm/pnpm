@@ -601,3 +601,35 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
     let _ = body_bytes(response.into_body()).await;
     assert!(find_file(&tmp.path().join(".pnpr-cache"), "serde-1.0.0.crate").is_none());
 }
+
+#[tokio::test]
+async fn cached_crates_follow_current_index_checksums_and_removals() {
+    common::assert_cache_tracks_metadata(Ecosystem::Cargo).await;
+}
+
+#[tokio::test]
+async fn cargo_advertises_auth_for_package_specific_private_access() {
+    use pnpr::{AccessList, PackagePattern, PackageRule};
+    let tmp = TempDir::new().unwrap();
+    let mut config = cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all");
+    config.hosted.get_mut("crates").unwrap().rules.push_rule(PackageRule {
+        pattern: PackagePattern::parse("demo").unwrap(),
+        access: Some(AccessList::from_tokens(["$authenticated"])),
+        publish: None,
+        unpublish: None,
+    });
+    let app = router_with_auth(config, AuthState::in_memory());
+    for prefix in ["/cargo", "/cargo/~crates", "/cargo/~main"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("{prefix}/index/config.json")).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let config: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(config["auth-required"], true);
+    }
+}

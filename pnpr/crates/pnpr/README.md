@@ -138,6 +138,21 @@ page lists, verified against its `sha256`, and cached. The project list at
 only to the upstream's own origin, never to the separate host an index points
 downloads at.
 
+Cargo and Python proxies restrict downloads and redirects to their configured
+upstream origin and the existing `routes.public` allowlist. The official
+crates.io and PyPI upstreams also permit their respective download hosts,
+`static.crates.io` and `files.pythonhosted.org`. For a custom registry using a
+separate download host, declare it explicitly:
+
+```yaml
+routes:
+  public:
+    - registry: https://downloads.example.com/
+```
+
+Configured headers are sent only over HTTPS or loopback HTTP. An upstream
+with configured headers cannot redirect requests to another origin.
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](../../LICENSE.md) —

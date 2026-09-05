@@ -77,7 +77,18 @@ pub(super) fn router_with_auth_and_osv(
         config
             .upstreams
             .iter()
-            .map(|(name, upstream)| (name.clone(), Upstream::new(name, upstream)))
+            .map(|(name, upstream)| {
+                let client = Upstream::new(name, upstream);
+                let client = if config.registries.ecosystem(name)
+                    == Some(pnpr_registry::Ecosystem::Npm)
+                {
+                    client
+                } else {
+                    client
+                        .with_fetch_guard(super::ecosystem::upstream_fetch_guard(&config, upstream))
+                };
+                (name.clone(), client)
+            })
             .collect()
     } else {
         IndexMap::new()

@@ -262,10 +262,14 @@ async fn serves_the_npm_surface_under_its_ecosystem_prefix() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        body_bytes(response.into_body()).await,
+        std::fs::read(storage.path().join("@foo/no-deps/no-deps-1.0.0.tgz")).unwrap(),
+    );
     // The account endpoints ride along under the alias.
     let response = app
         .oneshot(Request::get("/npm/~main/-/whoami").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

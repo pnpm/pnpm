@@ -1956,8 +1956,7 @@ fn build_registries(
 /// requests by. Crate names are compared lowercase and Python project names
 /// normalized (PEP 503), so a `cargo` or `pypi` registry's exact-name keys
 /// are canonicalized here, and a key no registry of that ecosystem could
-/// serve is a config error. The wildcard shapes and npm keys pass through
-/// unchanged.
+/// serve is a config error. Only the catch-all `**` applies to every ecosystem.
 fn ecosystem_package_keys(
     registry: &str,
     ecosystem: Ecosystem,
@@ -1972,18 +1971,25 @@ fn ecosystem_package_keys(
             Ecosystem::Pypi => pnpr_pypi::normalize_name(key).map_err(|err| err.to_string()),
         }
     };
-    packages
-        .into_iter()
-        .map(|(key, access)| {
-            if key.contains('*') {
-                return Ok((key, access));
-            }
-            let key = canonical(&key).map_err(|reason| RegistryError::InvalidConfig {
+    let mut normalized = IndexMap::new();
+    for (key, access) in packages {
+        let normalized_key = if ecosystem == Ecosystem::Npm || key == "**" {
+            key.clone()
+        } else {
+            canonical(&key).map_err(|reason| RegistryError::InvalidConfig {
                 reason: format!("{ecosystem} registry {registry:?} `packages:` key: {reason}"),
-            })?;
-            Ok((key, access))
-        })
-        .collect()
+            })?
+        };
+        if normalized.contains_key(&normalized_key) {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "{ecosystem} registry {registry:?} `packages:` key {key:?} duplicates normalized key {normalized_key:?}",
+                ),
+            });
+        }
+        normalized.insert(normalized_key, access);
+    }
+    Ok(normalized)
 }
 
 /// Two hosted registries sharing an `org` would read and write the same

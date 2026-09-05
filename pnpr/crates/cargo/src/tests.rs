@@ -2,7 +2,7 @@ use super::{
     CrateArchiveError, CrateDocument, CrateNameError, DependencyKind, IndexConfig,
     PublishBodyError, PublishMetadata, crate_filename, download_url, parse_index,
     parse_publish_body, render_index, sparse_index_path, validate_crate_archive,
-    validate_crate_name,
+    validate_crate_archive_with_limit, validate_crate_name,
 };
 use serde_json::json;
 use std::io::Write as _;
@@ -234,7 +234,10 @@ fn index_parse_reports_the_offending_line() {
 
 #[test]
 fn crate_archive_must_hold_the_crate_it_claims() {
-    let good = crate_archive("demo-0.1.0", &[("Cargo.toml", "[package]"), ("src/lib.rs", "")]);
+    let good = crate_archive(
+        "demo-0.1.0",
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\""), ("src/lib.rs", "")],
+    );
     validate_crate_archive(&good, "demo", "0.1.0").unwrap();
 
     let renamed = validate_crate_archive(&good, "demo", "0.2.0").unwrap_err();
@@ -252,4 +255,71 @@ fn crate_archive_must_hold_the_crate_it_claims() {
     ));
 
     assert_eq!(crate_filename("demo", "0.1.0"), "demo-0.1.0.crate");
+}
+
+#[test]
+fn crate_archive_limit_allows_equality_and_rejects_overflow() {
+    let archive = crate_archive(
+        "demo-0.1.0",
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
+    );
+    let mut decoder = flate2::read::GzDecoder::new(archive.as_slice());
+    let size = std::io::copy(&mut decoder, &mut std::io::sink()).unwrap();
+    validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size).unwrap();
+    assert!(matches!(
+        validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size - 1),
+        Err(CrateArchiveError::TooLarge)
+    ));
+}
+
+#[test]
+fn crate_archive_rejects_traversal_and_links() {
+    for (path, entry_type) in [
+        ("demo-0.1.0/../../outside", tar::EntryType::Regular),
+        (r"demo-0.1.0/..\outside", tar::EntryType::Regular),
+        ("demo-0.1.0/Cargo.toml", tar::EntryType::Symlink),
+        ("demo-0.1.0/Cargo.toml", tar::EntryType::Link),
+    ] {
+        let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        let mut builder = tar::Builder::new(encoder);
+        let mut header = tar::Header::new_gnu();
+        header.as_mut_bytes()[..path.len()].copy_from_slice(path.as_bytes());
+        header.set_size(0);
+        header.set_mode(0o644);
+        header.set_entry_type(entry_type);
+        if entry_type != tar::EntryType::Regular {
+            header.set_link_name("../../outside").unwrap();
+        }
+        header.set_cksum();
+        builder.append(&header, std::io::empty()).unwrap();
+        let archive = builder.into_inner().unwrap().finish().unwrap();
+        assert!(
+            matches!(
+                validate_crate_archive(&archive, "demo", "0.1.0"),
+                Err(CrateArchiveError::EntryOutsideRoot { .. }
+                    | CrateArchiveError::UnsupportedEntry { .. })
+            ),
+            "{path}",
+        );
+    }
+}
+
+#[test]
+fn crate_archive_manifest_must_match_publish_metadata() {
+    for manifest in [
+        "",
+        "[invalid",
+        "[package]",
+        "[package]\nname = 'other'\nversion = '0.1.0'",
+        "[package]\nname = 'demo'\nversion = '0.2.0'",
+    ] {
+        let archive = crate_archive("demo-0.1.0", &[("Cargo.toml", manifest)]);
+        assert!(
+            matches!(
+                validate_crate_archive(&archive, "demo", "0.1.0"),
+                Err(CrateArchiveError::InvalidManifest { .. })
+            ),
+            "{manifest}",
+        );
+    }
 }
