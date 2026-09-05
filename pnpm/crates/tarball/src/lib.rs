@@ -163,8 +163,9 @@ pub enum CacheValue {
 
 /// Internal in-memory cache of tarballs.
 ///
-/// The key is the tarball URL, prefixed for revision-addressed fetches so
-/// redirect and retry policies never share a result.
+/// Ordinary package entries retain their tarball URL key. Revision-addressed
+/// fetches and projections that produce different file sets add a discriminator
+/// so incompatible network policies or archive views never share a result.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
 /// Install-scoped set of store-index cache keys
@@ -193,20 +194,20 @@ pub struct FetchedTarball {
     pub requires_build: bool,
 }
 
-impl<'a> DownloadTarballToStore<'a> {
+impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
     /// # Caller invariant: stable filter per URL
     ///
-    /// The cache is keyed on `package_url` and whether the request uses the
-    /// revision-addressed network policy. Within either policy, a second
-    /// caller fetching the same URL with a different [`ignore_file_pattern`]
-    /// silently receives the map the first caller's filter produced. Every
-    /// fetch of a URL must use the same filter. Nothing enforces this; today
-    /// it holds because URLs encode `(name, version, integrity)` and filters
-    /// are keyed by package name.
+    /// The cache is keyed on `package_url`, the archive projection, and
+    /// whether the request uses the revision-addressed network policy. Within
+    /// one key, a second caller fetching the same URL with a different
+    /// [`ignore_file_pattern`] silently receives the map the first caller's
+    /// filter produced. Every fetch of a URL must use the same filter. Nothing
+    /// enforces this; today it holds because URLs encode
+    /// `(name, version, integrity)` and filters are keyed by package name.
     ///
-    /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
+    /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
@@ -228,26 +229,23 @@ impl<'a> DownloadTarballToStore<'a> {
         mem_cache: &'a MemCache,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             package_url,
             package_id,
             package_integrity,
             prefetched_cas_paths,
             requester,
+            store_projection,
             ..
         } = &self;
-        let mem_cache_key = if revision_addressed {
-            format!("revision-addressed:{package_url}")
-        } else {
-            package_url.to_string()
-        };
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let mem_cache_key = store_projection.mem_cache_key(package_url, revision_addressed);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         // Hands the `Arc` on without deep-cloning the per-file map:
         // on a warm install every snapshot takes this path, and by 1k+
         // snapshots that clone dominates the memory traffic. The `Arc`
-        // is also stashed in `mem_cache` by URL so peer-resolved
+        // is also stashed under a projection-aware URL key so peer-resolved
         // variants of one package share it.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
@@ -418,7 +416,7 @@ impl<'a> DownloadTarballToStore<'a> {
         &self,
         revision_addressed: bool,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             store_dir,
             package_integrity,
             package_url,
@@ -427,6 +425,7 @@ impl<'a> DownloadTarballToStore<'a> {
             verify_store_integrity,
             strict_store_pkg_content_check,
             prefetched_cas_paths,
+            store_projection,
             ..
         } = self;
 
@@ -440,12 +439,12 @@ impl<'a> DownloadTarballToStore<'a> {
         // The lookup is best-effort. A missing `index.db`, a missing row,
         // an undecodable entry, or any CAFS file that has gone missing
         // from disk all fall through to the download path below.
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         // Deep-clones the inner map, unlike the `Arc`-preserving path
         // in `run_with_mem_cache`: this signature returns an owned
         // `HashMap`, and widening it would reach into
-        // `DownloadTarballToStore`'s return type. Affordable because
+        // `IngestTarballToStore`'s return type. Affordable because
         // only cache-miss snapshots reach here, where the clone is
         // dwarfed by the download it avoids.
         if let Some(prefetched) = prefetched_cas_paths
@@ -467,7 +466,7 @@ impl<'a> DownloadTarballToStore<'a> {
                 store_dir,
                 cache_key,
                 verify_store_integrity,
-                strict_store_pkg_content_check,
+                store_projection.package_content_check(strict_store_pkg_content_check),
                 Arc::clone(&self.verified_files_cache),
             )
             .await?;
@@ -475,6 +474,27 @@ impl<'a> DownloadTarballToStore<'a> {
                 tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
                 emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                 return Ok(cas_paths);
+            }
+            if let (
+                Some(package_integrity),
+                ArchiveStoreProjection::Package { append_manifest: Some(_) },
+            ) = (package_integrity, store_projection)
+            {
+                let cached = load_legacy_synthesized_cas_paths::<Reporter>(
+                    self.store_index.clone(),
+                    store_dir,
+                    &package_integrity.to_string(),
+                    package_id,
+                    verify_store_integrity,
+                    Arc::clone(&self.verified_files_cache),
+                    store_projection,
+                )
+                .await?;
+                if let Some(cas_paths) = cached {
+                    tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing compatible legacy CAFS entry — skipping download");
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                    return Ok(cas_paths);
+                }
             }
         }
         self.fetch_and_extract_inner::<Reporter>(false, revision_addressed)
@@ -496,7 +516,7 @@ impl<'a> DownloadTarballToStore<'a> {
         record_computed_integrity: bool,
         revision_addressed: bool,
     ) -> Result<FetchedTarball, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             http_client,
             store_dir,
             package_integrity,
@@ -507,10 +527,10 @@ impl<'a> DownloadTarballToStore<'a> {
             requester,
             retry_opts,
             auth_headers,
-            append_manifest,
+            store_projection,
             ..
         } = self;
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
         let store_index_writer = self.store_index_writer.clone();
         // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
@@ -568,12 +588,20 @@ impl<'a> DownloadTarballToStore<'a> {
             )
             .await?;
 
-        // Fold the synthesized runtime `package.json` into the row before
-        // it is persisted, so warm reinstalls (which read the row) get it.
-        if let Some(manifest_bytes) = append_manifest {
-            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+        match store_projection {
+            ArchiveStoreProjection::Package { append_manifest } => {
+                if let Some(manifest_bytes) = append_manifest {
+                    apply_append_manifest(
+                        store_dir,
+                        manifest_bytes,
+                        &mut cas_paths,
+                        &mut pkg_files_idx,
+                    )?;
+                }
+                apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
+            }
+            ArchiveStoreProjection::RawArchive => {}
         }
-        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
 
         let manifest = pkg_files_idx.manifest.clone();
         // Only legacy cache rows omit this; fresh extraction always records it.
@@ -590,8 +618,9 @@ impl<'a> DownloadTarballToStore<'a> {
         // is dropped with a `warn!` and the next install misses on this
         // cache key, matching the read path's stance.
         let cache_key = cache_key.or_else(|| {
-            record_computed_integrity
-                .then(|| store_index_key(&computed_integrity.to_string(), package_id))
+            record_computed_integrity.then(|| {
+                store_projection.store_index_key(&computed_integrity.to_string(), package_id)
+            })
         });
         match (cache_key, store_index_writer) {
             (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),
@@ -638,7 +667,7 @@ pub struct ResolvedTarball {
 /// fetch here to fill `manifest` + `integrity` into its
 /// `ResolveResult`. Passing a `mem_cache` warms it (keyed by URL) so
 /// the install pass's
-/// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
+/// [`IngestTarballToStore::run_with_mem_cache`] reuses the extraction
 /// without a second download.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,

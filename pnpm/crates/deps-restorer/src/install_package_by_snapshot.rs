@@ -26,8 +26,8 @@ use pnpm_store_dir::{
     git_hosted_store_index_key,
 };
 use pnpm_tarball::{
-    DownloadTarballToStore, DownloadZipArchiveToStore, IgnoreEntryFilter, MemCache,
-    PrefetchedCasPaths, SharedReportedProgressKeys, TarballError,
+    IgnoreEntryFilter, IngestTarballToStore, IngestZipArchiveToStore, MemCache, PrefetchedCasPaths,
+    SharedReportedProgressKeys, TarballError,
 };
 use std::{
     borrow::Cow,
@@ -69,7 +69,7 @@ pub struct InstallPackageBySnapshot<'a> {
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
     /// Install-scoped shared in-flight tarball cache. When present, the
     /// registry/tarball download routes through
-    /// [`DownloadTarballToStore::run_with_mem_cache`] so it parks on (or
+    /// [`IngestTarballToStore::run_with_mem_cache`] so it parks on (or
     /// reuses) a download already in flight or completed for the same
     /// URL, rather than racing a second fetch of the same bytes. Both
     /// background prefetchers feed it: the pnpr client's
@@ -85,7 +85,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// emitted `fetched` or `found_in_store`.
     pub progress_reported: Option<&'a SharedReportedProgressKeys>,
     /// Install-scoped `verifiedFilesCache` shared across every
-    /// per-snapshot fetch. See `DownloadTarballToStore::verified_files_cache`
+    /// per-snapshot fetch. See `IngestTarballToStore::verified_files_cache`
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
@@ -368,7 +368,7 @@ impl InstallPackageBySnapshot<'_> {
             pnpm_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
         };
 
-        let download = DownloadTarballToStore {
+        let download = IngestTarballToStore {
             http_client,
             store_dir: &config.store_dir,
             store_index: store_index.cloned(),
@@ -388,7 +388,9 @@ impl InstallPackageBySnapshot<'_> {
             ignore_file_pattern: None,
             offline: config.offline,
             progress_reported: progress_reported.cloned(),
-            append_manifest: None,
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: None,
+            },
         };
         let custom_fetch = if let Some(session) = custom_fetcher_session {
             let opts = serde_json::json!({
@@ -436,7 +438,7 @@ impl InstallPackageBySnapshot<'_> {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(resolution, package_key, config)?;
                 let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
-                let download = DownloadTarballToStore {
+                let download = IngestTarballToStore {
                     package_url: &tarball_url,
                     package_integrity: integrity,
                     ..download.clone()
@@ -756,7 +758,7 @@ pub(crate) fn local_file_tarball_install_url<'a>(
 /// recorded integrity pins nothing (absent, or the empty SRI string an
 /// edited lockfile can carry) is refused here rather than fetched
 /// unchecked. See
-/// [`pnpm_tarball::DownloadTarballToStore::package_integrity`] for
+/// [`pnpm_tarball::IngestTarballToStore::package_integrity`] for
 /// what an unverified fetch does.
 ///
 /// # Panics
@@ -1028,17 +1030,17 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
 /// per-file `{relative_path → cas_path}` map the snapshot's virtual
 /// directory needs. Dispatches on the archive type:
 ///
-/// - [`BinaryArchive::Tarball`] uses [`DownloadTarballToStore`]
+/// - [`BinaryArchive::Tarball`] uses [`IngestTarballToStore`]
 ///   with `package_unpacked_size: None` (binary archives don't
 ///   carry that hint).
-/// - [`BinaryArchive::Zip`] uses [`DownloadZipArchiveToStore`]
+/// - [`BinaryArchive::Zip`] uses [`IngestZipArchiveToStore`]
 ///   with `archive_prefix: binary.prefix.as_deref()` so the runtime
 ///   archive's top-level wrapper (e.g.
 ///   `node-v22.0.0-darwin-arm64/`) is stripped before the CAS keys
 ///   are written.
 #[expect(
     clippy::too_many_arguments,
-    reason = "matches the field set DownloadTarballToStore / DownloadZipArchiveToStore need"
+    reason = "matches the field set IngestTarballToStore / IngestZipArchiveToStore need"
 )]
 async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     binary: &BinaryResolution,
@@ -1065,7 +1067,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // bin linking and `dlx` look at.
     let manifest_bytes = synthesize_runtime_manifest_bytes(package_key, binary)?;
     let cas_paths = match binary.archive {
-        BinaryArchive::Tarball => DownloadTarballToStore {
+        BinaryArchive::Tarball => IngestTarballToStore {
             http_client,
             store_dir: &config.store_dir,
             store_index: store_index.cloned(),
@@ -1087,12 +1089,14 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             // Cold-batch binary tarball download: emits `fetched`
             // directly, so no network-fetched tracking is needed.
             progress_reported: None,
-            append_manifest: Some(&manifest_bytes),
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: Some(&manifest_bytes),
+            },
         }
         .run_without_mem_cache::<Reporter>()
         .await
         .map_err(InstallPackageBySnapshotError::DownloadTarball)?,
-        BinaryArchive::Zip => DownloadZipArchiveToStore {
+        BinaryArchive::Zip => IngestZipArchiveToStore {
             http_client,
             store_dir: &config.store_dir,
             store_index: store_index.cloned(),
@@ -1110,7 +1114,9 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
             archive_prefix: binary.prefix.as_deref(),
             ignore_file_pattern,
             offline: config.offline,
-            append_manifest: Some(&manifest_bytes),
+            store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                append_manifest: Some(&manifest_bytes),
+            },
         }
         .run_without_mem_cache::<Reporter>()
         .await

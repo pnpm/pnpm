@@ -1,13 +1,13 @@
 use super::{
-    LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum, discover_manifests,
-    discover_manifests_with, materialize, parse_lockfile, sparse_index_path, update_managed_config,
-    workspace_root,
+    ArchiveStoreProjection, LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum,
+    discover_manifests, discover_manifests_with, materialize, parse_lockfile, sparse_index_path,
+    update_managed_config, workspace_root,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
     CafsFileInfo, PackageFilesIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
-    StoreIndexWriter, store_index_key,
+    StoreIndexWriter,
 };
 use ssri::{Algorithm, Integrity};
 use std::{
@@ -210,7 +210,7 @@ async fn repairs_a_preseeded_slot_from_verified_store_metadata() {
     StoreIndex::open_in(store_dir)
         .unwrap()
         .set(
-            &store_index_key(&integrity.to_string(), package_id),
+            &ArchiveStoreProjection::RawArchive.store_index_key(&integrity.to_string(), package_id),
             &PackageFilesIndex {
                 manifest: None,
                 requires_build: Some(false),

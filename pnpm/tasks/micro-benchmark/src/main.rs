@@ -12,7 +12,7 @@ use pipe_trait::Pipe;
 use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_registry::Package;
 use pnpm_store_dir::StoreDir;
-use pnpm_tarball::{DownloadTarballToStore, RetryOpts};
+use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore, RetryOpts};
 use project_root::get_project_root;
 use ssri::Integrity;
 use tar::{Builder, Header};
@@ -53,7 +53,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 dir.path().to_path_buf().pipe(StoreDir::from).pipe(Box::new).pipe(Box::leak);
             let http_client = ThrottledClient::new_for_installs();
 
-            let cas_map = DownloadTarballToStore {
+            let cas_map = IngestTarballToStore {
                 http_client: &http_client,
                 store_dir,
                 store_index: None,
@@ -73,7 +73,7 @@ fn bench_tarball(criterion: &mut Criterion, server: &mut ServerGuard, fixtures_f
                 ignore_file_pattern: None,
                 offline: false,
                 progress_reported: None,
-                append_manifest: None,
+                store_projection: ArchiveStoreProjection::Package { append_manifest: None },
             }
             .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
             .await
@@ -116,7 +116,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
             let http_client = ThrottledClient::new_for_installs();
             future::try_join_all(packages.iter().map(|package| async {
                 let auth_headers = AuthHeaders::default();
-                DownloadTarballToStore {
+                IngestTarballToStore {
                     http_client: &http_client,
                     store_dir,
                     store_index: None,
@@ -136,7 +136,7 @@ fn bench_concurrent_tarballs(criterion: &mut Criterion, server: &mut ServerGuard
                     ignore_file_pattern: None,
                     offline: false,
                     progress_reported: None,
-                    append_manifest: None,
+                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
                 }
                 .run_without_mem_cache::<pnpm_reporter::SilentReporter>()
                 .await

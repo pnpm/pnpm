@@ -1178,7 +1178,8 @@ fn build_runtime_tarball_fixture() -> Vec<u8> {
 /// `getBinName` with `dlx_read_manifest`.
 #[tokio::test]
 async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_index_row() {
-    use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter, store_index_key};
+    use pnpm_store_dir::{SharedVerifiedFilesCache, StoreIndex, StoreIndexWriter};
+    use pnpm_tarball::ArchiveStoreProjection;
     use std::sync::atomic::AtomicU8;
 
     let archive_tmp = tempfile::tempdir().expect("tempdir");
@@ -1272,8 +1273,13 @@ async fn installing_a_runtime_persists_the_synthesized_manifest_into_the_store_i
     // The persisted row must carry the synthesized `package.json` in both
     // its `files` map and its bundled `manifest` — this is the copy a warm
     // materialization reads back.
-    let index_key =
-        store_index_key(&integrity.to_string(), &package_key.without_peer().to_string());
+    let LockfileResolution::Binary(binary) = &metadata.resolution else {
+        unreachable!("the fixture uses a binary resolution")
+    };
+    let manifest_bytes = synthesize_runtime_manifest_bytes(&package_key, binary)
+        .expect("synthesize the runtime manifest");
+    let index_key = ArchiveStoreProjection::Package { append_manifest: Some(&manifest_bytes) }
+        .store_index_key(&integrity.to_string(), &package_key.without_peer().to_string());
     let row = StoreIndex::open_in(&config.store_dir)
         .expect("open the store index")
         .get(&index_key)
@@ -1482,7 +1488,7 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
 
     let resolution = session
         .resolve_tarball_integrity::<pnpm_reporter::SilentReporter>(
-            pnpm_tarball::DownloadTarballToStore {
+            pnpm_tarball::IngestTarballToStore {
                 http_client: &pnpm_network::ThrottledClient::default(),
                 store_dir: &config.store_dir,
                 store_index: None,
@@ -1502,7 +1508,9 @@ async fn an_unpinned_delegate_to_a_directory_keeps_its_resolution() {
                 ignore_file_pattern: None,
                 offline: true,
                 progress_reported: None,
-                append_manifest: None,
+                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                    append_manifest: None,
+                },
             },
             &unpinned,
             serde_json::json!({ "lockfileDir": store_tmp.path() }),
