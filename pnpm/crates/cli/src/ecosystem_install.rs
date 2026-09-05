@@ -2,6 +2,11 @@ use pnpm_config::Config;
 use pnpm_network::ThrottledClient;
 use std::{future::Future, pin::Pin, sync::Arc};
 
+mod metadata_file;
+mod mutation;
+
+pub(crate) use mutation::MetadataMutation;
+
 type Installer<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
 
 /// Report whether a non-Node.js ecosystem participates in this install.
@@ -40,6 +45,10 @@ impl<'a> EcosystemInstallCoordinator<'a> {
     pub(crate) async fn run(self) -> miette::Result<()> {
         futures_util::future::try_join_all(self.installers).await?;
         Ok(())
+    }
+
+    pub(crate) async fn run_to_settlement(self) -> miette::Result<()> {
+        futures_util::future::join_all(self.installers).await.into_iter().collect()
     }
 }
 

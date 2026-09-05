@@ -3,7 +3,7 @@ use std::{
     future::poll_fn,
     sync::{
         Arc,
-        atomic::{AtomicU8, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
     },
     task::Poll,
     time::Duration,
@@ -36,4 +36,47 @@ async fn polls_ecosystem_installers_concurrently() {
     .expect("every installer must start without waiting for another to finish")
     .unwrap();
     assert_eq!(started.load(Ordering::Acquire), 0b111);
+}
+
+#[tokio::test]
+async fn settlement_waits_for_every_installer_after_an_error() {
+    let completed = Arc::new(AtomicBool::new(false));
+    let remaining_install = {
+        let completed = Arc::clone(&completed);
+        async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            completed.store(true, Ordering::Release);
+            Ok(())
+        }
+    };
+
+    let result = EcosystemInstallCoordinator::new(async { Err(miette::miette!("failed")) })
+        .with_install(remaining_install)
+        .run_to_settlement()
+        .await;
+
+    assert_eq!(result.unwrap_err().to_string(), "failed");
+    eprintln!("remaining installer completed: {}", completed.load(Ordering::Acquire));
+    assert!(completed.load(Ordering::Acquire));
+}
+
+#[tokio::test]
+async fn ordinary_run_remains_fail_fast() {
+    let started = Arc::new(AtomicBool::new(false));
+    let remaining_install = {
+        let started = Arc::clone(&started);
+        async move {
+            started.store(true, Ordering::Release);
+            std::future::pending::<miette::Result<()>>().await
+        }
+    };
+
+    let result = EcosystemInstallCoordinator::new(async { Err(miette::miette!("failed")) })
+        .with_install(remaining_install)
+        .run()
+        .await;
+
+    assert_eq!(result.unwrap_err().to_string(), "failed");
+    eprintln!("remaining installer started: {}", started.load(Ordering::Acquire));
+    assert!(!started.load(Ordering::Acquire));
 }
