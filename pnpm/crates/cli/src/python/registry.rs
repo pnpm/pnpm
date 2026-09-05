@@ -168,22 +168,23 @@ impl Registry<'_> {
         &mut self,
         packages: &[LockedPackage],
     ) -> Result<()> {
-        let packages = packages
-            .iter()
-            .map(|package| (package.name.clone(), package.version.clone()))
-            .collect::<Vec<_>>();
+        // The borrowed iterator needs a higher-ranked function pointer to keep preparation Send.
+        let identity: fn(&LockedPackage) -> (PackageName, Version) =
+            |package| (package.name.clone(), package.version.clone());
+        let packages = packages.iter().map(identity);
         let registry = &*self;
-        let results = stream::iter(packages)
-            .map(|(name, version)| async move {
-                registry
+        let results = stream::iter(packages.enumerate())
+            .map(|(position, (name, version))| async move {
+                let result = registry
                     .download_wheel::<Reporter>(&name, &version)
                     .await
-                    .map(|wheel| ((name, version), wheel))
+                    .map(|wheel| ((name, version), wheel));
+                (position, result)
             })
-            .buffered(self.config.network_concurrency.clamp(1, 16))
-            .collect::<Vec<_>>()
+            .buffer_unordered(self.config.network_concurrency.clamp(1, 16))
+            .collect::<BTreeMap<_, _>>()
             .await;
-        self.wheels.extend(results.into_iter().collect::<Result<BTreeMap<_, _>>>()?);
+        self.wheels.extend(results.into_values().collect::<Result<BTreeMap<_, _>>>()?);
         Ok(())
     }
 

@@ -33,6 +33,17 @@ pub(super) struct Project {
     optional_dependencies: BTreeMap<String, Vec<String>>,
 }
 
+impl Project {
+    fn ensure_static_dependencies(&self) -> Result<()> {
+        if self.dynamic.iter().any(|field| {
+            matches!(field.as_str(), "dependencies" | "optional-dependencies" | "requires-python")
+        }) {
+            bail!("pnpm Python integration requires static dependency metadata in pyproject.toml");
+        }
+        Ok(())
+    }
+}
+
 impl Manifest {
     pub(super) fn parse(contents: &str) -> Result<Self> {
         toml::from_str(contents).into_diagnostic()
@@ -44,11 +55,7 @@ impl Manifest {
         selection: DependencySelection,
     ) -> Result<Vec<Requirement>> {
         let Some(project) = &self.project else { return Ok(Vec::new()) };
-        if project.dynamic.iter().any(|field| {
-            matches!(field.as_str(), "dependencies" | "optional-dependencies" | "requires-python")
-        }) {
-            bail!("pnpm Python integration requires static dependency metadata in pyproject.toml");
-        }
+        project.ensure_static_dependencies()?;
         let mut requirements =
             if selection.production { project.dependencies.clone() } else { Vec::new() };
         for extra in config.python.extras.iter().filter(|_| selection.production) {
@@ -111,9 +118,10 @@ pub(crate) fn parse_requirement(requirement: &str) -> Result<Requirement> {
 pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Result<()> {
     let original = std::fs::read_to_string(path).into_diagnostic()?;
     let parsed = Manifest::parse(&original)?;
-    if parsed.project.is_none() {
+    let Some(project) = &parsed.project else {
         bail!("{} has no [project] table", path.display());
-    }
+    };
+    project.ensure_static_dependencies()?;
     let document: BTreeMap<String, toml::Spanned<BTreeMap<String, toml::Spanned<toml::Value>>>> =
         toml::from_str(&original).into_diagnostic()?;
     let (table_name, key) =

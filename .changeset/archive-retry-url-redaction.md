@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-Archive download retry logs hide credentials and signed query parameters in URLs. Rust pnpm also removes request URLs from nested network errors.
+Archive download retry logs hide credentials and signed query parameters in URLs. In pnpm v12, nested network errors omit request URLs.

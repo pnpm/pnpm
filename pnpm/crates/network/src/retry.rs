@@ -23,6 +23,7 @@ use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
 use crate::{
     AuthHeaders, SecureAuthResponse, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
+    redact_url_for_display,
 };
 
 /// Settings for the per-request retry loop. Maps to the
@@ -152,7 +153,7 @@ pub async fn send_with_retry_at_priority<'client>(
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pnpm_network::retry",
-                    url = %redact_url_credentials(url),
+                    url = %redact_url_for_display(url),
                     ?status,
                     attempt = attempt + 1,
                     max_attempts = u64::from(retry_opts.retries) + 1,
@@ -174,7 +175,7 @@ pub async fn send_with_retry_at_priority<'client>(
                 let error = error.without_url();
                 tracing::warn!(
                     target: "pnpm_network::retry",
-                    url = %redact_url_credentials(url),
+                    url = %redact_url_for_display(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
                     max_attempts = u64::from(retry_opts.retries) + 1,
@@ -225,7 +226,7 @@ where
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pnpm_network::retry",
-                    url = %redact_url_credentials(url),
+                    url = %redact_url_for_display(url),
                     error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
                     max_attempts = u64::from(retry_opts.retries) + 1,
@@ -259,7 +260,7 @@ pub(crate) async fn get_secure_bytes(
             let response = client
                 .get_limited_bytes_with_secure_auth_and_accept(url, auth, accept, body_limit)
                 .await
-                .map_err(SecureAttemptError::Request)?;
+                .map_err(|error| SecureAttemptError::Request(error.without_url()))?;
             if !response.body_truncated && should_retry_status(response.status) {
                 Err(SecureAttemptError::Response(response))
             } else {

@@ -137,6 +137,48 @@ enum Container {
     Zip,
 }
 
+#[tokio::test]
+async fn archive_requests_do_not_downgrade_secure_credentials_to_plain_http() {
+    let mut server = mockito::Server::new_async().await;
+    let address: std::net::SocketAddr = server.host_with_port().parse().unwrap();
+    let request = server
+        .mock("GET", "/simple/pkg.whl")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_body("wheel")
+        .expect(1)
+        .create_async()
+        .await;
+    let client =
+        reqwest::Client::builder().no_proxy().resolve("registry.example", address).build().unwrap();
+    let no_redirects = reqwest::Client::builder()
+        .no_proxy()
+        .resolve("registry.example", address)
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .unwrap();
+    let client = ThrottledClient::from_clients(client, no_redirects);
+    let mut auth = AuthHeaders::default().with_secure_transport();
+    auth.insert_url_header(
+        &format!("https://registry.example:{}/simple/", address.port()),
+        "Basic secret".to_string(),
+    );
+    let url = format!("http://registry.example:{}/simple/pkg.whl", address.port());
+    let (_guard, response) = crate::archive_request::request_archive::<SilentReporter>(
+        &client,
+        &url,
+        "python:alpha",
+        &auth,
+        0,
+        0,
+        false,
+    )
+    .await
+    .unwrap();
+    eprintln!("response={response:?}");
+    assert_eq!(response.bytes().await.unwrap(), "wheel");
+    request.assert_async().await;
+}
+
 impl Container {
     const ALL: [Self; 2] = [Self::TarGz, Self::Zip];
 

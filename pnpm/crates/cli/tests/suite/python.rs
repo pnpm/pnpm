@@ -607,44 +607,48 @@ fn broken_python_environment_errors_identify_the_missing_path() {
     for missing_target in [false, true] {
         eprintln!("missing_target={missing_target}");
         let root = tempfile::tempdir().unwrap();
-        project(root.path(), "https://unused.invalid", &[]);
+        let project_root = dunce::canonicalize(root.path()).unwrap();
+        project(&project_root, "https://unused.invalid", &[]);
         let target = if missing_target {
-            root.path().join(".pnpm/python-envs/env-missing")
+            project_root.join(".pnpm/python-envs/env-missing")
         } else {
-            root.path().join("unmanaged")
+            project_root.join("unmanaged")
         };
         fs::create_dir_all(&target).unwrap();
-        pnpm_fs::force_symlink_dir(&target, &root.path().join(".venv")).unwrap();
+        pnpm_fs::force_symlink_dir(&target, &project_root.join(".venv")).unwrap();
         if missing_target {
             fs::remove_dir(&target).unwrap();
         }
-        let missing = if missing_target { target } else { root.path().join(".pnpm/python-envs") };
+        let missing = if missing_target { target } else { project_root.join(".pnpm/python-envs") };
         assert_failure_contains(
             pacquet_in(root.path()).args(["install", "--offline"]),
-            &format!("{} for {}", missing.display(), root.path().join(".venv").display()),
+            &format!("{} for {}", missing.display(), project_root.join(".venv").display()),
         );
         assert!(!root.path().join("pylock.toml").exists(), "published failed environment metadata");
     }
 }
 
 #[tokio::test]
-async fn frozen_wheel_downloads_overlap_and_settle_before_reporting_failure() {
+async fn frozen_wheel_downloads_replenish_slots_and_settle_before_reporting_failure() {
     for fail in [false, true] {
         eprintln!("fail={fail}");
         let root = tempfile::tempdir().unwrap();
         let mut server = mockito::Server::new_async().await;
-        let archives =
-            [("alpha", wheel("alpha", "1.0", "", &[])), ("beta", wheel("beta", "1.0", "", &[]))];
+        let archives = [
+            ("alpha", wheel("alpha", "1.0", "", &[])),
+            ("beta", wheel("beta", "1.0", "", &[])),
+            ("gamma", wheel("gamma", "1.0", "", &[])),
+        ];
         let mut initial_requests = Vec::new();
         for (name, archive) in &archives {
             initial_requests.extend(serve(&mut server, name, &[("1.0", archive.clone())]).await);
         }
-        project(root.path(), &server.url(), &["alpha", "beta"]);
+        project(root.path(), &server.url(), &["alpha", "beta", "gamma"]);
         pacquet_in(root.path()).args(["install", "--lockfile-only"]).assert().success();
         for request in initial_requests {
             request.remove_async().await;
         }
-        let before = fs::read(root.path().join("pylock.toml")).unwrap();
+        let before = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
         let rendezvous = Arc::new((Mutex::new(0), Condvar::new()));
         let sibling_finished = Arc::new(AtomicBool::new(false));
         let mut downloads = Vec::new();
@@ -659,14 +663,20 @@ async fn frozen_wheel_downloads_overlap_and_settle_before_reporting_failure() {
                         let mut arrivals = arrivals.lock().unwrap();
                         *arrivals += 1;
                         wake.notify_all();
-                        let (arrivals, timeout) = wake
-                            .wait_timeout_while(arrivals, Duration::from_secs(10), |arrivals| {
-                                *arrivals < 2
-                            })
-                            .unwrap();
-                        drop(arrivals);
-                        if timeout.timed_out() {
-                            return Err(std::io::Error::other("wheel fetches did not overlap"));
+                        if name == "alpha" {
+                            let (arrivals, timeout) = wake
+                                .wait_timeout_while(arrivals, Duration::from_secs(10), |arrivals| {
+                                    *arrivals < 3
+                                })
+                                .unwrap();
+                            drop(arrivals);
+                            if timeout.timed_out() {
+                                return Err(std::io::Error::other(
+                                    "wheel download slot was not replenished",
+                                ));
+                            }
+                        } else {
+                            drop(arrivals);
                         }
                         if fail && name == "alpha" {
                             return writer.write_all(b"corrupt wheel");
@@ -675,7 +685,7 @@ async fn frozen_wheel_downloads_overlap_and_settle_before_reporting_failure() {
                             std::thread::sleep(Duration::from_millis(250));
                         }
                         writer.write_all(&archive)?;
-                        if name == "beta" {
+                        if name == "gamma" {
                             sibling_finished.store(true, Ordering::SeqCst);
                         }
                         Ok(())
@@ -695,10 +705,12 @@ async fn frozen_wheel_downloads_overlap_and_settle_before_reporting_failure() {
             assert!(!root.path().join(".venv").exists(), "published a failed environment");
         } else {
             command.assert().success();
-            python(root.path()).args(["-c", "import alpha, beta"]).assert().success();
+            python(root.path()).args(["-c", "import alpha, beta, gamma"]).assert().success();
         }
         assert!(sibling_finished.load(Ordering::SeqCst), "returned before sibling body finished");
-        assert_eq!(before, fs::read(root.path().join("pylock.toml")).unwrap());
+        let after = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
+        eprintln!("INITIAL LOCK:\n{before}\nREPLAYED LOCK:\n{after}");
+        assert_eq!(before, after);
         for request in downloads {
             request.assert_async().await;
         }
@@ -807,6 +819,26 @@ async fn inconsistent_python_lockfile_reports_a_dependency_explanation() {
     assert!(stderr.contains("Python project"));
     assert!(!stderr.contains("NoSolution("));
     assert_eq!(environment, pnpm_fs::read_symlink_dir(&root.path().join(".venv")).unwrap());
+}
+
+#[test]
+fn python_add_rejects_dynamic_metadata_without_mutating_the_manifest() {
+    for development in [false, true] {
+        let root = tempfile::tempdir().unwrap();
+        project(root.path(), "https://unused.invalid", &[]);
+        let manifest = "[project]\nname = 'dynamic-app'\ndynamic = ['dependencies']\n";
+        fs::write(root.path().join("pyproject.toml"), manifest).unwrap();
+        let mut command = pacquet_in(root.path());
+        command.args(["add", "pypi:alpha"]);
+        if development {
+            command.arg("--save-dev");
+        }
+        assert_failure_contains(&mut command, "requires static dependency metadata");
+        let actual = fs::read_to_string(root.path().join("pyproject.toml")).unwrap();
+        eprintln!("manifest after rejection:\n{actual}");
+        assert_eq!(actual, manifest);
+        assert!(!root.path().join("pylock.toml").exists());
+    }
 }
 
 #[test]

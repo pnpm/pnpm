@@ -1,4 +1,5 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
+import { redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Dispatcher, fetch as undiciFetch } from 'undici'
 
@@ -74,9 +75,10 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           }
           // Extract error properties into a plain object because Error properties
           // are non-enumerable and don't serialize well through the logging system
+          const displayUrl = redactUrlForDisplay(urlString)
           const errorInfo = {
             name: err.name,
-            message: err.message,
+            message: err.message?.replaceAll(urlString, displayUrl),
             code: err.code,
             errno: (err as Error & { errno?: number }).errno,
             // For HTTP errors from ResponseError class
@@ -94,7 +96,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
             maxRetries,
             method: opts.method ?? 'GET',
             timeout: retryTimeout,
-            url: urlString,
+            url: displayUrl,
           })
         }
       })

@@ -23,6 +23,73 @@ fn instant_retry_opts(retries: u32) -> RetryOpts {
 }
 
 #[tokio::test]
+async fn manual_metadata_redirects_preserve_the_configured_guard() {
+    for allow in [false, true] {
+        eprintln!("allow={allow}");
+        let mut source = mockito::Server::new_async().await;
+        let mut target = mockito::Server::new_async().await;
+        let destination = target
+            .mock("GET", "/metadata")
+            .with_body("ok")
+            .expect(usize::from(allow))
+            .create_async()
+            .await;
+        let redirect = source
+            .mock("GET", "/start")
+            .with_status(302)
+            .with_header("location", &format!("{}/metadata", target.url()))
+            .expect(1)
+            .create_async()
+            .await;
+        let client = ThrottledClient::new_for_installs_with_redirect_guard(move |_| allow);
+        let result = get_secure_bytes(
+            &client,
+            &format!("{}/start", source.url()),
+            &AuthHeaders::default(),
+            None,
+            instant_retry_opts(2),
+            1024,
+        )
+        .await;
+        if allow {
+            assert_eq!(result.expect("allowed redirect succeeds").body, b"ok");
+        } else {
+            let error = result.err().expect("blocked redirect fails");
+            eprintln!("error={error:?}");
+            assert!(error.is_redirect());
+            assert!(error.to_string().contains("redirect"));
+        }
+        redirect.assert_async().await;
+        destination.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn authenticated_metadata_errors_remove_urls_after_retry_exhaustion() {
+    let socket = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = socket.local_addr().unwrap();
+    drop(socket);
+    let url = format!("http://user:password@{address}/metadata?token=secret#fragment");
+    let error = get_secure_bytes(
+        &ThrottledClient::default(),
+        &url,
+        &AuthHeaders::default(),
+        None,
+        instant_retry_opts(1),
+        1024,
+    )
+    .await
+    .err()
+    .expect("closed metadata endpoint must fail");
+    eprintln!("error={error:?}");
+    assert!(error.is_connect());
+    assert!(error.url().is_none());
+    for secret in ["password", "token", "secret", "fragment"] {
+        assert!(!error.to_string().contains(secret));
+    }
+}
+
+#[tokio::test]
 async fn maximum_retry_budget_does_not_overflow_logging_counters() {
     let mut registry = mockito::Server::new_async().await;
     let failure = registry.mock("GET", "/metadata").with_status(503).expect(1).create_async().await;

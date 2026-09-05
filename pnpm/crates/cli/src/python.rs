@@ -141,7 +141,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
         host::run(&config.python.executable, "probe", serde_json::json!({})).await?;
     let mut index: url::Url = config.python.index_url.parse().into_diagnostic()?;
     // A repository-selected Python index must not select user-level npm credentials.
-    let mut auth = pnpm_network::AuthHeaders::default();
+    let mut auth = pnpm_network::AuthHeaders::default().with_secure_transport();
     if !index.username().is_empty() || index.password().is_some() {
         let username = pnpm_network::percent_decode_str(index.username());
         let password = pnpm_network::percent_decode_str(index.password().unwrap_or(""));

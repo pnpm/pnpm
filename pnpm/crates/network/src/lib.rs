@@ -503,10 +503,11 @@ impl ThrottledClient {
             if trust_roots == TrustRoots::Bundled {
                 builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
             }
-            if forbid_redirects {
+            if let Some(guard) = redirect_guard {
+                builder = builder
+                    .redirect(allowlist_redirect_policy(Arc::clone(guard), !forbid_redirects));
+            } else if forbid_redirects {
                 builder = builder.redirect(reqwest::redirect::Policy::none());
-            } else if let Some(guard) = redirect_guard {
-                builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
             }
             Ok(builder)
         };
@@ -797,16 +798,20 @@ impl std::fmt::Display for BlockedRedirect {
 
 impl std::error::Error for BlockedRedirect {}
 
-/// A reqwest redirect policy that consults `guard` for every hop: an allowed
-/// target is followed (up to [`MAX_REDIRECT_HOPS`]), a rejected one fails the
-/// request with [`BlockedRedirect`] instead of being fetched.
-fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy {
+/// Validate every redirect before either following it or returning it to a
+/// manual redirect loop. Rejected targets fail with [`BlockedRedirect`].
+fn allowlist_redirect_policy(
+    guard: RedirectGuard,
+    follow_redirects: bool,
+) -> reqwest::redirect::Policy {
     reqwest::redirect::Policy::custom(move |attempt| {
         let target = attempt.url().clone();
         if attempt.previous().len() >= MAX_REDIRECT_HOPS || !guard(&target) {
             attempt.error(BlockedRedirect(target))
-        } else {
+        } else if follow_redirects {
             attempt.follow()
+        } else {
+            attempt.stop()
         }
     })
 }
