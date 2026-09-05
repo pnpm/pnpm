@@ -23,3 +23,6 @@ pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 
 pub mod file_mode;
+
+#[cfg(all(windows, feature = "test"))]
+pub mod test_support;

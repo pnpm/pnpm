@@ -10,6 +10,9 @@ keywords.workspace   = true
 license.workspace    = true
 repository.workspace = true
 
+[features]
+test = []
+
 [dependencies]
 derive_more = { workspace = true }
 dunce       = { workspace = true }
