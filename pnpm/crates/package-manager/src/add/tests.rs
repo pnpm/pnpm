@@ -57,11 +57,23 @@ fn workspace_protocol_local_path_is_not_a_named_protocol_selector() {
         "workspace:../pkg",
         "workspace:/tmp/pkg",
         "workspace:~/pkg",
-        "workspace:C:\\repo\\pkg",
+        r"workspace:C:\repo\pkg",
         "workspace:C:/repo/pkg",
-        "workspace:\\\\server\\pkg",
+        r"workspace:\\server\pkg",
     ] {
         assert_eq!(protocol_prefixed_selector_name(input), None);
+    }
+}
+
+#[test]
+fn named_package_extracted_from_protocol_selector() {
+    for (input, expected_name) in [
+        ("workspace:foo", "foo"),
+        ("workspace:@scope/pkg", "@scope/pkg"),
+        ("npm:foo@1", "foo"),
+        ("jsr:@scope/pkg", "@scope/pkg"),
+    ] {
+        assert_eq!(protocol_prefixed_selector_name(input), Some(expected_name));
     }
 }
 
