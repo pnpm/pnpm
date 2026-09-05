@@ -26,7 +26,12 @@ pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
 
 /// Remove a file with the retry policy of [`rename_with_retry`].
 pub fn remove_file_with_retry(path: &Path) -> io::Result<()> {
-    retry_transient_file_locks(|| fs::remove_file(path))
+    retry_transient_file_locks(|| {
+        let result = fs::remove_file(path);
+        #[cfg(all(windows, feature = "test"))]
+        crate::test_support::notify_file_removal(path, &result);
+        result
+    })
 }
 
 /// Remove a directory tree with the retry policy of [`rename_with_retry`].

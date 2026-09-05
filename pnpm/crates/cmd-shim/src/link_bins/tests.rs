@@ -26,6 +26,9 @@ use std::fs::metadata;
 use std::fs::remove_file;
 use tempfile::tempdir;
 
+#[cfg(windows)]
+mod windows_native;
+
 #[test]
 fn removing_bin_entries_preserves_their_targets() {
     let tmp = tempdir().unwrap();
