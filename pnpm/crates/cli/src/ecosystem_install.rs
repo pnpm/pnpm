@@ -9,7 +9,6 @@ pub(crate) fn is_enabled(config: &Config) -> bool {
     config.cargo.enabled
 }
 
-/// Resources and command policy shared by every ecosystem in one install.
 pub(crate) struct InstallContext {
     pub(crate) config: &'static Config,
     pub(crate) http_client: Arc<ThrottledClient>,
@@ -38,7 +37,6 @@ impl<'a> EcosystemInstallCoordinator<'a> {
         self
     }
 
-    /// Install every configured ecosystem under the shared resource budgets.
     pub(crate) async fn run(self) -> miette::Result<()> {
         futures_util::future::try_join_all(self.installers).await?;
         Ok(())
