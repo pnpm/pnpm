@@ -2,12 +2,12 @@ use pnpm_config::{
     ColorMode, Config, EnvVar, GLOBAL_LAYOUT_VERSION, GetCurrentDir, GetHomeDir, LinkProbe,
     LinkWorkspacePackages, NodeLinker, PackageImportMethod, PmOnFail, RuntimeOnFail,
     SaveWorkspaceProtocol, TrustPolicy, VerifyDepsBeforeRun, default_state_dir,
-    resolve_child_concurrency,
+    naming_cases::to_camel_case, resolve_child_concurrency,
 };
 use pnpm_fs::lexical_normalize;
 use pnpm_store_dir::StoreDir;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     ffi::{OsStr, OsString},
     path::Path,
 };
@@ -174,6 +174,9 @@ pub struct ConfigOverrides {
     https_proxy: Option<String>,
     http_proxy: Option<String>,
     no_proxy: Option<String>,
+    /// Every kebab-case key [`Self::set`] received, whether or not its
+    /// value parsed, for [`Config::cli_settings`].
+    settings: BTreeSet<String>,
 }
 
 impl ConfigOverrides {
@@ -238,6 +241,7 @@ impl ConfigOverrides {
     }
 
     fn set(&mut self, key: &str, value: &str) {
+        self.settings.insert(key.to_owned());
         match key {
             "allow-unused-patches" => self.allow_unused_patches = parse_bool(value),
             "bail" => self.bail = parse_bool(value),
@@ -435,6 +439,9 @@ impl ConfigOverrides {
     /// `dir` is the canonicalized `--dir`, the fallback base for a
     /// relative path-valued setting outside a workspace.
     pub fn apply(&self, config: &mut Config, dir: &Path) {
+        config.cli_settings.extend(self.settings.iter().map(|key| {
+            if scoped_registry_key(key).is_some() { key.clone() } else { to_camel_case(key) }
+        }));
         config.apply_proxy_cli_overrides(
             self.https_proxy.as_deref(),
             self.http_proxy.as_deref(),
@@ -547,9 +554,6 @@ impl ConfigOverrides {
         for (scope, registry) in &self.registries {
             config.registries_by_scope.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
-            config
-                .explicit_settings
-                .insert(format!("{scope}:registry"), serde_json::Value::String(registry.clone()));
         }
         if let Some(value) = self.deploy_all_files {
             config.deploy_all_files = value;
@@ -1060,8 +1064,8 @@ pub(crate) fn apply_registry_override(config: &mut Config, registry: &str) {
     config.registry.clone_from(&registry);
     config.registries_by_scope.insert("default".to_string(), registry.clone());
     config.package_manager_bootstrap.registry.clone_from(&registry);
-    config.package_manager_bootstrap.registries.insert("default".to_string(), registry.clone());
-    config.explicit_settings.insert("registry".to_string(), serde_json::Value::String(registry));
+    config.package_manager_bootstrap.registries.insert("default".to_string(), registry);
+    config.cli_settings.insert("registry".to_string());
 }
 
 fn normalize_registry_url(registry: &str) -> String {

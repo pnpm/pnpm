@@ -114,8 +114,12 @@ fn update_config_hook_mutates_config_before_install() {
     drop((root, mock_instance));
 }
 
+/// The command line outranks an `updateConfig` hook: the hook's rerouted
+/// default registry and flipped `nodeLinker` both lose to the flags, so
+/// the install still fetches from the mocked registry and lays the
+/// dependency out hoisted.
 #[test]
-fn update_config_hook_cli_registry_option_wins() {
+fn update_config_hook_cannot_override_command_line_settings() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -128,7 +132,7 @@ fn update_config_hook_cli_registry_option_wins() {
     .expect("write package.json");
     fs::write(
         workspace.join(".pnpmfile.cjs"),
-        "module.exports = { hooks: { updateConfig (config) {\n  config.registries = { default: 'http://127.0.0.1:1/' };\n  return config;\n} } }",
+        "module.exports = { hooks: { updateConfig (config) {\n  config.registries = { default: 'http://127.0.0.1:1/' };\n  config.nodeLinker = 'isolated';\n  return config;\n} } }",
     )
     .expect("write .pnpmfile.cjs");
 
@@ -136,11 +140,51 @@ fn update_config_hook_cli_registry_option_wins() {
         .with_arg("install")
         .with_arg("--registry")
         .with_arg(registry_url.as_str())
+        .with_arg("--config.node-linker=hoisted")
         .assert()
         .success();
 
     let dep = workspace.join("node_modules/@pnpm.e2e/foo");
-    assert!(dep.join("package.json").exists(), "dependency is installed using CLI registry option");
+    assert!(dep.join("package.json").exists(), "dependency is installed from the CLI registry");
+    #[cfg(unix)]
+    assert!(
+        !is_symlink_or_junction(&dep).unwrap(),
+        "--config.node-linker=hoisted outranks the hook's nodeLinker: isolated",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// A `--config.@<scope>:registry` override survives a hook that reroutes
+/// the same scope.
+#[test]
+fn update_config_hook_cannot_override_command_line_scoped_registry() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry_url = mock_instance.url();
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(
+        workspace.join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig (config) {\n  config.registries = { '@pnpm.e2e': 'http://127.0.0.1:1/' };\n  return config;\n} } }",
+    )
+    .expect("write .pnpmfile.cjs");
+
+    pacquet_at(&workspace)
+        .with_arg("install")
+        .with_arg(format!("--config.@pnpm.e2e:registry={registry_url}"))
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists(),
+        "dependency is installed from the CLI scoped registry",
+    );
 
     drop((root, mock_instance));
 }
@@ -283,8 +327,10 @@ fn update_config_hook_injects_catalog() {
     drop((root, mock_instance));
 }
 
+/// The hook reads the store the command line chose, and its own
+/// `storeDir` loses to it: the install records the CLI store.
 #[test]
-fn update_config_observes_and_can_replace_the_cli_store_dir() {
+fn update_config_observes_but_cannot_replace_the_cli_store_dir() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -312,20 +358,19 @@ fn update_config_observes_and_can_replace_the_cli_store_dir() {
     )
     .expect("read .modules.yaml")
     .expect(".modules.yaml exists");
-    let hook_store =
-        dunce::canonicalize(&workspace).expect("canonicalize workspace").join("hook-store/v11");
+    let cli_store =
+        dunce::canonicalize(&workspace).expect("canonicalize workspace").join("cli-store/v11");
     assert_eq!(
         dunce::canonicalize(&modules.store_dir).expect("canonicalize recorded store"),
-        hook_store,
+        cli_store,
     );
     assert_eq!(
         dunce::canonicalize(&modules.virtual_store_dir)
             .expect("canonicalize recorded virtual store"),
-        hook_store.join("links"),
+        cli_store.join("links"),
     );
-    let index_path = hook_store.join("index.db");
-    eprintln!("Checking for hook store index: {}", index_path.display());
-    assert!(index_path.is_file());
+    assert!(cli_store.join("index.db").is_file());
+    assert!(!workspace.join("hook-store").exists(), "the hook's storeDir was not used");
 
     drop((root, mock_instance));
 }

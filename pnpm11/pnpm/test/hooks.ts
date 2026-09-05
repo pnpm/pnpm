@@ -295,46 +295,33 @@ export const hooks = {
   expect(nodeModulesFiles).toContain('is-number')
 })
 
-test('CLI options take precedence over updateConfig hook overrides', async () => {
+test('the command line outranks the updateConfig hook', async () => {
   prepare()
 
   fs.writeFileSync('.pnpmfile.mjs', `
 export const hooks = {
   updateConfig: (config) => ({
     ...config,
-    registries: {
-      default: 'http://localhost:8080',
+    nodeLinker: 'isolated',
+    registriesByScope: {
+      ...config.registriesByScope,
+      default: 'http://localhost:1/',
     },
   }),
 }`, 'utf8')
   writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
 
-  await execPnpm(['add', 'is-positive@1.0.0', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`])
+  await execPnpm([
+    'add',
+    'is-odd@1.0.0',
+    `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`,
+    '--node-linker=hoisted',
+    '--fetch-retries=0',
+  ])
 
   const nodeModulesFiles = fs.readdirSync('node_modules')
-  expect(nodeModulesFiles).toContain('is-positive')
-})
-
-test('CLI scoped registry and multi-word options take precedence over updateConfig hook overrides', async () => {
-  prepare()
-
-  fs.writeFileSync('.pnpmfile.mjs', `
-export const hooks = {
-  updateConfig: (config) => ({
-    ...config,
-    storeDir: '/tmp/pnpm-store-hook-override',
-    registries: {
-      default: 'http://localhost:8080',
-      '@foo': 'http://localhost:8080',
-    },
-  }),
-}`, 'utf8')
-  writeYamlFileSync('pnpm-workspace.yaml', { pnpmfile: ['.pnpmfile.mjs'] })
-
-  await execPnpm(['add', 'is-positive@1.0.0', `--registry=http://localhost:${REGISTRY_MOCK_PORT}/`, `--@foo:registry=http://localhost:${REGISTRY_MOCK_PORT}/`])
-
-  const nodeModulesFiles = fs.readdirSync('node_modules')
-  expect(nodeModulesFiles).toContain('is-positive')
+  expect(nodeModulesFiles).toContain('is-odd')
+  expect(nodeModulesFiles).toContain('is-number')
 })
 
 test('loading multiple pnpmfiles', async () => {

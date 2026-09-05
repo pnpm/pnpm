@@ -11,6 +11,7 @@ import { logger } from '@pnpm/logger'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import type { ConfigDependencies } from '@pnpm/types'
+import camelcase from 'camelcase'
 
 export async function getConfig (
   cliOptions: CliOptions,
@@ -111,65 +112,60 @@ export async function installConfigDepsAndLoadHooks (
     context.finders = finders
     config.pnpmfile = resolvedPnpmfilePaths
     if (context.hooks?.updateConfig) {
+      const cliSettings = pickCliSettings(config, context.cliOptions)
       for (const updateConfig of context.hooks.updateConfig) {
         const updateConfigResult = updateConfig(config)
         config = updateConfigResult instanceof Promise ? await updateConfigResult : updateConfigResult // eslint-disable-line no-await-in-loop
       }
-      reapplyExplicitCliOptions(config, context)
+      restoreCliSettings(config, cliSettings)
     }
   }
   return { config, context }
 }
 
-function reapplyExplicitCliOptions (config: Config, context: ConfigContext): void {
-  const cliOptions = context.cliOptions
-  if (!cliOptions) return
-  if (cliOptions.registry && typeof cliOptions.registry === 'string') {
-    const normalized = normalizeRegistryUrl(cliOptions.registry)
-    config.registry = normalized
-    if (config.registriesByScope) {
-      config.registriesByScope.default = normalized
-    }
-    if (config.packageManagerRegistries) {
-      config.packageManagerRegistries.default = normalized
-    }
-    if ((config as Record<string, any>).registries?.default) { // eslint-disable-line @typescript-eslint/no-explicit-any
-      (config as Record<string, any>).registries.default = normalized // eslint-disable-line @typescript-eslint/no-explicit-any
-    }
-  }
-  for (const [key, value] of Object.entries(cliOptions)) {
-    if (key.startsWith('@') && key.endsWith(':registry') && typeof value === 'string') {
-      const scope = key.slice(0, -':registry'.length)
-      const normalized = normalizeRegistryUrl(value)
-      if (config.registriesByScope) {
-        config.registriesByScope[scope] = normalized
-      }
-      if (config.packageManagerRegistries) {
-        config.packageManagerRegistries[scope] = normalized
-      }
-      if ((config as Record<string, any>).registries) { // eslint-disable-line @typescript-eslint/no-explicit-any
-        (config as Record<string, any>).registries[scope] = normalized // eslint-disable-line @typescript-eslint/no-explicit-any
-      }
-    }
-  }
-  if (context.explicitlySetKeys) {
-    for (const key of context.explicitlySetKeys) {
-      if (key === 'registry') continue
-      const camelKey = key.replace(/-([a-z])/g, (_, g: string) => g.toUpperCase())
-      const kebabKey = key.replace(/([A-Z])/g, '-$1').toLowerCase()
-      const val = cliOptions[key] ?? cliOptions[camelKey] ?? cliOptions[kebabKey]
-      if (val !== undefined) {
-        (config as unknown as Record<string, unknown>)[key] = val
-        if (key !== camelKey) {
-          (config as unknown as Record<string, unknown>)[camelKey] = val
-        }
-      }
-    }
-  }
+/**
+ * The settings the command line set, read off `config` after the config
+ * reader resolved them. The command line outranks every other layer, the
+ * `updateConfig` hooks included, so these go back over whatever the hooks
+ * return. `--registry` and `--@<scope>:registry` are kept as the registry
+ * routes they resolved to, because a hook may replace the whole routing map.
+ */
+interface CliSettings {
+  settings: Map<string, unknown>
+  registriesByScope: Map<string, string>
 }
 
-function normalizeRegistryUrl (url: string): string {
-  return url.endsWith('/') ? url : `${url}/`
+function pickCliSettings (config: Config, cliOptions: Record<string, unknown>): CliSettings {
+  const settings = new Map<string, unknown>()
+  const registriesByScope = new Map<string, string>()
+  for (const [key, value] of Object.entries(cliOptions)) {
+    if (value === undefined) continue
+    if (key.startsWith('@') && key.endsWith(':registry')) {
+      const scope = key.slice(0, -':registry'.length)
+      registriesByScope.set(scope, config.registriesByScope[scope])
+      continue
+    }
+    const setting = camelcase(key, { locale: 'en-US' })
+    if (Object.hasOwn(config, setting)) {
+      settings.set(setting, (config as unknown as Record<string, unknown>)[setting])
+    }
+    if (setting === 'registry') {
+      registriesByScope.set('default', config.registriesByScope.default)
+    }
+  }
+  return { settings, registriesByScope }
+}
+
+function restoreCliSettings (config: Config, { settings, registriesByScope }: CliSettings): void {
+  for (const [setting, value] of settings) {
+    (config as unknown as Record<string, unknown>)[setting] = value
+  }
+  for (const [scope, registry] of registriesByScope) {
+    config.registriesByScope[scope] = registry
+    if (config.packageManagerRegistries) {
+      config.packageManagerRegistries[scope] = registry
+    }
+  }
 }
 
 export function * calcPnpmfilePathsOfPluginDeps (configModulesDir: string, configDependencies: ConfigDependencies): Generator<string> {

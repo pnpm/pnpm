@@ -150,6 +150,7 @@
     "@types/semver": "catalog:",
     "@zkochan/retry": "catalog:",
     "@zkochan/rimraf": "catalog:",
+    "camelcase": "catalog:",
     "chalk": "catalog:",
     "ci-info": "catalog:",
     "cross-spawn": "catalog:",

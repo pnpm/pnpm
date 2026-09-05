@@ -8038,6 +8038,9 @@ importers:
       '@zkochan/rimraf':
         specifier: 'catalog:'
         version: 4.0.0
+      camelcase:
+        specifier: 'catalog:'
+        version: 9.0.0
       chalk:
         specifier: 'catalog:'
         version: 6.0.0
