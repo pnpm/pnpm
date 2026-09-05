@@ -34,26 +34,50 @@ export function reportLockfileVerification (
           msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${formatCachedVerdict(log.verifiedAt)})`,
         }
       }
-      const entries = `${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
+      const progress = formatProgress(log)
       switch (log.status) {
         case 'started':
+        case 'progress':
           return {
-            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${entries})...`,
+            msg: `${chalk.cyan('?')} Verifying lockfile${path_} against supply-chain policies (${progress})...`,
           }
         case 'done':
           return {
-            msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${entries} in ${prettyMs(log.elapsedMs)})`,
+            msg: `${chalk.green('✓')} Lockfile${path_} passes supply-chain policies (${progress} in ${prettyMs(log.elapsedMs)})`,
           }
         case 'failed':
           // Brief one-liner so the transient `started` frame doesn't
           // stay on screen above the detailed PnpmError block that the
           // error reporter prints next.
           return {
-            msg: `${chalk.red('✗')} Lockfile${path_} failed supply-chain policy check (${entries} in ${prettyMs(log.elapsedMs)})`,
+            msg: `${chalk.red('✗')} Lockfile${path_} failed supply-chain policy check (${progress} in ${prettyMs(log.elapsedMs)})`,
           }
       }
     })
   ))
+}
+
+function formatProgress (log: LockfileVerificationLog): string {
+  // The `cached` branch is handled before calling this function.
+  if (log.status === 'cached') return ''
+  // Defensively handle a missing `checked` field — Pacquet's
+  // `Done`/`Failed` events may not carry it (the field was added
+  // after Pacquet first ported the lockfile-verification gate, so
+  // existing Pacquet binaries emit events without it). TypeScript
+  // types require it, but the NDJSON wire from an older Rust binary
+  // deserialises into the union discriminant tag with `checked`
+  // absent, producing `undefined` at the call site.
+  //   - For `done` the safe fallback is `entries` — all entries were
+  //     verified on the success path.
+  //   - For `failed` the safe fallback is `0` — we don't know how many
+  //     entries were checked when the failure happened.
+  //   - For `progress` the safe fallback is `0` (shouldn't happen from
+  //     Pacquet since it doesn't emit progress events, but Ts-side
+  //     always carries the field).
+  const checked = log.status === 'started'
+    ? 0
+    : (log.checked ?? (log.status === 'done' ? log.entries : 0))
+  return `${checked}/${log.entries} ${log.entries === 1 ? 'entry' : 'entries'}`
 }
 
 // Relative "verified 2h ago" when the cached record carries a parseable

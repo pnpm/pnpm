@@ -74,6 +74,7 @@
     "denolib",
     "dependson",
     "deptype",
+    "deserialises",
     "desugared",
     "desugars",
     "devextreme",
