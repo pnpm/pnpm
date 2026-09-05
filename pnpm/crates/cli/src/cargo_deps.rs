@@ -1,4 +1,4 @@
-use crate::ecosystem_install::InstallContext;
+use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
@@ -42,9 +42,13 @@ pub(crate) enum CargoLockfilePolicy {
 }
 
 pub(crate) struct CargoInstallOptions<'a> {
-    pub(crate) root_dir: &'a Path,
-    pub(crate) discover_projects: bool,
+    pub(crate) projects: CargoInstallProjects<'a>,
     pub(crate) lockfile_policy: CargoLockfilePolicy,
+}
+
+pub(crate) enum CargoInstallProjects<'a> {
+    Root(&'a Path),
+    Workspace(&'a EcosystemWorkspaceInventory),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,15 +82,16 @@ pub async fn install<Reporter: self::Reporter + 'static>(
     options: CargoInstallOptions<'_>,
 ) -> Result<()> {
     let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
-    let CargoInstallOptions { root_dir, discover_projects, lockfile_policy } = options;
+    let CargoInstallOptions { projects, lockfile_policy } = options;
     if !config.cargo.enabled {
         return Ok(());
     }
 
-    let roots = if discover_projects {
-        discover_workspace_roots(root_dir).await?
-    } else {
-        vec![root_dir.to_path_buf()]
+    let roots = match projects {
+        CargoInstallProjects::Root(root_dir) => vec![root_dir.to_path_buf()],
+        CargoInstallProjects::Workspace(inventory) => {
+            discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?
+        }
     };
     stream::iter(roots)
         .map(|root| {
@@ -192,87 +197,13 @@ pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
         .map(|metadata| metadata.workspace_root)
 }
 
-async fn discover_workspace_roots(search_root: &Path) -> Result<Vec<PathBuf>> {
-    let search_root = search_root.to_path_buf();
-    let manifests = tokio::task::spawn_blocking(move || discover_manifests(&search_root))
-        .await
-        .into_diagnostic()
-        .wrap_err("join Cargo project discovery task")??;
-    let roots = stream::iter(manifests)
+async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    let roots = stream::iter(manifests.iter().cloned())
         .map(|manifest| async move { workspace_root(&manifest).await })
         .buffer_unordered(8)
         .try_collect::<BTreeSet<_>>()
         .await?;
     Ok(roots.into_iter().collect())
-}
-
-fn discover_manifests(search_root: &Path) -> Result<Vec<PathBuf>> {
-    discover_manifests_with(search_root, |directory| fs::read_dir(directory))
-}
-
-fn discover_manifests_with(
-    search_root: &Path,
-    mut read_dir: impl FnMut(&Path) -> io::Result<fs::ReadDir>,
-) -> Result<Vec<PathBuf>> {
-    let mut pending = vec![search_root.to_path_buf()];
-    let mut manifests = Vec::new();
-    while let Some(directory) = pending.pop() {
-        let entries = match read_dir(&directory) {
-            Ok(entries) => entries,
-            Err(error) if directory != search_root && is_ignorable_discovery_error(&error) => {
-                continue;
-            }
-            Err(error) => {
-                return Err(error).into_diagnostic().wrap_err_with(|| {
-                    format!(
-                        "read directory while discovering Cargo projects at {}",
-                        directory.display(),
-                    )
-                });
-            }
-        };
-        for entry in entries {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(error) if is_ignorable_discovery_error(&error) => continue,
-                Err(error) => {
-                    return Err(error).into_diagnostic().wrap_err_with(|| {
-                        format!(
-                            "read entry while discovering Cargo projects at {}",
-                            directory.display(),
-                        )
-                    });
-                }
-            };
-            let file_type = match entry.file_type() {
-                Ok(file_type) => file_type,
-                Err(error) if is_ignorable_discovery_error(&error) => continue,
-                Err(error) => {
-                    return Err(error).into_diagnostic().wrap_err_with(|| {
-                        format!("inspect Cargo project candidate {}", entry.path().display())
-                    });
-                }
-            };
-            if file_type.is_symlink() {
-                continue;
-            }
-            if file_type.is_dir() {
-                if !matches!(
-                    entry.file_name().to_str(),
-                    Some(".git" | ".pnpm" | "node_modules" | "target"),
-                ) {
-                    pending.push(entry.path());
-                }
-            } else if file_type.is_file() && entry.file_name() == "Cargo.toml" {
-                manifests.push(entry.path());
-            }
-        }
-    }
-    Ok(manifests)
-}
-
-fn is_ignorable_discovery_error(error: &std::io::Error) -> bool {
-    matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::PermissionDenied)
 }
 
 async fn ensure_lockfile(
