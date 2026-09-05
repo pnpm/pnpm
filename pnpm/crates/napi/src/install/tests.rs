@@ -1031,6 +1031,13 @@ fn safe_intersect_matches_merge_peers_semantics() {
     assert_eq!(safe_intersect(["^16.0.0", "^17.0.0"].into_iter()), None);
     // Unparsable range → None, matching v11's swallow-errors behavior.
     assert_eq!(safe_intersect(["^16.0.0", "not-a-range"].into_iter()), None);
+    // A version its partner excludes drops out whichever side it is passed on.
+    assert_eq!(safe_intersect(["<1.2.3", "1.2.3"].into_iter()), None);
+    assert_eq!(safe_intersect(["1.2.3", "<1.2.3"].into_iter()), None);
+    // An upper bound that leaves a component out reaches the whole line.
+    let merged = safe_intersect(["<=16", "^16.8.0"].into_iter()).expect("ranges overlap");
+    let range: node_semver::Range = merged.parse().expect("intersection parses");
+    assert!(range.satisfies(&"16.9.1".parse().unwrap()));
 }
 
 /// The wire shape mirrors v11's `PeerDependencyIssues`: `missing` /

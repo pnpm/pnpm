@@ -69,6 +69,32 @@ fn test_satisfies_prerelease_matches_include_prerelease() {
     }
 }
 
+/// A version left partial after `<=` is an X-Range, so the bound rises
+/// to the first version the range leaves out: `<=16` reaches every 16.x.
+/// Values checked against `semver.satisfies(v, r, { includePrerelease:
+/// true, loose: true })`.
+#[test]
+fn test_satisfies_partial_upper_bound_covers_the_omitted_component() {
+    let cases = [
+        (">=0.11 <=3", "3.0.1", true),
+        ("<=16", "16.0.0", true),
+        ("<=16", "16.8.2", true),
+        ("<=16", "17.0.0", false),
+        ("<=16", "16.1.0-rc.1", true),
+        ("<=2.0", "2.0.0", true),
+        ("<=2.0", "2.0.5", true),
+        ("<=2.0", "2.1.0", false),
+        ("<=1.2.x", "1.2.9", true),
+        ("<=1.2.x", "1.3.0", false),
+        // A fully spelled-out bound stays exact.
+        ("<=1.2.3", "1.2.3", true),
+        ("<=1.2.3", "1.2.4", false),
+    ];
+    for (range, version, expected) in cases {
+        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+    }
+}
+
 #[test]
 fn test_satisfies_non_semver() {
     assert!(satisfies("custom-tag", "custom-tag"));
