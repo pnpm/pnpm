@@ -3,6 +3,7 @@ mod archive_retry;
 mod download;
 mod error;
 mod extract;
+mod extraction_task;
 mod ingestion;
 mod local_tarball;
 mod prefetch;
