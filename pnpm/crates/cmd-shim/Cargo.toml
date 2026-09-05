@@ -28,5 +28,8 @@ walkdir     = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 
+[target.'cfg(windows)'.dev-dependencies]
+pnpm-fs = { workspace = true, features = ["test"] }
+
 [lints]
 workspace = true
