@@ -18,7 +18,7 @@ pub use lexical_normalize::lexical_normalize;
 pub use realpath_missing::realpath_missing;
 pub use relative_path::relative_path;
 pub use remove_dirent::remove_dirent;
-pub use retry::{remove_dir_all_with_retry, rename_with_retry};
+pub use retry::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_retry};
 pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 

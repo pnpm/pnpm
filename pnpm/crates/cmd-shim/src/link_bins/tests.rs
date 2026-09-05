@@ -1,5 +1,6 @@
 use super::{
     BinOrigin, LinkBinsError, LinkBinsOptions, PackageBinSource, link_bins, link_bins_of_packages,
+    remove_bin,
 };
 use crate::{
     capabilities::{
@@ -24,6 +25,66 @@ use std::fs::metadata;
 #[cfg(windows)]
 use std::fs::remove_file;
 use tempfile::tempdir;
+
+#[test]
+fn removing_bin_entries_preserves_their_targets() {
+    let tmp = tempdir().unwrap();
+    let target = tmp.path().join("node.exe");
+    write_file(&target, "node binary").unwrap();
+    let bins_dir = tmp.path().join(".bin");
+    create_dir_all(&bins_dir).unwrap();
+    let bin = bins_dir.join("node");
+    std::fs::hard_link(&target, &bin).unwrap();
+    if cfg!(windows) {
+        std::fs::hard_link(&target, bins_dir.join("node.exe")).unwrap();
+        write_file(bins_dir.join("node.cmd"), "old shim").unwrap();
+    }
+
+    remove_bin(&bin).unwrap();
+    remove_bin(&bin).expect("removing an already removed command must succeed");
+
+    assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0);
+    assert_eq!(read_to_string(&target).unwrap(), "node binary");
+
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&target, &bin).unwrap();
+        remove_bin(&bin).unwrap();
+        assert_eq!(std::fs::read_dir(&bins_dir).unwrap().count(), 0);
+        assert_eq!(read_to_string(&target).unwrap(), "node binary");
+    }
+}
+
+#[test]
+#[cfg_attr(windows, ignore = "Windows retries directory deletion errors as possible file locks")]
+fn bin_cleanup_and_replacement_preserve_deletion_errors() {
+    let tmp = tempdir().unwrap();
+    let pkg_dir = tmp.path().join("node_modules/foo");
+    create_dir_all(&pkg_dir).unwrap();
+    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    let bins_dir = tmp.path().join("node_modules/.bin");
+    let shim = bins_dir.join("foo");
+    create_dir_all(&shim).unwrap();
+    let preserved = shim.join("keep");
+    write_file(&preserved, "untouched").unwrap();
+    let expected = std::fs::remove_file(&shim).unwrap_err().raw_os_error();
+
+    let error = remove_bin(&shim).expect_err("a directory must not be silently removed");
+    assert_eq!(error.raw_os_error(), expected);
+
+    let error = link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(pkg_dir, Arc::new(json!({"name": "foo", "bin": "cli.js"})))],
+        &bins_dir,
+        &LinkBinsOptions::default(),
+    )
+    .expect_err("replacement must stop when the old entry cannot be removed");
+    let LinkBinsError::RemoveStaleBin { path, error } = error else {
+        panic!("unexpected replacement error: {error:?}");
+    };
+    assert_eq!(path, shim);
+    assert_eq!(error.raw_os_error(), expected);
+    assert_eq!(read_to_string(preserved).unwrap(), "untouched");
+}
 
 #[test]
 fn writes_shim_flavors_matching_host_platform() {
@@ -1460,7 +1521,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     let options =
         LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
+        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
         &bins_dir,
         &options,
     )
@@ -1487,7 +1548,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
+            metadata(&bin).unwrap().permissions().mode() & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );
