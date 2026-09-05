@@ -6,6 +6,8 @@ use pretty_assertions::assert_eq;
 use std::{fs, io::ErrorKind, path::Path};
 use tempfile::TempDir;
 
+mod normalization;
+
 fn make_project(root: &std::path::Path, rel: &str, name: &str) {
     let dir = root.join(rel);
     fs::create_dir_all(&dir).unwrap();

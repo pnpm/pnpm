@@ -17,6 +17,7 @@
 use crate::project_manifest::{ReadProjectManifestError, read_exact_project_manifest};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pnpm_fs::lexical_normalize_posix;
 use pnpm_package_manifest::{PackageManifest, PackageManifestError};
 use rayon::prelude::*;
 use std::{
@@ -122,22 +123,23 @@ pub fn find_workspace_projects_no_check(
     // inside `Glob::new()`, so split them out and feed them through
     // `.not()` instead. `!/...` remains a no-op: relative workspace
     // paths never match that absolute form.
-    let mut include_patterns: Vec<&str> = Vec::new();
+    let mut include_patterns = Vec::new();
     let mut user_negation_globs: Vec<String> = Vec::new();
     for pattern in patterns {
         if let Some(body) = pattern.strip_prefix('!') {
             if body.starts_with('/') {
                 continue;
             }
-            for normalized in normalize_manifest_patterns(body) {
+            let Some(directory) = normalize_directory_pattern(body) else { continue };
+            for normalized in normalize_manifest_patterns(&directory) {
                 Glob::new(&normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
                     pattern: pattern.clone(),
                     message: err.to_string(),
                 })?;
                 user_negation_globs.push(normalized);
             }
-        } else {
-            include_patterns.push(pattern);
+        } else if let Some(normalized) = normalize_directory_pattern(pattern) {
+            include_patterns.push(WorkspacePattern { source: pattern, normalized });
         }
     }
 
@@ -168,7 +170,7 @@ pub fn find_workspace_projects_no_check(
     // glob fails before any pattern pays for a workspace walk. The fast
     // paths accept only meta-character-free patterns, which cannot fail
     // to parse.
-    for pattern in &include_patterns {
+    for WorkspacePattern { source, normalized: pattern } in &include_patterns {
         if specialized_pattern(pattern).is_some() {
             continue;
         }
@@ -177,7 +179,7 @@ pub fn find_workspace_projects_no_check(
                 continue;
             };
             Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: (*pattern).to_string(),
+                pattern: (*source).to_string(),
                 message: err.to_string(),
             })?;
         }
@@ -262,13 +264,13 @@ pub fn find_workspace_projects_no_check(
 /// kinds are absorbed, how the fast paths and the generic walk divide
 /// the pattern space — lives there; this is its per-pattern body.
 fn collect_pattern_manifests(
-    pattern: &str,
+    pattern: &WorkspacePattern<'_>,
     workspace_root: &Path,
     dot_pruning_ignore_template: &wax::Any<'_>,
     user_negations: &wax::Any<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let mut manifest_paths: BTreeSet<PathBuf> = BTreeSet::new();
-    match specialized_pattern(pattern) {
+    match specialized_pattern(&pattern.normalized) {
         Some(SpecializedPattern::ChildrenOf(parent)) => {
             collect_manifests_in_children(
                 &workspace_root.join(parent),
@@ -290,7 +292,7 @@ fn collect_pattern_manifests(
         None => {}
     }
 
-    for normalized in normalize_manifest_patterns(pattern) {
+    for normalized in normalize_manifest_patterns(&pattern.normalized) {
         let Some((walk_root, normalized)) = split_parent_prefix(workspace_root, &normalized) else {
             continue;
         };
@@ -299,12 +301,12 @@ fn collect_pattern_manifests(
         }
         let glob =
             Glob::new(normalized).map_err(|err| FindWorkspaceProjectsError::InvalidGlob {
-                pattern: pattern.to_string(),
+                pattern: pattern.source.to_string(),
                 message: err.to_string(),
             })?;
 
         let invalid_glob = |err: wax::BuildError| FindWorkspaceProjectsError::InvalidGlob {
-            pattern: pattern.to_string(),
+            pattern: pattern.source.to_string(),
             message: err.to_string(),
         };
         match positional_dot_ignores(normalized) {
@@ -377,12 +379,18 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
-fn normalize_directory_pattern(pattern: &str) -> Option<&str> {
-    let trimmed = pattern.trim_end_matches('/');
-    if trimmed.is_empty() || trimmed == "." {
+struct WorkspacePattern<'source> {
+    source: &'source str,
+    normalized: String,
+}
+
+fn normalize_directory_pattern(pattern: &str) -> Option<String> {
+    let mut normalized = lexical_normalize_posix(pattern);
+    normalized.truncate(normalized.trim_end_matches('/').len());
+    if normalized.is_empty() || normalized == "." {
         return None;
     }
-    Some(trimmed)
+    Some(normalized)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -392,7 +400,7 @@ enum SpecializedPattern<'pattern> {
 }
 
 fn specialized_pattern(pattern: &str) -> Option<SpecializedPattern<'_>> {
-    let pattern = normalize_directory_pattern(pattern)?;
+    let pattern = pattern.trim_end_matches('/');
     if let Some(parent) = pattern.strip_suffix("/*") {
         return is_safe_relative_literal(parent).then_some(SpecializedPattern::ChildrenOf(parent));
     }
@@ -408,8 +416,7 @@ fn is_safe_relative_literal(pattern: &str) -> bool {
 }
 
 fn normalize_manifest_patterns(pattern: &str) -> Vec<String> {
-    let Some(trimmed) = normalize_directory_pattern(pattern) else { return Vec::new() };
-    PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{trimmed}/{basename}")).collect()
+    PROJECT_MANIFEST_BASENAMES.iter().map(|basename| format!("{pattern}/{basename}")).collect()
 }
 
 fn collect_manifests_in_children(
