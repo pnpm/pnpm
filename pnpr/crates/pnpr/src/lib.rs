@@ -24,7 +24,7 @@ pub use pnpr_config::{
 pub use pnpr_error::{RegistryError, Result};
 pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 pub use pnpr_registry::{
-    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+    ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
 pub use pnpr_storage::journal::recover_publish_journal;
 pub use server::{

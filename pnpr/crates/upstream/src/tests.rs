@@ -839,3 +839,74 @@ async fn client_error_status_does_not_open_the_circuit() {
     }
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn fetch_document_forwards_headers_and_accept_and_reports_the_final_url() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/simple/requests/")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
+        .with_body(r#"{"name":"requests"}"#)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = upstream(format!("{}/simple/", server.url()), auth_and_custom_headers());
+    let outcome = upstream
+        .fetch_document("requests/", Some("application/vnd.pypi.simple.v1+json"), 1024)
+        .await
+        .unwrap();
+    let FetchOutcome::Ok(document) = outcome else { panic!("expected a document") };
+    assert_eq!(document.bytes, br#"{"name":"requests"}"#);
+    assert_eq!(document.url, format!("{}/simple/requests/", server.url()));
+    mock.assert_async().await;
+
+    let missing = server.mock("GET", "/simple/nope/").with_status(404).create_async().await;
+    let outcome = upstream.fetch_document("nope/", None, 1024).await.unwrap();
+    assert!(matches!(outcome, FetchOutcome::NotFound));
+    missing.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_document_rejects_a_body_over_the_limit() {
+    let mut server = mockito::Server::new_async().await;
+    server.mock("GET", "/se/rd/serde").with_body("x".repeat(64)).create_async().await;
+
+    let upstream = upstream(server.url(), HeaderMap::new());
+    let err = upstream.fetch_document("se/rd/serde", None, 16).await.unwrap_err();
+    assert!(matches!(err, RegistryError::UpstreamResponse { .. }), "{err:?}");
+}
+
+#[tokio::test]
+async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
+    let mut index = mockito::Server::new_async().await;
+    let mut files = mockito::Server::new_async().await;
+    let same_origin = index
+        .mock("GET", "/dl/serde/1.0.0")
+        .match_header("authorization", "Bearer secret-token")
+        .with_body("crate bytes")
+        .expect(1)
+        .create_async()
+        .await;
+    let other_origin = files
+        .mock("GET", "/packages/x.whl")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .match_header("x-org", mockito::Matcher::Missing)
+        .with_body("wheel bytes")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let upstream = upstream(index.url(), auth_and_custom_headers());
+    let response =
+        upstream.fetch_artifact_response(&format!("{}/dl/serde/1.0.0", index.url())).await.unwrap();
+    let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
+    assert_eq!(response.bytes().await.unwrap(), "crate bytes");
+    let response =
+        upstream.fetch_artifact_response(&format!("{}/packages/x.whl", files.url())).await.unwrap();
+    let FetchOutcome::Ok(response) = response else { panic!("expected a response") };
+    assert_eq!(response.bytes().await.unwrap(), "wheel bytes");
+    same_origin.assert_async().await;
+    other_origin.assert_async().await;
+}

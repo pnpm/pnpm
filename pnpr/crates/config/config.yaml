@@ -203,6 +203,46 @@ registries:
     type: router
     sources: [local, npmjs]
 
+  # A registry serves one package ecosystem, npm unless `ecosystem:` says
+  # otherwise. A `cargo` registry speaks the Cargo sparse-index and crates
+  # API at `/~<name>/` (index at `sparse+https://<pnpr>/~<name>/index/`,
+  # `cargo publish`, yank, downloads); a `pypi` registry speaks the Python
+  # Simple Repository API and the legacy upload API (index at
+  # `https://<pnpr>/~<name>/simple/`, `twine upload` to
+  # `https://<pnpr>/~<name>/legacy/`). Routers may only combine sources of one
+  # ecosystem. Exact `packages:` keys are compared the way the ecosystem
+  # compares names: case-insensitively for crates, PEP 503 normalized for
+  # Python projects.
+  #crates:
+  #  type: hosted
+  #  ecosystem: cargo
+  #  org: crates
+  #  access: $authenticated
+  #  packages:
+  #    my-crate: { publish: team:platform }
+  #crates-io:
+  #  type: upstream
+  #  ecosystem: cargo
+  #  url: https://index.crates.io/
+  #  public: true
+  #cargo:
+  #  type: router
+  #  sources: [crates, crates-io]
+  #python:
+  #  type: hosted
+  #  ecosystem: pypi
+  #  org: python
+  #  packages:
+  #    my-package: {}
+  #pypi-org:
+  #  type: upstream
+  #  ecosystem: pypi
+  #  url: https://pypi.org/simple/
+  #  public: true
+  #pypi:
+  #  type: router
+  #  sources: [python, pypi-org]
+
 # The path-less base URL (`https://<pnpr>/`) aliases this registry.
 defaultRegistry: main
 

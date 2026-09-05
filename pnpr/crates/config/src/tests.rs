@@ -11,6 +11,7 @@ use pnpm_env_replace::EnvVar;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
+use pnpr_registry::Ecosystem;
 use reqwest::header::AUTHORIZATION;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -2526,4 +2527,80 @@ fn a_key_prefix_is_normalized_to_empty_or_slash_terminated() {
     assert_eq!(normalize_key_prefix(Some("")), "");
     assert_eq!(normalize_key_prefix(Some("   ")), "");
     assert_eq!(normalize_key_prefix(Some("/")), "");
+}
+
+#[test]
+fn from_yaml_str_reads_registry_ecosystems() {
+    let yaml = "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    org: crates
+    packages:
+      Demo_Crate: {}
+  cratesio:
+    type: upstream
+    ecosystem: cargo
+    url: https://index.crates.io/
+    public: true
+  cargo:
+    type: router
+    sources: [crates, cratesio]
+  internal:
+    type: hosted
+    ecosystem: pypi
+    org: python
+    packages:
+      Demo_Pkg.Extra: {}
+      '@scope/*': {}
+  local:
+    type: hosted
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let registries = &config.registries;
+    assert_eq!(registries.ecosystem("crates"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("cratesio"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("cargo"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("internal"), Some(Ecosystem::Pypi));
+    assert_eq!(registries.ecosystem("local"), Some(Ecosystem::Npm));
+    // Exact-name keys are canonicalized the way each ecosystem compares names.
+    assert!(matches!(
+        registries.resolve("cargo", "demo_crate"),
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
+    ));
+    assert!(matches!(
+        registries.resolve("internal", "demo-pkg-extra"),
+        pnpr_registry::Resolved::Concrete { registry: "internal", .. }
+    ));
+}
+
+#[test]
+fn from_yaml_str_rejects_mixed_ecosystem_routers_and_unknown_ecosystems() {
+    let mixed = "
+registries:
+  crates: { type: hosted, ecosystem: cargo, org: crates }
+  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
+  main: { type: router, sources: [crates, npmjs] }
+";
+    let err = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("a router serves one ecosystem"), "{err}");
+
+    let unknown = "
+registries:
+  gems: { type: hosted, ecosystem: rubygems }
+";
+    let err = Config::from_yaml_str(unknown, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
+
+    let bad_crate_key = "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    packages:
+      'not a crate': {}
+";
+    let err = Config::from_yaml_str(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains(r#"cargo registry "crates" `packages:` key"#), "{err}");
 }

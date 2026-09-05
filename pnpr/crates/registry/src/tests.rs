@@ -1,4 +1,6 @@
-use super::{ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved};
+use super::{
+    ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+};
 
 fn pattern(raw: &str) -> PackagePattern {
     PackagePattern::parse(raw).expect("pattern parses")
@@ -516,4 +518,67 @@ fn rejects_router_with_no_sources() {
         registry.validate(),
         Err(RegistryConfigError::EmptyRouter { router: "main".to_string() }),
     );
+}
+
+// --- Ecosystems -------------------------------------------------------------
+
+#[test]
+fn registries_are_npm_unless_declared_otherwise() {
+    let set = registries(
+        vec![
+            ("local", hosted(&["@acme/*"])),
+            ("crates", hosted(&["demo"])),
+            ("cratesio", upstream(&[])),
+            ("cargo", router(&["crates", "cratesio"])),
+        ],
+        None,
+    )
+    .with_ecosystem("crates", Ecosystem::Cargo)
+    .with_ecosystem("cratesio", Ecosystem::Cargo);
+    set.validate().expect("one ecosystem per router is valid");
+    assert_eq!(set.ecosystem("local"), Some(Ecosystem::Npm));
+    assert_eq!(set.ecosystem("crates"), Some(Ecosystem::Cargo));
+    assert_eq!(set.ecosystem("cargo"), Some(Ecosystem::Cargo));
+    assert_eq!(set.ecosystem("nope"), None);
+}
+
+#[test]
+fn a_router_cannot_mix_ecosystems() {
+    let set = registries(
+        vec![
+            ("crates", hosted(&["demo"])),
+            ("npmjs", upstream(&[])),
+            ("mixed", router(&["crates", "npmjs"])),
+        ],
+        None,
+    )
+    .with_ecosystem("crates", Ecosystem::Cargo);
+    assert_eq!(
+        set.validate(),
+        Err(RegistryConfigError::MixedEcosystemRouter {
+            router: "mixed".to_string(),
+            source: "npmjs".to_string(),
+            ecosystem: Ecosystem::Npm,
+            expected: Ecosystem::Cargo,
+        }),
+    );
+}
+
+#[test]
+fn an_ecosystem_needs_a_concrete_registry() {
+    let set = registries(vec![("local", hosted(&[])), ("main", router(&["local"]))], None)
+        .with_ecosystem("main", Ecosystem::Pypi);
+    assert_eq!(
+        set.validate(),
+        Err(RegistryConfigError::EcosystemOnNonConcreteRegistry {
+            registry: "main".to_string(),
+            ecosystem: Ecosystem::Pypi,
+        }),
+    );
+    let set =
+        registries(vec![("local", hosted(&[]))], None).with_ecosystem("ghost", Ecosystem::Pypi);
+    assert!(matches!(
+        set.validate(),
+        Err(RegistryConfigError::EcosystemOnNonConcreteRegistry { .. }),
+    ));
 }

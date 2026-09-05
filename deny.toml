@@ -83,6 +83,8 @@ exceptions = [
   { name = "pnpr-search", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-osv", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-auth", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-cargo", allow = ["PolyForm-Noncommercial-1.0.0"] },
+  { name = "pnpr-pypi", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-config", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-error", allow = ["PolyForm-Noncommercial-1.0.0"] },
   { name = "pnpr-fixtures", allow = ["PolyForm-Noncommercial-1.0.0"] },
@@ -106,6 +108,16 @@ license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 
 [[licenses.clarify]]
 name = "pnpr-auth"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-cargo"
+expression = "PolyForm-Noncommercial-1.0.0"
+license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
+
+[[licenses.clarify]]
+name = "pnpr-pypi"
 expression = "PolyForm-Noncommercial-1.0.0"
 license-files = [{ path = "../../LICENSE.md", hash = 0x652a978e }]
 

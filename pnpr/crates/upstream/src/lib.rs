@@ -185,6 +185,26 @@ pub struct CacheValidators {
 }
 
 /// A packument fetched against an upstream.
+/// A document fetched by [`Upstream::fetch_document`].
+#[derive(Debug)]
+pub struct FetchedDocument {
+    pub bytes: Vec<u8>,
+    /// The URL the body was served from, after redirects. Relative URLs
+    /// inside the document resolve against it.
+    pub url: String,
+}
+
+/// Whether two URLs share a scheme, host and port, so a credential meant for
+/// one may be sent to the other.
+fn same_origin(base: &str, url: &str) -> bool {
+    let (Ok(base), Ok(url)) = (reqwest::Url::parse(base), reqwest::Url::parse(url)) else {
+        return false;
+    };
+    base.scheme() == url.scheme()
+        && base.host_str().is_some_and(|host| Some(host) == url.host_str())
+        && base.port_or_known_default() == url.port_or_known_default()
+}
+
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
@@ -315,6 +335,83 @@ impl Upstream {
         // Success here covers only headers; a mid-stream body failure is
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(response))
+    }
+
+    /// Fetch a document by path relative to the upstream's base URL — a Cargo
+    /// sparse-index file, a Python Simple API page — buffering at most
+    /// `limit` bytes. `accept` sets the request's `Accept` header when the
+    /// upstream negotiates a representation (the Simple API's JSON form).
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
+    pub async fn fetch_document(
+        &self,
+        relative_path: &str,
+        accept: Option<&str>,
+        limit: usize,
+    ) -> Result<FetchOutcome<FetchedDocument>> {
+        self.ensure_available()?;
+        let url = format!(
+            "{}/{}",
+            self.base.trim_end_matches('/'),
+            relative_path.trim_start_matches('/'),
+        );
+        let client = self.client.acquire_for_url(&url).await;
+        let mut request = client.get(&url).timeout(self.timeout).headers(self.headers.clone());
+        if let Some(accept) = accept
+            && let Ok(value) = HeaderValue::from_str(accept)
+        {
+            request = request.header(header::ACCEPT, value);
+        }
+        let response = self.run(request, &url).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, &url).await?;
+        let final_url = response.url().to_string();
+        let body = read_limited_body(response, limit).await.map_err(|err| {
+            self.breaker.record_failure();
+            RegistryError::UpstreamResponse { url: url.clone(), reason: err.to_string() }
+        })?;
+        if body.truncated {
+            self.breaker.record_failure();
+            return Err(RegistryError::UpstreamResponse {
+                url,
+                reason: format!("response body exceeds the {limit}-byte limit"),
+            });
+        }
+        self.breaker.record_success();
+        Ok(FetchOutcome::Ok(FetchedDocument { bytes: body.bytes, url: final_url }))
+    }
+
+    /// Fetch an artifact from the absolute URL an upstream's metadata
+    /// published — a crate archive from the index's `dl` template, a wheel
+    /// from a Simple API page. The configured headers travel only when `url`
+    /// is on the upstream's own origin: an index may point downloads at a
+    /// separate host (crates.io does, so does pypi.org), and the upstream's
+    /// credential must never reach it.
+    ///
+    /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
+    /// network when the circuit breaker is open.
+    pub async fn fetch_artifact_response(
+        &self,
+        url: &str,
+    ) -> Result<FetchOutcome<reqwest::Response>> {
+        self.ensure_available()?;
+        let client = self.client.acquire_for_url(url).await;
+        let mut request = client.get(url).timeout(self.timeout);
+        if same_origin(&self.base, url) {
+            request = request.headers(self.headers.clone());
+        }
+        let response = self.run(request, url).await?;
+        if response.status() == StatusCode::NOT_FOUND {
+            self.breaker.record_success();
+            return Ok(FetchOutcome::NotFound);
+        }
+        let response = self.checked(response, url).await?;
         self.breaker.record_success();
         Ok(FetchOutcome::Ok(response))
     }

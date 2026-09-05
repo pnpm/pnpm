@@ -26,11 +26,13 @@ backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", 
 
 [dependencies]
 pnpr-auth                     = { workspace = true }
+pnpr-cargo                    = { workspace = true }
 pnpr-config                   = { workspace = true }
 pnpr-error                    = { workspace = true }
 pnpr-osv                      = { workspace = true }
 pnpr-package-name             = { workspace = true }
 pnpr-policy                   = { workspace = true }
+pnpr-pypi                     = { workspace = true }
 pnpr-registry                 = { workspace = true }
 pnpr-storage                  = { workspace = true }
 pnpr-route                    = { workspace = true }
@@ -90,6 +92,7 @@ zip                           = { workspace = true }
 
 [dev-dependencies]
 mockito            = { workspace = true }
+tar                = { workspace = true }
 pipe-trait         = { workspace = true }
 pnpm-testing-utils = { workspace = true }
 tempfile           = { workspace = true }

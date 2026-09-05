@@ -1,6 +1,9 @@
 mod authentication;
+mod cargo;
+mod ecosystem;
 mod package_mutation;
 mod publishing;
+mod pypi;
 mod routing;
 mod staged;
 

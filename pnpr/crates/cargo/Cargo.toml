@@ -1,0 +1,22 @@
+[package]
+name                 = "pnpr-cargo"
+version              = "0.0.1"
+description          = "The Cargo registry protocol pnpr speaks: sparse index layout, index entries, the publish request body, and the download URL template"
+publish              = false
+authors.workspace    = true
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license-file         = "../../LICENSE.md"
+repository.workspace = true
+
+[dependencies]
+derive_more = { workspace = true }
+flate2      = { workspace = true }
+semver      = { workspace = true }
+serde       = { workspace = true }
+serde_json  = { workspace = true }
+tar         = { workspace = true }
+
+[lints]
+workspace = true
