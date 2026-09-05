@@ -218,7 +218,9 @@ pub fn assemble_release_plan(
 /// found broken.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VersioningInvariantCode {
+    /// An epic member's major is outside the band selected by its lead.
     EpicOutOfBand,
+    /// The members of a fixed group do not share one version.
     FixedGroupMismatch,
 }
 
@@ -226,20 +228,19 @@ pub enum VersioningInvariantCode {
 /// the workspace currently violates.
 #[derive(Debug, Clone)]
 pub struct VersioningInvariantViolation {
+    /// The machine-readable kind of invariant that failed.
     pub code: VersioningInvariantCode,
+    /// A human-readable description of the packages and versions involved.
     pub message: String,
 }
 
-/// Validates that the committed versions already satisfy the invariants the
-/// configuration declares: every epic member's major sits inside its lead's
-/// band, and every fixed group shares one version. This is the static
-/// counterpart to the release-time enforcement in [`assemble_release_plan`],
-/// which only checks packages a plan actually releases — so a committed
-/// manifest that drifted out of band, or a fixed group that fell out of
-/// lockstep, would otherwise go unnoticed until a release that happens to touch
-/// it. Returns every violation so a caller can report them all at once;
-/// malformed configuration (unknown lead, epic overlap, a group straddling an
-/// epic) still returns `Err`, exactly as plan assembly would.
+/// Checks committed versions against the epic bands and fixed groups that the
+/// versioning configuration declares.
+///
+/// Valid configuration returns `Ok` containing every
+/// [`VersioningInvariantViolation`], including an empty vector when all
+/// invariants hold. Invalid configuration returns `Err` containing a
+/// [`VersioningError`] before committed versions are checked.
 pub fn check_versioning_invariants(
     projects: &[WorkspaceProject],
     workspace_dir: &Path,
@@ -247,7 +248,9 @@ pub fn check_versioning_invariants(
 ) -> Result<Vec<VersioningInvariantViolation>, VersioningError> {
     let refs = index_project_refs(projects, workspace_dir);
     let participants = collect_participants(projects, workspace_dir, &refs, versioning)?;
+    let lanes_by_dir = resolve_lanes(&refs, versioning)?;
     let fixed_groups = resolve_fixed_groups(&refs, &participants, versioning)?;
+    validate_fixed_group_lanes(&fixed_groups, &lanes_by_dir, versioning)?;
     let epics = resolve_epics(&refs, &participants, versioning)?;
     validate_epics(&epics, &fixed_groups)?;
 
@@ -1242,8 +1245,16 @@ fn epic_rebase_floor(
     if !new_lead.pre_release.is_empty() {
         return None;
     }
-    let current_major = Version::parse(lead.current_version).ok()?.major;
+    let current_major = epic_lead_band_major(&Version::parse(lead.current_version).ok()?);
     (new_lead.major > current_major).then_some(new_lead.major * 100)
+}
+
+fn epic_lead_band_major(version: &Version) -> u64 {
+    if !version.pre_release.is_empty() && version.minor == 0 && version.patch == 0 {
+        version.major.saturating_sub(1)
+    } else {
+        version.major
+    }
 }
 
 /// Overrides the computed version of every bumped epic member with the band
@@ -1303,11 +1314,10 @@ fn epic_band(
 ) -> EpicBand {
     let major = match epic_rebase_floor(epic, participants, new_versions) {
         Some(floor) => floor / 100,
-        None => {
-            Version::parse(participants[epic.lead_dir.as_str()].current_version)
-                .expect("participants have valid versions")
-                .major
-        }
+        None => epic_lead_band_major(
+            &Version::parse(participants[epic.lead_dir.as_str()].current_version)
+                .expect("participants have valid versions"),
+        ),
     };
     let low = major * 100;
     EpicBand { major, low, high: low + 99 }

@@ -191,7 +191,9 @@ export interface CheckVersioningInvariantsOptions {
 export function checkVersioningInvariants (opts: CheckVersioningInvariantsOptions): VersioningInvariantViolation[] {
   const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
   const participants = collectParticipants(opts.projects, refs, opts)
+  const lanesByDir = resolveLanes(refs, participants, opts.versioning)
   const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
+  validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
   const epics = resolveEpics(refs, participants, opts.versioning)
   validateEpics(epics, fixedGroups)
 
@@ -912,8 +914,13 @@ function epicRebaseFloor (
   const newLeadVersion = newVersions.get(epic.leadDir)
   if (lead == null || newLeadVersion == null || parsePrerelease(newLeadVersion) != null) return null
   const newMajor = Number(newLeadVersion.split('.')[0])
-  const currentMajor = Number(lead.currentVersion.split('.')[0])
+  const currentMajor = epicLeadBandMajor(lead.currentVersion)
   return newMajor > currentMajor ? newMajor * 100 : null
+}
+
+function epicLeadBandMajor (version: string): number {
+  const [major, minor, patch] = stablePart(version).split('.').map(Number)
+  return parsePrerelease(version) != null && minor === 0 && patch === 0 ? Math.max(0, major - 1) : major
 }
 
 interface ApplyEpicBandVersionsOptions {
@@ -966,7 +973,7 @@ function epicBand (
   newVersions: Map<string, string>
 ): EpicBand {
   const floor = epicRebaseFloor(epic, participants, newVersions)
-  const major = floor != null ? floor / 100 : Number(participants.get(epic.leadDir)!.currentVersion.split('.')[0])
+  const major = floor != null ? floor / 100 : epicLeadBandMajor(participants.get(epic.leadDir)!.currentVersion)
   const low = major * 100
   const high = low + 99
   return { major, low, high, contains: (memberMajor) => memberMajor >= low && memberMajor <= high }

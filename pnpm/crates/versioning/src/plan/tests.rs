@@ -673,6 +673,18 @@ fn the_re_base_waits_while_the_lead_is_on_a_prerelease_lane() {
 }
 
 #[test]
+fn the_members_re_base_when_a_prerelease_lead_graduates_to_its_new_major() {
+    let projects =
+        [make_project("pnpm", "12.0.0-alpha.0", &[]), make_project("lib", "1101.2.0", &[])];
+    let intents = [make_intent("one", &[("pnpm", "major")])];
+    let versioning =
+        VersioningSettings { epics: vec![epic("pnpm", &["lib"])], ..Default::default() };
+    let plan = assemble(&projects, &intents, &Ledger::new(), Some(&versioning));
+    assert_eq!(release(&plan, "pnpm").new_version, "12.0.0");
+    assert_eq!(release(&plan, "lib").new_version, "1200.0.0");
+}
+
+#[test]
 fn epic_membership_resolves_directory_globs_and_honors_negations() {
     let projects = [
         project_at("pnpm", "11.0.0", "pnpm"),
@@ -923,6 +935,19 @@ fn check_versioning_invariants_passes_when_bands_and_lockstep_hold() {
 }
 
 #[test]
+fn check_versioning_invariants_keeps_the_previous_band_for_a_prerelease_lead() {
+    let projects =
+        [make_project("pnpm", "12.0.0-alpha.1", &[]), make_project("@pnpm/lib", "1102.0.7", &[])];
+    let versioning = VersioningSettings {
+        epics: vec![epic("pnpm", &["@pnpm/lib"])],
+        ..VersioningSettings::default()
+    };
+    let violations =
+        check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning)).unwrap();
+    assert!(violations.is_empty(), "unexpected violations: {violations:?}");
+}
+
+#[test]
 fn check_versioning_invariants_reports_an_out_of_band_member() {
     let projects = [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/lib", "5.0.0", &[])];
     let versioning = VersioningSettings {
@@ -983,4 +1008,34 @@ fn check_versioning_invariants_surfaces_malformed_configuration() {
     let error = check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning))
         .expect_err("unknown lead must error");
     assert!(error.to_string().contains("is not a releasable workspace project"));
+}
+
+#[test]
+fn check_versioning_invariants_rejects_the_reserved_main_lane() {
+    let projects = [make_project("pnpm", "11.15.1", &[])];
+    let versioning = VersioningSettings {
+        lanes: IndexMap::from([("pnpm".to_string(), "main".to_string())]),
+        ..VersioningSettings::default()
+    };
+    let error = check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning))
+        .expect_err("the reserved lane name must error");
+    let message = error.to_string();
+    eprintln!("ERROR:\n{message}\n");
+    assert!(message.contains("reserved default lane"));
+}
+
+#[test]
+fn check_versioning_invariants_rejects_a_fixed_group_split_across_lanes() {
+    let projects =
+        [make_project("pnpm", "11.15.1", &[]), make_project("@pnpm/exe", "11.15.1", &[])];
+    let versioning = VersioningSettings {
+        fixed: vec![vec!["pnpm".to_string(), "@pnpm/exe".to_string()]],
+        lanes: IndexMap::from([("pnpm".to_string(), "alpha".to_string())]),
+        ..VersioningSettings::default()
+    };
+    let error = check_versioning_invariants(&projects, Path::new("/ws"), Some(&versioning))
+        .expect_err("fixed groups must share a lane");
+    let message = error.to_string();
+    eprintln!("ERROR:\n{message}\n");
+    assert!(message.contains("mixes packages on different lanes"));
 }

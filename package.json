@@ -25,7 +25,7 @@
     "update-manifests": "pn meta-updater && pn install",
     "meta-updater": "pn --filter=@pnpm-private/updater compile && pn exec meta-updater",
     "lint:meta": "pn meta-updater --test",
-    "check:versioning": "node pnpm11/__utils__/scripts/src/check-versioning-invariants.ts",
+    "check:versioning": "tsgo --build pnpm11/__utils__/scripts && node pnpm11/__utils__/scripts/lib/check-versioning-invariants.js",
     "copy-artifacts": "node pnpm11/__utils__/scripts/src/copy-artifacts.ts",
     "make-release-description": "pn --filter=@pnpm/get-release-text run write-release-text",
     "check:npm-signing-keys": "node pnpm11/deps/security/signatures/scripts/update-npm-signing-keys.mjs",

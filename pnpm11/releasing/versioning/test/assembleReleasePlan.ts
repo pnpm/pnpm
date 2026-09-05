@@ -484,6 +484,18 @@ test('the re-base waits while the lead is on a prerelease lane', () => {
   expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1101.2.1')
 })
 
+test('the members re-base when a prerelease lead graduates to its new major', () => {
+  const plan = assembleReleasePlan({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '12.0.0-alpha.0'), makeProject('lib', '1101.2.0')],
+    intents: [makeIntent('one', { pnpm: 'major' })],
+    ledger: NO_LEDGER,
+    versioning: { epics: [{ lead: 'pnpm', packages: ['lib'] }] },
+  })
+  expect(plan.releases.find((release) => release.name === 'pnpm')!.newVersion).toBe('12.0.0')
+  expect(plan.releases.find((release) => release.name === 'lib')!.newVersion).toBe('1200.0.0')
+})
+
 test('epic membership resolves directory globs and honors negations', () => {
   const projects = [
     { rootDir: '/ws/pnpm', manifest: { name: 'pnpm', version: '11.0.0' } },
@@ -683,6 +695,15 @@ test('checkVersioningInvariants: a workspace within its bands and in lockstep ha
   expect(violations).toEqual([])
 })
 
+test('checkVersioningInvariants: a prerelease lead keeps its previous major band', () => {
+  const violations = checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '12.0.0-alpha.1'), makeProject('@pnpm/lib', '1102.0.7')],
+    versioning: { epics: [{ lead: 'pnpm', packages: ['@pnpm/lib'] }] },
+  })
+  expect(violations).toEqual([])
+})
+
 test('checkVersioningInvariants: reports an epic member whose committed major is outside the band', () => {
   const violations = checkVersioningInvariants({
     workspaceDir: '/ws',
@@ -730,4 +751,23 @@ test('checkVersioningInvariants: malformed configuration still throws', () => {
     projects: [makeProject('pnpm', '11.15.1')],
     versioning: { epics: [{ lead: 'ghost', packages: ['@pnpm/lib'] }] },
   })).toThrow(/is not a releasable workspace project/)
+})
+
+test('checkVersioningInvariants: a lane named main still throws', () => {
+  expect(() => checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.15.1')],
+    versioning: { lanes: { pnpm: 'main' } },
+  })).toThrow(/reserved default lane/)
+})
+
+test('checkVersioningInvariants: a fixed group split across lanes still throws', () => {
+  expect(() => checkVersioningInvariants({
+    workspaceDir: '/ws',
+    projects: [makeProject('pnpm', '11.15.1'), makeProject('@pnpm/exe', '11.15.1')],
+    versioning: {
+      fixed: [['pnpm', '@pnpm/exe']],
+      lanes: { pnpm: 'alpha' },
+    },
+  })).toThrow(/mixes packages on different lanes/)
 })
