@@ -523,17 +523,47 @@ fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
 /// entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Returns whether anything changed.
 pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
-    const BLOCK: &str = "minimumReleaseAgeExclude";
-    let current = manifest.minimum_release_age_exclude.as_deref().unwrap_or_default();
+    let changed =
+        set_top_level_sequence_block(manifest, "minimumReleaseAgeExclude", items, |manifest| {
+            manifest.minimum_release_age_exclude.clone()
+        });
+    if changed {
+        manifest.minimum_release_age_exclude = (!items.is_empty()).then(|| items.to_vec());
+    }
+    changed
+}
+
+/// Same as [`set_minimum_release_age_excludes`] for the `trustPolicyExclude:`
+/// block.
+pub(crate) fn set_trust_policy_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
+    let changed = set_top_level_sequence_block(manifest, "trustPolicyExclude", items, |manifest| {
+        manifest.trust_policy_exclude.clone()
+    });
+    if changed {
+        manifest.trust_policy_exclude = (!items.is_empty()).then(|| items.to_vec());
+    }
+    changed
+}
+
+/// Set the top-level `block:` sequence to `items` (the complete desired
+/// list), creating or replacing it, and removing it when `items` is empty.
+/// `current` reads the block's decoded list for no-op detection. Returns
+/// whether anything changed.
+fn set_top_level_sequence_block(
+    manifest: &mut Manifest,
+    block: &str,
+    items: &[String],
+    current: impl Fn(&Manifest) -> Option<Vec<String>>,
+) -> bool {
+    let current = current(manifest).unwrap_or_default();
 
     if items.is_empty() {
-        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        let has_block = manifest.top_level_keys.iter().any(|key| key == block);
         if !has_block {
             return false;
         }
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
-        manifest.minimum_release_age_exclude = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.set_text(remove_top_level_block(manifest.text(), block));
+        manifest.top_level_keys.retain(|key| key != block);
         return true;
     }
 
@@ -542,12 +572,11 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
     }
 
     let text = manifest.text();
-    match locate_sequence(text, &[BLOCK]) {
+    match locate_sequence(text, &[block]) {
         Inline::Flow(collection) => {
             let rendered: Vec<String> =
                 items.iter().map(|item| render::render_value(item)).collect();
             manifest.set_text(flow::set_items(text, &collection, &rendered));
-            manifest.minimum_release_age_exclude = Some(items.to_vec());
             return true;
         }
         // Rendering the whole block afresh would drop the comments an
@@ -557,8 +586,8 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
         Inline::Block => {}
     }
 
-    let rendered = render_top_level_sequence(BLOCK, items);
-    if let Some(span) = top_level_span(text, BLOCK) {
+    let rendered = render_top_level_sequence(block, items);
+    if let Some(span) = top_level_span(text, block) {
         // Preserve a trailing blank line before the next block, since the
         // span includes it but the freshly rendered block does not.
         let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
@@ -567,12 +596,11 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
         out.replace_range(span.key_line_start..span.block_end, &replacement);
         manifest.set_text(out);
     } else {
-        let new_text = insert_top_level_block(manifest, BLOCK, &rendered);
+        let new_text = insert_top_level_block(manifest, block, &rendered);
         manifest.set_text(new_text);
         manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+            render::target_order(&manifest.top_level_keys, &[block.to_string()]);
     }
-    manifest.minimum_release_age_exclude = Some(items.to_vec());
     true
 }
 
@@ -590,9 +618,30 @@ pub(crate) fn prune_minimum_release_age_excludes(
     let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
         return false;
     };
+    if current.is_empty() {
+        return false;
+    }
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
     set_minimum_release_age_excludes(manifest, &pruned)
+}
+
+/// The `trustPolicyExcludePrune` pass over a `trustPolicyExclude:` list,
+/// mirroring [`prune_minimum_release_age_excludes`]. Returns whether
+/// anything changed.
+pub(crate) fn prune_trust_policy_excludes(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let Some(current) = manifest.trust_policy_exclude.as_deref() else {
+        return false;
+    };
+    if current.is_empty() {
+        return false;
+    }
+    let pruned =
+        pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
+    set_trust_policy_excludes(manifest, &pruned)
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then

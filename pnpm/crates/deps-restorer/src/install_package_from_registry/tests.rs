@@ -208,6 +208,7 @@ fn create_config(
         audit_config: Default::default(),
         audit_ignore_prune: None,
         trust_policy_exclude: None,
+        trust_policy_exclude_prune: false,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
         catalog_mode: Default::default(),

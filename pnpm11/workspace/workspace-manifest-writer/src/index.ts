@@ -62,11 +62,12 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   /**
    * Package name → the versions the freshly resolved lockfile records.
    * Supplied when a freshly resolved shared lockfile is available.
-   * `minimumReleaseAgeExcludePrune` gates only minimum-release-age cleanup;
-   * `allowBuilds` cleanup runs whenever this map is present.
+   * `minimumReleaseAgeExcludePrune` and `trustPolicyExcludePrune` gate their
+   * cleanups; `allowBuilds` cleanup runs whenever this map is present.
    */
   resolvedPackageVersions?: ReadonlyMap<string, ReadonlySet<string>>
   minimumReleaseAgeExcludePrune?: boolean
+  trustPolicyExcludePrune?: boolean
 }): Promise<void> {
   const fileName = opts.fileName ?? DEFAULT_FILENAME
 
@@ -124,7 +125,10 @@ export async function updateWorkspaceManifest (dir: string, opts: {
   }
   if (opts.resolvedPackageVersions != null) {
     if (opts.minimumReleaseAgeExcludePrune) {
-      shouldBeUpdated = pruneMinimumReleaseAgeExcludes(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
+      shouldBeUpdated = pruneExcludeList(manifest, 'minimumReleaseAgeExclude', opts.resolvedPackageVersions) || shouldBeUpdated
+    }
+    if (opts.trustPolicyExcludePrune) {
+      shouldBeUpdated = pruneExcludeList(manifest, 'trustPolicyExclude', opts.resolvedPackageVersions) || shouldBeUpdated
     }
     shouldBeUpdated = pruneAllowBuilds(manifest, opts.resolvedPackageVersions) || shouldBeUpdated
   }
@@ -293,13 +297,67 @@ function addPackageReference (packageReferences: Record<string, Set<string>>, pk
   packageReferences[pkgName].add(version)
 }
 
-// The `minimumReleaseAgeExcludePrune` pass. An entry is dropped when the
-// freshly resolved lockfile no longer contains what it names: exact versions
-// that were not resolved are dropped (the entry goes away once none remain),
-// and a bare-name entry goes away when the package is absent entirely. Glob
-// patterns always stay — they are forward-looking and can't be proven stale.
-// Entries that fail to parse stay untouched so cleanup never breaks an
-// install.
+// The `minimumReleaseAgeExcludePrune` / `trustPolicyExcludePrune` pass over
+// an exclude list. An entry is dropped when the freshly resolved lockfile no
+// longer contains what it names: exact versions that were not resolved are
+// dropped (the entry goes away once none remain), and a bare-name entry goes
+// away when the package is absent entirely. Glob patterns always stay — they
+// are forward-looking and can't be proven stale. Entries that fail to parse
+// stay untouched so cleanup never breaks an install.
+type ExcludeListField = 'minimumReleaseAgeExclude' | 'trustPolicyExclude'
+
+function pruneExcludeList (
+  manifest: Partial<WorkspaceManifest> & { [key in ExcludeListField]?: string[] },
+  field: ExcludeListField,
+  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
+): boolean {
+  const excludes = manifest[field]
+  if (excludes == null || excludes.length === 0) {
+    return false
+  }
+  const survivingSpecs: string[] = []
+  let changed = false
+  for (const entry of excludes) {
+    let packageName: string
+    let exactVersions: string[]
+    try {
+      const rule = parseVersionPolicyRule(entry)
+      packageName = rule.packageName
+      exactVersions = rule.exactVersions
+    } catch {
+      survivingSpecs.push(entry)
+      continue
+    }
+    if (exactVersions.length === 0) {
+      if (packageName.includes('*') || resolvedPackageVersions.has(packageName)) {
+        survivingSpecs.push(entry)
+      } else {
+        changed = true
+      }
+      continue
+    }
+    const resolved = resolvedPackageVersions.get(packageName)
+    const survivingVersions = exactVersions.filter((version) => resolved?.has(version))
+    if (survivingVersions.length === exactVersions.length) {
+      survivingSpecs.push(entry)
+    } else if (survivingVersions.length > 0) {
+      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
+      changed = true
+    } else {
+      changed = true
+    }
+  }
+  if (!changed) {
+    return false
+  }
+  if (survivingSpecs.length === 0) {
+    delete manifest[field]
+  } else {
+    manifest[field] = survivingSpecs
+  }
+  return true
+}
+
 /**
  * Set the audit ignore list to `ghsas` (the complete desired list) in
  * whichever spelling the manifest uses — the canonical `audit.ignore` wins
@@ -345,57 +403,6 @@ function removeAuditConfigIgnoreGhsas (manifest: Partial<WorkspaceManifest>): bo
   delete manifest.auditConfig.ignoreGhsas
   if (Object.keys(manifest.auditConfig).length === 0) {
     delete manifest.auditConfig
-  }
-  return true
-}
-
-function pruneMinimumReleaseAgeExcludes (
-  manifest: Partial<WorkspaceManifest> & { minimumReleaseAgeExclude?: string[] },
-  resolvedPackageVersions: ReadonlyMap<string, ReadonlySet<string>>
-): boolean {
-  const excludes = manifest.minimumReleaseAgeExclude
-  if (excludes == null || excludes.length === 0) {
-    return false
-  }
-  const survivingSpecs: string[] = []
-  let changed = false
-  for (const entry of excludes) {
-    let packageName: string
-    let exactVersions: string[]
-    try {
-      const rule = parseVersionPolicyRule(entry)
-      packageName = rule.packageName
-      exactVersions = rule.exactVersions
-    } catch {
-      survivingSpecs.push(entry)
-      continue
-    }
-    if (exactVersions.length === 0) {
-      if (packageName.includes('*') || resolvedPackageVersions.has(packageName)) {
-        survivingSpecs.push(entry)
-      } else {
-        changed = true
-      }
-      continue
-    }
-    const resolved = resolvedPackageVersions.get(packageName)
-    const survivingVersions = exactVersions.filter((version) => resolved?.has(version))
-    if (survivingVersions.length === exactVersions.length) {
-      survivingSpecs.push(entry)
-    } else if (survivingVersions.length > 0) {
-      survivingSpecs.push(...mergePackageVersionSpecs([`${packageName}@${survivingVersions.join(' || ')}`]))
-      changed = true
-    } else {
-      changed = true
-    }
-  }
-  if (!changed) {
-    return false
-  }
-  if (survivingSpecs.length === 0) {
-    delete manifest.minimumReleaseAgeExclude
-  } else {
-    manifest.minimumReleaseAgeExclude = survivingSpecs
   }
   return true
 }

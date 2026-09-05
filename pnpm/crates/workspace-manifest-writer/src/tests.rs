@@ -1699,6 +1699,135 @@ mod minimum_release_age_exclude_prune {
         let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
         assert_eq!(out.as_deref(), Some(original));
     }
+
+    /// An empty list has nothing to prune; removing the block would diverge
+    /// from the TypeScript implementation, which leaves it untouched.
+    #[test]
+    fn keeps_an_empty_list_verbatim() {
+        let original = "minimumReleaseAgeExclude: []\n";
+        let out = run_age_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+}
+
+/// The `trustPolicyExcludePrune` pass: entries of `trustPolicyExclude`
+/// are pruned against the versions the freshly resolved lockfile records.
+mod trust_policy_exclude_prune {
+    use crate::ResolvedPackageVersions;
+
+    use super::{UpdateWorkspaceManifestOptions, run_with};
+
+    fn resolved(entries: &[(&str, &[&str])]) -> ResolvedPackageVersions {
+        entries
+            .iter()
+            .map(|(name, versions)| {
+                (name.to_string(), versions.iter().map(ToString::to_string).collect())
+            })
+            .collect()
+    }
+
+    fn run_trust_cleanup(
+        original: Option<&str>,
+        resolved: Option<&ResolvedPackageVersions>,
+    ) -> Option<String> {
+        run_with(
+            original,
+            &UpdateWorkspaceManifestOptions {
+                prune_trust_policy_excludes: true,
+                resolved_package_versions: resolved,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn drops_a_versioned_entry_whose_version_is_no_longer_resolved() {
+        let original = "packages:\n  - '*'\ntrustPolicyExclude:\n  - foo@1.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("packages:\n  - '*'\n"));
+    }
+
+    #[test]
+    fn keeps_a_versioned_entry_whose_version_is_resolved() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn rewrites_a_narrowed_version_union_canonically() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0 || 2.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["2.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - foo@2.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_union_entry_verbatim_when_every_version_is_resolved() {
+        let original = "trustPolicyExclude:\n  - foo@2.0.0 || 1.0.0\n";
+        let out =
+            run_trust_cleanup(Some(original), Some(&resolved(&[("foo", &["1.0.0", "2.0.0"])])));
+        assert_eq!(out.as_deref(), Some(original), "no version was dropped, so no rewrite");
+    }
+
+    #[test]
+    fn drops_a_bare_name_when_the_package_is_absent() {
+        let original = "trustPolicyExclude:\n  - foo\n  - bar@1.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[("bar", &["1.0.0"])])));
+        assert_eq!(out.as_deref(), Some("trustPolicyExclude:\n  - bar@1.0.0\n"));
+    }
+
+    #[test]
+    fn keeps_a_glob_entry_with_no_match() {
+        let original = "trustPolicyExclude:\n  - '@babel/*'\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn removes_the_file_when_the_emptied_block_was_the_only_key() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out, None, "an emptied manifest file must be deleted");
+    }
+
+    #[test]
+    fn skips_cleanup_without_resolved_versions() {
+        let original = "trustPolicyExclude:\n  - foo@1.0.0\n";
+        let out = run_trust_cleanup(Some(original), None);
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn keeps_an_unparsable_entry_verbatim() {
+        let original = "trustPolicyExclude:\n  - foo@>=1.0.0\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
+
+    #[test]
+    fn prunes_both_exclude_lists_when_both_settings_are_on() {
+        let original =
+            "minimumReleaseAgeExclude:\n  - foo@1.0.0\ntrustPolicyExclude:\n  - bar@1.0.0\n";
+        let out = run_with(
+            Some(original),
+            &UpdateWorkspaceManifestOptions {
+                prune_minimum_release_age_excludes: true,
+                prune_trust_policy_excludes: true,
+                resolved_package_versions: Some(&resolved(&[("foo", &["1.0.0"])])),
+                ..Default::default()
+            },
+        );
+        assert_eq!(out.as_deref(), Some("minimumReleaseAgeExclude:\n  - foo@1.0.0\n"));
+    }
+
+    /// An empty list has nothing to prune; removing the block would diverge
+    /// from the TypeScript implementation, which leaves it untouched.
+    #[test]
+    fn keeps_an_empty_list_verbatim() {
+        let original = "trustPolicyExclude: []\n";
+        let out = run_trust_cleanup(Some(original), Some(&resolved(&[])));
+        assert_eq!(out.as_deref(), Some(original));
+    }
 }
 
 /// pnpm scaffolds undecided entries with a multi-word plain scalar.
