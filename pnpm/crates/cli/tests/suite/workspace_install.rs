@@ -74,6 +74,60 @@ fn assert_frozen_outdated(workspace: &Path) {
 }
 
 #[test]
+fn normalized_workspace_patterns_select_install_list_and_script_projects() {
+    let manifest = |name: &str, dependency: &str| {
+        serde_json::json!({
+            "name": name,
+            "version": "1.0.0",
+            "dependencies": { dependency: "1.0.0" },
+            "scripts": { "probe": "node probe.cjs" },
+        })
+    };
+    let fixture =
+        two_project_workspace(&manifest("pkg-a", "is-positive"), &manifest("pkg-b", "is-negative"));
+    let workspace = &fixture.workspace;
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path)
+        .unwrap()
+        .replace("  - 'pkg-a'\n  - 'pkg-b'\n", "  - './missing/../*'\n  - '!./pkg-b'\n");
+    fs::write(yaml_path, yaml).unwrap();
+    for name in ["pkg-a", "pkg-b"] {
+        fs::write(
+            workspace.join(name).join("probe.cjs"),
+            "require('node:fs').writeFileSync('script-ran', '')\n",
+        )
+        .unwrap();
+    }
+
+    pacquet_at(workspace).with_args(["install", "--ignore-scripts"]).assert().success();
+    let installed_a = workspace.join("pkg-a/node_modules/is-positive/package.json");
+    let installed_b = workspace.join("pkg-b/node_modules/is-negative/package.json");
+    dbg!(&installed_a, &installed_b);
+    assert!(installed_a.is_file());
+    assert!(!installed_b.exists());
+    let lockfile = read_lockfile(&workspace.join("pnpm-lock.yaml"));
+    dbg!(&lockfile.importers);
+    assert!(lockfile.importers.contains_key("pkg-a"));
+    assert!(!lockfile.importers.contains_key("pkg-b"));
+
+    let output =
+        pacquet_at(workspace).with_args(["ls", "-r", "--depth", "-1", "--json"]).output().unwrap();
+    assert!(output.status.success(), "list failed: {output:?}");
+    let projects: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    let mut names =
+        projects.iter().map(|project| project["name"].as_str().unwrap()).collect::<Vec<_>>();
+    names.sort_unstable();
+    assert_eq!(names, vec!["pkg-a", "root"]);
+
+    pacquet_at(workspace).with_args(["-r", "run", "probe"]).assert().success();
+    let ran_a = workspace.join("pkg-a/script-ran");
+    let ran_b = workspace.join("pkg-b/script-ran");
+    dbg!(&ran_a, &ran_b);
+    assert!(ran_a.is_file());
+    assert!(!ran_b.exists());
+}
+
+#[test]
 fn recursive_install_false_selects_the_current_project_and_its_dependencies() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

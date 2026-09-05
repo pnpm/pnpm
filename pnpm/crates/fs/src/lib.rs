@@ -14,7 +14,7 @@ pub use background_drop::background_drop;
 pub use dir_lock::DirLock;
 pub use ensure_file::*;
 pub use is_subdir::is_subdir;
-pub use lexical_normalize::lexical_normalize;
+pub use lexical_normalize::{lexical_normalize, lexical_normalize_posix};
 pub use realpath_missing::realpath_missing;
 pub use relative_path::relative_path;
 pub use remove_dirent::remove_dirent;

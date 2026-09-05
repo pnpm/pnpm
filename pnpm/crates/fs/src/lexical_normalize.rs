@@ -1,4 +1,7 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    ffi::OsStr,
+    path::{Component, Path, PathBuf},
+};
 
 /// Lexically resolve `.` and `..` components without touching the
 /// filesystem.
@@ -20,8 +23,49 @@ pub fn lexical_normalize(path: &Path) -> PathBuf {
     // Always rebuilt component-by-component, never copied verbatim:
     // besides the dot components, the rebuild also strips trailing and
     // doubled separators, and callers compare and hash the results.
-    let mut kept: Vec<Component<'_>> = Vec::new();
-    for component in path.components() {
+    let mut out = PathBuf::with_capacity(path.as_os_str().len());
+    for component in normalize_components(path.components()) {
+        out.push(component.as_os_str());
+    }
+    out
+}
+
+/// Normalize a POSIX path lexically on every platform, preserving a trailing
+/// slash and returning `.` for an empty result. Backslashes remain literal.
+#[must_use]
+pub fn lexical_normalize_posix(path: &str) -> String {
+    let root = path.starts_with('/').then_some(Component::RootDir);
+    let components = path.split('/').filter(|part| !part.is_empty()).map(|part| match part {
+        "." => Component::CurDir,
+        ".." => Component::ParentDir,
+        _ => Component::Normal(OsStr::new(part)),
+    });
+    let mut normalized = String::with_capacity(path.len());
+    for component in normalize_components(root.into_iter().chain(components)) {
+        if component == Component::RootDir {
+            normalized.push('/');
+        } else {
+            if !normalized.is_empty() && !normalized.ends_with('/') {
+                normalized.push('/');
+            }
+            normalized
+                .push_str(component.as_os_str().to_str().expect("components came from UTF-8"));
+        }
+    }
+    if normalized.is_empty() {
+        normalized.push('.');
+    }
+    if path.ends_with('/') && !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+    normalized
+}
+
+fn normalize_components<'path>(
+    components: impl Iterator<Item = Component<'path>>,
+) -> Vec<Component<'path>> {
+    let mut kept = Vec::new();
+    for component in components {
         match component {
             Component::ParentDir => match kept.last() {
                 Some(Component::Normal(_)) => {
@@ -34,11 +78,7 @@ pub fn lexical_normalize(path: &Path) -> PathBuf {
             other => kept.push(other),
         }
     }
-    let mut out = PathBuf::with_capacity(path.as_os_str().len());
-    for component in kept {
-        out.push(component.as_os_str());
-    }
-    out
+    kept
 }
 
 #[cfg(test)]
