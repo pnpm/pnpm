@@ -1,4 +1,4 @@
-use super::run_installers;
+use super::EcosystemInstallCoordinator;
 use std::{
     future::poll_fn,
     sync::{
@@ -27,11 +27,10 @@ async fn polls_ecosystem_installers_concurrently() {
 
     tokio::time::timeout(
         Duration::from_secs(1),
-        run_installers(vec![
-            Box::pin(installer(0b001)),
-            Box::pin(installer(0b010)),
-            Box::pin(installer(0b100)),
-        ]),
+        EcosystemInstallCoordinator::new(installer(0b001))
+            .with_install(installer(0b010))
+            .with_install(installer(0b100))
+            .run(),
     )
     .await
     .expect("every installer must start without waiting for another to finish")

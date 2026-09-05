@@ -1,3 +1,4 @@
+use crate::ecosystem_install::InstallContext;
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
@@ -38,6 +39,12 @@ pub(crate) enum CargoLockfilePolicy {
     Resolve,
 }
 
+pub(crate) struct CargoInstallOptions<'a> {
+    pub(crate) root_dir: &'a Path,
+    pub(crate) discover_projects: bool,
+    pub(crate) lockfile_policy: CargoLockfilePolicy,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct LockedCrate {
     name: String,
@@ -65,14 +72,11 @@ struct ManagedDirectory {
 }
 
 pub async fn install<Reporter: self::Reporter + 'static>(
-    config: &'static Config,
-    root_dir: &Path,
-    discover_projects: bool,
-    lockfile_only: bool,
-    frozen_lockfile: bool,
-    lockfile_policy: CargoLockfilePolicy,
-    http_client: Arc<ThrottledClient>,
+    context: InstallContext,
+    options: CargoInstallOptions<'_>,
 ) -> Result<()> {
+    let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
+    let CargoInstallOptions { root_dir, discover_projects, lockfile_policy } = options;
     if !config.cargo.enabled {
         return Ok(());
     }
