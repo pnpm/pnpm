@@ -24,6 +24,11 @@ pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::rename(src, dst))
 }
 
+/// Remove a file with the retry policy of [`rename_with_retry`].
+pub fn remove_file_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| fs::remove_file(path))
+}
+
 /// Remove a directory tree with the retry policy of [`rename_with_retry`].
 pub fn remove_dir_all_with_retry(path: &Path) -> io::Result<()> {
     retry_transient_file_locks(|| fs::remove_dir_all(path))
