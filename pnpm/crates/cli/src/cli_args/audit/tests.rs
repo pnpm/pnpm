@@ -163,6 +163,182 @@ fn lockfile_to_audit_request_respects_prod_and_no_optional() {
 }
 
 #[test]
+fn lockfile_to_audit_request_excludes_package_only_present_via_optional_peer_satisfied_by_excluded_dev_dependency()
+ {
+    // <https://github.com/pnpm/pnpm/issues/13605> — hookform (a prod
+    // dependency) declares an optional peer on valibot; valibot is only
+    // otherwise present as a devDependency. Peer resolution mixes all
+    // dependency types, so the lockfile bakes valibot into hookform's
+    // snapshot regardless of --prod. A real --prod-only resolve would never
+    // have seen valibot to satisfy the peer with, so `pnpm audit --prod`
+    // must not report it at all.
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      hookform:
+        specifier: '^1.0.0'
+        version: '1.0.0(valibot@1.2.0)'
+    devDependencies:
+      valibot:
+        specifier: '^1.2.0'
+        version: '1.2.0'
+
+packages:
+
+  hookform@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      valibot: ^1.0.0
+    peerDependenciesMeta:
+      valibot:
+        optional: true
+
+  valibot@1.2.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  hookform@1.0.0(valibot@1.2.0):
+    optionalDependencies:
+      valibot: 1.2.0
+
+  valibot@1.2.0: {}
+",
+    );
+
+    let full = lockfile_to_audit_request(&lockfile, None, all_dependencies());
+    assert_eq!(full.request["hookform"], vec!["1.0.0"]);
+    assert_eq!(full.request["valibot"], vec!["1.2.0"]);
+
+    let prod_only = lockfile_to_audit_request(
+        &lockfile,
+        None,
+        Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
+    );
+    assert_eq!(prod_only.request["hookform"], vec!["1.0.0"]);
+    assert!(!prod_only.request.contains_key("valibot"));
+}
+
+#[test]
+fn lockfile_to_audit_request_excludes_package_only_present_via_required_peer_satisfied_by_excluded_dev_dependency()
+ {
+    // Same bug class as the optional-peer test above, but for a required
+    // peer — a required-peer satisfaction edge lands in `dependencies`, not
+    // `optionalDependencies`, but is still keyed by the parent's own
+    // peerDependencies, so the fix (skip any alias present in
+    // peer_dependencies) covers this without extra logic.
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      needs-react:
+        specifier: '^1.0.0'
+        version: '1.0.0(react@18.0.0)'
+    devDependencies:
+      react:
+        specifier: '^18.0.0'
+        version: '18.0.0'
+
+packages:
+
+  needs-react@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      react: ^18.0.0
+
+  react@18.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  needs-react@1.0.0(react@18.0.0):
+    dependencies:
+      react: 18.0.0
+
+  react@18.0.0: {}
+",
+    );
+
+    let prod_only = lockfile_to_audit_request(
+        &lockfile,
+        None,
+        Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
+    );
+    assert_eq!(prod_only.request["needs-react"], vec!["1.0.0"]);
+    assert!(!prod_only.request.contains_key("react"));
+}
+
+#[test]
+fn lockfile_to_audit_request_excludes_package_only_present_via_required_peer_satisfied_by_excluded_prod_dependency_dev_mirror()
+ {
+    // Required-peer mirror of the --prod test above, for --dev (include:
+    // {dependencies: false, optional_dependencies: false}). Unlike an
+    // optional-peer edge (which lives in optionalDependencies and is always
+    // gated by include.optional_dependencies), a required-peer edge lives in
+    // `dependencies`, which was followed unconditionally regardless of
+    // `include` before the fix — so, unlike the optional case, this
+    // scenario does exercise the fix under --dev.
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      ui-lib:
+        specifier: '^2.0.0'
+        version: '2.0.0'
+    devDependencies:
+      needs-ui-lib:
+        specifier: '^1.0.0'
+        version: '1.0.0(ui-lib@2.0.0)'
+
+packages:
+
+  needs-ui-lib@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      ui-lib: ^2.0.0
+
+  ui-lib@2.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  needs-ui-lib@1.0.0(ui-lib@2.0.0):
+    dependencies:
+      ui-lib: 2.0.0
+
+  ui-lib@2.0.0: {}
+",
+    );
+
+    // ui-lib is a genuine prod dependency (independent of the peer edge), so
+    // it must still be reported under the default/full include.
+    let full = lockfile_to_audit_request(&lockfile, None, all_dependencies());
+    assert_eq!(full.request["needs-ui-lib"], vec!["1.0.0"]);
+    assert_eq!(full.request["ui-lib"], vec!["2.0.0"]);
+
+    let dev_only = lockfile_to_audit_request(
+        &lockfile,
+        None,
+        Include { dependencies: false, dev_dependencies: true, optional_dependencies: false },
+    );
+    assert_eq!(dev_only.request["needs-ui-lib"], vec!["1.0.0"]);
+    assert!(!dev_only.request.contains_key("ui-lib"));
+}
+
+#[test]
 fn lockfile_to_audit_request_accepts_absent_env_lockfile() {
     let lockfile = parse_lockfile(
         "
@@ -483,6 +659,67 @@ snapshots:
         Include { dependencies: true, dev_dependencies: false, optional_dependencies: true },
     );
     assert!(path_info(&prod_only, "shared-pkg", "1.0.0").optional);
+}
+
+#[test]
+fn build_audit_path_index_classifies_peer_satisfied_by_dev_dependency_as_dev_not_optional() {
+    // Same shape as the lockfile_to_audit_request "excludes ... optional
+    // peer ..." test above. Path building never follows the
+    // peer-satisfaction edge either — a peer-satisfaction edge isn't a real
+    // install path any more than it's real reachability — so valibot's only
+    // path is its own devDependency root, and it must be dev: true,
+    // optional: false: it's a real devDependency, not something reachable
+    // only through an optional edge.
+    let lockfile = parse_lockfile(
+        "
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      hookform:
+        specifier: '^1.0.0'
+        version: '1.0.0(valibot@1.2.0)'
+    devDependencies:
+      valibot:
+        specifier: '^1.2.0'
+        version: '1.2.0'
+
+packages:
+
+  hookform@1.0.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+    peerDependencies:
+      valibot: ^1.0.0
+    peerDependenciesMeta:
+      valibot:
+        optional: true
+
+  valibot@1.2.0:
+    resolution: {integrity: sha512-JYtls3hqi15fcx5GaSNL7SCTJ2MNmjrkHXg4FSpOA/grxK8KwyZ5bubHsCq8FXCkua6xhuaaBit+3b7+VZRfcA==}
+
+snapshots:
+
+  hookform@1.0.0(valibot@1.2.0):
+    optionalDependencies:
+      valibot: 1.2.0
+
+  valibot@1.2.0: {}
+",
+    );
+
+    let index = build_audit_path_index(
+        &lockfile,
+        None,
+        &vulnerable_names(&["valibot"]),
+        all_dependencies(),
+    );
+
+    let info = path_info(&index, "valibot", "1.2.0");
+    assert_eq!(info.paths, vec![".>valibot"]);
+    assert!(info.dev);
+    assert!(!info.optional);
 }
 
 #[test]
