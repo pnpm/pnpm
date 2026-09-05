@@ -102,9 +102,15 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
 }
 
 /**
+ * Replaces the file at `lockfilePath` with `content`: the bytes go to a
+ * temporary file in the same directory, which inherits the mode and ownership
+ * of the file it replaces and is removed again if publishing fails. Rejects
+ * with `LOCKFILE_IS_SYMLINK` when the path is a symlink, checked up front and
+ * again right before publishing.
+ *
  * Publishes with `rename`, not the `write-file-atomic` used elsewhere here:
  * `rename` never resolves the final path component, so a symlink swapped in
- * after {@link ensureLockfileIsNotSymlink} cannot redirect the write.
+ * after the last check cannot redirect the write.
  */
 export async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
