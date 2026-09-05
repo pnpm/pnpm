@@ -7,43 +7,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[cfg(test)]
-pub(super) enum InventoryTraversalEvent<'a> {
-    BeforeRead(&'a Path),
-    BeforeOpenDirectory(&'a Path),
-}
-
-#[cfg(not(test))]
-pub(super) struct InventoryTraversalEvent<'a> {
-    _path: std::marker::PhantomData<&'a Path>,
-}
-
-impl<'a> InventoryTraversalEvent<'a> {
-    fn before_read(path: &'a Path) -> Self {
-        #[cfg(test)]
-        {
-            Self::BeforeRead(path)
-        }
-        #[cfg(not(test))]
-        {
-            let _ = path;
-            Self { _path: std::marker::PhantomData }
-        }
-    }
-
-    fn before_open_directory(path: &'a Path) -> Self {
-        #[cfg(test)]
-        {
-            Self::BeforeOpenDirectory(path)
-        }
-        #[cfg(not(test))]
-        {
-            let _ = path;
-            Self { _path: std::marker::PhantomData }
-        }
-    }
-}
-
 struct PendingDirectory {
     path: PathBuf,
     handle: std::fs::File,
@@ -52,7 +15,8 @@ struct PendingDirectory {
 pub(super) fn walk_workspace(
     workspace_root: &Path,
     ignored: &BTreeSet<&OsStr>,
-    mut traversal_hook: impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
+    mut before_read: impl FnMut(&Path) -> io::Result<()>,
+    mut before_open_directory: impl FnMut(&Path) -> io::Result<()>,
     mut visit_file: impl FnMut(PathBuf, &OsStr),
 ) -> Result<(), FindWorkspaceInventoryError> {
     let root_handle =
@@ -66,7 +30,7 @@ pub(super) fn walk_workspace(
         vec![PendingDirectory { path: workspace_root.to_path_buf(), handle: root_handle }];
 
     while let Some(directory) = pending.pop() {
-        match traversal_hook(InventoryTraversalEvent::before_read(&directory.path)) {
+        match before_read(&directory.path) {
             Ok(()) => {}
             Err(error)
                 if directory.path != workspace_root && is_ignorable_discovery_error(&error) =>
@@ -98,7 +62,7 @@ pub(super) fn walk_workspace(
             &directory,
             entries,
             ignored,
-            &mut traversal_hook,
+            &mut before_open_directory,
             &mut pending,
             &mut visit_file,
         )?;
@@ -110,7 +74,7 @@ fn collect_directory_entries(
     directory: &PendingDirectory,
     entries: fs::ReadDir,
     ignored: &BTreeSet<&OsStr>,
-    traversal_hook: &mut impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
+    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
 ) -> Result<(), FindWorkspaceInventoryError> {
@@ -125,7 +89,7 @@ fn collect_directory_entries(
                 });
             }
         };
-        collect_entry(directory, &entry, ignored, traversal_hook, pending, visit_file)?;
+        collect_entry(directory, &entry, ignored, before_open_directory, pending, visit_file)?;
     }
     Ok(())
 }
@@ -134,7 +98,7 @@ fn collect_entry(
     directory: &PendingDirectory,
     entry: &fs::DirEntry,
     ignored: &BTreeSet<&OsStr>,
-    traversal_hook: &mut impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
+    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
 ) -> Result<(), FindWorkspaceInventoryError> {
@@ -151,7 +115,7 @@ fn collect_entry(
         return Ok(());
     }
     if file_type.is_dir() {
-        collect_directory(directory, &file_name, path, ignored, traversal_hook, pending)
+        collect_directory(directory, &file_name, path, ignored, before_open_directory, pending)
     } else {
         if file_type.is_file() {
             visit_file(path, &file_name);
@@ -165,13 +129,13 @@ fn collect_directory(
     file_name: &OsStr,
     path: PathBuf,
     ignored: &BTreeSet<&OsStr>,
-    traversal_hook: &mut impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
+    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
 ) -> Result<(), FindWorkspaceInventoryError> {
     if ignored.contains(file_name) {
         return Ok(());
     }
-    traversal_hook(InventoryTraversalEvent::before_open_directory(&path)).map_err(|source| {
+    before_open_directory(&path).map_err(|source| {
         FindWorkspaceInventoryError::InspectCandidate { path: path.clone(), source }
     })?;
     match fs::open_dir_nofollow(&parent.handle, Path::new(file_name)) {

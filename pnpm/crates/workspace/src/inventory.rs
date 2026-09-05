@@ -9,7 +9,7 @@ use std::{
 
 mod traversal;
 
-use traversal::{InventoryTraversalEvent, walk_workspace};
+use traversal::walk_workspace;
 
 /// Manifest paths grouped by basename.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -68,6 +68,7 @@ pub fn find_workspace_inventory(
         manifest_basenames,
         ignored_directory_basenames,
         |_| Ok(()),
+        |_| Ok(()),
     )
 }
 
@@ -75,21 +76,28 @@ fn find_workspace_inventory_with(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
-    traversal_hook: impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
+    before_read: impl FnMut(&Path) -> io::Result<()>,
+    before_open_directory: impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     let requested: BTreeSet<&OsStr> = manifest_basenames.iter().map(OsStr::new).collect();
     let ignored: BTreeSet<&OsStr> = ignored_directory_basenames.iter().map(OsStr::new).collect();
     let mut manifests: BTreeMap<String, Vec<PathBuf>> =
         manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
 
-    walk_workspace(workspace_root, &ignored, traversal_hook, |path, file_name| {
-        if requested.contains(file_name)
-            && let Some(manifest_paths) =
-                file_name.to_str().and_then(|basename| manifests.get_mut(basename))
-        {
-            manifest_paths.push(path);
-        }
-    })?;
+    walk_workspace(
+        workspace_root,
+        &ignored,
+        before_read,
+        before_open_directory,
+        |path, file_name| {
+            if requested.contains(file_name)
+                && let Some(manifest_paths) =
+                    file_name.to_str().and_then(|basename| manifests.get_mut(basename))
+            {
+                manifest_paths.push(path);
+            }
+        },
+    )?;
 
     for manifest_paths in manifests.values_mut() {
         manifest_paths.sort();
