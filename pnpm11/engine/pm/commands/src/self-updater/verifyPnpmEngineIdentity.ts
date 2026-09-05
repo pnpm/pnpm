@@ -17,7 +17,7 @@ import type { RegistriesByScope, RegistryConfig } from '@pnpm/types'
 import { familySync } from 'detect-libc'
 import semver from 'semver'
 
-import { exePlatformPkgDirName, exePlatformPkgDirNameNext } from './installPnpm.js'
+import { exePlatformPkgDirName, exePlatformPkgDirNameNext, nativeTargetName } from './installPnpm.js'
 
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/'
 
@@ -34,10 +34,26 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
 }
 
 /**
+ * The pnpm engine package that is about to be installed and then executed:
+ * the JavaScript `pnpm`, the SEA `@pnpm/exe`, or the native `pnpm` from v12.
+ */
+export interface PnpmEngineToVerify {
+  name: string
+  version: string
+}
+
+/**
  * Verifies that the pnpm engine about to be installed (and then executed) for an
  * automatic version switch or self-update is genuinely the published `pnpm` —
  * i.e. the bytes recorded in the env lockfile carry a valid npm registry
  * signature for their exact `name@version`.
+ *
+ * Only the package that will run is verified: `engine` itself and, when it
+ * executes a native binary, the host's platform package among its optional
+ * dependencies. The env lockfile pins the JavaScript `pnpm` and the SEA
+ * `@pnpm/exe` side by side below v12, but an install is rooted at one of them
+ * and never materializes the other, so a `@pnpm/exe` that ships no binary
+ * for the host must not block running the JavaScript `pnpm` there.
  *
  * The wanted pnpm version comes from a repository's `packageManager` /
  * `devEngines.packageManager` field, and the project controls the lockfile
@@ -76,19 +92,14 @@ export type VerifyPnpmEngineIdentityOptions = VerifySignaturesOptions & {
  */
 export async function verifyPnpmEngineIdentity (
   envLockfile: EnvLockfile,
-  pnpmVersion: string,
+  engine: PnpmEngineToVerify,
   opts: VerifyPnpmEngineIdentityOptions
 ): Promise<void> {
   const trustedKeys = opts.trustedKeys ?? getNpmSigningKeys()
   if (trustedKeys.length === 0) return // test seam: no trusted keys means skip
 
-  const toVerify = collectEnginePackagesToVerify(envLockfile, opts.registriesByScope)
-  if (toVerify.length === 0) {
-    throw new PnpmError(
-      'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
-      `Cannot verify the identity of pnpm@${pnpmVersion}: its integrity metadata is missing from pnpm-lock.yaml.`
-    )
-  }
+  const pnpmVersion = engine.version
+  const toVerify = collectEnginePackagesToVerify(envLockfile, engine, opts.registriesByScope)
 
   const getAuthHeader = createGetAuthHeaderByURI(opts.configByUri ?? {})
   let result
@@ -138,65 +149,73 @@ function isTolerableWithoutSignature (failure: InstalledSignatureFailure): boole
     !equalRegistries(failure.registry, CANONICAL_NPM_REGISTRY)
 }
 
-function collectEnginePackagesToVerify (envLockfile: EnvLockfile, registriesByScope: RegistriesByScope): InstalledPackageToVerify[] {
+function collectEnginePackagesToVerify (
+  envLockfile: EnvLockfile,
+  engine: PnpmEngineToVerify,
+  registriesByScope: RegistriesByScope
+): InstalledPackageToVerify[] {
   const pmDeps = envLockfile.importers['.']?.packageManagerDependencies ?? {}
-  const toVerify: InstalledPackageToVerify[] = []
-
-  for (const name of ['pnpm', '@pnpm/exe']) {
-    const version = pmDeps[name]?.version
-    if (version == null) continue
-    toVerify.push(engineComponentToVerify(envLockfile, registriesByScope, { name, version }))
+  const version = pmDeps[engine.name]?.version
+  if (version == null) {
+    throw new PnpmError(
+      'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+      `Cannot verify the identity of ${engine.name}@${engine.version}: its integrity metadata is missing from pnpm-lock.yaml.`
+    )
   }
+  const toVerify = [engineComponentToVerify(envLockfile, registriesByScope, { name: engine.name, version })]
+  if (!runsPlatformBinary(engine)) return toVerify
 
   // The bytes actually executed are the host's platform binary, listed as an
   // optional dependency of the native wrapper. Since this is the native code
-  // that will run, a missing snapshot, missing optional deps, or no host
-  // candidate fails closed rather than letting verification pass on the
-  // wrappers alone.
-  const wrapper = nativeEngineWrapper(pmDeps)
-  if (wrapper != null) {
-    const label = `${wrapper.name}@${wrapper.version}`
-    const optionalDeps = envLockfile.snapshots[label]?.optionalDependencies
-    if (optionalDeps == null) {
-      throw new PnpmError(
-        'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
-        `Cannot verify the identity of ${label}: its platform binaries are missing from pnpm-lock.yaml.`
-      )
-    }
-    const libcFamily = familySync()
-    const candidateNames = [
-      `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, libcFamily)}`,
-      `@pnpm/${exePlatformPkgDirNameNext(process.platform, process.arch, libcFamily)}`,
-    ]
-    // The first candidate present in the lockfile is the binary the install
-    // will link and execute, so it is the one that must be verifiable.
-    const platformName = candidateNames.find((name) => optionalDeps[name] != null)
-    if (platformName == null) {
-      throw new PnpmError(
-        'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
-        `Cannot verify the identity of the @pnpm/exe.${process.platform}-${process.arch} native binary: it is missing from pnpm-lock.yaml.`
-      )
-    }
-    toVerify.push(engineComponentToVerify(envLockfile, registriesByScope, { name: platformName, version: optionalDeps[platformName] }))
+  // that will run, a missing snapshot or missing optional deps fails closed
+  // rather than letting verification pass on the wrapper alone.
+  const label = `${engine.name}@${version}`
+  const optionalDeps = envLockfile.snapshots[label]?.optionalDependencies
+  if (optionalDeps == null) {
+    throw new PnpmError(
+      'PNPM_ENGINE_IDENTITY_UNVERIFIABLE',
+      `Cannot verify the identity of ${label}: its platform binaries are missing from pnpm-lock.yaml.`
+    )
   }
-
+  const platformName = hostPlatformPackage(optionalDeps)
+  if (platformName == null) {
+    const target = nativeTargetName(process.platform, process.arch, familySync())
+    throw new PnpmError(
+      'PNPM_ENGINE_NO_NATIVE_BINARY',
+      `Cannot run ${label} on this host: it ships no native binary for ${target}.`,
+      { hint: 'Set `pmOnFail` to `ignore` to skip the version switch.' }
+    )
+  }
+  toVerify.push(engineComponentToVerify(envLockfile, registriesByScope, { name: platformName, version: optionalDeps[platformName] }))
   return toVerify
 }
 
 /**
- * The engine package whose optional dependencies carry the host's native
- * binary: `@pnpm/exe` when the lockfile pins it, otherwise `pnpm` itself for
- * `>=12`, where the unscoped package is the native executable. `undefined`
- * when the lockfile pins only a JS-only `pnpm` (`<6.17.1`), which has no
- * platform binaries.
+ * Whether `engine` executes a platform binary from its optional dependencies:
+ * `@pnpm/exe` always, and the unscoped `pnpm` from v12, where it is the native
+ * executable. Below v12 the unscoped `pnpm` is a JavaScript CLI that runs on
+ * Node.js.
  */
-function nativeEngineWrapper (pmDeps: Record<string, { version: string }>): { name: string, version: string } | undefined {
-  const exeVersion = pmDeps['@pnpm/exe']?.version
-  if (exeVersion != null) return { name: '@pnpm/exe', version: exeVersion }
-  const pnpmVersion = pmDeps['pnpm']?.version
-  if (pnpmVersion == null) return undefined
-  const parsed = semver.parse(pnpmVersion, { loose: true })
-  return parsed != null && parsed.major >= 12 ? { name: 'pnpm', version: pnpmVersion } : undefined
+function runsPlatformBinary (engine: PnpmEngineToVerify): boolean {
+  if (engine.name === '@pnpm/exe') return true
+  const parsed = semver.parse(engine.version, { loose: true })
+  return parsed != null && parsed.major >= 12
+}
+
+/**
+ * The platform package among a native wrapper's `optionalDeps` that the
+ * install links and executes on this host: the first of the legacy
+ * `@pnpm/<os>-<arch>` and the `@pnpm/exe.<target>` names present, the same
+ * order `linkExePlatformBinary` searches. `undefined` when the wrapper ships
+ * no binary for the host.
+ */
+function hostPlatformPackage (optionalDeps: Record<string, string>): string | undefined {
+  const libcFamily = familySync()
+  const candidateNames = [
+    `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, libcFamily)}`,
+    `@pnpm/${exePlatformPkgDirNameNext(process.platform, process.arch, libcFamily)}`,
+  ]
+  return candidateNames.find((name) => optionalDeps[name] != null)
 }
 
 function engineComponentToVerify (

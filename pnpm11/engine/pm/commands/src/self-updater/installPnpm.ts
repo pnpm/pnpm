@@ -153,7 +153,7 @@ export async function installPnpmToStore (
 
   // Reached only on a store cache miss (a genuine download), so verifying the
   // pnpm engine's registry signature here does not slow down repeated commands.
-  await verifyPnpmEngineIdentity(opts.envLockfile, pnpmVersion, opts)
+  await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version: pnpmVersion }, opts)
 
   // Install to a temporary directory — headless install with GVS enabled
   // will populate the global virtual store
@@ -241,7 +241,7 @@ async function installPnpmToGlobalDir (
       if (opts.envLockfile != null) {
         // Reached only when actually downloading (no matching global install),
         // so the signature check does not run on every invocation.
-        await verifyPnpmEngineIdentity(opts.envLockfile, version, opts)
+        await verifyPnpmEngineIdentity(opts.envLockfile, { name: pkgName, version }, opts)
       }
       await installFromLockfile(installDir, binDir, {
         wantedLockfile,
@@ -475,9 +475,21 @@ export function exePlatformPkgDirNameNext (
   arch: string,
   libcFamily: string | null
 ): string {
+  return `exe.${nativeTargetName(platform, arch, libcFamily)}`
+}
+
+/**
+ * The `<platform>-<arch>[-musl]` target a pnpm native binary is built for,
+ * as the `exe.<target>` platform packages are named after it.
+ */
+export function nativeTargetName (
+  platform: NodeJS.Platform,
+  arch: string,
+  libcFamily: string | null
+): string {
   const normalizedArch = platform === 'win32' && arch === 'ia32' ? 'x86' : arch
   const libcSuffix = platform === 'linux' && libcFamily === 'musl' ? '-musl' : ''
-  return `exe.${platform}-${normalizedArch}${libcSuffix}`
+  return `${platform}-${normalizedArch}${libcSuffix}`
 }
 
 // The wrapper's preinstall links the platform binary into the wrapper dir, but
