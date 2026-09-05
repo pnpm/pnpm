@@ -298,13 +298,12 @@ fn apply_write_msg(
             }
         }
         WriteMsg::InvalidateSideEffects { key, cache_key } => {
-            if let Some(row) = load_pending_row(index, pending, &key)
-                && let Some(side_effects) = &mut row.side_effects
+            if let Some(row) = pending.get_mut(&key) {
+                remove_side_effects(row, &cache_key);
+            } else if let Some(mut row) = load_index_row(index, &key)
+                && remove_side_effects(&mut row, &cache_key)
             {
-                side_effects.remove(&cache_key);
-                if side_effects.is_empty() {
-                    row.side_effects = None;
-                }
+                pending.insert(key, row);
             }
         }
         WriteMsg::RemoteSideEffects { key, cache_key, diff } => {
@@ -330,6 +329,19 @@ fn apply_write_msg(
     }
 }
 
+fn remove_side_effects(row: &mut PackageFilesIndex, cache_key: &str) -> bool {
+    let Some(side_effects) = &mut row.side_effects else {
+        return false;
+    };
+    if side_effects.remove(cache_key).is_none() {
+        return false;
+    }
+    if side_effects.is_empty() {
+        row.side_effects = None;
+    }
+    true
+}
+
 /// Return a mutable reference to the [`PackageFilesIndex`] row for
 /// `key`, loading from `SQLite` when this is the row's first
 /// sighting in the batch. Returns `None` (and logs at `debug!` /
@@ -344,26 +356,30 @@ fn load_pending_row<'a>(
     use std::collections::hash_map::Entry;
     match pending.entry(key.to_string()) {
         Entry::Occupied(o) => Some(o.into_mut()),
-        Entry::Vacant(v) => match index.get(key) {
-            Ok(Some(r)) => Some(v.insert(r)),
-            Ok(None) => {
-                tracing::debug!(
-                    target: "pacquet::store_index",
-                    key = %key,
-                    "no base row for side-effects upload; skip",
-                );
-                None
-            }
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::store_index",
-                    ?error,
-                    key = %key,
-                    "failed to read base row for side-effects upload",
-                );
-                None
-            }
-        },
+        Entry::Vacant(v) => load_index_row(index, key).map(|row| v.insert(row)),
+    }
+}
+
+fn load_index_row(index: &StoreIndex, key: &str) -> Option<PackageFilesIndex> {
+    match index.get(key) {
+        Ok(Some(row)) => Some(row),
+        Ok(None) => {
+            tracing::debug!(
+                target: "pacquet::store_index",
+                key = %key,
+                "no base row for side-effects upload; skip",
+            );
+            None
+        }
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::store_index",
+                ?error,
+                key = %key,
+                "failed to read base row for side-effects upload",
+            );
+            None
+        }
     }
 }
 
