@@ -6,19 +6,24 @@
 //! the registry graph is consulted for that ecosystem only, so one router can
 //! front every ecosystem. This module holds the pieces the Cargo and Python
 //! surfaces both need: addressing (which registry, which endpoint URL, which
-//! cache headers), the anonymous-readability check, and the proxy cache for
-//! an upstream's metadata documents and artifacts.
+//! cache headers), the anonymous-readability check, the hosted document and
+//! blob flows, and the proxy cache for an upstream's metadata documents and
+//! artifacts.
 
 use super::{
-    AppState, MAX_TARBALL_BYTES, cached_upstream_tarball, default_registry_target, not_found,
+    Action, AppState, MAX_TARBALL_BYTES, RegistrySource, authorize, authorized_upstream,
+    cached_upstream_tarball, default_registry_target, hosted_read_namespace, not_found,
     private_no_cache, resolves_to_private_source, tarball_response, tarball_stream_error,
+    upstream_cache_namespace,
 };
 use axum::response::{IntoResponse, Response};
+use pnpr_cargo::CrateDocument;
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
+use pnpr_pypi::ProjectDocument;
 use pnpr_registry::{Ecosystem, Registry};
-use pnpr_storage::streaming;
+use pnpr_storage::{PACKUMENT_WRITE_RETRIES, streaming};
 use pnpr_upstream::{FetchOutcome, FetchedDocument, Upstream};
 use sha2::{Digest, Sha256};
 use ssri::{Algorithm, Integrity};
@@ -106,6 +111,132 @@ pub(super) fn hosted_sources(
         .filter(|source| matches!(registries.get(source), Some(Registry::Hosted { .. })))
         .map(str::to_string)
         .collect()
+}
+
+/// The per-project document a hosted registry keeps in its document slot: a
+/// crate's index entries, a Python project's file list. Read and written
+/// through [`read_hosted_document`] and [`store_hosted_artifact`].
+pub(super) trait HostedDocument: Sized {
+    fn empty(name: &str) -> Self;
+    fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error>;
+    fn to_bytes(&self) -> Vec<u8>;
+}
+
+impl HostedDocument for CrateDocument {
+    fn empty(name: &str) -> Self {
+        CrateDocument::new(name)
+    }
+
+    fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        CrateDocument::parse(bytes)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        CrateDocument::to_bytes(self)
+    }
+}
+
+impl HostedDocument for ProjectDocument {
+    fn empty(name: &str) -> Self {
+        ProjectDocument::new(name)
+    }
+
+    fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        ProjectDocument::parse(bytes)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        ProjectDocument::to_bytes(self)
+    }
+}
+
+/// The hosted document of `key` through `source`'s read gate: `None` when the
+/// project is absent (or masked from `identity`).
+pub(super) async fn read_hosted_document<Document: HostedDocument>(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &PackageName,
+) -> Result<Option<Document>, RegistryError> {
+    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    state
+        .inner
+        .storage
+        .for_hosted(&org)
+        .read_hosted_packument(key)
+        .await?
+        .map(|bytes| Document::parse(&bytes).map_err(RegistryError::Json))
+        .transpose()
+}
+
+/// A hosted blob of `key` through `source`'s read gate, as a download
+/// response; a 404 when the blob is absent.
+pub(super) async fn serve_hosted_blob(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &PackageName,
+    filename: &str,
+) -> Result<Response, RegistryError> {
+    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
+    let blob = state.inner.storage.for_hosted(&org).open_hosted_tarball(key, filename).await?;
+    Ok(match blob {
+        Some((body, len)) => tarball_response(body, len),
+        None => not_found(),
+    })
+}
+
+/// Store a blob under `key` in the hosted namespace `org` and record it in
+/// the project's document, serialized against other writers of the key on
+/// this instance. `refuse` rejects a document the write must not land on (a
+/// version or filename already present) — before the blob is written, and
+/// again on the document as it stands at write time; `record` adds the
+/// blob's entry to the document.
+pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
+    state: &AppState,
+    org: &str,
+    key: &PackageName,
+    filename: &str,
+    bytes: &[u8],
+    refuse: impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync,
+    record: impl Fn(&mut Document) + Send + Sync,
+) -> Result<(), RegistryError> {
+    let _guard = state.inner.package_locks.lock(key.as_str()).await;
+    let storage = state.inner.storage.for_hosted(org);
+    if let Some(existing) = storage.read_hosted_packument(key).await? {
+        refuse(&Document::parse(&existing)?)?;
+    }
+    let slot = storage.reserve_hosted_tarball(key, filename).await?;
+    tokio::fs::write(&slot.tmp_path, bytes).await?;
+    storage.finalize_tarball_slot(slot).await?;
+    storage
+        .update_hosted_packument_with_retry(key, PACKUMENT_WRITE_RETRIES, |existing| {
+            let mut document = match existing {
+                Some(bytes) => Document::parse(bytes)?,
+                None => Document::empty(key.as_str()),
+            };
+            refuse(&document)?;
+            record(&mut document);
+            Ok(Some(document.to_bytes()))
+        })
+        .await?;
+    Ok(())
+}
+
+/// The upstream behind `source`, authorized for `identity` to read `key`,
+/// with its cache namespace.
+pub(super) fn upstream_for<'state>(
+    state: &'state AppState,
+    identity: &Identity,
+    source: &RegistrySource,
+    key: &PackageName,
+) -> Result<(&'state Upstream, String), RegistryError> {
+    let RegistrySource::Upstream(name) = source else {
+        return Err(RegistryError::NotFound);
+    };
+    authorize(state, identity, source, key.as_str(), Action::Access)?;
+    let upstream = authorized_upstream(state, identity, name)?;
+    Ok((upstream, upstream_cache_namespace(state, name)))
 }
 
 /// An upstream metadata document to read through the proxy cache.

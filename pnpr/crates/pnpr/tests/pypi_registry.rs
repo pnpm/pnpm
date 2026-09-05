@@ -1,84 +1,36 @@
 //! The Python package index surface: the legacy upload API, the Simple API
 //! in both renderings, file downloads, and proxying an upstream index.
 
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/ecosystem.rs"]
+mod common;
+
 use axum::{
-    body::{Body, to_bytes},
-    http::{HeaderMap, Request, StatusCode, header},
+    body::Body,
+    http::{Request, StatusCode, header},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules,
-    Registries, Registry, Teams, UpstreamConfig, router_with_auth,
-};
+use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
+use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
-use std::{
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const PUBLIC_URL: &str = "http://pnpr.test";
 const JSON: &str = "application/vnd.pypi.simple.v1+json";
 const BOUNDARY: &str = "pnprTestBoundary";
 
-/// A registry graph with a hosted Python registry (`internal`, claiming
-/// `demo-pkg`) and a Python upstream (`pypiorg`, everything else) at
-/// `upstream_url`, both added to the stock `main` router beside the npm
-/// registries, so `/pypi/...` is the default-target form and
-/// `/pypi/~internal/...` the named form.
+/// A hosted Python registry (`internal`, claiming `demo-pkg`) and a Python
+/// upstream (`pypiorg`, everything else) at `upstream_url`, both in the
+/// `main` router beside the npm registries.
 fn pypi_config(storage: PathBuf, upstream_url: &str) -> Config {
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let mut config = Config::proxy(listen, storage);
-    config.public_url = PUBLIC_URL.to_string();
-    config.packument_ttl = Duration::from_mins(1);
-    config.hosted.insert(
-        "internal".to_string(),
-        HostedConfig {
-            org: "python".to_string(),
-            rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens(["$all"]))),
-            teams: Teams::default(),
-        },
-    );
-    config.upstreams.insert(
-        "pypiorg".to_string(),
-        UpstreamConfig::with_defaults(upstream_url.to_string(), HeaderMap::new()),
-    );
-    // Keep the stock npm graph (`local`, `npmjs`, `main`) and add the Python one.
-    let mut graph: indexmap::IndexMap<String, Registry> = config
-        .registries
-        .names()
-        .map(|name| (name.to_string(), config.registries.get(name).unwrap().clone()))
-        .collect();
-    graph.insert(
-        "internal".to_string(),
-        Registry::Hosted { patterns: vec![PackagePattern::parse("demo-pkg").unwrap()] },
-    );
-    graph.insert("pypiorg".to_string(), Registry::Upstream { patterns: vec![] });
-    // One router fronts every ecosystem: `/pypi/...` requests only see the
-    // Python sources.
-    graph.insert(
-        "main".to_string(),
-        Registry::Router {
-            sources: ["local", "npmjs", "internal", "pypiorg"].map(str::to_string).to_vec(),
-        },
-    );
-    let registries = Registries::new(graph, Some("main".to_string()))
-        .with_ecosystem("internal", Ecosystem::Pypi)
-        .with_ecosystem("pypiorg", Ecosystem::Pypi);
-    registries.validate().expect("pypi graph is valid");
-    config.registries = registries;
-    config
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
-}
-
-async fn body_bytes(body: Body) -> Vec<u8> {
-    to_bytes(body, usize::MAX).await.expect("read body").to_vec()
+    mixed_router_config(
+        storage,
+        Ecosystem::Pypi,
+        HostedSource { name: "internal", org: "python", access: "$all", packages: &["demo-pkg"] },
+        ("pypiorg", upstream_url),
+    )
 }
 
 /// The `multipart/form-data` body `twine upload` sends, with the fields the
@@ -142,20 +94,6 @@ fn get(path: &str, accept: Option<&str>) -> Request<Body> {
         request = request.header(header::ACCEPT, accept);
     }
     request.body(Body::empty()).unwrap()
-}
-
-fn find_file(root: &Path, filename: &str) -> Option<PathBuf> {
-    for entry in std::fs::read_dir(root).ok()?.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if let Some(found) = find_file(&path, filename) {
-                return Some(found);
-            }
-        } else if entry.file_name() == filename {
-            return Some(path);
-        }
-    }
-    None
 }
 
 #[tokio::test]

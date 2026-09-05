@@ -17,15 +17,16 @@
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    authorized_upstream, cached_upstream_tarball,
+    cached_upstream_tarball,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
-        is_fetchable_artifact_url, load_upstream_document, registry_endpoint,
-        serve_upstream_artifact, sha256_hex, sha256_integrity,
+        is_fetchable_artifact_url, load_upstream_document, read_hosted_document, registry_endpoint,
+        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity,
+        store_hosted_artifact, upstream_for,
     },
-    hosted_gate, hosted_read_namespace, not_found,
+    hosted_gate, not_found, private_no_cache,
     publishing::{PublishTarget, resolve_publish_target_for},
-    resolve_ecosystem_source, tarball_response, upstream_cache_namespace,
+    resolve_ecosystem_source,
 };
 use axum::{
     Router,
@@ -45,7 +46,7 @@ use pnpr_pypi::{
     wants_json, wants_versioned_html,
 };
 use pnpr_registry::Ecosystem;
-use pnpr_storage::{PACKUMENT_WRITE_RETRIES, publish::now_iso};
+use pnpr_storage::publish::now_iso;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -151,7 +152,7 @@ async fn get_project_list(
         )
     };
     // The list is filtered per caller, so it is never shareable.
-    super::private_no_cache(response)
+    private_no_cache(response)
 }
 
 /// `GET simple/<project>/`.
@@ -181,7 +182,7 @@ async fn get_project_page(
     };
     let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
         RegistrySource::Hosted(source) => {
-            read_hosted_document(&state, &identity, &source, &key).await
+            read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await
         }
         source @ RegistrySource::Upstream(_) => {
             load_upstream_page(&state, &identity, &source, &key, &project)
@@ -203,39 +204,6 @@ async fn get_project_page(
         Err(err) => err.into_response(),
     };
     caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(&project), response)
-}
-
-async fn read_hosted_document(
-    state: &AppState,
-    identity: &Identity,
-    source: &str,
-    key: &PackageName,
-) -> Result<Option<ProjectDocument>, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
-    state
-        .inner
-        .storage
-        .for_hosted(&org)
-        .read_hosted_packument(key)
-        .await?
-        .map(|bytes| ProjectDocument::parse(&bytes).map_err(RegistryError::Json))
-        .transpose()
-}
-
-/// The upstream behind `source`, authorized for `identity` to read `key`,
-/// with its cache namespace.
-fn upstream_for<'state>(
-    state: &'state AppState,
-    identity: &Identity,
-    source: &RegistrySource,
-    key: &PackageName,
-) -> Result<(&'state pnpr_upstream::Upstream, String), RegistryError> {
-    let RegistrySource::Upstream(name) = source else {
-        return Err(RegistryError::NotFound);
-    };
-    authorize(state, identity, source, key.as_str(), Action::Access)?;
-    let upstream = authorized_upstream(state, identity, name)?;
-    Ok((upstream, upstream_cache_namespace(state, name)))
 }
 
 /// An upstream project's page through the cache, as the parsed document plus
@@ -301,17 +269,9 @@ async fn get_file(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
         RegistrySource::Hosted(source) => {
-            match hosted_read_namespace(&state, &identity, &source, &project) {
-                Ok(org) => {
-                    let storage = state.inner.storage.for_hosted(&org);
-                    match storage.open_hosted_tarball(&key, filename).await {
-                        Ok(Some((body, len))) => tarball_response(body, len),
-                        Ok(None) => not_found(),
-                        Err(err) => err.into_response(),
-                    }
-                }
-                Err(err) => err.into_response(),
-            }
+            serve_hosted_blob(&state, &identity, &source, &key, filename)
+                .await
+                .unwrap_or_else(IntoResponse::into_response)
         }
         source @ RegistrySource::Upstream(_) => {
             file_via_upstream(&state, &identity, &source, &key, &project, filename).await
@@ -377,7 +337,7 @@ async fn post_upload(
         Ok(()) => StatusCode::OK.into_response(),
         Err(err) => err.into_response(),
     };
-    super::private_no_cache(response)
+    private_no_cache(response)
 }
 
 async fn upload_file(
@@ -439,34 +399,19 @@ async fn upload_file(
         size: Some(upload.content.len() as u64),
         upload_time: Some(now_iso()),
     };
-    let already_exists = || RegistryError::BadRequest {
-        reason: format!("File already exists: {:?}", upload.filename),
-    };
-
-    // Serialize against other writers of this project on this instance so two
-    // uploads cannot both pass the duplicate check.
-    let _guard = state.inner.package_locks.lock(key.as_str()).await;
-    let storage = state.inner.storage.for_hosted(&org);
-    if let Some(bytes) = storage.read_hosted_packument(&key).await?
-        && ProjectDocument::parse(&bytes)?.file(&upload.filename).is_some()
-    {
-        return Err(already_exists());
-    }
-    let slot = storage.reserve_hosted_tarball(&key, &upload.filename).await?;
-    tokio::fs::write(&slot.tmp_path, &upload.content).await?;
-    storage.finalize_tarball_slot(slot).await?;
-    storage
-        .update_hosted_packument_with_retry(&key, PACKUMENT_WRITE_RETRIES, |existing| {
-            let mut document = match existing {
-                Some(bytes) => ProjectDocument::parse(bytes)?,
-                None => ProjectDocument::new(&project),
-            };
-            if document.file(&entry.filename).is_some() {
-                return Err(already_exists());
-            }
-            document.files.push(entry.clone());
-            Ok(Some(document.to_bytes()))
-        })
-        .await?;
-    Ok(())
+    store_hosted_artifact::<ProjectDocument>(
+        state,
+        &org,
+        &key,
+        &upload.filename,
+        &upload.content,
+        |document| match document.file(&entry.filename) {
+            Some(_) => Err(RegistryError::BadRequest {
+                reason: format!("File already exists: {:?}", entry.filename),
+            }),
+            None => Ok(()),
+        },
+        |document| document.files.push(entry.clone()),
+    )
+    .await
 }

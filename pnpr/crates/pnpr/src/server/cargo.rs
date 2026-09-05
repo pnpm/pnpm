@@ -17,16 +17,17 @@
 //! published.
 
 use super::{
-    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize, authorized_upstream,
+    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
     cached_upstream_tarball,
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
-        load_upstream_document, registry_endpoint, registry_requires_auth, serve_upstream_artifact,
-        sha256_hex, sha256_integrity,
+        load_upstream_document, read_hosted_document, registry_endpoint, registry_requires_auth,
+        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity,
+        store_hosted_artifact, upstream_for,
     },
-    hosted_read_namespace, json_response, not_found,
+    json_response, not_found,
     publishing::{PublishTarget, resolve_publish_target_for},
-    resolve_ecosystem_source, resolve_write_target_for, tarball_response, upstream_cache_namespace,
+    resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
     Router,
@@ -149,57 +150,25 @@ async fn get_index_file(
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
-    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
+    let index = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            match read_hosted_document(&state, &identity, &source, &key).await {
-                Ok(Some(document)) => index_response(document.render_index()),
-                Ok(None) => not_found(),
-                Err(err) => error_response(err),
-            }
+            read_hosted_document::<CrateDocument>(&state, &identity, &source, &key)
+                .await
+                .map(|document| document.map(|document| document.render_index()))
         }
         source @ RegistrySource::Upstream(_) => {
-            match load_upstream_index(&state, &identity, &source, &key, &path).await {
-                Ok(Some(bytes)) => index_response(String::from_utf8_lossy(&bytes).into_owned()),
-                Ok(None) => not_found(),
-                Err(err) => error_response(err),
-            }
+            load_upstream_index(&state, &identity, &source, &key, &path)
+                .await
+                .map(|bytes| bytes.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
         }
-        RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
+    };
+    let response = match index {
+        Ok(Some(text)) => index_response(text),
+        Ok(None) => not_found(),
+        Err(err) => error_response(err),
     };
     caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
-}
-
-async fn read_hosted_document(
-    state: &AppState,
-    identity: &Identity,
-    source: &str,
-    key: &PackageName,
-) -> Result<Option<CrateDocument>, RegistryError> {
-    let org = hosted_read_namespace(state, identity, source, key.as_str())?;
-    state
-        .inner
-        .storage
-        .for_hosted(&org)
-        .read_hosted_packument(key)
-        .await?
-        .map(|bytes| CrateDocument::parse(&bytes).map_err(RegistryError::Json))
-        .transpose()
-}
-
-/// The upstream behind `source`, authorized for `identity` to read `key`,
-/// with its cache namespace.
-fn upstream_for<'state>(
-    state: &'state AppState,
-    identity: &Identity,
-    source: &RegistrySource,
-    key: &PackageName,
-) -> Result<(&'state pnpr_upstream::Upstream, String), RegistryError> {
-    let RegistrySource::Upstream(name) = source else {
-        return Err(RegistryError::NotFound);
-    };
-    authorize(state, identity, source, key.as_str(), Action::Access)?;
-    let upstream = authorized_upstream(state, identity, name)?;
-    Ok((upstream, upstream_cache_namespace(state, name)))
 }
 
 async fn load_upstream_index(
@@ -236,20 +205,12 @@ async fn get_download(
         Ok(key) => key,
         Err(err) => return error_response(err),
     };
-    let filename = crate_filename(name, version);
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            match hosted_read_namespace(&state, &identity, &source, key.as_str()) {
-                Ok(org) => {
-                    let storage = state.inner.storage.for_hosted(&org);
-                    match storage.open_hosted_tarball(&key, &filename).await {
-                        Ok(Some((body, len))) => tarball_response(body, len),
-                        Ok(None) => not_found(),
-                        Err(err) => error_response(err),
-                    }
-                }
-                Err(err) => error_response(err),
-            }
+            let filename = crate_filename(name, version);
+            serve_hosted_blob(&state, &identity, &source, &key, &filename)
+                .await
+                .unwrap_or_else(error_response)
         }
         source @ RegistrySource::Upstream(_) => {
             download_via_upstream(&state, &identity, &source, &key, name, version).await
@@ -388,47 +349,31 @@ async fn put_publish(
         Err(err) => return error_response(RegistryError::JoinError(err)),
     };
     let filename = crate_filename(&metadata.name, &metadata.vers);
-    let version = metadata.vers.clone();
     let entry = metadata.into_index_entry(cksum);
-
-    // Serialize against other writers of this crate on this instance so two
-    // publishes cannot both pass the duplicate check.
-    let _guard = state.inner.package_locks.lock(key.as_str()).await;
-    let storage = state.inner.storage.for_hosted(&org);
-    let already_published = || RegistryError::BadRequest {
-        reason: format!("crate version `{version}` is already uploaded"),
-    };
-    match storage.read_hosted_packument(&key).await {
-        Ok(Some(bytes)) => match CrateDocument::parse(&bytes) {
-            Ok(existing) if existing.version(&version).is_some() => {
-                return error_response(already_published());
-            }
-            Ok(_) => {}
-            Err(err) => return error_response(RegistryError::Json(err)),
+    let stored = store_hosted_artifact::<CrateDocument>(
+        &state,
+        &org,
+        &key,
+        &filename,
+        &archive,
+        |document| match document.version(&entry.vers) {
+            Some(_) => Err(RegistryError::BadRequest {
+                reason: format!("crate version `{}` is already uploaded", entry.vers),
+            }),
+            None => Ok(()),
         },
-        Ok(None) => {}
-        Err(err) => return error_response(err),
-    }
-    let written = async {
-        let slot = storage.reserve_hosted_tarball(&key, &filename).await?;
-        tokio::fs::write(&slot.tmp_path, &archive).await?;
-        storage.finalize_tarball_slot(slot).await?;
-        storage
-            .update_hosted_packument_with_retry(&key, PACKUMENT_WRITE_RETRIES, |existing| {
-                let mut document = match existing {
-                    Some(bytes) => CrateDocument::parse(bytes)?,
-                    None => CrateDocument::new(&entry.name),
-                };
-                if document.version(&entry.vers).is_some() {
-                    return Err(already_published());
-                }
-                document.versions.push(entry.clone());
-                Ok(Some(document.to_bytes()))
-            })
-            .await
-    };
-    match written.await {
-        Ok(_) => json_response(StatusCode::OK, &publish_ok_json()),
+        |document| {
+            // The document carries the name as first published, not the
+            // lowercase key it is stored under.
+            if document.versions.is_empty() {
+                document.name.clone_from(&entry.name);
+            }
+            document.versions.push(entry.clone());
+        },
+    )
+    .await;
+    match stored {
+        Ok(()) => json_response(StatusCode::OK, &publish_ok_json()),
         Err(err) => error_response(err),
     }
 }

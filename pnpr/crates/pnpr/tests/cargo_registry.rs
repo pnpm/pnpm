@@ -1,75 +1,37 @@
 //! The Cargo registry surface: sparse index, downloads, `cargo publish`,
 //! yank, and proxying an upstream sparse index and its downloads.
 
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/ecosystem.rs"]
+mod common;
+
 use axum::{
-    body::{Body, to_bytes},
-    http::{HeaderMap, Request, StatusCode, header},
+    body::Body,
+    http::{Request, StatusCode, header},
 };
-use pnpr::{
-    AccessList, AuthState, Config, Ecosystem, HostedConfig, PackagePattern, PackageRules,
-    Registries, Registry, Teams, UpstreamConfig, router_with_auth,
-};
+use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
+use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
-use std::{
-    io::Write as _,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{io::Write as _, path::PathBuf};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
-const PUBLIC_URL: &str = "http://pnpr.test";
-
-/// A registry graph with a hosted Cargo registry (`crates`, claiming `demo`
-/// and `inflector`) and a Cargo upstream (`cratesio`, everything else) at
-/// `upstream_url`, both added to the stock `main` router beside the npm
-/// registries, so `/cargo/...` is the default-target form and
-/// `/cargo/~crates/...` the named form.
+/// A hosted Cargo registry (`crates`, claiming `demo` and `inflector`) and
+/// a Cargo upstream (`cratesio`, everything else) at `upstream_url`, both in
+/// the `main` router beside the npm registries.
 fn cargo_config(storage: PathBuf, upstream_url: &str, hosted_access: &str) -> Config {
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
-    let mut config = Config::proxy(listen, storage);
-    config.public_url = PUBLIC_URL.to_string();
-    config.packument_ttl = Duration::from_mins(1);
-    config.hosted.insert(
-        "crates".to_string(),
-        HostedConfig {
-            org: "crates".to_string(),
-            rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([hosted_access]))),
-            teams: Teams::default(),
+    mixed_router_config(
+        storage,
+        Ecosystem::Cargo,
+        HostedSource {
+            name: "crates",
+            org: "crates",
+            access: hosted_access,
+            packages: &["demo", "inflector"],
         },
-    );
-    config.upstreams.insert(
-        "cratesio".to_string(),
-        UpstreamConfig::with_defaults(upstream_url.to_string(), HeaderMap::new()),
-    );
-    let claimed = ["demo", "inflector"]
-        .into_iter()
-        .map(|name| PackagePattern::parse(name).expect("crate name is a valid pattern"))
-        .collect();
-    // Keep the stock npm graph (`local`, `npmjs`, `main`) and add the Cargo one.
-    let mut graph: indexmap::IndexMap<String, Registry> = config
-        .registries
-        .names()
-        .map(|name| (name.to_string(), config.registries.get(name).unwrap().clone()))
-        .collect();
-    graph.insert("crates".to_string(), Registry::Hosted { patterns: claimed });
-    graph.insert("cratesio".to_string(), Registry::Upstream { patterns: vec![] });
-    // One router fronts every ecosystem: `/cargo/...` requests only see the
-    // Cargo sources, `/webpack`-style npm requests only the npm ones.
-    graph.insert(
-        "main".to_string(),
-        Registry::Router {
-            sources: ["local", "npmjs", "crates", "cratesio"].map(str::to_string).to_vec(),
-        },
-    );
-    let registries = Registries::new(graph, Some("main".to_string()))
-        .with_ecosystem("crates", Ecosystem::Cargo)
-        .with_ecosystem("cratesio", Ecosystem::Cargo);
-    registries.validate().expect("cargo graph is valid");
-    config.registries = registries;
-    config
+        ("cratesio", upstream_url),
+    )
 }
 
 fn crate_archive(name: &str, version: &str) -> Vec<u8> {
@@ -132,14 +94,6 @@ fn metadata(name: &str, version: &str) -> Value {
     })
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
-}
-
-async fn body_bytes(body: Body) -> Vec<u8> {
-    to_bytes(body, usize::MAX).await.expect("read body").to_vec()
-}
-
 /// `cargo` sends a registry token as the bare header value, with no scheme.
 fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
     let mut request = Request::put("/cargo/api/v1/crates/new");
@@ -147,20 +101,6 @@ fn publish_request(token: Option<&str>, body: Vec<u8>) -> Request<Body> {
         request = request.header(header::AUTHORIZATION, token);
     }
     request.body(Body::from(body)).unwrap()
-}
-
-fn find_file(root: &Path, filename: &str) -> Option<PathBuf> {
-    for entry in std::fs::read_dir(root).ok()?.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if let Some(found) = find_file(&path, filename) {
-                return Some(found);
-            }
-        } else if entry.file_name() == filename {
-            return Some(path);
-        }
-    }
-    None
 }
 
 #[tokio::test]
