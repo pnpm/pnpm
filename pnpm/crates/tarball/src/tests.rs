@@ -2207,6 +2207,7 @@ fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
 fn package_projection_preserves_existing_store_index_keys() {
     let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
     let package_id = "artifact@1.0.0";
+    let legacy_key = store_index_key(&integrity.to_string(), package_id);
 
     assert_eq!(
         store_index_cache_key(
@@ -2214,7 +2215,15 @@ fn package_projection_preserves_existing_store_index_keys() {
             package_id,
             ArchiveStoreProjection::Package { append_manifest: None },
         ),
-        Some(store_index_key(&integrity.to_string(), package_id)),
+        Some(legacy_key.clone()),
+    );
+    assert_ne!(
+        store_index_cache_key(
+            Some(&integrity),
+            package_id,
+            ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"runtime"}"#) },
+        ),
+        Some(legacy_key),
     );
 }
 
@@ -2363,6 +2372,90 @@ async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
     assert_eq!(std::fs::read(&second["package.json"]).unwrap(), second_manifest);
     assert_eq!(mem_cache.len(), 2);
     drop((store_dir, local_dir));
+}
+
+#[tokio::test]
+async fn store_index_partitions_synthesized_package_manifests_by_content() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    let archive = gzipped_tar(&[("artifact/README.md", b"archive")]);
+    std::fs::write(&tarball_path, &archive).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let mut integrity_opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    integrity_opts.input(&archive);
+    let package_integrity = integrity_opts.result();
+    let package_id = "runtime:artifact@1.0.0";
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let first_manifest = br#"{"name":"first"}"#;
+    let second_manifest = br#"{"name":"second"}"#;
+
+    for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
+        let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+        IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: StoreIndex::shared_readonly_in(store_path),
+            store_index_writer: Some(Arc::clone(&writer)),
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: Some(&package_integrity),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
+        }
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("each synthesized manifest should be ingested independently");
+        drop(writer);
+        writer_task.await.expect("writer task").expect("writer flushed");
+    }
+
+    std::fs::remove_file(&tarball_path).unwrap();
+    let store_index = StoreIndex::shared_readonly_in(store_path);
+    for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
+        let files = IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: store_index.clone(),
+            store_index_writer: None,
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: Some(&package_integrity),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
+        }
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("the matching synthesized manifest should be read from the store");
+        assert_eq!(std::fs::read(&files["package.json"]).unwrap(), manifest);
+    }
+
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    assert_eq!(index.keys().expect("read index keys").len(), 2);
+    drop((index, store_dir, local_dir));
 }
 
 #[tokio::test]

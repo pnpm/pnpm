@@ -43,17 +43,18 @@ pub enum ArchiveStoreProjection<'a> {
 }
 
 impl ArchiveStoreProjection<'_> {
-    /// Package keys must stay byte-for-byte compatible with pnpm's existing
-    /// store. Raw archives use a separate namespace so they never reuse legacy
-    /// rows that were projected as npm packages (and therefore may contain a
-    /// synthesized `package.json`).
+    /// Ordinary package keys stay byte-for-byte compatible with pnpm's existing
+    /// store. Projections that change the archive's file set use separate
+    /// namespaces so they cannot reuse an incompatible row.
     #[must_use]
     pub fn store_index_key(self, integrity: &str, package_id: &str) -> String {
+        let base_key = store_index_key(integrity, package_id);
         match self {
-            Self::Package { .. } => store_index_key(integrity, package_id),
-            Self::RawArchive => {
-                format!("raw-archive\t{}", store_index_key(integrity, package_id))
+            Self::Package { append_manifest: None } => base_key,
+            Self::Package { append_manifest: Some(manifest) } => {
+                format!("package-manifest\t{}\t{base_key}", manifest_integrity(manifest))
             }
+            Self::RawArchive => format!("raw-archive\t{base_key}"),
         }
     }
 
@@ -70,11 +71,11 @@ impl ArchiveStoreProjection<'_> {
             (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
             (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
             (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
-                let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha256);
-                opts.input(manifest);
-                let manifest_integrity = opts.result();
                 let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
-                format!("{revision_prefix}package-manifest:{manifest_integrity}:{package_url}")
+                format!(
+                    "{revision_prefix}package-manifest:{}:{package_url}",
+                    manifest_integrity(manifest),
+                )
             }
         }
     }
@@ -86,6 +87,12 @@ impl ArchiveStoreProjection<'_> {
             Self::RawArchive => PackageContentCheck::Skip,
         }
     }
+}
+
+fn manifest_integrity(manifest: &[u8]) -> Integrity {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha256);
+    opts.input(manifest);
+    opts.result()
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
