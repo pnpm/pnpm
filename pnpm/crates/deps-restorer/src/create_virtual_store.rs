@@ -111,7 +111,52 @@ pub struct CasPrefetch {
     /// strict/lenient asymmetry documented there: a survivor propagates
     /// its error, a skipped snapshot swallows it.
     cache_keys: HashMap<PackageKey, Result<SnapshotCacheKey, CreateVirtualStoreError>>,
+    /// Snapshots whose global-virtual-store slot already exists on
+    /// disk. Their files are materialized, so neither the store-side
+    /// integrity pass nor the link pass has anything to do for them —
+    /// see [`probe_present_slots`]. Empty unless the global virtual
+    /// store is on.
+    present_slots: HashSet<PackageKey>,
     task: tokio::task::JoinHandle<PrefetchResult>,
+}
+
+/// Stat every snapshot's slot directory and return those that already
+/// exist.
+///
+/// Sound because a slot is staged under a temporary name and swapped
+/// into place atomically (`stage_and_swap` in [`fn@crate::import_indexed_dir`]),
+/// so a slot directory that exists is a complete one — a crashed
+/// install leaves the staging directory behind, never a half-written
+/// slot. A slot whose dependency set differs hashes to a different
+/// path, so an existing path is also the right content.
+fn probe_present_slots(
+    layout: &crate::VirtualStoreLayout,
+    snapshots: &HashMap<PackageKey, SnapshotEntry>,
+) -> HashSet<PackageKey> {
+    use rayon::prelude::*;
+    let phase_start = std::time::Instant::now();
+    let present: HashSet<PackageKey> = snapshots
+        .keys()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .filter(|snapshot_key| {
+            layout
+                .slot_dir(snapshot_key)
+                .join("node_modules")
+                .join(snapshot_key.name.to_string())
+                .is_dir()
+        })
+        .cloned()
+        .collect();
+    tracing::info!(
+        target: "pacquet::install::phase",
+        phase = "probe_present_slots",
+        present = present.len(),
+        total = snapshots.len(),
+        elapsed_ms = phase_start.elapsed().as_millis() as u64,
+        "phase complete",
+    );
+    present
 }
 
 impl CasPrefetch {
@@ -131,6 +176,7 @@ impl CasPrefetch {
         packages: Option<&HashMap<PackageKey, PackageMetadata>>,
         supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
+        layout: Option<&crate::VirtualStoreLayout>,
     ) -> Self {
         let store_dir: &'static _ = &config.store_dir;
         // Open the read-only SQLite index once for the whole run instead
@@ -189,14 +235,32 @@ impl CasPrefetch {
         cache_key_refs.sort_unstable();
         cache_key_refs.dedup();
         let prefetch_keys: Vec<String> = cache_key_refs.into_iter().map(String::from).collect();
+        // Under the global virtual store an existing slot is already
+        // materialized: this install will not import its files, so the
+        // integrity pass over the store copies they came from is work
+        // for nobody. The same probe decides the link pass below.
+        let present_slots = match (layout, snapshots) {
+            (Some(layout), Some(snapshots)) if layout.enable_global_virtual_store() => {
+                probe_present_slots(layout, snapshots)
+            }
+            _ => HashSet::new(),
+        };
+        let skip_verify_keys: std::collections::HashSet<String> = present_slots
+            .iter()
+            .filter_map(|snapshot_key| cache_keys.get(snapshot_key))
+            .filter_map(|cache_key| cache_key.as_ref().ok())
+            .filter_map(|cache_key| cache_key.value.as_deref())
+            .map(String::from)
+            .collect();
         let task = tokio::spawn(prefetch_cas_paths(
             store_index.clone(),
             store_dir,
             prefetch_keys,
             config.verify_store_integrity,
             SharedVerifiedFilesCache::clone(&verified_files_cache),
+            skip_verify_keys,
         ));
-        CasPrefetch { store_index, verified_files_cache, cache_keys, task }
+        CasPrefetch { store_index, verified_files_cache, cache_keys, present_slots, task }
     }
 }
 
@@ -448,6 +512,7 @@ impl CreateVirtualStore<'_> {
             store_index,
             verified_files_cache,
             cache_keys: mut snapshot_cache_keys,
+            present_slots,
             task: prefetch_task,
         } = match cas_prefetch {
             Some(cas_prefetch) => cas_prefetch,
@@ -458,6 +523,7 @@ impl CreateVirtualStore<'_> {
                     Some(packages),
                     supported_architectures,
                     store_context.as_ref(),
+                    Some(layout),
                 )
                 .await
             }
@@ -718,6 +784,17 @@ impl CreateVirtualStore<'_> {
                             false,
                             force_import,
                         ),
+                        // Everything that would make the link pass
+                        // rewrite an existing slot disqualifies it:
+                        // a build marker to plant, changed package
+                        // content, a child alias to unlink, or a
+                        // marker rebuild the plan pass asked for.
+                        slot_up_to_date: present_slots.contains(*snapshot_key)
+                            && !*needs_build_marker
+                            && !force_import
+                            && !marker_rebuilds.contains(*snapshot_key)
+                            && removed_aliases_for(&removed_aliases_by_key, snapshot_key)
+                                .is_empty(),
                         removed_aliases: removed_aliases_for(&removed_aliases_by_key, snapshot_key),
                     }
                 })
@@ -1171,6 +1248,7 @@ struct ColdCapture<'a> {
     force_import: bool,
 }
 
+#[derive(Clone, Copy)]
 struct SlotLink<'a> {
     snapshot_key: &'a PackageKey,
     snapshot: &'a SnapshotEntry,
@@ -1182,6 +1260,10 @@ struct SlotLink<'a> {
     /// Whether the directory-clone cache may serve this slot — see
     /// [`dir_clone_cacheable`].
     dir_clone_cacheable: bool,
+    /// The slot is already materialized and nothing about this install
+    /// asks for it to be rewritten, so the link pass has no work to do
+    /// for it. Only ever true under the global virtual store.
+    slot_up_to_date: bool,
     /// Child aliases dropped since the previous install, threaded into
     /// [`crate::CreateVirtualDirBySnapshot::removed_aliases`] so their
     /// stale symlinks are unlinked during the link pass.
@@ -1294,6 +1376,7 @@ fn link_cold_chunk<Reporter: self::Reporter>(
                     capture.source_is_mutable,
                     capture.force_import,
                 ),
+                slot_up_to_date: false,
                 removed_aliases: removed_aliases_for(removed_aliases_by_key, capture.snapshot_key),
             }
         })
@@ -1341,7 +1424,24 @@ fn link_slots_parallel<Reporter: self::Reporter>(
     } = opts;
 
     let phase_start = std::time::Instant::now();
-    let groups = group_slots_by_dir(slots, layout);
+    // Slots that are already materialized are dropped before the
+    // grouping pass, not inside it: `group_slots_by_dir` builds and
+    // hashes one slot path per slot, which on a large lockfile costs
+    // more than the link work it is arranging. Their progress events
+    // still fire, so the reporter's counts are unchanged.
+    let (up_to_date, workable): (Vec<&SlotLink<'_>>, Vec<&SlotLink<'_>>) =
+        slots.iter().partition(|slot| slot.slot_up_to_date);
+    for slot in &up_to_date {
+        if let Some(cache_key) = slot.warm_cache_key {
+            emit_warm_snapshot_progress::<Reporter>(
+                &slot.snapshot_key.pkg_id(),
+                requester,
+                progress_reported.contains(cache_key),
+            );
+        }
+    }
+    let workable: Vec<SlotLink<'_>> = workable.into_iter().copied().collect();
+    let groups = group_slots_by_dir(&workable, layout);
     let link_work = || {
         groups.par_iter().try_for_each(|group| {
             let slot = group.representative;
@@ -1403,6 +1503,7 @@ fn link_slots_parallel<Reporter: self::Reporter>(
         batch,
         slots = slots.len(),
         unique_dirs = groups.len(),
+        skipped_up_to_date = up_to_date.len(),
         elapsed_ms = phase_start.elapsed().as_millis() as u64,
         "phase complete",
     );

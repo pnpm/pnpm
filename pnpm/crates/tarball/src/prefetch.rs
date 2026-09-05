@@ -108,12 +108,19 @@ pub struct PrefetchResult {
 /// 20-60 ms apiece against a ≈40 µs query. See [#292].
 ///
 /// [#292]: https://github.com/pnpm/pacquet/pull/292
+/// `skip_verify_keys` names the rows whose CAFS files this install will
+/// not import — under the global virtual store, a slot that already
+/// exists is materialized, so re-checking the store copies it was built
+/// from buys nothing. Their rows are still decoded (the manifest and
+/// the `requires_build`/side-effects flags are read from them); only
+/// the filesystem integrity pass is skipped.
 pub async fn prefetch_cas_paths(
     index: Option<SharedReadonlyStoreIndex>,
     store_dir: &'static StoreDir,
     cache_keys: Vec<String>,
     verify_store_integrity: bool,
     verified_files_cache: SharedVerifiedFilesCache,
+    skip_verify_keys: std::collections::HashSet<String>,
 ) -> PrefetchResult {
     let Some(index) = index else { return PrefetchResult::default() };
     if cache_keys.is_empty() {
@@ -175,7 +182,9 @@ pub async fn prefetch_cas_paths(
                 let stored_requires_build = entry.requires_build;
                 let stored_requires_prepare = entry.requires_prepare;
                 let manifest = entry.manifest.take().map(Arc::new);
-                let verify_result = if verify_store_integrity {
+                let verify_result = if verify_store_integrity
+                    && !skip_verify_keys.contains(&cache_key)
+                {
                     pnpm_store_dir::check_pkg_files_integrity(
                         store_dir,
                         entry,

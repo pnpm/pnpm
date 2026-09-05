@@ -586,7 +586,9 @@ export async function headlessInstall (opts: HeadlessOptions): Promise<Installat
     }
   }
 
-  const shouldWritePackageMap = opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
+  // See the matching gate in `deps-installer`: the map is only ever read
+  // back under `nodeExperimentalPackageMap`.
+  const shouldWritePackageMap = opts.nodeExperimentalPackageMap === true && opts.enableModulesDir !== false && opts.nodeLinker !== 'pnp' && !opts.virtualStoreOnly
   if (shouldWritePackageMap) {
     // Omit the importer self-mapping when a project has no name: the map keys
     // dependencies by package name, so falling back to the importer id (`.` or

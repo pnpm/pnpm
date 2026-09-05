@@ -1,6 +1,5 @@
-use crate::object_hasher::hash_object;
+use crate::object_hasher::{digest_base64, serialize_str};
 use indexmap::IndexMap;
-use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
 pub const DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX: &str = "dependency-side-effects:v1:";
@@ -157,31 +156,90 @@ pub(crate) fn calc_dep_graph_hash<Key>(
 where
     Key: Clone + Eq + std::hash::Hash,
 {
+    let mut scratch = Vec::with_capacity(8192);
+    calc_dep_graph_hash_direct(graph, cache, parents, dep_path, &mut scratch)
+}
+
+/// The body of [`calc_dep_graph_hash`], written without intermediate
+/// `serde_json` values.
+///
+/// The bytes written here are exactly what
+/// [`crate::object_hasher::serialize`] emits for
+/// `{ "id": <full_pkg_id>, "deps": { <alias>: <child digest>, .. } }`
+/// with `sort = true`: an `object:2:` header whose sorted keys put
+/// `deps` before `id`, each pair framed `<key>:<value>,`. Sorting the
+/// aliases here reproduces the same sort the serializer would do over
+/// the map's keys.
+///
+/// `scratch` is reused across the whole walk. Serialization happens
+/// only after every child call has returned, so one buffer can serve
+/// every level of the recursion.
+fn calc_dep_graph_hash_direct<Key>(
+    graph: &HashMap<Key, DepsGraphNode<Key>>,
+    cache: &mut DepsStateCache<Key>,
+    parents: &mut HashSet<String>,
+    dep_path: &Key,
+    scratch: &mut Vec<u8>,
+) -> String
+where
+    Key: Clone + Eq + std::hash::Hash,
+{
     if let Some(cached) = cache.get(dep_path) {
         return cached.clone();
     }
     let Some(node) = graph.get(dep_path) else {
         return String::new();
     };
-    let mut deps_obj = serde_json::Map::new();
-    if !node.children.is_empty() && !parents.contains(&node.full_pkg_id) {
-        // Push our `full_pkg_id` for the duration of this subtree
-        // so cycles short-circuit on the second visit.
+    // Same cycle guard as the reference path: a node reached while its
+    // own `full_pkg_id` is mid-walk hashes with its children truncated.
+    let walk_children = !node.children.is_empty() && !parents.contains(&node.full_pkg_id);
+    if walk_children {
         let inserted = parents.insert(node.full_pkg_id.clone());
-        for (alias, child_key) in &node.children {
-            let child_hash = calc_dep_graph_hash(graph, cache, parents, child_key);
-            deps_obj.insert(alias.clone(), Value::String(child_hash));
+        for child_key in node.children.values() {
+            calc_dep_graph_hash_direct(graph, cache, parents, child_key, scratch);
         }
         if inserted {
             parents.remove(&node.full_pkg_id);
         }
     }
-    let hashed = hash_object(&json!({
-        "id": node.full_pkg_id.clone(),
-        "deps": Value::Object(deps_obj),
-    }));
-    cache.insert(dep_path.clone(), hashed);
-    cache.get(dep_path).expect("just inserted").clone()
+    // Children are read back from the cache rather than carried out of
+    // the recursion, so no digest is cloned on the way up. A child with
+    // no node in the graph contributes the empty string, matching the
+    // reference path's `String::new()`.
+    let mut pairs: Vec<(&str, &str)> = if walk_children {
+        node.children
+            .iter()
+            .map(|(alias, child_key)| {
+                (alias.as_str(), cache.get(child_key).map_or("", String::as_str))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    pairs.sort_unstable_by_key(|(alias, _)| *alias);
+
+    scratch.clear();
+    scratch.extend_from_slice(b"object:2:");
+    serialize_str(scratch, "deps");
+    scratch.push(b':');
+    scratch.extend_from_slice(b"object:");
+    scratch.extend_from_slice(pairs.len().to_string().as_bytes());
+    scratch.push(b':');
+    for (alias, child_digest) in &pairs {
+        serialize_str(scratch, alias);
+        scratch.push(b':');
+        serialize_str(scratch, child_digest);
+        scratch.push(b',');
+    }
+    scratch.push(b',');
+    serialize_str(scratch, "id");
+    scratch.push(b':');
+    serialize_str(scratch, &node.full_pkg_id);
+    scratch.push(b',');
+    let hashed = digest_base64(scratch);
+    drop(pairs);
+    cache.insert(dep_path.clone(), hashed.clone());
+    hashed
 }
 
 /// Populate `cache` by walking `keys` in order, so that later lookups

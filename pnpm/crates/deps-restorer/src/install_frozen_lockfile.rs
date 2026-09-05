@@ -573,6 +573,7 @@ where
         // `slot_dir` call. Either way every downstream consumer
         // (warm batch, cold batch, direct-dep symlinks, bin linker,
         // build module) routes through this one lookup.
+        let phase_start = std::time::Instant::now();
         let layout = VirtualStoreLayout::new(
             config,
             engine_name.as_deref(),
@@ -580,6 +581,12 @@ where
             packages,
             Some(&allow_build_policy),
             Some(workspace_root),
+        );
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "virtual_store_layout",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
         );
         // Reject a lockfile whose dependency names, aliases, or
         // virtual-store slots would escape the project or the store once
@@ -589,14 +596,22 @@ where
         // resolution-verification fan-out where the offline name check
         // would otherwise run. The slot-containment half needs the
         // install-time `layout`, so it can't live in the verifier crate.
+        let phase_start = std::time::Instant::now();
         pnpm_lockfile_verification::verify_lockfile_dependency_names(lockfile)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
         crate::validate_virtual_store_slot_containment(snapshots, &layout)
             .map_err(InstallFrozenLockfileError::LockfileVerification)?;
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "verify_lockfile_and_slots",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Built after the offline lockfile checks above: constructing
         // the cache probes the filesystem (a store-side write), which a
         // rejected lockfile must never reach.
+        let phase_start = std::time::Instant::now();
         let dir_clone_cache = crate::DirCloneCache::build(
             config,
             node_linker,
@@ -610,6 +625,12 @@ where
             Some(&allow_build_policy),
             Some(workspace_root),
         );
+        tracing::info!(
+            target: "pacquet::install::phase",
+            phase = "dir_clone_cache",
+            elapsed_ms = phase_start.elapsed().as_millis() as u64,
+            "phase complete",
+        );
 
         // Kick off the store-side half of `CreateVirtualStore::run`'s
         // planning — like the directory-clone cache above, only after
@@ -621,6 +642,7 @@ where
             packages,
             supported_architectures,
             None,
+            Some(&layout),
         )
         .await;
 

@@ -48,6 +48,23 @@ pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
     Some(format!("sha256-{}", hash_object(value)))
 }
 
+/// SHA-256 + base64 of an already-serialized object-hash bytestream.
+///
+/// The direct serializers in [`crate::dep_state`] write the same bytes
+/// [`serialize`] would produce for the `Value` they model, so they
+/// finish through here instead of rebuilding a `serde_json::Value`.
+#[must_use]
+pub(crate) fn digest_base64(bytes: &[u8]) -> String {
+    BASE64.encode(Sha256::digest(bytes))
+}
+
+/// The same, hex-encoded — [`HashEncoding::Hex`]'s output.
+#[must_use]
+pub(crate) fn digest_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    format!("{digest:x}")
+}
+
 /// General form. `sort = true` sorts object keys before serialization
 /// (object-hash's `unorderedObjects` option); `sort = false` preserves
 /// insertion order.
@@ -157,7 +174,7 @@ fn write_pair(out: &mut Vec<u8>, key: &str, value: &Value, sort: bool) {
 /// `_string` arm (index.js:304-307). `length` is UTF-16 code units
 /// (JS `.length`), not bytes and not Unicode codepoints. For ASCII
 /// strings all three agree.
-fn serialize_str(out: &mut Vec<u8>, text: &str) {
+pub(crate) fn serialize_str(out: &mut Vec<u8>, text: &str) {
     let utf16_len: usize = text.encode_utf16().count();
     out.extend_from_slice(b"string:");
     out.extend_from_slice(utf16_len.to_string().as_bytes());
