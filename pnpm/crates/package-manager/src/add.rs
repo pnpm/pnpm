@@ -1552,6 +1552,14 @@ fn protocol_prefixed_selector_name(input: &str) -> Option<&str> {
     if rest.starts_with('.') || rest.starts_with('/') || rest.starts_with('~') {
         return None;
     }
+    // Windows drive-letter paths: C:\repo\pkg or C:/repo/pkg
+    if rest.len() >= 2 && rest.as_bytes()[1] == b':' {
+        return None;
+    }
+    // UNC paths: \\server\pkg
+    if rest.starts_with('\\') {
+        return None;
+    }
     Some(protocol_prefixed_name(rest))
 }
 
@@ -1597,3 +1605,62 @@ fn node_runtime_version_spec<'a>(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod selector_name_tests {
+    use super::protocol_prefixed_selector_name;
+
+    // Existing behaviour: dot, slash, tilde → return None (local path)
+    #[test]
+    fn local_dot_path() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:./pkg"), None);
+    }
+
+    #[test]
+    fn local_slash_path() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:/abs/path"), None);
+    }
+
+    #[test]
+    fn local_tilde_path() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:~/pkg"), None);
+    }
+
+    // Regression: Windows drive-letter paths
+    #[test]
+    fn windows_drive_letter_path() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:C:\\repo\\pkg"), None);
+    }
+
+    #[test]
+    fn windows_drive_letter_path_forward_slash() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:C:/repo/pkg"), None);
+    }
+
+    // Regression: UNC paths
+    #[test]
+    fn unc_path() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:\\\\server\\pkg"), None);
+    }
+
+    // Named packages still work
+    #[test]
+    fn named_package() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:foo"), Some("foo"));
+    }
+
+    #[test]
+    fn named_package_with_scope() {
+        assert_eq!(protocol_prefixed_selector_name("workspace:@scope/pkg"), Some("@scope/pkg"));
+    }
+
+    #[test]
+    fn npm_protocol() {
+        assert_eq!(protocol_prefixed_selector_name("npm:foo@1"), Some("foo"));
+    }
+
+    #[test]
+    fn jsr_protocol() {
+        assert_eq!(protocol_prefixed_selector_name("jsr:@scope/pkg"), Some("@scope/pkg"));
+    }
+}
