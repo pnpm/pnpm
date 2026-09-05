@@ -17,21 +17,19 @@ use crate::{
     extract_main_document,
     save_lockfile::ensure_lockfile_is_not_symlink,
     serialize_yaml,
-    yaml_documents::{YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, read_first_yaml_document},
+    yaml_documents::{
+        YAML_DOCUMENT_SEPARATOR, YAML_DOCUMENT_START, normalize_lockfile_content,
+        read_first_yaml_document,
+    },
 };
 use pnpm_fs::write_atomic;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs::{self, File},
-    io::{self, ErrorKind, Read as _},
+    io::{self, ErrorKind},
     path::Path,
 };
-
-#[cfg(unix)]
-use crate::save_lockfile::symlinked_lockfile_error;
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt as _;
 
 /// The resolved `{ specifier, version }` pair recorded for each config
 /// (or package-manager) dependency under an importer.
@@ -125,16 +123,25 @@ impl EnvLockfile {
 
     /// Write this env document as the first YAML document of
     /// `<root_dir>/pnpm-lock.yaml`, preserving any existing main
-    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`.
+    /// document. Emits `---\n${envYaml}\n---\n${mainDoc}`. An unchanged
+    /// document is not rewritten.
     pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
-        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-        let main_doc = read_lockfile_to_string_no_follow(&path)
-            .map_err(SaveLockfileError::WriteFile)?
-            .map_or_else(String::new, |existing| extract_main_document(&existing).to_string());
+        let existing = match fs::read_to_string(&path) {
+            Ok(existing) => Some(normalize_lockfile_content(&existing).into_owned()),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(SaveLockfileError::WriteFile(error)),
+        };
+        let main_doc = existing
+            .as_deref()
+            .map_or_else(String::new, |existing| extract_main_document(existing).to_string());
         let combined =
             format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
+        if existing.as_deref() == Some(combined.as_str()) {
+            return Ok(());
+        }
+        ensure_lockfile_is_not_symlink(&path).map_err(SaveLockfileError::WriteFile)?;
         write_atomic(&path, combined.as_bytes()).map_err(SaveLockfileError::WriteFile)
     }
 }
@@ -147,41 +154,6 @@ fn read_env_document(path: &Path) -> io::Result<Option<String>> {
         Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
-}
-
-fn read_lockfile_to_string_no_follow(path: &Path) -> io::Result<Option<String>> {
-    let mut file = match open_lockfile_no_follow(path) {
-        Ok(file) => file,
-        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error),
-    };
-    let mut content = String::new();
-    #[expect(
-        clippy::verbose_file_reads,
-        reason = "Reading from the caller's file handle avoids reopening the lockfile by path."
-    )]
-    file.read_to_string(&mut content)?;
-    Ok(Some(content))
-}
-
-#[cfg(unix)]
-fn open_lockfile_no_follow(path: &Path) -> io::Result<File> {
-    fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(path)
-        .map_err(|error| normalize_no_follow_error(path, error))
-}
-
-#[cfg(not(unix))]
-fn open_lockfile_no_follow(path: &Path) -> io::Result<File> {
-    ensure_lockfile_is_not_symlink(path)?;
-    File::open(path)
-}
-
-#[cfg(unix)]
-fn normalize_no_follow_error(path: &Path, error: io::Error) -> io::Error {
-    if error.raw_os_error() == Some(libc::ELOOP) { symlinked_lockfile_error(path) } else { error }
 }
 
 #[cfg(test)]
