@@ -16,7 +16,9 @@ use indexmap::IndexMap;
 use miette::{Diagnostic, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pnpm_config::Config;
-use pnpm_lockfile::{Lockfile, PackageKey, PkgName, ResolvedDependencyMap};
+use pnpm_lockfile::{
+    Lockfile, LockfileResolution, PackageKey, PkgName, Prefix, ResolvedDependencyMap,
+};
 use pnpm_package_is_installable::{
     InstallabilityOptions, WantedPlatformRef, platform_is_supported_with_inference,
 };
@@ -24,7 +26,8 @@ use pnpm_package_manager::{
     AllowBuildPolicy, validate_virtual_store_slot_containment, virtual_store_layout_for_lockfile,
 };
 use pnpm_package_manifest::{
-    extract_license, node_version_from_engines_runtime, safe_read_package_json_from_dir,
+    extract_license, is_runtime_alias, node_version_from_engines_runtime,
+    safe_read_package_json_from_dir,
 };
 use pnpm_resolving_git_resolver::HostedGit;
 use serde::Serialize;
@@ -368,15 +371,25 @@ fn collect_dependencies(
     let snapshots = lockfile.snapshots.as_ref().unwrap_or(&empty_snapshots);
 
     while let Some((key, kind)) = stack.pop() {
+        let snapshot = snapshots.get(&key);
+        let package =
+            lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
+        if key.suffix.prefix() == Prefix::Runtime
+            && key.name.scope.is_none()
+            && is_runtime_alias(&key.name.bare)
+            && package.is_some_and(|package| {
+                matches!(&package.resolution, LockfileResolution::Variations(_))
+            })
+        {
+            continue;
+        }
+
         if let Some(existing) = belongs_to.get(&key)
             && *existing <= kind
         {
             continue;
         }
 
-        let snapshot = snapshots.get(&key);
-        let package =
-            lockfile.packages.as_ref().and_then(|packages| packages.get(&key.without_peer()));
         if snapshot.is_some_and(|snapshot| snapshot.optional)
             && package.is_some_and(|package| {
                 !platform_is_supported_with_inference(
