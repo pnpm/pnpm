@@ -94,6 +94,7 @@ mod prefix;
 mod prune;
 mod publish;
 mod publish_recursive;
+mod python;
 mod rebuild_recursive;
 mod remove;
 mod repeat_install;

@@ -16,7 +16,7 @@ pub use auth::{
 };
 pub use limited_body::{LimitedBody, read_limited_body};
 pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component};
+pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
 
 mod url_encoding;
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
@@ -503,10 +503,11 @@ impl ThrottledClient {
             if trust_roots == TrustRoots::Bundled {
                 builder = builder.tls_certs_only(bundled_root_certs().iter().cloned());
             }
-            if forbid_redirects {
+            if let Some(guard) = redirect_guard {
+                builder = builder
+                    .redirect(allowlist_redirect_policy(Arc::clone(guard), !forbid_redirects));
+            } else if forbid_redirects {
                 builder = builder.redirect(reqwest::redirect::Policy::none());
-            } else if let Some(guard) = redirect_guard {
-                builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
             }
             Ok(builder)
         };
@@ -629,37 +630,94 @@ impl ThrottledClient {
         url: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<SecureAuthResponse, reqwest::Error> {
+        self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None).await
+    }
+
+    /// Retry a complete authenticated GET, including redirects and body reads.
+    /// Each attempt re-evaluates credentials and releases permits before backoff.
+    pub async fn get_bytes_with_secure_auth_and_retry(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        retry_opts: RetryOpts,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        self.get_limited_bytes_with_secure_auth_and_retry(
+            url,
+            auth_headers,
+            accept,
+            retry_opts,
+            usize::MAX,
+        )
+        .await
+    }
+
+    /// An authenticated GET with a byte limit on the final response, including
+    /// error responses. Oversized bodies are marked by [`SecureAuthResponse::body_truncated`]
+    /// and are not retried.
+    pub async fn get_limited_bytes_with_secure_auth_and_retry(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        retry_opts: RetryOpts,
+        body_limit: usize,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts, body_limit).await
+    }
+
+    /// Negotiate an ecosystem's metadata representation while retaining the
+    /// shared request budget and URL-scoped authorization on redirects.
+    pub async fn get_bytes_with_secure_auth_and_accept(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        self.get_limited_bytes_with_secure_auth_and_accept(url, auth_headers, accept, usize::MAX)
+            .await
+    }
+
+    async fn get_limited_bytes_with_secure_auth_and_accept(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        body_limit: usize,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
         let mut current_url = url.to_string();
         for redirect_count in 0..=MAX_REDIRECT_HOPS {
             let client = self
                 .acquire_for_url_without_redirects_with_priority(&current_url, UNPRIORITIZED)
                 .await;
             let mut request = client.get(&current_url);
+            if let Some(accept) = accept {
+                request = request.header(reqwest::header::ACCEPT, accept);
+            }
             if let Some(authorization) = auth_headers.for_secure_url(&current_url) {
                 request = request.header("authorization", authorization);
             }
             let response = request.send().await?;
-            if !is_redirect_status(response.status()) || redirect_count == MAX_REDIRECT_HOPS {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
+            let target = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|location| location.to_str().ok())
+                .and_then(|location| response.url().join(location).ok());
+            if is_redirect_status(response.status())
+                && redirect_count < MAX_REDIRECT_HOPS
+                && let Some(target) = target
+            {
+                current_url = target.to_string();
+                continue;
             }
-            let Some(location) = response.headers().get(reqwest::header::LOCATION) else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
-            };
-            let Ok(location) = location.to_str() else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
-            };
-            let Ok(target) = response.url().join(location) else {
-                let status = response.status();
-                let body = response.bytes().await?.to_vec();
-                return Ok(SecureAuthResponse { status, body });
-            };
-            current_url = target.to_string();
+            let status = response.status();
+            let body = read_limited_body(response, body_limit).await?;
+            return Ok(SecureAuthResponse {
+                status,
+                body: body.bytes,
+                body_truncated: body.truncated,
+                url: current_url,
+            });
         }
         unreachable!()
     }
@@ -688,6 +746,8 @@ impl ThrottledClient {
 pub struct SecureAuthResponse {
     pub status: reqwest::StatusCode,
     pub body: Vec<u8>,
+    pub body_truncated: bool,
+    pub url: String,
 }
 
 fn ignore_warning(_: &str) {}
@@ -738,16 +798,20 @@ impl std::fmt::Display for BlockedRedirect {
 
 impl std::error::Error for BlockedRedirect {}
 
-/// A reqwest redirect policy that consults `guard` for every hop: an allowed
-/// target is followed (up to [`MAX_REDIRECT_HOPS`]), a rejected one fails the
-/// request with [`BlockedRedirect`] instead of being fetched.
-fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy {
+/// Validate every redirect before either following it or returning it to a
+/// manual redirect loop. Rejected targets fail with [`BlockedRedirect`].
+fn allowlist_redirect_policy(
+    guard: RedirectGuard,
+    follow_redirects: bool,
+) -> reqwest::redirect::Policy {
     reqwest::redirect::Policy::custom(move |attempt| {
         let target = attempt.url().clone();
         if attempt.previous().len() >= MAX_REDIRECT_HOPS || !guard(&target) {
             attempt.error(BlockedRedirect(target))
-        } else {
+        } else if follow_redirects {
             attempt.follow()
+        } else {
+            attempt.stop()
         }
     })
 }

@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
+use pnpm_network::percent_decode_str;
 use pnpm_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use pnpm_resolving_resolver_base::{
@@ -394,29 +395,6 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
         path_with_no_ext.strip_prefix(scopeless_name).and_then(|rest| rest.strip_prefix('-'))?;
     Version::parse(version).ok()?;
     Some(NpmTarballUrl { name, version: version.to_string() })
-}
-
-/// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
-/// for the byte ranges that show up in npm tarball URLs (the only
-/// caller). Invalid escapes pass through unchanged, mirroring the
-/// [`percent_decode_str`] helper in `pnpm-network`'s proxy module.
-fn percent_decode_str(text: &str) -> String {
-    let bytes = text.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[idx + 1..idx + 3]).ok();
-            if let Some(byte) = hex.and_then(|hex_digits| u8::from_str_radix(hex_digits, 16).ok()) {
-                out.push(byte);
-                idx += 3;
-                continue;
-            }
-        }
-        out.push(bytes[idx]);
-        idx += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]

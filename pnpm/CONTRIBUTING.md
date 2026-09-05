@@ -86,6 +86,10 @@ Install the test dependencies:
 just install
 ```
 
+The Python ecosystem end-to-end tests also require Python 3.10 or newer with
+`venv` and either `packaging` or pip's bundled copy of `packaging`. CI installs
+Python 3.13. These tests run the real pnpm CLI and Python interpreter.
+
 ## Automated Checks
 
 Before submitting, run:

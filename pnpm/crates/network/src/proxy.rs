@@ -8,6 +8,7 @@
 //! the URL helpers are private to the crate; they're invoked from the
 //! client constructor.
 
+use crate::percent_decode_str;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use reqwest::Url;
@@ -124,41 +125,6 @@ pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
     let _ = url.set_username("");
     let _ = url.set_password(None);
     (url, Some((user, pass)))
-}
-
-/// Minimal percent-decoder for the user/password halves of a proxy URL
-/// userinfo.
-///
-/// Unlike JavaScript's `decodeURIComponent`, which throws `URIError` on
-/// malformed `%XX` sequences (e.g. `%ZZ`), this function intentionally
-/// keeps invalid sequences verbatim. The lenient fallback matches what
-/// pnpm's interpreter does in practice (a thrown error during proxy
-/// setup would surface as `ERR_PNPM_INVALID_PROXY`, but pnpm's flow
-/// doesn't validate that strictly either), and is the safer choice in
-/// a config path where the alternative is rejecting a half-broken
-/// password value.
-///
-/// Hand-rolled rather than pulling in `percent-encoding` as a direct
-/// workspace dep because the only call sites are the two halves of a
-/// proxy URL userinfo. The substitution table is exactly the
-/// `%XX → byte` form plus pass-through.
-pub(crate) fn percent_decode_str(text: &str) -> String {
-    let mut out = Vec::with_capacity(text.len());
-    let bytes = text.as_bytes();
-    let mut idx = 0;
-    while idx < bytes.len() {
-        if bytes[idx] == b'%' && idx + 2 < bytes.len() {
-            let hex = std::str::from_utf8(&bytes[idx + 1..idx + 3]).ok();
-            if let Some(byte) = hex.and_then(|hex_digits| u8::from_str_radix(hex_digits, 16).ok()) {
-                out.push(byte);
-                idx += 3;
-                continue;
-            }
-        }
-        out.push(bytes[idx]);
-        idx += 1;
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Pre-built reverse-dot-segment lookup table for the no-proxy bypass.

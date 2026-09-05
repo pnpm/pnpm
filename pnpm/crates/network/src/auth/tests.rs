@@ -15,6 +15,28 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[test]
+fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
+    let mut headers = AuthHeaders::default().with_secure_transport();
+    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
+        headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
+    }
+    for headers in [headers.clone(), headers] {
+        for (url, allowed) in [
+            ("https://registry.example/simple/pkg.whl", true),
+            ("http://registry.example/simple/pkg.whl", false),
+            ("http://user:secret@registry.example/simple/pkg.whl", false),
+            ("http://127.0.0.1/simple/pkg.whl", true),
+            ("http://localhost/simple/pkg.whl", true),
+            ("http://[::1]/simple/pkg.whl", true),
+        ] {
+            eprintln!("url={url}, allowed={allowed}");
+            assert_eq!(headers.for_url(url).is_some(), allowed);
+            assert_eq!(headers.for_url_with_package(url, Some("python:alpha")).is_some(), allowed);
+        }
+    }
+}
+
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),

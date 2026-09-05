@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { afterAll, afterEach, beforeAll, beforeEach, expect, jest, test } from '@jest/globals'
+import { requestRetryLogger } from '@pnpm/core-loggers'
 import { FetchError, PnpmError } from '@pnpm/error'
 import { createFetchFromRegistry } from '@pnpm/network.fetch'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
@@ -553,6 +554,36 @@ test('retry on server error', async () => {
   })
 
   expect(index).toBeTruthy()
+})
+
+test('tarball retry logs redact signed URL parameters', async () => {
+  const log = jest.spyOn(requestRetryLogger, 'debug')
+  try {
+    const mockPool = mockAgent.get(registry)
+    mockPool.intercept({ path: '/foo.tgz?token=secret', method: 'GET' }).reply(503, 'Unavailable')
+    mockPool.intercept({ path: '/foo.tgz?token=secret', method: 'GET' }).reply(200, fs.readFileSync(tarballPath))
+    process.chdir(temporaryDirectory())
+    await fetch.remoteTarball(cafs, {
+      integrity: tarballIntegrity,
+      tarball: `${registry}/foo.tgz?token=secret`,
+    }, { filesIndexFile, lockfileDir: process.cwd(), pkg })
+    expect(log).toHaveBeenCalledWith(expect.objectContaining({ url: `${registry}/foo.tgz` }))
+    expect(JSON.stringify(log.mock.calls)).not.toContain('token=secret')
+  } finally {
+    log.mockRestore()
+  }
+})
+
+test('tarball size errors redact URL secrets', () => {
+  const error = new BadTarballError({
+    tarballUrl: 'https://user:password@example.com/foo.tgz?token=secret#fragment',
+    expectedSize: 20,
+    receivedSize: 10,
+  })
+  expect(error.message).toContain('https://example.com/foo.tgz')
+  for (const secret of ['password', 'token', 'secret', 'fragment']) {
+    expect(error.message).not.toContain(secret)
+  }
 })
 
 test('throw error when accessing private package w/o authorization', async () => {

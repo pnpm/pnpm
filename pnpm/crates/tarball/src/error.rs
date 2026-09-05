@@ -40,9 +40,8 @@ fn walk_reqwest_chain(error: &reqwest::Error) -> String {
 /// Every URL below is rendered through [`redact_url_for_display`]: a
 /// tarball URL can carry inline `user:pass@` credentials — typed on the
 /// command line for `pnpm add <url>`, or declared in a manifest — and an
-/// error message ends up in terminal scrollback and CI logs. The field
-/// keeps the URL the request actually used; only the rendering is
-/// redacted.
+/// error message ends up in terminal scrollback and CI logs. Network
+/// errors also remove the request URL from the reqwest source chain.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("Failed to fetch {}: {}", redact_url_for_display(url), walk_reqwest_chain(error))]
 pub struct NetworkError {
@@ -53,6 +52,12 @@ pub struct NetworkError {
     /// where the user just sees one line per wrapper.
     #[error(source)]
     pub error: reqwest::Error,
+}
+
+impl NetworkError {
+    pub(crate) fn new(url: &str, error: reqwest::Error) -> Self {
+        Self { url: redact_url_for_display(url), error: error.without_url() }
+    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

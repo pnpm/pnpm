@@ -34,6 +34,7 @@ pnpm-global                            = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-injected-deps-syncer              = { workspace = true }
+pnpm-install-coordinator               = { workspace = true }
 pnpm-lockfile                          = { workspace = true }
 pnpm-lockfile-import                   = { workspace = true }
 pnpm-lockfile-verification             = { workspace = true }
@@ -93,6 +94,9 @@ owo-colors.workspace = true
 p256                 = { workspace = true }
 pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
+pep440_rs            = { workspace = true }
+pep508_rs            = { workspace = true }
+pubgrub              = { workspace = true }
 rayon                = { workspace = true }
 rustc-hash           = { workspace = true }
 reflink-copy         = { workspace = true }

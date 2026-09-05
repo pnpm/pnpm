@@ -3,6 +3,7 @@ use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::Config;
 use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
+use pnpm_install_coordinator::{InstallTask, PreparedInstall};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
@@ -18,9 +19,9 @@ use std::{
     process::Command,
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
-    time::Duration,
 };
 
+pub(crate) mod add;
 mod registry_auth;
 
 #[cfg(unix)]
@@ -39,16 +40,6 @@ static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 pub(crate) enum CargoLockfilePolicy {
     UseExisting,
     Resolve,
-}
-
-pub(crate) struct CargoInstallOptions<'a> {
-    pub(crate) projects: CargoInstallProjects<'a>,
-    pub(crate) lockfile_policy: CargoLockfilePolicy,
-}
-
-pub(crate) enum CargoInstallProjects<'a> {
-    Root(&'a Path),
-    Workspace(&'a EcosystemWorkspaceInventory),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,27 +68,34 @@ struct ManagedDirectory {
     _pinned_components: Vec<fs::File>,
 }
 
-pub async fn install<Reporter: self::Reporter + 'static>(
+pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
-    options: CargoInstallOptions<'_>,
-) -> Result<()> {
-    let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
-    let CargoInstallOptions { projects, lockfile_policy } = options;
-    if !config.cargo.enabled {
-        return Ok(());
-    }
+    inventory: &EcosystemWorkspaceInventory,
+) -> Result<InstallTask<'static>> {
+    let roots =
+        discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?;
+    let metadata = roots.iter().flat_map(|root| metadata_paths(root)).collect();
+    Ok(InstallTask::new(
+        metadata,
+        prepare::<Reporter>(context, roots, CargoLockfilePolicy::UseExisting),
+    ))
+}
 
-    let roots = match projects {
-        CargoInstallProjects::Root(root_dir) => vec![root_dir.to_path_buf()],
-        CargoInstallProjects::Workspace(inventory) => {
-            discover_workspace_roots(inventory.manifests(EcosystemManifest::Cargo).await?).await?
-        }
-    };
-    stream::iter(roots)
+pub(crate) fn metadata_paths(root: &Path) -> [PathBuf; 2] {
+    [root.join("Cargo.lock"), root.join(".cargo/config.toml")]
+}
+
+pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
+    context: InstallContext,
+    roots: Vec<PathBuf>,
+    lockfile_policy: CargoLockfilePolicy,
+) -> Result<Vec<Prepared>> {
+    let InstallContext { config, http_client, lockfile_only, frozen_lockfile } = context;
+    let mut prepared = stream::iter(roots)
         .map(|root| {
             let http_client = Arc::clone(&http_client);
             async move {
-                install_workspace::<Reporter>(
+                prepare_workspace::<Reporter>(
                     config,
                     &root,
                     lockfile_only,
@@ -109,21 +107,59 @@ pub async fn install<Reporter: self::Reporter + 'static>(
             }
         })
         .buffer_unordered(WORKSPACE_INSTALL_CONCURRENCY)
-        .try_collect::<Vec<_>>()
-        .await?;
-    Ok(())
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?;
+    prepared.sort_by(|left, right| left.root.cmp(&right.root));
+    Ok(prepared)
 }
 
-async fn install_workspace<Reporter: self::Reporter + 'static>(
+pub(crate) struct Prepared {
+    root: PathBuf,
+    lock: String,
+    slots: Option<Vec<(String, PathBuf)>>,
+}
+
+impl PreparedInstall for Prepared {
+    fn publish(&mut self) -> Result<()> {
+        if let Some(slots) = &self.slots {
+            link_workspace(&self.root, slots)?;
+            write_cargo_config(&self.root)?;
+        }
+        let path = self.root.join("Cargo.lock");
+        let existing = match fs::read_to_string(&path) {
+            Ok(contents) => Some(contents),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error).into_diagnostic(),
+        };
+        if existing.as_deref() != Some(&self.lock) {
+            pnpm_fs::write_atomic(&path, self.lock.as_bytes())
+                .into_diagnostic()
+                .wrap_err_with(|| format!("write {}", path.display()))?;
+        }
+        Ok(())
+    }
+
+    fn rollback(&mut self) -> Result<()> {
+        // Versioned source links are additive cache entries. Restoring the
+        // declared lockfile and source configuration restores project selection.
+        Ok(())
+    }
+
+    fn retain(self: Box<Self>) {}
+}
+
+async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     root_dir: &Path,
     lockfile_only: bool,
     frozen_lockfile: bool,
     lockfile_policy: CargoLockfilePolicy,
     http_client: Arc<ThrottledClient>,
-) -> Result<()> {
+) -> Result<Prepared> {
     let cargo_lock_path = root_dir.join("Cargo.lock");
-    let cargo_lock = ensure_lockfile(
+    let cargo_lock = read_or_resolve_lockfile(
         config,
         root_dir,
         &cargo_lock_path,
@@ -133,7 +169,7 @@ async fn install_workspace<Reporter: self::Reporter + 'static>(
     )
     .await?;
     if lockfile_only {
-        return Ok(());
+        return Ok(Prepared { root: root_dir.to_path_buf(), lock: cargo_lock, slots: None });
     }
     let packages = parse_lockfile(&cargo_lock)
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
@@ -149,12 +185,7 @@ async fn install_workspace<Reporter: self::Reporter + 'static>(
     let auth_headers = Arc::clone(&config.auth_headers);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let logged_methods = Arc::new(AtomicU8::new(0));
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
+    let retry_opts = config.retry_opts();
     let requester = format!("cargo workspace at {}", root_dir.display());
     let concurrency = config.network_concurrency.clamp(1, 16);
 
@@ -178,15 +209,15 @@ async fn install_workspace<Reporter: self::Reporter + 'static>(
             })
         })
         .buffer_unordered(concurrency)
-        .try_collect::<Vec<_>>()
-        .await;
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>>>();
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
     let slots = slots?;
 
-    link_workspace(root_dir, &slots)?;
-    write_cargo_config(root_dir)?;
-    Ok(())
+    Ok(Prepared { root: root_dir.to_path_buf(), lock: cargo_lock, slots: Some(slots) })
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
@@ -206,7 +237,7 @@ async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>>
     Ok(roots.into_iter().collect())
 }
 
-async fn ensure_lockfile(
+async fn read_or_resolve_lockfile(
     config: &Config,
     root_dir: &Path,
     cargo_lock_path: &Path,
@@ -235,9 +266,6 @@ async fn ensure_lockfile(
     let index_files = fetch_sparse_index(config, &metadata, http_client).await?;
     let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files)
         .wrap_err("resolve Cargo dependencies")?;
-    pnpm_fs::write_atomic(cargo_lock_path, lockfile.as_bytes())
-        .into_diagnostic()
-        .wrap_err_with(|| format!("write {}", cargo_lock_path.display()))?;
     Ok(lockfile)
 }
 
@@ -255,6 +283,7 @@ pub(crate) async fn latest_version(
         http_client,
         auth_headers,
         config.offline,
+        config.retry_opts(),
     )
     .await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
@@ -321,6 +350,7 @@ async fn fetch_sparse_index(
                         &http_client,
                         &auth_headers,
                         config.offline,
+                        config.retry_opts(),
                     )
                     .await?;
                     Ok::<_, miette::Report>((name, contents))
@@ -340,6 +370,7 @@ async fn fetch_sparse_index_file(
     http_client: &ThrottledClient,
     auth_headers: &AuthHeaders,
     offline: bool,
+    retry_opts: RetryOpts,
 ) -> Result<String> {
     let relative_path = sparse_index_path(name)?;
     let cache_path = cache_dir.join(&relative_path);
@@ -351,7 +382,7 @@ async fn fetch_sparse_index_file(
 
     let url = format!("{}/{relative_path}", sparse_index.trim_end_matches('/'));
     let response = http_client
-        .get_bytes_with_secure_auth_headers(&url, auth_headers)
+        .get_bytes_with_secure_auth_and_retry(&url, auth_headers, None, retry_opts)
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("fetch sparse index entry for {name}"))?;

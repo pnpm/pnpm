@@ -60,7 +60,7 @@ use crate::defaults::{
 };
 pub use workspace_yaml::{
     AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
@@ -1837,6 +1837,7 @@ pub struct Config {
 
     /// Cargo dependency management declared by the workspace.
     pub cargo: CargoSettings,
+    pub python: PythonSettings,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
@@ -2550,6 +2551,17 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The resolved retry policy for metadata and artifact requests.
+    #[must_use]
+    pub fn retry_opts(&self) -> pnpm_network::RetryOpts {
+        pnpm_network::RetryOpts {
+            retries: self.fetch_retries,
+            factor: self.fetch_retry_factor,
+            min_timeout: std::time::Duration::from_millis(self.fetch_retry_mintimeout),
+            max_timeout: std::time::Duration::from_millis(self.fetch_retry_maxtimeout),
+        }
     }
 
     /// The resolved settings used to construct an install HTTP client.

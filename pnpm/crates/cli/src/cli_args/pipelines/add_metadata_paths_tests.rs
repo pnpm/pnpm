@@ -1,4 +1,4 @@
-use super::add_metadata_paths;
+use super::node_add_metadata_paths;
 use pnpm_config::Config;
 use std::path::PathBuf;
 
@@ -6,7 +6,6 @@ use std::path::PathBuf;
 fn uses_configured_node_metadata_locations() {
     let root = PathBuf::from("workspace");
     let node_manifest = root.join("package.json");
-    let cargo_manifest = root.join("Cargo.toml");
     let config = Config {
         lockfile_dir: Some(root.clone()),
         modules_dir: root.join("custom_modules"),
@@ -16,15 +15,12 @@ fn uses_configured_node_metadata_locations() {
         ..Config::default()
     };
 
-    let metadata_paths = add_metadata_paths(&config, &node_manifest, &cargo_manifest, &root, true);
+    let metadata_paths = node_add_metadata_paths(&config, &node_manifest);
     eprintln!("metadata paths: {metadata_paths:#?}");
 
     assert_eq!(
         metadata_paths,
         vec![
-            cargo_manifest,
-            root.join("Cargo.lock"),
-            root.join(".cargo/config.toml"),
             node_manifest,
             root.join("pnpm-lock.yaml"),
             root.join("project-store/lock.yaml"),

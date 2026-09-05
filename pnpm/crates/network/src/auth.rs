@@ -134,6 +134,7 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+    require_secure_transport: bool,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
@@ -179,11 +180,20 @@ impl fmt::Debug for AuthHeaders {
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
+            .field("require_secure_transport", &self.require_secure_transport)
             .finish_non_exhaustive()
     }
 }
 
 impl AuthHeaders {
+    /// Restrict every credential lookup to TLS or loopback URLs, including
+    /// lookups made by shared fetchers. This restriction survives cloning.
+    #[must_use]
+    pub fn with_secure_transport(mut self) -> Self {
+        self.require_secure_transport = true;
+        self
+    }
+
     /// Whether no configured credential or route hook can provide
     /// authorization for any URL.
     #[must_use]
@@ -339,6 +349,7 @@ impl AuthHeaders {
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
+            require_secure_transport: false,
             has_token_helpers,
             resolved_token_helpers: Arc::default(),
             token_helper_runner: None,
@@ -488,6 +499,9 @@ impl AuthHeaders {
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+            return None;
+        }
         // A server route hook owns the decision: ignore the
         // client-forwarded credentials entirely (including any inline
         // `user:pass@` in `url`) and let the deployment's policy pick the

@@ -26,7 +26,7 @@ use pnpm_network::{
     RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize, send_with_retry,
 };
 use serde::Deserialize;
-use std::{collections::BTreeMap, time::Duration};
+use std::collections::BTreeMap;
 
 use super::{
     SelfUpdateError,
@@ -133,7 +133,7 @@ pub(crate) async fn verify_engine_identity(
     }
 
     let client = build_client(config)?;
-    let retry_opts = retry_opts(config);
+    let retry_opts = config.retry_opts();
 
     let mut failures: Vec<SignatureFailure> = Vec::new();
     for component in &to_verify {
@@ -708,15 +708,6 @@ fn build_client(config: &Config) -> Result<ThrottledClient, SelfUpdateError> {
     .map_err(|error| SelfUpdateError::EngineIdentityUnverifiable {
         message: format!("could not build the network client to verify the pnpm release: {error}"),
     })
-}
-
-fn retry_opts(config: &Config) -> RetryOpts {
-    RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    }
 }
 
 fn with_trailing_slash(registry: &str) -> String {

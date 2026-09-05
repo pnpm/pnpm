@@ -439,8 +439,17 @@ impl InstallPipeline {
             )
             .await;
         }
-        let workspace_inventory =
-            ecosystem_install::EcosystemWorkspaceInventory::new(config_root.clone());
+        let ecosystem_plan = ecosystem_install::plan::<Reporter>(
+            ecosystem_install::InstallContext {
+                config: cfg,
+                http_client: Arc::clone(&http_client),
+                lockfile_only,
+                frozen_lockfile,
+            },
+            config_root,
+            &args.dependency_options,
+        )
+        .await?;
         let node_install = run_node_install::<Reporter>(
             plan,
             args,
@@ -448,22 +457,10 @@ impl InstallPipeline {
             manifest_path,
             require_lockfile,
             lockfile,
-            Arc::clone(&http_client),
+            http_client,
         );
-        let cargo_install = crate::cargo_deps::install::<Reporter>(
-            ecosystem_install::InstallContext {
-                config: cfg,
-                http_client,
-                lockfile_only,
-                frozen_lockfile,
-            },
-            crate::cargo_deps::CargoInstallOptions {
-                projects: crate::cargo_deps::CargoInstallProjects::Workspace(&workspace_inventory),
-                lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
-            },
-        );
-        ecosystem_install::EcosystemInstallCoordinator::new(node_install)
-            .with_install(cargo_install)
+        ecosystem_plan
+            .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
             .await
     }
@@ -583,8 +580,8 @@ impl AddPipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
-        if package_specifier_plan.has_cargo() {
-            return run_add_with_cargo::<Reporter>(
+        if !package_specifier_plan.ecosystem_packages.is_empty() {
+            return run_add_with_ecosystems::<Reporter>(
                 args,
                 cfg,
                 prefix,
@@ -653,113 +650,60 @@ impl AddPipeline {
     }
 }
 
-async fn run_add_with_cargo<Reporter: self::Reporter + 'static>(
+async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     args: AddArgs,
     cfg: &'static mut Config,
     prefix: PathBuf,
     manifest_path: PathBuf,
     package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
 ) -> miette::Result<()> {
-    if cfg.recursive {
-        return Err(miette::miette!(
-            "crate: dependencies cannot yet be added through a recursive or filtered selection"
-        ));
-    }
-    if args.save_catalog || args.save_catalog_name.is_some() {
-        return Err(miette::miette!("crate: dependencies cannot be saved to an npm catalog"));
-    }
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
-    let cargo_dependency_kind = args.dependency_options.cargo_dependency_kind(has_node_packages)?;
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir =
             manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
         cfg.anchor_lockfile_paths(&manifest_dir);
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
-    let cargo_manifest_path = prefix.join("Cargo.toml");
-    let cargo_root = crate::cargo_deps::workspace_root(&cargo_manifest_path).await?;
-    let metadata_mutation = ecosystem_install::MetadataMutation::capture(
-        cargo_root.clone(),
-        add_metadata_paths(
-            cfg,
-            &manifest_path,
-            &cargo_manifest_path,
-            &cargo_root,
-            has_node_packages,
-        ),
+    let cfg: &'static Config = cfg;
+    let plan = ecosystem_add::plan::<Reporter>(
+        ecosystem_install::InstallContext {
+            config: cfg,
+            http_client: Arc::clone(&http_client),
+            lockfile_only: args.lockfile_only,
+            frozen_lockfile: false,
+        },
+        prefix,
+        package_specifier_plan.ecosystem_packages,
+        &args,
+        has_node_packages,
     )
     .await?;
-    let lockfile_only = args.lockfile_only;
-    let outcome = async {
-        ecosystem_add::prepare(
-            cfg,
-            &cargo_manifest_path,
-            &package_specifier_plan.ecosystem_packages,
-            cargo_dependency_kind,
-            args.save_exact,
-            args.save_prefix.as_deref(),
-            Arc::clone(&http_client),
-        )
-        .await?;
-
-        let mut node_args = args;
-        node_args.package_names = package_specifier_plan.node_packages;
-        let cfg: &'static Config = cfg;
-        let node_http_client = Arc::clone(&http_client);
-        let node_install = async move {
-            if node_args.package_names.is_empty() {
-                return Ok(());
-            }
-            let state = init_shared_state(manifest_path, cfg, false, None, node_http_client)?;
-            Box::pin(node_args.run::<Reporter>(state, None)).await
-        };
-        let cargo_install = crate::cargo_deps::install::<Reporter>(
-            ecosystem_install::InstallContext {
-                config: cfg,
-                http_client,
-                lockfile_only,
-                frozen_lockfile: false,
-            },
-            crate::cargo_deps::CargoInstallOptions {
-                projects: crate::cargo_deps::CargoInstallProjects::Root(&cargo_root),
-                lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
-            },
-        );
-        ecosystem_install::EcosystemInstallCoordinator::new(node_install)
-            .with_install(cargo_install)
-            .run_to_settlement()
-            .await
+    if !has_node_packages {
+        return plan.run().await;
     }
-    .await;
-    metadata_mutation.finish(outcome)
+    let metadata = node_add_metadata_paths(cfg, &manifest_path);
+    let mut node_args = args;
+    node_args.package_names = package_specifier_plan.node_packages;
+    let node_install = async move {
+        let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
+        Box::pin(node_args.run::<Reporter>(state, None)).await
+    };
+    plan.with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
+        .run()
+        .await
 }
 
-fn add_metadata_paths(
-    config: &Config,
-    node_manifest_path: &Path,
-    cargo_manifest_path: &Path,
-    cargo_root: &Path,
-    has_node_packages: bool,
-) -> Vec<PathBuf> {
+fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> Vec<PathBuf> {
+    let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let mut paths = vec![
-        cargo_manifest_path.to_path_buf(),
-        cargo_root.join("Cargo.lock"),
-        cargo_root.join(".cargo/config.toml"),
+        manifest_path.to_path_buf(),
+        config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
+        // The current lockfile remains project-local even with a global virtual store.
+        config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+        config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
     ];
-    if has_node_packages {
-        let node_project_dir =
-            node_manifest_path.parent().expect("manifest path always has a parent dir");
-        paths.extend([
-            node_manifest_path.to_path_buf(),
-            config.lockfile_dir_for(node_project_dir).join(config.wanted_lockfile_name()),
-            // The current lockfile remains project-local even when package
-            // materialization uses the global virtual store.
-            config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
-            config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
-        ]);
-        if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-            paths.push(workspace_dir.join("pnpm-workspace.yaml"));
-        }
+    if let Some(workspace_dir) = config.workspace_dir.as_deref() {
+        paths.push(workspace_dir.join("pnpm-workspace.yaml"));
     }
     paths
 }

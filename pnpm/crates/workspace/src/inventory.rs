@@ -3,7 +3,7 @@ use miette::Diagnostic;
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsStr,
-    io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -58,15 +58,18 @@ pub enum FindWorkspaceInventoryError {
 /// Directory symlinks are not followed. An entry that disappears or becomes
 /// unreadable during a nested traversal is skipped, while failure to read the
 /// inventory root is reported.
+/// Ignored directories may be absolute or relative to the inventory root.
 pub fn find_workspace_inventory(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
+    ignored_directories: &[PathBuf],
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     find_workspace_inventory_with(
         workspace_root,
         manifest_basenames,
         ignored_directory_basenames,
+        ignored_directories,
         |_| Ok(()),
         |_| Ok(()),
     )
@@ -76,11 +79,33 @@ fn find_workspace_inventory_with(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
+    ignored_directories: &[PathBuf],
     before_read: impl FnMut(&Path) -> io::Result<()>,
     before_open_directory: impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     let requested: BTreeSet<&OsStr> = manifest_basenames.iter().map(OsStr::new).collect();
-    let ignored: BTreeSet<&OsStr> = ignored_directory_basenames.iter().map(OsStr::new).collect();
+    let canonical_root = fs::canonicalize(workspace_root).map_err(|source| {
+        FindWorkspaceInventoryError::ReadDirectory { path: workspace_root.to_path_buf(), source }
+    })?;
+    let mut paths = BTreeSet::new();
+    for path in ignored_directories {
+        let path = workspace_root.join(path);
+        let canonical = match fs::canonicalize(&path) {
+            Ok(path) => path,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
+            }
+        };
+        if let Ok(relative) = canonical.strip_prefix(&canonical_root) {
+            paths.insert(relative.to_path_buf());
+        }
+    }
+    let ignored = IgnoredDirectories {
+        root: workspace_root,
+        basenames: ignored_directory_basenames.iter().map(OsStr::new).collect(),
+        paths,
+    };
     let mut manifests: BTreeMap<String, Vec<PathBuf>> =
         manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
 
@@ -103,6 +128,19 @@ fn find_workspace_inventory_with(
         manifest_paths.sort();
     }
     Ok(WorkspaceInventory { manifests })
+}
+
+struct IgnoredDirectories<'a> {
+    root: &'a Path,
+    basenames: BTreeSet<&'a OsStr>,
+    paths: BTreeSet<PathBuf>,
+}
+
+impl IgnoredDirectories<'_> {
+    fn contains(&self, basename: &OsStr, path: &Path) -> bool {
+        self.basenames.contains(basename)
+            || path.strip_prefix(self.root).is_ok_and(|relative| self.paths.contains(relative))
+    }
 }
 
 fn is_ignorable_discovery_error(error: &io::Error) -> bool {
