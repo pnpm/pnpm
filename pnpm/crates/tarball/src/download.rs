@@ -12,6 +12,7 @@ use super::{
     open_local_tarball, post_download_semaphore, read_local_tarball_buffer,
     stream_extract_gzipped_channel, streaming_extract_semaphore,
 };
+use crate::extraction_task::spawn_extraction;
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
     AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
@@ -25,6 +26,7 @@ use pnpm_store_dir::{
     StoreIndexWriter, store_index_key,
 };
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use tokio::sync::SemaphorePermit;
 
 /// Controls how archive files are projected into pnpm's content-addressable store.
 ///
@@ -371,7 +373,7 @@ pub(crate) async fn extract_tarball_buffer(
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let _post_download_permit = post_download_semaphore()
+    let post_download_permit = post_download_semaphore()
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
@@ -380,7 +382,8 @@ pub(crate) async fn extract_tarball_buffer(
 
     let expected_integrity = expected_integrity.cloned();
     let package_url_owned = package_url.to_string();
-    let result = tokio::task::spawn_blocking(
+    let result = spawn_extraction(
+        post_download_permit,
         move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
             let integrity = verify_tarball_integrity(
                 &buffer,
@@ -496,6 +499,7 @@ async fn extract_body_while_downloading<Reporter, Body, Guard>(
     mut hasher: BodyHasher,
     progress: &mut BodyProgress<'_>,
     network_permit: Guard,
+    streaming_permit: SemaphorePermit<'static>,
     http_client: &ThrottledClient,
     package_url: &str,
     store_dir: &'static StoreDir,
@@ -510,7 +514,7 @@ where
 
     let (chunk_tx, chunk_rx) = body_chunk_channel();
     let extractor_ignore = ignore_file_pattern.clone();
-    let extract_task = tokio::task::spawn_blocking(move || {
+    let extract_task = spawn_extraction(streaming_permit, move || {
         stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
     });
     // The body is hashed to its end no matter what the extractor does
@@ -831,7 +835,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     if is_gzip
         && attempt == 0
         && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
-        && let Ok(_streaming_permit) = streaming_extract_semaphore().try_acquire()
+        && let Ok(streaming_permit) = streaming_extract_semaphore().try_acquire()
     {
         for chunk in &prefix {
             progress.on_chunk::<Reporter>(chunk.len());
@@ -842,6 +846,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
             BodyHasher::new(expected_integrity),
             &mut progress,
             client,
+            streaming_permit,
             http_client,
             package_url,
             store_dir,
@@ -883,7 +888,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                 // The buffer's capacity has doubled past what arrived;
                 // hand the extractor the bytes, not the headroom.
                 buf.shrink_to_fit();
-                let _streaming_permit = streaming_extract_semaphore()
+                let streaming_permit = streaming_extract_semaphore()
                     .acquire()
                     .await
                     .expect("streaming-extract semaphore shouldn't be closed this soon");
@@ -893,6 +898,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                     BodyHasher::new(expected_integrity),
                     &mut progress,
                     client,
+                    streaming_permit,
                     http_client,
                     package_url,
                     store_dir,

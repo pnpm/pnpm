@@ -374,7 +374,7 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     };
     drop(client);
 
-    let _post_download_permit = post_download_semaphore()
+    let post_download_permit = post_download_semaphore()
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
@@ -384,7 +384,8 @@ pub(crate) async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     let package_integrity = package_integrity.clone();
     let package_url_owned = package_url.to_string();
     let archive_prefix_owned: Option<String> = archive_prefix.map(str::to_string);
-    let result = tokio::task::spawn_blocking(
+    let result = crate::extraction_task::spawn_extraction(
+        post_download_permit,
         move || -> Result<(HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
             package_integrity.check(&buffer).map_err(|error| {
                 TarballError::Checksum(VerifyChecksumError {
