@@ -124,6 +124,20 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
 }
 
+#[test]
+fn a_url_header_overlays_only_its_request_route() {
+    let mut auth = AuthHeaders::from_creds_map([
+        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
+    ]);
+
+    auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
+
+    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
+}
+
 /// Records every `(url, package)` it is asked about and answers with a
 /// fixed header, so a test can assert the hook — not the client
 /// credentials — drove the lookup.

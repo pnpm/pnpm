@@ -4408,6 +4408,7 @@ dependencies = [
  "tempfile",
  "text-block-macros",
  "tokio",
+ "toml",
  "tracing",
  "url",
  "walkdir",

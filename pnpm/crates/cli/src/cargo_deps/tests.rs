@@ -1,7 +1,7 @@
 use super::{
     ArchiveStoreProjection, LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum,
-    discover_manifests, discover_manifests_with, materialize, parse_lockfile, sparse_index_path,
-    update_managed_config, workspace_root,
+    discover_manifests, discover_manifests_with, fetch_sparse_index_file, materialize,
+    parse_lockfile, sparse_index_path, update_managed_config, workspace_root,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -274,6 +274,38 @@ fn maps_crate_names_to_sparse_index_paths() {
     assert_eq!(sparse_index_path("ab").unwrap(), "2/ab");
     assert_eq!(sparse_index_path("abc").unwrap(), "3/a/abc");
     assert_eq!(sparse_index_path("Serde_JSON").unwrap(), "se/rd/serde_json");
+}
+
+#[tokio::test]
+async fn sparse_index_fetch_uses_configured_request_auth() {
+    let mut server = mockito::Server::new_async().await;
+    let response = r#"{"name":"demo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#;
+    let request = server
+        .mock("GET", "/de/mo/demo")
+        .match_header("authorization", "Bearer cargo-read-token")
+        .with_status(200)
+        .with_body(response)
+        .create_async()
+        .await;
+    let auth_headers = AuthHeaders::from_creds_map([(
+        pnpm_network::nerf_dart(&server.url()),
+        "Bearer cargo-read-token".to_string(),
+    )]);
+    let cache = tempfile::tempdir().unwrap();
+
+    let contents = fetch_sparse_index_file(
+        "demo",
+        &server.url(),
+        cache.path(),
+        &ThrottledClient::default(),
+        &auth_headers,
+        false,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(contents, response);
+    request.assert_async().await;
 }
 
 #[test]

@@ -6,8 +6,9 @@
 //! the URL carries inline `user:password@`, that takes precedence and
 //! is encoded as a `Basic` header even when no per-host token matches.
 //!
-//! The map is built once per install from the merged `.npmrc` and is
-//! consulted on every metadata fetch and tarball download. The lookup
+//! Configuration readers build the map once per install from their native
+//! credential sources, and request code consults it on every metadata fetch
+//! and archive download. The lookup
 //! walks parts of the *request* URL: a tarball served from a CDN on a
 //! different host than the registry only matches keys keyed at the
 //! CDN's host (or a path prefix on that host). It does *not* fall
@@ -99,8 +100,9 @@ pub enum MetadataCacheScope {
 }
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
-/// of each registry URL. Pacquet builds one of these from the parsed
-/// `.npmrc` and shares it across every HTTP call made during install.
+/// of each registry URL. Ecosystem-specific configuration readers normalize
+/// their credentials into this request-facing form and share it across HTTP
+/// calls made during install.
 ///
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
@@ -187,6 +189,31 @@ impl AuthHeaders {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+    }
+
+    /// Overlay a ready-to-send `Authorization` header at `url`.
+    ///
+    /// This is the boundary for credential sources that are already scoped to
+    /// a concrete request URL and have no npm package-scope semantics. The
+    /// caller owns the authentication scheme: npm tokens include `Bearer`,
+    /// Cargo tokens are bare, and future readers may supply `Basic` or another
+    /// registry-defined value. An invalid or unsupported URL is ignored.
+    pub fn insert_url_header(&mut self, url: &str, header: String) {
+        let mut terminated;
+        let url = if url.ends_with('/') {
+            url
+        } else {
+            terminated = String::with_capacity(url.len() + 1);
+            terminated.push_str(url);
+            terminated.push('/');
+            &terminated
+        };
+        let uri = nerf_dart(url);
+        if uri.is_empty() {
+            return;
+        }
+        self.max_parts = self.max_parts.max(uri.split('/').count());
+        self.by_uri.insert(uri, AuthEntry::Header(header));
     }
 
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
