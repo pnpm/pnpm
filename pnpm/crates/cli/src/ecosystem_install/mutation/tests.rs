@@ -126,6 +126,27 @@ async fn restoration_stays_in_the_parent_pinned_during_capture() {
     assert_eq!(fs::read_to_string(attacker.join("manifest")).unwrap(), "attacker");
 }
 
+#[cfg(windows)]
+#[tokio::test]
+async fn pinned_parent_cannot_be_replaced_during_restoration() {
+    let directory = tempfile::tempdir().unwrap();
+    let project = directory.path().join("project");
+    let moved = directory.path().join("moved-project");
+    fs::create_dir(&project).unwrap();
+    let path = project.join("manifest");
+    fs::write(&path, "before").unwrap();
+    let mutation = capture(&directory, [path.clone()]).await;
+
+    fs::write(&path, "after").unwrap();
+    let rename_error = fs::rename(&project, &moved).unwrap_err();
+    eprintln!("rename result while metadata parent is pinned: {rename_error:?}");
+    assert!(project.is_dir(), "the pinned metadata parent must remain at its validated path");
+    mutation.finish(Err(miette::miette!("operation failed"))).unwrap_err();
+
+    assert_eq!(fs::read_to_string(path).unwrap(), "before");
+    fs::rename(project, moved).expect("parent can move after pinned handles are released");
+}
+
 #[cfg(unix)]
 #[tokio::test]
 async fn restoration_rejects_a_new_symlink_in_a_missing_parent_path() {

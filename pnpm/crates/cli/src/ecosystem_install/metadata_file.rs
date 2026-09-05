@@ -534,6 +534,9 @@ fn open_windows_directory(path: &Path) -> io::Result<fs::File> {
         FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
     };
 
+    // Deliberately omit FILE_SHARE_DELETE. Every component handle remains
+    // alive in `PinnedDirectory`, so Windows cannot rename or replace a
+    // validated parent before the later pathname-based child operation.
     fs::OpenOptions::new()
         .read(true)
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
