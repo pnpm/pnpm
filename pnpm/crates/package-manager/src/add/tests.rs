@@ -52,7 +52,15 @@ fn split_protocol_prefixed_add_selector_keeps_the_protocol_specifier() {
 
 #[test]
 fn workspace_protocol_local_path_is_not_a_named_protocol_selector() {
-    for input in ["workspace:./pkg", "workspace:../pkg", "workspace:/tmp/pkg", "workspace:~/pkg"] {
+    for input in [
+        "workspace:./pkg",
+        "workspace:../pkg",
+        "workspace:/tmp/pkg",
+        "workspace:~/pkg",
+        "workspace:C:\\repo\\pkg",
+        "workspace:C:/repo/pkg",
+        "workspace:\\\\server\\pkg",
+    ] {
         assert_eq!(protocol_prefixed_selector_name(input), None);
     }
 }
