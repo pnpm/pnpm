@@ -154,7 +154,7 @@ Follow the [Conventional Commits](https://www.conventionalcommits.org/) specific
 
 ### Install the git hooks before committing
 
-The git hooks in `.husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
+The git hooks in `.husky/` (including the `commit-msg` check described below) only run once husky has wired them into git. A fresh clone — and every fresh worktree — does **not** have them active until installed. **Before making any commit, ensure the hooks are installed** by running one of:
 
 ```bash
 pnpm install      # runs the "prepare": "husky" script as part of install
@@ -336,6 +336,35 @@ try {
   throw err
 }
 ```
+
+## Worktrees
+
+Development happens in linked git worktrees — one directory per task —
+usually hanging off a bare clone. Multiple workers (agents and humans)
+run concurrently, each in its own worktree.
+
+**One worktree works on one branch for its whole life.** Never switch an
+existing worktree to another branch (`git switch <other>`,
+`git checkout -b`, …): the worktree you are in may be another worker's
+workspace tomorrow, and the branch you take it to may be someone else's
+task. Start every new branch in a fresh worktree instead:
+
+```bash
+git worktree add ../<dir-name> -b <branch-name> origin/main
+```
+
+A `post-checkout` hook (`.husky/reject-worktree-rebind.mjs`) enforces
+this for agent sessions: a checkout or commit binds the worktree to its
+branch (a first-observed *switch* binds to the branch it left, so even
+that switch is checked), and branch switches away from the bound branch
+are rejected. Returning to the bound branch is always allowed.
+A human who genuinely wants to rebind a worktree can re-run the
+checkout with `PNPM_ALLOW_WORKTREE_REBIND=1`.
+
+Remember that hooks are installed per worktree: a fresh worktree has no
+active hooks (including this guard) until `pnpm install` or
+`pnpm exec husky` runs in it — see
+[Install the git hooks before committing](#install-the-git-hooks-before-committing).
 
 ## Working with GitHub PRs, Issues, and Comments
 
