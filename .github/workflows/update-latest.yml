@@ -136,14 +136,10 @@ jobs:
           cd "$work"
           mkdir -p "$work/from"
           printf '{"name":"pnpm-upgrade-check","version":"0.0.0","private":true}\n' >"$work/from/package.json"
-          # `--allow-build` is what makes this install the starting point rather
-          # than a fake one: pnpm blocks dependency build scripts by default, and
-          # `@pnpm/exe`'s setup.js is what swaps its placeholder bin for the real
-          # native. Without it every run reproduces the exact breakage this gate
-          # exists to catch (the placeholder surviving) and blames the release.
+          # Both v12 wrappers need install scripts to set up their native binary.
           pn add "${package}@${FROM}" \
             --dir "$work/from" \
-            --allow-build=@pnpm/exe \
+            --allow-build="$package" \
             --registry="$REGISTRY"
           # Drive through the bin shim rather than a path into the package: the
           # entry point differs by major (pnpm.cjs in v10, pnpm.mjs in v11) and
