@@ -15,14 +15,18 @@ pnpm-catalogs-types           = { workspace = true }
 pnpm-package-manifest         = { workspace = true }
 pnpm-workspace-projects-graph = { workspace = true }
 
-derive_more  = { workspace = true }
-indexmap     = { workspace = true }
-miette       = { workspace = true }
-pathdiff     = { workspace = true }
-rayon        = { workspace = true }
-serde        = { workspace = true }
-serde-saphyr = { workspace = true }
-wax          = { workspace = true }
+cap-primitives = { workspace = true }
+derive_more    = { workspace = true }
+indexmap       = { workspace = true }
+miette         = { workspace = true }
+pathdiff       = { workspace = true }
+rayon          = { workspace = true }
+serde          = { workspace = true }
+serde-saphyr   = { workspace = true }
+wax            = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

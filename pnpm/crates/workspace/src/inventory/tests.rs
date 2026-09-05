@@ -1,4 +1,4 @@
-use super::{find_workspace_inventory, find_workspace_inventory_with};
+use super::{InventoryTraversalEvent, find_workspace_inventory, find_workspace_inventory_with};
 use pretty_assertions::assert_eq;
 use std::fs;
 
@@ -54,11 +54,12 @@ fn skips_unreadable_unrelated_directories() {
     fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
 
     let inventory =
-        find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |directory| {
-            if directory == unreadable {
+        find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |event| {
+            if matches!(event, InventoryTraversalEvent::BeforeRead(directory) if directory == unreadable)
+            {
                 Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
             } else {
-                fs::read_dir(directory)
+                Ok(())
             }
         })
         .unwrap();
@@ -72,16 +73,15 @@ fn reports_the_nested_directory_that_failed() {
     let broken = workspace.path().join("broken");
     fs::create_dir_all(&broken).unwrap();
 
-    let error =
-        find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |directory| {
-            if directory == broken {
-                Err(std::io::Error::other("injected read failure"))
-            } else {
-                fs::read_dir(directory)
-            }
-        })
-        .unwrap_err()
-        .to_string();
+    let error = find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |event| {
+        if matches!(event, InventoryTraversalEvent::BeforeRead(directory) if directory == broken) {
+            Err(std::io::Error::other("injected read failure"))
+        } else {
+            Ok(())
+        }
+    })
+    .unwrap_err()
+    .to_string();
 
     assert!(error.contains(&broken.display().to_string()), "{error}");
     assert!(error.contains("injected read failure"), "{error}");
@@ -96,6 +96,31 @@ fn does_not_follow_directory_symlinks() {
     symlink(outside.path(), workspace.path().join("linked")).unwrap();
 
     let inventory = find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[]).unwrap();
+
+    assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn does_not_follow_a_directory_swapped_for_a_symlink_before_descent() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let candidate = workspace.path().join("candidate");
+    fs::create_dir(&candidate).unwrap();
+    fs::write(outside.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+
+    let inventory =
+        find_workspace_inventory_with(workspace.path(), &["Cargo.toml"], &[], |event| {
+            if matches!(
+                event,
+                InventoryTraversalEvent::BeforeOpenDirectory(path) if path == candidate
+            ) {
+                fs::remove_dir(&candidate)?;
+                symlink(outside.path(), &candidate)?;
+            }
+            Ok(())
+        })
+        .unwrap();
 
     assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
 }

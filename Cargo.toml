@@ -128,6 +128,7 @@ command-extra = { version = "1.0.0" }
 base64 = { version = "0.23.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
+cap-primitives = { version = "4.0.3" }
 cargo-lock = { version = "11.1.0" }
 cargo-util-schemas = { version = "0.14.2" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }

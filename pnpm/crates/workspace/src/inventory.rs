@@ -3,9 +3,13 @@ use miette::Diagnostic;
 use std::{
     collections::{BTreeMap, BTreeSet},
     ffi::OsStr,
-    fs, io,
+    io,
     path::{Path, PathBuf},
 };
+
+mod traversal;
+
+use traversal::{InventoryTraversalEvent, walk_workspace};
 
 /// Manifest paths grouped by basename.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -63,7 +67,7 @@ pub fn find_workspace_inventory(
         workspace_root,
         manifest_basenames,
         ignored_directory_basenames,
-        |directory| fs::read_dir(directory),
+        |_| Ok(()),
     )
 }
 
@@ -71,84 +75,26 @@ fn find_workspace_inventory_with(
     workspace_root: &Path,
     manifest_basenames: &[&str],
     ignored_directory_basenames: &[&str],
-    mut read_dir: impl FnMut(&Path) -> io::Result<fs::ReadDir>,
+    traversal_hook: impl FnMut(InventoryTraversalEvent<'_>) -> io::Result<()>,
 ) -> Result<WorkspaceInventory, FindWorkspaceInventoryError> {
     let requested: BTreeSet<&OsStr> = manifest_basenames.iter().map(OsStr::new).collect();
     let ignored: BTreeSet<&OsStr> = ignored_directory_basenames.iter().map(OsStr::new).collect();
     let mut manifests: BTreeMap<String, Vec<PathBuf>> =
         manifest_basenames.iter().map(|basename| ((*basename).to_string(), Vec::new())).collect();
-    let mut pending = vec![workspace_root.to_path_buf()];
 
-    while let Some(directory) = pending.pop() {
-        let entries = match read_dir(&directory) {
-            Ok(entries) => entries,
-            Err(error) if directory != workspace_root && is_ignorable_discovery_error(&error) => {
-                continue;
-            }
-            Err(source) => {
-                return Err(FindWorkspaceInventoryError::ReadDirectory { path: directory, source });
-            }
-        };
-        for entry in entries {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(error) if is_ignorable_discovery_error(&error) => continue,
-                Err(source) => {
-                    return Err(FindWorkspaceInventoryError::ReadEntry {
-                        path: directory.clone(),
-                        source,
-                    });
-                }
-            };
-            match collect_inventory_entry(
-                &entry,
-                &requested,
-                &ignored,
-                &mut pending,
-                &mut manifests,
-            ) {
-                Ok(()) => {}
-                Err(error) if is_ignorable_discovery_error(&error) => continue,
-                Err(source) => {
-                    return Err(FindWorkspaceInventoryError::InspectCandidate {
-                        path: entry.path(),
-                        source,
-                    });
-                }
-            }
+    walk_workspace(workspace_root, &ignored, traversal_hook, |path, file_name| {
+        if requested.contains(file_name)
+            && let Some(manifest_paths) =
+                file_name.to_str().and_then(|basename| manifests.get_mut(basename))
+        {
+            manifest_paths.push(path);
         }
-    }
+    })?;
 
     for manifest_paths in manifests.values_mut() {
         manifest_paths.sort();
     }
     Ok(WorkspaceInventory { manifests })
-}
-
-fn collect_inventory_entry(
-    entry: &fs::DirEntry,
-    requested: &BTreeSet<&OsStr>,
-    ignored: &BTreeSet<&OsStr>,
-    pending: &mut Vec<PathBuf>,
-    manifests: &mut BTreeMap<String, Vec<PathBuf>>,
-) -> io::Result<()> {
-    let file_type = entry.file_type()?;
-    if file_type.is_symlink() {
-        return Ok(());
-    }
-    let file_name = entry.file_name();
-    if file_type.is_dir() {
-        if !ignored.contains(file_name.as_os_str()) {
-            pending.push(entry.path());
-        }
-    } else if file_type.is_file()
-        && requested.contains(file_name.as_os_str())
-        && let Some(manifest_paths) =
-            file_name.to_str().and_then(|basename| manifests.get_mut(basename))
-    {
-        manifest_paths.push(entry.path());
-    }
-    Ok(())
 }
 
 fn is_ignorable_discovery_error(error: &io::Error) -> bool {
