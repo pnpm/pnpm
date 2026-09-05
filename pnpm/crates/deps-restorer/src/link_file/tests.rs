@@ -166,6 +166,20 @@ fn eexist_recovery_rejects_a_dangling_symlink_target() {
     .expect_err("a dangling symlink at the target is corruption, not a concurrent writer");
 }
 
+/// The writer that owns a shared slot may replace the target again
+/// before the exec-bit re-assertion opens it; it restores the bit itself,
+/// so an EEXIST whose dirent is gone by then is finished work, not a loss.
+#[test]
+#[cfg(unix)]
+fn eexist_recovery_tolerates_a_target_its_writer_replaced() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let dst = tmp.path().join("dst");
+
+    recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst)
+        .expect("a target unlinked after EEXIST belongs to a writer that finishes it");
+}
+
 /// APFS `clonefile` can report a destination another importer renamed
 /// into place as `NotFound` (pnpm/pnpm#14560). With the dirent and the
 /// source both present that is the concurrent-writer case, and the

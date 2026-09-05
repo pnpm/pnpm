@@ -245,9 +245,9 @@ pub fn import_into_fresh_target<Reporter: self::Reporter>(
 /// returns here without touching disk, but pnpm's clone preserves the
 /// mode and pacquet's reflink does not — so re-assert the exec bit from
 /// the `-exec` suffix (idempotent, a no-op for non-exec entries) before
-/// adopting the dirent. That re-assertion also heals a target an earlier
-/// failed restore left non-executable, which is why the clone tier no
-/// longer deletes on restore failure.
+/// adopting the dirent. That re-assertion also heals a target that an
+/// earlier failed restore left non-executable; the clone tier relies on
+/// it and keeps such a target in place.
 ///
 /// `NotFound` is the same race when a regular file now sits at the
 /// target: APFS `clonefile` intermittently reports a destination that
