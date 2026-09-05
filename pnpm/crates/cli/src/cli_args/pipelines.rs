@@ -752,7 +752,9 @@ fn add_metadata_paths(
         paths.extend([
             node_manifest_path.to_path_buf(),
             config.lockfile_dir_for(node_project_dir).join(config.wanted_lockfile_name()),
-            config.effective_virtual_store_dir().join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+            // The current lockfile remains project-local even when package
+            // materialization uses the global virtual store.
+            config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
             config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
         ]);
         if let Some(workspace_dir) = config.workspace_dir.as_deref() {

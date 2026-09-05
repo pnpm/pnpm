@@ -24,7 +24,7 @@ fn uses_configured_node_metadata_locations() {
             root.join(".cargo/config.toml"),
             node_manifest,
             root.join("pnpm-lock.yaml"),
-            root.join("global-store/lock.yaml"),
+            root.join("project-store/lock.yaml"),
             root.join("custom_modules/.modules.yaml"),
         ],
     );
