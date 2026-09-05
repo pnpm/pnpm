@@ -31,10 +31,11 @@ fn configured() -> Arc<AuthHeaders> {
 }
 
 #[test]
-fn no_cargo_token_reuses_the_configured_auth_map() {
+fn missing_credentials_files_reuse_the_configured_auth_map() {
     let configured = configured();
+    let cargo_home = tempfile::tempdir().unwrap();
 
-    let resolved = crates_io_from_sources(&configured, None, None).unwrap();
+    let resolved = crates_io_from_sources(&configured, None, Some(cargo_home.path())).unwrap();
 
     assert!(Arc::ptr_eq(&resolved, &configured));
     assert_eq!(

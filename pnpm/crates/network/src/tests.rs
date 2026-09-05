@@ -12,9 +12,9 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
-    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, bundled_root_certs,
-    origin_of, parse_proxy_url,
+    AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,
+    NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
+    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url,
 };
 use crate::proxy::{percent_decode_str, strip_userinfo};
 use pnpm_testing_utils::env_guard::EnvGuard;
@@ -519,6 +519,51 @@ async fn authorization_is_retained_on_same_origin_redirect() {
     assert_eq!(response.status(), 200);
     start_mock.assert_async().await;
     final_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
+    let mut target = mockito::Server::new_async().await;
+    let target_mock = target
+        .mock("GET", "/final")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(302)
+        .with_header("location", "/same-origin")
+        .expect(1)
+        .create_async()
+        .await;
+    let same_origin_mock = registry
+        .mock("GET", "/same-origin")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(302)
+        .with_header("location", &format!("{}/final", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let auth_headers = AuthHeaders::from_creds_map([(
+        nerf_dart(&registry.url()),
+        "Bearer registry-token".to_string(),
+    )]);
+
+    let response = ThrottledClient::default()
+        .get_bytes_with_secure_auth_headers(&format!("{}/start", registry.url()), &auth_headers)
+        .await
+        .expect("follow redirects with per-target authentication");
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, b"ok");
+    start_mock.assert_async().await;
+    same_origin_mock.assert_async().await;
+    target_mock.assert_async().await;
 }
 
 #[tokio::test]
