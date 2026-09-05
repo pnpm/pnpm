@@ -5,7 +5,11 @@ use std::{
 
 use reqwest::StatusCode;
 
-use super::{RetryOpts, retry_async, should_retry_status};
+use super::{RetryOpts, SecureAttemptError, get_secure_bytes, retry_async, should_retry_status};
+use crate::{
+    AuthHeaders, PerRegistryTls, ProxyConfig, SecureAuthResponse, ThrottledClient, TlsConfig,
+    nerf_dart,
+};
 
 /// `RetryOpts` whose backoff is effectively instant, so retry-loop
 /// tests don't sleep.
@@ -16,6 +20,136 @@ fn instant_retry_opts(retries: u32) -> RetryOpts {
         min_timeout: Duration::from_millis(1),
         max_timeout: Duration::from_millis(1),
     }
+}
+
+#[tokio::test]
+async fn authenticated_metadata_uses_the_shared_status_policy_and_preserves_final_response() {
+    for (status, attempts) in [(408, 3), (429, 3), (503, 3), (401, 1), (403, 1), (404, 1), (200, 1)]
+    {
+        eprintln!("status={status}, attempts={attempts}");
+        let mut registry = mockito::Server::new_async().await;
+        let request = registry
+            .mock("GET", "/metadata")
+            .with_status(status)
+            .with_body("final response")
+            .expect(attempts)
+            .create_async()
+            .await;
+        let url = format!("{}/metadata", registry.url());
+        let response = get_secure_bytes(
+            &ThrottledClient::default(),
+            &url,
+            &AuthHeaders::default(),
+            None,
+            instant_retry_opts(2),
+        )
+        .await
+        .unwrap();
+        assert_eq!(response.status.as_u16(), status as u16);
+        assert_eq!(response.body, b"final response");
+        assert_eq!(response.url, url);
+        request.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn metadata_retry_restarts_redirects_without_forwarding_origin_credentials() {
+    let mut target = mockito::Server::new_async().await;
+    let redirected = target
+        .mock("GET", "/metadata")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .match_header("accept", "application/example+json")
+        .with_status(503)
+        .expect(3)
+        .create_async()
+        .await;
+    let mut origin = mockito::Server::new_async().await;
+    let initial = origin
+        .mock("GET", "/start")
+        .match_header("authorization", "Bearer origin-only")
+        .with_status(302)
+        .with_header("location", &format!("{}/metadata", target.url()))
+        .expect(3)
+        .create_async()
+        .await;
+    let auth =
+        AuthHeaders::from_creds_map([(nerf_dart(&origin.url()), "Bearer origin-only".to_string())]);
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &crate::NetworkSettings { network_concurrency: 1, ..Default::default() },
+    )
+    .unwrap();
+    let response = get_secure_bytes(
+        &client,
+        &format!("{}/start", origin.url()),
+        &auth,
+        Some("application/example+json"),
+        instant_retry_opts(2),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response.status, 503);
+    initial.assert_async().await;
+    redirected.assert_async().await;
+}
+
+#[test]
+fn metadata_retry_diagnostics_do_not_include_response_body_or_url() {
+    let error = SecureAttemptError::Response(SecureAuthResponse {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        body: b"secret response".to_vec(),
+        url: "https://example.test/private-token".to_string(),
+    });
+    let debug = format!("{error:?}");
+    eprintln!("diagnostic: {debug}");
+    assert!(!debug.contains("secret"));
+    assert!(!debug.contains("private-token"));
+    assert!(debug.contains("503"));
+}
+
+#[tokio::test]
+async fn metadata_retry_recovers_an_interrupted_response_body() {
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/metadata", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        for response in [
+            b"HTTP/1.1 200 OK\r\nContent-Length: 20\r\nConnection: close\r\n\r\npart".as_slice(),
+            b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".as_slice(),
+        ] {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0u8; 1024];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let count = socket.read(&mut buffer).await.unwrap();
+                assert_ne!(count, 0, "request ended before its headers: {request:?}");
+                request.extend_from_slice(&buffer[..count]);
+            }
+            socket.write_all(response).await.unwrap();
+            socket.shutdown().await.unwrap();
+        }
+    });
+    let response = tokio::time::timeout(
+        Duration::from_secs(5),
+        get_secure_bytes(
+            &ThrottledClient::default(),
+            &url,
+            &AuthHeaders::default(),
+            None,
+            instant_retry_opts(1),
+        ),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(response.body, b"ok");
+    server.await.unwrap();
 }
 
 #[test]

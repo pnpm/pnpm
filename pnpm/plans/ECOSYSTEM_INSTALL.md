@@ -88,6 +88,55 @@ failure. Generation garbage collection is a separate concern.
 
 ## Performance and verification
 
+### Shared artifact implementation
+
+Artifact ingestion is a second shared lifecycle, below workspace publication.
+The tarball and ZIP entry points both delegate to `tarball::ingestion` for
+prefetched and persistent cache lookup, cache integrity checks, the offline
+gate, projection, and store-index publication. `tarball::archive_retry` owns
+the retry boundary around download, integrity verification and extraction.
+Both formats use the same body-progress tracker and buffered integrity check.
+`tarball::archive_request` also owns request authorization, network permits,
+HTTP status handling and bounded error-body draining for both formats.
+
+| Responsibility | Single implementation | Native input or exception |
+| --- | --- | --- |
+| Retry settings | `Config::retry_opts` | The npm compatibility helper delegates to it |
+| Metadata retry budget and backoff | `network::retry` | Cargo sparse-index and Python Simple JSON parsing stay native; npm retains its conditional metadata cache and separate body-parse retry contract |
+| Credential selection across metadata redirects | `ThrottledClient::get_bytes_with_secure_auth_and_retry` | Each adapter supplies its credential map and optional Accept header |
+| Archive retries and fetched events | `tarball::archive_retry` | Revision-addressed npm requests have zero retries and forbid redirects |
+| Archive cache checks and publication | `tarball::ingestion` | Package and raw-archive projection namespaces stay distinct |
+| Content-addressed writes and batched indexing | `store-dir` | Adapters own writer lifetime and their failure policy |
+| Workspace metadata rollback and publication barrier | `install-coordinator` | npm materialization remains in-place |
+
+Compression is not an ecosystem boundary. npm and Cargo use the tar codec;
+Python wheels and runtime ZIPs use the ZIP codec. Tar's bounded streaming
+extraction and ZIP's central-directory handling remain separate algorithms.
+Neither codec decides dependency semantics. Cargo's checksum manifest, Python's
+wheel RECORD and interpreter tags, and npm's manifest/build metadata belong to
+their native projections and validators.
+
+The existing format-specific entry-point types remain thin input adapters.
+They contain no independent cache lookup, retry loop or store-publication
+algorithm. The npm in-memory fast path still returns before constructing the
+shared cold-path ingestion request.
+The input adapters borrow install-scoped handles; constructing a shared request
+does not clone the store index, writer, verification cache or progress state.
+
+Cross-format contract tests exercise package and raw projections, offline
+replay, missing CAS blobs, authentication failures, transient failures, and
+the absence of published rows after integrity failure. Metadata tests cover
+408/429/5xx retries, terminal 4xx responses, credential isolation on retried
+redirects, interrupted bodies, and credential-free retry diagnostics.
+
+This inventory describes the reviewed contracts, not a claim that every
+similar-looking block in the repository has been eliminated. Selector routing
+and native engine code still live in the CLI. Native manifest parsing,
+dependency solving, environment construction and source configuration are not
+interchangeable algorithms merely because they occupy corresponding stages.
+
+### Install coordinator benchmarks
+
 The npm-only path returns before creating a plan or inventory. No task objects,
 metadata snapshots, workspace locks or native manifest discovery are added to
 that path. Dynamic dispatch happens per prepared project, not per package,

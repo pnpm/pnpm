@@ -632,6 +632,18 @@ impl ThrottledClient {
         self.get_bytes_with_secure_auth_and_accept(url, auth_headers, None).await
     }
 
+    /// Retry a complete authenticated GET, including redirects and body reads.
+    /// Each attempt re-evaluates credentials and releases permits before backoff.
+    pub async fn get_bytes_with_secure_auth_and_retry(
+        &self,
+        url: &str,
+        auth_headers: &AuthHeaders,
+        accept: Option<&str>,
+        retry_opts: RetryOpts,
+    ) -> Result<SecureAuthResponse, reqwest::Error> {
+        retry::get_secure_bytes(self, url, auth_headers, accept, retry_opts).await
+    }
+
     /// Negotiate an ecosystem's metadata representation while retaining the
     /// shared request budget and URL-scoped authorization on redirects.
     pub async fn get_bytes_with_secure_auth_and_accept(

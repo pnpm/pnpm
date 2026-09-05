@@ -1,6 +1,9 @@
+mod archive_request;
+mod archive_retry;
 mod download;
 mod error;
 mod extract;
+mod ingestion;
 mod local_tarball;
 mod prefetch;
 mod zip_archive;
@@ -416,233 +419,42 @@ impl<'a> IngestTarballToStore<'a> {
         &self,
         revision_addressed: bool,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let &IngestTarballToStore {
-            store_dir,
-            package_integrity,
-            package_url,
-            package_id,
-            requester,
-            verify_store_integrity,
-            strict_store_pkg_content_check,
-            prefetched_cas_paths,
-            store_projection,
-            ..
-        } = self;
-
-        // Before hitting the network, check the SQLite store index: if the
-        // tarball is already in the CAFS we can reuse its per-file paths
-        // and skip the download entirely. This is the payoff of the v11
-        // store migration (<https://github.com/pnpm/pacquet/issues/244>) — pnpm and pacquet share `index.db`, so a
-        // previous install of the same (integrity, pkg_id) pair leaves an
-        // entry we can read back here.
-        //
-        // The lookup is best-effort. A missing `index.db`, a missing row,
-        // an undecodable entry, or any CAFS file that has gone missing
-        // from disk all fall through to the download path below.
-        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
-        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
-        // Deep-clones the inner map, unlike the `Arc`-preserving path
-        // in `run_with_mem_cache`: this signature returns an owned
-        // `HashMap`, and widening it would reach into
-        // `IngestTarballToStore`'s return type. Affordable because
-        // only cache-miss snapshots reach here, where the clone is
-        // dwarfed by the download it avoids.
-        if let Some(prefetched) = prefetched_cas_paths
-            && let Some(cache_key) = cache_key.as_deref()
-            && let Some(cas_paths) = prefetched.get(cache_key)
-        {
-            tracing::info!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "Reusing prefetched CAFS entry — skipping download",
-            );
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-            return Ok((**cas_paths).clone());
-        }
-        if let Some(cache_key) = cache_key.clone() {
-            let cached = load_cached_cas_paths::<Reporter>(
-                self.store_index.clone(),
-                store_dir,
-                cache_key,
-                verify_store_integrity,
-                store_projection.package_content_check(strict_store_pkg_content_check),
-                Arc::clone(&self.verified_files_cache),
-            )
-            .await?;
-            if let Some(cas_paths) = cached {
-                tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                return Ok(cas_paths);
-            }
-            if let (
-                Some(package_integrity),
-                ArchiveStoreProjection::Package { append_manifest: Some(_) },
-            ) = (package_integrity, store_projection)
-            {
-                let cached = load_legacy_synthesized_cas_paths::<Reporter>(
-                    self.store_index.clone(),
-                    store_dir,
-                    &package_integrity.to_string(),
-                    package_id,
-                    verify_store_integrity,
-                    Arc::clone(&self.verified_files_cache),
-                    store_projection,
-                )
-                .await?;
-                if let Some(cas_paths) = cached {
-                    tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing compatible legacy CAFS entry — skipping download");
-                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                    return Ok(cas_paths);
-                }
-            }
-        }
-        self.fetch_and_extract_inner::<Reporter>(false, revision_addressed)
-            .await
-            .map(|result| result.files_map)
+        self.ingestion(revision_addressed).run::<Reporter>().await
     }
 
-    /// Fetch the requested archive, verify any expected integrity, and return its CAFS files.
-    /// Unlike [`Self::run_without_mem_cache`], this does not reuse cached content.
-    /// Archives without an expected integrity are indexed by their computed SHA-512.
+    /// Fetch without cache reuse, indexing unpinned archives by computed integrity.
     pub async fn fetch_and_extract<Reporter: self::Reporter>(
         &self,
     ) -> Result<FetchedTarball, TarballError> {
-        self.fetch_and_extract_inner::<Reporter>(true, false).await
+        self.ingestion(false).fetch::<Reporter>(true).await
     }
 
-    async fn fetch_and_extract_inner<Reporter: self::Reporter>(
-        &self,
-        record_computed_integrity: bool,
-        revision_addressed: bool,
-    ) -> Result<FetchedTarball, TarballError> {
-        let &IngestTarballToStore {
-            http_client,
-            store_dir,
-            package_integrity,
-            package_unpacked_size,
-            package_file_count,
-            package_url,
-            package_id,
-            requester,
-            retry_opts,
-            auth_headers,
-            store_projection,
-            ..
-        } = self;
-        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
-        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
-        let store_index_writer = self.store_index_writer.clone();
-        // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
-        // ride along in the deref-destructure above. `.clone()`
-        // here bumps the Arc refcount — cheap, and the trait
-        // object is shared with the install dispatcher that
-        // owns the original.
-        let ignore_file_pattern = self.ignore_file_pattern.clone();
-
-        // Offline-mode gate: nothing past this point is served from a
-        // cache. pnpm gates only its metadata path on `--offline`;
-        // pacquet has no metadata path on the frozen-install flow, so
-        // the gate lands here. Error rather than fall through to the
-        // network — same shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`,
-        // scoped to tarballs because that's what pacquet's frozen
-        // install needs network for.
-        if self.offline && local_file_tarball_path(package_url).is_none() {
-            tracing::warn!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "offline mode: tarball missing from local store; refusing network fetch",
-            );
-            return Err(TarballError::NoOfflineTarball {
-                package_id: package_id.to_string(),
-                url: package_url.to_string(),
-            });
-        }
-
-        tracing::info!(target: "pacquet::download", ?package_url, "New cache");
-
-        // Run the full fetch + integrity + extract pipeline under
-        // pnpm's retry policy: a single retried closure wraps both the
-        // network side and the integrity-check + extract side, so a
-        // flaky transfer that survives TCP framing but fails the
-        // SHA-512 hash or trips gzip / tar parsing recovers via
-        // re-fetch instead of aborting the install
-        // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
-        // [`is_transient_error`].
-        let (computed_integrity, mut cas_paths, mut pkg_files_idx) =
-            fetch_and_extract_with_retry::<Reporter>(
-                http_client,
-                package_url,
-                package_integrity,
-                package_unpacked_size,
-                download_priority(package_unpacked_size, package_file_count),
-                package_id,
-                requester,
-                store_dir,
-                retry_opts,
-                auth_headers,
-                ignore_file_pattern,
-                progress_key,
+    fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {
+        ingestion::ArchiveIngestion {
+            http_client: self.http_client,
+            store_dir: self.store_dir,
+            store_index: &self.store_index,
+            store_index_writer: &self.store_index_writer,
+            verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
+            verified_files_cache: &self.verified_files_cache,
+            package_integrity: self.package_integrity,
+            package_url: self.package_url,
+            package_id: self.package_id,
+            requester: self.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: self.retry_opts,
+            auth_headers: self.auth_headers,
+            ignore_file_pattern: &self.ignore_file_pattern,
+            offline: self.offline,
+            progress_reported: &self.progress_reported,
+            store_projection: self.store_projection,
+            format: ingestion::ArchiveFormat::TarGz {
+                unpacked_size: self.package_unpacked_size,
+                file_count: self.package_file_count,
                 revision_addressed,
-            )
-            .await?;
-
-        match store_projection {
-            ArchiveStoreProjection::Package { append_manifest } => {
-                if let Some(manifest_bytes) = append_manifest {
-                    apply_append_manifest(
-                        store_dir,
-                        manifest_bytes,
-                        &mut cas_paths,
-                        &mut pkg_files_idx,
-                    )?;
-                }
-                apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
-            }
-            ArchiveStoreProjection::RawArchive => {}
+            },
         }
-
-        let manifest = pkg_files_idx.manifest.clone();
-        // Only legacy cache rows omit this; fresh extraction always records it.
-        let requires_build =
-            pkg_files_idx.requires_build.expect("fresh extraction records build requirement");
-
-        // Hand the per-tarball files index off to the shared writer task
-        // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
-        // don't queue a half-built row that a successful retry would
-        // duplicate. `queue` is a non-blocking `UnboundedSender::send`;
-        // the writer task owns one connection and batches whatever it
-        // drains in one `BEGIN IMMEDIATE; ... ; COMMIT`. `None` means the
-        // writer failed to open or the caller handed us none — the row
-        // is dropped with a `warn!` and the next install misses on this
-        // cache key, matching the read path's stance.
-        let cache_key = cache_key.or_else(|| {
-            record_computed_integrity.then(|| {
-                store_projection.store_index_key(&computed_integrity.to_string(), package_id)
-            })
-        });
-        match (cache_key, store_index_writer) {
-            (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),
-            (Some(index_key), None) => tracing::warn!(
-                target: "pacquet::download",
-                ?index_key,
-                "no shared store-index writer; skipping index row for this tarball",
-            ),
-            (None, _) => tracing::debug!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "resolution carries no integrity; skipping index row for this tarball",
-            ),
-        }
-
-        Ok(FetchedTarball {
-            integrity: computed_integrity,
-            files_map: cas_paths,
-            manifest,
-            requires_build,
-        })
     }
 }
 

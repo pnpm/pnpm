@@ -21,7 +21,9 @@ use std::{future::Future, time::Duration};
 
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
-use crate::{ThrottledClient, ThrottledClientGuard, redact_url_credentials};
+use crate::{
+    AuthHeaders, SecureAuthResponse, ThrottledClient, ThrottledClientGuard, redact_url_credentials,
+};
 
 /// Settings for the per-request retry loop. Maps to the
 /// `fetch-retries` / `fetch-retry-factor` / `fetch-retry-mintimeout` /
@@ -234,6 +236,56 @@ where
                 attempt += 1;
             }
             Err(error) => return Err(error),
+        }
+    }
+}
+
+pub(crate) async fn get_secure_bytes(
+    client: &ThrottledClient,
+    url: &str,
+    auth: &AuthHeaders,
+    accept: Option<&str>,
+    retry_opts: RetryOpts,
+) -> Result<SecureAuthResponse, reqwest::Error> {
+    let result = retry_async(
+        url,
+        retry_opts,
+        |error| match error {
+            SecureAttemptError::Response(_) => true,
+            SecureAttemptError::Request(error) => !error.is_builder() && !error.is_redirect(),
+        },
+        || async {
+            let response = client
+                .get_bytes_with_secure_auth_and_accept(url, auth, accept)
+                .await
+                .map_err(SecureAttemptError::Request)?;
+            if should_retry_status(response.status) {
+                Err(SecureAttemptError::Response(response))
+            } else {
+                Ok(response)
+            }
+        },
+    )
+    .await;
+    match result {
+        Ok(response) | Err(SecureAttemptError::Response(response)) => Ok(response),
+        Err(SecureAttemptError::Request(error)) => Err(error),
+    }
+}
+
+enum SecureAttemptError {
+    Response(SecureAuthResponse),
+    Request(reqwest::Error),
+}
+
+impl std::fmt::Debug for SecureAttemptError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Response(response) => {
+                formatter.debug_tuple("HTTP").field(&response.status).finish()
+            }
+            // Response bodies and transport error URLs can contain registry credentials.
+            Self::Request(_) => formatter.write_str("request transport or body error"),
         }
     }
 }

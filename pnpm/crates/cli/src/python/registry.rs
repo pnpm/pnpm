@@ -6,12 +6,12 @@ use miette::{IntoDiagnostic, Result, WrapErr, bail};
 use pep440_rs::{Version, VersionSpecifiers};
 use pep508_rs::PackageName;
 use pnpm_config::Config;
-use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc};
 use url::Url;
 
 #[derive(Deserialize)]
@@ -63,36 +63,16 @@ impl Registry<'_> {
             })?;
             serde_json::from_slice::<CachedIndex>(&contents).into_diagnostic()?
         } else {
-            let mut attempt = 0;
-            let response = loop {
-                let response = self
-                    .client
-                    .get_bytes_with_secure_auth_and_accept(
-                        index_url.as_str(),
-                        &self.auth,
-                        Some("application/vnd.pypi.simple.v1+json"),
-                    )
-                    .await;
-                let retry = match &response {
-                    Ok(response) => {
-                        response.status.is_server_error()
-                            || response.status == reqwest::StatusCode::TOO_MANY_REQUESTS
-                    }
-                    Err(error) => error.is_timeout() || error.is_connect(),
-                };
-                if !retry || attempt >= self.config.fetch_retries {
-                    break response.into_diagnostic()?;
-                }
-                let delay = self
-                    .config
-                    .fetch_retry_mintimeout
-                    .saturating_mul(u64::from(
-                        self.config.fetch_retry_factor.saturating_pow(attempt),
-                    ))
-                    .min(self.config.fetch_retry_maxtimeout);
-                tokio::time::sleep(Duration::from_millis(delay)).await;
-                attempt += 1;
-            };
+            let response = self
+                .client
+                .get_bytes_with_secure_auth_and_retry(
+                    index_url.as_str(),
+                    &self.auth,
+                    Some("application/vnd.pypi.simple.v1+json"),
+                    self.config.retry_opts(),
+                )
+                .await
+                .into_diagnostic()?;
             if !response.status.is_success() {
                 bail!("Python index request for {name} returned {}", response.status);
             }
@@ -174,12 +154,7 @@ impl Registry<'_> {
             package_id: &package_id,
             requester: "Python environment",
             prefetched_cas_paths: None,
-            retry_opts: RetryOpts {
-                retries: self.config.fetch_retries,
-                factor: self.config.fetch_retry_factor,
-                min_timeout: Duration::from_millis(self.config.fetch_retry_mintimeout),
-                max_timeout: Duration::from_millis(self.config.fetch_retry_maxtimeout),
-            },
+            retry_opts: self.config.retry_opts(),
             auth_headers: &self.auth,
             archive_prefix: None,
             ignore_file_pattern: None,

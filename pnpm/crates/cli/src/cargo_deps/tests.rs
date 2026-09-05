@@ -300,6 +300,7 @@ async fn sparse_index_fetch_uses_configured_request_auth() {
         &ThrottledClient::default(),
         &auth_headers,
         false,
+        RetryOpts { retries: 0, ..RetryOpts::default() },
     )
     .await
     .unwrap();

@@ -2553,6 +2553,17 @@ impl Config {
         Self::default()
     }
 
+    /// The resolved retry policy for metadata and artifact requests.
+    #[must_use]
+    pub fn retry_opts(&self) -> pnpm_network::RetryOpts {
+        pnpm_network::RetryOpts {
+            retries: self.fetch_retries,
+            factor: self.fetch_retry_factor,
+            min_timeout: std::time::Duration::from_millis(self.fetch_retry_mintimeout),
+            max_timeout: std::time::Duration::from_millis(self.fetch_retry_maxtimeout),
+        }
+    }
+
     /// The resolved settings used to construct an install HTTP client.
     #[must_use]
     pub fn network_settings(&self) -> pnpm_network::NetworkSettings {

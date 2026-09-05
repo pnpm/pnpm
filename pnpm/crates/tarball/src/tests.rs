@@ -1,3 +1,5 @@
+mod archive_contract;
+
 use super::{
     ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
     RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,

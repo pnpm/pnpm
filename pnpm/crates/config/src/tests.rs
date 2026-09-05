@@ -477,6 +477,22 @@ pub fn network_settings_defaults_match_pnpm() {
 }
 
 #[test]
+fn retry_options_use_the_resolved_network_budget() {
+    let config = Config {
+        fetch_retries: 4,
+        fetch_retry_factor: 3,
+        fetch_retry_mintimeout: 17,
+        fetch_retry_maxtimeout: 91,
+        ..Config::default()
+    };
+    let policy = config.retry_opts();
+    assert_eq!(policy.retries, 4);
+    assert_eq!(policy.factor, 3);
+    assert_eq!(policy.min_timeout, std::time::Duration::from_millis(17));
+    assert_eq!(policy.max_timeout, std::time::Duration::from_millis(91));
+}
+
+#[test]
 pub fn network_settings_maps_custom_config_values() {
     let mut config = Config::new();
     config.network_concurrency = 8;

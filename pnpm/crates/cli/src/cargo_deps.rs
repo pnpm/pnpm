@@ -19,7 +19,6 @@ use std::{
     process::Command,
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
-    time::Duration,
 };
 
 pub(crate) mod add;
@@ -186,12 +185,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     let auth_headers = Arc::clone(&config.auth_headers);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let logged_methods = Arc::new(AtomicU8::new(0));
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
+    let retry_opts = config.retry_opts();
     let requester = format!("cargo workspace at {}", root_dir.display());
     let concurrency = config.network_concurrency.clamp(1, 16);
 
@@ -289,6 +283,7 @@ pub(crate) async fn latest_version(
         http_client,
         auth_headers,
         config.offline,
+        config.retry_opts(),
     )
     .await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
@@ -355,6 +350,7 @@ async fn fetch_sparse_index(
                         &http_client,
                         &auth_headers,
                         config.offline,
+                        config.retry_opts(),
                     )
                     .await?;
                     Ok::<_, miette::Report>((name, contents))
@@ -374,6 +370,7 @@ async fn fetch_sparse_index_file(
     http_client: &ThrottledClient,
     auth_headers: &AuthHeaders,
     offline: bool,
+    retry_opts: RetryOpts,
 ) -> Result<String> {
     let relative_path = sparse_index_path(name)?;
     let cache_path = cache_dir.join(&relative_path);
@@ -385,7 +382,7 @@ async fn fetch_sparse_index_file(
 
     let url = format!("{}/{relative_path}", sparse_index.trim_end_matches('/'));
     let response = http_client
-        .get_bytes_with_secure_auth_headers(&url, auth_headers)
+        .get_bytes_with_secure_auth_and_retry(&url, auth_headers, None, retry_opts)
         .await
         .into_diagnostic()
         .wrap_err_with(|| format!("fetch sparse index entry for {name}"))?;
