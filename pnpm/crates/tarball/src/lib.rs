@@ -475,6 +475,27 @@ impl<'a> IngestTarballToStore<'a> {
                 emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
                 return Ok(cas_paths);
             }
+            if let (
+                Some(package_integrity),
+                ArchiveStoreProjection::Package { append_manifest: Some(_) },
+            ) = (package_integrity, store_projection)
+            {
+                let cached = load_legacy_synthesized_cas_paths::<Reporter>(
+                    self.store_index.clone(),
+                    store_dir,
+                    &package_integrity.to_string(),
+                    package_id,
+                    verify_store_integrity,
+                    Arc::clone(&self.verified_files_cache),
+                    store_projection,
+                )
+                .await?;
+                if let Some(cas_paths) = cached {
+                    tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing compatible legacy CAFS entry — skipping download");
+                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                    return Ok(cas_paths);
+                }
+            }
         }
         self.fetch_and_extract_inner::<Reporter>(false, revision_addressed)
             .await

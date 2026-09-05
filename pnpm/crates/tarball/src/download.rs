@@ -42,7 +42,7 @@ pub enum ArchiveStoreProjection<'a> {
     RawArchive,
 }
 
-impl ArchiveStoreProjection<'_> {
+impl<'a> ArchiveStoreProjection<'a> {
     /// Ordinary package keys stay byte-for-byte compatible with pnpm's existing
     /// store. Projections that change the archive's file set use separate
     /// namespaces so they cannot reuse an incompatible row.
@@ -85,6 +85,19 @@ impl ArchiveStoreProjection<'_> {
             Self::Package { .. } if strict => PackageContentCheck::Strict,
             Self::Package { .. } => PackageContentCheck::Warn,
             Self::RawArchive => PackageContentCheck::Skip,
+        }
+    }
+
+    pub(crate) fn legacy_synthesized_store_row(
+        self,
+        integrity: &str,
+        package_id: &str,
+    ) -> Option<(String, &'a [u8])> {
+        match self {
+            Self::Package { append_manifest: Some(manifest) } => {
+                Some((store_index_key(integrity, package_id), manifest))
+            }
+            Self::Package { append_manifest: None } | Self::RawArchive => None,
         }
     }
 }

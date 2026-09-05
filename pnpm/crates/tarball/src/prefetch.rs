@@ -5,8 +5,8 @@
 //! store-index lookups entirely.
 
 use super::{
-    Arc, HashMap, IntoParallelIterator, PackageContentCheck, ParallelIterator, PathBuf,
-    TarballError,
+    Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
+    ParallelIterator, PathBuf, TarballError,
 };
 use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
@@ -396,6 +396,53 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
             Ok(None)
         }
     }
+}
+
+/// Reuse a pre-projection-key runtime row only when its synthesized
+/// `package.json` is byte-for-byte the one requested by this projection.
+/// This keeps offline upgrades working without letting two runtime manifests
+/// share the legacy row.
+pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>(
+    index: Option<SharedReadonlyStoreIndex>,
+    store_dir: &'static StoreDir,
+    integrity: &str,
+    package_id: &str,
+    verify_store_integrity: bool,
+    verified_files_cache: SharedVerifiedFilesCache,
+    store_projection: ArchiveStoreProjection<'_>,
+) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+    let Some((legacy_key, expected_manifest)) =
+        store_projection.legacy_synthesized_store_row(integrity, package_id)
+    else {
+        return Ok(None);
+    };
+    let Some(cas_paths) = load_cached_cas_paths::<Reporter>(
+        index,
+        store_dir,
+        legacy_key,
+        verify_store_integrity,
+        PackageContentCheck::Skip,
+        verified_files_cache,
+    )
+    .await?
+    else {
+        return Ok(None);
+    };
+    let Some(package_json_path) = cas_paths.get("package.json") else {
+        return Ok(None);
+    };
+    let Ok(cached_manifest) = tokio::fs::read(package_json_path).await else {
+        return Ok(None);
+    };
+    if cached_manifest != expected_manifest {
+        tracing::debug!(
+            target: "pacquet::download",
+            ?package_id,
+            "legacy store row has a different synthesized manifest; treating it as a miss",
+        );
+        return Ok(None);
+    }
+    Ok(Some(cas_paths))
 }
 
 /// Read every requested row's undecoded bytes, holding the store-index

@@ -10,7 +10,8 @@ use super::{
     STREAM_ENTRY_BUFFER_MAX, TarballError, UNIX_EPOCH, VerifyChecksumError,
     allocate_tarball_buffer, apply_append_manifest, apply_placeholder_manifest,
     auth_header_for_package_download, emit_progress_found_in_store, is_transient_error,
-    load_cached_cas_paths, post_download_semaphore, tarball_error_to_request_retry,
+    load_cached_cas_paths, load_legacy_synthesized_cas_paths, post_download_semaphore,
+    tarball_error_to_request_retry,
 };
 use pnpm_fs::file_mode;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
@@ -608,7 +609,7 @@ impl IngestZipArchiveToStore<'_> {
             return Ok((**cas_paths).clone());
         }
         let cached = load_cached_cas_paths::<Reporter>(
-            store_index,
+            store_index.clone(),
             store_dir,
             cache_key,
             verify_store_integrity,
@@ -620,6 +621,24 @@ impl IngestZipArchiveToStore<'_> {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
             emit_progress_found_in_store::<Reporter>(package_id, requester, None);
             return Ok(cas_paths);
+        }
+        if matches!(store_projection, ArchiveStoreProjection::Package { append_manifest: Some(_) })
+        {
+            let cached = load_legacy_synthesized_cas_paths::<Reporter>(
+                store_index,
+                store_dir,
+                &package_integrity.to_string(),
+                package_id,
+                verify_store_integrity,
+                Arc::clone(&self.verified_files_cache),
+                store_projection,
+            )
+            .await?;
+            if let Some(cas_paths) = cached {
+                tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing compatible legacy CAFS entry — skipping zip download");
+                emit_progress_found_in_store::<Reporter>(package_id, requester, None);
+                return Ok(cas_paths);
+            }
         }
 
         // Offline-mode gate (zip archive). Same shape as the tarball

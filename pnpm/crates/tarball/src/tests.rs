@@ -2459,6 +2459,97 @@ async fn store_index_partitions_synthesized_package_manifests_by_content() {
 }
 
 #[tokio::test]
+async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let package_id = "artifact@1.0.0";
+    let package_integrity = integrity(
+        "sha512-z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysPYCfdwTgVb0suyqF4bmI3ZJno7K1aUa6Q==",
+    );
+    let manifest = br#"{"name":"artifact","version":"1.0.0"}"#;
+    let readme = b"legacy runtime archive";
+    let (_, manifest_hash) = store_path.write_cas_file(manifest, false).unwrap();
+    let (_, readme_hash) = store_path.write_cas_file(readme, false).unwrap();
+    let legacy_key = store_index_key(&package_integrity.to_string(), package_id);
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &legacy_key,
+            &PackageFilesIndex {
+                manifest: Some(serde_json::from_slice(manifest).unwrap()),
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([
+                    (
+                        "README.md".to_string(),
+                        CafsFileInfo {
+                            digest: format!("{readme_hash:x}"),
+                            mode: 0o644,
+                            size: readme.len() as u64,
+                            checked_at: None,
+                        },
+                    ),
+                    (
+                        "package.json".to_string(),
+                        CafsFileInfo {
+                            digest: format!("{manifest_hash:x}"),
+                            mode: 0o644,
+                            size: manifest.len() as u64,
+                            checked_at: None,
+                        },
+                    ),
+                ]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let store_index = StoreIndex::shared_readonly_in(store_path);
+    let ingest = |append_manifest| IngestTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: store_index.clone(),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&package_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "https://example.test/runtime.tgz",
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: Some(append_manifest),
+        },
+    };
+
+    let files = ingest(manifest)
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("a matching legacy runtime row should remain available offline");
+    assert_eq!(std::fs::read(&files["package.json"]).unwrap(), manifest);
+    assert_eq!(std::fs::read(&files["README.md"]).unwrap(), readme);
+
+    let error = ingest(br#"{"name":"other","version":"1.0.0"}"#)
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect_err("a different synthesized manifest must not reuse the legacy row");
+    assert!(matches!(error, TarballError::NoOfflineTarball { .. }));
+    drop(store_dir);
+}
+
+#[tokio::test]
 async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
     let local_dir = tempdir().unwrap();
     let tarball_path = local_dir.path().join("artifact.tgz");
