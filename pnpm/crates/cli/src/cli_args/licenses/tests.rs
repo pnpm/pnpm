@@ -221,6 +221,68 @@ snapshots:
 }
 
 #[test]
+fn keeps_unmanaged_runtime_shaped_dependencies() {
+    let lockfile: Lockfile = serde_saphyr::from_str(
+        r"
+lockfileVersion: '9.0'
+importers:
+  .:
+    dependencies:
+      electron:
+        specifier: 1.0.0
+        version: 'runtime:1.0.0'
+      node:
+        specifier: 1.0.0
+        version: 'runtime:1.0.0'
+packages:
+  electron@runtime:1.0.0:
+    resolution:
+      type: variations
+      variants: []
+    version: 1.0.0
+  electron-child@1.0.0:
+    resolution: {integrity: sha512-electron-child}
+  node@runtime:1.0.0:
+    resolution: {integrity: sha512-node}
+    version: 1.0.0
+  node-child@1.0.0:
+    resolution: {integrity: sha512-node-child}
+snapshots:
+  electron@runtime:1.0.0:
+    dependencies:
+      electron-child: 1.0.0
+  electron-child@1.0.0: {}
+  node@runtime:1.0.0:
+    dependencies:
+      node-child: 1.0.0
+  node-child@1.0.0: {}
+",
+    )
+    .unwrap();
+    let include =
+        Include { dependencies: true, dev_dependencies: true, optional_dependencies: true };
+
+    let dependencies = collect_dependencies(
+        &lockfile,
+        lockfile.importers.keys(),
+        include,
+        &InstallabilityOptions {
+            current_os: "linux",
+            current_cpu: "x64",
+            current_libc: "glibc",
+            ..Default::default()
+        },
+    );
+
+    assert_eq!(dependencies.len(), 4);
+    for key in
+        ["electron@runtime:1.0.0", "electron-child@1.0.0", "node@runtime:1.0.0", "node-child@1.0.0"]
+    {
+        assert_eq!(dependencies[&key.parse().unwrap()], BelongsTo::Prod);
+    }
+}
+
+#[test]
 fn renders_dev_classification() {
     let info = LicenseInfo {
         name: "dev-only".to_string(),

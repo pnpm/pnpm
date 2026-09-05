@@ -55,12 +55,13 @@ export async function lockfileToLicenseNode (
   const dependencies: Record<string, LicenseNode> = Object.fromEntries(
     (await Promise.all(step.dependencies.map(async (dependency): Promise<[string, LicenseNode] | null> => {
       const { depPath, pkgSnapshot, next } = dependency
-
-      // Runtimes downloaded via devEngines are managed by pnpm itself, not licensed dependencies
-      if (isRuntimeDepPath(depPath)) {
+      if (
+        isRuntimeDepPath(depPath) &&
+        'type' in pkgSnapshot.resolution &&
+        pkgSnapshot.resolution.type === 'variations'
+      ) {
         return null
       }
-
       const { name, version, registryName } = nameVerFromPkgSnapshot(depPath, pkgSnapshot)
 
       const packageInstallable = packageIsInstallable(pkgSnapshot.id ?? depPath, {
