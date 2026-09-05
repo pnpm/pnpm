@@ -206,6 +206,23 @@ pub struct AddArgs {
     /// Force-enable lifecycle scripts for this invocation.
     #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
     pub no_ignore_scripts: bool,
+    /// Fail on a cache miss instead of fetching from the registry, using
+    /// only packages already in the store. Same flag as `pnpm install`;
+    /// `pnpm install <pkg>` rewrites to `add`, so this must parse here too.
+    #[clap(long, overrides_with = "no_offline")]
+    pub offline: bool,
+    /// Allow network fetches even when the configuration enables offline
+    /// mode.
+    #[clap(long = "no-offline", overrides_with = "offline")]
+    pub no_offline: bool,
+    /// Prefer packages already in the cache over the network, even past
+    /// their freshness window.
+    #[clap(long, overrides_with = "no_prefer_offline")]
+    pub prefer_offline: bool,
+    /// Don't prefer cached packages even when the configuration enables
+    /// it.
+    #[clap(long = "no-prefer-offline", overrides_with = "prefer_offline")]
+    pub no_prefer_offline: bool,
     /// Permit adding dependencies to a multi-package workspace root without `-w`.
     #[clap(
         long = "ignore-workspace-root-check",
@@ -264,6 +281,12 @@ impl AddArgs {
             self.ignore_scripts,
             self.no_ignore_scripts,
             config.ignore_scripts,
+        );
+        config.offline = resolve_bool_override(self.offline, self.no_offline, config.offline);
+        config.prefer_offline = resolve_bool_override(
+            self.prefer_offline,
+            self.no_prefer_offline,
+            config.prefer_offline,
         );
         config.ignore_workspace_root_check = resolve_bool_override(
             self.ignore_workspace_root_check,

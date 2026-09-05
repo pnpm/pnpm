@@ -970,6 +970,30 @@ fn add_ignore_pnpmfile_flag_applies_to_config() {
     assert!(config.ignore_pnpmfile, "flag present → config set");
 }
 
+/// `pnpm add` / `pnpm install <pkg>` (rewritten to add) must accept the
+/// same `--offline` / `--prefer-offline` pair as `pnpm install`.
+#[test]
+fn add_takes_the_offline_flags_install_accepts() {
+    let args = add_args(&["pacquet", "add", "foo", "--offline", "--prefer-offline"]);
+    assert!(args.offline);
+    assert!(args.prefer_offline);
+
+    let mut config = pnpm_config::Config::default();
+    args.apply_cli_config(&mut config);
+    assert!(config.offline);
+    assert!(config.prefer_offline);
+
+    let negated = add_args(&["pacquet", "add", "foo", "--no-offline", "--no-prefer-offline"]);
+    let mut config = pnpm_config::Config {
+        offline: true,
+        prefer_offline: true,
+        ..pnpm_config::Config::default()
+    };
+    negated.apply_cli_config(&mut config);
+    assert!(!config.offline, "the CLI negation turns a yaml `true` back off");
+    assert!(!config.prefer_offline);
+}
+
 /// The install-family commands pnpm accepts `--ignore-pnpmfile` on.
 /// `remove`, `prune`, `import`, `rebuild`, and `link` reject it there,
 /// so they must reject it here too.
