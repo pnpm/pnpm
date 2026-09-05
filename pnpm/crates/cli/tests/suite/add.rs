@@ -145,6 +145,39 @@ fn mixed_add_updates_node_and_cargo_projects_together() {
 }
 
 #[test]
+fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
+    let (root, cache_dir) = cargo_add_project();
+    let local_package = root.path().join("local-package");
+    std::fs::create_dir(&local_package).expect("create local npm package");
+    std::fs::write(
+        local_package.join("package.json"),
+        r#"{"name":"local-package","version":"1.0.0"}"#,
+    )
+    .expect("write local npm manifest");
+    let node_manifest_path = root.path().join("package.json");
+    let cargo_manifest_path = root.path().join("Cargo.toml");
+    let cargo_lock_path = root.path().join("Cargo.lock");
+    let node_manifest = r#"{"name":"app","version":"1.0.0"}"#;
+    std::fs::write(&node_manifest_path, node_manifest).expect("write root npm manifest");
+    let cargo_manifest = std::fs::read(&cargo_manifest_path).expect("snapshot Cargo manifest");
+    let cargo_lock = std::fs::read(&cargo_lock_path).expect("snapshot Cargo lockfile");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "local-package@file:./local-package", "crate:foo@1", "--offline"])
+        .assert()
+        .failure();
+
+    assert_eq!(std::fs::read_to_string(node_manifest_path).unwrap(), node_manifest);
+    assert_eq!(std::fs::read(cargo_manifest_path).unwrap(), cargo_manifest);
+    assert_eq!(std::fs::read(cargo_lock_path).unwrap(), cargo_lock);
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    assert!(!root.path().join("node_modules/.pnpm/lock.yaml").exists());
+}
+
+#[test]
 fn add_crate_in_a_cargo_workspace_member_updates_the_workspace_lockfile() {
     let root = TempDir::new().expect("create Cargo workspace");
     let cache_dir = root.path().join("cache");
