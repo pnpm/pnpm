@@ -275,6 +275,35 @@ fn error_action_follows_the_dependency_state() {
     drop(root);
 }
 
+/// Dedicated workspace lockfiles record one project in each workspace
+/// state file. The pre-run check must validate the project being run,
+/// rather than comparing that state to every workspace package.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_check_only_the_active_workspace_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let root_marker = workspace.join("root-marker.txt");
+    write_manifest(&workspace, &root_marker);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let project_marker = project.join("project-marker.txt");
+    write_manifest(&project, &project_marker);
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    pacquet_in(&project).with_args(["run", "hello"]).assert().success();
+    assert!(root_marker.exists(), "the root script must run");
+    assert!(project_marker.exists(), "the workspace script must run");
+
+    drop(root);
+}
+
 /// `warn` reports the drift but still runs the script.
 #[cfg(unix)]
 #[test]

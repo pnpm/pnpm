@@ -165,6 +165,16 @@ pub fn check_deps_status_before_run_at(
         return cannot_check();
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
+    let manifest = match pnpm_workspace::read_project_manifest_only(dir) {
+        Ok(manifest) => manifest,
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. }) => {
+            return None;
+        }
+        Err(_) => return cannot_check(),
+    };
+    let Some(manifest_dir) = manifest.path().parent() else {
+        return cannot_check();
+    };
     let root_manifest = match pnpm_workspace::read_project_manifest_only(&workspace_root) {
         Ok(manifest) => manifest,
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
@@ -182,8 +192,9 @@ pub fn check_deps_status_before_run_at(
         None => None,
     };
     // A pinned `lockfileDir` is where the install left the state and the
-    // lockfile; the root manifest above stays where the workspace put it.
-    let lockfile_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    // lockfile. With dedicated workspace lockfiles it is the active
+    // project's directory, just as it is during install.
+    let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
@@ -199,13 +210,20 @@ pub fn check_deps_status_before_run_at(
             Err(_) => return cannot_check(),
         },
     };
-    let Ok(workspace_projects) =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-    else {
-        return cannot_check();
+    let workspace_projects = if config.shares_one_lockfile() {
+        let Ok(projects) = load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
+        else {
+            return cannot_check();
+        };
+        projects
+    } else {
+        None
     };
-    let project_manifests =
-        build_project_manifests_list(&root_manifest, workspace_projects.as_deref());
+    let project_manifests = if config.shares_one_lockfile() {
+        build_project_manifests_list(&root_manifest, workspace_projects.as_deref())
+    } else {
+        vec![(lockfile_root.clone(), &manifest)]
+    };
     let lockfile = if config.lockfile {
         LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
