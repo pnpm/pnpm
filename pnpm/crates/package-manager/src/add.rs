@@ -880,15 +880,19 @@ async fn resolve_added_dependency<'a>(
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
+    let protocol_prefixed_name = protocol_prefixed_selector_name(package_selector);
     let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
-        (None, Some(specifier)) => {
+        (None, Some(specifier)) if protocol_prefixed_name.is_none() => {
             resolve_aliasless_specifier(specifier, config, http_client_arc, manifest).await?
         }
         _ => None,
     };
     let (package_name, explicit_spec) = match aliasless.as_ref() {
         Some(dep) => (dep.package_name.as_str(), Some(dep.manifest_specifier.as_str())),
-        None => split_name_spec(package_selector),
+        None => match protocol_prefixed_name {
+            Some(name) => (name, Some(package_selector)),
+            None => split_name_spec(package_selector),
+        },
     };
 
     // The dependency's current specifier, so a re-add keeps the
@@ -1347,7 +1351,11 @@ async fn resolve_explicit_registry_spec(
     meta_cache: &InMemoryPackageMetaCache,
     fetch_locker: &PackumentFetchLocker,
 ) -> Result<Option<String>, AddError> {
-    if spec.starts_with("npm:") {
+    if spec.starts_with("npm:")
+        || spec.starts_with("jsr:")
+        || spec.starts_with("workspace:")
+        || spec.starts_with("catalog:")
+    {
         return Ok(None);
     }
     let registries: std::collections::HashMap<String, String> =
@@ -1519,11 +1527,38 @@ fn workspace_save_specifier(
 /// `@<version>` part. The version separator is the first `@` at or after
 /// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
 /// version.
+///
+/// If the argument is prefixed with a named dependency protocol, the package
+/// name is extracted from the protocol string, and the entire argument is
+/// treated as the explicit spec.
 fn split_name_spec(input: &str) -> (&str, Option<&str>) {
+    if let Some(name) = protocol_prefixed_selector_name(input) {
+        return (name, Some(input));
+    }
+
     match input.get(1..).and_then(|rest| rest.find('@')).map(|offset| offset + 1) {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }
+}
+
+fn protocol_prefixed_selector_name(input: &str) -> Option<&str> {
+    for prefix in ["npm:", "jsr:", "catalog:"] {
+        if let Some(rest) = input.strip_prefix(prefix) {
+            return Some(protocol_prefixed_name(rest));
+        }
+    }
+    let rest = input.strip_prefix("workspace:")?;
+    if rest.starts_with('.') || rest.starts_with('/') || rest.starts_with('~') {
+        return None;
+    }
+    Some(protocol_prefixed_name(rest))
+}
+
+fn protocol_prefixed_name(rest: &str) -> &str {
+    let name_end =
+        rest.get(1..).and_then(|input| input.find('@')).map_or(rest.len(), |offset| offset + 1);
+    &rest[..name_end]
 }
 
 /// The specifier `pacquet add <name>@<spec>` saves when `<spec>` isn't a plain
