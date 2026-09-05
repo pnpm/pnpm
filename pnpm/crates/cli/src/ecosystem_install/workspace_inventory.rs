@@ -25,12 +25,21 @@ impl EcosystemManifest {
 /// Manifest paths available to every ecosystem participating in an install.
 pub(crate) struct EcosystemWorkspaceInventory {
     workspace_root: PathBuf,
+    managed_directories: Vec<PathBuf>,
     contents: OnceCell<pnpm_workspace::WorkspaceInventory>,
 }
 
 impl EcosystemWorkspaceInventory {
-    pub(crate) fn new(workspace_root: PathBuf) -> Self {
-        Self { workspace_root, contents: OnceCell::new() }
+    pub(crate) fn new(workspace_root: PathBuf, config: &pnpm_config::Config) -> Self {
+        let managed_directories = vec![
+            config.store_dir.root().to_path_buf(),
+            config.cache_dir.clone(),
+            config.state_dir.clone(),
+            config.modules_dir.clone(),
+            config.virtual_store_dir.clone(),
+            config.global_virtual_store_dir.clone(),
+        ];
+        Self { workspace_root, managed_directories, contents: OnceCell::new() }
     }
 
     pub(crate) async fn manifests(&self, manifest: EcosystemManifest) -> Result<&[PathBuf]> {
@@ -38,6 +47,7 @@ impl EcosystemWorkspaceInventory {
             .contents
             .get_or_try_init(|| {
                 let workspace_root = self.workspace_root.clone();
+                let managed_directories = self.managed_directories.clone();
                 async move {
                     tokio::task::spawn_blocking(move || {
                         let manifest_basenames = EcosystemManifest::ALL
@@ -48,6 +58,7 @@ impl EcosystemWorkspaceInventory {
                             &workspace_root,
                             &manifest_basenames,
                             IGNORED_DIRECTORY_BASENAMES,
+                            &managed_directories,
                         )
                     })
                     .await

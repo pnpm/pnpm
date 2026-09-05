@@ -19,32 +19,56 @@ use std::{
     sync::Arc,
 };
 
-pub(crate) enum Projects<'a> {
-    Root(&'a Path),
-    Workspace(&'a EcosystemWorkspaceInventory),
-}
-
-pub(crate) struct InstallOptions<'a> {
-    pub(crate) projects: Projects<'a>,
-    pub(crate) resolve: bool,
-    pub(crate) selection: manifest::DependencySelection,
-}
-
-pub(crate) struct Prepared {
+struct Prepared {
     root: PathBuf,
     lock: String,
     environment: Option<tempfile::TempDir>,
+    previous_environment: Option<Option<PathBuf>>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct AddOptions<'a> {
-    pub(crate) requirements: &'a [String],
-    pub(crate) development: bool,
-    pub(crate) exact: bool,
-    pub(crate) prefix: Option<&'a str>,
+struct AddOptions<'a> {
+    requirements: &'a [String],
+    development: bool,
+    exact: bool,
+    prefix: Option<&'a str>,
 }
 
-pub(crate) fn save_added(
+pub(crate) fn plan_add<Reporter: self::Reporter + 'static>(
+    context: InstallContext,
+    root: &Path,
+    requirements: Vec<String>,
+    development: bool,
+    exact: bool,
+    prefix: Option<String>,
+) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
+    if !context.config.python.enabled {
+        bail!("pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml");
+    }
+    let path = root.join("pyproject.toml");
+    let metadata = vec![path.clone(), root.join("pylock.toml")];
+    let prepare = async move {
+        manifest::add(&path, &requirements, development)?;
+        let config = context.config;
+        let mut prepared =
+            prepare::<Reporter>(context, vec![path], true, manifest::DependencySelection::ALL)
+                .await?;
+        save_added(
+            &mut prepared,
+            config,
+            AddOptions {
+                requirements: &requirements,
+                development,
+                exact,
+                prefix: prefix.as_deref(),
+            },
+        )?;
+        Ok(prepared)
+    };
+    Ok(pnpm_install_coordinator::InstallTask::new(metadata, prepare))
+}
+
+fn save_added(
     prepared: &mut [Prepared],
     config: &pnpm_config::Config,
     options: AddOptions<'_>,
@@ -79,21 +103,26 @@ pub(crate) fn save_added(
     Ok(())
 }
 
-pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
+pub(crate) async fn plan<Reporter: self::Reporter + 'static>(
     context: InstallContext,
-    options: InstallOptions<'_>,
+    inventory: &EcosystemWorkspaceInventory,
+    selection: manifest::DependencySelection,
+) -> Result<pnpm_install_coordinator::InstallTask<'static>> {
+    let manifests = inventory.manifests(EcosystemManifest::Python).await?.to_vec();
+    let metadata = manifests.iter().map(|path| path.with_file_name("pylock.toml")).collect();
+    Ok(pnpm_install_coordinator::InstallTask::new(
+        metadata,
+        prepare::<Reporter>(context, manifests, false, selection),
+    ))
+}
+
+async fn prepare<Reporter: self::Reporter + 'static>(
+    context: InstallContext,
+    manifests: Vec<PathBuf>,
+    resolve: bool,
+    selection: manifest::DependencySelection,
 ) -> Result<Vec<Prepared>> {
-    let InstallOptions { projects, resolve, selection } = options;
     let config = context.config;
-    if !config.python.enabled {
-        return Ok(Vec::new());
-    }
-    let manifests = match projects {
-        Projects::Root(root) => vec![root.join("pyproject.toml")],
-        Projects::Workspace(inventory) => {
-            inventory.manifests(EcosystemManifest::Python).await?.to_vec()
-        }
-    };
     let mut roots = Vec::new();
     for path in manifests {
         let contents = tokio::fs::read_to_string(&path)
@@ -218,6 +247,7 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
                 root,
                 lock: toml::to_string_pretty(&lock).into_diagnostic()?,
                 environment,
+                previous_environment: None,
             });
         }
         Ok(prepared)
@@ -233,66 +263,42 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
     result
 }
 
-pub(crate) fn publish(prepared: Vec<Prepared>) -> Result<()> {
-    if prepared.is_empty() {
-        return Ok(());
-    }
-    let mut published = Vec::new();
-    let outcome = (|| {
-        for project in &prepared {
-            if let Some(environment) = &project.environment {
-                let previous = validate_environment_link(&project.root)?;
-                published.push((&project.root, previous));
-                publish_link(&project.root, environment.path())?;
-            }
-            let lock_path = project.root.join("pylock.toml");
-            let previous = match fs::read_to_string(&lock_path) {
-                Ok(contents) => Some(contents),
-                Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-                Err(error) => return Err(error).into_diagnostic(),
-            };
-            if previous.as_deref() != Some(&project.lock) {
-                pnpm_fs::write_atomic(&lock_path, project.lock.as_bytes()).into_diagnostic()?;
-            }
+impl pnpm_install_coordinator::PreparedInstall for Prepared {
+    fn publish(&mut self) -> Result<()> {
+        if let Some(environment) = &self.environment {
+            self.previous_environment = Some(validate_environment_link(&self.root)?);
+            publish_link(&self.root, environment.path())?;
+        }
+        let lock_path = self.root.join("pylock.toml");
+        let previous = match fs::read_to_string(&lock_path) {
+            Ok(contents) => Some(contents),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
+            Err(error) => return Err(error).into_diagnostic(),
+        };
+        if previous.as_deref() != Some(&self.lock) {
+            pnpm_fs::write_atomic(&lock_path, self.lock.as_bytes()).into_diagnostic()?;
         }
         Ok(())
-    })();
-    if outcome.is_err() {
-        let mut rollback_error = None;
-        for (root, previous) in published.into_iter().rev() {
-            let restored = if let Some(previous) = previous {
-                publish_link(root, &previous)
-            } else {
-                match pnpm_fs::remove_symlink_dir(&root.join(".venv")) {
-                    Ok(()) => Ok(()),
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-                    Err(error) => Err(error).into_diagnostic(),
-                }
-            };
-            if let Err(error) = restored {
-                rollback_error = Some(error);
-            }
-        }
-        if let Some(error) = rollback_error {
-            for project in prepared {
-                if let Some(environment) = project.environment {
-                    let _ = environment.keep();
-                }
-            }
-            return Err(error.wrap_err(
-                "Python environment rollback failed; retained generations for recovery",
-            ));
+    }
+
+    fn rollback(&mut self) -> Result<()> {
+        match &self.previous_environment {
+            Some(Some(previous)) => publish_link(&self.root, previous),
+            Some(None) => match pnpm_fs::remove_symlink_dir(&self.root.join(".venv")) {
+                Ok(()) => Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error).into_diagnostic(),
+            },
+            None => Ok(()),
         }
     }
-    outcome?;
-    for project in prepared {
-        if let Some(environment) = project.environment {
+
+    fn retain(self: Box<Self>) {
+        if let Some(environment) = self.environment {
             let _ = environment.keep();
         }
     }
-    Ok(())
 }
-
 fn ensure_environment_parent(root: &Path) -> Result<()> {
     let mut path = root.to_path_buf();
     for component in [".pnpm", "python-envs"] {

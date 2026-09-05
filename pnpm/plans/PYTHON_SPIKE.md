@@ -93,8 +93,10 @@ generations are retained if rollback itself fails. Successful older generations
 remain available to already-running executables.
 
 Mixed adds hold the workspace metadata lock and restore participating manifests
-and lockfiles on failure. Ordinary installs retain npm/Cargo's existing failure
-semantics: their metadata and materialized files are not a global transaction.
+and lockfiles on failure. Cargo and Python use the shared publication barrier
+and metadata rollback for ordinary installs as well. npm retains its existing
+ordinary-install failure semantics; its metadata and materialized files are not
+a global transaction.
 Immutable CAS data and metadata caches may survive any failure.
 This is in-process rollback, not a crash journal or a globally atomic
 multi-directory commit. Automatic generation garbage collection remains open.
@@ -160,10 +162,10 @@ Shared HTTP/auth/CAS contracts work with a real second registry protocol and a
 different package layout. Resolution and lockfile semantics remain Python-owned.
 No universal package graph or lockfile writer was needed.
 
-The new lifecycle requirement is staged publication: returning only
-`Result<()>` cannot express prepare, publish and rollback. The CLI currently
-retains Python's prepared generations until all participants settle.
-A stabilized adapter boundary needs an explicit publication contract and an
-authoritative mutation footprint. Target-dependent projections also need
+Staged publication and authoritative metadata ownership are implemented in
+the shared `pnpm-install-coordinator` crate. Cargo and Python produce prepared
+projections through the same contract; npm enrolls with its existing in-place
+materialization semantics. Both `install` and mixed `add` use this lifecycle.
+See [ECOSYSTEM_INSTALL.md](./ECOSYSTEM_INSTALL.md) for ownership, failure semantics
+and the extension boundary. Target-dependent projections still need native
 interpreter identity; immutable archive identity alone is insufficient.
-These findings come from the integrated paths, not synthetic metadata writers.

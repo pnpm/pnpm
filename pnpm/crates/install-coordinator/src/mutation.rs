@@ -4,9 +4,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf};
 
 pub(crate) struct MetadataMutation {
     snapshots: Vec<MetadataFile>,
-    // Every mixed add targeting this Cargo workspace takes the same advisory
-    // lock from before capture through either commit or rollback.
-    // Keeping it here makes the transaction lifetime structural.
+    // Hold the workspace advisory lock from capture through publication or rollback.
     _lock: fs::File,
 }
 

@@ -1,7 +1,6 @@
-use super::{FindWorkspaceInventoryError, is_ignorable_discovery_error};
+use super::{FindWorkspaceInventoryError, IgnoredDirectories, is_ignorable_discovery_error};
 use cap_primitives::{ambient_authority, fs};
 use std::{
-    collections::BTreeSet,
     ffi::OsStr,
     io,
     path::{Path, PathBuf},
@@ -14,7 +13,7 @@ struct PendingDirectory {
 
 pub(super) fn walk_workspace(
     workspace_root: &Path,
-    ignored: &BTreeSet<&OsStr>,
+    ignored: &IgnoredDirectories<'_>,
     mut before_read: impl FnMut(&Path) -> io::Result<()>,
     mut before_open_directory: impl FnMut(&Path) -> io::Result<()>,
     mut visit_file: impl FnMut(PathBuf, &OsStr),
@@ -73,7 +72,7 @@ pub(super) fn walk_workspace(
 fn collect_directory_entries(
     directory: &PendingDirectory,
     entries: fs::ReadDir,
-    ignored: &BTreeSet<&OsStr>,
+    ignored: &IgnoredDirectories<'_>,
     before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
@@ -97,7 +96,7 @@ fn collect_directory_entries(
 fn collect_entry(
     directory: &PendingDirectory,
     entry: &fs::DirEntry,
-    ignored: &BTreeSet<&OsStr>,
+    ignored: &IgnoredDirectories<'_>,
     before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
@@ -128,11 +127,11 @@ fn collect_directory(
     parent: &PendingDirectory,
     file_name: &OsStr,
     path: PathBuf,
-    ignored: &BTreeSet<&OsStr>,
+    ignored: &IgnoredDirectories<'_>,
     before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
     pending: &mut Vec<PendingDirectory>,
 ) -> Result<(), FindWorkspaceInventoryError> {
-    if ignored.contains(file_name) {
+    if ignored.contains(file_name, &path) {
         return Ok(());
     }
     before_open_directory(&path).map_err(|source| {

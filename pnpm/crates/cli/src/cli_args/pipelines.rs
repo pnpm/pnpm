@@ -439,33 +439,17 @@ impl InstallPipeline {
             )
             .await;
         }
-        let workspace_inventory =
-            ecosystem_install::EcosystemWorkspaceInventory::new(config_root.clone());
-        let python_development = args
-            .dependency_options
-            .dependency_groups(cfg.optional)
-            .any(|group| group == pnpm_package_manifest::DependencyGroup::Dev);
-        let python_production = args
-            .dependency_options
-            .dependency_groups(cfg.optional)
-            .any(|group| group == pnpm_package_manifest::DependencyGroup::Prod);
-        let python_metadata = if cfg.python.enabled {
-            let paths = workspace_inventory
-                .manifests(ecosystem_install::EcosystemManifest::Python)
-                .await?
-                .iter()
-                .map(|manifest| manifest.with_file_name("pylock.toml"))
-                .collect::<Vec<_>>();
-            Some(
-                ecosystem_install::MetadataMutation::capture(
-                    cfg.workspace_dir.clone().unwrap_or_else(|| config_root.clone()),
-                    paths,
-                )
-                .await?,
-            )
-        } else {
-            None
-        };
+        let ecosystem_plan = ecosystem_install::plan::<Reporter>(
+            ecosystem_install::InstallContext {
+                config: cfg,
+                http_client: Arc::clone(&http_client),
+                lockfile_only,
+                frozen_lockfile,
+            },
+            config_root,
+            &args.dependency_options,
+        )
+        .await?;
         let node_install = run_node_install::<Reporter>(
             plan,
             args,
@@ -473,54 +457,12 @@ impl InstallPipeline {
             manifest_path,
             require_lockfile,
             lockfile,
-            Arc::clone(&http_client),
+            http_client,
         );
-        let cargo_install = crate::cargo_deps::install::<Reporter>(
-            ecosystem_install::InstallContext {
-                config: cfg,
-                http_client: Arc::clone(&http_client),
-                lockfile_only,
-                frozen_lockfile,
-            },
-            crate::cargo_deps::CargoInstallOptions {
-                projects: crate::cargo_deps::CargoInstallProjects::Workspace(&workspace_inventory),
-                lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::UseExisting,
-            },
-        );
-        let mut python_prepared = Vec::new();
-        let python_install = async {
-            python_prepared = crate::python::prepare::<Reporter>(
-                ecosystem_install::InstallContext {
-                    config: cfg,
-                    http_client,
-                    lockfile_only,
-                    frozen_lockfile,
-                },
-                crate::python::InstallOptions {
-                    projects: crate::python::Projects::Workspace(&workspace_inventory),
-                    resolve: false,
-                    selection: crate::python::manifest::DependencySelection {
-                        production: python_production,
-                        development: python_development,
-                    },
-                },
-            )
-            .await?;
-            Ok(())
-        };
-        let coordinator = ecosystem_install::EcosystemInstallCoordinator::new(node_install)
-            .with_install(cargo_install)
-            .with_install(python_install);
-        let outcome = if cfg.python.enabled {
-            coordinator.run_to_settlement().await
-        } else {
-            coordinator.run().await
-        };
-        let outcome = match outcome {
-            Ok(()) => crate::python::publish(python_prepared),
-            Err(error) => Err(error),
-        };
-        if let Some(metadata) = python_metadata { metadata.finish(outcome) } else { outcome }
+        ecosystem_plan
+            .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
+            .run()
+            .await
     }
 }
 
@@ -715,199 +657,53 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     manifest_path: PathBuf,
     package_specifier_plan: crate::package_specifier::PackageSpecifierPlan,
 ) -> miette::Result<()> {
-    if cfg.recursive {
-        return Err(miette::miette!(
-            "crate: and pypi: dependencies cannot yet be added through a recursive or filtered selection"
-        ));
-    }
-    if args.save_catalog || args.save_catalog_name.is_some() {
-        return Err(miette::miette!("crate: dependencies cannot be saved to an npm catalog"));
-    }
     let has_node_packages = !package_specifier_plan.node_packages.is_empty();
-    let has_cargo = package_specifier_plan.has_cargo();
-    let has_python = package_specifier_plan.has_python();
-    let python_development = has_python
-        .then(|| args.dependency_options.python_development())
-        .transpose()?
-        .unwrap_or(false);
-    let cargo_dependency_kind = if has_cargo {
-        args.dependency_options.cargo_dependency_kind(has_node_packages)?
-    } else {
-        crate::cargo_manifest::CargoDependencyKind::Normal
-    };
-    if has_python && !cfg.python.enabled {
-        return Err(miette::miette!(
-            "pypi: dependencies require `python.enabled: true` in pnpm-workspace.yaml"
-        ));
-    }
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir =
             manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
         cfg.anchor_lockfile_paths(&manifest_dir);
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
-    let cargo_manifest_path = prefix.join("Cargo.toml");
-    let cargo_root = if has_cargo {
-        crate::cargo_deps::workspace_root(&cargo_manifest_path).await?
-    } else {
-        prefix.clone()
-    };
-    let mut metadata_paths = add_metadata_paths(
-        cfg,
-        &manifest_path,
-        &cargo_manifest_path,
-        &cargo_root,
+    let cfg: &'static Config = cfg;
+    let plan = ecosystem_add::plan::<Reporter>(
+        ecosystem_install::InstallContext {
+            config: cfg,
+            http_client: Arc::clone(&http_client),
+            lockfile_only: args.lockfile_only,
+            frozen_lockfile: false,
+        },
+        prefix,
+        package_specifier_plan.ecosystem_packages,
+        &args,
         has_node_packages,
-    );
-    if !has_cargo {
-        metadata_paths.retain(|path| {
-            ![
-                cargo_manifest_path.clone(),
-                cargo_root.join("Cargo.lock"),
-                cargo_root.join(".cargo/config.toml"),
-            ]
-            .contains(path)
-        });
-    }
-    if has_python {
-        metadata_paths.extend([prefix.join("pyproject.toml"), prefix.join("pylock.toml")]);
-    }
-    let metadata_mutation = ecosystem_install::MetadataMutation::capture(
-        cfg.workspace_dir.clone().unwrap_or_else(|| cargo_root.clone()),
-        metadata_paths,
     )
     .await?;
-    let lockfile_only = args.lockfile_only;
-    let python_requirements = package_specifier_plan
-        .ecosystem_packages
-        .iter()
-        .filter_map(|package| match package {
-            crate::package_specifier::EcosystemPackageSpecifier::Python(requirement) => {
-                Some(requirement.clone())
-            }
-            crate::package_specifier::EcosystemPackageSpecifier::Cargo(_) => None,
-        })
-        .collect::<Vec<_>>();
-    let python_save_exact = args.save_exact;
-    let python_save_prefix = args.save_prefix.clone();
-    let outcome = async {
-        if has_python {
-            crate::python::manifest::add(
-                &prefix.join("pyproject.toml"),
-                &python_requirements,
-                python_development,
-            )?;
-        }
-        ecosystem_add::prepare(
-            cfg,
-            &cargo_manifest_path,
-            &package_specifier_plan.ecosystem_packages,
-            cargo_dependency_kind,
-            args.save_exact,
-            args.save_prefix.as_deref(),
-            Arc::clone(&http_client),
-        )
-        .await?;
-
-        let mut node_args = args;
-        node_args.package_names = package_specifier_plan.node_packages;
-        let cfg: &'static Config = cfg;
-        let node_http_client = Arc::clone(&http_client);
-        let node_install = async move {
-            if node_args.package_names.is_empty() {
-                return Ok(());
-            }
-            let state = init_shared_state(manifest_path, cfg, false, None, node_http_client)?;
-            Box::pin(node_args.run::<Reporter>(state, None)).await
-        };
-        let cargo_http_client = Arc::clone(&http_client);
-        let cargo_install = async {
-            if !has_cargo {
-                return Ok(());
-            }
-            crate::cargo_deps::install::<Reporter>(
-                ecosystem_install::InstallContext {
-                    config: cfg,
-                    http_client: cargo_http_client,
-                    lockfile_only,
-                    frozen_lockfile: false,
-                },
-                crate::cargo_deps::CargoInstallOptions {
-                    projects: crate::cargo_deps::CargoInstallProjects::Root(&cargo_root),
-                    lockfile_policy: crate::cargo_deps::CargoLockfilePolicy::Resolve,
-                },
-            )
-            .await
-        };
-        let mut python_prepared = Vec::new();
-        let python_install = async {
-            if has_python {
-                python_prepared = crate::python::prepare::<Reporter>(
-                    ecosystem_install::InstallContext {
-                        config: cfg,
-                        http_client,
-                        lockfile_only,
-                        frozen_lockfile: false,
-                    },
-                    crate::python::InstallOptions {
-                        projects: crate::python::Projects::Root(&prefix),
-                        resolve: true,
-                        selection: crate::python::manifest::DependencySelection::ALL,
-                    },
-                )
-                .await?;
-            }
-            Ok(())
-        };
-        ecosystem_install::EcosystemInstallCoordinator::new(node_install)
-            .with_install(cargo_install)
-            .with_install(python_install)
-            .run_to_settlement()
-            .await?;
-        if has_python {
-            crate::python::save_added(
-                &mut python_prepared,
-                cfg,
-                crate::python::AddOptions {
-                    requirements: &python_requirements,
-                    development: python_development,
-                    exact: python_save_exact,
-                    prefix: python_save_prefix.as_deref(),
-                },
-            )?;
-        }
-        crate::python::publish(python_prepared)
+    if !has_node_packages {
+        return plan.run().await;
     }
-    .await;
-    metadata_mutation.finish(outcome)
+    let metadata = node_add_metadata_paths(cfg, &manifest_path);
+    let mut node_args = args;
+    node_args.package_names = package_specifier_plan.node_packages;
+    let node_install = async move {
+        let state = init_shared_state(manifest_path, cfg, false, None, http_client)?;
+        Box::pin(node_args.run::<Reporter>(state, None)).await
+    };
+    plan.with_task(pnpm_install_coordinator::InstallTask::in_place(metadata, node_install))
+        .run()
+        .await
 }
 
-fn add_metadata_paths(
-    config: &Config,
-    node_manifest_path: &Path,
-    cargo_manifest_path: &Path,
-    cargo_root: &Path,
-    has_node_packages: bool,
-) -> Vec<PathBuf> {
+fn node_add_metadata_paths(config: &Config, manifest_path: &Path) -> Vec<PathBuf> {
+    let project_dir = manifest_path.parent().expect("manifest path always has a parent dir");
     let mut paths = vec![
-        cargo_manifest_path.to_path_buf(),
-        cargo_root.join("Cargo.lock"),
-        cargo_root.join(".cargo/config.toml"),
+        manifest_path.to_path_buf(),
+        config.lockfile_dir_for(project_dir).join(config.wanted_lockfile_name()),
+        // The current lockfile remains project-local even with a global virtual store.
+        config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
+        config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
     ];
-    if has_node_packages {
-        let node_project_dir =
-            node_manifest_path.parent().expect("manifest path always has a parent dir");
-        paths.extend([
-            node_manifest_path.to_path_buf(),
-            config.lockfile_dir_for(node_project_dir).join(config.wanted_lockfile_name()),
-            // The current lockfile remains project-local even when package
-            // materialization uses the global virtual store.
-            config.virtual_store_dir.join(pnpm_lockfile::Lockfile::CURRENT_FILE_NAME),
-            config.modules_dir.join(pnpm_modules_yaml::MODULES_FILENAME),
-        ]);
-        if let Some(workspace_dir) = config.workspace_dir.as_deref() {
-            paths.push(workspace_dir.join("pnpm-workspace.yaml"));
-        }
+    if let Some(workspace_dir) = config.workspace_dir.as_deref() {
+        paths.push(workspace_dir.join("pnpm-workspace.yaml"));
     }
     paths
 }

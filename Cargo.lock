@@ -4460,6 +4460,7 @@ dependencies = [
  "pnpm-graph-hasher",
  "pnpm-hooks",
  "pnpm-injected-deps-syncer",
+ "pnpm-install-coordinator",
  "pnpm-lockfile",
  "pnpm-lockfile-import",
  "pnpm-lockfile-verification",
@@ -5085,6 +5086,20 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tracing",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "pnpm-install-coordinator"
+version = "0.0.1"
+dependencies = [
+ "futures-util",
+ "libc",
+ "miette 7.6.0",
+ "pnpm-crypto-hash",
+ "pnpm-fs",
+ "tempfile",
+ "tokio",
  "windows-sys 0.61.2",
 ]
 

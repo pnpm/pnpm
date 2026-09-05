@@ -34,6 +34,7 @@ pnpm-global                            = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-injected-deps-syncer              = { workspace = true }
+pnpm-install-coordinator               = { workspace = true }
 pnpm-lockfile                          = { workspace = true }
 pnpm-lockfile-import                   = { workspace = true }
 pnpm-lockfile-verification             = { workspace = true }

@@ -96,6 +96,97 @@ fn python(root: &Path) -> Command {
     }))
 }
 
+fn cargo_project(root: &Path, name: &str) {
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        format!("[package]\nname = '{name}'\nversion = '0.1.0'\nedition = '2024'\n"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn repeated_install_excludes_configured_stores_and_caches_from_native_discovery() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    cargo_project(root.path(), "app");
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!("{workspace}\ncargo:\n  enabled: true\n"),
+    )
+    .unwrap();
+    pacquet_in(root.path()).args(["install", "--offline"]).assert().success();
+    for relative in ["store/v11/crates/cached", "cache/unpacked-project"] {
+        let directory = root.path().join(relative);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(directory.join("Cargo.toml"), "this is cached data, not a workspace manifest")
+            .unwrap();
+        fs::write(
+            directory.join("pyproject.toml"),
+            "this is cached data, not a workspace manifest",
+        )
+        .unwrap();
+    }
+    pacquet_in(root.path()).args(["install", "--offline", "--frozen-lockfile"]).assert().success();
+}
+
+#[test]
+fn failed_python_preparation_does_not_publish_cargo_metadata() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    cargo_project(root.path(), "app");
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!("{workspace}\ncargo:\n  enabled: true\n"),
+    )
+    .unwrap();
+    fs::write(root.path().join("pyproject.toml"), "not valid TOML").unwrap();
+    pacquet_in(root.path()).args(["install", "--offline"]).assert().failure();
+    for relative in ["Cargo.lock", ".cargo/config.toml", "pylock.toml", ".venv"] {
+        let path = root.path().join(relative);
+        assert!(!path.exists(), "failed preparation must not publish {path:?}");
+    }
+}
+
+#[test]
+fn failed_publication_restores_prior_cargo_workspaces_and_discards_python_generation() {
+    let root = tempfile::tempdir().unwrap();
+    project(root.path(), "https://unused.invalid", &[]);
+    let workspace = fs::read_to_string(root.path().join("pnpm-workspace.yaml")).unwrap();
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!("{workspace}\ncargo:\n  enabled: true\n"),
+    )
+    .unwrap();
+    for name in ["rust-a", "rust-b"] {
+        let directory = root.path().join(name);
+        cargo_project(&directory, name);
+        fs::create_dir(directory.join(".cargo")).unwrap();
+    }
+    let first_config = root.path().join("rust-a/.cargo/config.toml");
+    let second_config = root.path().join("rust-b/.cargo/config.toml");
+    fs::write(&first_config, "# preserve user settings\n").unwrap();
+    fs::write(&second_config, "# >>> pnpm-managed cargo sources >>>\n").unwrap();
+    let output = pacquet_in(root.path()).args(["install", "--offline"]).output().unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("{stderr}");
+    assert!(!output.status.success());
+    assert!(stderr.contains("incomplete pnpm-managed Cargo source block"));
+    assert_eq!(fs::read_to_string(first_config).unwrap(), "# preserve user settings\n");
+    assert_eq!(
+        fs::read_to_string(second_config).unwrap(),
+        "# >>> pnpm-managed cargo sources >>>\n",
+    );
+    for relative in ["rust-a/Cargo.lock", "rust-b/Cargo.lock", "pylock.toml", ".venv"] {
+        let path = root.path().join(relative);
+        assert!(!path.exists(), "failed publication must restore {path:?}");
+    }
+    assert_eq!(fs::read_dir(root.path().join(".pnpm/python-envs")).unwrap().count(), 0);
+}
+
 #[tokio::test]
 async fn discovers_independent_python_projects_and_ignores_environment_manifests() {
     let root = tempfile::tempdir().unwrap();
@@ -226,7 +317,11 @@ async fn installs_real_environment_with_ranges_extras_markers_scripts_and_offlin
     } else {
         ".venv/bin/alpha-cli"
     });
-    Command::new(command).assert().success().stdout("1.0\n");
+    Command::new(command).assert().success().stdout(if cfg!(windows) {
+        "1.0\r\n"
+    } else {
+        "1.0\n"
+    });
     assert_eq!(fs::read_to_string(root.path().join(".venv/share/alpha.txt")).unwrap(), "data file");
     let lock = fs::read_to_string(root.path().join("pylock.toml")).unwrap();
     let parsed: toml::Value = toml::from_str(&lock).unwrap();

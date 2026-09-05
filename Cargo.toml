@@ -70,6 +70,7 @@ pnpm-diagnostics                       = { path = "pnpm/crates/diagnostics" }
 pnpm-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
 pnpm-hooks                             = { path = "pnpm/crates/hooks" }
 pnpm-injected-deps-syncer              = { path = "pnpm/crates/injected-deps-syncer" }
+pnpm-install-coordinator               = { path = "pnpm/crates/install-coordinator" }
 pnpm-store-dir                         = { path = "pnpm/crates/store-dir" }
 pnpm-reporter                          = { path = "pnpm/crates/reporter" }
 pnpm-patching                          = { path = "pnpm/crates/patching" }
