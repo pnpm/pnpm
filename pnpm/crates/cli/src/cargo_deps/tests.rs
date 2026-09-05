@@ -1,8 +1,7 @@
 use super::{
     LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum, discover_manifests,
-    discover_manifests_with, ensure_workspace_directory, link_workspace, link_workspace_in,
-    materialize, parse_lockfile, sparse_index_path, update_managed_config, workspace_root,
-    write_cargo_config, write_cargo_config_in,
+    discover_manifests_with, materialize, parse_lockfile, sparse_index_path, update_managed_config,
+    workspace_root,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -16,6 +15,12 @@ use std::{
     fs,
     sync::{Arc, atomic::AtomicU8},
     time::Duration,
+};
+
+#[cfg(unix)]
+use super::{
+    ensure_workspace_directory, link_workspace, link_workspace_in, write_cargo_config,
+    write_cargo_config_in,
 };
 
 #[cfg(unix)]
