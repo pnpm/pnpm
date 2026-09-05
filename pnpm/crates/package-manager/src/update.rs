@@ -1922,7 +1922,10 @@ fn ensure_latest_resolver_chain<'chain>(
             Box::new(node_resolver),
             Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
-            Box::new(YarnResolver::new(Arc::clone(ctx.http_client_arc))),
+            Box::new(YarnResolver::new(
+                Arc::clone(ctx.http_client_arc),
+                ctx.config.tls.strict_ssl.unwrap_or(true),
+            )),
         ]);
         *chain = Some(LatestResolverChain {
             resolver,
