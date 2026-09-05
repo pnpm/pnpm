@@ -1,14 +1,17 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { WANTED_LOCKFILE } from '@pnpm/constants'
+import { LOCKFILE_VERSION, WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import gfs from '@pnpm/fs.graceful-fs'
 import { install, type InstallOptions } from '@pnpm/installing.deps-installer'
-import { readEnvLockfile, writeEnvLockfile } from '@pnpm/lockfile.fs'
+import { getWantedLockfileName, readEnvLockfile, writeEnvLockfile, writeWantedLockfile } from '@pnpm/lockfile.fs'
 import { logger } from '@pnpm/logger'
+import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import {
   createStoreController,
   type CreateStoreControllerOptions,
@@ -19,7 +22,6 @@ import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import * as structUtils from '@yarnpkg/core/structUtils'
 import { type LockFileObject, parse as parseYarnLockfile } from '@yarnpkg/lockfile'
-import { rimraf } from '@zkochan/rimraf'
 import yaml from 'js-yaml'
 import { loadJsonFile } from 'load-json-file'
 import { map as mapValues } from 'ramda'
@@ -118,16 +120,7 @@ export async function handler (
   opts: ImportCommandOptions,
   params: string[]
 ): Promise<void> {
-  const lockfileDir = opts.lockfileDir ?? opts.dir
-  const envLockfile = await readEnvLockfile(lockfileDir)
-  // Removing existing pnpm lockfile
-  // it should not influence the new one
-  await rimraf(path.join(lockfileDir, WANTED_LOCKFILE))
-  if (envLockfile) {
-    await writeEnvLockfile(lockfileDir, envLockfile)
-  }
   const versionsByPackageNames = {}
-  let preferredVersions = {}
   if (fs.existsSync(path.join(opts.dir, 'yarn.lock'))) {
     const yarnPackageLockFile = await readYarnLockFile(opts.dir)
     getAllVersionsFromYarnLockFile(yarnPackageLockFile, versionsByPackageNames)
@@ -144,8 +137,47 @@ export async function handler (
   } else {
     throw new PnpmError('LOCKFILE_NOT_FOUND', 'No lockfile found')
   }
-  preferredVersions = getPreferredVersions(versionsByPackageNames)
+  const preferredVersions = getPreferredVersions(versionsByPackageNames)
+  const lockfileDir = opts.lockfileDir ?? opts.dir
+  const lockfileName = await getWantedLockfileName(opts)
+  const lockfilePath = path.join(lockfileDir, lockfileName)
+  const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined
+  const backupPath = `${lockfilePath}.${randomUUID()}.import.bak`
+  let lockfileExisted = true
+  // The existing pnpm lockfile must not influence the imported versions.
+  try {
+    await fs.promises.rename(lockfilePath, backupPath)
+  } catch (err: unknown) {
+    if (!util.types.isNativeError(err) || !('code' in err) || err.code !== 'ENOENT') throw err
+    lockfileExisted = false
+  }
+  try {
+    if (lockfileName !== WANTED_LOCKFILE) {
+      // An absent branch lockfile would fall back to the shared lockfile.
+      await fs.promises.mkdir(lockfileDir, { recursive: true })
+      await writeWantedLockfile(lockfileDir, { lockfileVersion: LOCKFILE_VERSION, importers: {} }, { lockfileName })
+    }
+    if (envLockfile) {
+      await writeEnvLockfile(lockfileDir, envLockfile)
+    }
+    await installImportedLockfile(opts, params, preferredVersions)
+  } catch (err: unknown) {
+    await fs.promises.rm(lockfilePath, { force: true })
+    if (lockfileExisted) {
+      await fs.promises.rename(backupPath, lockfilePath)
+    }
+    throw err
+  }
+  if (lockfileExisted) {
+    await fs.promises.unlink(backupPath)
+  }
+}
 
+async function installImportedLockfile (
+  opts: ImportCommandOptions,
+  params: string[],
+  preferredVersions: PreferredVersions
+): Promise<void> {
   // For a workspace with shared lockfile
   if (opts.workspaceDir) {
     const allProjects = opts.allProjects ?? await findWorkspaceProjects(opts.workspaceDir, {
@@ -272,9 +304,9 @@ async function readNpmLockfile (dir: string): Promise<LockedPackage> {
   throw new PnpmError('NPM_LOCKFILE_NOT_FOUND', 'No package-lock.json or npm-shrinkwrap.json found')
 }
 
-function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames): Record<string, Record<string, string>> {
+function getPreferredVersions (versionsByPackageNames: VersionsByPackageNames): PreferredVersions {
   const preferredVersions = mapValues(
-    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version'])),
+    (versions) => Object.fromEntries(Array.from(versions).map((version) => [version, 'version' as const])),
     versionsByPackageNames
   )
   return preferredVersions

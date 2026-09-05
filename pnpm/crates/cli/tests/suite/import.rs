@@ -573,6 +573,98 @@ fn import_replaces_external_lockfile_and_preserves_its_env_document() {
 }
 
 #[test]
+fn import_preserves_shared_lockfile_when_writing_a_branch_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_own_storage();
+    npmrc_info.set_dist_tag(DEP_OF_PKG_WITH_1_DEP, "100.1.0", "latest");
+
+    write_file(&workspace, "package.json", NPM_FIXTURE_MANIFEST);
+    write_file(&workspace, "package-lock.json", NPM_LOCKFILE_V1);
+    write_file(&workspace, ".git/HEAD", "ref: refs/heads/feature/import\n");
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    let shared_lockfile = "# shared lockfile must stay unchanged\n";
+    write_file(root.path(), "pnpm-lock.yaml", shared_lockfile);
+    let mut env_lockfile = pnpm_lockfile::EnvLockfile::create();
+    env_lockfile.root_importer_mut().config_dependencies.insert(
+        "@pnpm.e2e/foo".to_string(),
+        pnpm_lockfile::SpecifierAndResolution {
+            specifier: "1.0.0".to_string(),
+            version: "1.0.0".to_string(),
+        },
+    );
+    env_lockfile.write(root.path()).expect("write shared env document");
+    let shared_lockfile =
+        fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile");
+    write_file(root.path(), "pnpm-lock.feature!import.yaml", "# stale branch lockfile\n");
+
+    pacquet.with_arg("import").assert().success();
+
+    let lockfile =
+        pnpm_lockfile::Lockfile::load_from_path(&root.path().join("pnpm-lock.feature!import.yaml"))
+            .expect("load branch lockfile")
+            .expect("branch lockfile exists");
+    assert_eq!(lockfile.importers.into_keys().collect::<Vec<_>>(), ["workspace"]);
+    let packages = lockfile.packages.expect("imported packages exist");
+    assert!(
+        packages.keys().any(|key| key.to_string() == "@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0"),
+    );
+    assert!(
+        !packages.keys().any(|key| key.to_string() == "@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0"),
+    );
+    assert_eq!(
+        fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile"),
+        shared_lockfile,
+    );
+    assert!(
+        !root.path().join("pnpm-lock.feature!import.yaml.import.bak").exists(),
+        "no branch lockfile backup remains",
+    );
+
+    drop((root, npmrc_info));
+}
+
+#[test]
+fn failed_import_restores_branch_lockfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_file(
+        &workspace,
+        "package.json",
+        r#"{"dependencies":{"@pnpm.e2e/hello-world-js-bin-parent":"99.99.99"}}"#,
+    );
+    write_file(&workspace, "package-lock.json", NPM_LOCKFILE_V1);
+    write_file(&workspace, ".git/HEAD", "ref: refs/heads/feature/import\n");
+    append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+    append_workspace_yaml_key(&workspace, "gitBranchLockfile", true);
+    let shared_lockfile = "# shared lockfile\n";
+    let branch_lockfile = "# branch lockfile\n";
+    write_file(root.path(), "pnpm-lock.yaml", shared_lockfile);
+    write_file(root.path(), "pnpm-lock.feature!import.yaml", branch_lockfile);
+
+    let output = pacquet.with_arg("import").assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("ERR_PNPM_NO_MATCHING_VERSION"), "stderr:\n{stderr}");
+    assert_eq!(
+        fs::read_to_string(root.path().join("pnpm-lock.feature!import.yaml"))
+            .expect("read restored branch lockfile"),
+        branch_lockfile,
+    );
+    assert_eq!(
+        fs::read_to_string(root.path().join("pnpm-lock.yaml")).expect("read shared lockfile"),
+        shared_lockfile,
+    );
+    assert!(
+        !root.path().join("pnpm-lock.feature!import.yaml.import.bak").exists(),
+        "no branch lockfile backup remains",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn failed_import_restores_external_lockfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
