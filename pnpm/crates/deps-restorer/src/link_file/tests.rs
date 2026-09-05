@@ -1,7 +1,7 @@
 use super::{
     AUTO_FIRST_TIER, LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link,
     clone_or_copy_link, downgrade_auto_tier, is_call_error, is_cross_device, link_file,
-    next_auto_tier,
+    next_auto_tier, recover_from_concurrent_import,
 };
 #[cfg(unix)]
 use super::{LINK_STATE_COPY, import_into_fresh_target};
@@ -164,6 +164,108 @@ fn eexist_recovery_rejects_a_dangling_symlink_target() {
         &dst,
     )
     .expect_err("a dangling symlink at the target is corruption, not a concurrent writer");
+}
+
+/// The writer that owns a shared slot may replace the target again
+/// before the exec-bit re-assertion opens it; it restores the bit itself,
+/// so an EEXIST whose dirent is gone by then is finished work, not a loss.
+#[test]
+#[cfg(unix)]
+fn eexist_recovery_tolerates_a_target_its_writer_replaced() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    let dst = tmp.path().join("dst");
+
+    recover_from_concurrent_import(io::Error::from(io::ErrorKind::AlreadyExists), &src, &dst)
+        .expect("a target unlinked after EEXIST belongs to a writer that finishes it");
+}
+
+/// APFS `clonefile` can report a destination another importer renamed
+/// into place as `NotFound` (pnpm/pnpm#14560). With the dirent and the
+/// source both present that is the concurrent-writer case, and the
+/// adopted target gets its exec bit re-asserted like an EEXIST one.
+#[test]
+#[cfg(unix)]
+fn spurious_not_found_with_an_existing_target_is_adopted() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dst = write_source(tmp.path(), "dst", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&dst, fs::Permissions::from_mode(0o644)).unwrap();
+
+    recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+        .expect("a NotFound against an existing target is a concurrent import");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o755, "the adopted target must be restored to 0o755");
+}
+
+#[test]
+fn not_found_without_a_target_propagates() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = tmp.path().join("dst");
+
+    let error =
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+            .expect_err("a NotFound with no target dirent is a real failure");
+    let LinkFileError::Import { from, to, error } = error;
+    assert_eq!((from, to), (src, dst));
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn not_found_without_a_source_propagates() {
+    let tmp = tempdir().unwrap();
+    let src = tmp.path().join("missing-blob");
+    let dst = write_source(tmp.path(), "dst", b"data\n");
+
+    let error =
+        recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+            .expect_err("a NotFound for a missing source is a real failure");
+    let LinkFileError::Import { error, .. } = error;
+    assert_eq!(error.kind(), io::ErrorKind::NotFound);
+}
+
+/// A dangling symlink at either path also opens as `NotFound` for the
+/// copy tier, and no concurrent importer will ever heal it.
+#[test]
+#[cfg(unix)]
+fn not_found_with_a_dangling_symlink_at_either_path_propagates() {
+    let tmp = tempdir().unwrap();
+    let dangling = |name: &str| {
+        let link = tmp.path().join(name);
+        std::os::unix::fs::symlink(tmp.path().join("missing-target"), &link).unwrap();
+        link
+    };
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = write_source(tmp.path(), "dst", b"data\n");
+
+    for (src, dst) in [(src, dangling("dangling-dst")), (dangling("dangling-src"), dst)] {
+        let error =
+            recover_from_concurrent_import(io::Error::from(io::ErrorKind::NotFound), &src, &dst)
+                .expect_err("a dangling symlink is corruption, not a concurrent writer");
+        let LinkFileError::Import { error, .. } = error;
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+}
+
+#[test]
+fn other_import_errors_propagate() {
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"data\n");
+    let dst = write_source(tmp.path(), "dst", b"data\n");
+
+    let error = recover_from_concurrent_import(
+        io::Error::from(io::ErrorKind::PermissionDenied),
+        &src,
+        &dst,
+    )
+    .expect_err("PermissionDenied is not a concurrent import");
+    let LinkFileError::Import { error, .. } = error;
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
 
 /// Hardlinking in the same directory on the same filesystem works on
