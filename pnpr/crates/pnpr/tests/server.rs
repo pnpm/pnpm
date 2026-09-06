@@ -3006,7 +3006,7 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [] } }),
+        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [], "ecosystems": [], "publish": [] } }),
     );
 
     // Reads and writes both authenticate; the viewer page is static HTML
@@ -3159,6 +3159,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
             "pnpr": {
                 "versions": [],
                 "artifacts": [],
+                "pipeline": [],
                 "fixLockfile": [],
                 "ecosystems": [],
                 "publish": [0],

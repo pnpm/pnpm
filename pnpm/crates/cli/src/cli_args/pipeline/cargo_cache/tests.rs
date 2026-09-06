@@ -10,17 +10,17 @@ fn project() -> tempfile::TempDir {
 
 #[test]
 fn restored_state_survives_eviction_and_is_independent() {
-    let a = project();
-    let b = project();
+    let first_worktree = project();
+    let second_worktree = project();
     let cache = tempfile::tempdir().unwrap();
     let entry = cache.path().join("entry");
-    let publisher = CargoCache::open(a.path(), "target").unwrap();
+    let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
     fs::create_dir_all(publisher.target.join("debug/incremental")).unwrap();
     let original = publisher.target.join("debug/incremental/state");
     fs::write(&original, b"original").unwrap();
     let modified = fs::metadata(&original).unwrap().modified().unwrap();
     publisher.publish(&entry, "inputs", &[]).unwrap();
-    let consumer = CargoCache::open(b.path(), "target").unwrap();
+    let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     let restored = consumer.target.join("debug/incremental/state");
     assert_eq!(fs::metadata(&restored).unwrap().modified().unwrap(), modified);
@@ -35,11 +35,11 @@ fn restored_state_survives_eviction_and_is_independent() {
 #[test]
 fn incomplete_and_corrupt_snapshots_never_expose_a_target() {
     for corrupt in [false, true] {
-        let a = project();
-        let b = project();
+        let first_worktree = project();
+        let second_worktree = project();
         let cache = tempfile::tempdir().unwrap();
         let entry = cache.path().join("entry");
-        let publisher = CargoCache::open(a.path(), "target").unwrap();
+        let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
         fs::create_dir(&publisher.target).unwrap();
         fs::write(publisher.target.join("state"), "good").unwrap();
         publisher.publish(&entry, "inputs", &[]).unwrap();
@@ -48,7 +48,7 @@ fn incomplete_and_corrupt_snapshots_never_expose_a_target() {
         } else {
             fs::remove_file(entry.join("files/state")).unwrap();
         }
-        let consumer = CargoCache::open(b.path(), "target").unwrap();
+        let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
         assert!(consumer.restore(&entry, "inputs").is_err());
         assert!(!consumer.target.exists());
     }
@@ -107,7 +107,7 @@ fn source_configuration_and_environment_changes_select_different_snapshots() {
             .output()
             .unwrap()
             .status
-            .success()
+            .success(),
     );
     let cache = tempfile::tempdir().unwrap();
     let environment = std::collections::BTreeMap::new();
@@ -146,13 +146,13 @@ fn incomplete_publication_is_not_visible_as_a_snapshot() {
 
 #[test]
 fn concurrent_publishers_leave_one_complete_immutable_snapshot() {
-    let a = project();
-    let b = project();
+    let first_worktree = project();
+    let second_worktree = project();
     let cache = tempfile::tempdir().unwrap();
     let entry = cache.path().join("entry");
     let publishers = [
-        CargoCache::open(a.path(), "target").unwrap(),
-        CargoCache::open(b.path(), "target").unwrap(),
+        CargoCache::open(first_worktree.path(), "target").unwrap(),
+        CargoCache::open(second_worktree.path(), "target").unwrap(),
     ];
     for (index, publisher) in publishers.iter().enumerate() {
         fs::create_dir(&publisher.target).unwrap();
@@ -198,20 +198,32 @@ fn snapshot_storage_cannot_overlap_the_build_directory() {
 #[cfg(target_os = "linux")]
 #[test]
 fn restoration_falls_back_to_copy_on_tmpfs() {
-    let a = project();
-    let b = tempfile::tempdir_in("/dev/shm").unwrap();
-    assert!(Command::new("git").arg("init").arg(b.path()).output().unwrap().status.success());
-    fs::write(b.path().join(".gitignore"), "target/\n").unwrap();
+    let first_worktree = project();
+    let second_worktree = tempfile::tempdir_in("/dev/shm").unwrap();
+    assert!(
+        Command::new("git")
+            .arg("init")
+            .arg(second_worktree.path())
+            .output()
+            .unwrap()
+            .status
+            .success(),
+    );
+    fs::write(second_worktree.path().join(".gitignore"), "target/\n").unwrap();
     let storage = tempfile::tempdir().unwrap();
     let entry = storage.path().join("entry");
-    let publisher = CargoCache::open(a.path(), "target").unwrap();
+    let publisher = CargoCache::open(first_worktree.path(), "target").unwrap();
     fs::create_dir(&publisher.target).unwrap();
     fs::write(publisher.target.join("state"), "original").unwrap();
     publisher.publish(&entry, "inputs", &[]).unwrap();
     assert!(
-        reflink_copy::reflink(entry.join("files/state"), b.path().join("clone-probe")).is_err()
+        reflink_copy::reflink(
+            entry.join("files/state"),
+            second_worktree.path().join("clone-probe")
+        )
+        .is_err(),
     );
-    let consumer = CargoCache::open(b.path(), "target").unwrap();
+    let consumer = CargoCache::open(second_worktree.path(), "target").unwrap();
     assert!(consumer.restore(&entry, "inputs").unwrap());
     fs::write(consumer.target.join("state"), "edited").unwrap();
     assert_eq!(fs::read_to_string(entry.join("files/state")).unwrap(), "original");

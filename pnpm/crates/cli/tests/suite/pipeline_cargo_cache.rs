@@ -31,7 +31,7 @@ fn pnpm(root: &Path, cache: &Path, args: &[&str]) -> String {
     format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&output.stderr),
     )
 }
 
@@ -44,44 +44,44 @@ fn run_binary(root: &Path) -> String {
 #[test]
 fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let temp = tempfile::tempdir().unwrap();
-    let a = temp.path().join("a");
-    let b = temp.path().join("b");
+    let first_worktree = temp.path().join("a");
+    let second_worktree = temp.path().join("b");
     let cache = temp.path().join("cache");
-    fs::create_dir_all(a.join("src")).unwrap();
-    git(&a, &["init"]);
-    fs::write(a.join(".gitignore"), "target/\nnode_modules/\n").unwrap();
+    fs::create_dir_all(first_worktree.join("src")).unwrap();
+    git(&first_worktree, &["init"]);
+    fs::write(first_worktree.join(".gitignore"), "target/\nnode_modules/\n").unwrap();
     fs::write(
-        a.join("Cargo.toml"),
+        first_worktree.join("Cargo.toml"),
         "[package]\nname = 'probe'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n",
     )
     .unwrap();
     fs::write(
-        a.join("src/main.rs"),
+        first_worktree.join("src/main.rs"),
         "fn main() { println!(\"one\"); println!(\"{}\", env!(\"BUILD_ROOT\")); }\n",
     )
     .unwrap();
     fs::write(
-        a.join("build.rs"),
+        first_worktree.join("build.rs"),
         r#"fn main() {
         println!("cargo:rerun-if-changed=build.rs");
         println!("cargo:rustc-env=BUILD_ROOT={}", std::env::var("CARGO_MANIFEST_DIR").unwrap());
     }"#,
     )
     .unwrap();
-    fs::write(a.join("package.json"), r#"{"name":"probe","version":"1.0.0","scripts":{"build":"cargo build --locked --offline && echo task-executed"}}"#).unwrap();
-    fs::write(a.join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    cargoTargetDir: target\n").unwrap();
+    fs::write(first_worktree.join("package.json"), r#"{"name":"probe","version":"1.0.0","scripts":{"build":"cargo build --locked --offline && echo task-executed"}}"#).unwrap();
+    fs::write(first_worktree.join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n    cargoTargetDir: target\n").unwrap();
     assert!(
         Command::new("cargo")
-            .current_dir(&a)
+            .current_dir(&first_worktree)
             .args(["generate-lockfile", "--offline"])
             .status()
             .unwrap()
-            .success()
+            .success(),
     );
-    pnpm(&a, &cache, &["install"]);
-    git(&a, &["add", "."]);
+    pnpm(&first_worktree, &cache, &["install"]);
+    git(&first_worktree, &["add", "."]);
     git(
-        &a,
+        &first_worktree,
         &[
             "-c",
             "user.name=Fixture",
@@ -94,18 +94,18 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
             "fixture",
         ],
     );
-    git(&a, &["worktree", "add", "--detach", b.to_str().unwrap()]);
+    git(&first_worktree, &["worktree", "add", "--detach", second_worktree.to_str().unwrap()]);
 
-    let first = pnpm(&a, &cache, &["pipeline", "--full"]);
+    let first = pnpm(&first_worktree, &cache, &["pipeline", "--full"]);
     assert!(first.contains("task-executed"), "{first}");
     assert!(!first.contains("Cargo build cache:"), "{first}");
-    let second = pnpm(&b, &cache, &["pipeline", "--full"]);
+    let second = pnpm(&second_worktree, &cache, &["pipeline", "--full"]);
     assert!(second.contains("restored Cargo build state"), "{second}");
     assert!(second.contains("task-executed"), "{second}");
-    assert_eq!(run_binary(&a), format!("one\n{}\n", a.display()));
-    assert_eq!(run_binary(&b), format!("one\n{}\n", b.display()));
+    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
+    assert_eq!(run_binary(&second_worktree), format!("one\n{}\n", second_worktree.display()));
 
-    let source = b.join("src/main.rs");
+    let source = second_worktree.join("src/main.rs");
     let timestamp = fs::metadata(&source).unwrap().modified().unwrap();
     fs::write(
         &source,
@@ -118,15 +118,15 @@ fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
         .unwrap()
         .set_times(FileTimes::new().set_modified(timestamp))
         .unwrap();
-    pnpm(&b, &cache, &["pipeline", "--full"]);
-    assert_eq!(run_binary(&b), format!("two\n{}\n", b.display()));
-    assert_eq!(run_binary(&a), format!("one\n{}\n", a.display()));
+    pnpm(&second_worktree, &cache, &["pipeline", "--full"]);
+    assert_eq!(run_binary(&second_worktree), format!("two\n{}\n", second_worktree.display()));
+    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
 
     fs::remove_dir_all(cache.join("pnpm/cargo-build")).unwrap();
-    assert_eq!(run_binary(&b), format!("two\n{}\n", b.display()));
-    assert_eq!(run_binary(&a), format!("one\n{}\n", a.display()));
-    let repeat = pnpm(&a, &cache, &["pipeline", "--full", "--no-cache"]);
+    assert_eq!(run_binary(&second_worktree), format!("two\n{}\n", second_worktree.display()));
+    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
+    let repeat = pnpm(&first_worktree, &cache, &["pipeline", "--full", "--no-cache"]);
     assert!(!cache.join("pnpm/cargo-build").exists());
     assert!(repeat.contains("task-executed"), "{repeat}");
-    assert_eq!(run_binary(&a), format!("one\n{}\n", a.display()));
+    assert_eq!(run_binary(&first_worktree), format!("one\n{}\n", first_worktree.display()));
 }

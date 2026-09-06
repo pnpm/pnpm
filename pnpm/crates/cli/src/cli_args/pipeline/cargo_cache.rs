@@ -43,7 +43,7 @@ impl CargoCache {
             .status()?;
         if !ignored.success() {
             return Err(io::Error::other(format!(
-                "Cargo target directory must be ignored by Git: {directory}"
+                "Cargo target directory must be ignored by Git: {directory}",
             )));
         }
         let target = project.join(relative);
@@ -91,7 +91,7 @@ impl CargoCache {
             if create_hex_hash_from_file(&target)? != file.hash {
                 return Err(io::Error::other(format!(
                     "Cargo snapshot file failed integrity: {}",
-                    file.path.display()
+                    file.path.display(),
                 )));
             }
         }
@@ -143,7 +143,7 @@ impl CargoCache {
                 } else {
                     return Err(io::Error::other(format!(
                         "Cargo snapshot contains a non-regular file: {}",
-                        item.path().display()
+                        item.path().display(),
                     )));
                 }
             }
@@ -171,7 +171,7 @@ impl CargoCache {
             return Err(io::Error::other(format!(
                 "Cargo snapshot {} overlaps the build directory {}",
                 entry.display(),
-                target.display()
+                target.display(),
             )));
         }
         Ok(())
@@ -221,7 +221,7 @@ pub(super) fn snapshot_entry(
                 .ok_or_else(|| io::Error::other("Cargo metadata has no manifest path"))?;
             if !dunce::canonicalize(manifest)?.starts_with(&canonical_repo) {
                 return Err(io::Error::other(format!(
-                    "Cargo path dependency is outside the repository: {manifest}"
+                    "Cargo path dependency is outside the repository: {manifest}",
                 )));
             }
         }
@@ -247,7 +247,7 @@ pub(super) fn snapshot_entry(
             Ok(_) => {
                 return Err(io::Error::other(format!(
                     "Cargo cache input is not a regular file: {}",
-                    absolute.display()
+                    absolute.display(),
                 )));
             }
             Err(error) => return Err(error),
@@ -322,7 +322,7 @@ fn command_output(
         return Err(io::Error::other(format!(
             "{program} {}: {}",
             args.join(" "),
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&output.stderr),
         )));
     }
     String::from_utf8(output.stdout).map_err(io::Error::other)
@@ -337,7 +337,7 @@ fn validate_relative_path(path: &Path) -> io::Result<()> {
     {
         return Err(io::Error::other(format!(
             "Cargo cache path must stay inside the project: {}",
-            path.display()
+            path.display(),
         )));
     }
     Ok(())
@@ -351,7 +351,7 @@ fn check_ancestors(root: &Path, relative: &Path) -> io::Result<()> {
             Ok(metadata) if metadata.file_type().is_symlink() => {
                 return Err(io::Error::other(format!(
                     "Cargo cache path is a symlink: {}",
-                    path.display()
+                    path.display(),
                 )));
             }
             Ok(_) => {}
@@ -367,7 +367,7 @@ fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
     if !metadata.is_file() {
         return Err(io::Error::other(format!(
             "Cargo cache file is not regular: {}",
-            source.display()
+            source.display(),
         )));
     }
     fs::create_dir_all(target.parent().expect("file parent"))?;
