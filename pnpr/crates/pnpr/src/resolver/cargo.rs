@@ -161,12 +161,21 @@ fn report_message(report: &miette::Report) -> String {
 /// The failure a resolve earns once the index bytes it holds pass
 /// [`MAX_INDEX_TOTAL_BYTES`], naming the crate the budget ran out on.
 fn over_index_budget(held: usize, name: &str) -> Option<String> {
-    (held > MAX_INDEX_TOTAL_BYTES).then(|| {
-        format!(
-            "resolving this workspace needs more than {MAX_INDEX_TOTAL_BYTES} bytes of \
-             sparse-index metadata (reached at {name})",
-        )
-    })
+    (held > MAX_INDEX_TOTAL_BYTES).then(|| index_budget_exhausted(name))
+}
+
+/// Whether a resolve holding `held` bytes has room for another entry. An
+/// entry that lands exactly on [`MAX_INDEX_TOTAL_BYTES`] is kept, but it
+/// leaves no room for the next one.
+fn index_budget_has_room(held: usize) -> bool {
+    held < MAX_INDEX_TOTAL_BYTES
+}
+
+fn index_budget_exhausted(name: &str) -> String {
+    format!(
+        "resolving this workspace needs more than {MAX_INDEX_TOTAL_BYTES} bytes of \
+         sparse-index metadata (reached at {name})",
+    )
 }
 
 /// A [`RouteHook`] bound to one crate. The fetch helpers carry no package,
@@ -276,8 +285,8 @@ impl IndexFetcher {
         }
         // Nothing more is fetched once the budget is spent, so the entries
         // still in flight bound how far past it the resolve can reach.
-        if let Some(exhausted) = over_index_budget(self.bytes_held.load(Ordering::Relaxed), name) {
-            return Err(exhausted);
+        if !index_budget_has_room(self.bytes_held.load(Ordering::Relaxed)) {
+            return Err(index_budget_exhausted(name));
         }
         // The route policy decides what this deployment may reach at all;
         // a registry a caller merely names is refused here rather than
