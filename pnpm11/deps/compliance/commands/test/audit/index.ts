@@ -422,7 +422,7 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n1 ignored: 1 info\n')
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
   })
 
   test('audit: the summary counts the advisories it prints, not the registry metadata', async () => {
@@ -460,7 +460,7 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n1 ignored: 1 info\n')
+    expect(stripAnsi(output)).toBe('All found vulnerabilities were already reviewed and decided to be ignored\n1 ignored: 1 info\n')
   })
 
   test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {

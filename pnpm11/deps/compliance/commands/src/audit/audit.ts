@@ -462,7 +462,10 @@ function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulner
   const ignoredSummary = totalIgnoredCount === 0 ? '' : `\n${totalIgnoredCount} ignored: ${listSeverityCounts(ignored)}`
   const totalVulnerabilityCount = sumSeverityCounts(found)
   if (totalVulnerabilityCount === 0) {
-    return `No known vulnerabilities found${ignoredSummary}\n`
+    const headline = totalIgnoredCount === 0
+      ? 'No known vulnerabilities found'
+      : 'All found vulnerabilities were already reviewed and decided to be ignored'
+    return `${headline}${ignoredSummary}\n`
   }
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${listSeverityCounts(found)}${ignoredSummary}`
 }

@@ -1008,7 +1008,11 @@ fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
     eprintln!("REPORT:\n{output}\n");
-    assert_eq!(output, "No known vulnerabilities found\n1 ignored: 1 high\n");
+    assert_eq!(
+        output,
+        "All found vulnerabilities were already reviewed and decided to be ignored\n\
+         1 ignored: 1 high\n",
+    );
 }
 
 #[test]
@@ -1036,7 +1040,11 @@ fn text_report_summary_counts_advisories_rather_than_registry_metadata() {
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
     eprintln!("REPORT:\n{output}\n");
-    assert_eq!(output, "No known vulnerabilities found\n1 ignored: 1 high\n");
+    assert_eq!(
+        output,
+        "All found vulnerabilities were already reviewed and decided to be ignored\n\
+         1 ignored: 1 high\n",
+    );
 }
 
 #[test]

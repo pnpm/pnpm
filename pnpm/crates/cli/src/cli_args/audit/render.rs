@@ -103,7 +103,12 @@ pub(crate) fn report_summary(
     };
     let total_vulnerability_count = found.total();
     if total_vulnerability_count == 0 {
-        return format!("No known vulnerabilities found{ignored_summary}\n");
+        let headline = if total_ignored_count == 0 {
+            "No known vulnerabilities found"
+        } else {
+            "All found vulnerabilities were already reviewed and decided to be ignored"
+        };
+        return format!("{headline}{ignored_summary}\n");
     }
     format!(
         "{} vulnerabilities found\nSeverity: {}{ignored_summary}",
