@@ -151,7 +151,6 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    // The npm surface of a registry has no sparse index.
     let response = app
         .oneshot(Request::get("/npm/~crates/index/config.json").body(Body::empty()).unwrap())
         .await

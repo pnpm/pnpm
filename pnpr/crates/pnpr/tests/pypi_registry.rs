@@ -185,8 +185,6 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         page["files"][0]["url"],
         format!("{PUBLIC_URL}/pypi/~internal/files/demo-pkg/{filename}"),
     );
-    // npm-shaped paths mean nothing on the Python surface, and the old
-    // The npm surface of a registry has no Simple API.
     let response = app.clone().oneshot(get("/pypi/demo-pkg", None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = app.oneshot(get("/npm/~internal/simple/demo-pkg/", None)).await.unwrap();
