@@ -156,9 +156,7 @@ async fn get_index_file(
                 .map(|document| document.map(|document| document.render_index()))
         }
         source @ RegistrySource::Upstream(_) => {
-            load_upstream_index(&state, &identity, &source, &key, &path)
-                .await
-                .map(|bytes| bytes.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()))
+            load_upstream_index(&state, &identity, &source, &key, &path).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     };
@@ -176,12 +174,21 @@ async fn load_upstream_index(
     source: &RegistrySource,
     key: &PackageName,
     path: &str,
-) -> Result<Option<Vec<u8>>, RegistryError> {
+) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
     let request =
         UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
-    load_upstream_document(state, upstream, &namespace, request, |document| Ok(document.bytes))
-        .await
+    let bytes =
+        load_upstream_document(state, upstream, &namespace, request, |document| Ok(document.bytes))
+            .await?;
+    bytes
+        .map(|bytes| {
+            String::from_utf8(bytes).map_err(|err| RegistryError::UpstreamResponse {
+                url: path.to_string(),
+                reason: format!("sparse index is not valid UTF-8: {err}"),
+            })
+        })
+        .transpose()
 }
 
 /// `GET api/v1/crates/<crate>/<version>/download`.
@@ -254,7 +261,7 @@ async fn download_via_upstream(
             Ok(None) => return not_found(),
             Err(err) => return error_response(err),
         };
-    let entries = match parse_index(&String::from_utf8_lossy(&index)) {
+    let entries = match parse_index(&index) {
         Ok(entries) => entries,
         Err(err) => {
             return error_response(RegistryError::UpstreamResponse {

@@ -635,3 +635,31 @@ async fn cargo_advertises_auth_for_package_specific_private_access() {
         assert_eq!(config["auth-required"], true);
     }
 }
+
+#[tokio::test]
+async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloading() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mut index = json!({
+        "name": "serde", "vers": "1.0.0", "cksum": "0".repeat(64),
+        "deps": [], "features": {}, "extra": "X",
+    })
+    .to_string()
+    .into_bytes();
+    let invalid_byte = index.iter_mut().find(|byte| **byte == b'X').unwrap();
+    *invalid_byte = 0xff;
+    let index_mock =
+        upstream.mock("GET", "/se/rd/serde").with_body(index).expect(1).create_async().await;
+    let config_mock = upstream.mock("GET", "/config.json").expect(0).create_async().await;
+    let tmp = TempDir::new().unwrap();
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), &upstream.url(), "$all"),
+        AuthState::in_memory(),
+    );
+    for path in ["/cargo/index/se/rd/serde", "/cargo/api/v1/crates/serde/1.0.0/download"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    }
+    index_mock.assert_async().await;
+    config_mock.assert_async().await;
+}
