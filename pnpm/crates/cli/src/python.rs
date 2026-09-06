@@ -318,11 +318,9 @@ impl pnpm_install_coordinator::PreparedInstall for Prepared {
         }
     }
 }
-/// Refuse a server's lockfile that answers a different question: one
-/// resolved for other requirements, another interpreter, another index, or
-/// against a different `requires-python` than this project declares. Such
-/// a lockfile would be written and then read back as stale by the next
-/// install, and a frozen one would fail outright.
+/// Refuse a lockfile that answers a different question than this install
+/// asked. Writing one would leave behind a lockfile the next install reads
+/// back as stale, and a frozen install would fail on it outright.
 fn accept_server_lockfile(
     lock: &Lockfile,
     inputs: &Inputs,
