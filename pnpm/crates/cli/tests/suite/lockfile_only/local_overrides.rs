@@ -1,4 +1,6 @@
-use crate::_utils::{ManifestDeps, pacquet_in, read_manifest, write_project_manifest};
+use crate::_utils::{
+    ManifestDeps, append_workspace_yaml_key, pacquet_in, read_manifest, write_project_manifest,
+};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{bin::CommandTempCwd, fixtures::minimal_tarball, fs::bump_mtime};
@@ -52,10 +54,23 @@ fn frozen_replay_installs_local_overrides_at_different_importer_depths() {
 
 #[test]
 fn exec_content_check_accepts_a_root_relative_link_override() {
+    assert_exec_content_check_accepts_link_override(false);
+}
+
+#[test]
+fn exec_content_check_accepts_a_link_override_from_a_custom_lockfile_dir() {
+    assert_exec_content_check_accepts_link_override(true);
+}
+
+fn assert_exec_content_check_accepts_link_override(custom_lockfile_dir: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_project_manifest(&workspace.join("linked"), "linked", ManifestDeps::default());
-    for (project, name, spec) in
-        [(".", "root", "link:linked"), ("packages/nested/a", "a", "link:../../../linked")]
+    let (lockfile_dir, root_spec, nested_spec) = if custom_lockfile_dir {
+        (root.path(), "link:../linked", "link:../../../../linked")
+    } else {
+        (workspace.as_path(), "link:linked", "link:../../../linked")
+    };
+    write_project_manifest(&lockfile_dir.join("linked"), "linked", ManifestDeps::default());
+    for (project, name, spec) in [(".", "root", root_spec), ("packages/nested/a", "a", nested_spec)]
     {
         write_project_manifest(
             &workspace.join(project),
@@ -74,9 +89,12 @@ fn exec_content_check_accepts_a_root_relative_link_override() {
          overrides:\n  linked: link:./linked\n",
     )
     .expect("write workspace settings");
+    if custom_lockfile_dir {
+        append_workspace_yaml_key(&workspace, "lockfileDir", "..");
+    }
 
     pacquet.with_arg("install").assert().success();
-    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
     let lockfile = fs::read(&lockfile_path).expect("read generated lockfile");
     bump_mtime(&workspace.join("packages/nested/a/package.json"));
 
