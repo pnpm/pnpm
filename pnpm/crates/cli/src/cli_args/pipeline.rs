@@ -337,7 +337,7 @@ pub fn run_pipeline(
             config,
             invocation,
             cache: &cache,
-            task_key: &task_keys[&key],
+            task_key: task_keys[&key].as_deref(),
             init_cwd: &init_cwd,
             base_extra_env: &base_extra_env,
             emit,
@@ -615,14 +615,21 @@ fn compute_task_keys(
     graph: &ProjectGraph<GraphPkg<'_>>,
     cache: &TaskCache,
     config: &Config,
-) -> miette::Result<HashMap<TaskKey, String>> {
-    let mut keys: HashMap<TaskKey, String> = HashMap::with_capacity(task_graph.len());
+) -> miette::Result<HashMap<TaskKey, Option<String>>> {
+    let mut keys: HashMap<TaskKey, Option<String>> = HashMap::with_capacity(task_graph.len());
     for key in sequenced_tasks {
         let node = &task_graph[key];
         let manifest = graph[node.project.as_path()].package.project.manifest.value();
         let script_bodies = task_script_bodies(node, manifest, config.enable_pre_post_scripts);
-        let mut dependency_keys: Vec<&str> =
-            node.dependencies.iter().map(|dependency| keys[dependency].as_str()).collect();
+        let Some(mut dependency_keys) = node
+            .dependencies
+            .iter()
+            .map(|dependency| keys[dependency].as_deref())
+            .collect::<Option<Vec<&str>>>()
+        else {
+            keys.insert(key.clone(), None);
+            continue;
+        };
         dependency_keys.sort_unstable();
         let task_key = cache.compute_task_key(&cache::TaskKeyInputs {
             node,
@@ -672,7 +679,7 @@ struct RunTaskOptions<'a, 'graph> {
     config: &'a Config,
     invocation: &'a PipelineInvocation,
     cache: &'a TaskCache,
-    task_key: &'a str,
+    task_key: Option<&'a str>,
     init_cwd: &'a Path,
     base_extra_env: &'a HashMap<String, String>,
     emit: fn(&LogEvent),
@@ -697,11 +704,13 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     } = *options;
     let root = node.project.as_path();
     let settings = config.tasks.get(&node.task_name);
-    let cacheable = task_cacheable(invocation, settings);
+    let cache_key = task_key.filter(|_| task_cacheable(invocation, settings));
     let start = Instant::now();
     report.task_started(summary_key, task_key);
 
-    if cacheable && let Some(stored) = cache.lookup(task_key) {
+    if let Some(cache_key) = cache_key
+        && let Some(stored) = cache.lookup(cache_key)
+    {
         match cache.restore(&stored, root, summary_key) {
             Ok(()) => {
                 capture::replay(&stored.scripts, root, emit);
@@ -736,11 +745,11 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     let execution = execute_task_with_cargo_cache(options, settings)?;
     let duration = start.elapsed().as_secs_f64() * 1e3;
     if execution.status == Status::Passed
-        && cacheable
+        && let Some(cache_key) = cache_key
         && let Some(captured) = execution.captured
     {
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        if let Err(error) = cache.store(task_key, root, summary_key, outputs, captured) {
+        if let Err(error) = cache.store(cache_key, root, summary_key, outputs, captured) {
             emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!("{summary_key}: failed to store the task in the cache: {error}"),
@@ -748,7 +757,8 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
             }));
         }
     }
-    let disposition = if cacheable { CacheDisposition::Miss } else { CacheDisposition::Bypass };
+    let disposition =
+        if cache_key.is_some() { CacheDisposition::Miss } else { CacheDisposition::Bypass };
     report.task_finished(summary_key, execution.status, disposition, duration);
     Ok(ExecutionStatus {
         status: execution.status,
@@ -774,7 +784,7 @@ fn execute_task_with_cargo_cache(
     );
     let cargo_cacheable =
         !invocation.no_cache && settings.is_some_and(|settings| settings.cache != Some(false));
-    let snapshot = if cargo_cacheable {
+    let snapshot = if cargo_cacheable && let Some(task_key) = task_key {
         match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
             Ok(snapshot) => Some(snapshot),
             Err(error) => {
@@ -805,6 +815,7 @@ fn execute_task_with_cargo_cache(
     let execution =
         execute_task_scripts(&RunTaskOptions { base_extra_env: &extra_env, ..*options })?;
     if execution.status == Status::Passed
+        && let Some(task_key) = task_key
         && let Some((entry, key, local_packages)) = &snapshot
     {
         match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
@@ -855,7 +866,8 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
     let manifest = &graph[root].package.project.manifest;
 
     let extra_env = task_environment(config, root, base_extra_env);
-    let capture_output = task_cacheable(invocation, config.tasks.get(&node.task_name));
+    let capture_output =
+        options.task_key.is_some() && task_cacheable(invocation, config.tasks.get(&node.task_name));
     let root_str = root.to_string_lossy().into_owned();
     let mut status = Status::Passed;
     let mut message = None;

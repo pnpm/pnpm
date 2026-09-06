@@ -165,3 +165,81 @@ fn dry_run_prints_the_graph_without_executing_workspace_code() {
         assert!(!project.path().join(path).exists(), "dry-run must not create {path}");
     }
 }
+
+#[test]
+fn submodule_projects_and_their_dependents_bypass_task_caching() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "workspace");
+    let module = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "module");
+    module.write_file("input", "one");
+    let _ = module.commit("initial submodule");
+    let workspace = root.path().join("workspace-src");
+    repo.write_file("package.json", r#"{"private":true}"#);
+    repo.write_file(".gitignore", "node_modules/\n**/out/\n**/runs\n");
+    repo.write_file("pnpm-workspace.yaml", "packages: ['packages/*']\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: ['^build']\n    outputs: ['out/**']\n");
+    for (name, input) in [
+        ("producer", "vendor/input"),
+        ("consumer", "../producer/out/result"),
+        ("independent", "input"),
+    ] {
+        let script = format!(
+            r#"node -e "const fs=require('fs');fs.mkdirSync('out',{{recursive:true}});fs.writeFileSync('out/result',fs.existsSync('{input}')?fs.readFileSync('{input}'):'absent');fs.appendFileSync('runs','x')""#,
+        );
+        let mut manifest =
+            serde_json::json!({"name":name,"version":"1.0.0","scripts":{"build":script}});
+        if name == "consumer" {
+            manifest["dependencies"] = serde_json::json!({"producer":"workspace:*"});
+        }
+        repo.write_file(&format!("packages/{name}/package.json"), &manifest.to_string());
+    }
+    repo.write_file("packages/independent/input", "independent");
+    Command::new("git")
+        .current_dir(&workspace)
+        .args([
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-b",
+            "main",
+            &module.file_url(),
+            "packages/producer/vendor",
+        ])
+        .assert()
+        .success();
+    let _ = repo.commit("workspace with submodule");
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(&workspace)
+            .env("XDG_CACHE_HOME", root.path().join("cache"))
+            .env("XDG_CONFIG_HOME", root.path().join("config"));
+        command
+    };
+    command().arg("install").assert().success();
+    for (index, value) in ["one", "two", "two", "absent", "absent"].into_iter().enumerate() {
+        if index == 4 {
+            fs::remove_dir(workspace.join("packages/producer/vendor")).unwrap();
+        } else if value == "absent" {
+            Command::new("git")
+                .current_dir(&workspace)
+                .args(["submodule", "deinit", "-f", "--", "packages/producer/vendor"])
+                .assert()
+                .success();
+        } else {
+            fs::write(workspace.join("packages/producer/vendor/input"), value).unwrap();
+        }
+        command().args(["pipeline", "--full"]).assert().success();
+        for name in ["producer", "consumer"] {
+            assert_eq!(
+                fs::read_to_string(workspace.join(format!("packages/{name}/out/result"))).unwrap(),
+                value,
+            );
+            assert_eq!(
+                fs::read_to_string(workspace.join(format!("packages/{name}/runs"))).unwrap(),
+                "x".repeat(index + 1),
+            );
+        }
+        assert_eq!(fs::read_to_string(workspace.join("packages/independent/runs")).unwrap(), "x");
+    }
+}

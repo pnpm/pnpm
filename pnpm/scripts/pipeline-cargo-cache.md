@@ -86,6 +86,11 @@ for this implementation.
 
 ## Pipeline execution and reporting
 
+Projects with Git submodule inputs and tasks depending on them bypass task
+and Cargo snapshot caching. Their scripts still run, including when the
+submodule contains local edits or has not been initialized. Their run reports
+record a null task key.
+
 Completed-task log capture is limited to 1 MiB per task. Tasks with larger logs
 still stream their output, but their completed result is not cached. Cargo tasks
 and tasks with caching disabled do not capture logs in memory.

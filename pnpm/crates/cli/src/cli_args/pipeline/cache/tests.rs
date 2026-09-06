@@ -176,7 +176,7 @@ fn hashing_inputs_preserves_deleted_tracked_files() {
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
     fs::remove_file(project.join("input")).unwrap();
-    let files = cache.hashed_project_files(&project).unwrap();
+    let files = cache.hashed_project_files(&project).unwrap().unwrap();
     assert!(files.is_empty(), "deleted tracked input must be absent: {files:?}");
 }
 
@@ -195,13 +195,24 @@ fn hashing_inputs_reports_read_errors() {
     );
 }
 
-#[cfg(unix)]
 #[test]
 fn hashing_inputs_rejects_non_utf8_names() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
-    fs::write(project.join(OsStr::from_bytes(b"invalid-\xff")), "source").unwrap();
+    let blob = assert_cmd::Command::new("git")
+        .current_dir(&project)
+        .args(["rev-parse", "HEAD:input"])
+        .assert()
+        .success();
+    let blob = String::from_utf8_lossy(&blob.get_output().stdout);
+    let mut record = format!("100644 {}\tinvalid-", blob.trim()).into_bytes();
+    record.extend_from_slice(b"\xff\0");
+    assert_cmd::Command::new("git")
+        .current_dir(&project)
+        .args(["update-index", "-z", "--index-info"])
+        .write_stdin(record)
+        .assert()
+        .success();
     let error = cache.hashed_project_files(&project).unwrap_err().to_string();
     assert!(error.contains("non-UTF-8") && error.contains("invalid-"), "{error}");
     assert!(error.contains(&project.display().to_string()), "{error}");
@@ -214,7 +225,7 @@ fn hashing_inputs_keeps_literal_backslashes_distinct_from_separators() {
     let project = root.path().join("inputs-src");
     repo.write_file("src/input", "nested source");
     fs::write(project.join(r"src\input"), "literal source").unwrap();
-    let files = cache.hashed_project_files(&project).unwrap();
+    let files = cache.hashed_project_files(&project).unwrap().unwrap();
     for relative in ["src/input", r"src\input"] {
         let file =
             files.iter().find(|file| file.rel_path == relative).expect("each filename is retained");
