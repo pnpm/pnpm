@@ -33,10 +33,6 @@ pub(crate) type FilesMap = HashMap<String, PathBuf>;
 /// Recursive walk of `dir`, skipping `node_modules` at any depth and
 /// dropping entries whose `stat` (or `realpath` under `resolve_symlinks`)
 /// fails with `ENOENT`.
-///
-/// A confined walk descends the root's real path, not the caller's, so
-/// the tree it reads is the one its containment check approved even if
-/// `dir` is a link that gets retargeted mid-walk.
 pub(crate) fn walk_all_files(
     dir: &Path,
     resolve_symlinks: bool,
@@ -45,6 +41,10 @@ pub(crate) fn walk_all_files(
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
     let confined_root = if allow_path_escape { None } else { Some(canonicalize_path(dir)?) };
+    // Descending the resolved root rather than `dir` keeps the tree
+    // being read the one the containment check approved: retargeting a
+    // linked `dir` mid-walk would otherwise feed entries that are
+    // ordinary files, and so never checked against the root at all.
     let root = confined_root.as_deref().unwrap_or(dir);
     walk_all_inner(root, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
