@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::{net::TcpListener as StdTcpListener, path::Path, process::Output};
+use std::{net::TcpListener as StdTcpListener, path::Path, process::Output, time::Duration};
 use tempfile::TempDir;
 use tokio::{net::TcpListener, process::Command};
 
@@ -47,6 +47,7 @@ impl CompilerSession {
             .env("SCCACHE_LOG", "debug")
             .env("SCCACHE_ERROR_LOG", self.directory.path().join("sccache.log"))
             .env("SCCACHE_MULTILEVEL_CHAIN", "disk,webdav")
+            .env("SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY", "all")
             .env("SCCACHE_WEBDAV_ENDPOINT", &self.endpoint)
             .env("SCCACHE_WEBDAV_TOKEN", "token")
             .env("SCCACHE_WEBDAV_RW_MODE", if self.readonly { "READ_ONLY" } else { "READ_WRITE" });
@@ -76,7 +77,7 @@ impl CompilerSession {
                 .unwrap(),
         );
         let stats: Value = serde_json::from_slice(&output.stdout).unwrap();
-        if !self.readonly && stats["stats"]["cache_write_errors"] != 0 {
+        if stats["stats"]["cache_write_errors"] != 0 {
             eprintln!(
                 "{}",
                 std::fs::read_to_string(self.directory.path().join("sccache.log")).unwrap()
@@ -121,6 +122,18 @@ async fn cargo_reuses_ci_compilation_with_fresh_checkout_and_backfills_disk() {
     let stats = ci.stats().await;
     assert_eq!(stats["stats"]["cache_misses"]["counts"]["Rust"], 1, "{stats}");
     assert_eq!(stats["stats"]["cache_write_errors"], 0, "{stats}");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let stats = ci.stats().await;
+            assert_eq!(stats["stats"]["cache_write_errors"], 0, "{stats}");
+            if stats["stats"]["cache_writes"] == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("CI compilation must finish uploading before stopping pnpr");
     drop(ci);
     ci_server.abort();
     // Rust cache keys include the absolute working directory. Separate machines
