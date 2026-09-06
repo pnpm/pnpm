@@ -401,9 +401,6 @@ async fn serve_staged_approve(
     // Past the commit the stage is spent, whatever the transaction could not
     // record: leaving the record listed would offer an approval that cannot
     // happen again.
-    // Past the commit the stage is spent, whatever the transaction could not
-    // record: leaving the record listed would offer an approval that cannot
-    // happen again.
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
         // cleanup must not report the approval as failed.

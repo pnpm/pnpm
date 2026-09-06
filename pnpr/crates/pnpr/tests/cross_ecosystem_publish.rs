@@ -459,6 +459,34 @@ async fn a_malformed_batch_is_a_bad_request() {
     }
 }
 
+/// `ecosystem` routes the entry; it is not part of the document a reader gets.
+#[tokio::test]
+async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
+    let tmp = TempDir::new().unwrap();
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let token = token_for(&app, "alice").await;
+    let mut entry = npm_entry("mixed-pkg", "1.0.0", b"npm-tarball-bytes");
+    entry["ecosystem"] = json!("npm");
+
+    let response = app
+        .clone()
+        .oneshot(publish_request(
+            "/-/pnpr/v0/publish",
+            &json!({ "packages": [entry] }),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let packument =
+        app.oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let packument = body_json(packument.into_body()).await;
+    assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
+    assert!(packument.get("ecosystem").is_none(), "{packument}");
+}
+
 /// A digest is hexadecimal, and an uploader may spell it in either case.
 #[tokio::test]
 async fn an_uppercase_digest_is_accepted() {

@@ -193,6 +193,18 @@ async fn validate_entry(
     let ecosystem = entry_ecosystem(&package)?;
     match ecosystem {
         Ecosystem::Npm => {
+            // `ecosystem` is this endpoint's routing field, not part of the
+            // publish document: the npm merge keeps every top-level key it
+            // does not know, so leaving it here would serve it in the
+            // packument.
+            // `ecosystem` is this endpoint's routing field, not part of the
+            // publish document: the npm merge keeps every top-level key it
+            // does not know, so leaving it here would serve it in the
+            // packument.
+            let mut package = package;
+            if let Some(entry) = package.as_object_mut() {
+                entry.remove("ecosystem");
+            }
             let name = package.get("name").and_then(Value::as_str).ok_or_else(|| {
                 RegistryError::BadRequest {
                     reason: "every npm entry in `packages` must have a string `name`".to_string(),

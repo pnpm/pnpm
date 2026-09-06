@@ -424,8 +424,6 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
 }
 
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
 /// Approving a stage spends it: the transaction committed, so the record goes
 /// even when it reports a package it could not put in the document. Leaving it
 /// listed would offer an approval that cannot happen again.
@@ -472,6 +470,8 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");
 }
 
+/// Compute the SRI `sha512-...` string the way npm clients send it
+/// in `dist.integrity`.
 fn sri_sha512(bytes: &[u8]) -> String {
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
     opts.input(bytes);
