@@ -1,6 +1,6 @@
 use super::{
-    DocumentMerge, HostedDocuments, JournaledPublish, JournaledRevisionRef, MANIFEST_FILE,
-    Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
+    DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish, JournaledRevisionRef,
+    MANIFEST_FILE, Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
 };
 use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -51,6 +51,19 @@ impl HostedDocuments for FailsThenRecordsNothing {
             return Err(RegistryError::Internal { reason: "merge failed".to_string() });
         }
         Ok(None)
+    }
+}
+
+/// A merge that fails every time, naming the attempt it failed on.
+#[derive(Default)]
+struct AlwaysFails {
+    merges: AtomicUsize,
+}
+
+impl HostedDocuments for AlwaysFails {
+    fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        let attempt = self.merges.fetch_add(1, Ordering::Relaxed);
+        Err(RegistryError::Internal { reason: format!("merge failed on attempt {attempt}") })
     }
 }
 
@@ -420,4 +433,33 @@ async fn commit_retries_a_failed_apply_and_keeps_its_own_writes_unreported() {
 
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
     assert!(outcome.unrecorded.is_empty());
+}
+
+/// When the retry fails too, the commit reports the failure that started it
+/// and leaves the sealed entry behind, which is what startup recovery picks up.
+#[tokio::test]
+async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
+    let tmp = tempdir().unwrap();
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let storage = Storage::new(
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
+        tmp.path().join("hosted"),
+        tmp.path().join("cache"),
+    )
+    .unwrap();
+    let name = PackageName::parse("pkg").unwrap();
+    let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
+    let entries = [npm_publish(&name, &document, &[])];
+    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+
+    let documents = AlwaysFails::default();
+    let err = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap_err();
+
+    assert_eq!(documents.merges.load(Ordering::Relaxed), 2);
+    assert!(err.to_string().contains("attempt 0"), "{err}");
+    let journal_entries: Vec<_> = std::fs::read_dir(tmp.path().join("cache").join(JOURNAL_DIR))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(journal_entries.len(), 1, "{journal_entries:?}");
 }
