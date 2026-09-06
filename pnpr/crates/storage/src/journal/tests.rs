@@ -1,6 +1,6 @@
 use super::{
-    DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish, JournaledRevisionRef,
-    MANIFEST_FILE, Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
+    ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
+    JournaledRevisionRef, MANIFEST_FILE, Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
 };
 use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -37,9 +37,9 @@ impl HostedDocuments for RecordsNothing {
     }
 }
 
-/// A merge that fails once and then records nothing: the shape of a first
-/// apply that wrote its document and failed afterwards, whose retry finds the
-/// entries already there.
+/// A merge that fails the first time it is asked and records nothing after:
+/// an apply that never got the document written, whose retry finds an entry
+/// that must therefore be someone else's.
 #[derive(Default)]
 struct FailsThenRecordsNothing {
     merges: AtomicUsize,
@@ -49,6 +49,30 @@ impl HostedDocuments for FailsThenRecordsNothing {
     fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
         if self.merges.fetch_add(1, Ordering::Relaxed) == 0 {
             return Err(RegistryError::Internal { reason: "merge failed".to_string() });
+        }
+        Ok(None)
+    }
+}
+
+/// A merge that writes the first package it is asked about and fails on
+/// `fails`, then records nothing for either: an apply that got one document
+/// written before it stopped, whose retry finds both entries in place.
+struct WritesOneThenFails {
+    fails: &'static str,
+    written: AtomicUsize,
+    failed: AtomicUsize,
+}
+
+impl HostedDocuments for WritesOneThenFails {
+    fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        if merge.name.as_str() == self.fails {
+            if self.failed.fetch_add(1, Ordering::Relaxed) == 0 {
+                return Err(RegistryError::Internal { reason: "merge failed".to_string() });
+            }
+            return Ok(None);
+        }
+        if self.written.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Ok(Some(merge.journaled.to_vec()));
         }
         Ok(None)
     }
@@ -266,7 +290,7 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
         .await
         .unwrap();
-    txn.apply(&storage, &NpmDocuments).await.unwrap();
+    txn.apply(&storage, &NpmDocuments, &mut ApplyProgress::default()).await.unwrap();
 
     assert_eq!(
         storage.read_hosted_revision_refs(&transaction_owned_digest).await.unwrap(),
@@ -335,7 +359,7 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
     drop(
         SealedTxn::reopen(txn_dir.clone())
             .unwrap()
-            .apply(&storage, &NpmDocuments)
+            .apply(&storage, &NpmDocuments, &mut ApplyProgress::default())
             .await
             .unwrap_err(),
     );
@@ -362,7 +386,11 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         .await
         .unwrap();
 
-    SealedTxn::reopen(txn_dir.clone()).unwrap().apply(&storage, &NpmDocuments).await.unwrap();
+    SealedTxn::reopen(txn_dir.clone())
+        .unwrap()
+        .apply(&storage, &NpmDocuments, &mut ApplyProgress::default())
+        .await
+        .unwrap();
 
     let conflicted_hosted = storage.read_hosted_packument(&conflicted_name).await.unwrap().unwrap();
     let conflicted_hosted: serde_json::Value = serde_json::from_slice(&conflicted_hosted).unwrap();
@@ -410,11 +438,11 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
     assert!(outcome.lost_blobs.is_empty());
 }
 
-/// An apply that fails partway is re-run before the commit gives up, and what
-/// its first attempt already recorded is not held against the publisher: the
-/// entries the retry finds in place may be the ones it wrote itself.
+/// An apply that fails before writing a document is re-run, and an entry the
+/// retry then finds in place was recorded by another writer: this transaction
+/// never wrote one, so the publisher hears about it.
 #[tokio::test]
-async fn commit_retries_a_failed_apply_and_keeps_its_own_writes_unreported() {
+async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
@@ -432,7 +460,44 @@ async fn commit_retries_a_failed_apply_and_keeps_its_own_writes_unreported() {
     let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
 
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
-    assert!(outcome.unrecorded.is_empty());
+    assert_eq!(outcome.unrecorded, vec!["pkg".to_string()]);
+}
+
+/// The entries the first attempt wrote itself are not reported: the retry
+/// finds them in place because this transaction put them there, and calling
+/// that a duplicate would tell a publisher their publish duplicated itself.
+#[tokio::test]
+async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
+    let tmp = tempdir().unwrap();
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let storage = Storage::new(
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
+        tmp.path().join("hosted"),
+        tmp.path().join("cache"),
+    )
+    .unwrap();
+    let written_name = PackageName::parse("written-pkg").unwrap();
+    let failed_name = PackageName::parse("failed-pkg").unwrap();
+    let written_document =
+        serde_json::to_vec(&json!({ "name": "written-pkg", "versions": {} })).unwrap();
+    let failed_document =
+        serde_json::to_vec(&json!({ "name": "failed-pkg", "versions": {} })).unwrap();
+    let entries = [
+        npm_publish(&written_name, &written_document, &[]),
+        npm_publish(&failed_name, &failed_document, &[]),
+    ];
+    // Both documents exist, so neither commit below can take the write-as-is
+    // path and every package goes through the merge.
+    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+
+    let documents = WritesOneThenFails {
+        fails: "failed-pkg",
+        written: AtomicUsize::new(0),
+        failed: AtomicUsize::new(0),
+    };
+    let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
+
+    assert_eq!(outcome.unrecorded, vec!["failed-pkg".to_string()]);
 }
 
 /// When the retry fails too, the commit reports the failure that started it

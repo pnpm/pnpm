@@ -166,6 +166,16 @@ pub struct CommitOutcome {
     pub unrecorded: Vec<String>,
 }
 
+/// What one attempt at applying a transaction got done. A failed attempt
+/// reports its progress too: the retry needs to know which documents this
+/// transaction has already written to tell its own entries from another
+/// writer's.
+#[derive(Debug, Default)]
+struct ApplyProgress {
+    outcome: CommitOutcome,
+    wrote_documents: HashSet<String>,
+}
+
 /// Handle to the journal directory of one [`Storage`].
 pub struct PublishJournal {
     root: PathBuf,
@@ -209,31 +219,26 @@ impl PublishJournal {
             }
         };
         let dir = txn.dir.clone();
-        match txn.apply(storage, documents).await {
-            Ok(outcome) => Ok(outcome),
-            Err(err) => {
-                tracing::warn!(%err, "publish apply failed after the seal; retrying it");
-                // An apply can stop with some of the batch already promoted,
-                // and past the seal there is nothing to undo. Run the same
-                // idempotent apply once more so a running server does not
-                // leave the batch half-visible until the next restart; a
-                // second failure keeps the sealed entry for startup recovery
-                // and reports the failure that started it.
-                match SealedTxn::reopen(dir) {
-                    // A retry cannot attribute a document that already holds
-                    // this transaction's entries: the first attempt may have
-                    // written them and then failed to clean up after itself.
-                    // Reporting them as recorded by someone else would tell a
-                    // publisher their publish was a duplicate of itself.
-                    Ok(txn) => txn
-                        .apply(storage, documents)
-                        .await
-                        .map(|outcome| CommitOutcome { unrecorded: Vec::new(), ..outcome })
-                        .map_err(|_| err),
-                    Err(_) => Err(err),
-                }
-            }
+        let mut first = ApplyProgress::default();
+        let Err(err) = txn.apply(storage, documents, &mut first).await else {
+            return Ok(first.outcome);
+        };
+        tracing::warn!(%err, "publish apply failed after the seal; retrying it");
+        // An apply can stop with some of the batch already promoted, and past
+        // the seal there is nothing to undo. Run the same idempotent apply
+        // once more so a running server does not leave the batch half-visible
+        // until the next restart; a second failure keeps the sealed entry for
+        // startup recovery and reports the failure that started it.
+        let Ok(txn) = SealedTxn::reopen(dir) else { return Err(err) };
+        let mut retry = ApplyProgress::default();
+        if txn.apply(storage, documents, &mut retry).await.is_err() {
+            return Err(err);
         }
+        // An entry the first attempt wrote is this transaction's own, and the
+        // retry finding it in place says nothing about another writer.
+        // Reporting it would tell a publisher their publish duplicated itself.
+        retry.outcome.unrecorded.retain(|package| !first.wrote_documents.contains(package));
+        Ok(retry.outcome)
     }
 
     /// Persist the full intent of the publish and seal it with the
@@ -302,7 +307,9 @@ impl PublishJournal {
             // rollback, which would delete an already-committed publish.
             // Abort recovery so startup fails loudly instead.
             if fs::try_exists(dir.join(COMMIT_MARKER)).await? {
-                SealedTxn::reopen(dir.clone())?.apply(storage, documents).await?;
+                SealedTxn::reopen(dir.clone())?
+                    .apply(storage, documents, &mut ApplyProgress::default())
+                    .await?;
                 tracing::info!(txn = %dir.display(), "applied publish journal entry");
             } else {
                 roll_back(&dir).await;
@@ -332,10 +339,11 @@ impl SealedTxn {
         self,
         storage: &Storage,
         documents: &dyn HostedDocuments,
-    ) -> Result<CommitOutcome> {
+        progress: &mut ApplyProgress,
+    ) -> Result<()> {
         let manifest: Manifest =
             serde_json::from_slice(&fs::read(self.dir.join(MANIFEST_FILE)).await?)?;
-        let mut outcome = CommitOutcome::default();
+        let outcome = &mut progress.outcome;
         let mut lost_tmp_paths = Vec::new();
         for (index, package) in manifest.packages.iter().enumerate() {
             let name = PackageName::parse(&package.name)?;
@@ -429,6 +437,9 @@ impl SealedTxn {
                         .await?,
                     PackumentWrite::Written,
                 );
+                if written {
+                    progress.wrote_documents.insert(package.name.clone());
+                }
             }
             if !written {
                 let update = store
@@ -446,8 +457,11 @@ impl SealedTxn {
                         },
                     )
                     .await?;
-                if update == PackumentUpdate::NotFound {
-                    outcome.unrecorded.push(package.name.clone());
+                match update {
+                    PackumentUpdate::Written => {
+                        progress.wrote_documents.insert(package.name.clone());
+                    }
+                    PackumentUpdate::NotFound => outcome.unrecorded.push(package.name.clone()),
                 }
             }
             for revision_ref in claimed.into_values().flatten() {
@@ -471,7 +485,7 @@ impl SealedTxn {
             None => false,
         };
         cleanup_lost_tmp_paths(&lost_tmp_paths, journal_removal_is_durable).await;
-        Ok(outcome)
+        Ok(())
     }
 }
 
