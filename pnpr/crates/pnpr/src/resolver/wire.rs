@@ -366,6 +366,19 @@ pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
     })
 }
 
+/// Terminal `done` frame of a Python resolve: the `pylock.toml` document
+/// the client writes. It rides the frame as JSON, which is the shape the
+/// client's own lockfile type reads.
+pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<u8> {
+    let Ok(lockfile) = serde_json::to_value(lockfile) else {
+        return br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec();
+    };
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    ndjson_line(&frame).unwrap_or_else(|_| {
+        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+    })
+}
+
 /// Terminal `error` frame for a resolution that aborted mid-stream,
 /// after one or more `package` frames may already have been sent (so the
 /// HTTP status is locked at 200 — the failure has to ride in the body).

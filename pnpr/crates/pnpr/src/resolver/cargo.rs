@@ -37,9 +37,7 @@ use std::{
 
 use axum::{http::StatusCode, response::Response};
 use futures_util::{StreamExt, TryStreamExt, stream};
-use pnpm_network::{
-    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
-};
+use pnpm_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 
 use pnpr_policy::Identity;
 use pnpr_route::{Footprint, RouteContext, RouteHook, url_has_inline_credentials};
@@ -48,7 +46,9 @@ use crate::server::StripedLocks;
 
 use super::{
     Resolver, json_error,
+    package_route::PackageRoute,
     protocol::CargoResolveRequest,
+    report_message,
     request_validation::forbidden_off_allowlist,
     wire::{cargo_done_frame, error_frame, ndjson_single_frame},
 };
@@ -151,13 +151,6 @@ pub(super) async fn handle_resolve(
     }
 }
 
-/// A diagnostic's message and its causes on one line. A resolve failure
-/// rides an NDJSON frame, where miette's rendered report would arrive as
-/// an unreadable block of escaped newlines.
-fn report_message(report: &miette::Report) -> String {
-    report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
-}
-
 /// The failure a resolve earns once the index bytes it holds pass
 /// [`MAX_INDEX_TOTAL_BYTES`], naming the crate the budget ran out on.
 fn over_index_budget(held: usize, name: &str) -> Option<String> {
@@ -176,28 +169,6 @@ fn index_budget_exhausted(name: &str) -> String {
         "resolving this workspace needs more than {MAX_INDEX_TOTAL_BYTES} bytes of \
          sparse-index metadata (reached at {name})",
     )
-}
-
-/// A [`RouteHook`] bound to one crate. The fetch helpers carry no package,
-/// so without this a route rule that names a crate would not reach the
-/// classification a resolve's fetch is made under.
-struct CrateRoute {
-    hook: RouteHook,
-    crate_key: String,
-}
-
-impl UpstreamRouteHook for CrateRoute {
-    fn authorize(&self, url: &str, _package: Option<&str>) -> Option<String> {
-        self.hook.authorize(url, Some(&self.crate_key))
-    }
-
-    fn allows_fetch(&self, url: &str) -> bool {
-        self.hook.allows_fetch(url)
-    }
-
-    fn metadata_scope(&self, url: &str, _package: Option<&str>) -> MetadataCacheScope {
-        self.hook.metadata_scope(url, Some(&self.crate_key))
-    }
 }
 
 /// Reads a sparse index for one resolve: cache first, then the registry.
@@ -267,10 +238,10 @@ impl IndexFetcher {
         let url = format!("{}/{relative_path}", self.registry);
         // The route policy classifies a fetch by the crate it is for, as the
         // Cargo registry surface does, so an upstream's per-crate rules
-        // decide the credential and the cache namespace here too. The
-        // canonical (lowercased) crate name is the key both surfaces use.
-        let crate_key = name.to_ascii_lowercase();
-        let auth = self.auth_for(&crate_key);
+        // decide the credential and the cache namespace here too. Both
+        // surfaces match rules against the lowercased crate name.
+        let canonical_name = name.to_ascii_lowercase();
+        let auth = self.auth_for(&canonical_name);
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
@@ -339,10 +310,10 @@ impl IndexFetcher {
         }
     }
 
-    /// The request auth for a fetch about `crate_key`: this server's route
-    /// policy for the caller, with the crate bound in so the package-blind
-    /// fetch helpers still classify by it.
-    fn auth_for(&self, crate_key: &str) -> AuthHeaders {
+    /// The request auth for a fetch about `canonical_name`: this server's
+    /// route policy for the caller, with the crate bound in so the
+    /// package-blind fetch helpers still classify by it.
+    fn auth_for(&self, canonical_name: &str) -> AuthHeaders {
         let hook = RouteHook::new(
             Arc::clone(&self.route),
             self.identity.clone(),
@@ -350,7 +321,7 @@ impl IndexFetcher {
             Arc::clone(&self.secret),
         );
         AuthHeaders::default()
-            .with_route_hook(Arc::new(CrateRoute { hook, crate_key: crate_key.to_string() }))
+            .with_route_hook(Arc::new(PackageRoute::new(hook, canonical_name.to_string())))
     }
 
     /// Where `url`'s index file is cached. The route scope keys the

@@ -47,6 +47,27 @@ pub struct CargoResolveRequest {
     pub registry: Option<String>,
 }
 
+/// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "pypi"`.
+///
+/// A Python resolution is for one interpreter: the same requirements
+/// resolve differently against a different marker environment or a
+/// different set of wheel tags, so the client's own travel with the
+/// request and the lockfile that comes back records them.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PypiResolveRequest {
+    /// PEP 508 requirement strings, as the project's manifest spells them.
+    pub requirements: Vec<String>,
+    /// The interpreter the environment is for.
+    pub target: pnpm_python_resolver::Target,
+    /// The Simple API base URL to resolve against. The server fetches it
+    /// only if its route policy allows that origin.
+    pub index: String,
+    /// The project's own `requires-python`, recorded in the lockfile.
+    #[serde(default)]
+    pub requires_python: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveRequestProject {

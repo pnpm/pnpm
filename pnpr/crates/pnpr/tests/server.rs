@@ -2789,7 +2789,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                 "versions": [0],
                 "artifacts": [],
                 "fixLockfile": [0],
-                "ecosystems": ["npm", "cargo"],
+                "ecosystems": ["npm", "cargo", "pypi"],
                 "publish": [],
             }
         }),

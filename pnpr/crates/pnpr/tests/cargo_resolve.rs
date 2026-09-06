@@ -285,29 +285,6 @@ async fn cargo_resolve_reports_an_unresolvable_workspace() {
 }
 
 #[tokio::test]
-async fn resolve_rejects_an_ecosystem_it_does_not_serve() {
-    let tmp = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
-    let app = router_with_auth(config_for(tmp.path().to_path_buf()), auth);
-
-    let request = Request::post("/-/pnpr/v0/resolve")
-        .header("content-type", "application/json")
-        .header("authorization", format!("Bearer {token}"))
-        .body(Body::from(json!({ "ecosystem": "pypi" }).to_string()))
-        .unwrap();
-    let response = app.oneshot(request).await.unwrap();
-
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-    let bytes = to_bytes(response.into_body(), usize::MAX).await.expect("read body");
-    assert!(
-        String::from_utf8_lossy(&bytes).contains("does not resolve pypi"),
-        "an ecosystem pnpr knows but does not resolve is named in the refusal: {}",
-        String::from_utf8_lossy(&bytes),
-    );
-}
-
-#[tokio::test]
 async fn anonymous_cargo_resolve_is_rejected() {
     let (index, mocks) = sparse_index(0).await;
     let tmp = TempDir::new().unwrap();

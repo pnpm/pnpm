@@ -51,6 +51,7 @@ pnpm-lockfile-verification    = { workspace = true }
 pnpm-network                  = { workspace = true }
 pnpm-package-manager          = { workspace = true }
 pnpm-package-manifest         = { workspace = true }
+pnpm-python-resolver          = { workspace = true }
 pnpm-reporter                 = { workspace = true }
 pnpm-resolving-npm-resolver   = { workspace = true }
 pnpm-resolving-resolver-base  = { workspace = true }
@@ -74,6 +75,8 @@ libc                          = { workspace = true }
 libsql                        = { workspace = true, optional = true }
 miette                        = { workspace = true }
 node-semver                   = { workspace = true }
+pep440_rs                     = { workspace = true }
+pep508_rs                     = { workspace = true }
 object_store                  = { workspace = true }
 reqwest                       = { workspace = true }
 rusqlite                      = { workspace = true }

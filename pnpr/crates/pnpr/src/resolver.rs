@@ -44,7 +44,9 @@
 
 mod cache;
 mod cargo;
+mod package_route;
 mod protocol;
+mod pypi;
 mod request_validation;
 mod resolve;
 mod verdict_cache;
@@ -140,6 +142,8 @@ pub(crate) struct Resolver {
     /// Serializes the fetch of one Cargo sparse-index file, so concurrent
     /// resolves of the same cold graph fetch each entry once.
     cargo_index_locks: Arc<crate::server::StripedLocks>,
+    /// The same, for a Python index's project pages and metadata files.
+    python_index_locks: Arc<crate::server::StripedLocks>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
@@ -185,6 +189,7 @@ impl Resolver {
             public_url: config.public_url.clone(),
             cargo_index_ttl: config.packument_ttl,
             cargo_index_locks: Arc::new(crate::server::StripedLocks::new()),
+            python_index_locks: Arc::new(crate::server::StripedLocks::new()),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }
     }
@@ -216,6 +221,13 @@ impl Resolver {
     /// namespace segment at fetch time.
     fn cargo_index_cache_dir(&self, registry: &str) -> PathBuf {
         self.cache_dir.join("cargo-index").join(pnpm_crypto_hash::create_hex_hash(registry))
+    }
+
+    /// Where `index`'s Python documents are cached. As with Cargo, the
+    /// origin is hashed into the path so two indexes serving the same
+    /// project never share an entry.
+    fn python_index_cache_dir(&self, index: &str) -> PathBuf {
+        self.cache_dir.join("python-index").join(pnpm_crypto_hash::create_hex_hash(index))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
@@ -423,7 +435,8 @@ fn intern_config(
 /// advertises. It has to agree with [`handle_resolve`]'s dispatch below:
 /// an ecosystem named here that the dispatch refuses would send a client to
 /// an endpoint that turns it away.
-pub(crate) const RESOLVED_ECOSYSTEMS: &[Ecosystem] = &[Ecosystem::Npm, Ecosystem::Cargo];
+pub(crate) const RESOLVED_ECOSYSTEMS: &[Ecosystem] =
+    &[Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi];
 
 /// Handle `POST /-/pnpr/v0/resolve`. One address serves every ecosystem;
 /// the body's `ecosystem` field selects which resolver reads it, and a
@@ -442,10 +455,7 @@ pub(crate) async fn handle_resolve(
         Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
-        ecosystem @ Ecosystem::Pypi => json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("this pnpr server does not resolve {ecosystem} dependencies"),
-        ),
+        Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
     }
 }
 
@@ -795,6 +805,13 @@ fn merge_policies(
         merged.extend(osv_index.policy());
     }
     merged
+}
+
+/// A diagnostic's message and its causes on one line. A resolve failure
+/// rides an NDJSON frame, where miette's rendered report would arrive as
+/// an unreadable block of escaped newlines.
+fn report_message(report: &miette::Report) -> String {
+    report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
