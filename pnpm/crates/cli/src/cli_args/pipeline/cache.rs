@@ -10,6 +10,7 @@ use super::{
     capture::CapturedScript,
     paths::{check_ancestors, validate_relative_path},
 };
+use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file, create_short_hash};
 use pnpm_workspace_task_scheduler::TaskNode;
@@ -459,6 +460,7 @@ impl TaskCache {
                         && fs::symlink_metadata(&absolute)
                             .is_err_and(|error| error.kind() == io::ErrorKind::NotFound) =>
                 {
+                    check_ancestors(project, Path::new(rel_path)).into_diagnostic()?;
                     continue;
                 }
                 Err(error) => {

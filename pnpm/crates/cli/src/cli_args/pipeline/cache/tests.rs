@@ -242,3 +242,18 @@ fn hashing_inputs_rejects_dangling_symlinks() {
     let error = cache.hashed_project_files(&project).unwrap_err().to_string();
     assert!(error.contains("linked-input"), "{error}");
 }
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_dangling_parent_symlinks() {
+    let (root, repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    repo.write_file("dir/input", "source");
+    let _ = repo.commit("nested input");
+    repo.write_file(".gitignore", "dir\n");
+    fs::remove_file(project.join("dir/input")).unwrap();
+    fs::remove_dir(project.join("dir")).unwrap();
+    std::os::unix::fs::symlink("missing", project.join("dir")).unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("symlink") && error.contains("dir"), "{error}");
+}
