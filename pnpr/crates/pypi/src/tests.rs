@@ -263,3 +263,20 @@ fn accept_negotiation_respects_quality_and_exact_media_types() {
         "application/vnd.pypi.simple.v1+html;q=0.1, text/html;q=0.9"
     )));
 }
+
+#[test]
+fn file_urls_encode_filename_delimiters() {
+    let mut document = document();
+    document.files[0].filename = "demo_pkg-1.0.0+local-py3-none-a#b?c%20 d.whl".to_string();
+    let expected =
+        "https://pnpr.test/files/demo-pkg/demo_pkg-1.0.0%2Blocal-py3-none-a%23b%3Fc%2520%20d.whl";
+    assert_eq!(
+        document.render_json("https://pnpr.test/files/demo-pkg")["files"][0]["url"],
+        expected,
+    );
+    assert!(
+        document
+            .render_html("https://pnpr.test/files/demo-pkg")
+            .contains(&format!("{expected}#sha256=aa")),
+    );
+}

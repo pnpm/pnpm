@@ -150,8 +150,8 @@ routes:
     - registry: https://downloads.example.com/
 ```
 
-Configured headers are sent only over HTTPS or loopback HTTP. An upstream
-with configured headers cannot redirect requests to another origin.
+Configured headers are sent only over HTTPS or loopback HTTP. Redirects rebuild headers for each destination, so configured credentials stay
+on the upstream origin.
 
 ## License
 

@@ -132,8 +132,8 @@ async fn discovery_rejects_redirects_before_configured_headers_reach_the_target(
     let result = upstream.fetch_search("text=foo").await;
 
     assert!(
-        matches!(&result, Err(RegistryError::Upstream { source, .. }) if source.is_redirect()),
-        "expected a blocked cross-origin redirect, got {result:?}",
+        matches!(result, Err(RegistryError::UpstreamStatus { status: 302, .. })),
+        "expected the first redirect response, got {result:?}",
     );
     redirect.assert_async().await;
     redirected.assert_async().await;
@@ -918,10 +918,17 @@ async fn fetch_artifact_response_sends_headers_only_to_the_upstream_origin() {
 }
 
 #[tokio::test]
-async fn configured_headers_cannot_cross_origins_on_redirects() {
+async fn configured_headers_are_removed_on_metadata_redirects() {
     let mut source = mockito::Server::new_async().await;
     let mut target = mockito::Server::new_async().await;
-    let target_mock = target.mock("GET", "/leak").expect(0).create_async().await;
+    let target_mock = target
+        .mock("GET", "/leak")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .match_header("x-org", mockito::Matcher::Missing)
+        .with_body("metadata")
+        .expect(1)
+        .create_async()
+        .await;
     let redirect = source
         .mock("GET", "/metadata")
         .with_status(302)
@@ -930,7 +937,10 @@ async fn configured_headers_cannot_cross_origins_on_redirects() {
         .create_async()
         .await;
     let upstream = upstream(source.url(), auth_and_custom_headers());
-    assert!(upstream.fetch_document("metadata", None, 1024).await.is_err());
+    assert!(matches!(
+        upstream.fetch_document("metadata", None, 1024).await.unwrap(),
+        FetchOutcome::Ok(_)
+    ));
     target_mock.assert_async().await;
     redirect.assert_async().await;
 }
@@ -954,4 +964,47 @@ async fn artifact_fetch_guard_rejects_initial_urls_and_redirects() {
     assert!(upstream.fetch_artifact_response(&format!("{}/artifact", source.url())).await.is_err());
     target_mock.assert_async().await;
     redirect.assert_async().await;
+}
+
+#[tokio::test]
+async fn approved_artifact_redirects_rebuild_headers_for_each_origin() {
+    let mut source = mockito::Server::new_async().await;
+    let mut cdn = mockito::Server::new_async().await;
+    let source_mock = source
+        .mock("GET", "/artifact")
+        .match_header("authorization", "Bearer secret-token")
+        .match_header("x-org", "acme")
+        .with_status(302)
+        .with_header("location", &format!("{}/redirect", cdn.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let cdn_redirect = cdn
+        .mock("GET", "/redirect")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .match_header("x-org", mockito::Matcher::Missing)
+        .with_status(302)
+        .with_header("location", "/artifact")
+        .expect(2)
+        .create_async()
+        .await;
+    let artifact = cdn
+        .mock("GET", "/artifact")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .match_header("x-org", mockito::Matcher::Missing)
+        .with_body("artifact bytes")
+        .expect(2)
+        .create_async()
+        .await;
+    let origins = [&source.url(), &cdn.url()].map(|url| reqwest::Url::parse(url).unwrap().origin());
+    let upstream = upstream(source.url(), auth_and_custom_headers())
+        .with_fetch_guard(std::sync::Arc::new(move |url| origins.contains(&url.origin())));
+    for url in [format!("{}/artifact", source.url()), format!("{}/redirect", cdn.url())] {
+        let response = upstream.fetch_artifact_response(&url).await.unwrap();
+        let FetchOutcome::Ok(response) = response else { panic!("expected the artifact") };
+        assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
+    }
+    source_mock.assert_async().await;
+    cdn_redirect.assert_async().await;
+    artifact.assert_async().await;
 }

@@ -245,7 +245,7 @@ impl ProjectDocument {
 }
 
 fn file_url(file_base: &str, filename: &str) -> String {
-    format!("{}/{filename}", file_base.trim_end_matches('/'))
+    format!("{}/{}", file_base.trim_end_matches('/'), pnpm_network::encode_uri_component(filename))
 }
 
 /// The PEP 691 JSON project list, with every project page at

@@ -405,17 +405,19 @@ async fn crate_names_are_case_insensitive_in_the_index_path() {
     let line: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
     assert_eq!(line["name"], "Inflector");
 
-    // Downloads use the name as the index spells it.
-    let response = app
-        .oneshot(
-            Request::get("/cargo/api/v1/crates/Inflector/0.11.4/download")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, archive);
+    for name in ["Inflector", "inflector", "INFLECTOR"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("/cargo/api/v1/crates/{name}/0.11.4/download"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, archive);
+    }
 }
 
 #[tokio::test]

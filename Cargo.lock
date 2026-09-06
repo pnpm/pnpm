@@ -6276,6 +6276,7 @@ dependencies = [
  "derive_more",
  "pep440_rs",
  "pep508_rs",
+ "pnpm-network",
  "regex",
  "serde",
  "serde_json",

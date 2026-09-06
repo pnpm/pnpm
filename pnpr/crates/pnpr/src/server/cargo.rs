@@ -206,8 +206,7 @@ async fn get_download(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
-            let filename = crate_filename(name, version);
-            serve_hosted_blob(&state, &identity, &source, &key, &filename)
+            download_hosted_crate(&state, &identity, &source, &key, version)
                 .await
                 .unwrap_or_else(error_response)
         }
@@ -217,6 +216,21 @@ async fn get_download(
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
     caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(key.as_str()), response)
+}
+
+async fn download_hosted_crate(
+    state: &AppState,
+    identity: &Identity,
+    source: &str,
+    key: &PackageName,
+    version: &str,
+) -> Result<Response, RegistryError> {
+    let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
+        .await?
+        .ok_or(RegistryError::NotFound)?;
+    let entry = document.version(version).ok_or(RegistryError::NotFound)?;
+    let filename = crate_filename(&entry.name, &entry.vers);
+    serve_hosted_blob(state, identity, source, key, &filename).await
 }
 
 /// Proxy a crate download: bind the request to the upstream index entry's

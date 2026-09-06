@@ -4,7 +4,8 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{
-    RedirectGuard, ThrottledClient, UNPRIORITIZED, is_url_secure_for_credentials, read_limited_body,
+    RedirectGuard, ThrottledClient, ThrottledClientGuard, UNPRIORITIZED,
+    is_url_secure_for_credentials, read_limited_body,
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
@@ -232,14 +233,7 @@ impl Upstream {
     #[must_use]
     pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
-            client: Arc::new(if config.headers.is_empty() {
-                ThrottledClient::new_for_installs()
-            } else {
-                let base = config.url.clone();
-                ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
-                    same_origin(&base, url.as_str())
-                })
-            }),
+            client: Arc::new(ThrottledClient::new_for_installs()),
             fetch_guard: None,
             base: config.url.clone(),
             name: name.to_string(),
@@ -255,10 +249,8 @@ impl Upstream {
     #[must_use]
     pub fn with_fetch_guard(mut self, guard: RedirectGuard) -> Self {
         let redirect_guard = Arc::clone(&guard);
-        let base = self.base.clone();
-        let carries_headers = !self.headers.is_empty();
         self.client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
-            redirect_guard(url) && (!carries_headers || same_origin(&base, url.as_str()))
+            redirect_guard(url)
         }));
         self.fetch_guard = Some(guard);
         self
@@ -294,23 +286,19 @@ impl Upstream {
     ) -> Result<PackumentFetch> {
         self.ensure_available()?;
         let url = format!("{}/{}", self.base.trim_end_matches('/'), name.as_str());
-        let client = self.client.acquire_for_url(&url).await;
-        let mut request =
-            client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
-        let mut sent_conditional = false;
+        let mut conditional_headers = HeaderMap::new();
         if let Some(etag) = &validators.etag
             && let Ok(value) = HeaderValue::from_str(etag)
         {
-            request = request.header(header::IF_NONE_MATCH, value);
-            sent_conditional = true;
+            conditional_headers.insert(header::IF_NONE_MATCH, value);
         }
         if let Some(last_modified) = &validators.last_modified
             && let Ok(value) = HeaderValue::from_str(last_modified)
         {
-            request = request.header(header::IF_MODIFIED_SINCE, value);
-            sent_conditional = true;
+            conditional_headers.insert(header::IF_MODIFIED_SINCE, value);
         }
-        let response = self.run(request, &url).await?;
+        let sent_conditional = !conditional_headers.is_empty();
+        let (response, _guard) = self.get_with_scoped_headers(&url, &conditional_headers).await?;
         if response.status() == StatusCode::NOT_FOUND {
             // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
@@ -348,9 +336,7 @@ impl Upstream {
     ) -> Result<FetchOutcome<reqwest::Response>> {
         self.ensure_available()?;
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
-        let client = self.client.acquire_for_url(&url).await;
-        let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
-        let response = self.run(request, &url).await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -382,15 +368,13 @@ impl Upstream {
             self.base.trim_end_matches('/'),
             relative_path.trim_start_matches('/'),
         );
-        let client = self.client.acquire_for_url(&url).await;
-        let mut request =
-            client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
+        let mut headers = HeaderMap::new();
         if let Some(accept) = accept
             && let Ok(value) = HeaderValue::from_str(accept)
         {
-            request = request.header(header::ACCEPT, value);
+            headers.insert(header::ACCEPT, value);
         }
-        let response = self.run(request, &url).await?;
+        let (response, _guard) = self.get_with_scoped_headers(&url, &headers).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -426,9 +410,7 @@ impl Upstream {
         url: &str,
     ) -> Result<FetchOutcome<reqwest::Response>> {
         self.ensure_available()?;
-        let client = self.client.acquire_for_url(url).await;
-        let request = client.get(url).timeout(self.timeout).headers(self.request_headers(url));
-        let response = self.run(request, url).await?;
+        let (response, _guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -529,6 +511,34 @@ impl Upstream {
     /// Send a built request, mapping a transport error to
     /// [`RegistryError::Upstream`] and counting it against the breaker.
     async fn run(&self, request: reqwest::RequestBuilder, url: &str) -> Result<reqwest::Response> {
+        self.ensure_allowed_url(url)?;
+        request.send().await.map_err(|source| {
+            self.breaker.record_failure();
+            RegistryError::Upstream { url: url.to_string(), source }
+        })
+    }
+
+    async fn get_with_scoped_headers(
+        &self,
+        url: &str,
+        headers: &HeaderMap,
+    ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
+        self.ensure_allowed_url(url)?;
+        self.client
+            .get_response_with_scoped_headers(url, |request, destination| {
+                request
+                    .timeout(self.timeout)
+                    .headers(self.request_headers(destination))
+                    .headers(headers.clone())
+            })
+            .await
+            .map_err(|source| {
+                self.breaker.record_failure();
+                RegistryError::Upstream { url: url.to_string(), source }
+            })
+    }
+
+    fn ensure_allowed_url(&self, url: &str) -> Result<()> {
         if let Some(guard) = &self.fetch_guard
             && !reqwest::Url::parse(url).is_ok_and(|url| guard(&url))
         {
@@ -537,10 +547,7 @@ impl Upstream {
                 reason: "URL is not allowed by the fetch allowlist".to_string(),
             });
         }
-        request.send().await.map_err(|source| {
-            self.breaker.record_failure();
-            RegistryError::Upstream { url: url.to_string(), source }
-        })
+        Ok(())
     }
 
     /// Pass a successful response through; map any non-success status to
