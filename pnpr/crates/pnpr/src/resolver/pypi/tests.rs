@@ -24,7 +24,7 @@ fn a_wheels_metadata_is_read_from_its_dist_info() {
 
     assert_eq!(
         String::from_utf8(document).expect("metadata is text"),
-        "Name: demo\nVersion: 1.0.0\n"
+        "Name: demo\nVersion: 1.0.0\n",
     );
 }
 
@@ -52,7 +52,7 @@ fn only_the_dist_info_metadata_counts() {
 
     assert_eq!(
         String::from_utf8(document).expect("metadata is text"),
-        "Name: demo\nVersion: 1.0.0\n"
+        "Name: demo\nVersion: 1.0.0\n",
     );
 }
 
