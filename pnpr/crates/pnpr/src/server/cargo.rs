@@ -178,17 +178,18 @@ async fn load_upstream_index(
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
     let request =
         UpstreamDocument { name: key, relative_path: path, accept: None, limit: INDEX_FILE_LIMIT };
-    let bytes =
-        load_upstream_document(state, upstream, &namespace, request, |document| Ok(document.bytes))
-            .await?;
-    bytes
-        .map(|bytes| {
-            String::from_utf8(bytes).map_err(|err| RegistryError::UpstreamResponse {
-                url: path.to_string(),
-                reason: format!("sparse index is not valid UTF-8: {err}"),
-            })
-        })
-        .transpose()
+    let bytes = load_upstream_document(state, upstream, &namespace, request, |document| {
+        decode_index_text(document.bytes, path).map(String::into_bytes)
+    })
+    .await?;
+    bytes.map(|bytes| decode_index_text(bytes, path)).transpose()
+}
+
+fn decode_index_text(bytes: Vec<u8>, path: &str) -> Result<String, RegistryError> {
+    String::from_utf8(bytes).map_err(|err| RegistryError::UpstreamResponse {
+        url: path.to_string(),
+        reason: format!("sparse index is not valid UTF-8: {err}"),
+    })
 }
 
 /// `GET api/v1/crates/<crate>/<version>/download`.

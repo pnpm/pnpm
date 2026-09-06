@@ -24,10 +24,11 @@ ssri              = { workspace = true }
 tracing           = { workspace = true }
 
 [dev-dependencies]
-pnpr-policy = { workspace = true }
-mockito     = { workspace = true }
-tempfile    = { workspace = true }
-tokio       = { workspace = true }
+pnpr-policy  = { workspace = true }
+futures-util = { workspace = true }
+mockito      = { workspace = true }
+tempfile     = { workspace = true }
+tokio        = { workspace = true }
 
 [lints]
 workspace = true

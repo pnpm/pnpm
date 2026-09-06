@@ -639,16 +639,16 @@ async fn cargo_advertises_auth_for_package_specific_private_access() {
 #[tokio::test]
 async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloading() {
     let mut upstream = mockito::Server::new_async().await;
-    let mut index = json!({
+    let valid_index = json!({
         "name": "serde", "vers": "1.0.0", "cksum": "0".repeat(64),
         "deps": [], "features": {}, "extra": "X",
     })
-    .to_string()
-    .into_bytes();
+    .to_string();
+    let mut index = valid_index.as_bytes().to_vec();
     let invalid_byte = index.iter_mut().find(|byte| **byte == b'X').unwrap();
     *invalid_byte = 0xff;
     let index_mock =
-        upstream.mock("GET", "/se/rd/serde").with_body(index).expect(1).create_async().await;
+        upstream.mock("GET", "/se/rd/serde").with_body(index).expect(2).create_async().await;
     let config_mock = upstream.mock("GET", "/config.json").expect(0).create_async().await;
     let tmp = TempDir::new().unwrap();
     let app = router_with_auth(
@@ -661,5 +661,27 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     }
     index_mock.assert_async().await;
+    index_mock.remove_async().await;
+    let corrected = upstream
+        .mock("GET", "/se/rd/serde")
+        .with_body(valid_index.clone())
+        .expect(1)
+        .create_async()
+        .await;
+    let response = app
+        .clone()
+        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, valid_index.as_bytes());
+    let cached_index = find_file(&tmp.path().join(".pnpr-cache"), "package.json").unwrap();
+    tokio::fs::write(cached_index, [0xff]).await.unwrap();
+    let response = app
+        .oneshot(Request::get("/cargo/index/se/rd/serde").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    corrected.assert_async().await;
     config_mock.assert_async().await;
 }

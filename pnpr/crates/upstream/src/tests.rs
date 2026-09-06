@@ -1099,3 +1099,37 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
     }
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn revision_download_budget_starts_after_waiting_for_a_permit() {
+    use futures_util::StreamExt;
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let mut request = [0u8; 4096];
+        assert!(socket.read(&mut request).await.unwrap() > 0);
+        socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        socket.write_all(b"body").await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
+    config.timeout = Duration::from_millis(250);
+    let mut upstream = Upstream::new("test", &config);
+    upstream.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let held = upstream.client.acquire_for_url(&url).await;
+    let fetch = upstream.fetch_revision_tarball_response("digest");
+    let release_permit = async {
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        drop(held);
+    };
+    let (result, ()) = tokio::join!(fetch, release_permit);
+    let FetchOutcome::Ok(response) = result.unwrap() else { panic!("expected artifact response") };
+    let mut stream = Box::pin(response.bytes_stream());
+    assert_eq!(stream.next().await.unwrap().unwrap(), "body");
+    assert!(stream.next().await.is_none());
+    server.await.unwrap();
+}

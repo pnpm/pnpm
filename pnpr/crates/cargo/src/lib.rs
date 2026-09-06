@@ -89,7 +89,6 @@ pub fn sparse_index_path(name: &str) -> String {
     format!("{}/{lowercase}", index_prefix(&lowercase))
 }
 
-/// The filename a crate's archive is stored and served under.
 #[must_use]
 pub fn crate_filename(name: &str, version: &str) -> String {
     format!("{name}-{version}.crate")
@@ -174,7 +173,6 @@ pub struct IndexParseError {
     pub source: serde_json::Error,
 }
 
-/// Parse a sparse-index file (one JSON entry per line, blank lines ignored).
 pub fn parse_index(text: &str) -> Result<Vec<IndexEntry>, IndexParseError> {
     text.lines()
         .enumerate()
@@ -185,8 +183,6 @@ pub fn parse_index(text: &str) -> Result<Vec<IndexEntry>, IndexParseError> {
         .collect()
 }
 
-/// Render index entries as a sparse-index file: one JSON entry per line,
-/// oldest first, newline-terminated.
 #[must_use]
 pub fn render_index(entries: &[IndexEntry]) -> String {
     let mut text = String::new();
@@ -563,19 +559,16 @@ fn validate_crate_archive_with_limit(
     Ok(())
 }
 
-/// The JSON body of a crates API error response.
 #[must_use]
 pub fn errors_json(detail: &str) -> Value {
     json!({ "errors": [{ "detail": detail }] })
 }
 
-/// The JSON body of a successful `cargo publish`.
 #[must_use]
 pub fn publish_ok_json() -> Value {
     json!({ "warnings": { "invalid_categories": [], "invalid_badges": [], "other": [] } })
 }
 
-/// The JSON body of a successful yank or unyank.
 #[must_use]
 pub fn ok_json() -> Value {
     json!({ "ok": true })

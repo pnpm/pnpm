@@ -431,10 +431,10 @@ impl Upstream {
         &self,
         digest: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        let started = Instant::now();
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
         let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
+        let started = Instant::now();
         let request = client.get(&url).timeout(self.timeout).headers(self.request_headers(&url));
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {

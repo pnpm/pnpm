@@ -6372,6 +6372,7 @@ name = "pnpr-upstream"
 version = "0.0.1"
 dependencies = [
  "chrono",
+ "futures-util",
  "mockito",
  "pnpm-lockfile",
  "pnpm-network",
