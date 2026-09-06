@@ -262,6 +262,53 @@ async fn a_second_resolve_reads_the_cached_index() {
 }
 
 #[tokio::test]
+async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
+    let mut index = mockito::Server::new_async().await;
+    let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
+    index
+        .mock("GET", "/simple/demo/")
+        .with_body(project_page(&json!([{
+            "filename": "demo-1.0.0-py3-none-any.whl",
+            "url": "demo-1.0.0-py3-none-any.whl",
+            "hashes": { "sha256": digest(&wheel) },
+            "core-metadata": { "sha256": digest(b"Name: demo\nVersion: 1.0.0\n") },
+        }])))
+        .create_async()
+        .await;
+    // The metadata file the index actually serves is not the one it
+    // published a digest for.
+    let metadata = index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
+        .with_body("Name: demo\nVersion: 1.0.0\nRequires-Dist: smuggled\n")
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let frames = frames(response.into_body()).await;
+    assert_eq!(frames[0]["type"], "error", "{frames:?}");
+    assert!(
+        frames[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("does not match the SHA-256 the index published"),
+        "{frames:?}",
+    );
+    metadata.assert_async().await;
+}
+
+#[tokio::test]
 async fn an_unsatisfiable_project_is_reported_as_one() {
     let mut index = mockito::Server::new_async().await;
     let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");

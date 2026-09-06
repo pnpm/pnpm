@@ -71,8 +71,9 @@ const MAX_METADATA_BYTES: usize = 8 * 1024 * 1024;
 /// publishes no metadata files forces.
 const MAX_WHEEL_BYTES: usize = 256 * 1024 * 1024;
 
-/// Cap on the index bytes one resolve holds, as
-/// [`super::cargo::MAX_INDEX_TOTAL_BYTES`] bounds a Cargo resolve.
+/// Cap on the index bytes one resolve holds, as the Cargo path bounds the
+/// sparse-index bytes one of its own holds. A read is charged when it
+/// lands and none starts once the budget is spent.
 const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 
 /// Handle an `"ecosystem": "pypi"` resolve request: read what the project
@@ -240,17 +241,19 @@ impl IndexReader {
         let wheel_url = url::Url::parse(&candidate.wheel.url)
             .map_err(|err| format!("parse the wheel URL for {name}: {err}"))?;
         validate_url(&wheel_url).map_err(|err| super::report_message(&err))?;
-        if candidate.core_metadata.is_some() {
+        if let Some(digests) = &candidate.core_metadata {
             let metadata_url = format!("{}.metadata", candidate.wheel.url);
             let metadata_url = url::Url::parse(&metadata_url)
                 .map_err(|err| format!("build the metadata URL for {name}: {err}"))?;
             let (document, _) = self
                 .read(&metadata_url, &canonical_name, "metadata", MAX_METADATA_BYTES, None)
                 .await?;
+            verify_digest(document.as_bytes(), digests, "metadata file", &candidate.wheel.name)?;
             return WheelMetadata::parse(&document).map_err(|err| super::report_message(&err));
         }
         let (wheel, _) =
             self.read_bytes(&wheel_url, &canonical_name, "wheel", MAX_WHEEL_BYTES, None).await?;
+        verify_digest(&wheel, &candidate.wheel.hashes, "wheel", &candidate.wheel.name)?;
         let document = metadata_from_wheel(&wheel, &candidate.wheel.name)?;
         WheelMetadata::parse(&document).map_err(|err| super::report_message(&err))
     }
@@ -399,6 +402,29 @@ impl CachedDocument {
         url::Url::parse(&self.url)
             .map_err(|err| format!("parse the cached URL of {requested}: {err}"))
     }
+}
+
+/// Check what was read against the SHA-256 the index published for it.
+///
+/// Resolution decides which versions the client will install, so a
+/// metadata document that is not the one the index vouched for must not
+/// reach the solver. An index that published no SHA-256 for a file leaves
+/// nothing to check here; the client checks the wheels it downloads
+/// against the digests in the lockfile regardless.
+fn verify_digest(
+    bytes: &[u8],
+    digests: &BTreeMap<String, String>,
+    kind: &str,
+    filename: &str,
+) -> Result<(), String> {
+    let Some(expected) = digests.get("sha256") else { return Ok(()) };
+    let actual = pnpm_crypto_hash::create_hex_hash_bytes(bytes);
+    if !actual.eq_ignore_ascii_case(expected) {
+        return Err(format!(
+            "the {kind} of {filename} does not match the SHA-256 the index published",
+        ));
+    }
+    Ok(())
 }
 
 /// The `METADATA` inside a wheel, for an index that publishes no metadata
