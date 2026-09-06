@@ -53,6 +53,25 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
 }
 
+/// Install the project's `configDependencies` and run their `updateConfig`
+/// hooks — the pair every install-family pipeline opens with.
+///
+/// Both happen before the pipeline builds its state: the env lockfile must
+/// land at the top of `pnpm-lock.yaml` before the wanted lockfile is read,
+/// and `updateConfig` must mutate `config` before the install reads it.
+///
+/// The package-manager pin is recorded earlier, by the pre-command checks,
+/// for every command rather than only for this family.
+pub async fn prepare<Reporter: self::Reporter>(
+    config: &mut Config,
+    root_dir: &Path,
+    frozen_lockfile: bool,
+) -> Result<()> {
+    install_config_deps::<Reporter>(config, root_dir, frozen_lockfile).await?;
+    run_update_config_hooks::<Reporter>(config, root_dir).await?;
+    Ok(())
+}
+
 /// Resolve pnpm's own engine dependencies into the env lockfile's
 /// `packageManagerDependencies` block before the wanted lockfile is
 /// loaded. `force_resync` discards recorded entries and re-resolves them

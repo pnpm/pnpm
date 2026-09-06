@@ -65,7 +65,6 @@ pub(crate) fn pre_command_plan(
             global: is_global(&args.command),
             skip_pm_handling: should_skip_pm_handling(&args.command),
             check_runtimes: true,
-            syncs_env_lockfile_in_pipeline: syncs_env_lockfile_in_pipeline(&args.command),
             emit: reporter_emit(args.reporter),
             key_issues: key_issue_reporting(&args.command),
         },
@@ -88,9 +87,6 @@ pub(crate) fn pre_command_plan_for_version_flag(
             global: false,
             skip_pm_handling: false,
             check_runtimes: false,
-            // No install pipeline runs behind `--version`, so nothing else
-            // would record the pin.
-            syncs_env_lockfile_in_pipeline: false,
             emit: DefaultReporter::emit,
             // Printing the version must work in a project whose
             // `pnpm-workspace.yaml` is broken, like the runtime checks above.
@@ -110,14 +106,10 @@ pub(crate) async fn execute_plan(
     match plan {
         PreCommandPlan::Switch(plan) => execute_switch(plan, child_argv).await,
         PreCommandPlan::SyncEnvLockfile(sync) => {
-            let EnvLockfileSync { config, root_dir, package_manager } = sync;
-            // The install family syncs the pin in its own pipeline, with the
-            // `--frozen-lockfile` flag layered in; every other command reaches
-            // here, where only the `frozenLockfile` setting can forbid the write.
-            let frozen_lockfile = config.frozen_lockfile.unwrap_or(false);
+            let EnvLockfileSync { config, env_root, package_manager, frozen_lockfile } = sync;
             config_deps::sync_package_manager_dependencies(
                 &config,
-                &root_dir,
+                &env_root,
                 &package_manager.specifier,
                 &package_manager.version,
                 frozen_lockfile,
@@ -232,9 +224,21 @@ fn pre_command_plan_from_input(
     if let Some(state_dir) = switch.state_dir.as_deref() {
         apply_state_dir_override::<Host>(&mut config, state_dir, &dir);
     }
+    // `--lockfile-dir` moves the lockfile the pin is recorded in, and
+    // `--offline` governs how that record is resolved. Both are install-family
+    // flags, and the record below is made for every command.
+    if let Some(lockfile_dir) = switch.lockfile_dir.as_deref() {
+        config.pin_lockfile_dir(&dir.join(lockfile_dir));
+    }
+    if let Some(offline) = switch.offline {
+        config.offline = offline || config.offline;
+    }
 
-    let root_dir = config.workspace_dir.clone().unwrap_or_else(|| dir.clone());
-    let manifest = read_manifest_json(&root_dir.join("package.json"))?;
+    let roots = PinRoots {
+        manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
+        env: config.root_project_manifest_dir(&dir).to_path_buf(),
+    };
+    let manifest = read_manifest_json(&roots.manifest.join("package.json"))?;
 
     let wanted_pm = manifest.as_ref().and_then(wanted_package_manager);
     let running_matches_pin = wanted_pm.as_ref().is_some_and(|pm| {
@@ -256,21 +260,17 @@ fn pre_command_plan_from_input(
         let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
         if on_fail != PmOnFail::Ignore {
             if unmanaged_pin {
-                // The install family records the pin from its own pipeline
-                // whatever this setting says (pnpm/pnpm#14575).
+                // Which pnpm runs is the user's choice here; which one the
+                // lockfile records is still the project's, and a frozen
+                // install has to find it there (pnpm/pnpm#14575).
                 if !input.global {
-                    package_manager_to_sync = env_lockfile_sync(
-                        root_manifest,
-                        &root_dir,
-                        on_fail,
-                        input,
-                        ReadEnvLockfile::NotYet,
-                    )?;
+                    package_manager_to_sync =
+                        env_lockfile_sync(root_manifest, &roots, on_fail, ReadEnvLockfile::NotYet)?;
                 }
             } else if switch_wanted && !process_state.executed_by_corepack {
                 let frozen_lockfile =
                     switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
-                if let Some(target) = switch_target(&config, &root_dir, frozen_lockfile)? {
+                if let Some(target) = switch_target(&config, &roots, frozen_lockfile)? {
                     if target.switches_away_from_the_running_pnpm() {
                         return Ok(Some(PreCommandPlan::Switch(SwitchPlan { config, target })));
                     }
@@ -280,9 +280,8 @@ fn pre_command_plan_from_input(
                     // have written on its way to the wanted version.
                     package_manager_to_sync = env_lockfile_sync(
                         root_manifest,
-                        &root_dir,
+                        &roots,
                         on_fail,
-                        input,
                         match &target.source {
                             SwitchSource::LockedEnv { env, .. } => ReadEnvLockfile::Already(env),
                             SwitchSource::Resolve { .. } => ReadEnvLockfile::NotYet,
@@ -296,13 +295,8 @@ fn pre_command_plan_from_input(
                 );
             } else {
                 check_package_manager(&pm, on_fail, process_state, input.emit)?;
-                package_manager_to_sync = env_lockfile_sync(
-                    root_manifest,
-                    &root_dir,
-                    on_fail,
-                    input,
-                    ReadEnvLockfile::NotYet,
-                )?;
+                package_manager_to_sync =
+                    env_lockfile_sync(root_manifest, &roots, on_fail, ReadEnvLockfile::NotYet)?;
             }
         }
     }
@@ -323,31 +317,31 @@ fn pre_command_plan_from_input(
         check_runtimes(manifest, &config, input.emit)?;
     }
     Ok(package_manager_to_sync.map(|package_manager| {
-        PreCommandPlan::SyncEnvLockfile(EnvLockfileSync { config, root_dir, package_manager })
+        let frozen_lockfile = switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
+        PreCommandPlan::SyncEnvLockfile(EnvLockfileSync {
+            config,
+            env_root: roots.env,
+            package_manager,
+            frozen_lockfile,
+        })
     }))
 }
 
 /// pnpm's `syncEnvLockfile`: the pnpm version a project pins is recorded in
-/// the env lockfile's `packageManagerDependencies` by every command, not only
-/// by the install family, so the entry is the same whichever command a
-/// contributor happens to run first.
+/// the env lockfile's `packageManagerDependencies` here, for every command,
+/// so the entry is the same whichever command a contributor happens to run
+/// first.
 ///
-/// `None` when the project doesn't pin a persisting pnpm version, when the
-/// lockfile already records one that satisfies the pin, or when the command's
-/// own pipeline syncs it — the install family passes its `frozen-lockfile`
-/// value to the sync, and a frozen install must fail on an out-of-date
-/// `packageManagerDependencies` rather than have it repaired here first.
+/// `None` when the project doesn't pin a persisting pnpm version, or when the
+/// lockfile already records one that satisfies the pin.
 fn env_lockfile_sync(
     root_manifest: &Value,
-    root_dir: &Path,
+    roots: &PinRoots,
     on_fail: PmOnFail,
-    input: &PreCommandInput,
     read_lockfile: ReadEnvLockfile<'_>,
 ) -> miette::Result<Option<PackageManagerToSync>> {
-    if input.syncs_env_lockfile_in_pipeline {
-        return Ok(None);
-    }
-    let Some(package_manager) = package_manager_to_sync(root_manifest, root_dir, Some(on_fail))
+    let Some(package_manager) =
+        package_manager_to_sync(root_manifest, &roots.manifest, Some(on_fail))
     else {
         return Ok(None);
     };
@@ -355,7 +349,7 @@ fn env_lockfile_sync(
     let env_lockfile = match read_lockfile {
         ReadEnvLockfile::Already(env_lockfile) => Some(env_lockfile),
         ReadEnvLockfile::NotYet => {
-            read = read_env_lockfile(root_dir)?;
+            read = read_env_lockfile(&roots.env)?;
             read.as_ref()
         }
     };
@@ -589,7 +583,6 @@ struct PreCommandInput {
     global: bool,
     skip_pm_handling: bool,
     check_runtimes: bool,
-    syncs_env_lockfile_in_pipeline: bool,
     emit: fn(&LogEvent),
     key_issues: KeyIssueReporting,
 }
@@ -627,22 +620,6 @@ fn key_issue_reporting(command: &CliCommand) -> KeyIssueReporting {
 /// the commands whose dispatch calls
 /// `pipelines::derive_config_root_and_package_manager_to_sync`.
 /// See [`env_lockfile_sync`].
-fn syncs_env_lockfile_in_pipeline(command: &CliCommand) -> bool {
-    matches!(
-        command,
-        CliCommand::Add(_)
-            | CliCommand::Ci(_)
-            | CliCommand::Dedupe(_)
-            | CliCommand::Deploy(_)
-            | CliCommand::Install(_)
-            | CliCommand::InstallTest(_)
-            | CliCommand::Prune(_)
-            | CliCommand::Remove(_)
-            | CliCommand::Unlink(_)
-            | CliCommand::Update(_),
-    )
-}
-
 /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command line.
 /// Only the install family carries the flags, and `pnpm ci` is a frozen
 /// install whether or not they were typed.
@@ -652,6 +629,43 @@ fn frozen_lockfile_flag(command: &CliCommand) -> Option<bool> {
         CliCommand::InstallTest(args) => args.install_args.frozen_lockfile_flag(),
         CliCommand::Ci(_) => Some(true),
         _ => None,
+    }
+}
+
+/// `--lockfile-dir` as typed on the command line. The env lockfile is the
+/// first document of `pnpm-lock.yaml`, so it follows the flag that moves
+/// that file.
+fn lockfile_dir_flag(command: &CliCommand) -> Option<PathBuf> {
+    let lockfile_dir = match command {
+        CliCommand::Add(args) => &args.lockfile_dir,
+        CliCommand::Ci(args) => &args.install_args.lockfile_dir,
+        CliCommand::Install(args) => &args.lockfile_dir,
+        CliCommand::InstallTest(args) => &args.install_args.lockfile_dir,
+        CliCommand::Remove(args) => &args.lockfile_dir,
+        CliCommand::Update(args) => &args.lockfile_dir,
+        _ => return None,
+    };
+    lockfile_dir.lockfile_dir.clone()
+}
+
+/// `--offline` / `--no-offline` as typed on the command line. The flags
+/// only turn the setting on, matching [`apply_install_cli_config`].
+///
+/// [`apply_install_cli_config`]: super::pipelines::apply_install_cli_config
+fn offline_flag(command: &CliCommand) -> Option<bool> {
+    let (offline, no_offline) = match command {
+        CliCommand::Ci(args) => (args.install_args.offline, args.install_args.no_offline),
+        CliCommand::Dedupe(args) => (args.offline, args.no_offline),
+        CliCommand::Install(args) => (args.offline, args.no_offline),
+        CliCommand::InstallTest(args) => (args.install_args.offline, args.install_args.no_offline),
+        _ => return None,
+    };
+    if offline {
+        Some(true)
+    } else if no_offline {
+        Some(false)
+    } else {
+        None
     }
 }
 
@@ -682,10 +696,10 @@ fn is_global(command: &CliCommand) -> bool {
 
 fn switch_target(
     config: &Config,
-    root_dir: &Path,
+    roots: &PinRoots,
     frozen_lockfile: bool,
 ) -> miette::Result<Option<SwitchTarget>> {
-    let Some(manifest) = read_manifest_json(&root_dir.join("package.json"))? else {
+    let Some(manifest) = read_manifest_json(&roots.manifest.join("package.json"))? else {
         return Ok(None);
     };
     let Some(mut pm) = wanted_package_manager(&manifest) else {
@@ -705,7 +719,7 @@ fn switch_target(
 
     let persist_lockfile = should_persist_package_manager_lockfile(&pm);
     if persist_lockfile
-        && let Some(env) = read_env_lockfile(root_dir)?
+        && let Some(env) = read_env_lockfile(&roots.env)?
         && let Some(version) = locked_package_manager_version(&env, &spec)?
     {
         if assert_package_manager_lockfile_uses_registry_resolutions(&env).is_ok() {
@@ -722,7 +736,7 @@ fn switch_target(
         return Ok(Some(SwitchTarget {
             spec,
             source: SwitchSource::Resolve {
-                env_root: root_dir.to_path_buf(),
+                env_root: roots.env.clone(),
                 frozen_lockfile,
                 force_resync: true,
                 locked_version: Some(version),
@@ -734,7 +748,7 @@ fn switch_target(
     // is pnpm's own state rather than the project's — a frozen lockfile has
     // nothing to say about it.
     let (env_root, frozen_lockfile) = if persist_lockfile {
-        (root_dir.to_path_buf(), frozen_lockfile)
+        (roots.env.clone(), frozen_lockfile)
     } else {
         let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
             miette::miette!(
@@ -1022,6 +1036,17 @@ impl SwitchTarget {
     }
 }
 
+/// The two directories the package-manager pin is read from and written to.
+///
+/// They differ when `lockfileDir` moves `pnpm-lock.yaml` off the workspace
+/// root: the manifest declaring the pin stays at the workspace root, while
+/// the env lockfile is the first document of the lockfile and follows it.
+#[derive(Debug, Clone)]
+struct PinRoots {
+    manifest: PathBuf,
+    env: PathBuf,
+}
+
 #[derive(Debug)]
 pub(crate) struct SwitchPlan {
     config: Config,
@@ -1038,8 +1063,12 @@ pub(crate) enum PreCommandPlan {
 #[derive(Debug)]
 pub(crate) struct EnvLockfileSync {
     config: Config,
-    root_dir: PathBuf,
+    /// Where the env lockfile is written: the lockfile's directory, which
+    /// `--lockfile-dir` and the `lockfileDir` setting move away from the
+    /// workspace root.
+    env_root: PathBuf,
     package_manager: PackageManagerToSync,
+    frozen_lockfile: bool,
 }
 
 #[derive(Debug)]
@@ -1075,6 +1104,11 @@ struct SwitchInput {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
     frozen_lockfile: Option<bool>,
+    /// `--lockfile-dir` as typed on the command line, which moves the env
+    /// lockfile with the lockfile it is the first document of.
+    lockfile_dir: Option<PathBuf>,
+    /// `--offline` / `--no-offline` as typed on the command line.
+    offline: Option<bool>,
     color: Option<ColorMode>,
 }
 
@@ -1086,6 +1120,8 @@ impl SwitchInput {
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
+            lockfile_dir: lockfile_dir_flag(&args.command),
+            offline: offline_flag(&args.command),
             color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
         }
     }
@@ -1098,6 +1134,8 @@ impl SwitchInput {
             npmrc_auth_file: None,
             command: None,
             frozen_lockfile: None,
+            lockfile_dir: None,
+            offline: None,
             color: None,
         };
         let mut index = 1;

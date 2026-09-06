@@ -423,6 +423,46 @@ fn env_document(workspace: &Path) -> String {
         .to_string()
 }
 
+/// `lockfileDir` moves `pnpm-lock.yaml`, and the recorded pin is the first
+/// document of that file, so it moves with it. Recording it at the
+/// workspace root instead would leave a second lockfile there, and the one
+/// the install reads would never carry the pin.
+#[test]
+fn a_pinned_package_manager_is_recorded_in_the_lockfile_directory() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let lockfile_dir = workspace.join("lf");
+    fs::create_dir_all(&lockfile_dir).expect("create the lockfile directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfileDir: ./lf\n")
+        .expect("write the workspace manifest");
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output =
+        run(pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()), root.path(), &["list"]);
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the workspace root should carry no lockfile of its own",
+    );
+    let env_lockfile = EnvLockfile::read(&lockfile_dir)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written beside the lockfile");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+
+    drop(mock_instance);
+}
+
 #[test]
 fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

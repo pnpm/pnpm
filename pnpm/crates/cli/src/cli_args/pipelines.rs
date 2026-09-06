@@ -3,7 +3,7 @@ use super::{
     dedupe::{self, DedupeArgs},
     deploy::DeployArgs,
     install::{InstallArgs, resolve_bool_override},
-    package_manager::{PackageManagerToSync, package_manager_to_sync, read_manifest_json},
+    package_manager::read_manifest_json,
     prune::PruneArgs,
     recursive::{
         AutoExcludeRoot, discover_workspace_projects, filtered_projects_dependencies,
@@ -345,7 +345,6 @@ pub(crate) struct InstallPipeline {
     pub(crate) args: InstallArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
     pub(crate) recursive_sort: bool,
@@ -359,26 +358,13 @@ impl InstallPipeline {
             args,
             cfg,
             config_root,
-            package_manager_to_sync,
             prefix,
             manifest_path,
             recursive_sort,
             require_lockfile,
             frozen_lockfile,
         } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                frozen_lockfile,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        config_deps::prepare::<Reporter>(cfg, &config_root, frozen_lockfile).await?;
         // Built ahead of project discovery so a run that is certain to
         // read the wanted lockfile parses it on a background thread
         // while discovery walks the workspace. Certain means the fast
@@ -543,7 +529,6 @@ pub(crate) struct AddPipeline {
     pub(crate) args: AddArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
     pub(crate) recursive_sort: bool,
@@ -560,26 +545,13 @@ impl AddPipeline {
             args,
             cfg,
             config_root,
-            package_manager_to_sync,
             prefix,
             manifest_path,
             recursive_sort,
             config_dependencies,
             package_specifier_plan,
         } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         if !package_specifier_plan.ecosystem_packages.is_empty() {
             return run_add_with_ecosystems::<Reporter>(
                 args,
@@ -715,7 +687,6 @@ pub(crate) struct UpdatePipeline {
     pub(crate) args: UpdateArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
     pub(crate) recursive_sort: bool,
@@ -723,28 +694,8 @@ pub(crate) struct UpdatePipeline {
 
 impl UpdatePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let UpdatePipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let UpdatePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             cfg,
             &prefix,
@@ -824,7 +775,6 @@ pub(crate) struct RemovePipeline {
     pub(crate) args: RemoveArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) prefix: PathBuf,
     pub(crate) manifest_path: PathBuf,
     pub(crate) recursive_sort: bool,
@@ -832,28 +782,8 @@ pub(crate) struct RemovePipeline {
 
 impl RemovePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let RemovePipeline {
-            args,
-            cfg,
-            config_root,
-            package_manager_to_sync,
-            prefix,
-            manifest_path,
-            recursive_sort,
-        } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let RemovePipeline { args, cfg, config_root, prefix, manifest_path, recursive_sort } = self;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         let plan = select_install_family_plan::<Reporter>(
             cfg,
             &prefix,
@@ -908,7 +838,6 @@ pub(crate) struct DeployPipeline {
     pub(crate) args: DeployArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
 }
 
 impl DeployPipeline {
@@ -916,20 +845,8 @@ impl DeployPipeline {
         self,
         dir_ref: &Path,
     ) -> miette::Result<()> {
-        let DeployPipeline { args, cfg, config_root, package_manager_to_sync } = self;
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let DeployPipeline { args, cfg, config_root } = self;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         let cfg: &'static Config = cfg;
         Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
     }
@@ -979,11 +896,11 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
 
 /// Shared workspace-root and package-manager policy derivation used by the
 /// install, dedupe, and prune dispatch paths.
-pub(crate) fn derive_config_root_and_package_manager_to_sync(
+pub(crate) fn derive_config_root(
     cfg: &Config,
     dir_ref: &Path,
     reporter: ReporterType,
-) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
+) -> miette::Result<PathBuf> {
     let config_root = cfg.root_project_manifest_dir(dir_ref).to_path_buf();
     let root_manifest = read_manifest_json(&config_root.join("package.json"))
         .wrap_err("read package manager policy")?;
@@ -993,10 +910,7 @@ pub(crate) fn derive_config_root_and_package_manager_to_sync(
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
-    let package_manager_to_sync = root_manifest
-        .as_ref()
-        .and_then(|manifest| package_manager_to_sync(manifest, &config_root, cfg.pm_on_fail));
-    Ok((config_root, package_manager_to_sync))
+    Ok(config_root)
 }
 
 pub(crate) fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
@@ -1049,14 +963,12 @@ pub(crate) struct DedupePipeline {
     pub(crate) args: DedupeArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) manifest_path: PathBuf,
 }
 
 impl DedupePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
-            self;
+        let DedupePipeline { args, cfg, config_root, manifest_path } = self;
 
         let lockfile_path = config_root.join(cfg.wanted_lockfile_name());
 
@@ -1067,19 +979,7 @@ impl DedupePipeline {
         let guard =
             args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
 
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         Box::pin(args.run::<Reporter>(state, existing, guard, &lockfile_path)).await
@@ -1098,27 +998,14 @@ pub(crate) struct PrunePipeline {
     pub(crate) args: PruneArgs,
     pub(crate) cfg: &'static mut Config,
     pub(crate) config_root: PathBuf,
-    pub(crate) package_manager_to_sync: Option<PackageManagerToSync>,
     pub(crate) manifest_path: PathBuf,
 }
 
 impl PrunePipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } = self;
+        let PrunePipeline { args, cfg, config_root, manifest_path } = self;
 
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-                false,
-            )
-            .await?;
-        }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        config_deps::prepare::<Reporter>(cfg, &config_root, false).await?;
         // Validate path containment AFTER hooks: updateConfig can mutate
         // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
         // so the check must use the final (post-hook) config values.
