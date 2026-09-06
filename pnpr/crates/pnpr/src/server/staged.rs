@@ -30,7 +30,7 @@ use super::{
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
 use pnpr_storage::publish::{extract_attachments, now_iso};
 
@@ -194,7 +194,7 @@ async fn serve_staged_publish(
     raw_name: &str,
     body: &axum::body::Bytes,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
@@ -374,7 +374,10 @@ async fn serve_staged_approve(
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let name = match PackageName::parse(&record.package_name) {
+    let name = match CanonicalPackageName::parse(
+        &record.package_name,
+        pnpr_package_name::Ecosystem::Npm,
+    ) {
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
@@ -489,7 +492,8 @@ async fn authorize_staged(
     identity: &Identity,
     record: &StagedRecord,
 ) -> Result<(), RegistryError> {
-    let name = PackageName::parse(&record.package_name)?;
+    let name =
+        CanonicalPackageName::parse(&record.package_name, pnpr_package_name::Ecosystem::Npm)?;
     let target = resolve_write_target(state, identity, record.registry.as_deref(), &name)?;
     authorize(
         state,

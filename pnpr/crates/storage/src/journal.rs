@@ -37,7 +37,7 @@ use crate::{
 };
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -116,7 +116,7 @@ pub struct JournaledRevisionRef {
 /// One package of a publish about to be committed, borrowed from the
 /// handler's staged state.
 pub struct JournaledPublish<'publish> {
-    pub name: &'publish PackageName,
+    pub name: &'publish CanonicalPackageName,
     /// Hosted-org storage namespace, or `None` for the flat hosted store.
     pub org: Option<&'publish str>,
     pub ecosystem: Ecosystem,
@@ -133,7 +133,7 @@ pub struct JournaledPublish<'publish> {
 /// One hosted document to bring up to date as a transaction is applied.
 pub struct DocumentMerge<'txn> {
     pub ecosystem: Ecosystem,
-    pub name: &'txn PackageName,
+    pub name: &'txn CanonicalPackageName,
     /// The document as the store holds it, `None` when the package has none.
     pub existing: Option<&'txn [u8]>,
     /// The document the transaction computed when it was sealed.
@@ -385,7 +385,7 @@ impl SealedTxn {
         let outcome = &mut progress.outcome;
         let mut lost_tmp_paths = Vec::new();
         for (index, package) in manifest.packages.iter().enumerate() {
-            let name = PackageName::parse(&package.name)?;
+            let name = CanonicalPackageName::parse(&package.name, package.ecosystem)?;
             // Promote into the package's hosted namespace (or the flat store
             // when it has none), so the commit and a later startup recovery
             // land in exactly the store the publish targeted.

@@ -2,7 +2,7 @@ use super::{BlobStreamError, integrity_checker, parse_integrity, stream_verified
 use crate::Storage;
 use futures_util::StreamExt;
 use pnpr_config::HostedStoreConfig;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use std::{path::Path, sync::Arc, time::Duration};
 use tempfile::TempDir;
@@ -132,7 +132,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let cache = tmp.path().join("cache");
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
@@ -164,7 +164,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let cache = tmp.path().join("cache");
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let write =
         storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 

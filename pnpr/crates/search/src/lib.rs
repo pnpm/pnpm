@@ -9,7 +9,7 @@
 //! search returns dozens of fuzzy matches for almost anything.
 
 use pnpr_error::Result;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_storage::Storage;
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -127,7 +127,10 @@ pub async fn local_search_names(
             continue;
         }
         if matches!(query, SearchText::Maintainer(_)) {
-            let Ok(parsed) = PackageName::parse(&name) else { continue };
+            let Ok(parsed) = CanonicalPackageName::parse(&name, pnpr_package_name::Ecosystem::Npm)
+            else {
+                continue;
+            };
             let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { continue };
             let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
             if !packument_has_maintainer(&packument, &needle) {
@@ -142,7 +145,7 @@ pub async fn local_search_names(
 
 pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
     let entry = async {
-        let parsed = PackageName::parse(name).ok()?;
+        let parsed = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).ok()?;
         let bytes = storage.read_hosted_document(&parsed).await.ok()??;
         let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
         build_search_entry(name, &packument)

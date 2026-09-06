@@ -2322,7 +2322,7 @@ async fn invalid_package_name_returns_bad_request() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
+    // `.hidden` trips the dot-prefix rejection in `CanonicalPackageName::parse`.
     let response =
         app.oneshot(Request::get("/.hidden").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);

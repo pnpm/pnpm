@@ -6,7 +6,7 @@ use axum::{
 use serde_json::{Value, json};
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, publish::now_iso};
 
@@ -33,7 +33,7 @@ pub(super) async fn update_packument(
     raw_name: &str,
     body: &[u8],
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -140,7 +140,7 @@ pub(super) async fn update_packument(
 /// restores). Must hold the package lock so a concurrent publish can't race it.
 fn enforce_published_version_immutability(
     hosted: &Value,
-    name: &PackageName,
+    name: &CanonicalPackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
     // None (no versions to enforce) means "accept", not "error" here.
@@ -234,7 +234,7 @@ fn enforce_published_version_immutability(
 /// [`pnpr_upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
 /// one, otherwise the version-derived canonical name the rewrite falls back to.
 /// Returns `None` when the manifest carries no string `dist.tarball` to serve.
-fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {
+fn served_tarball_basename(manifest: &Value, pkg: &CanonicalPackageName) -> Option<String> {
     let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
     if let Some(basename) = tarball_basename(url) {
         return Some(basename.to_owned());
@@ -264,7 +264,7 @@ pub(super) async fn delete_package(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -309,7 +309,7 @@ pub(super) async fn delete_tarball(
     raw_name: &str,
     filename: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -355,7 +355,7 @@ pub(super) async fn get_dist_tags(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -433,7 +433,7 @@ async fn update_dist_tag<Mutate>(
 where
     Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };

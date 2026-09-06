@@ -65,7 +65,7 @@ fn rejects_exact_pattern_that_is_not_a_package_name() {
     }
 }
 
-/// A `@<scope>/*` pattern whose scope request parsing (`PackageName::parse`)
+/// A `@<scope>/*` pattern whose scope request parsing (`CanonicalPackageName::parse`)
 /// would reject is a claim no valid package name can ever match. It must be a
 /// config error rather than a dead pattern — a mistyped private-scope claim
 /// that never matches would silently let the names it was meant to cover land

@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use ssri::Integrity;
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
@@ -152,7 +152,7 @@ pub(super) async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -248,7 +248,7 @@ pub(super) async fn serve_batch_publish(
             }
             .into_response();
         };
-        let name = match PackageName::parse(doc_name) {
+        let name = match CanonicalPackageName::parse(doc_name, pnpr_package_name::Ecosystem::Npm) {
             Ok(name) => name,
             Err(err) => return err.into_response(),
         };
@@ -304,7 +304,7 @@ pub(super) async fn serve_batch_publish(
 /// each attachment maps to a canonical disk filename and a
 /// `versions[v].dist` block.
 pub(super) struct ValidatedPublish {
-    pub(super) name: PackageName,
+    pub(super) name: CanonicalPackageName,
     /// The publish body with `_attachments` stripped.
     pub(super) incoming: Value,
     /// One entry per attachment.
@@ -329,7 +329,7 @@ pub(super) async fn validate_publish_doc(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    name: PackageName,
+    name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     // Route the write to its hosted registry first (masking a denied caller
@@ -391,7 +391,7 @@ fn record_publisher(incoming: &mut Value, identity: &Identity) {
 /// [`commit_publishes`] makes it visible. Every surface stages into this, so
 /// one commit can carry packages of more than one ecosystem.
 pub(super) struct StagedPublish {
-    pub(super) name: PackageName,
+    pub(super) name: CanonicalPackageName,
     pub(super) ecosystem: Ecosystem,
     /// The document to record, merged with what the store held when it was
     /// read: a packument, a crate document, a project document.
@@ -538,7 +538,7 @@ pub(super) async fn stage_publish(
 }
 
 fn staged_hosted_original_ref(
-    package: &PackageName,
+    package: &CanonicalPackageName,
     attachment: &PreparedAttachment,
 ) -> Option<JournaledRevisionRef> {
     let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;

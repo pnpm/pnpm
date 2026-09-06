@@ -11,13 +11,14 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
-derive_more = { workspace = true }
-flate2      = { workspace = true }
-semver      = { workspace = true }
-serde       = { workspace = true }
-serde_json  = { workspace = true }
-tar         = { workspace = true }
-toml        = { workspace = true }
+derive_more       = { workspace = true }
+flate2            = { workspace = true }
+pnpr-package-name = { workspace = true }
+semver            = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
+tar               = { workspace = true }
+toml              = { workspace = true }
 
 [lints]
 workspace = true

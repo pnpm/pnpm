@@ -15,7 +15,7 @@ use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use pnpr_osv::{OsvIndex, format_advisory_ids};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::tarball_basename;
@@ -166,7 +166,7 @@ impl TarballRouter {
 fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
     tarball_basename(tarball_url).map_or_else(
         || {
-            PackageName::parse(package).map_or_else(
+            CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm).map_or_else(
                 |_| format!("{package}-{version}.tgz"),
                 |name| name.tarball_name_for_version(version),
             )

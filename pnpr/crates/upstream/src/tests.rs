@@ -6,7 +6,7 @@ use super::{
 use chrono::{DateTime, TimeZone, Utc};
 use pnpr_config::UpstreamConfig;
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde_json::json;
 use std::time::Duration;
@@ -53,7 +53,7 @@ async fn fetch_packument_forwards_configured_headers() {
         .await;
 
     let upstream = upstream(server.url(), auth_and_custom_headers());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
     assert!(matches!(outcome, PackumentFetch::Modified(_)));
@@ -74,7 +74,7 @@ async fn fetch_tarball_response_forwards_configured_headers() {
         .await;
 
     let upstream = upstream(server.url(), auth_and_custom_headers());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let outcome = upstream.fetch_tarball_response(&name, "foo-1.0.0.tgz").await.unwrap();
 
     assert!(matches!(outcome, FetchOutcome::Ok(_)));
@@ -195,7 +195,7 @@ async fn fetch_packument_sends_no_authorization_when_headers_empty() {
         .await;
 
     let upstream = upstream(server.url(), HeaderMap::new());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
     assert!(matches!(outcome, PackumentFetch::Modified(_)));
@@ -214,7 +214,7 @@ async fn fetch_packument_modified_carries_the_body() {
         .await;
 
     let upstream = upstream(server.url(), HeaderMap::new());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
     let PackumentFetch::Modified(fetched) = outcome else { panic!("expected a body") };
@@ -237,7 +237,7 @@ async fn fetch_packument_replays_validators_and_handles_304() {
         .await;
 
     let upstream = upstream(server.url(), HeaderMap::new());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let validators = CacheValidators {
         etag: Some(r#""abc123""#.to_string()),
         last_modified: Some("Wed, 21 Oct 2015 07:28:00 GMT".to_string()),
@@ -265,7 +265,7 @@ async fn fetch_packument_304_without_validators_is_an_error() {
         .await;
 
     let upstream = upstream(server.url(), HeaderMap::new());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
 
     assert!(result.is_err(), "an unconditional 304 must not be treated as NotModified");
@@ -278,7 +278,7 @@ async fn fetch_packument_maps_404_to_not_found() {
     let mock = server.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
 
     let upstream = upstream(server.url(), HeaderMap::new());
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let outcome = upstream.fetch_packument(&name, &CacheValidators::default()).await.unwrap();
 
     assert!(matches!(outcome, PackumentFetch::NotFound));
@@ -298,7 +298,7 @@ fn rewrites_npm_form_tarball() {
             }
         }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
@@ -334,7 +334,7 @@ fn preserves_valid_upstream_revision_route_on_the_public_registry() {
             }
         }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
     rewrite_upstream_tarball_urls(
         &mut doc,
@@ -375,7 +375,7 @@ fn drops_invalid_upstream_revision_history_entries() {
             }],
         },
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
     rewrite_upstream_tarball_urls(&mut doc, &name, "https://upstream.test/", "http://pnpr.test/");
 
@@ -385,7 +385,7 @@ fn drops_invalid_upstream_revision_history_entries() {
 #[test]
 fn does_not_preserve_an_invalid_upstream_revision_route() {
     let digest = "A".repeat(86);
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     for (revision, tarball) in [
         (json!(0), format!("https://upstream.test/-/tarballs/sha512/{digest}")),
         (json!(2), format!("https://other.test/-/tarballs/sha512/{digest}")),
@@ -425,7 +425,8 @@ fn rewrites_verdaccio_form_tarball_for_scoped() {
             }
         }
     });
-    let name = PackageName::parse("@foo/no-deps").unwrap();
+    let name =
+        CanonicalPackageName::parse("@foo/no-deps", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
@@ -448,7 +449,8 @@ fn preserves_non_canonical_tarball_basename() {
             }
         }
     });
-    let name = PackageName::parse("esprima-fb").unwrap();
+    let name =
+        CanonicalPackageName::parse("esprima-fb", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
@@ -468,7 +470,7 @@ fn rewrites_query_bearing_tarball_to_its_path_basename() {
             }
         }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
@@ -490,7 +492,7 @@ fn rewrites_basenameless_tarball_url_to_pnpr_route() {
             }
         }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
@@ -511,7 +513,7 @@ fn tarball_basename_strips_query_and_fragment() {
 #[test]
 fn handles_packument_without_versions() {
     let mut doc = json!({ "name": "foo" });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:4873");
     assert_eq!(doc, json!({ "name": "foo" }));
 }
@@ -532,7 +534,8 @@ fn extracts_version_by_dist_tag() {
             }
         }
     });
-    let name = PackageName::parse("@foo/no-deps").unwrap();
+    let name =
+        CanonicalPackageName::parse("@foo/no-deps", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "latest", "http://reg").unwrap();
     assert_eq!(manifest["version"], "1.0.0");
     assert_eq!(manifest["dist"]["tarball"], "http://reg/@foo/no-deps/-/no-deps-1.0.0.tgz");
@@ -545,7 +548,7 @@ fn extracts_version_by_literal_version() {
         "name": "foo",
         "versions": { "2.0.0": { "version": "2.0.0", "dist": { "tarball": "x/foo-2.0.0.tgz" } } }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     let manifest = extract_version_manifest(&doc, &name, "2.0.0", "http://reg").unwrap();
     assert_eq!(manifest["version"], "2.0.0");
     assert_eq!(manifest["dist"]["tarball"], "http://reg/foo/-/foo-2.0.0.tgz");
@@ -556,7 +559,7 @@ fn extract_returns_none_for_unknown_version() {
     let doc = json!({
         "versions": { "1.0.0": { "dist": { "tarball": "x/foo-1.0.0.tgz" } } }
     });
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     assert!(extract_version_manifest(&doc, &name, "9.9.9", "http://reg").is_none());
     assert!(extract_version_manifest(&doc, &name, "latest", "http://reg").is_none());
 }
@@ -809,7 +812,7 @@ async fn open_circuit_short_circuits_without_hitting_the_upstream() {
     let mock = server.mock("GET", "/foo").with_status(500).expect(1).create_async().await;
 
     let upstream = breaking_upstream(server.url(), 1);
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
     let first = upstream.fetch_packument(&name, &CacheValidators::default()).await;
     assert!(matches!(first, Err(RegistryError::UpstreamStatus { status: 500, .. })));
@@ -831,7 +834,7 @@ async fn client_error_status_does_not_open_the_circuit() {
     let mock = server.mock("GET", "/foo").with_status(401).expect(2).create_async().await;
 
     let upstream = breaking_upstream(server.url(), 1);
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
 
     for _ in 0..2 {
         let result = upstream.fetch_packument(&name, &CacheValidators::default()).await;
@@ -1070,7 +1073,7 @@ async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
     upstream.client = std::sync::Arc::new(
         pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
     );
-    let name = PackageName::parse("foo").unwrap();
+    let name = CanonicalPackageName::parse("foo", pnpr_package_name::Ecosystem::Npm).unwrap();
     for mode in 0..3 {
         let outcome = match mode {
             0 => upstream.fetch_artifact_response(&server.url()).await,

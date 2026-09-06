@@ -26,41 +26,9 @@
 //! relation is decidable for this deliberately small glob language.
 
 use indexmap::IndexMap;
-use pnpr_package_name::PackageName;
-use serde::{Deserialize, Serialize};
+use pnpr_package_name::CanonicalPackageName;
+pub use pnpr_package_name::Ecosystem;
 use std::fmt;
-
-/// The package ecosystem a concrete registry serves, which decides the wire
-/// protocol spoken at its `/~<name>/` endpoint: the npm registry API, the
-/// Cargo sparse-index and crates API, or the Python Simple Repository API
-/// plus the legacy upload API. A router inherits the one ecosystem all of
-/// its sources share.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Ecosystem {
-    #[default]
-    Npm,
-    Cargo,
-    Pypi,
-}
-
-impl Ecosystem {
-    /// The lowercase YAML spelling of the ecosystem (`npm`, `cargo`, `pypi`).
-    #[must_use]
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Ecosystem::Npm => "npm",
-            Ecosystem::Cargo => "cargo",
-            Ecosystem::Pypi => "pypi",
-        }
-    }
-}
-
-impl fmt::Display for Ecosystem {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
 
 /// A package-name pattern: one member of a concrete registry's declared
 /// namespace.
@@ -105,7 +73,7 @@ impl PackagePattern {
         if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
             // A single, concrete scope: `@acme/*`. A wildcard inside the
             // scope is an unsupported glob; a scope that request parsing
-            // (`PackageName::parse`) would reject — `@.acme`, `@..`, a
+            // (`CanonicalPackageName::parse`) would reject — `@.acme`, `@..`, a
             // separator — is a claim no valid package name can ever match,
             // so both fail loudly instead of becoming a dead pattern that
             // silently lets the scope land on a later router source.
@@ -123,7 +91,7 @@ impl PackagePattern {
         if pattern.contains('*') {
             return Err(invalid());
         }
-        if PackageName::parse(pattern).is_err() {
+        if CanonicalPackageName::parse(pattern, Ecosystem::Npm).is_err() {
             return Err(RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
         }
         Ok(PackagePattern::Exact(pattern.to_string()))

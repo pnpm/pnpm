@@ -9,7 +9,7 @@ use pnpm_network::{
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use reqwest::{
     StatusCode,
     header::{self, HeaderMap, HeaderValue},
@@ -281,7 +281,7 @@ impl Upstream {
     /// network when the circuit breaker is open.
     pub async fn fetch_packument(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         validators: &CacheValidators,
     ) -> Result<PackumentFetch> {
         self.ensure_available()?;
@@ -331,7 +331,7 @@ impl Upstream {
     /// network when the circuit breaker is open.
     pub async fn fetch_tarball_response(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
         let started = Instant::now();
@@ -614,14 +614,14 @@ async fn read_upstream_error_body(response: reqwest::Response) -> String {
 /// Walks both packument shape (`{ "versions": { v: { dist: ... } } }`)
 /// and single-version manifest shape (`{ dist: ... }` at the top level)
 /// so a single helper covers both endpoints.
-pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &str) {
+pub fn rewrite_tarball_urls(value: &mut Value, pkg: &CanonicalPackageName, public_url: &str) {
     rewrite_tarball_urls_from_registry(value, pkg, None, public_url);
 }
 
 /// Rewrite tarball URLs from an upstream registry, preserving valid revision routes.
 pub fn rewrite_upstream_tarball_urls(
     value: &mut Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     source_registry: &str,
     public_url: &str,
 ) {
@@ -630,7 +630,7 @@ pub fn rewrite_upstream_tarball_urls(
 
 fn rewrite_tarball_urls_from_registry(
     value: &mut Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     source_registry: Option<&str>,
     public_url: &str,
 ) {
@@ -645,7 +645,7 @@ fn rewrite_tarball_urls_from_registry(
 
 fn rewrite_dist_tarball(
     value: &mut Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     source_registry: Option<&str>,
     public_url: &str,
 ) {
@@ -770,7 +770,7 @@ pub fn tarball_basename(url: &str) -> Option<&str> {
 #[must_use]
 pub fn extract_version_manifest(
     packument: &Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     version_or_tag: &str,
     public_url: &str,
 ) -> Option<Value> {
@@ -781,7 +781,7 @@ pub fn extract_version_manifest(
 #[must_use]
 pub fn extract_upstream_version_manifest(
     packument: &Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     version_or_tag: &str,
     source_registry: &str,
     public_url: &str,
@@ -797,7 +797,7 @@ pub fn extract_upstream_version_manifest(
 
 fn extract_version_manifest_from_registry(
     packument: &Value,
-    pkg: &PackageName,
+    pkg: &CanonicalPackageName,
     version_or_tag: &str,
     source_registry: Option<&str>,
     public_url: &str,

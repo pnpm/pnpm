@@ -40,7 +40,7 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use pnpr_cargo::PublishMetadata;
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_pypi::Upload;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
@@ -100,7 +100,7 @@ impl ValidatedEntry {
         }
     }
 
-    fn key(&self) -> &PackageName {
+    fn key(&self) -> &CanonicalPackageName {
         match self {
             ValidatedEntry::Npm(doc, _) => &doc.name,
             ValidatedEntry::Cargo(publication) => publication.key(),
@@ -206,7 +206,7 @@ async fn validate_entry(
                     reason: "every npm entry in `packages` must have a string `name`".to_string(),
                 }
             })?;
-            let name = PackageName::parse(name)?;
+            let name = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)?;
             // The batch endpoint is path-less, so each package routes via the
             // default target; validation resolves that route and checks the
             // resolved hosted registry's publish rule per document.

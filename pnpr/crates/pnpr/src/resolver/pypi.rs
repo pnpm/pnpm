@@ -597,7 +597,9 @@ fn index_url(index: &str) -> Result<url::Url, String> {
 /// The PEP 503 spelling of a project's name, which is what the Python
 /// registry surface matches its rules against.
 fn canonical_project_name(name: &pep508_rs::PackageName) -> Result<String, String> {
-    pnpr_pypi::normalize_name(name.as_ref()).map_err(|err| err.to_string())
+    pnpr_package_name::CanonicalPackageName::parse(name.as_ref(), pnpr_registry::Ecosystem::Pypi)
+        .map(|name| name.as_str().to_string())
+        .map_err(|err| err.to_string())
 }
 
 fn within_budget(held: usize) -> bool {

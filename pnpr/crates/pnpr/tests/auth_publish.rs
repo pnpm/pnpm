@@ -1201,7 +1201,7 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
 /// again. This regression test pins that down: if someone reintroduces
 /// a manual `urldecode` (which was previously here and was both
 /// redundant and buggy on literal `%` chars), the `@scope/pkg`
-/// `PackageName::parse` would still pass but a future bug-fix that
+/// `CanonicalPackageName::parse` would still pass but a future bug-fix that
 /// changes the decoder could break percent-encoded scoped paths.
 #[tokio::test]
 async fn dist_tag_set_works_with_url_encoded_scoped_path() {

@@ -2,7 +2,7 @@ use super::{Body, ObjectStore, S3Store};
 use crate::HostedRevisionRefWrite;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use pnpr_config::S3Settings;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use std::sync::Arc;
 use tempfile::tempdir;
 
@@ -26,8 +26,9 @@ fn store_with_prefix(prefix: &str) -> (S3Store, tempfile::TempDir) {
     (store, staging)
 }
 
-fn pkg(name: &str) -> PackageName {
-    PackageName::parse(name).expect("valid package name")
+fn pkg(name: &str) -> CanonicalPackageName {
+    CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm)
+        .expect("valid package name")
 }
 
 async fn collect(body: Body) -> Vec<u8> {
@@ -38,13 +39,13 @@ async fn collect(body: Body) -> Vec<u8> {
 /// the decoded bytes to the reserved local tmp file, then upload.
 /// (Cleaning up the staging file belongs to the `HostedBackend` impl, not
 /// to `upload_blob`, so it stays behind here.)
-async fn upload(store: &S3Store, name: &PackageName, filename: &str, bytes: &[u8]) {
+async fn upload(store: &S3Store, name: &CanonicalPackageName, filename: &str, bytes: &[u8]) {
     let tmp = store.staging_tmp_path(name, filename).await.expect("reserve staging path");
     tokio::fs::write(&tmp, bytes).await.expect("write staging file");
     store.upload_blob(&tmp, name, filename).await.expect("upload");
 }
 
-async fn write_document(store: &S3Store, name: &PackageName, bytes: &[u8]) {
+async fn write_document(store: &S3Store, name: &CanonicalPackageName, bytes: &[u8]) {
     assert!(store.write_document_if_current(name, bytes, None).await.unwrap());
 }
 

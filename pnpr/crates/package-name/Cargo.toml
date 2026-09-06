@@ -11,7 +11,10 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
-pnpr-error = { workspace = true }
+pnpr-error  = { workspace = true }
+derive_more = { workspace = true }
+pep508_rs   = { workspace = true }
+serde       = { workspace = true }
 
 [lints]
 workspace = true

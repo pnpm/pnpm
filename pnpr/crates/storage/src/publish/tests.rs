@@ -3,7 +3,7 @@ use super::{
     merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -377,7 +377,7 @@ fn drop_lost_versions_tolerates_a_missing_versions_map() {
 
 #[test]
 fn merging_a_journaled_packument_adds_its_versions_to_the_stored_one() {
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let stored = serde_json::to_vec(&json!({
         "name": "pkg",
         "versions": { "1.0.0": { "version": "1.0.0" } },
@@ -411,7 +411,7 @@ fn merging_a_journaled_packument_adds_its_versions_to_the_stored_one() {
 /// `dist.tarball` URL the packument carries.
 #[test]
 fn merging_a_journaled_packument_drops_the_versions_of_lost_blobs() {
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let journaled = serde_json::to_vec(&json!({
         "name": "pkg",
         "versions": {

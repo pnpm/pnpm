@@ -8,7 +8,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_registry::Ecosystem;
 use serde_json::json;
 use std::sync::{
@@ -99,7 +99,7 @@ fn npm_package(name: &str) -> PackageId {
 /// A journaled npm publish of `packument` for `name`, with no staged blobs
 /// unless the test adds them.
 fn npm_publish<'publish>(
-    name: &'publish PackageName,
+    name: &'publish CanonicalPackageName,
     packument: &'publish [u8],
     revision_refs: &'publish [JournaledRevisionRef],
 ) -> JournaledPublish<'publish> {
@@ -154,7 +154,7 @@ async fn commit_persists_revision_references() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let packument = serde_json::to_vec(&json!({
         "name": "pkg",
         "versions": {},
@@ -195,7 +195,7 @@ async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
             .await
             .unwrap();
     }
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let packument = serde_json::to_vec(&json!({
         "name": "pkg",
         "versions": {
@@ -251,7 +251,7 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
             .await
             .unwrap();
     }
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let packument = serde_json::to_vec(&json!({
         "name": "pkg",
         "versions": { "1.0.0": { "version": "1.0.0" } },
@@ -320,8 +320,10 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let conflicted_name = PackageName::parse("conflicted-pkg").unwrap();
-    let later_name = PackageName::parse("later-pkg").unwrap();
+    let conflicted_name =
+        CanonicalPackageName::parse("conflicted-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let later_name =
+        CanonicalPackageName::parse("later-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let filename = "conflicted-pkg-1.0.0.tgz";
 
     let winner = storage.reserve_hosted_blob(&conflicted_name, filename).await.unwrap();
@@ -429,7 +431,7 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
     storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
@@ -456,7 +458,7 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
     storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
@@ -481,8 +483,10 @@ async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let written_name = PackageName::parse("written-pkg").unwrap();
-    let failed_name = PackageName::parse("failed-pkg").unwrap();
+    let written_name =
+        CanonicalPackageName::parse("written-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
+    let failed_name =
+        CanonicalPackageName::parse("failed-pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let written_document =
         serde_json::to_vec(&json!({ "name": "written-pkg", "versions": {} })).unwrap();
     let failed_document =
@@ -517,7 +521,7 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
         tmp.path().join("cache"),
     )
     .unwrap();
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
     let entries = [npm_publish(&name, &document, &[])];
     storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
@@ -540,7 +544,7 @@ async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
             .unwrap();
-    let name = PackageName::parse("pkg").unwrap();
+    let name = CanonicalPackageName::parse("pkg", pnpr_package_name::Ecosystem::Npm).unwrap();
     let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
     fs::write(&slot.tmp_path, b"tarball bytes").await.unwrap();
 

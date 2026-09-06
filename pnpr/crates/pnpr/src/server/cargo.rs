@@ -39,10 +39,10 @@ use axum::{
 use pnpr_cargo::{
     CrateDocument, IndexConfig, IndexEntry, PublishMetadata, crate_filename, download_url,
     errors_json, ok_json, parse_index, parse_publish_body, publish_ok_json, sparse_index_path,
-    validate_crate_archive, validate_crate_name,
+    validate_crate_archive,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{PackageName, is_safe_path_segment};
+use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
@@ -89,13 +89,6 @@ fn bad_request(reason: impl Display) -> Response {
     error_response(RegistryError::BadRequest { reason: reason.to_string() })
 }
 
-/// The lowercase cache/storage key of a crate.
-fn crate_key(name: &str) -> Result<PackageName, RegistryError> {
-    validate_crate_name(name)
-        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
-    PackageName::parse(&name.to_ascii_lowercase())
-}
-
 /// `GET index/config.json`.
 async fn get_index_config(
     State(state): State<AppState>,
@@ -134,19 +127,13 @@ async fn get_index_file(
     let segments: Vec<&str> =
         ["a", "b", "c"].iter().filter_map(|key| params.get(*key).map(String::as_str)).collect();
     let Some(name) = segments.last().copied() else { return not_found() };
-    if validate_crate_name(name).is_err() {
-        return not_found();
-    }
+    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else { return not_found() };
     let path = sparse_index_path(name);
     if path != segments.join("/") {
         return not_found();
     }
     let Some(target) = addressed_registry(&state, registry.as_deref()) else {
         return not_found();
-    };
-    let key = match crate_key(name) {
-        Ok(key) => key,
-        Err(err) => return error_response(err),
     };
     let index = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
@@ -171,7 +158,7 @@ async fn load_upstream_index(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     path: &str,
 ) -> Result<Option<String>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
@@ -201,15 +188,12 @@ async fn get_download(
     let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
         return not_found();
     };
-    if validate_crate_name(name).is_err() || !is_safe_path_segment(version) {
+    let Ok(key) = CanonicalPackageName::parse(name, ECOSYSTEM) else { return not_found() };
+    if !is_safe_path_segment(version) {
         return not_found();
     }
     let Some(target) = addressed_registry(&state, registry.as_deref()) else {
         return not_found();
-    };
-    let key = match crate_key(name) {
-        Ok(key) => key,
-        Err(err) => return error_response(err),
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
         RegistrySource::Hosted(source) => {
@@ -229,7 +213,7 @@ async fn download_hosted_crate(
     state: &AppState,
     identity: &Identity,
     source: &str,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     version: &str,
 ) -> Result<Response, RegistryError> {
     let document = read_hosted_document::<CrateDocument>(state, identity, source, key)
@@ -247,7 +231,7 @@ async fn download_via_upstream(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     name: &str,
     version: &str,
 ) -> Response {
@@ -281,7 +265,8 @@ async fn download_via_upstream(
             reason: format!("index entry {name}@{version} has no SHA-256 checksum"),
         });
     };
-    let config_key = PackageName::parse(INDEX_CONFIG_KEY).expect("static key is a safe segment");
+    let config_key = CanonicalPackageName::parse(INDEX_CONFIG_KEY, Ecosystem::Npm)
+        .expect("static key is a safe segment");
     let request = UpstreamDocument {
         name: &config_key,
         relative_path: INDEX_CONFIG_KEY,
@@ -348,7 +333,7 @@ async fn put_publish(
 /// will record it is built. Publishing it is [`Self::publish`] on its own, or
 /// [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(super) struct CratePublication {
-    key: PackageName,
+    key: CanonicalPackageName,
     org: String,
     filename: String,
     entry: IndexEntry,
@@ -372,7 +357,7 @@ pub(super) async fn validate_crate_publish(
 /// so a caller holding an undecoded payload can settle the question before
 /// spending anything on the archive.
 pub(super) struct CrateTarget {
-    key: PackageName,
+    key: CanonicalPackageName,
     org: String,
 }
 
@@ -383,7 +368,7 @@ pub(super) fn authorize_crate_publish(
     metadata: &PublishMetadata,
 ) -> Result<CrateTarget, RegistryError> {
     metadata.validate().map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
-    let key = crate_key(&metadata.name)?;
+    let key = CanonicalPackageName::parse(&metadata.name, ECOSYSTEM)?;
     let (source, org) =
         match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, key.as_str()) {
             PublishTarget::Hosted { source, org } => (source, org),
@@ -417,7 +402,7 @@ pub(super) async fn verify_crate_archive(
 }
 
 impl CratePublication {
-    pub(super) fn key(&self) -> &PackageName {
+    pub(super) fn key(&self) -> &CanonicalPackageName {
         &self.key
     }
 
@@ -495,7 +480,7 @@ async fn set_yanked(
     let (Some(name), Some(version)) = (params.get("name"), params.get("version")) else {
         return not_found();
     };
-    let key = match crate_key(name) {
+    let key = match CanonicalPackageName::parse(name, ECOSYSTEM) {
         Ok(key) => key,
         Err(err) => return error_response(err),
     };

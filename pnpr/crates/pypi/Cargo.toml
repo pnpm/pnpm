@@ -11,13 +11,13 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
-pnpm-network = { workspace = true }
-derive_more  = { workspace = true }
-pep440_rs    = { workspace = true }
-pep508_rs    = { workspace = true }
-regex        = { workspace = true }
-serde        = { workspace = true }
-serde_json   = { workspace = true }
+pnpm-network      = { workspace = true }
+derive_more       = { workspace = true }
+pnpr-package-name = { workspace = true }
+pep440_rs         = { workspace = true }
+regex             = { workspace = true }
+serde             = { workspace = true }
+serde_json        = { workspace = true }
 
 [lints]
 workspace = true

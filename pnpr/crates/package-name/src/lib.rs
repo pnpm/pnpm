@@ -1,12 +1,61 @@
+use derive_more::{Display, Error};
+use pep508_rs::PackageName as PythonPackageName;
 use pnpr_error::RegistryError;
+use serde::{Deserialize, Serialize};
+use std::{fmt, str::FromStr};
 
-/// The name of a package in any ecosystem — an npm package, a crate, a
-/// Python project — validated to be safe for use as a filesystem path
-/// segment (no traversal, no absolute-path prefixes) and well-formed
-/// enough to send upstream. Callers canonicalize the name for their
-/// ecosystem first; this is what the storage layer keys a package by.
+/// The protocol whose naming rules a registry surface follows.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Ecosystem {
+    #[default]
+    Npm,
+    Cargo,
+    Pypi,
+}
+
+impl Ecosystem {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Ecosystem::Npm => "npm",
+            Ecosystem::Cargo => "cargo",
+            Ecosystem::Pypi => "pypi",
+        }
+    }
+}
+
+impl fmt::Display for Ecosystem {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+pub const MAX_CRATE_NAME_LEN: usize = 64;
+
+#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
+pub enum CrateNameError {
+    #[display("crate name must not be empty")]
+    Empty,
+    #[display("crate name {name:?} is longer than {MAX_CRATE_NAME_LEN} characters")]
+    TooLong { name: String },
+    #[display("crate name {name:?} must start with a letter or `_`")]
+    InvalidStart { name: String },
+    #[display("crate name {name:?} may only contain ASCII letters, digits, `-` and `_`")]
+    InvalidCharacter { name: String },
+}
+
+#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
+#[display("{name:?} is not a valid Python project name")]
+pub struct PythonNameError {
+    pub name: String,
+}
+
+/// The canonical name of an npm package, Cargo crate, or Python project.
+/// Construction applies the ecosystem's normalization and validation before
+/// the name can be used as a storage or cache key.
 #[derive(Debug, Clone)]
-pub struct PackageName {
+pub struct CanonicalPackageName {
     raw: String,
     /// The unscoped portion — for `@scope/name` this is `name`, for
     /// `name` this is the whole thing. Used to validate tarball
@@ -14,8 +63,18 @@ pub struct PackageName {
     basename: String,
 }
 
-impl PackageName {
-    pub fn parse(raw: &str) -> Result<Self, RegistryError> {
+impl CanonicalPackageName {
+    pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
+        let invalid = || RegistryError::InvalidPackageName { name: raw.to_string() };
+        let canonical = match ecosystem {
+            Ecosystem::Npm => raw.to_string(),
+            Ecosystem::Cargo => canonicalize_crate_name(raw).map_err(|_| invalid())?,
+            Ecosystem::Pypi => canonicalize_python_name(raw).map_err(|_| invalid())?,
+        };
+        Self::parse_canonical(&canonical)
+    }
+
+    fn parse_canonical(raw: &str) -> Result<Self, RegistryError> {
         let invalid = || RegistryError::InvalidPackageName { name: raw.to_string() };
         if raw.is_empty() || raw.len() > 214 {
             return Err(invalid());
@@ -76,6 +135,37 @@ impl PackageName {
         }
         Ok((self.tarball_name_for_version(version), version.to_string()))
     }
+}
+
+pub fn canonicalize_crate_name(name: &str) -> Result<String, CrateNameError> {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return Err(CrateNameError::Empty);
+    };
+    if name.len() > MAX_CRATE_NAME_LEN {
+        return Err(CrateNameError::TooLong { name: name.to_string() });
+    }
+    if !(first.is_ascii_alphabetic() || first == '_') {
+        return Err(CrateNameError::InvalidStart { name: name.to_string() });
+    }
+    if !chars.all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_')) {
+        return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
+    }
+    Ok(name.to_ascii_lowercase())
+}
+
+pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {
+    let invalid = || PythonNameError { name: raw.to_string() };
+    let normalized = PythonPackageName::from_str(raw).map_err(|_| invalid())?.as_ref().to_string();
+    let well_formed =
+        normalized.chars().all(|character| {
+            character.is_ascii_lowercase() || character.is_ascii_digit() || character == '-'
+        }) && normalized.chars().next().is_some_and(|character| character.is_ascii_alphanumeric())
+            && normalized
+                .chars()
+                .next_back()
+                .is_some_and(|character| character.is_ascii_alphanumeric());
+    well_formed.then_some(normalized).ok_or_else(invalid)
 }
 
 // `:` is rejected because on Windows `C:foo` is a drive-relative *prefix*

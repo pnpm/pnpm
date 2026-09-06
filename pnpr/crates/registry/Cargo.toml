@@ -14,7 +14,6 @@ repository.workspace = true
 pnpr-error        = { workspace = true }
 pnpr-package-name = { workspace = true }
 indexmap          = { workspace = true }
-serde             = { workspace = true }
 wax               = { workspace = true }
 
 [lints]

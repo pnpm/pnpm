@@ -18,7 +18,7 @@ use super::{
 };
 use axum::response::{IntoResponse, Response};
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::streaming;
@@ -121,7 +121,7 @@ pub(super) async fn serve_hosted_blob(
     state: &AppState,
     identity: &Identity,
     source: &str,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     filename: &str,
 ) -> Result<Response, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
@@ -138,7 +138,7 @@ pub(super) fn upstream_for<'state>(
     state: &'state AppState,
     identity: &Identity,
     source: &RegistrySource,
-    key: &PackageName,
+    key: &CanonicalPackageName,
 ) -> Result<(&'state Upstream, String), RegistryError> {
     let RegistrySource::Upstream(name) = source else {
         return Err(RegistryError::NotFound);
@@ -151,7 +151,7 @@ pub(super) fn upstream_for<'state>(
 /// An upstream metadata document to read through the proxy cache.
 pub(super) struct UpstreamDocument<'request> {
     /// The cache key.
-    pub(super) name: &'request PackageName,
+    pub(super) name: &'request CanonicalPackageName,
     /// The path relative to the upstream's base URL.
     pub(super) relative_path: &'request str,
     pub(super) accept: Option<&'request str>,
@@ -212,7 +212,7 @@ pub(super) async fn serve_upstream_artifact(
     state: &AppState,
     upstream: &Upstream,
     namespace: &str,
-    name: &PackageName,
+    name: &CanonicalPackageName,
     filename: &str,
     url: &str,
     integrity: &Integrity,

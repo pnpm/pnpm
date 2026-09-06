@@ -13,6 +13,7 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
@@ -1962,23 +1963,19 @@ fn ecosystem_package_keys(
     ecosystem: Ecosystem,
     packages: IndexMap<String, Option<PackageAccess>>,
 ) -> Result<IndexMap<String, Option<PackageAccess>>, RegistryError> {
-    let canonical = |key: &str| -> Result<String, String> {
-        match ecosystem {
-            Ecosystem::Npm => Ok(key.to_string()),
-            Ecosystem::Cargo => pnpr_cargo::validate_crate_name(key)
-                .map(|()| key.to_ascii_lowercase())
-                .map_err(|err| err.to_string()),
-            Ecosystem::Pypi => pnpr_pypi::normalize_name(key).map_err(|err| err.to_string()),
-        }
-    };
     let mut normalized = IndexMap::new();
     for (key, access) in packages {
         let normalized_key = if ecosystem == Ecosystem::Npm || key == "**" {
             key.clone()
         } else {
-            canonical(&key).map_err(|reason| RegistryError::InvalidConfig {
-                reason: format!("{ecosystem} registry {registry:?} `packages:` key: {reason}"),
-            })?
+            CanonicalPackageName::parse(&key, ecosystem)
+                .map(|name| name.as_str().to_string())
+                .map_err(|error| RegistryError::InvalidConfig {
+                    reason: format!(
+                        "{ecosystem} registry {registry:?} `packages:` key: {}",
+                        error.public_message(),
+                    ),
+                })?
         };
         if normalized.contains_key(&normalized_key) {
             return Err(RegistryError::InvalidConfig {

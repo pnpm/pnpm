@@ -10,7 +10,7 @@ use axum::body::Body;
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
@@ -209,14 +209,18 @@ pub struct BlobWrite {
 #[derive(Debug)]
 pub struct BlobSlot {
     pub tmp_path: PathBuf,
-    name: PackageName,
+    name: CanonicalPackageName,
     filename: String,
 }
 
 impl BlobSlot {
     /// Rebuild a slot from its journaled parts so startup recovery can
     /// re-run [`Storage::finalize_blob_slot`] on it.
-    pub(crate) fn from_parts(tmp_path: PathBuf, name: PackageName, filename: String) -> Self {
+    pub(crate) fn from_parts(
+        tmp_path: PathBuf,
+        name: CanonicalPackageName,
+        filename: String,
+    ) -> Self {
         Self { tmp_path, name, filename }
     }
 
@@ -368,13 +372,13 @@ pub enum DocumentUpdate {
 /// is promoted by rename.
 #[async_trait]
 impl HostedBackend for Store {
-    async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         Store::read_document_any_age(self, name).await
     }
 
     async fn read_document_for_update(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
         Ok(Store::read_document_any_age(self, name).await?.map(|bytes| HostedDocumentForUpdate {
             bytes,
@@ -384,7 +388,7 @@ impl HostedBackend for Store {
 
     async fn write_document_if_current(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
         _version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
@@ -394,7 +398,7 @@ impl HostedBackend for Store {
 
     async fn open_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
         Ok(Store::open_blob(self, name, filename)
@@ -402,25 +406,29 @@ impl HostedBackend for Store {
             .map(|(file, len)| (streaming::stream_file(file), Some(len))))
     }
 
-    async fn reserve_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+    async fn reserve_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<PathBuf> {
         Store::reserve_blob_tmp(self, name, filename).await
     }
 
     async fn finalize_blob(
         &self,
         tmp_path: &Path,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobFinalize> {
         Store::finalize_blob(self, tmp_path, name, filename).await?;
         Ok(BlobFinalize::Written)
     }
 
-    async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
         Store::remove_blob(self, name, filename).await
     }
 
-    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         Store::remove_package(self, name).await
     }
 
@@ -566,20 +574,23 @@ impl Storage {
 
     /// Read the authoritative document for `name`, fresh or stale.
     /// Hosted content has no TTL — it is the source of truth.
-    pub async fn read_hosted_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    pub async fn read_hosted_document(
+        &self,
+        name: &CanonicalPackageName,
+    ) -> Result<Option<Vec<u8>>> {
         self.hosted.read_document(name).await
     }
 
     pub async fn read_hosted_document_for_update(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
         self.hosted.read_document_for_update(name).await
     }
 
     pub async fn write_hosted_document_if_current(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
@@ -598,7 +609,7 @@ impl Storage {
     /// stays in one place.
     pub async fn update_hosted_document_with_retry<Build>(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         retries: usize,
         mut build: Build,
     ) -> Result<DocumentUpdate>
@@ -631,7 +642,7 @@ impl Storage {
     /// storage remains operator-controlled rather than an upstream cache.
     pub async fn open_hosted_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
         self.hosted.open_blob(name, filename).await
@@ -643,7 +654,7 @@ impl Storage {
     /// finalize with [`Self::finalize_blob_slot`].
     pub async fn reserve_hosted_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobSlot> {
         let tmp_path = self.hosted.reserve_blob_tmp(name, filename).await?;
@@ -655,7 +666,7 @@ impl Storage {
     /// document back; clearing the proxied mirror too stops
     /// the proxy cache from serving a stale copy of the just-removed
     /// version.
-    pub async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
         let hosted = self.hosted.remove_blob(name, filename).await?;
         let cached = self.cached.remove_blob(name, filename).await?;
         Ok(hosted || cached)
@@ -664,7 +675,7 @@ impl Storage {
     /// Remove the package from both stores. Unpublish must purge the
     /// hosted copy *and* any proxied mirror, so a stale cached copy
     /// can't resurface after the package is gone.
-    pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let hosted = self.hosted.remove_package(name).await?;
         let cached = self.cached.remove_package(name).await?;
         Ok(hosted || cached)
@@ -684,7 +695,7 @@ impl Storage {
     pub async fn read_upstream_document(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         ttl: Duration,
     ) -> Result<Option<Vec<u8>>> {
         match self.cached.namespaced(namespace).read_document_entry(name, ttl).await? {
@@ -701,7 +712,7 @@ impl Storage {
     pub async fn read_upstream_document_any(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<Vec<u8>>> {
         // `Duration::MAX` classifies any existing entry as fresh, so its body
         // is returned regardless of age (the stale arm can't be reached here).
@@ -714,7 +725,7 @@ impl Storage {
     pub async fn write_upstream_document(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
     ) -> Result<()> {
         self.cached.namespaced(namespace).write_document(name, bytes).await
@@ -728,7 +739,7 @@ impl Storage {
     pub async fn remove_upstream_package(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<bool> {
         self.cached.namespaced(namespace).remove_package(name).await
     }
@@ -736,7 +747,7 @@ impl Storage {
     pub async fn open_upstream_blob_tmp(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobWrite> {
         self.cached.namespaced(namespace).open_blob_tmp(name, filename).await
@@ -745,7 +756,7 @@ impl Storage {
     pub async fn open_upstream_blob(
         &self,
         namespace: &str,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(fs::File, u64)>> {
         self.cached.namespaced(namespace).open_blob(name, filename).await
@@ -894,7 +905,7 @@ impl Store {
 
     async fn read_document_entry(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         ttl: Duration,
     ) -> Result<Option<CachedDocument>> {
         let path = self.document_path(name);
@@ -915,7 +926,7 @@ impl Store {
         }
     }
 
-    async fn read_document_any_age(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    async fn read_document_any_age(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         let path = self.document_path(name);
         match fs::read(&path).await {
             Ok(bytes) => Ok(Some(bytes)),
@@ -924,14 +935,14 @@ impl Store {
         }
     }
 
-    async fn write_document(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
+    async fn write_document(&self, name: &CanonicalPackageName, bytes: &[u8]) -> Result<()> {
         let path = self.document_path(name);
         write_atomic(&path, bytes).await
     }
 
     async fn open_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(fs::File, u64)>> {
         let path = self.blob_path(name, filename);
@@ -961,7 +972,11 @@ impl Store {
         Ok(Some((file, len)))
     }
 
-    async fn open_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<BlobWrite> {
+    async fn open_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<BlobWrite> {
         let final_path = self.blob_path(name, filename);
         self.open_blob_tmp_at(final_path).await
     }
@@ -991,7 +1006,11 @@ impl Store {
     /// Reserve a tmp path in the destination package directory so the
     /// publish flow can write there and [`Self::finalize_blob`] can
     /// rename within the same directory (atomic on POSIX).
-    async fn reserve_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+    async fn reserve_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<PathBuf> {
         let final_path = self.blob_path(name, filename);
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
@@ -1002,7 +1021,7 @@ impl Store {
     async fn finalize_blob(
         &self,
         tmp_path: &Path,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<()> {
         let final_path = self.blob_path(name, filename);
@@ -1016,7 +1035,7 @@ impl Store {
     /// Remove the entire package directory. Returns `Ok(false)` if it
     /// didn't exist (treat as a no-op success, matching what verdaccio
     /// does on a duplicate DELETE).
-    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let dir = self.package_dir(name);
         match fs::remove_dir_all(&dir).await {
             Ok(()) => Ok(true),
@@ -1029,7 +1048,7 @@ impl Store {
     /// is already gone; the pnpm unpublish flow always issues a DELETE
     /// after the document-update PUT, and a benign 404 here would
     /// surface as a real error to the caller.
-    async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
         match fs::remove_file(self.blob_path(name, filename)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
@@ -1128,15 +1147,15 @@ impl Store {
         }
     }
 
-    fn package_dir(&self, name: &PackageName) -> PathBuf {
+    fn package_dir(&self, name: &CanonicalPackageName) -> PathBuf {
         self.root.join(name.as_str())
     }
 
-    fn document_path(&self, name: &PackageName) -> PathBuf {
+    fn document_path(&self, name: &CanonicalPackageName) -> PathBuf {
         self.package_dir(name).join(DOCUMENT_FILE)
     }
 
-    fn blob_path(&self, name: &PackageName, filename: &str) -> PathBuf {
+    fn blob_path(&self, name: &CanonicalPackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
     }
 

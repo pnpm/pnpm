@@ -27,7 +27,7 @@ use object_store::{
     path::Path as ObjectPath,
 };
 use pnpr_error::{RegistryError, Result};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use std::{
     io,
     path::{Path, PathBuf},
@@ -98,7 +98,7 @@ impl S3Store {
         }
     }
 
-    pub async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    pub async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         match self.store.get(&self.document_key(name)).await {
             Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
             Err(object_store::Error::NotFound { .. }) => Ok(None),
@@ -108,7 +108,7 @@ impl S3Store {
 
     pub(crate) async fn read_document_for_update(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<S3DocumentForUpdate>> {
         match self.store.get(&self.document_key(name)).await {
             Ok(result) => {
@@ -125,7 +125,7 @@ impl S3Store {
 
     pub(crate) async fn write_document_if_current(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&UpdateVersion>,
     ) -> Result<bool> {
@@ -157,7 +157,7 @@ impl S3Store {
     /// or upstream.
     pub async fn open_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
         match self.store.get(&self.blob_key(name, filename)).await {
@@ -176,7 +176,11 @@ impl S3Store {
     /// Reserve a local staging path for the publish flow to decode and
     /// verify a blob into; [`Self::upload_blob`] promotes it to
     /// the bucket once the verification passes.
-    pub async fn staging_tmp_path(&self, _name: &PackageName, filename: &str) -> Result<PathBuf> {
+    pub async fn staging_tmp_path(
+        &self,
+        _name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
         Ok(crate::unique_tmp_path(&self.staging_dir.join(filename)))
     }
@@ -184,7 +188,7 @@ impl S3Store {
     pub async fn upload_blob(
         &self,
         tmp_path: &Path,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobFinalize> {
         let bytes = fs::read(tmp_path).await?;
@@ -220,7 +224,7 @@ impl S3Store {
         }
     }
 
-    pub async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
         match self.store.delete(&self.blob_key(name, filename)).await {
             Ok(()) => Ok(true),
             Err(object_store::Error::NotFound { .. }) => Ok(false),
@@ -228,7 +232,7 @@ impl S3Store {
         }
     }
 
-    pub async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    pub async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         let prefix = ObjectPath::from(format!("{}{}/", self.prefix, name.as_str()));
         let mut listing = self.store.list(Some(&prefix));
         let mut removed = false;
@@ -422,11 +426,11 @@ impl S3Store {
         }
     }
 
-    fn document_key(&self, name: &PackageName) -> ObjectPath {
+    fn document_key(&self, name: &CanonicalPackageName) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{DOCUMENT_FILE}", self.prefix, name.as_str()))
     }
 
-    fn blob_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
+    fn blob_key(&self, name: &CanonicalPackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
     }
 
@@ -491,13 +495,13 @@ mod tests;
 /// by upload rather than rename.
 #[async_trait]
 impl HostedBackend for S3Store {
-    async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+    async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         S3Store::read_document(self, name).await
     }
 
     async fn read_document_for_update(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>> {
         Ok(S3Store::read_document_for_update(self, name).await?.map(|document| {
             HostedDocumentForUpdate {
@@ -509,7 +513,7 @@ impl HostedBackend for S3Store {
 
     async fn write_document_if_current(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
@@ -526,20 +530,24 @@ impl HostedBackend for S3Store {
 
     async fn open_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
         S3Store::open_blob(self, name, filename).await
     }
 
-    async fn reserve_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+    async fn reserve_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<PathBuf> {
         self.staging_tmp_path(name, filename).await
     }
 
     async fn finalize_blob(
         &self,
         tmp_path: &Path,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobFinalize> {
         let outcome = self.upload_blob(tmp_path, name, filename).await?;
@@ -552,11 +560,11 @@ impl HostedBackend for S3Store {
         Ok(outcome)
     }
 
-    async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+    async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
         S3Store::remove_blob(self, name, filename).await
     }
 
-    async fn remove_package(&self, name: &PackageName) -> Result<bool> {
+    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         S3Store::remove_package(self, name).await
     }
 

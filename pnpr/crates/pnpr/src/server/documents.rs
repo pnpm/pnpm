@@ -16,7 +16,7 @@ use super::{
 };
 use pnpr_cargo::{CrateDocument, crate_filename};
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::ProjectDocument;
 use pnpr_registry::Ecosystem;
@@ -143,7 +143,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
     state: &AppState,
     identity: &Identity,
     source: &str,
-    key: &PackageName,
+    key: &CanonicalPackageName,
 ) -> Result<Option<Document>, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
     state
@@ -169,7 +169,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
     org: &str,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
     refuse: impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync,
@@ -200,7 +200,7 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
 pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
     org: &str,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     filename: &str,
     bytes: &[u8],
     refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),

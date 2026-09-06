@@ -233,14 +233,16 @@ impl IndexFetcher {
     /// holds it fetches and caches the entry while the rest wait and read
     /// what it stored.
     async fn index_file(&self, name: &str) -> Result<String, String> {
-        pnpr_cargo::validate_crate_name(name).map_err(|err| err.to_string())?;
+        let canonical_name =
+            pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Cargo)
+                .map_err(|err| err.to_string())?;
         let relative_path = pnpr_cargo::sparse_index_path(name);
         let url = format!("{}/{relative_path}", self.registry);
         // The route policy classifies a fetch by the crate it is for, as the
         // Cargo registry surface does, so an upstream's per-crate rules
         // decide the credential and the cache namespace here too. Both
         // surfaces match rules against the lowercased crate name.
-        let canonical_name = name.to_ascii_lowercase();
+        let canonical_name = canonical_name.as_str().to_string();
         let auth = self.auth_for(&canonical_name);
         let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {

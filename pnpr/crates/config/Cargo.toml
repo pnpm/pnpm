@@ -11,11 +11,9 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
-pnpr-cargo        = { workspace = true }
 pnpr-error        = { workspace = true }
 pnpr-package-name = { workspace = true }
 pnpr-policy       = { workspace = true }
-pnpr-pypi         = { workspace = true }
 pnpr-registry     = { workspace = true }
 pnpm-config-dir   = { workspace = true }
 pnpm-env-replace  = { workspace = true }

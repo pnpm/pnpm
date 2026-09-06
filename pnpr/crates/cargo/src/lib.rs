@@ -10,6 +10,8 @@
 //! publish runs before accepting bytes.
 
 use derive_more::{Display, Error};
+use pnpr_package_name::canonicalize_crate_name;
+pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -25,45 +27,16 @@ pub const INDEX_PATH: &str = "index";
 /// `/~<name>/api/v1/crates/new`, `/~<name>/api/v1/crates/<crate>/<version>/download`.
 pub const API_PATH: &str = "api/v1/crates";
 
-/// The longest crate name crates.io accepts.
-pub const MAX_CRATE_NAME_LEN: usize = 64;
-
 /// The decompressed size at which a published crate archive is rejected: a
 /// bound on the work a gzip bomb can force onto the archive check.
 pub const MAX_CRATE_ARCHIVE_UNPACKED_BYTES: u64 = 512 * 1024 * 1024;
-
-/// A crate name that no Cargo registry can serve.
-#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
-pub enum CrateNameError {
-    #[display("crate name must not be empty")]
-    Empty,
-    #[display("crate name {name:?} is longer than {MAX_CRATE_NAME_LEN} characters")]
-    TooLong { name: String },
-    #[display("crate name {name:?} must start with a letter or `_`")]
-    InvalidStart { name: String },
-    #[display("crate name {name:?} may only contain ASCII letters, digits, `-` and `_`")]
-    InvalidCharacter { name: String },
-}
 
 /// Validate a crate name the way crates.io does: ASCII letters, digits, `-`
 /// and `_`, starting with a letter or `_`, at most 64 characters. Every
 /// crate name in a URL, a publish body, or an index entry passes through
 /// here before it is used as a storage path segment.
 pub fn validate_crate_name(name: &str) -> Result<(), CrateNameError> {
-    let mut chars = name.chars();
-    let Some(first) = chars.next() else {
-        return Err(CrateNameError::Empty);
-    };
-    if name.len() > MAX_CRATE_NAME_LEN {
-        return Err(CrateNameError::TooLong { name: name.to_string() });
-    }
-    if !(first.is_ascii_alphabetic() || first == '_') {
-        return Err(CrateNameError::InvalidStart { name: name.to_string() });
-    }
-    if !chars.all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_')) {
-        return Err(CrateNameError::InvalidCharacter { name: name.to_string() });
-    }
-    Ok(())
+    canonicalize_crate_name(name).map(|_| ())
 }
 
 /// The directory part of a crate's sparse-index path, in the name's own

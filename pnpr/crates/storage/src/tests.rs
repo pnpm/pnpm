@@ -1,6 +1,6 @@
 use super::{
-    AsyncWriteExt, BlobWrite, ErrorKind, HostedRevisionRefWrite, HostedStoreConfig,
-    MAX_HOSTED_REVISION_REFS, PackageName, RegistryError, Storage, create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, CanonicalPackageName, ErrorKind, HostedRevisionRefWrite,
+    HostedStoreConfig, MAX_HOSTED_REVISION_REFS, RegistryError, Storage, create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
@@ -9,8 +9,8 @@ fn storage_in(tmp: &TempDir) -> Storage {
         .unwrap()
 }
 
-fn pkg(name: &str) -> PackageName {
-    PackageName::parse(name).unwrap()
+fn pkg(name: &str) -> CanonicalPackageName {
+    CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm).unwrap()
 }
 
 #[test]

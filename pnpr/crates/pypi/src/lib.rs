@@ -12,7 +12,8 @@ pub mod multipart;
 
 use derive_more::{Display, Error};
 use pep440_rs::Version;
-use pep508_rs::PackageName;
+pub use pnpr_package_name::PythonNameError as NameError;
+use pnpr_package_name::canonicalize_python_name;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, fmt::Write as _, str::FromStr};
@@ -40,25 +41,12 @@ pub const HTML_CONTENT_TYPE: &str = "application/vnd.pypi.simple.v1+html";
 /// `versions`, `size` and `upload-time` keys.
 pub const API_VERSION: &str = "1.1";
 
-/// A project name no Python index can serve.
-#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
-#[display("{name:?} is not a valid Python project name")]
-pub struct NameError {
-    pub name: String,
-}
-
 /// Normalize a project name the PEP 503 way (lowercase, runs of `-`, `_`
 /// and `.` collapsed to one `-`), rejecting names PEP 508 does not allow.
 /// Every project name in a URL, an upload form, or a filename passes
 /// through here, so `Demo_Pkg`, `demo.pkg` and `demo-pkg` are one project.
 pub fn normalize_name(raw: &str) -> Result<String, NameError> {
-    let invalid = || NameError { name: raw.to_string() };
-    let normalized = PackageName::from_str(raw).map_err(|_| invalid())?.as_ref().to_string();
-    let well_formed =
-        normalized.chars().all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
-            && normalized.chars().next().is_some_and(|ch| ch.is_ascii_alphanumeric())
-            && normalized.chars().next_back().is_some_and(|ch| ch.is_ascii_alphanumeric());
-    well_formed.then_some(normalized).ok_or_else(invalid)
+    canonicalize_python_name(raw)
 }
 
 /// A version string PEP 440 does not allow.

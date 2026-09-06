@@ -36,13 +36,13 @@ use axum::{
     routing::{get, post},
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::{PackageName, is_safe_path_segment};
+use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
 use pnpr_pypi::{
     DistributionKind, FILES_PATH, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, ProjectDocument,
-    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Upload, Yanked, multipart, normalize_name,
-    normalize_version, parse_distribution_filename, parse_upload, render_project_list_html,
-    render_project_list_json, wants_json, wants_versioned_html,
+    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Upload, Yanked, multipart, normalize_version,
+    parse_distribution_filename, parse_upload, render_project_list_html, render_project_list_json,
+    wants_json, wants_versioned_html,
 };
 use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
@@ -163,7 +163,8 @@ async fn get_project_page(
     Path(params): Path<HashMap<String, String>>,
 ) -> Response {
     let Some(raw_project) = params.get("project") else { return not_found() };
-    let Ok(project) = normalize_name(raw_project) else { return not_found() };
+    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else { return not_found() };
+    let project = key.as_str();
     let endpoint = registry_endpoint(&state, ECOSYSTEM, registry.as_deref());
     if project != *raw_project {
         return Response::builder()
@@ -175,16 +176,12 @@ async fn get_project_page(
     let Some(target) = addressed_registry(&state, registry.as_deref()) else {
         return not_found();
     };
-    let key = match PackageName::parse(&project) {
-        Ok(key) => key,
-        Err(err) => return err.into_response(),
-    };
-    let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
+    let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
             read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await
         }
         source @ RegistrySource::Upstream(_) => {
-            load_upstream_page(&state, &identity, &source, &key, &project)
+            load_upstream_page(&state, &identity, &source, &key, project)
                 .await
                 .map(|page| page.map(|(document, _)| document))
         }
@@ -202,7 +199,7 @@ async fn get_project_page(
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(&project), response)
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(project), response)
 }
 
 /// An upstream project's page through the cache, as the parsed document plus
@@ -211,7 +208,7 @@ async fn load_upstream_page(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     project: &str,
 ) -> Result<Option<(ProjectDocument, url::Url)>, RegistryError> {
     let (upstream, namespace) = upstream_for(state, identity, source, key)?;
@@ -255,18 +252,15 @@ async fn get_file(
     else {
         return not_found();
     };
-    let Ok(project) = normalize_name(raw_project) else { return not_found() };
+    let Ok(key) = CanonicalPackageName::parse(raw_project, ECOSYSTEM) else { return not_found() };
+    let project = key.as_str();
     if !is_safe_path_segment(filename) {
         return not_found();
     }
     let Some(target) = addressed_registry(&state, registry.as_deref()) else {
         return not_found();
     };
-    let key = match PackageName::parse(&project) {
-        Ok(key) => key,
-        Err(err) => return err.into_response(),
-    };
-    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
+    let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
         RegistrySource::Hosted(source) => {
             match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
                 Ok(Some(document)) if document.file(filename).is_some() => {
@@ -279,11 +273,11 @@ async fn get_file(
             }
         }
         source @ RegistrySource::Upstream(_) => {
-            file_via_upstream(&state, &identity, &source, &key, &project, filename).await
+            file_via_upstream(&state, &identity, &source, &key, project, filename).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     };
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(&project), response)
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), Some(project), response)
 }
 
 /// Proxy a file download: bind the request to the page's entry for the
@@ -293,7 +287,7 @@ async fn file_via_upstream(
     state: &AppState,
     identity: &Identity,
     source: &RegistrySource,
-    key: &PackageName,
+    key: &CanonicalPackageName,
     project: &str,
     filename: &str,
 ) -> Response {
@@ -372,7 +366,7 @@ async fn upload_file(
 /// that will record it is built. Publishing it is [`Self::publish`] on its
 /// own, or [`Self::stage`] as one package of a cross-ecosystem batch.
 pub(super) struct PypiPublication {
-    key: PackageName,
+    key: CanonicalPackageName,
     org: String,
     entry: ProjectFile,
     content: Vec<u8>,
@@ -394,7 +388,7 @@ pub(super) async fn validate_upload(
 /// a caller holding an undecoded payload can settle the question before
 /// spending anything on the file.
 pub(super) struct PypiTarget {
-    key: PackageName,
+    key: CanonicalPackageName,
     org: String,
 }
 
@@ -404,7 +398,8 @@ pub(super) fn authorize_upload(
     registry: Option<&str>,
     upload: &Upload,
 ) -> Result<PypiTarget, RegistryError> {
-    let project = normalize_name(&upload.name).map_err(bad_request)?;
+    let key = CanonicalPackageName::parse(&upload.name, ECOSYSTEM)?;
+    let project = key.as_str();
     let version = normalize_version(&upload.version).map_err(bad_request)?;
     let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
     if distribution.name != project {
@@ -428,15 +423,14 @@ pub(super) fn authorize_upload(
             )));
         }
     }
-    let key = PackageName::parse(&project)?;
     let (source, org) =
-        match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, &project) {
+        match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, project) {
             PublishTarget::Hosted { source, org } => (source, org),
             PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
             PublishTarget::Denied(err) => return Err(err),
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
-    authorize(state, identity, &RegistrySource::Hosted(source), &project, Action::Publish)?;
+    authorize(state, identity, &RegistrySource::Hosted(source), project, Action::Publish)?;
     Ok(PypiTarget { key, org })
 }
 
@@ -468,7 +462,7 @@ pub(super) fn verify_upload(
 }
 
 impl PypiPublication {
-    pub(super) fn key(&self) -> &PackageName {
+    pub(super) fn key(&self) -> &CanonicalPackageName {
         &self.key
     }
 

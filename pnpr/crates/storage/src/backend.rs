@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use axum::body::Body;
 use object_store::UpdateVersion;
 use pnpr_error::Result;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use std::{
     fmt::Debug,
     path::{Path, PathBuf},
@@ -22,13 +22,13 @@ use std::{
 /// rename or by upload, and how a namespace maps onto paths or key prefixes.
 #[async_trait]
 pub(crate) trait HostedBackend: Debug + Send + Sync {
-    async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>>;
+    async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>>;
 
     /// Read a document together with the token [`Self::write_document_if_current`]
     /// needs to detect a concurrent writer.
     async fn read_document_for_update(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
     ) -> Result<Option<HostedDocumentForUpdate>>;
 
     /// Write only if the stored document is still at `version`. A backend
@@ -36,21 +36,25 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// unconditionally — it serializes writers by another means.
     async fn write_document_if_current(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         bytes: &[u8],
         version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite>;
 
     async fn open_blob(
         &self,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>>;
 
     /// Reserve the local staging path the publish flow decodes into. Always
     /// local: the bytes are verified on the way in, before the backend sees
     /// them.
-    async fn reserve_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf>;
+    async fn reserve_blob_tmp(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<PathBuf>;
 
     /// Promote a staged blob to its final home, consuming the tmp file
     /// unless the outcome is [`BlobFinalize::Conflict`] — those bytes stay
@@ -58,13 +62,13 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     async fn finalize_blob(
         &self,
         tmp_path: &Path,
-        name: &PackageName,
+        name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobFinalize>;
 
-    async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool>;
+    async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool>;
 
-    async fn remove_package(&self, name: &PackageName) -> Result<bool>;
+    async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool>;
 
     async fn list_package_names(&self) -> Result<Vec<String>>;
 

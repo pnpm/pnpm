@@ -6193,6 +6193,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "flate2",
+ "pnpr-package-name",
  "semver",
  "serde",
  "serde_json",
@@ -6211,11 +6212,9 @@ dependencies = [
  "pnpm-config-dir",
  "pnpm-env-replace",
  "pnpm-testing-utils",
- "pnpr-cargo",
  "pnpr-error",
  "pnpr-package-name",
  "pnpr-policy",
- "pnpr-pypi",
  "pnpr-registry",
  "reqwest",
  "serde",
@@ -6282,7 +6281,10 @@ dependencies = [
 name = "pnpr-package-name"
 version = "0.0.1"
 dependencies = [
+ "derive_more",
+ "pep508_rs",
  "pnpr-error",
+ "serde",
 ]
 
 [[package]]
@@ -6299,8 +6301,8 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "pep440_rs",
- "pep508_rs",
  "pnpm-network",
+ "pnpr-package-name",
  "regex",
  "serde",
  "serde_json",
@@ -6313,7 +6315,6 @@ dependencies = [
  "indexmap 2.14.0",
  "pnpr-error",
  "pnpr-package-name",
- "serde",
  "wax",
 ]
 
