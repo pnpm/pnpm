@@ -11,9 +11,8 @@ const { runLifecycleHook } = await import('../lib/index.js')
 const f = fixtures(path.join(import.meta.dirname, 'fixtures'))
 const rootModulesDir = path.join(import.meta.dirname, '..', 'node_modules')
 
-// The emulator is a POSIX shell on every platform, so a Windows host must
-// still get shlex quoting rather than the JSON quoting `cmd` needs. Mocking
-// `is-windows` is what keeps this branch reachable off Windows.
+// `is-windows` is mocked because the branch under test is otherwise
+// reachable only from a Windows host.
 test('runLifecycleHook() quotes arguments for the emulator rather than for cmd on Windows', async () => {
   const pkgRoot = f.prepare('escape-args')
   const { default: pkg } = await import(path.join(pkgRoot, 'package.json'))

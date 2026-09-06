@@ -241,9 +241,6 @@ fn run_piped(
 
 /// Whether `cmd` will parse the script. The shell emulator is a POSIX
 /// shell on every platform, so only a native Windows run reaches `cmd`.
-///
-/// `windows` is a parameter rather than a `cfg!` so that both answers stay
-/// reachable from a test on any host.
 fn parsed_by_windows_shell(windows: bool, shell_emulator: bool) -> bool {
     windows && !shell_emulator
 }
