@@ -78,6 +78,9 @@ impl HostedDocument for CrateDocument {
                 self.name.clone_from(&entry.name);
             }
             self.versions.push(entry);
+            // The crates API reports one description per crate, so the
+            // newest publish that landed owns it.
+            self.description.clone_from(&addition.description);
         }
         self.versions.len() != before
     }

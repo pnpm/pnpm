@@ -168,12 +168,42 @@ pub fn render_index(entries: &[IndexEntry]) -> String {
 pub struct CrateDocument {
     pub name: String,
     pub versions: Vec<IndexEntry>,
+    /// The description of the most recently published version, which is
+    /// what the crates API reports for the crate. The sparse index carries
+    /// no description, so this is the only place a hosted crate has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 impl CrateDocument {
     #[must_use]
     pub fn new(name: &str) -> Self {
-        Self { name: name.to_string(), versions: Vec::new() }
+        Self { name: name.to_string(), versions: Vec::new(), description: None }
+    }
+
+    /// The version the crates API reports as `max_version`: the highest
+    /// non-yanked release, or the highest of all of them once every release
+    /// is yanked. `None` for a document with no parsable version.
+    #[must_use]
+    pub fn max_version(&self) -> Option<String> {
+        let highest = |yanked_allowed: bool| {
+            self.versions
+                .iter()
+                .filter(|entry| yanked_allowed || !entry.yanked)
+                .filter_map(|entry| semver::Version::parse(&entry.vers).ok())
+                .max()
+        };
+        highest(false).or_else(|| highest(true)).map(|version| version.to_string())
+    }
+
+    /// This crate as one row of a search response.
+    #[must_use]
+    pub fn to_search_crate(&self) -> SearchCrate {
+        SearchCrate {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            max_version: self.max_version().unwrap_or_default(),
+        }
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -198,6 +228,29 @@ impl CrateDocument {
     pub fn render_index(&self) -> String {
         render_index(&self.versions)
     }
+}
+
+/// One row of `GET api/v1/crates`. `cargo search` reads exactly these three
+/// fields, so the response stays that narrow rather than modelling all of
+/// what crates.io returns.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchCrate {
+    pub name: String,
+    pub description: Option<String>,
+    pub max_version: String,
+}
+
+/// The body of `GET api/v1/crates`. `total` counts every match, not the
+/// page, so a client can tell that a query was truncated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchResponse {
+    pub crates: Vec<SearchCrate>,
+    pub meta: SearchMeta,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchMeta {
+    pub total: usize,
 }
 
 /// The `config.json` at the root of a sparse index.

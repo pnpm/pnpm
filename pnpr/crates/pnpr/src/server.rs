@@ -1500,25 +1500,20 @@ enum DiscoverySource {
     Upstream(String),
 }
 
-struct SearchPage {
-    objects: Vec<Value>,
+/// One page of search results, in the order the discovery sources are
+/// walked. `names` counts every match so a caller can report a total that
+/// is larger than the page, and it is what makes the first source to serve
+/// a name the one that owns it. `Item` is whatever the surface renders.
+struct SearchPage<Item> {
+    objects: Vec<Item>,
     names: HashSet<String>,
     from: usize,
     size: usize,
 }
 
-impl SearchPage {
+impl<Item> SearchPage<Item> {
     fn new(from: usize, size: usize) -> Self {
         Self { objects: Vec::new(), names: HashSet::new(), from, size }
-    }
-
-    fn push(&mut self, object: Value) {
-        let Some(name) = search_object_name(&object) else {
-            return;
-        };
-        if self.push_name(name) {
-            self.objects.push(object);
-        }
     }
 
     fn push_name(&mut self, name: &str) -> bool {
@@ -1534,6 +1529,17 @@ impl SearchPage {
 
     fn total(&self) -> usize {
         self.names.len()
+    }
+}
+
+impl SearchPage<Value> {
+    fn push(&mut self, object: Value) {
+        let Some(name) = search_object_name(&object) else {
+            return;
+        };
+        if self.push_name(name) {
+            self.objects.push(object);
+        }
     }
 }
 
@@ -2310,30 +2316,23 @@ async fn serve_search(
     };
     let mut page = SearchPage::new(params.from, params.size);
     let mut upstream_budget = UpstreamSearchBudget::default();
-    for source in discovery_sources(state, &registry) {
+    for source in discovery_sources(state, &registry, Ecosystem::Npm) {
         match source {
             DiscoverySource::Hosted(source) => {
-                let Some(hosted) = state.inner.config.hosted.get(&source) else {
-                    continue;
+                let hosted = hosted_search_names(
+                    state,
+                    identity,
+                    &registry,
+                    &source,
+                    Ecosystem::Npm,
+                    &params.text,
+                )
+                .await;
+                let (storage, names) = match hosted {
+                    Ok(Some(hosted)) => hosted,
+                    Ok(None) => continue,
+                    Err(err) => return err.into_response(),
                 };
-                if !hosted.rules.any_access_admits(identity) {
-                    continue;
-                }
-                let storage = hosted_storage(state, Some(&hosted.org));
-                let keep = |name: &str| {
-                    matches!(
-                        resolve_registry_source(state, &registry, name),
-                        RegistrySource::Hosted(resolved) if resolved == source,
-                    ) && matches!(
-                        hosted_gate(state, identity, &source, name),
-                        HostedGate::Allowed(_),
-                    )
-                };
-                let names =
-                    match pnpr_search::local_search_names(&storage, &params.text, keep).await {
-                        Ok(names) => names,
-                        Err(err) => return err.into_response(),
-                    };
                 for name in names {
                     if page.push_name(&name) {
                         page.objects.push(pnpr_search::local_search_entry(&storage, &name).await);
@@ -2380,9 +2379,38 @@ async fn serve_search(
     result(page.objects, total)
 }
 
+/// The hosted names one discovery source contributes to a search, beside the
+/// storage they were read from. `None` when the caller may not see the source
+/// at all. Only the projection of a name into a result differs between
+/// ecosystems, so the walk itself lives here.
+async fn hosted_search_names(
+    state: &AppState,
+    identity: &Identity,
+    registry: &str,
+    source: &str,
+    ecosystem: Ecosystem,
+    text: &pnpr_search::SearchText,
+) -> Result<Option<(Storage, Vec<String>)>, RegistryError> {
+    let Some(hosted) = state.inner.config.hosted.get(source) else {
+        return Ok(None);
+    };
+    if !hosted.rules.any_access_admits(identity) {
+        return Ok(None);
+    }
+    let storage = hosted_storage(state, Some(&hosted.org));
+    let keep = |name: &str| {
+        matches!(
+            resolve_ecosystem_source(state, registry, ecosystem, name),
+            RegistrySource::Hosted(resolved) if resolved == source,
+        ) && matches!(hosted_gate(state, identity, source, name), HostedGate::Allowed(_))
+    };
+    let names = pnpr_search::local_search_names(&storage, text, keep).await?;
+    Ok(Some((storage, names)))
+}
+
 async fn append_upstream_search(
     context: UpstreamSearchContext<'_>,
-    page: &mut SearchPage,
+    page: &mut SearchPage<Value>,
     budget: &mut UpstreamSearchBudget,
 ) -> Result<(), RegistryError> {
     const FETCH_SIZE: usize = 250;
@@ -2440,10 +2468,14 @@ async fn append_upstream_search(
     }
 }
 
-fn discovery_sources(state: &AppState, registry: &str) -> Vec<DiscoverySource> {
+fn discovery_sources(
+    state: &AppState,
+    registry: &str,
+    ecosystem: Ecosystem,
+) -> Vec<DiscoverySource> {
     let registries = &state.inner.config.registries;
     registries
-        .sources(registry, Ecosystem::Npm)
+        .sources(registry, ecosystem)
         .into_iter()
         .filter_map(|source| match registries.get(source) {
             Some(Registry::Hosted { .. }) => Some(DiscoverySource::Hosted(source.to_string())),
@@ -2490,7 +2522,7 @@ async fn serve_org_packages(
     };
     let prefix = format!("@{scope}/");
     let mut packages = Map::new();
-    for source in discovery_sources(state, &registry) {
+    for source in discovery_sources(state, &registry, Ecosystem::Npm) {
         match source {
             DiscoverySource::Hosted(source) => {
                 let Some(hosted) = state.inner.config.hosted.get(&source) else {

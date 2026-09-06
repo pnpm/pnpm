@@ -80,33 +80,32 @@ pub fn parse_query(query_string: &str) -> Option<String> {
     fallback
 }
 
+/// The first parsable value of a numeric URL parameter, or `None` when the
+/// query string carries none. Every search surface reads its page size and
+/// offset this way; only the parameter names differ between them.
+#[must_use]
+pub fn parse_usize_param(query_string: &str, key: &str) -> Option<usize> {
+    query_string.split('&').find_map(|pair| {
+        let (candidate, value) = pair.split_once('=')?;
+        (candidate == key).then(|| value.parse().ok()).flatten()
+    })
+}
+
 /// `size=` URL param; bounded the same way npm bounds it (1..=250).
 #[must_use]
 pub fn parse_size(query_string: &str, default_size: usize) -> usize {
-    for pair in query_string.split('&') {
-        if let Some((key, value)) = pair.split_once('=')
-            && key == "size"
-            && let Ok(parsed) = value.parse::<usize>()
-        {
-            return parsed.clamp(1, 250);
-        }
-    }
-    default_size
+    parse_usize_param(query_string, "size")
+        .map_or(default_size, |size| size.clamp(1, MAX_PAGE_SIZE))
 }
 
 /// `from=` URL param. Invalid values start at the first result.
 #[must_use]
 pub fn parse_from(query_string: &str) -> usize {
-    for pair in query_string.split('&') {
-        if let Some((key, value)) = pair.split_once('=')
-            && key == "from"
-            && let Ok(parsed) = value.parse::<usize>()
-        {
-            return parsed;
-        }
-    }
-    0
+    parse_usize_param(query_string, "from").unwrap_or(0)
 }
+
+/// The most results any search surface returns in one page.
+pub const MAX_PAGE_SIZE: usize = 250;
 
 pub async fn local_search_names(
     storage: &Storage,

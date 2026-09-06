@@ -8,7 +8,8 @@
 //! downloads back at itself). The **crates API** serves downloads
 //! (`api/v1/crates/<crate>/<version>/download`, verified against the index
 //! checksum when proxied), accepts `cargo publish` (`PUT api/v1/crates/new`)
-//! and yank / unyank on hosted registries.
+//! and yank / unyank on hosted registries, and answers `cargo search` over
+//! the crates a registry hosts.
 //!
 //! In a multi-ecosystem registry, both families answer under `/cargo/` (the
 //! default target) and `/cargo/~<name>/` (a named registry). A Cargo-only
@@ -18,29 +19,30 @@
 //! published.
 
 use super::{
-    Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
+    Action, AppState, AuthedCaller, DiscoverySource, RegistrySource, SearchPage, TargetRegistry,
+    authorize, discovery_sources,
     documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
         load_upstream_document, registry_endpoint, registry_requires_auth, serve_hosted_blob,
         serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    json_response, not_found,
+    hosted_search_names, json_response, not_found,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
     Router,
     body::{Body, Bytes},
-    extract::{Path, State},
+    extract::{Path, RawQuery, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
     routing::{delete, get, put},
 };
 use pnpr_cargo::{
-    CrateDocument, IndexConfig, IndexEntry, PublishMetadata, crate_filename, download_url,
-    errors_json, ok_json, parse_index, parse_publish_body, publish_ok_json, sparse_index_path,
-    validate_crate_archive,
+    CrateDocument, IndexConfig, IndexEntry, PublishMetadata, SearchCrate, SearchMeta,
+    SearchResponse, crate_filename, download_url, errors_json, ok_json, parse_index,
+    parse_publish_body, publish_ok_json, sparse_index_path, validate_crate_archive,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
@@ -65,6 +67,7 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))
             .route(&format!("{base}/index/{{a}}/{{b}}/{{c}}"), get(get_index_file))
+            .route(&format!("{base}/api/v1/crates"), get(get_search))
             .route(&format!("{base}/api/v1/crates/new"), put(put_publish))
             .route(
                 &format!("{base}/api/v1/crates/{{name}}/{{version}}/download"),
@@ -74,6 +77,77 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
             .route(&format!("{base}/api/v1/crates/{{name}}/{{version}}/unyank"), put(put_unyank));
     }
     router
+}
+
+/// `cargo search`'s default page size, which is also what crates.io returns
+/// when a request names none.
+const DEFAULT_SEARCH_PAGE: usize = 10;
+
+/// `GET api/v1/crates?q=<query>&per_page=<n>&page=<n>` — `cargo search`.
+///
+/// Hosted sources only. An upstream contributes nothing, the way an npm
+/// upstream does until its `search` is turned on, and searching one needs
+/// its `config.json` `api` base rather than the index base pnpr proxies.
+async fn get_search(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    RawQuery(query): RawQuery,
+) -> Response {
+    let query_string = query.unwrap_or_default();
+    let respond = |crates: Vec<SearchCrate>, total: usize| {
+        json_response(
+            StatusCode::OK,
+            &serde_json::to_value(SearchResponse { crates, meta: SearchMeta { total } })
+                .expect("search response serializes"),
+        )
+    };
+    let Some(text) = pnpr_search::parse_query(&query_string).map(pnpr_search::SearchText::Package)
+    else {
+        return respond(Vec::new(), 0);
+    };
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
+    let size = pnpr_search::parse_usize_param(&query_string, "per_page")
+        .map_or(DEFAULT_SEARCH_PAGE, |size| size.clamp(1, pnpr_search::MAX_PAGE_SIZE));
+    // crates.io numbers pages from one; anything lower starts at the first.
+    let from = pnpr_search::parse_usize_param(&query_string, "page")
+        .map_or(0, |page| page.saturating_sub(1).saturating_mul(size));
+
+    let mut page = SearchPage::new(from, size);
+    for source in discovery_sources(&state, &target, ECOSYSTEM) {
+        let DiscoverySource::Hosted(source) = source else {
+            continue;
+        };
+        let hosted =
+            hosted_search_names(&state, &identity, &target, &source, ECOSYSTEM, &text).await;
+        let (storage, names) = match hosted {
+            Ok(Some(hosted)) => hosted,
+            Ok(None) => continue,
+            Err(err) => return error_response(err),
+        };
+        for name in names {
+            if !page.push_name(&name) {
+                continue;
+            }
+            let Some(entry) = search_crate(&storage, &name).await else {
+                continue;
+            };
+            page.objects.push(entry);
+        }
+    }
+    let total = page.total();
+    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), None, respond(page.objects, total))
+}
+
+/// One search row, read from the crate's stored document. `None` when the
+/// document is unreadable, which leaves the crate out of the page rather
+/// than failing the whole search.
+async fn search_crate(storage: &pnpr_storage::Storage, name: &str) -> Option<SearchCrate> {
+    let key = CanonicalPackageName::parse(name, ECOSYSTEM).ok()?;
+    let bytes = storage.read_hosted_document(&key).await.ok()??;
+    CrateDocument::parse(&bytes).ok().map(|document| document.to_search_crate())
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the
@@ -336,6 +410,7 @@ pub(super) struct CratePublication {
     org: String,
     filename: String,
     entry: IndexEntry,
+    description: Option<String>,
     archive: Bytes,
 }
 
@@ -397,12 +472,30 @@ pub(super) async fn verify_crate_archive(
     .map_err(RegistryError::JoinError)??;
     let (cksum, archive) = checked;
     let filename = crate_filename(&metadata.name, &metadata.vers);
-    Ok(CratePublication { key, org, filename, entry: metadata.into_index_entry(cksum), archive })
+    let description = metadata.description.clone();
+    Ok(CratePublication {
+        key,
+        org,
+        filename,
+        entry: metadata.into_index_entry(cksum),
+        description,
+        archive,
+    })
 }
 
 impl CratePublication {
     pub(super) fn key(&self) -> &CanonicalPackageName {
         &self.key
+    }
+
+    /// The one-version document this publish contributes, which merges into
+    /// whatever the registry already holds for the crate.
+    fn document(&self) -> CrateDocument {
+        CrateDocument {
+            name: self.entry.name.clone(),
+            versions: vec![self.entry.clone()],
+            description: self.description.clone(),
+        }
     }
 
     /// Publish this crate on its own, in a transaction of one.
@@ -414,7 +507,7 @@ impl CratePublication {
             &self.filename,
             &self.archive,
             refuse_published_version(&self.entry.vers),
-            CrateDocument { name: self.entry.name.clone(), versions: vec![self.entry.clone()] },
+            self.document(),
         )
         .await
     }
@@ -429,7 +522,7 @@ impl CratePublication {
             &self.filename,
             &self.archive,
             &refuse_published_version(&self.entry.vers),
-            CrateDocument { name: self.entry.name.clone(), versions: vec![self.entry.clone()] },
+            self.document(),
         )
         .await
     }

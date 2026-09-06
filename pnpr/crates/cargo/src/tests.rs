@@ -1,11 +1,11 @@
 use super::{
-    CrateArchiveError, CrateDocument, CrateNameError, DependencyKind, IndexConfig,
-    PublishBodyError, PublishMetadata, crate_filename, download_url, parse_index,
+    CrateArchiveError, CrateDocument, CrateNameError, DependencyKind, IndexConfig, IndexEntry,
+    PublishBodyError, PublishMetadata, SearchCrate, crate_filename, download_url, parse_index,
     parse_publish_body, render_index, sparse_index_path, validate_crate_archive,
     validate_crate_archive_with_limit, validate_crate_name,
 };
 use serde_json::json;
-use std::io::Write as _;
+use std::{collections::BTreeMap, io::Write as _};
 
 pub(crate) fn crate_archive(root: &str, files: &[(&str, &str)]) -> Vec<u8> {
     let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
@@ -365,4 +365,58 @@ fn crate_archive_accepts_an_explicit_root_directory() {
             entry_type.is_dir(),
         );
     }
+}
+
+fn entry(vers: &str, yanked: bool) -> IndexEntry {
+    IndexEntry {
+        name: "demo".to_string(),
+        vers: vers.to_string(),
+        deps: Vec::new(),
+        cksum: "0".repeat(64),
+        features: BTreeMap::new(),
+        yanked,
+        links: None,
+        v: 1,
+        features2: None,
+        rust_version: None,
+    }
+}
+
+#[test]
+fn max_version_prefers_the_newest_release_that_is_not_yanked() {
+    let mut document = CrateDocument::new("demo");
+    document.versions = vec![entry("0.9.0", false), entry("1.10.0", false), entry("1.9.0", false)];
+
+    // Semver ordering, not lexicographic: 1.10.0 is newer than 1.9.0.
+    assert_eq!(document.max_version().as_deref(), Some("1.10.0"));
+
+    document.versions[1].yanked = true;
+    assert_eq!(document.max_version().as_deref(), Some("1.9.0"));
+
+    // With nothing left to prefer, the newest yanked release is reported.
+    for version in &mut document.versions {
+        version.yanked = true;
+    }
+    assert_eq!(document.max_version().as_deref(), Some("1.10.0"));
+}
+
+#[test]
+fn a_document_with_no_release_has_no_max_version() {
+    assert_eq!(CrateDocument::new("demo").max_version(), None);
+}
+
+#[test]
+fn a_search_row_carries_the_name_as_published() {
+    let mut document = CrateDocument::new("Inflector");
+    document.versions = vec![entry("0.11.4", false)];
+    document.description = Some("A crate".to_string());
+
+    assert_eq!(
+        document.to_search_crate(),
+        SearchCrate {
+            name: "Inflector".to_string(),
+            description: Some("A crate".to_string()),
+            max_version: "0.11.4".to_string(),
+        },
+    );
 }
