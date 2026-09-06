@@ -32,7 +32,7 @@ fn compiler_cache_policies_distinguish_readers_and_publishers() {
     assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
     assert!(
         config.artifacts.compiler_caches["disabled"].access.is_empty(),
-        "empty access must deny reads"
+        "empty access must deny reads",
     );
 }
 

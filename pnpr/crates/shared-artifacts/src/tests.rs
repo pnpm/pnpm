@@ -81,7 +81,7 @@ async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit()
         assert_eq!(usage.active_publications.len(), 0);
         assert_eq!(
             store.read_compiler_cache("acme", &key).await.unwrap().is_some(),
-            commit_before_error
+            commit_before_error,
         );
     }
 }

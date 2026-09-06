@@ -15,7 +15,7 @@ fn key(value: &str) -> CompilerCacheKey {
 
 #[test]
 fn keys_reject_traversal_and_ambiguous_paths() {
-    for invalid in ["", "/abc", "a//b", "a/../b", "./abc", "a\\b", "a/%2e", "a?b", "a#b"] {
+    for invalid in ["", "/abc", "a//b", "a/../b", "./abc", r"a\b", "a/%2e", "a?b", "a#b"] {
         let result = CompilerCacheKey::try_from(invalid.to_string());
         assert!(result.is_err(), "accepted {invalid:?}");
     }

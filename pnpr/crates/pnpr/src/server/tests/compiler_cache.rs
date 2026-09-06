@@ -134,7 +134,7 @@ async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
             .await
             .unwrap()
             .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
     config.artifacts.enabled = false;
     config.resolver.enabled = true;
@@ -144,6 +144,6 @@ async fn disabled_artifacts_and_undeclared_caches_are_not_served() {
             .await
             .unwrap()
             .status(),
-        StatusCode::NOT_FOUND
+        StatusCode::NOT_FOUND,
     );
 }

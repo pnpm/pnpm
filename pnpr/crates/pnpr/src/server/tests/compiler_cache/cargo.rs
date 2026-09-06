@@ -80,7 +80,7 @@ impl CompilerSession {
         if stats["stats"]["cache_write_errors"] != 0 {
             eprintln!(
                 "{}",
-                std::fs::read_to_string(self.directory.path().join("sccache.log")).unwrap()
+                std::fs::read_to_string(self.directory.path().join("sccache.log")).unwrap(),
             );
         }
         stats
