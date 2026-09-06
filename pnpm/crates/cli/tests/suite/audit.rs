@@ -359,6 +359,50 @@ fn audit_ignores_configured_ghsas_in_text_report() {
 }
 
 #[test]
+fn audit_keeps_reporting_advisories_that_are_not_ignored() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &format!(
+            "{{\n{},\n{}\n}}",
+            advisory_entry(
+                "vulnerable",
+                301,
+                "high",
+                "<2.0.0",
+                "ignored vulnerability",
+                "GHSA-ignr-1111-2222",
+            ),
+            advisory_entry(
+                "moderate-pkg",
+                302,
+                "moderate",
+                "<2.0.0",
+                "visible vulnerability",
+                "GHSA-visi-1111-2222",
+            ),
+        ),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-ignr-1111-2222\n",
+    );
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    assert!(!stdout.contains("ignored vulnerability"));
+    assert!(
+        stdout.ends_with("1 vulnerabilities found\nSeverity: 1 moderate | 0 high (1 ignored)\n")
+    );
+    mock.assert();
+}
+
+#[test]
 fn audit_ignores_configured_ghsas_in_json_report() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();

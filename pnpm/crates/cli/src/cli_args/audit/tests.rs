@@ -1035,10 +1035,23 @@ fn text_report_summary_subtracts_ignored_advisories_from_severity_counts() {
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
-    assert!(output.contains("1 vulnerabilities found"), "headline is net of ignored:\n{output}");
-    assert!(
-        output.ends_with("Severity: 0 moderate (1 ignored) | 1 high (1 ignored)"),
-        "per-severity counts are net of ignored:\n{output}",
+    assert_eq!(
+        output,
+        "┌─────────────────────┬───────────────────────────────────────────────────┐\n\
+         │ high                │ high issue                                        │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Package             │ pkg                                               │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Vulnerable versions │ <2.0.0                                            │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Patched versions    │ >=2.0.0                                           │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Paths               │ .>pkg                                             │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ More info           │ https://github.com/advisories/GHSA-high-3333-4444 │\n\
+         └─────────────────────┴───────────────────────────────────────────────────┘\n\
+         1 vulnerabilities found\n\
+         Severity: 0 moderate (1 ignored) | 1 high (1 ignored)",
     );
 }
 

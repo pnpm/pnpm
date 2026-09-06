@@ -87,8 +87,6 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
     format!("{table}\n")
 }
 
-/// The summary describes the same advisory set the exit code is based on, so
-/// the reported counts are net of the advisories `auditConfig` suppressed.
 pub(crate) fn report_summary(
     vulnerabilities: &AuditVulnerabilityCounts,
     ignored: &AuditVulnerabilityCounts,

@@ -425,6 +425,58 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toBe('No known vulnerabilities found (1 ignored)\n')
   })
 
+  test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 101,
+            url: 'https://github.com/advisories/GHSA-high-high-high',
+            title: 'something high',
+            severity: 'high',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(1)
+    expect(stripAnsi(output)).toBe(`┌─────────────────────┬────────────────────────────────────────────────────────┐
+│ high                │ something high                                         │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Package             │ axios                                                  │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Vulnerable versions │ *                                                      │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Patched versions    │ (unknown)                                              │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ Paths               │ .>karma>log4js>axios                                   │
+│                     │                                                        │
+│                     │ .>axios                                                │
+├─────────────────────┼────────────────────────────────────────────────────────┤
+│ More info           │ https://github.com/advisories/GHSA-high-high-high      │
+└─────────────────────┴────────────────────────────────────────────────────────┘
+1 vulnerabilities found
+Severity: 0 info (1 ignored) | 1 high`)
+  })
+
   test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 

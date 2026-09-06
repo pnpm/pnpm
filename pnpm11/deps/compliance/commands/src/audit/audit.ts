@@ -448,10 +448,6 @@ function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
   return fix === '' || fix === true || fix === 'true'
 }
 
-/**
- * Counts are net of what `auditConfig` suppressed, so the summary describes
- * the same advisory set the exit code is based on.
- */
 function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
   const severities = Object.entries(vulnerabilities)
     .map(([auditLevel, vulnerabilitiesCount]) => {
