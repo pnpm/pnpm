@@ -218,6 +218,7 @@ describe('verifyPnpmEngineIdentity', () => {
 
     await expect(verifyPnpmEngineIdentity(lockfile, { name: 'pnpm', version: 'nightly' }, optsTrusting(createSigningKey()))).rejects.toMatchObject({
       code: 'ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY',
+      message: `Cannot run pnpm@nightly on this host: it ships no native binary for ${HOST_TARGET}.`,
     })
   })
 
