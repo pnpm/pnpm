@@ -7,28 +7,23 @@ use indexmap::IndexMap;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{PackageExtension, RegistryDeclaration};
 use pnpm_network::AuthHeadersByScope;
+use pnpr_registry::Ecosystem;
 use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
 
-/// The package ecosystem a resolve request is written in. `POST
-/// /-/pnpr/v0/resolve` keeps one address for every ecosystem and the body
-/// names which one it speaks, so a client needs no second endpoint and no
-/// second handshake. An absent field means npm.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ResolveEcosystem {
-    #[default]
-    Npm,
-    Cargo,
-}
-
 /// The `ecosystem` field alone, read before the rest of the body so each
 /// ecosystem's request is deserialized into its own shape.
+///
+/// `POST /-/pnpr/v0/resolve` keeps one address for every ecosystem and the
+/// body names which one it speaks, so a client needs no second endpoint and
+/// no second handshake. An absent field means npm. The ecosystems pnpr
+/// *serves* here are a subset of the ones it knows: a request naming one it
+/// does not resolve is refused rather than misread.
 #[derive(Debug, Default, Deserialize)]
 pub struct EcosystemProbe {
     #[serde(default)]
-    pub ecosystem: ResolveEcosystem,
+    pub ecosystem: Ecosystem,
 }
 
 /// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "cargo"`.

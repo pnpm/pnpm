@@ -300,7 +300,11 @@ async fn resolve_rejects_an_ecosystem_it_does_not_serve() {
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let bytes = to_bytes(response.into_body(), usize::MAX).await.expect("read body");
-    assert!(String::from_utf8_lossy(&bytes).contains("pypi"));
+    assert!(
+        String::from_utf8_lossy(&bytes).contains("does not resolve pypi"),
+        "an ecosystem pnpr knows but does not resolve is named in the refusal: {}",
+        String::from_utf8_lossy(&bytes),
+    );
 }
 
 #[tokio::test]

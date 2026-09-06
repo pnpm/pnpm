@@ -60,6 +60,7 @@ use std::{
 use pnpr_config::Config as RegistryConfig;
 use pnpr_osv::OsvIndex;
 use pnpr_policy::Identity;
+use pnpr_registry::Ecosystem;
 use pnpr_route::{Footprint, RouteContext, RouteHook};
 
 use axum::{
@@ -81,7 +82,7 @@ use pnpm_store_dir::StoreDir;
 
 use self::{
     cache::{CachedResolution, cached_resolution, resolution_cache_key, store_resolution},
-    protocol::{EcosystemProbe, ResolveEcosystem, ResolveRequest},
+    protocol::{EcosystemProbe, ResolveRequest},
     request_validation::{
         reject_inline_url_auth, reject_invalid_patch_hashes, reject_invalid_registries,
         reject_off_allowlist_fetches,
@@ -418,6 +419,12 @@ fn intern_config(
     Some(config)
 }
 
+/// The ecosystems `/-/pnpr/v0/resolve` resolves, which the handshake
+/// advertises. It has to agree with [`handle_resolve`]'s dispatch below:
+/// an ecosystem named here that the dispatch refuses would send a client to
+/// an endpoint that turns it away.
+pub(crate) const RESOLVED_ECOSYSTEMS: &[Ecosystem] = &[Ecosystem::Npm, Ecosystem::Cargo];
+
 /// Handle `POST /-/pnpr/v0/resolve`. One address serves every ecosystem;
 /// the body's `ecosystem` field selects which resolver reads it, and a
 /// body without one means npm.
@@ -431,8 +438,14 @@ pub(crate) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
     match probe.ecosystem {
-        ResolveEcosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
-        ResolveEcosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
+        Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
+        Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
+        // Listed rather than caught, so an ecosystem added to the shared
+        // enum stops here for a decision instead of being refused silently.
+        ecosystem @ Ecosystem::Pypi => json_error(
+            StatusCode::BAD_REQUEST,
+            &format!("this pnpr server does not resolve {ecosystem} dependencies"),
+        ),
     }
 }
 
