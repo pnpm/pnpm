@@ -31,8 +31,8 @@ fn config_for(storage: PathBuf) -> Config {
     config
 }
 
-/// `cargo metadata --no-deps` for a one-package workspace depending on
-/// `foo`, whose own `bar` dependency is only discoverable from the index.
+/// A one-package workspace depending on `foo`, whose own `bar` dependency
+/// is discoverable only from `foo`'s index entry.
 fn workspace_metadata() -> String {
     json!({
         "packages": [{
@@ -79,8 +79,6 @@ fn index_dependency(name: &str, requirement: &str) -> Value {
     })
 }
 
-/// A sparse index serving `foo@1.0.0` (which depends on `bar`) and
-/// `bar@1.0.0`, with each entry's mock asserting how often it was fetched.
 async fn sparse_index(hits_per_entry: usize) -> (mockito::ServerGuard, Vec<mockito::Mock>) {
     let mut index = mockito::Server::new_async().await;
     let entries = [
@@ -124,7 +122,6 @@ async fn frames(body: Body) -> Vec<Value> {
         .collect()
 }
 
-/// The `Cargo.lock` a successful resolve returned.
 async fn resolved_lockfile(response: axum::response::Response) -> String {
     assert_eq!(response.status(), StatusCode::OK);
     let frames = frames(response.into_body()).await;
@@ -146,8 +143,6 @@ async fn cargo_resolve_walks_the_index_and_returns_a_lockfile() {
     let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
     let lockfile = resolved_lockfile(response).await;
 
-    // `bar` is only reachable through `foo`'s index entry, so its presence
-    // proves the server kept walking the index until nothing was missing.
     assert!(lockfile.contains(r#"name = "foo""#), "{lockfile}");
     assert!(lockfile.contains(r#"name = "bar""#), "{lockfile}");
     assert!(lockfile.contains(r#"name = "app""#), "{lockfile}");
@@ -172,8 +167,6 @@ async fn cargo_resolve_reuses_cached_index_files() {
     let second = resolved_lockfile(second).await;
 
     assert_eq!(first, second);
-    // Each entry is mocked with `expect(1)`: the second resolve read the
-    // cached index files rather than refetching them.
     for mock in mocks {
         mock.assert_async().await;
     }

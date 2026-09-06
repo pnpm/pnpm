@@ -436,7 +436,6 @@ fn rejects_a_reparse_point_swapped_into_the_workspace_root() {
     assert!(error.contains("must be a real directory"), "{error}");
 }
 
-/// A pnpr handshake advertising the resolver protocol and `ecosystems`.
 fn handshake_body(ecosystems: &[&str]) -> String {
     serde_json::json!({
         "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0], "ecosystems": ecosystems },
@@ -512,7 +511,6 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
-    // One newline-free body past the response limit.
     let resolve = server
         .mock("POST", "/-/pnpr/v0/resolve")
         .with_header("content-type", "application/x-ndjson")
@@ -527,6 +525,62 @@ async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
         error.chain().any(|cause| cause.to_string().contains("exceeds the")),
         "the oversized body is refused by its size, not by parsing: {error:?}",
     );
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_second_terminal_frame_fails_the_resolve() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm", "cargo"]))
+        .create_async()
+        .await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body(concat!(
+            "{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n",
+            "{\"type\":\"error\",\"message\":\"resolution failed\"}\n",
+        ))
+        .create_async()
+        .await;
+
+    let metadata = r#"{"packages":[],"workspace_members":[]}"#;
+    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
+
+    assert!(
+        error.chain().any(|cause| cause.to_string().contains("more than one terminal frame")),
+        "a response that also reports a failure is not a lockfile to write: {error:?}",
+    );
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn the_handshake_is_asked_once_per_server() {
+    const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm", "cargo"]))
+        .expect(1)
+        .create_async()
+        .await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .expect(2)
+        .create_async()
+        .await;
+    let config = config_for_pnpr(&server.url());
+
+    for _ in 0..2 {
+        resolve_via_pnpr(&config, METADATA).await.unwrap().expect("the server resolves Cargo");
+    }
+
     handshake.assert_async().await;
     resolve.assert_async().await;
 }

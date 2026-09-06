@@ -20,7 +20,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     str::FromStr,
-    sync::{Arc, atomic::AtomicU8},
+    sync::{Arc, LazyLock, Mutex, atomic::AtomicU8},
 };
 
 pub(crate) mod add;
@@ -285,12 +285,7 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !client
-        .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
-        .await
-        .into_diagnostic()
-        .wrap_err("negotiate Cargo resolution with the pnpr server")?
-    {
+    if !server_resolves_cargo(&client, pnpr_server).await? {
         return Ok(None);
     }
     // Only the dependency graph leaves the machine: the rest of a
@@ -309,6 +304,32 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
         .wrap_err("resolve Cargo dependencies through the pnpr server")
         .map(Some)
 }
+
+/// Whether `pnpr_server` advertises Cargo resolution, asked once per server
+/// for the life of the process. A workspace's Cargo roots each resolve
+/// through the same server, and its answer is the same for all of them.
+async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result<bool> {
+    if let Some(supported) = CARGO_RESOLUTION_SUPPORT
+        .lock()
+        .expect("Cargo resolution support memo is poisoned")
+        .get(pnpr_server)
+    {
+        return Ok(*supported);
+    }
+    let supported = client
+        .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
+        .await
+        .into_diagnostic()
+        .wrap_err("negotiate Cargo resolution with the pnpr server")?;
+    CARGO_RESOLUTION_SUPPORT
+        .lock()
+        .expect("Cargo resolution support memo is poisoned")
+        .insert(pnpr_server.to_string(), supported);
+    Ok(supported)
+}
+
+static CARGO_RESOLUTION_SUPPORT: LazyLock<Mutex<HashMap<String, bool>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) async fn latest_version(
     config: &Config,

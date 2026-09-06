@@ -201,9 +201,9 @@ struct IndexFetcher {
     footprint: Arc<Mutex<Footprint>>,
     /// HMAC secret keying a private route's cache namespace.
     secret: Arc<[u8]>,
-    /// Serializes the fetch of one crate's index file across concurrent
-    /// resolves, so a cold graph is fetched once rather than once per
-    /// caller.
+    /// Serializes the fetch of one crate's index file, per cache
+    /// namespace, across concurrent resolves — so a cold graph is fetched
+    /// once rather than once per caller.
     locks: Arc<StripedLocks>,
     /// Where this registry's index files are cached, already namespaced by
     /// registry origin. The route scope adds the last segment; see
@@ -249,8 +249,9 @@ impl IndexFetcher {
 
     /// One crate's index file, from the cache when it is still fresh.
     ///
-    /// A miss is taken under the crate's stripe: whoever holds it fetches
-    /// and caches the entry while the rest wait and read what it stored.
+    /// A miss is taken under the stripe of the entry's cache path: whoever
+    /// holds it fetches and caches the entry while the rest wait and read
+    /// what it stored.
     async fn index_file(&self, name: &str) -> Result<String, String> {
         pnpr_cargo::validate_crate_name(name).map_err(|err| err.to_string())?;
         let relative_path = pnpr_cargo::sparse_index_path(name);
@@ -265,7 +266,11 @@ impl IndexFetcher {
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
         }
-        let _fetching = self.locks.lock(&url).await;
+        // Keyed by the cache path, not the URL: it carries the route scope
+        // that decides which callers can read each other's entry, so two
+        // callers on different private scopes fetch in parallel rather than
+        // queueing for a result neither could reuse.
+        let _fetching = self.locks.lock(&cache_path.to_string_lossy()).await;
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
         }
