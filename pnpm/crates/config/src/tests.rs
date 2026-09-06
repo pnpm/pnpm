@@ -4642,8 +4642,6 @@ pub fn a_registries_map_declaring_the_default_beats_the_global_auth_file() {
     assert_eq!(config.registry, "https://declared.example/");
 }
 
-/// Writing a global `config.yaml` whose `_auth` credits `registry` and the
-/// project `.npmrc` `npmrc`, then loading config from that project.
 fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
     fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");

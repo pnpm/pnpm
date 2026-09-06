@@ -225,7 +225,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
  * The scope→URL routes `sources` declare through `registry=` and
  * `@scope:registry=`, a later source overriding an earlier one. Whether a
  * registry was declared is a question about the key, not its value, so one
- * pinned to the builtin default is declared too.
+ * pinned to the builtin default is declared too. A value that is not a
+ * string is not a route and is skipped.
  */
 function readDeclaredRegistries (sources: Array<Record<string, unknown>>): Record<string, string> {
   const registries: Record<string, string> = {}
