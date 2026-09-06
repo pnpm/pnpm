@@ -35,7 +35,7 @@ use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;
 use pnpr_oci::{
     API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry, TagEntry,
-    is_valid_tag,
+    is_valid_tag, media_type,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -406,15 +406,36 @@ impl Request {
                 updated: now_millis(),
             });
         }
+        // An index's children are manifests, not loose blobs, and the check
+        // above only proves the bytes are present. Refusing here rather than
+        // before the write is what makes it race-free: the closure reads the
+        // stored document under the package lock, so a child pushed
+        // concurrently is seen and one deleted concurrently is not missed.
+        //
         // Re-pushing a manifest is how a client retries and moving a tag is
-        // ordinary, so nothing is refused here; the merge decides what wins.
+        // ordinary, so nothing else is refused; the merge decides what wins.
+        let children: Vec<Digest> = if media_type::is_index(manifest.media_type()) {
+            manifest.references().map(|descriptor| descriptor.digest.clone()).collect()
+        } else {
+            Vec::new()
+        };
+        let refuse = move |stored: &ImageDocument| {
+            for child in &children {
+                if stored.manifest(child).is_none() {
+                    return Err(RegistryError::BadRequest {
+                        reason: format!("{child} is not a manifest in this repository"),
+                    });
+                }
+            }
+            Ok(())
+        };
         match store_hosted_artifact::<ImageDocument>(
             &self.state,
             &org,
             &key,
             &digest.blob_filename(),
             &bytes,
-            |_| Ok(()),
+            refuse,
             addition,
         )
         .await
@@ -462,14 +483,20 @@ impl Request {
         }
     }
 
-    /// `HEAD`/`GET`/`DELETE /v2/<name>/blobs/<digest>`.
+    /// `HEAD`/`GET /v2/<name>/blobs/<digest>`.
+    ///
+    /// Deleting a blob is optional in the spec and is not offered: nothing
+    /// tracks which manifests reference a blob yet, so removing one would
+    /// leave the repository advertising an image that can no longer be
+    /// pulled. Reclaiming what no manifest names is the collector's job,
+    /// tracked in
+    /// [pnpm/pnpm#14630](https://github.com/pnpm/pnpm/issues/14630).
     async fn blob(&self, name: &str, digest: &str) -> Response {
         let Ok(digest) = Digest::parse(digest) else {
             return error(ErrorCode::DigestInvalid, "not a supported digest");
         };
         match self.method {
             Method::GET | Method::HEAD => self.read_blob(name, &digest).await,
-            Method::DELETE => self.delete_blob(name, &digest).await,
             _ => method_not_allowed(),
         }
     }
@@ -499,31 +526,6 @@ impl Request {
         let body = if self.method == Method::HEAD { Body::empty() } else { body };
         let response = response.body(body).unwrap_or_else(|_| server_error());
         self.caller_scoped(Some(key.as_str()), response)
-    }
-
-    async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {
-        let (key, source) = match self.hosted_source(name) {
-            Ok(found) => found,
-            Err(refusal) => return refusal.respond(),
-        };
-        if let Err(err) = authorize(
-            &self.state,
-            &self.identity,
-            &RegistrySource::Hosted(source.clone()),
-            key.as_str(),
-            Action::Unpublish,
-        ) {
-            return registry_error(err);
-        }
-        let Some(hosted) = self.state.inner.config.hosted.get(&source) else {
-            return unknown_repository(name).respond();
-        };
-        let storage = self.state.inner.storage.for_hosted(&hosted.org);
-        match storage.remove_blob(&key, &digest.blob_filename()).await {
-            Ok(true) => no_content(StatusCode::ACCEPTED),
-            Ok(false) => error(ErrorCode::BlobUnknown, "no such blob"),
-            Err(err) => registry_error(err),
-        }
     }
 
     /// `POST /v2/<name>/blobs/uploads/` — start an upload, or complete one in
@@ -718,33 +720,42 @@ struct TagList<'listing> {
 
 /// A refusal on its way to becoming a response, small enough to ride in a
 /// `Result`'s error slot as the response itself is not.
+///
+/// The status is carried rather than re-derived from the code, because a
+/// `RegistryError` already decided one: deriving it back from the spec code
+/// turned every error without a code of its own into `405`.
 struct Refusal {
+    status: StatusCode,
     code: ErrorCode,
     message: String,
 }
 
 impl Refusal {
     fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { code, message: message.into() }
+        Self { status: status_for(code), code, message: message.into() }
     }
 
     fn respond(self) -> Response {
-        respond(status_for(self.code), self.code, self.message)
+        respond(self.status, self.code, self.message)
     }
 }
 
-/// A pnpr error in the distribution spec's own vocabulary.
+/// A pnpr error in the distribution spec's own vocabulary, keeping the status
+/// the error chose.
 impl From<RegistryError> for Refusal {
     fn from(err: RegistryError) -> Self {
         let message = err.public_message();
-        let code = match err.into_response().status() {
+        let status = err.into_response().status();
+        let code = match status {
             StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
             StatusCode::FORBIDDEN => ErrorCode::Denied,
             StatusCode::NOT_FOUND => ErrorCode::NameUnknown,
             StatusCode::TOO_MANY_REQUESTS => ErrorCode::TooManyRequests,
+            // No spec code means "the registry refused this"; the status is
+            // what a client acts on.
             _ => ErrorCode::Unsupported,
         };
-        Self::new(code, message)
+        Self { status, code, message }
     }
 }
 

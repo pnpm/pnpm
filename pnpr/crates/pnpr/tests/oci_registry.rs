@@ -677,3 +677,73 @@ async fn a_manifest_repeating_one_descriptor_is_not_thousands_of_lookups() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn an_index_child_must_be_a_manifest_this_repository_serves() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    // A layer blob is present, but it is not a manifest. An index naming it
+    // would publish a child that a client asking for it cannot pull.
+    push_blob(&app, &auth, "acme/app", b"layer").await;
+
+    let index = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [{ "digest": digest_of(b"layer"), "size": 5 }],
+    }))
+    .unwrap();
+    let request = Request::put("/v2/acme/app/manifests/multi")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
+        .body(Body::from(index))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn an_index_over_pushed_children_publishes() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    // The child is pushed first, the way a multi-architecture push does it,
+    // so the index that names it resolves.
+    let child = push_image(&app, &auth, "acme/app", "child").await;
+
+    let index = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.index.v1+json",
+        "manifests": [{ "digest": child, "size": image_manifest("config", &["layer"]).len() }],
+    }))
+    .unwrap();
+    let request = Request::put("/v2/acme/app/manifests/multi")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.index.v1+json")
+        .body(Body::from(index))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/multi").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn deleting_a_blob_is_not_offered() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_allowing_deletes(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    // Nothing tracks which manifests reference a blob, so removing one would
+    // leave the repository advertising an image that cannot be pulled.
+    let request = Request::delete(format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await.status(),
+        StatusCode::OK,
+    );
+}

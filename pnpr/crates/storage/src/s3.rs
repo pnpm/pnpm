@@ -33,7 +33,20 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use tokio::fs;
+use tokio::{fs, io::AsyncReadExt as _};
+
+/// The largest blob sent as one `put`.
+///
+/// Above this the upload is streamed in parts: a single `put` holds the whole
+/// blob in memory, and an image layer runs to gigabytes. The threshold sits
+/// above the 100 MiB publish body limit so that every artifact addressed by
+/// filename — an npm tarball, a crate, a wheel — still takes the single-put
+/// path and keeps its conditional write.
+const MAX_SINGLE_PUT_BYTES: u64 = 128 * 1024 * 1024;
+
+/// How much of a large blob is sent per part. S3 requires at least 5 MiB for
+/// every part but the last.
+const MULTIPART_PART_BYTES: usize = 8 * 1024 * 1024;
 
 const DOCUMENT_FILE: &str = "package.json";
 const REVISION_REF_WRITE_RETRIES: usize = 32;
@@ -68,6 +81,20 @@ pub(crate) struct S3DocumentForUpdate {
 /// staged before upload. Its own directory keeps the decode/verify tmp
 /// files away from the cache's `<pkg>/` package directories.
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
+
+/// Fill `part` from `file`, returning how much was read. Short of the buffer
+/// only at the end of the file, so every part but the last is full.
+async fn read_part(file: &mut fs::File, part: &mut [u8]) -> Result<usize> {
+    let mut filled = 0;
+    while filled < part.len() {
+        let read = file.read(&mut part[filled..]).await?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    Ok(filled)
+}
 
 impl S3Store {
     pub fn new(store: Arc<dyn ObjectStore>, prefix: String, cache_root: PathBuf) -> Self {
@@ -191,8 +218,11 @@ impl S3Store {
         name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobFinalize> {
-        let bytes = fs::read(tmp_path).await?;
         let key = self.blob_key(name, filename);
+        if fs::metadata(tmp_path).await?.len() > MAX_SINGLE_PUT_BYTES {
+            return self.upload_blob_in_parts(tmp_path, &key).await;
+        }
+        let bytes = fs::read(tmp_path).await?;
         // Create-only. A published version's blob is immutable, so an object
         // already at this key belongs to a concurrent publisher of the same
         // version. Overwriting it would corrupt that artifact against the
@@ -222,6 +252,35 @@ impl S3Store {
             }
             Err(err) => Err(err.into()),
         }
+    }
+
+    /// Upload a blob too large to hold in memory, a part at a time.
+    ///
+    /// Create-only is not available on a multipart upload, and does not need
+    /// to be here: only a content-addressed image layer reaches this path, so
+    /// a concurrent writer of the same key is writing the same bytes.
+    /// Everything addressed by filename stays under
+    /// [`MAX_SINGLE_PUT_BYTES`] and keeps the conditional write that makes a
+    /// race between two publishers of one version safe.
+    async fn upload_blob_in_parts(
+        &self,
+        tmp_path: &Path,
+        key: &ObjectPath,
+    ) -> Result<BlobFinalize> {
+        let mut file = fs::File::open(tmp_path).await?;
+        let mut upload = self.store.put_multipart(key).await?;
+        let mut part = vec![0u8; MULTIPART_PART_BYTES];
+        loop {
+            let filled = read_part(&mut file, &mut part).await?;
+            if filled == 0 {
+                break;
+            }
+            // Every part but the last has to be the same size for S3, so the
+            // buffer is filled before it is sent rather than shipped per read.
+            upload.put_part(PutPayload::from(part[..filled].to_vec())).await?;
+        }
+        upload.complete().await?;
+        Ok(BlobFinalize::Written)
     }
 
     pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
