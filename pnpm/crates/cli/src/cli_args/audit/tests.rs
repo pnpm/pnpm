@@ -1012,7 +1012,35 @@ fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
 }
 
 #[test]
-fn text_report_summary_subtracts_ignored_advisories_from_severity_counts() {
+fn text_report_summary_counts_advisories_rather_than_registry_metadata() {
+    // The registry repeated one advisory id under two packages, so the
+    // metadata counts it twice while the report keeps a single entry.
+    let report = AuditReport {
+        advisories: BTreeMap::new(),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 2,
+                critical: 0,
+            },
+            dependencies: 2,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 2,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    eprintln!("REPORT:\n{output}\n");
+    assert_eq!(output, "No known vulnerabilities found\n1 ignored: 1 high\n");
+}
+
+#[test]
+fn text_report_summary_excludes_ignored_advisories_from_severity_counts() {
     let report = AuditReport {
         advisories: BTreeMap::from([(
             "1".to_string(),

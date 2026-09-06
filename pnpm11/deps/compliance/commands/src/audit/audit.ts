@@ -378,7 +378,6 @@ ${JSON.stringify(vulnOverrides, null, 2)}`
 ${newIgnores.join('\n')}`,
     }
   }
-  const vulnerabilities = auditReport.metadata.vulnerabilities
   const ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts = {
     info: 0,
     low: 0,
@@ -433,6 +432,10 @@ ${newIgnores.join('\n')}`,
       ['More info', advisory.url],
     ], AUDIT_TABLE_OPTIONS)
   }
+  const vulnerabilities: AuditVulnerabilityCounts = { info: 0, low: 0, moderate: 0, high: 0, critical: 0 }
+  for (const { severity } of Object.values(auditReport.advisories)) {
+    vulnerabilities[severity] += 1
+  }
   return {
     exitCode: output ? 1 : 0,
     output: `${output}${reportSummary(vulnerabilities, ignoredVulnerabilities)}`,
@@ -450,10 +453,7 @@ function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
 
 function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
   const auditLevels = Object.keys(vulnerabilities) as AuditLevelString[]
-  const found = auditLevels.map((auditLevel) => ({
-    auditLevel,
-    count: vulnerabilities[auditLevel] - ignoredVulnerabilities[auditLevel],
-  }))
+  const found = auditLevels.map((auditLevel) => ({ auditLevel, count: vulnerabilities[auditLevel] }))
   const ignored = auditLevels.map((auditLevel) => ({
     auditLevel,
     count: ignoredVulnerabilities[auditLevel],

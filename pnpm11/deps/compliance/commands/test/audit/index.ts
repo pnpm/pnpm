@@ -425,6 +425,44 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toBe('No known vulnerabilities found\n1 ignored: 1 info\n')
   })
 
+  test('audit: the summary counts the advisories it prints, not the registry metadata', async () => {
+    // The registry repeated one advisory id, which the report collapses into a
+    // single entry while its metadata counts the advisory twice.
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, {
+        axios: [
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+          {
+            id: 100,
+            url: 'https://github.com/advisories/GHSA-info-info-info',
+            title: 'just some info',
+            severity: 'info',
+            vulnerable_versions: '*',
+          },
+        ],
+      })
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n1 ignored: 1 info\n')
+  })
+
   test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {
     getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
       .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })

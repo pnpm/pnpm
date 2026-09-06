@@ -671,16 +671,6 @@ fn filter_ignored_advisories(
     ignored
 }
 
-fn count_for_level(counts: &AuditVulnerabilityCounts, level: ConfigAuditLevel) -> usize {
-    match level {
-        ConfigAuditLevel::Info => counts.info,
-        ConfigAuditLevel::Low => counts.low,
-        ConfigAuditLevel::Moderate => counts.moderate,
-        ConfigAuditLevel::High => counts.high,
-        ConfigAuditLevel::Critical => counts.critical,
-    }
-}
-
 fn parse_audit_level(value: &str) -> Option<ConfigAuditLevel> {
     match value {
         "info" => Some(ConfigAuditLevel::Info),

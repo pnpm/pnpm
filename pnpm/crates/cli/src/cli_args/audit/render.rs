@@ -2,7 +2,7 @@
 
 use super::{
     AuditAdvisory, AuditReport, AuditVulnerabilityCounts, ConfigAuditLevel, IntoDiagnostic,
-    MAX_PATHS_COUNT, OwoColorize, Stream, count_for_level, severity_name, severity_number,
+    MAX_PATHS_COUNT, OwoColorize, Stream, severity_name, severity_number,
 };
 
 pub(crate) fn render_json_report(
@@ -36,7 +36,11 @@ pub(crate) fn render_text_report(
     for advisory in advisories {
         output.push_str(&render_advisory(advisory));
     }
-    output.push_str(&report_summary(&report.metadata.vulnerabilities, ignored));
+    let mut found = AuditVulnerabilityCounts::default();
+    for advisory in report.advisories.values() {
+        found.increment(advisory.severity);
+    }
+    output.push_str(&report_summary(&found, ignored));
     output
 }
 
@@ -88,26 +92,23 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
 }
 
 pub(crate) fn report_summary(
-    vulnerabilities: &AuditVulnerabilityCounts,
+    found: &AuditVulnerabilityCounts,
     ignored: &AuditVulnerabilityCounts,
 ) -> String {
-    let found = vulnerabilities
-        .entries()
-        .map(|(level, count)| (level, count.saturating_sub(count_for_level(ignored, level))));
     let total_ignored_count = ignored.total();
     let ignored_summary = if total_ignored_count > 0 {
         format!("\n{total_ignored_count} ignored: {}", list_severity_counts(&ignored.entries()))
     } else {
         String::new()
     };
-    let total_vulnerability_count: usize = found.iter().map(|(_, count)| count).sum();
+    let total_vulnerability_count = found.total();
     if total_vulnerability_count == 0 {
         return format!("No known vulnerabilities found{ignored_summary}\n");
     }
     format!(
         "{} vulnerabilities found\nSeverity: {}{ignored_summary}",
         red(&total_vulnerability_count.to_string()),
-        list_severity_counts(&found),
+        list_severity_counts(&found.entries()),
     )
 }
 
