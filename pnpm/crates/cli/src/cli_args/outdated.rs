@@ -981,12 +981,20 @@ fn render_json(outdated: &[OutdatedPackage], long: bool) -> String {
         .expect("serialize outdated report to JSON")
 }
 
+/// A dependency shared by every project of a large workspace lists all of
+/// them in one `Dependents` cell, so that column is the only one that can
+/// push the table past any terminal. It wraps at this many columns instead.
+const DEPENDENTS_COLUMN_WIDTH: usize = 30;
+
 fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: bool) -> String {
     if outdated.is_empty() {
         return String::new();
     }
     use tabled::builder::Builder;
-    use tabled::settings::Style;
+    use tabled::settings::object::Columns;
+    use tabled::settings::{Modify, Style, Width};
+
+    const DEPENDENTS_COLUMN: usize = 3;
 
     let mut header: Vec<String> = ["Package", "Current", "Latest", "Dependents"]
         .iter()
@@ -1011,6 +1019,10 @@ fn render_recursive_table(outdated: &[OutdatedInWorkspace], long: bool) -> Strin
     }
     let mut table = builder.build();
     table.with(Style::modern());
+    table.with(
+        Modify::new(Columns::one(DEPENDENTS_COLUMN))
+            .with(Width::wrap(DEPENDENTS_COLUMN_WIDTH).keep_words(true)),
+    );
     table.to_string()
 }
 

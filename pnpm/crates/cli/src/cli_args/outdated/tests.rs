@@ -1,7 +1,7 @@
 use super::{
     Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
     classify, current_versions_from_importer, render_dependents, render_json, render_latest,
-    render_recursive_json, sort_outdated,
+    render_recursive_json, render_recursive_table, sort_outdated,
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
@@ -257,6 +257,39 @@ fn dependent_names_are_sanitized_for_terminal_output() {
     };
 
     assert_eq!(render_dependents(&entry), "app[2J");
+}
+
+// Mirrors the `getCellWidth(data, 3, 30)` clamp of pnpm 11's recursive
+// renderer in `pnpm11/deps/inspection/commands/src/outdated/recursive.ts`.
+// A dependency shared by a dozen workspace projects lists all of them in one
+// cell, which sizes the `Dependents` column past any terminal unless the cell
+// wraps.
+#[test]
+fn recursive_table_wraps_the_dependents_column() {
+    let entry = OutdatedInWorkspace {
+        package: pkg("is-odd", "3.0.0", "3.0.1", DependencyGroup::Prod),
+        dependents: (1..=12)
+            .map(|index| DependentProject {
+                name: format!("example-workspace-package-{index:02}"),
+                location: PathBuf::from(format!("packages/pkg-{index:02}")),
+            })
+            .collect(),
+    };
+
+    let table = render_recursive_table(&[entry], false);
+    println!("{table}");
+    assert_borders_aligned(&table);
+
+    let width = border_columns(table.lines().next().expect("top border"))
+        .last()
+        .copied()
+        .expect("box-drawing borders")
+        + 1;
+    assert!(width <= 80, "the table must fit a normal terminal, got {width} columns");
+
+    let dependent_lines =
+        table.lines().filter(|line| line.contains("example-workspace-package-")).count();
+    assert!(dependent_lines > 1, "the dependents cell must wrap onto several lines");
 }
 
 #[cfg(unix)]
