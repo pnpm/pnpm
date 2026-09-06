@@ -41,9 +41,7 @@ fn requirements(specifiers: &[&str]) -> Vec<pep508_rs::Requirement> {
         .expect("requirement fixtures")
 }
 
-/// A `pylock.toml` document as the server returns it, resolved for the
-/// inputs the fixtures above describe.
-fn lockfile(index: &str) -> serde_json::Value {
+fn server_lockfile(index: &str) -> serde_json::Value {
     serde_json::json!({
         "lock-version": "1.0",
         "created-by": "pnpm",
@@ -85,7 +83,7 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
         .with_header("content-type", "application/x-ndjson")
         .with_body(format!(
             "{}\n",
-            serde_json::json!({ "type": "done", "lockfile": lockfile(index) }),
+            serde_json::json!({ "type": "done", "lockfile": server_lockfile(index) }),
         ))
         .expect(1)
         .create_async()
@@ -158,7 +156,7 @@ fn a_lockfile_answering_another_question_is_refused() {
     let index = "https://index.example.test/simple/";
     let inputs = pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index);
     let answered: pnpm_python_resolver::Lockfile =
-        serde_json::from_value(lockfile(index)).expect("lockfile fixture");
+        serde_json::from_value(server_lockfile(index)).expect("lockfile fixture");
 
     accept_server_lockfile(&answered, &inputs, None).expect("the same question");
 
