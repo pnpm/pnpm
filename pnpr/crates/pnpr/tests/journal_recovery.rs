@@ -73,6 +73,10 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// `sealed`, the `commit` marker is present too. With `org`, the manifest
 /// records the hosted-org namespace the publish targeted, matching what
 /// an org-routed publish journals.
+///
+/// The manifest is written with the `packument_file` / `tarballs` keys an
+/// earlier pnpr wrote, so these tests also cover recovering a journal a
+/// running server sealed before the upgrade.
 fn fabricate_crashed_publish_in(
     storage: &Path,
     org: Option<&str>,

@@ -1,114 +1,65 @@
 use super::{
-    JournaledPublish, JournaledRevisionRef, MANIFEST_FILE, Manifest, cleanup_conflicted_tmp_paths,
-    drop_conflicted_versions, revision_ref_owner, roll_forward, sync_dir,
+    DocumentMerge, HostedDocuments, JournaledPublish, JournaledRevisionRef, MANIFEST_FILE,
+    Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
 };
-use crate::{HostedRevisionRefWrite, Storage, TarballFinalize};
+use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
+use pnpr_error::Result;
 use pnpr_package_name::PackageName;
+use pnpr_registry::Ecosystem;
 use serde_json::json;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 use tempfile::tempdir;
 use tokio::fs;
 
-#[test]
-fn drop_conflicted_versions_removes_only_the_lost_versions() {
-    let mut journaled = json!({
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-            // A version outside the conflict set is kept as-is.
-            "3.0.0": { "dist": {} },
-        }
-    });
-    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
+/// The npm half of what the server passes in, which is all these tests
+/// commit.
+struct NpmDocuments;
 
-    drop_conflicted_versions(&mut journaled, &conflicted);
-
-    let versions = journaled["versions"].as_object().unwrap();
-    assert!(!versions.contains_key("1.0.0"));
-    assert!(versions.contains_key("2.0.0"));
-    assert!(versions.contains_key("3.0.0"));
+impl HostedDocuments for NpmDocuments {
+    fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        merge_journaled_packument(&merge)
+    }
 }
 
-#[test]
-fn drop_conflicted_versions_tolerates_a_missing_versions_map() {
-    let mut journaled = json!({ "name": "pkg" });
-    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
-    drop_conflicted_versions(&mut journaled, &conflicted);
-    assert_eq!(journaled, json!({ "name": "pkg" }));
-}
-
-#[test]
-fn drop_conflicted_versions_uses_the_canonical_attachment_version() {
-    let mut journaled = json!({
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/another-name.tgz" } },
-            "3.0.0": { "dist": { "tarball": "http://host/pkg/-/" } },
-        }
-    });
-    let conflicted: HashSet<String> =
-        ["1.0.0".to_string(), "2.0.0".to_string()].into_iter().collect();
-
-    drop_conflicted_versions(&mut journaled, &conflicted);
-
-    let versions = journaled["versions"].as_object().unwrap();
-    let remaining_versions: Vec<_> = versions.keys().map(String::as_str).collect();
-    assert_eq!(remaining_versions, vec!["3.0.0"]);
-}
-
-#[test]
-fn drop_conflicted_versions_removes_references_to_lost_versions() {
-    let mut journaled = json!({
-        "versions": {
-            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
-            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
-        },
-        "dist-tags": {
-            "latest": "1.0.0",
-            "next": "2.0.0",
-            "opaque": 42,
-        },
-        "time": {
-            "1.0.0": "2026-07-01T00:00:00.000Z",
-            "2.0.0": "2026-07-02T00:00:00.000Z",
-            "modified": "2026-07-03T00:00:00.000Z",
-        },
-    });
-    let conflicted: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
-
-    drop_conflicted_versions(&mut journaled, &conflicted);
-
-    assert_eq!(journaled["dist-tags"], json!({ "next": "2.0.0", "opaque": 42 }));
-    assert_eq!(
-        journaled["time"],
-        json!({
-            "2.0.0": "2026-07-02T00:00:00.000Z",
-            "modified": "2026-07-03T00:00:00.000Z",
-        }),
-    );
+/// A journaled npm publish of `packument` for `name`, with no staged blobs
+/// unless the test adds them.
+fn npm_publish<'publish>(
+    name: &'publish PackageName,
+    packument: &'publish [u8],
+    revision_refs: &'publish [JournaledRevisionRef],
+) -> JournaledPublish<'publish> {
+    JournaledPublish {
+        name,
+        org: None,
+        ecosystem: Ecosystem::Npm,
+        document: packument,
+        base_version: None,
+        slots: &[],
+        revision_refs,
+    }
 }
 
 #[tokio::test]
-async fn cleanup_keeps_conflicted_tmp_when_journal_removal_is_not_durable() {
+async fn cleanup_keeps_a_lost_tmp_blob_when_journal_removal_is_not_durable() {
     let tmp = tempdir().unwrap();
     let tmp_path = tmp.path().join("conflicted.tmp");
     fs::write(&tmp_path, b"loser").await.unwrap();
 
-    cleanup_conflicted_tmp_paths(&[tmp_path.as_path()], false).await;
+    cleanup_lost_tmp_paths(&[tmp_path.as_path()], false).await;
 
     assert!(fs::try_exists(tmp_path).await.unwrap());
 }
 
 #[tokio::test]
-async fn cleanup_removes_conflicted_tmp_when_journal_removal_is_durable() {
+async fn cleanup_removes_a_lost_tmp_blob_when_journal_removal_is_durable() {
     let tmp = tempdir().unwrap();
     let tmp_path = tmp.path().join("conflicted.tmp");
     fs::write(&tmp_path, b"loser").await.unwrap();
 
-    cleanup_conflicted_tmp_paths(&[tmp_path.as_path()], true).await;
+    cleanup_lost_tmp_paths(&[tmp_path.as_path()], true).await;
 
     assert!(!fs::try_exists(tmp_path).await.unwrap());
 }
@@ -122,7 +73,7 @@ async fn sync_dir_reports_success_for_a_directory() {
 }
 
 #[tokio::test]
-async fn roll_forward_persists_revision_references() {
+async fn commit_persists_revision_references() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
@@ -145,15 +96,9 @@ async fn roll_forward_persists_revision_references() {
         ref_id: "a".repeat(64),
         bytes: record.clone(),
     }];
-    let entries = [JournaledPublish {
-        name: &name,
-        org: None,
-        packument: &packument,
-        slots: &[],
-        revision_refs: &revision_refs,
-    }];
+    let entries = [npm_publish(&name, &packument, &revision_refs)];
 
-    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
 
     assert_eq!(storage.read_hosted_revision_refs(&digest).await.unwrap(), vec![record.clone()]);
     assert_eq!(
@@ -166,7 +111,7 @@ async fn roll_forward_persists_revision_references() {
 }
 
 #[tokio::test]
-async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference() {
+async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
     let tmp = tempdir().unwrap();
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
@@ -197,16 +142,12 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
         ref_id: "f".repeat(64),
         bytes: br#"{"package":"pkg","version":"1.0.0"}"#.to_vec(),
     }];
-    let entries = [JournaledPublish {
-        name: &name,
-        org: None,
-        packument: &packument,
-        slots: &[],
-        revision_refs: &revision_refs,
-    }];
+    let entries = [npm_publish(&name, &packument, &revision_refs)];
 
-    storage.publish_journal().seal(&entries).await.unwrap().roll_forward(&storage).await.unwrap();
+    let outcome =
+        storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
 
+    assert_eq!(outcome.reference_limit, Some(crate::MAX_HOSTED_REVISION_REFS));
     let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"], json!({}));
@@ -219,7 +160,7 @@ async fn roll_forward_drops_a_version_that_cannot_reserve_a_revision_reference()
 }
 
 #[tokio::test]
-async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_version() {
+async fn commit_only_removes_transaction_owned_references_for_a_dropped_version() {
     let tmp = tempdir().unwrap();
     let storage =
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
@@ -266,16 +207,10 @@ async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_ve
             bytes: record.clone(),
         },
     ];
-    let entries = [JournaledPublish {
-        name: &name,
-        org: None,
-        packument: &packument,
-        slots: &[],
-        revision_refs: &revision_refs,
-    }];
+    let entries = [npm_publish(&name, &packument, &revision_refs)];
 
     let txn = storage.publish_journal().seal(&entries).await.unwrap();
-    let revision_ref_owner = txn.revision_ref_owner().to_string();
+    let revision_ref_owner = txn.revision_ref_owner.clone();
     storage
         .write_hosted_revision_ref(&transaction_owned_digest, &ref_id, &revision_ref_owner, &record)
         .await
@@ -288,7 +223,7 @@ async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_ve
         .commit_hosted_revision_ref(&previously_owned_digest, &ref_id, "previous-owner")
         .await
         .unwrap();
-    txn.roll_forward(&storage).await.unwrap();
+    txn.apply(&storage, &NpmDocuments).await.unwrap();
 
     assert_eq!(
         storage.read_hosted_revision_refs(&transaction_owned_digest).await.unwrap(),
@@ -304,7 +239,7 @@ async fn roll_forward_only_removes_transaction_owned_references_for_a_dropped_ve
 }
 
 #[tokio::test]
-async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure() {
+async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
     let tmp = tempdir().unwrap();
     let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     let storage = Storage::new(
@@ -345,24 +280,22 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
     .unwrap();
     let entries = [
         JournaledPublish {
-            name: &conflicted_name,
-            org: None,
-            packument: &conflicted_packument,
             slots: &conflicted_slots,
-            revision_refs: &[],
+            ..npm_publish(&conflicted_name, &conflicted_packument, &[])
         },
-        JournaledPublish {
-            name: &later_name,
-            org: None,
-            packument: b"not-json",
-            slots: &[],
-            revision_refs: &[],
-        },
+        npm_publish(&later_name, b"not-json", &[]),
     ];
-    let txn = storage.publish_journal().seal(&entries).await.unwrap();
-    let txn_dir = txn.dir.clone();
+    let txn_dir = storage.publish_journal().seal(&entries).await.unwrap().dir;
 
-    drop(txn.roll_forward(&storage).await.unwrap_err());
+    // Reopened the way startup recovery does: every document is merged, so
+    // the second package's unparsable one fails the apply partway.
+    drop(
+        SealedTxn::reopen(txn_dir.clone())
+            .unwrap()
+            .apply(&storage, &NpmDocuments)
+            .await
+            .unwrap_err(),
+    );
     assert!(
         fs::try_exists(&loser_tmp_path).await.unwrap(),
         "충돌한 임시 tarball은 트랜잭션 재시도를 위해 남아 있어야 합니다",
@@ -382,11 +315,11 @@ async fn roll_forward_preserves_tarball_conflict_across_a_later_package_failure(
     });
     let later =
         manifest.packages.iter().find(|package| package.name == later_name.as_str()).unwrap();
-    fs::write(txn_dir.join(&later.packument_file), serde_json::to_vec(&later_packument).unwrap())
+    fs::write(txn_dir.join(&later.document_file), serde_json::to_vec(&later_packument).unwrap())
         .await
         .unwrap();
 
-    roll_forward(&storage, &txn_dir, revision_ref_owner(&txn_dir).unwrap()).await.unwrap();
+    SealedTxn::reopen(txn_dir.clone()).unwrap().apply(&storage, &NpmDocuments).await.unwrap();
 
     let conflicted_hosted = storage.read_hosted_packument(&conflicted_name).await.unwrap().unwrap();
     let conflicted_hosted: serde_json::Value = serde_json::from_slice(&conflicted_hosted).unwrap();

@@ -1,5 +1,6 @@
 mod authentication;
 mod cargo;
+mod documents;
 mod ecosystem;
 mod package_mutation;
 mod publishing;
@@ -12,6 +13,7 @@ mod tests;
 
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize},
+    documents::RegistryDocuments,
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
         update_packument,
@@ -238,13 +240,21 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_
     }
 }
 
+/// Bring the publish journal to a consistent state: apply every sealed
+/// transaction, discard every unsealed one. [`serve`] and [`serve_listener`]
+/// call this before binding; an embedder that builds a router directly should
+/// call it itself on startup, before serving requests.
+pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
+    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// needs publish-journal recovery; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
 /// and every mounted surface consults caller identity.
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.registry.enabled {
-        pnpr_storage::journal::recover_publish_journal(config).await?;
+        recover_publish_journal(config).await?;
     }
     AuthState::load(&config.auth, &config.backend).await
 }

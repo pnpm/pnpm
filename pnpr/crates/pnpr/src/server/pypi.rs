@@ -17,11 +17,11 @@
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
+    documents::{read_hosted_document, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
-        is_fetchable_artifact_url, load_upstream_document, read_hosted_document, registry_endpoint,
-        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity,
-        store_hosted_artifact, upstream_for,
+        is_fetchable_artifact_url, load_upstream_document, registry_endpoint, serve_hosted_blob,
+        serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     hosted_gate, not_found, private_no_cache,
     publishing::{PublishTarget, resolve_publish_target_for},
@@ -410,19 +410,19 @@ async fn upload_file(
         size: Some(upload.content.len() as u64),
         upload_time: Some(now_iso()),
     };
-    store_hosted_artifact::<ProjectDocument>(
+    store_hosted_artifact(
         state,
         &org,
         &key,
         &upload.filename,
         &upload.content,
-        |document| match document.file(&entry.filename) {
+        |document: &ProjectDocument| match document.file(&upload.filename) {
             Some(_) => Err(RegistryError::BadRequest {
-                reason: format!("File already exists: {:?}", entry.filename),
+                reason: format!("File already exists: {:?}", upload.filename),
             }),
             None => Ok(()),
         },
-        |document| document.files.push(entry.clone()),
+        ProjectDocument { name: project.clone(), files: vec![entry] },
     )
     .await
 }

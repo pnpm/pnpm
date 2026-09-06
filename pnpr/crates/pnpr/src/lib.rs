@@ -26,7 +26,7 @@ pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRul
 pub use pnpr_registry::{
     ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
-pub use pnpr_storage::journal::recover_publish_journal;
 pub use server::{
-    router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
+    recover_publish_journal, router, router_with_auth, serve, serve_listener, try_router,
+    try_router_with_auth,
 };

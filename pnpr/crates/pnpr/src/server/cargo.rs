@@ -18,11 +18,11 @@
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
+    documents::{read_hosted_document, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
-        load_upstream_document, read_hosted_document, registry_endpoint, registry_requires_auth,
-        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity,
-        store_hosted_artifact, upstream_for,
+        load_upstream_document, registry_endpoint, registry_requires_auth, serve_hosted_blob,
+        serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     json_response, not_found,
     publishing::{PublishTarget, resolve_publish_target_for},
@@ -365,26 +365,20 @@ async fn put_publish(
     };
     let filename = crate_filename(&metadata.name, &metadata.vers);
     let entry = metadata.into_index_entry(cksum);
-    let stored = store_hosted_artifact::<CrateDocument>(
+    let vers = entry.vers.clone();
+    let stored = store_hosted_artifact(
         &state,
         &org,
         &key,
         &filename,
         &archive,
-        |document| match document.version(&entry.vers) {
+        |document: &CrateDocument| match document.version(&vers) {
             Some(_) => Err(RegistryError::BadRequest {
-                reason: format!("crate version `{}` is already uploaded", entry.vers),
+                reason: format!("crate version `{vers}` is already uploaded"),
             }),
             None => Ok(()),
         },
-        |document| {
-            // The document carries the name as first published, not the
-            // lowercase key it is stored under.
-            if document.versions.is_empty() {
-                document.name.clone_from(&entry.name);
-            }
-            document.versions.push(entry.clone());
-        },
+        CrateDocument { name: entry.name.clone(), versions: vec![entry] },
     )
     .await;
     match stored {

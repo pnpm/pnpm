@@ -109,7 +109,7 @@ pub struct HostedPackumentForUpdate {
 
 /// What a backend needs to recognize the packument it handed out, so a
 /// read-modify-write can refuse to clobber a concurrent publisher.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HostedPackumentVersion {
     /// The backend offers no compare-and-set. It is single-writer by
     /// construction, so there is nothing to compare against.

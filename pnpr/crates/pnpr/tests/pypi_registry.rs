@@ -12,9 +12,9 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use common::{HostedSource, PUBLIC_URL, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
+use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -113,6 +113,8 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(tmp.path().join("python/demo-pkg").join(filename).is_file());
+    // The upload went through the commit journal and left nothing behind.
+    assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
     let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
@@ -564,4 +566,104 @@ async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
         app.oneshot(get(&format!("/pypi/files/demo-pkg/{published}"), None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
+}
+
+/// The on-disk state a crash between staging an uploaded file and recording
+/// it in the project document leaves behind: the staged tmp file plus the
+/// sealed journal entry that says where it belongs.
+fn fabricate_crashed_upload(storage: &Path, filename: &str, wheel: &[u8]) -> PathBuf {
+    let project_dir = storage.join("python/demo-pkg");
+    std::fs::create_dir_all(&project_dir).unwrap();
+    let tmp_path = project_dir.join(format!("{filename}.tmp.999.0"));
+    std::fs::write(&tmp_path, wheel).unwrap();
+
+    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    std::fs::create_dir_all(&txn_dir).unwrap();
+    let document = json!({
+        "name": "demo-pkg",
+        "files": [{
+            "filename": filename,
+            "hashes": { "sha256": sha256_hex(wheel) },
+            "yanked": false,
+            "size": wheel.len(),
+        }],
+    });
+    std::fs::write(txn_dir.join("document-0.json"), serde_json::to_vec(&document).unwrap())
+        .unwrap();
+    let manifest = json!({
+        "packages": [{
+            "name": "demo-pkg",
+            "ecosystem": "pypi",
+            "org": "python",
+            "document_file": "document-0.json",
+            "blobs": [{ "filename": filename, "tmp_path": tmp_path }],
+        }],
+    });
+    std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+    std::fs::write(txn_dir.join("commit"), b"").unwrap();
+    tmp_path
+}
+
+/// An upload that crashed after its file was staged and before the project
+/// document recorded it is completed on the next startup: both halves land,
+/// so the store never holds a file no Simple API page mentions.
+#[tokio::test]
+async fn a_crashed_upload_is_completed_on_startup() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let config = pypi_config(storage.clone(), "http://upstream.invalid/");
+    let wheel = b"PK\x03\x04 crashed wheel".to_vec();
+    let filename = "demo_pkg-1.0.0-py3-none-any.whl";
+    let tmp_path = fabricate_crashed_upload(&storage, filename, &wheel);
+
+    recover_publish_journal(&config).await.unwrap();
+
+    assert!(!tmp_path.exists(), "the staged file should be promoted away");
+    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    let app = router_with_auth(config, AuthState::in_memory());
+    let response = app.clone().oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(page["files"][0]["filename"], filename);
+    assert_eq!(page["files"][0]["hashes"]["sha256"], sha256_hex(&wheel));
+    let response =
+        app.oneshot(get(&format!("/pypi/files/demo-pkg/{filename}"), None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, wheel);
+}
+
+/// Applying a sealed transaction adds its file to the document as it stands,
+/// so an upload accepted between the crash and the restart survives.
+#[tokio::test]
+async fn a_crashed_upload_keeps_what_was_uploaded_while_it_was_down() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let config = pypi_config(storage.clone(), "http://upstream.invalid/");
+    let published = "demo_pkg-2.0.0-py3-none-any.whl";
+    let response = router_with_auth(config.clone(), auth)
+        .oneshot(upload_request(
+            Some(&token),
+            wheel_upload("demo-pkg", "2.0.0", published, b"published while down"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    fabricate_crashed_upload(&storage, "demo_pkg-1.0.0-py3-none-any.whl", b"crashed wheel");
+
+    recover_publish_journal(&config).await.unwrap();
+
+    let response = router_with_auth(config, AuthState::in_memory())
+        .oneshot(get("/pypi/simple/demo-pkg/", Some(JSON)))
+        .await
+        .unwrap();
+    let page: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let filenames: Vec<&str> = page["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|file| file["filename"].as_str().unwrap())
+        .collect();
+    assert_eq!(filenames, vec![published, "demo_pkg-1.0.0-py3-none-any.whl"]);
 }

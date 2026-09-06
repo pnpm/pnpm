@@ -15,7 +15,7 @@ use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedPackumentVersion, PackumentWrite, TarballFinalize,
+    HostedPackumentVersion,
     journal::{JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
@@ -25,8 +25,8 @@ use pnpr_storage::{
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    resolve_ecosystem_source, resolve_write_target,
+    authorize, authorized_upstream, default_registry_target, documents::RegistryDocuments,
+    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -548,132 +548,40 @@ fn staged_hosted_original_ref(
     Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
 }
 
-/// Make every staged publish visible. The full intent — merged
-/// packument bytes, revision references, and staged tmp-file locations — is sealed into
-/// the commit journal first, so a crash or I/O failure mid-apply can
-/// never leave the batch partially published: startup recovery rolls
-/// a sealed transaction forward. If sealing itself fails, nothing was
-/// promoted and the staged tmp files are cleaned up here.
+/// Make every staged publish visible, as one journaled transaction: a crash
+/// or I/O failure mid-apply can never leave the batch partially published,
+/// because startup recovery applies whatever the seal committed.
 ///
-/// Within each package, tarballs are promoted before the packument so
-/// a successful packument write never advertises a tarball that's
-/// missing from disk.
+/// A version whose tarball lost its immutable slot to another replica is
+/// dropped from the packument the transaction writes, which keeps the store
+/// consistent with the tarball that won. One that could not claim a
+/// digest-reference slot is dropped the same way, but reported: the publisher
+/// asked for a version that is not there.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
 ) -> Result<(), RegistryError> {
-    let journal = state.inner.storage.publish_journal();
     let entries: Vec<JournaledPublish<'_>> = staged
         .iter()
         .map(|stage| JournaledPublish {
             name: &stage.name,
             org: stage.org.as_deref(),
-            packument: &stage.merged_bytes,
+            ecosystem: Ecosystem::Npm,
+            document: &stage.merged_bytes,
+            base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
             revision_refs: &stage.original_refs,
         })
         .collect();
-    let sealed = journal.seal(&entries).await;
-    drop(entries);
-    let txn = match sealed {
-        Ok(txn) => txn,
-        Err(err) => {
-            for stage in staged {
-                cleanup_tmp_slots(stage.slots).await;
-            }
-            return Err(err);
-        }
-    };
-    let revision_ref_owner = txn.revision_ref_owner().to_string();
-    // Past the seal the transaction is committed: the apply below is pure
-    // roll-forward, and failures must NOT clean up the staged files. If
-    // the apply fails partway, complete it immediately via the same
-    // idempotent recovery path so a running server never leaves the batch
-    // partially visible; startup recovery is the final backstop if even
-    // that fails.
-    let apply_result = async {
-        for stage in staged {
-            // Promote into the package's hosted namespace (or the flat
-            // store when it has none) — the same target the journal recorded,
-            // so an inline failure and a startup roll-forward land identically.
-            let store = hosted_storage(state, stage.org.as_deref());
-            for slot in stage.slots {
-                match store.finalize_tarball_slot(slot).await? {
-                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
-                    // A concurrent replica already promoted a different tarball
-                    // for this version. Its bytes are immutable, so abort the
-                    // apply rather than advertise our integrity against them.
-                    // The seal's roll-forward re-runs from the journal, where it
-                    // drops the version we lost and re-merges the rest.
-                    TarballFinalize::Conflict => {
-                        return Err(RegistryError::PackumentWriteConflict {
-                            package: stage.name.as_str().to_string(),
-                        });
-                    }
-                }
-            }
-            for original in &stage.original_refs {
-                store
-                    .write_hosted_revision_ref(
-                        &original.digest,
-                        &original.ref_id,
-                        &revision_ref_owner,
-                        &original.bytes,
-                    )
-                    .await?;
-            }
-            match store
-                .write_hosted_packument_if_current(
-                    &stage.name,
-                    &stage.merged_bytes,
-                    stage.base_version.as_ref(),
-                )
-                .await?
-            {
-                PackumentWrite::Written => {
-                    for original in &stage.original_refs {
-                        store
-                            .commit_hosted_revision_ref(
-                                &original.digest,
-                                &original.ref_id,
-                                &revision_ref_owner,
-                            )
-                            .await?;
-                    }
-                }
-                // Tarballs are already promoted at this point. A conflict means
-                // another replica advanced the packument since staging, so the
-                // base version is stale. Surfacing it drops into the seal's
-                // roll-forward path (the caller), which re-reads the current
-                // packument and re-merges this transaction's journaled manifest —
-                // re-referencing the promoted tarballs — rather than leaving them
-                // orphaned. Only if roll-forward and startup recovery both never
-                // converge would a promoted tarball stay unreferenced.
-                PackumentWrite::Conflict => {
-                    return Err(RegistryError::PackumentWriteConflict {
-                        package: stage.name.as_str().to_string(),
-                    });
-                }
-            }
-        }
-        Ok::<(), RegistryError>(())
-    }
-    .await;
-    match apply_result {
-        Ok(()) => {
-            txn.finish().await;
-            Ok(())
-        }
-        Err(apply_err) => {
-            tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
-            let report_conflict =
-                matches!(&apply_err, RegistryError::RevisionReferenceLimit { .. });
-            match txn.roll_forward(&state.inner.storage).await {
-                Ok(()) if report_conflict => Err(apply_err),
-                Ok(()) => Ok(()),
-                Err(_) => Err(apply_err),
-            }
-        }
+    let outcome = state
+        .inner
+        .storage
+        .publish_journal()
+        .commit(&state.inner.storage, &entries, &RegistryDocuments)
+        .await?;
+    match outcome.reference_limit {
+        Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
+        None => Ok(()),
     }
 }
 

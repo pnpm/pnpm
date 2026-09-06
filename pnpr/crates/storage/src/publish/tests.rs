@@ -1,11 +1,13 @@
 use super::{
-    extract_attachments, merge_manifest, now_iso, sha1_hex_from_integrity_opts,
-    stream_decode_verify_and_write,
+    DocumentMerge, drop_lost_versions, extract_attachments, merge_journaled_packument,
+    merge_manifest, now_iso, sha1_hex_from_integrity_opts, stream_decode_verify_and_write,
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use pnpr_package_name::PackageName;
+use pnpr_registry::Ecosystem;
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 use tempfile::TempDir;
 
 fn sri_sha512(bytes: &[u8]) -> String {
@@ -343,4 +345,129 @@ fn merge_drops_attachments_if_present() {
     });
     let merged: Value = merge_manifest(None, &incoming, None, "now");
     assert!(merged.get("_attachments").is_none());
+}
+
+#[test]
+fn drop_lost_versions_removes_only_the_lost_versions() {
+    let mut journaled = json!({
+        "versions": {
+            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
+            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
+            // A version outside the conflict set is kept as-is.
+            "3.0.0": { "dist": {} },
+        }
+    });
+    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
+
+    drop_lost_versions(&mut journaled, &lost);
+
+    let versions = journaled["versions"].as_object().unwrap();
+    assert!(!versions.contains_key("1.0.0"));
+    assert!(versions.contains_key("2.0.0"));
+    assert!(versions.contains_key("3.0.0"));
+}
+
+#[test]
+fn drop_lost_versions_tolerates_a_missing_versions_map() {
+    let mut journaled = json!({ "name": "pkg" });
+    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
+    drop_lost_versions(&mut journaled, &lost);
+    assert_eq!(journaled, json!({ "name": "pkg" }));
+}
+
+#[test]
+fn merging_a_journaled_packument_adds_its_versions_to_the_stored_one() {
+    let name = PackageName::parse("pkg").unwrap();
+    let stored = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": { "1.0.0": { "version": "1.0.0" } },
+        "dist-tags": { "latest": "1.0.0" },
+    }))
+    .unwrap();
+    let journaled = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": { "2.0.0": { "version": "2.0.0" } },
+        "dist-tags": { "latest": "2.0.0" },
+    }))
+    .unwrap();
+
+    let merged = merge_journaled_packument(&DocumentMerge {
+        ecosystem: Ecosystem::Npm,
+        name: &name,
+        existing: Some(&stored),
+        journaled: &journaled,
+        lost_blobs: &HashSet::new(),
+    })
+    .unwrap()
+    .unwrap();
+
+    let merged: Value = serde_json::from_slice(&merged).unwrap();
+    assert_eq!(merged["versions"]["1.0.0"]["version"], "1.0.0");
+    assert_eq!(merged["versions"]["2.0.0"]["version"], "2.0.0");
+    assert_eq!(merged["dist-tags"]["latest"], "2.0.0");
+}
+
+/// The canonical tarball filename names the version, not the publisher-chosen
+/// `dist.tarball` URL the packument carries.
+#[test]
+fn merging_a_journaled_packument_drops_the_versions_of_lost_blobs() {
+    let name = PackageName::parse("pkg").unwrap();
+    let journaled = serde_json::to_vec(&json!({
+        "name": "pkg",
+        "versions": {
+            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/publisher-chosen-name.tgz" } },
+            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
+        },
+        "dist-tags": { "latest": "1.0.0" },
+    }))
+    .unwrap();
+    let lost_blobs: HashSet<String> = std::iter::once("pkg-1.0.0.tgz".to_string()).collect();
+
+    let merged = merge_journaled_packument(&DocumentMerge {
+        ecosystem: Ecosystem::Npm,
+        name: &name,
+        existing: None,
+        journaled: &journaled,
+        lost_blobs: &lost_blobs,
+    })
+    .unwrap()
+    .unwrap();
+
+    let merged: Value = serde_json::from_slice(&merged).unwrap();
+    let versions: Vec<_> =
+        merged["versions"].as_object().unwrap().keys().map(String::as_str).collect();
+    assert_eq!(versions, vec!["2.0.0"]);
+    assert_eq!(merged["dist-tags"], json!({}));
+}
+
+#[test]
+fn drop_lost_versions_removes_references_to_lost_versions() {
+    let mut journaled = json!({
+        "versions": {
+            "1.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-1.0.0.tgz" } },
+            "2.0.0": { "dist": { "tarball": "http://host/pkg/-/pkg-2.0.0.tgz" } },
+        },
+        "dist-tags": {
+            "latest": "1.0.0",
+            "next": "2.0.0",
+            "opaque": 42,
+        },
+        "time": {
+            "1.0.0": "2026-07-01T00:00:00.000Z",
+            "2.0.0": "2026-07-02T00:00:00.000Z",
+            "modified": "2026-07-03T00:00:00.000Z",
+        },
+    });
+    let lost: HashSet<String> = std::iter::once("1.0.0".to_string()).collect();
+
+    drop_lost_versions(&mut journaled, &lost);
+
+    assert_eq!(journaled["dist-tags"], json!({ "next": "2.0.0", "opaque": 42 }));
+    assert_eq!(
+        journaled["time"],
+        json!({
+            "2.0.0": "2026-07-02T00:00:00.000Z",
+            "modified": "2026-07-03T00:00:00.000Z",
+        }),
+    );
 }

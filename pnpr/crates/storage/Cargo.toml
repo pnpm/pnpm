@@ -15,6 +15,7 @@ pnpm-network      = { workspace = true }
 pnpr-config       = { workspace = true }
 pnpr-error        = { workspace = true }
 pnpr-package-name = { workspace = true }
+pnpr-registry     = { workspace = true }
 pnpm-crypto-hash  = { workspace = true }
 async-trait       = { workspace = true }
 axum              = { workspace = true }

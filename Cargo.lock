@@ -6358,6 +6358,7 @@ dependencies = [
  "pnpr-config",
  "pnpr-error",
  "pnpr-package-name",
+ "pnpr-registry",
  "reqwest",
  "serde",
  "serde_json",

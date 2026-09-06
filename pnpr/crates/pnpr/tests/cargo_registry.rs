@@ -11,9 +11,12 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use common::{HostedSource, body_bytes, find_file, mixed_router_config, sha256_hex};
-use pnpr::{AuthState, Config, Ecosystem, router_with_auth};
+use pnpr::{AuthState, Config, Ecosystem, recover_publish_journal, router_with_auth};
 use serde_json::{Value, json};
-use std::{io::Write as _, path::PathBuf};
+use std::{
+    io::Write as _,
+    path::{Path, PathBuf},
+};
 use tempfile::TempDir;
 use tower::ServiceExt;
 
@@ -202,6 +205,8 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
     assert!(tmp.path().join("crates/demo/demo-0.1.0.crate").is_file());
     assert!(tmp.path().join("crates/demo/package.json").is_file());
+    // The publish went through the commit journal and left nothing behind.
+    assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
 
     // The crate is reachable at its one sparse-index path only.
     for wrong in ["/cargo/index/3/d/demo", "/cargo/index/de/mo/Demo", "/cargo/index/DE/MO/demo"] {
@@ -684,4 +689,111 @@ async fn upstream_sparse_index_rejects_invalid_utf8_before_serving_or_downloadin
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     corrected.assert_async().await;
     config_mock.assert_async().await;
+}
+
+/// The on-disk state a crash between staging the archive and recording it in
+/// the crate document leaves behind: the staged tmp file plus the sealed
+/// journal entry that says where it belongs.
+fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
+    let crate_dir = storage.join("crates/demo");
+    std::fs::create_dir_all(&crate_dir).unwrap();
+    let tmp_path = crate_dir.join("demo-0.1.0.crate.tmp.999.0");
+    std::fs::write(&tmp_path, archive).unwrap();
+
+    let txn_dir = storage.join(".pnpr-journal").join("0000000000000001-999-0");
+    std::fs::create_dir_all(&txn_dir).unwrap();
+    let document = json!({
+        "name": "demo",
+        "versions": [{
+            "name": "demo",
+            "vers": "0.1.0",
+            "deps": [],
+            "cksum": sha256_hex(archive),
+            "features": {},
+            "yanked": false,
+        }],
+    });
+    std::fs::write(txn_dir.join("document-0.json"), serde_json::to_vec(&document).unwrap())
+        .unwrap();
+    let manifest = json!({
+        "packages": [{
+            "name": "demo",
+            "ecosystem": "cargo",
+            "org": "crates",
+            "document_file": "document-0.json",
+            "blobs": [{ "filename": "demo-0.1.0.crate", "tmp_path": tmp_path }],
+        }],
+    });
+    std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec(&manifest).unwrap()).unwrap();
+    std::fs::write(txn_dir.join("commit"), b"").unwrap();
+    tmp_path
+}
+
+/// A `cargo publish` that crashed after its archive was staged and before the
+/// crate document recorded it is completed on the next startup: both halves
+/// land, so the store never holds an archive no index file mentions.
+#[tokio::test]
+async fn a_crashed_publish_is_completed_on_startup() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let config = cargo_config(storage.clone(), "http://upstream.invalid/", "$all");
+    let archive = crate_archive("demo", "0.1.0");
+    let tmp_path = fabricate_crashed_crate_publish(&storage, &archive);
+
+    recover_publish_journal(&config).await.unwrap();
+
+    assert!(!tmp_path.exists(), "the staged archive should be promoted away");
+    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
+    let app = router_with_auth(config, AuthState::in_memory());
+    let response = app
+        .clone()
+        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    let entry: Value = serde_json::from_str(index.lines().next().unwrap()).unwrap();
+    assert_eq!(entry["vers"], "0.1.0");
+    assert_eq!(entry["cksum"], sha256_hex(&archive));
+    let response = app
+        .oneshot(
+            Request::get("/cargo/api/v1/crates/demo/0.1.0/download").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, archive);
+}
+
+/// Applying a sealed transaction adds its version to the document as it
+/// stands, so a crate published between the crash and the restart survives.
+#[tokio::test]
+async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let config = cargo_config(storage.clone(), "http://upstream.invalid/", "$all");
+    let app = router_with_auth(config.clone(), auth);
+    let archive = crate_archive("demo", "0.2.0");
+    let response = app
+        .oneshot(publish_request(Some(&token), publish_body(&metadata("demo", "0.2.0"), &archive)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    fabricate_crashed_crate_publish(&storage, &crate_archive("demo", "0.1.0"));
+
+    recover_publish_journal(&config).await.unwrap();
+
+    let app = router_with_auth(config, AuthState::in_memory());
+    let response = app
+        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let index = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    let versions: Vec<Value> = index
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap()["vers"].clone())
+        .collect();
+    assert_eq!(versions, vec!["0.2.0", "0.1.0"]);
 }
