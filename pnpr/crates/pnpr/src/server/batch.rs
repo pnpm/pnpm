@@ -197,10 +197,6 @@ async fn validate_entry(
             // publish document: the npm merge keeps every top-level key it
             // does not know, so leaving it here would serve it in the
             // packument.
-            // `ecosystem` is this endpoint's routing field, not part of the
-            // publish document: the npm merge keeps every top-level key it
-            // does not know, so leaving it here would serve it in the
-            // packument.
             let mut package = package;
             if let Some(entry) = package.as_object_mut() {
                 entry.remove("ecosystem");
