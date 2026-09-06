@@ -256,12 +256,8 @@ fn pre_command_plan_from_input(
         let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
         if on_fail != PmOnFail::Ignore {
             if unmanaged_pin {
-                // Which pnpm runs is the user's choice here, but which one
-                // the lockfile records is still the project's, and the
-                // install family records it from its own pipeline whatever
-                // this setting says. A command that skipped the record would
-                // leave a block the next install rewrites, flipping the
-                // lockfile back and forth (pnpm/pnpm#14575).
+                // The install family records the pin from its own pipeline
+                // whatever this setting says (pnpm/pnpm#14575).
                 if !input.global {
                     package_manager_to_sync = env_lockfile_sync(
                         root_manifest,

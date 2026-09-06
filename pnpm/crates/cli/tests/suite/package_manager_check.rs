@@ -414,8 +414,6 @@ fn turning_off_version_management_still_records_the_pinned_package_manager() {
     drop(mock_instance);
 }
 
-/// The first YAML document of `pnpm-lock.yaml`, which is where the package
-/// manager's own resolutions live.
 fn env_document(workspace: &Path) -> String {
     fs::read_to_string(workspace.join("pnpm-lock.yaml"))
         .expect("read pnpm-lock.yaml")
