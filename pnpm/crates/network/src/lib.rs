@@ -255,12 +255,59 @@ fn origin_of(url: &str) -> Option<String> {
 /// still draining, and the per-process FD count overruns the
 /// platform limit — surfacing as `EMFILE` "too many open files".
 pub struct ThrottledClientGuard<'a> {
-    _permit: Permit,
+    permit: Permit,
     /// The per-origin `maxSockets` permit, held for the same request lifetime
-    /// as `_permit`. `None` when no `maxSockets` cap is configured or the URL
+    /// as `permit`. `None` when no `maxSockets` cap is configured or the URL
     /// had no parseable origin.
-    _host_permit: Option<OwnedSemaphorePermit>,
+    host_permit: Option<OwnedSemaphorePermit>,
     client: &'a Client,
+}
+
+/// A response that retains the global and per-origin permits through body reads.
+pub struct ThrottledResponse {
+    response: reqwest::Response,
+    _permit: Permit,
+    _host_permit: Option<OwnedSemaphorePermit>,
+}
+
+impl ThrottledClientGuard<'_> {
+    /// Transfer both concurrency permits to the response body owner.
+    #[must_use]
+    pub fn retain_for_body(self, response: reqwest::Response) -> ThrottledResponse {
+        ThrottledResponse { response, _permit: self.permit, _host_permit: self.host_permit }
+    }
+}
+
+impl ThrottledResponse {
+    pub async fn bytes(self) -> Result<bytes::Bytes, reqwest::Error> {
+        let Self { response, _permit, _host_permit } = self;
+        response.bytes().await
+    }
+
+    pub fn bytes_stream(
+        self,
+    ) -> impl futures_util::Stream<Item = Result<bytes::Bytes, reqwest::Error>> + Send {
+        futures_util::stream::try_unfold(self, |mut response| async move {
+            response.response.chunk().await.map(|chunk| chunk.map(|chunk| (chunk, response)))
+        })
+    }
+}
+
+impl Deref for ThrottledResponse {
+    type Target = reqwest::Response;
+
+    fn deref(&self) -> &Self::Target {
+        &self.response
+    }
+}
+
+impl std::fmt::Debug for ThrottledResponse {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ThrottledResponse")
+            .field("response", &self.response)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Deref for ThrottledClientGuard<'_> {
@@ -301,8 +348,8 @@ impl ThrottledClient {
     pub async fn acquire(&self) -> ThrottledClientGuard<'_> {
         let permit = self.semaphore.acquire(UNPRIORITIZED).await;
         ThrottledClientGuard {
-            _permit: permit,
-            _host_permit: None,
+            permit,
+            host_permit: None,
             client: &self.default_clients.follow_redirects,
         }
     }
@@ -751,7 +798,7 @@ impl ThrottledClient {
         let permit = self.semaphore.acquire(priority).await;
         let clients = self.per_registry.pick_value_for_url(url).unwrap_or(&self.default_clients);
         let client = clients.select(follow_redirects);
-        ThrottledClientGuard { _permit: permit, _host_permit: host_permit, client }
+        ThrottledClientGuard { permit, host_permit, client }
     }
 }
 

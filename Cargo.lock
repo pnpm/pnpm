@@ -5306,7 +5306,9 @@ dependencies = [
 name = "pnpm-network"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "derive_more",
+ "futures-util",
  "miette 7.6.0",
  "mockito",
  "pipe-trait",
@@ -6352,6 +6354,7 @@ dependencies = [
  "getrandom 0.4.3",
  "object_store",
  "pnpm-crypto-hash",
+ "pnpm-network",
  "pnpr-config",
  "pnpr-error",
  "pnpr-package-name",

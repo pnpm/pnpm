@@ -512,7 +512,7 @@ fn validate_crate_archive_with_limit(
     limit: u64,
 ) -> Result<(), CrateArchiveError> {
     let expected = format!("{name}-{version}");
-    let decoder = flate2::read::GzDecoder::new(archive);
+    let decoder = flate2::read::MultiGzDecoder::new(archive);
     let mut limited = decoder.take(limit + 1);
     let mut tar = tar::Archive::new(&mut limited);
     let mut found_manifest = false;

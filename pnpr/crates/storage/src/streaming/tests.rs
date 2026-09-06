@@ -126,7 +126,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let expected_bytes = vec![0xAA; 1024 * 1024];
     let integrity = parse_integrity(&sha512_integrity(&expected_bytes)).unwrap();
     let (url, release, server) = spawn_stalled_response().await;
-    let response = reqwest::get(url).await.unwrap();
+    let response = throttled_response(url).await;
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
@@ -158,7 +158,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
 async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let bytes = b"oversized";
     let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
-    let response = reqwest::get(spawn_response(bytes).await).await.unwrap();
+    let response = throttled_response(spawn_response(bytes).await).await;
 
     let tmp = TempDir::new().unwrap();
     let cache = tmp.path().join("cache");
@@ -177,4 +177,11 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let package_dir = cache.join("~public/test").join("foo");
     assert!(tarball_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
+}
+
+async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {
+    let client = pnpm_network::ThrottledClient::new_for_installs();
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(url).send().await.unwrap();
+    guard.retain_for_body(response)
 }

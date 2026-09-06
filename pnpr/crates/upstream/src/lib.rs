@@ -4,7 +4,7 @@ use pnpm_lockfile::{
     is_integrity_addressed_registry_tarball_url,
 };
 use pnpm_network::{
-    RedirectGuard, ThrottledClient, ThrottledClientGuard, UNPRIORITIZED,
+    RedirectGuard, ThrottledClient, ThrottledClientGuard, ThrottledResponse, UNPRIORITIZED,
     is_url_secure_for_credentials, read_limited_body,
 };
 use pnpr_config::{RedactedHeaders, UpstreamConfig};
@@ -333,10 +333,10 @@ impl Upstream {
         &self,
         name: &PackageName,
         filename: &str,
-    ) -> Result<FetchOutcome<reqwest::Response>> {
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
-        let (response, _guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
+        let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
@@ -346,7 +346,7 @@ impl Upstream {
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(response))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response)))
     }
 
     /// Fetch a document by path relative to the upstream's base URL — a Cargo
@@ -408,23 +408,23 @@ impl Upstream {
     pub async fn fetch_artifact_response(
         &self,
         url: &str,
-    ) -> Result<FetchOutcome<reqwest::Response>> {
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
-        let (response, _guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
+        let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
             self.breaker.record_success();
             return Ok(FetchOutcome::NotFound);
         }
         let response = self.checked(response, url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(response))
+        Ok(FetchOutcome::Ok(guard.retain_for_body(response)))
     }
 
     /// Fetch an immutable sha512 registry artifact without following redirects.
     pub async fn fetch_revision_tarball_response(
         &self,
         digest: &str,
-    ) -> Result<FetchOutcome<reqwest::Response>> {
+    ) -> Result<FetchOutcome<ThrottledResponse>> {
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
         let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
@@ -436,7 +436,7 @@ impl Upstream {
         }
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(response))
+        Ok(FetchOutcome::Ok(client.retain_for_body(response)))
     }
 
     /// Query an upstream npm search endpoint with the caller's already-encoded
@@ -524,10 +524,11 @@ impl Upstream {
         headers: &HeaderMap,
     ) -> Result<(reqwest::Response, ThrottledClientGuard<'_>)> {
         self.ensure_allowed_url(url)?;
+        let started = Instant::now();
         self.client
             .get_response_with_scoped_headers(url, |request, destination| {
                 request
-                    .timeout(self.timeout)
+                    .timeout(self.timeout.saturating_sub(started.elapsed()))
                     .headers(self.request_headers(destination))
                     .headers(headers.clone())
             })

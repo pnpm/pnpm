@@ -323,3 +323,22 @@ fn crate_archive_manifest_must_match_publish_metadata() {
         );
     }
 }
+
+#[test]
+fn crate_archive_limit_counts_concatenated_gzip_members() {
+    let mut archive = crate_archive(
+        "demo-0.1.0",
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
+    );
+    let size =
+        std::io::copy(&mut flate2::read::GzDecoder::new(archive.as_slice()), &mut std::io::sink())
+            .unwrap();
+    let mut second = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    second.write_all(&[0; 1024]).unwrap();
+    archive.extend(second.finish().unwrap());
+    assert!(matches!(
+        validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size),
+        Err(CrateArchiveError::TooLarge)
+    ));
+    validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size + 1024).unwrap();
+}

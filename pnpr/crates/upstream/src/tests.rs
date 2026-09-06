@@ -1008,3 +1008,94 @@ async fn approved_artifact_redirects_rebuild_headers_for_each_origin() {
     cdn_redirect.assert_async().await;
     artifact.assert_async().await;
 }
+
+#[tokio::test]
+async fn redirect_chain_shares_one_timeout() {
+    assert_redirect_timeout(false).await;
+}
+
+#[tokio::test]
+async fn redirected_artifact_body_uses_remaining_timeout() {
+    assert_redirect_timeout(true).await;
+}
+
+async fn assert_redirect_timeout(delay_body: bool) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let mut request = [0u8; 4096];
+        let (mut first, _) = listener.accept().await.unwrap();
+        assert!(first.read(&mut request).await.unwrap() > 0);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        first.write_all(b"HTTP/1.1 302 Found\r\nLocation: /final\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+        drop(first);
+        let (mut second, _) = listener.accept().await.unwrap();
+        assert!(second.read(&mut request).await.unwrap() > 0);
+        if delay_body {
+            second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
+        }
+        tokio::time::sleep(Duration::from_millis(450)).await;
+        if !delay_body {
+            second.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n").await.unwrap();
+        }
+        second.write_all(b"body").await.unwrap();
+    });
+    let mut config = UpstreamConfig::with_defaults(url.clone(), HeaderMap::new());
+    config.timeout = Duration::from_millis(600);
+    let upstream = Upstream::new("test", &config);
+    let result = upstream.fetch_artifact_response(&url).await;
+    if delay_body {
+        let FetchOutcome::Ok(response) = result.unwrap() else {
+            panic!("expected artifact response")
+        };
+        assert!(response.bytes().await.unwrap_err().is_timeout());
+    } else {
+        assert!(
+            matches!(result, Err(RegistryError::Upstream { source, .. }) if source.is_timeout()),
+        );
+    }
+    server.abort();
+}
+
+#[tokio::test]
+async fn artifact_and_npm_downloads_hold_permits_after_returning_headers() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", mockito::Matcher::Any)
+        .with_body("artifact")
+        .expect(3)
+        .create_async()
+        .await;
+    let mut upstream = upstream(server.url(), HeaderMap::new());
+    upstream.client = std::sync::Arc::new(
+        pnpm_network::ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1)),
+    );
+    let name = PackageName::parse("foo").unwrap();
+    for mode in 0..3 {
+        let outcome = match mode {
+            0 => upstream.fetch_artifact_response(&server.url()).await,
+            1 => upstream.fetch_tarball_response(&name, "foo.tgz").await,
+            _ => upstream.fetch_revision_tarball_response("digest").await,
+        };
+        let FetchOutcome::Ok(response) = outcome.unwrap() else {
+            panic!("expected artifact response")
+        };
+        assert!(
+            tokio::time::timeout(
+                Duration::from_millis(20),
+                upstream.client.acquire_for_url(&server.url())
+            )
+            .await
+            .is_err(),
+        );
+        drop(response);
+        let guard = tokio::time::timeout(
+            Duration::from_secs(1),
+            upstream.client.acquire_for_url(&server.url()),
+        )
+        .await
+        .unwrap();
+        drop(guard);
+    }
+    mock.assert_async().await;
+}

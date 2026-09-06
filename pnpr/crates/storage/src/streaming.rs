@@ -12,6 +12,7 @@
 use crate::TarballWrite;
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
+use pnpm_network::ThrottledResponse;
 use ssri::{Integrity, IntegrityChecker};
 use std::{io, path::PathBuf, pin::Pin};
 use tokio::{fs::File, io::AsyncReadExt};
@@ -63,7 +64,7 @@ pub enum TarballStreamError {
 /// On any such failure — or a dropped client connection — the temp file is
 /// abandoned (and [`TarballWrite`]'s `Drop` removes it as a backstop).
 pub fn stream_verified_to_cache(
-    response: reqwest::Response,
+    response: ThrottledResponse,
     write: TarballWrite,
     integrity: &Integrity,
     max_bytes: u64,
@@ -182,7 +183,7 @@ struct TeeState {
 }
 
 pub async fn download_verified_to_temp(
-    response: reqwest::Response,
+    response: ThrottledResponse,
     mut write: TarballWrite,
     integrity: &Integrity,
     max_bytes: u64,
@@ -195,7 +196,7 @@ pub async fn download_verified_to_temp(
 }
 
 async fn download_verified(
-    response: reqwest::Response,
+    response: ThrottledResponse,
     write: &mut TarballWrite,
     integrity: &Integrity,
     max_bytes: u64,
@@ -206,7 +207,7 @@ async fn download_verified(
     {
         return Err(TarballStreamError::TooLarge { limit: max_bytes, received });
     }
-    let mut upstream = response.bytes_stream();
+    let mut upstream = Box::pin(response.bytes_stream());
     let mut checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
     let mut written = 0u64;
     while let Some(chunk_result) = upstream.next().await {

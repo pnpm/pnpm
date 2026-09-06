@@ -1491,3 +1491,46 @@ async fn no_max_sockets_leaves_per_origin_uncapped() {
     .await
     .expect("a second socket to the same origin should not block without maxSockets");
 }
+
+#[tokio::test]
+async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
+    use futures_util::StreamExt;
+
+    let mut server = mockito::Server::new_async().await;
+    let mock =
+        server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
+    let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let initial_permits = client.semaphore.available_permits();
+    let url = format!("{}/artifact", server.url());
+    for mode in 0..3 {
+        let guard = client.acquire_for_url(&url).await;
+        let response = guard.get(&url).send().await.unwrap();
+        let response = guard.retain_for_body(response);
+        assert_eq!(response.url().as_str(), url);
+        assert_eq!(response.content_length(), Some(14));
+        assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
+                .await
+                .is_err(),
+        );
+        if mode == 0 {
+            assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
+        } else {
+            let mut stream = Box::pin(response.bytes_stream());
+            assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
+            assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
+            if mode == 1 {
+                assert!(stream.next().await.is_none());
+                assert_eq!(client.semaphore.available_permits(), initial_permits);
+            }
+            drop(stream);
+        }
+        assert_eq!(client.semaphore.available_permits(), initial_permits);
+        let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+            .await
+            .unwrap();
+        drop(guard);
+    }
+    mock.assert_async().await;
+}
