@@ -50,6 +50,7 @@ use std::{
 mod agent;
 mod cache;
 mod capture;
+mod cargo_cache;
 mod report;
 
 pub use agent::{WatchInvocation, run_watch};
@@ -459,8 +460,11 @@ struct SelectAffectedOptions<'a> {
 /// files feed every project) falls through to the full graph.
 fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Result<Selection> {
     let SelectAffectedOptions { graph, workspace_root, base, full, config, emit } = *options;
-    let all_dirs: Vec<PathBuf> =
-        graph.keys().filter(|dir| dir.as_path() != workspace_root).cloned().collect();
+    let all_dirs: Vec<PathBuf> = graph
+        .keys()
+        .filter(|dir| config.include_workspace_root || dir.as_path() != workspace_root)
+        .cloned()
+        .collect();
     let full_selection = |merge_base: Option<String>, changed_count: usize| Selection {
         requested: all_dirs.clone(),
         selected: all_dirs.iter().cloned().collect(),
@@ -685,8 +689,11 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     let root = node.project.as_path();
     let settings = config.tasks.get(&node.task_name);
     let cacheable = !invocation.no_cache
-        && settings
-            .is_some_and(|settings| settings.outputs.is_some() && settings.cache != Some(false));
+        && settings.is_some_and(|settings| {
+            settings.outputs.is_some()
+                && settings.cache != Some(false)
+                && settings.cargo_target_dir.is_none()
+        });
     let start = Instant::now();
     report.task_started(summary_key, task_key);
 
@@ -722,7 +729,7 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
         }
     }
 
-    let execution = execute_task_scripts(options)?;
+    let execution = execute_task_with_cargo_cache(options, settings)?;
     let duration = start.elapsed().as_secs_f64() * 1e3;
     if execution.status == Status::Passed && cacheable {
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
@@ -742,6 +749,79 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
         prefix: (execution.status == Status::Failure).then(|| root.to_string_lossy().into_owned()),
         message: execution.message,
     })
+}
+
+fn execute_task_with_cargo_cache(
+    options: &RunTaskOptions<'_, '_>,
+    settings: Option<&pnpm_config::TaskSettings>,
+) -> miette::Result<TaskExecution> {
+    let RunTaskOptions { node, config, invocation, task_key, emit, summary_key, .. } = *options;
+    let root = node.project.as_path();
+    let Some(directory) = settings.and_then(|settings| settings.cargo_target_dir.as_deref()) else {
+        return execute_task_scripts(options);
+    };
+    let cargo = cargo_cache::CargoCache::open(root, directory).into_diagnostic()?;
+    let environment = cargo_cache::cache_environment(
+        options.base_extra_env,
+        settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default(),
+    );
+    let cargo_cacheable =
+        !invocation.no_cache && settings.is_some_and(|settings| settings.cache != Some(false));
+    let snapshot = if cargo_cacheable {
+        match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
+            Ok(snapshot) => Some(snapshot),
+            Err(error) => {
+                cargo_cache_warning(options, &error.to_string());
+                None
+            }
+        }
+    } else {
+        None
+    };
+    if let Some((entry, key, _)) = &snapshot {
+        match cargo.restore(entry, key) {
+            Ok(true) => emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Info,
+                message: format!("{summary_key}: restored Cargo build state"),
+                prefix: root.to_string_lossy().into_owned(),
+            })),
+            Ok(false) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => cargo_cache_warning(options, &error.to_string()),
+        }
+        cargo.prepare(key).into_diagnostic()?;
+    }
+    let mut extra_env = options.base_extra_env.clone();
+    for name in ["CARGO_TARGET_DIR", "CARGO_BUILD_BUILD_DIR"] {
+        extra_env.insert(name.to_string(), cargo.target.to_string_lossy().into_owned());
+    }
+    let execution =
+        execute_task_scripts(&RunTaskOptions { base_extra_env: &extra_env, ..*options })?;
+    if execution.status == Status::Passed
+        && let Some((entry, key, local_packages)) = &snapshot
+    {
+        match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
+            Ok((_, after, _)) if after == *key => {
+                if let Err(error) = cargo.publish(entry, key, local_packages) {
+                    cargo_cache_warning(options, &error.to_string());
+                }
+            }
+            Ok(_) => cargo_cache_warning(
+                options,
+                "inputs changed during execution; snapshot was not saved",
+            ),
+            Err(error) => cargo_cache_warning(options, &error.to_string()),
+        }
+    }
+    Ok(execution)
+}
+
+fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
+    (options.emit)(&LogEvent::Pnpm(PnpmLog {
+        level: LogLevel::Warn,
+        message: format!("{}: Cargo build cache: {reason}", options.summary_key),
+        prefix: options.node.project.to_string_lossy().into_owned(),
+    }));
 }
 
 struct TaskExecution {

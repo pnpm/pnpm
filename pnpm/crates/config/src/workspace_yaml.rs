@@ -1117,6 +1117,12 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache: Option<bool>,
 
+    /// Opt into local Cargo state snapshots for this project-relative target
+    /// directory. Pipeline always executes the task and sets Cargo's target
+    /// and build directories to this path. Overrides output-cache restoration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo_target_dir: Option<String>,
+
     /// Fields this version of pnpm does not read, kept so validation can
     /// reject a typo instead of silently ignoring it.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
@@ -1132,6 +1138,7 @@ struct RawTaskSettings {
     inputs: Option<Vec<String>>,
     env: Option<Vec<String>>,
     cache: Option<bool>,
+    cargo_target_dir: Option<String>,
     #[serde(flatten)]
     unknown: IndexMap<String, serde_json::Value>,
 }
@@ -1149,6 +1156,7 @@ impl<'de> Deserialize<'de> for TaskSettings {
             inputs: raw.inputs,
             env: raw.env,
             cache: raw.cache,
+            cargo_target_dir: raw.cargo_target_dir,
             unknown: raw.unknown,
         })
     }
@@ -1321,7 +1329,7 @@ pub enum LoadWorkspaceYamlError {
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
         help(
-            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", or "cache"."#
+            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
         )
     )]
     UnknownTaskSettingField { task: String, field: String },

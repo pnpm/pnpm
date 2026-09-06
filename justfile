@@ -115,6 +115,10 @@ codecov:
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
 
+# Compare Rust artifact reuse between two disposable worktrees.
+bench-rust-cache *args:
+  node pnpm/scripts/bench-rust-cache.mjs {{args}}
+
 # Manage registry-mock. The launcher spawns `pnpr`; on
 # Windows you can't overwrite a running .exe, so we pre-build all
 # the test artifacts a subsequent `just test` will need with the
