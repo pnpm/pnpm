@@ -178,9 +178,9 @@ pub enum RegistryError {
         packages: String,
     },
 
-    #[display("Hosted packument for package {package:?} changed while writing")]
+    #[display("Hosted document for package {package:?} changed while writing")]
     #[from(skip)]
-    PackumentWriteConflict {
+    DocumentWriteConflict {
         #[error(not(source))]
         package: String,
     },
@@ -329,7 +329,7 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
-            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
+            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
                 "revision_reference_write_conflict"
@@ -422,7 +422,7 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::PublishNotRecorded { .. }
-            | RegistryError::PackumentWriteConflict { .. }
+            | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,

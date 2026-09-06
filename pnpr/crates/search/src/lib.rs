@@ -128,7 +128,7 @@ pub async fn local_search_names(
         }
         if matches!(query, SearchText::Maintainer(_)) {
             let Ok(parsed) = PackageName::parse(&name) else { continue };
-            let Ok(Some(bytes)) = storage.read_hosted_packument(&parsed).await else { continue };
+            let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { continue };
             let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
             if !packument_has_maintainer(&packument, &needle) {
                 continue;
@@ -143,7 +143,7 @@ pub async fn local_search_names(
 pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
     let entry = async {
         let parsed = PackageName::parse(name).ok()?;
-        let bytes = storage.read_hosted_packument(&parsed).await.ok()??;
+        let bytes = storage.read_hosted_document(&parsed).await.ok()??;
         let packument = serde_json::from_slice::<Value>(&bytes).ok()?;
         build_search_entry(name, &packument)
     }

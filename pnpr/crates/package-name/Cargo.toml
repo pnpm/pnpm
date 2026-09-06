@@ -1,7 +1,7 @@
 [package]
 name                 = "pnpr-package-name"
 version              = "0.0.1"
-description          = "npm package-name parsing and the tarball names derived from it"
+description          = "a validated package name and the npm tarball names derived from it"
 publish              = false
 authors.workspace    = true
 edition.workspace    = true

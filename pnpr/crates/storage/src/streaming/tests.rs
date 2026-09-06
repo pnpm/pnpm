@@ -1,4 +1,4 @@
-use super::{TarballStreamError, integrity_checker, parse_integrity, stream_verified_to_cache};
+use super::{BlobStreamError, integrity_checker, parse_integrity, stream_verified_to_cache};
 use crate::Storage;
 use futures_util::StreamExt;
 use pnpr_config::HostedStoreConfig;
@@ -89,7 +89,7 @@ async fn spawn_response(bytes: &'static [u8]) -> String {
     format!("http://{addr}/foo/-/foo-1.0.0.tgz")
 }
 
-fn tarball_tmp_entries(dir: &Path) -> Vec<String> {
+fn blob_tmp_entries(dir: &Path) -> Vec<String> {
     let mut entries = dir
         .read_dir()
         .map(|entries| {
@@ -106,17 +106,17 @@ fn tarball_tmp_entries(dir: &Path) -> Vec<String> {
     entries
 }
 
-async fn await_nonempty_tarball_tmp(dir: &Path) -> Vec<String> {
+async fn await_nonempty_blob_tmp(dir: &Path) -> Vec<String> {
     let deadline = std::time::Instant::now() + Duration::from_secs(2);
     loop {
-        let entries = tarball_tmp_entries(dir);
+        let entries = blob_tmp_entries(dir);
         if entries
             .iter()
             .any(|name| std::fs::metadata(dir.join(name)).is_ok_and(|metadata| metadata.len() > 0))
         {
             return entries;
         }
-        assert!(std::time::Instant::now() < deadline, "tarball body was not written to tmp");
+        assert!(std::time::Instant::now() < deadline, "blob body was not written to tmp");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
@@ -134,20 +134,20 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = PackageName::parse("foo").unwrap();
     let write =
-        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
     // Pull the first chunk so the tee writes the body's start to the tmp file.
     chunks.next().await.expect("first chunk").expect("first chunk is ok");
     let package_dir = cache.join("~public/test").join("foo");
-    let in_flight = await_nonempty_tarball_tmp(&package_dir).await;
-    assert_eq!(in_flight.len(), 1, "expected one in-flight tarball writer");
+    let in_flight = await_nonempty_blob_tmp(&package_dir).await;
+    assert_eq!(in_flight.len(), 1, "expected one in-flight blob writer");
 
     // Dropping the body mid-stream models a client disconnect: the tee's
-    // `TarballWrite` is dropped and removes the tmp file.
+    // `BlobWrite` is dropped and removes the tmp file.
     drop(chunks);
-    assert!(tarball_tmp_entries(&package_dir).is_empty());
+    assert!(blob_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 
     release.notify_one();
@@ -166,16 +166,16 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
         Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone()).unwrap();
     let name = PackageName::parse("foo").unwrap();
     let write =
-        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+        storage.open_upstream_blob_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     // An upstream that declares an oversize body is rejected up front, before
     // any bytes stream, so the caller turns it into an error response.
     let err = stream_verified_to_cache(response, write, &integrity, 3).unwrap_err();
-    assert!(matches!(err, TarballStreamError::TooLarge { limit: 3, received } if received > 3));
+    assert!(matches!(err, BlobStreamError::TooLarge { limit: 3, received } if received > 3));
 
     // The temp file the rejected writer held is removed (its `Drop`).
     let package_dir = cache.join("~public/test").join("foo");
-    assert!(tarball_tmp_entries(&package_dir).is_empty());
+    assert!(blob_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 }
 

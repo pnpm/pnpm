@@ -150,7 +150,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
         .inner
         .storage
         .for_hosted(&org)
-        .read_hosted_packument(key)
+        .read_hosted_document(key)
         .await?
         .map(|bytes| Document::parse(&bytes).map_err(RegistryError::Json))
         .transpose()
@@ -179,13 +179,13 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
     let outcome = commit_publishes(state, vec![staged]).await?;
     if outcome.lost_blobs.iter().any(|lost| lost.filename == filename) {
-        return Err(RegistryError::PackumentWriteConflict { package: key.as_str().to_string() });
+        return Err(RegistryError::DocumentWriteConflict { package: key.as_str().to_string() });
     }
     // Another writer recorded this blob's entry between the read and the
     // commit, so what the store serves under it is theirs. Answer with the
     // duplicate error `refuse` would have given had it seen their document.
     if !outcome.unrecorded.is_empty()
-        && let Some(stored) = state.inner.storage.for_hosted(org).read_hosted_packument(key).await?
+        && let Some(stored) = state.inner.storage.for_hosted(org).read_hosted_document(key).await?
     {
         refuse(&Document::parse(&stored).map_err(RegistryError::Json)?)?;
     }
@@ -207,7 +207,7 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     addition: Document,
 ) -> Result<StagedPublish, RegistryError> {
     let storage = state.inner.storage.for_hosted(org);
-    let stored = storage.read_hosted_packument_for_update(key).await?;
+    let stored = storage.read_hosted_document_for_update(key).await?;
     let mut document = match &stored {
         Some(stored) => Document::parse(&stored.bytes).map_err(RegistryError::Json)?,
         None => Document::empty(key.as_str()),
@@ -215,7 +215,7 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     refuse(&document)?;
     document.merge(addition, &HashSet::new());
 
-    let slot = storage.reserve_hosted_tarball(key, filename).await?;
+    let slot = storage.reserve_hosted_blob(key, filename).await?;
     if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
         // Nothing owns this slot yet: not the journal, and not a `StagedPublish`
         // the caller could clean up.

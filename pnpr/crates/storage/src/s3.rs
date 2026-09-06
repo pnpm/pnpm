@@ -2,8 +2,8 @@
 //!
 //! The hosted store is pnpr's source of truth — packages published
 //! through its API plus the content served in static mode. When the
-//! YAML `s3:` block is present, those authoritative packuments and
-//! tarballs live in an object store instead of on local disk, so the
+//! YAML `s3:` block is present, those authoritative documents and
+//! blobs live in an object store instead of on local disk, so the
 //! durable data can be replicated by the provider and shared by
 //! several stateless pnpr replicas.
 //!
@@ -14,10 +14,10 @@
 //! only the hosted store is pluggable.
 
 use crate::{
-    HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR, HostedBackend,
-    HostedPackumentForUpdate, HostedPackumentVersion, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, PackumentWrite, STAGED_DIR, TarballFinalize, staged_id_of_meta_object,
-    wait_after_packument_write_conflict,
+    BlobFinalize, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR,
+    HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
+    HostedRevisionRefWrite, STAGED_DIR, staged_id_of_meta_object,
+    wait_after_document_write_conflict,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -35,7 +35,7 @@ use std::{
 };
 use tokio::fs;
 
-const PACKUMENT_FILE: &str = "package.json";
+const DOCUMENT_FILE: &str = "package.json";
 const REVISION_REF_WRITE_RETRIES: usize = 32;
 
 /// Object-store-backed hosted store. Mirrors the verdaccio-shaped
@@ -47,7 +47,7 @@ pub struct S3Store {
     store: Arc<dyn ObjectStore>,
     /// Normalized prefix: empty or `.../`-terminated.
     prefix: String,
-    /// Local directory the publish flow stages decoded tarballs in
+    /// Local directory the publish flow stages decoded blobs in
     /// before they're uploaded. The decode/verify step writes through
     /// `std::fs` inside `spawn_blocking`, so it needs a real path even
     /// when the final home is a bucket; a subdirectory of the
@@ -59,12 +59,12 @@ pub struct S3Store {
 }
 
 #[derive(Debug)]
-pub(crate) struct S3PackumentForUpdate {
+pub(crate) struct S3DocumentForUpdate {
     pub(crate) bytes: Vec<u8>,
     pub(crate) version: UpdateVersion,
 }
 
-/// Subdirectory of the proxy-cache root where hosted tarballs are
+/// Subdirectory of the proxy-cache root where hosted blobs are
 /// staged before upload. Its own directory keeps the decode/verify tmp
 /// files away from the cache's `<pkg>/` package directories.
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
@@ -98,32 +98,32 @@ impl S3Store {
         }
     }
 
-    pub async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        match self.store.get(&self.packument_key(name)).await {
+    pub async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        match self.store.get(&self.document_key(name)).await {
             Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
 
-    pub(crate) async fn read_packument_for_update(
+    pub(crate) async fn read_document_for_update(
         &self,
         name: &PackageName,
-    ) -> Result<Option<S3PackumentForUpdate>> {
-        match self.store.get(&self.packument_key(name)).await {
+    ) -> Result<Option<S3DocumentForUpdate>> {
+        match self.store.get(&self.document_key(name)).await {
             Ok(result) => {
                 let version = UpdateVersion {
                     e_tag: result.meta.e_tag.clone(),
                     version: result.meta.version.clone(),
                 };
-                Ok(Some(S3PackumentForUpdate { bytes: result.bytes().await?.to_vec(), version }))
+                Ok(Some(S3DocumentForUpdate { bytes: result.bytes().await?.to_vec(), version }))
             }
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
 
-    pub(crate) async fn write_packument_if_current(
+    pub(crate) async fn write_document_if_current(
         &self,
         name: &PackageName,
         bytes: &[u8],
@@ -136,7 +136,7 @@ impl S3Store {
         match self
             .store
             .put_opts(
-                &self.packument_key(name),
+                &self.document_key(name),
                 PutPayload::from(bytes.to_vec()),
                 PutOptions { mode, ..PutOptions::default() },
             )
@@ -152,15 +152,15 @@ impl S3Store {
         }
     }
 
-    /// Open a hosted tarball for streaming. `Ok(None)` means the object
+    /// Open a hosted blob for streaming. `Ok(None)` means the object
     /// doesn't exist so the caller can fall through to the proxy cache
     /// or upstream.
-    pub async fn open_tarball(
+    pub async fn open_blob(
         &self,
         name: &PackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
-        match self.store.get(&self.tarball_key(name, filename)).await {
+        match self.store.get(&self.blob_key(name, filename)).await {
             Ok(result) => {
                 let len = result.meta.size;
                 let stream = result
@@ -174,25 +174,25 @@ impl S3Store {
     }
 
     /// Reserve a local staging path for the publish flow to decode and
-    /// verify a tarball into; [`Self::upload_tarball`] promotes it to
+    /// verify a blob into; [`Self::upload_blob`] promotes it to
     /// the bucket once the verification passes.
     pub async fn staging_tmp_path(&self, _name: &PackageName, filename: &str) -> Result<PathBuf> {
         fs::create_dir_all(&self.staging_dir).await?;
         Ok(crate::unique_tmp_path(&self.staging_dir.join(filename)))
     }
 
-    pub async fn upload_tarball(
+    pub async fn upload_blob(
         &self,
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<TarballFinalize> {
+    ) -> Result<BlobFinalize> {
         let bytes = fs::read(tmp_path).await?;
-        let key = self.tarball_key(name, filename);
-        // Create-only. A published version's tarball is immutable, so an object
+        let key = self.blob_key(name, filename);
+        // Create-only. A published version's blob is immutable, so an object
         // already at this key belongs to a concurrent publisher of the same
         // version. Overwriting it would corrupt that artifact against the
-        // integrity its packument records, so tolerate only byte-identical
+        // integrity its document records, so tolerate only byte-identical
         // content and otherwise report a conflict.
         match self
             .store
@@ -203,7 +203,7 @@ impl S3Store {
             )
             .await
         {
-            Ok(_) => Ok(TarballFinalize::Written),
+            Ok(_) => Ok(BlobFinalize::Written),
             Err(
                 object_store::Error::AlreadyExists { .. }
                 | object_store::Error::Precondition { .. },
@@ -211,17 +211,17 @@ impl S3Store {
                 let ours = fs::read(tmp_path).await?;
                 let existing = self.store.get(&key).await?.bytes().await?;
                 if existing.as_ref() == ours.as_slice() {
-                    Ok(TarballFinalize::AlreadyIdentical)
+                    Ok(BlobFinalize::AlreadyIdentical)
                 } else {
-                    Ok(TarballFinalize::Conflict)
+                    Ok(BlobFinalize::Conflict)
                 }
             }
             Err(err) => Err(err.into()),
         }
     }
 
-    pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        match self.store.delete(&self.tarball_key(name, filename)).await {
+    pub async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        match self.store.delete(&self.blob_key(name, filename)).await {
             Ok(()) => Ok(true),
             Err(object_store::Error::NotFound { .. }) => Ok(false),
             Err(err) => Err(err.into()),
@@ -257,7 +257,7 @@ impl S3Store {
             let Some(rest) = key.strip_prefix(self.prefix.as_str()) else {
                 continue;
             };
-            if let Some(name) = rest.strip_suffix(&format!("/{PACKUMENT_FILE}")) {
+            if let Some(name) = rest.strip_suffix(&format!("/{DOCUMENT_FILE}")) {
                 names.push(name.to_string());
             }
         }
@@ -308,7 +308,7 @@ impl S3Store {
                     | object_store::Error::Precondition { .. },
                 ) => {
                     if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_packument_write_conflict(attempt).await;
+                        wait_after_document_write_conflict(attempt).await;
                     }
                 }
                 Err(err) => return Err(err.into()),
@@ -347,7 +347,7 @@ impl S3Store {
                     object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
                 ) => {
                     if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_packument_write_conflict(attempt).await;
+                        wait_after_document_write_conflict(attempt).await;
                     }
                 }
                 Err(err) => return Err(err.into()),
@@ -387,7 +387,7 @@ impl S3Store {
                     object_store::Error::NotFound { .. } | object_store::Error::Precondition { .. },
                 ) => {
                     if attempt + 1 < REVISION_REF_WRITE_RETRIES {
-                        wait_after_packument_write_conflict(attempt).await;
+                        wait_after_document_write_conflict(attempt).await;
                     }
                 }
                 Err(err) => return Err(err.into()),
@@ -422,11 +422,11 @@ impl S3Store {
         }
     }
 
-    fn packument_key(&self, name: &PackageName) -> ObjectPath {
-        ObjectPath::from(format!("{}{}/{PACKUMENT_FILE}", self.prefix, name.as_str()))
+    fn document_key(&self, name: &PackageName) -> ObjectPath {
+        ObjectPath::from(format!("{}{}/{DOCUMENT_FILE}", self.prefix, name.as_str()))
     }
 
-    fn tarball_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
+    fn blob_key(&self, name: &PackageName, filename: &str) -> ObjectPath {
         ObjectPath::from(format!("{}{}/{filename}", self.prefix, name.as_str()))
     }
 
@@ -485,75 +485,75 @@ impl S3Store {
 #[cfg(test)]
 mod tests;
 
-/// The S3-compatible object-store backend. Packument writes are
+/// The S3-compatible object-store backend. Document writes are
 /// compare-and-set on the object's version, so concurrent publishers on
-/// separate nodes cannot lose each other's writes, and a tarball is promoted
+/// separate nodes cannot lose each other's writes, and a blob is promoted
 /// by upload rather than rename.
 #[async_trait]
 impl HostedBackend for S3Store {
-    async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        S3Store::read_packument(self, name).await
+    async fn read_document(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
+        S3Store::read_document(self, name).await
     }
 
-    async fn read_packument_for_update(
+    async fn read_document_for_update(
         &self,
         name: &PackageName,
-    ) -> Result<Option<HostedPackumentForUpdate>> {
-        Ok(S3Store::read_packument_for_update(self, name).await?.map(|packument| {
-            HostedPackumentForUpdate {
-                bytes: packument.bytes,
-                version: HostedPackumentVersion::ObjectVersion(packument.version),
+    ) -> Result<Option<HostedDocumentForUpdate>> {
+        Ok(S3Store::read_document_for_update(self, name).await?.map(|document| {
+            HostedDocumentForUpdate {
+                bytes: document.bytes,
+                version: HostedDocumentVersion::ObjectVersion(document.version),
             }
         }))
     }
 
-    async fn write_packument_if_current(
+    async fn write_document_if_current(
         &self,
         name: &PackageName,
         bytes: &[u8],
-        version: Option<&HostedPackumentVersion>,
-    ) -> Result<PackumentWrite> {
+        version: Option<&HostedDocumentVersion>,
+    ) -> Result<DocumentWrite> {
         let version = match version {
-            Some(HostedPackumentVersion::ObjectVersion(version)) => Some(version),
-            Some(HostedPackumentVersion::Unversioned) | None => None,
+            Some(HostedDocumentVersion::ObjectVersion(version)) => Some(version),
+            Some(HostedDocumentVersion::Unversioned) | None => None,
         };
-        if S3Store::write_packument_if_current(self, name, bytes, version).await? {
-            Ok(PackumentWrite::Written)
+        if S3Store::write_document_if_current(self, name, bytes, version).await? {
+            Ok(DocumentWrite::Written)
         } else {
-            Ok(PackumentWrite::Conflict)
+            Ok(DocumentWrite::Conflict)
         }
     }
 
-    async fn open_tarball(
+    async fn open_blob(
         &self,
         name: &PackageName,
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
-        S3Store::open_tarball(self, name, filename).await
+        S3Store::open_blob(self, name, filename).await
     }
 
-    async fn reserve_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
+    async fn reserve_blob_tmp(&self, name: &PackageName, filename: &str) -> Result<PathBuf> {
         self.staging_tmp_path(name, filename).await
     }
 
-    async fn finalize_tarball(
+    async fn finalize_blob(
         &self,
         tmp_path: &Path,
         name: &PackageName,
         filename: &str,
-    ) -> Result<TarballFinalize> {
-        let outcome = self.upload_tarball(tmp_path, name, filename).await?;
+    ) -> Result<BlobFinalize> {
+        let outcome = self.upload_blob(tmp_path, name, filename).await?;
         // Keep the staged tmp on a Conflict so journal roll-forward can
         // re-detect it and exclude the version whose bytes we don't own;
         // once the object is ours there is nothing left to promote.
-        if outcome != TarballFinalize::Conflict {
+        if outcome != BlobFinalize::Conflict {
             let _ = fs::remove_file(tmp_path).await;
         }
         Ok(outcome)
     }
 
-    async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        S3Store::remove_tarball(self, name, filename).await
+    async fn remove_blob(&self, name: &PackageName, filename: &str) -> Result<bool> {
+        S3Store::remove_blob(self, name, filename).await
     }
 
     async fn remove_package(&self, name: &PackageName) -> Result<bool> {

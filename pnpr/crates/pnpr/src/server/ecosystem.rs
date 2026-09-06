@@ -122,7 +122,7 @@ pub(super) async fn serve_hosted_blob(
     filename: &str,
 ) -> Result<Response, RegistryError> {
     let org = hosted_read_namespace(state, identity, source, key.as_str())?;
-    let blob = state.inner.storage.for_hosted(&org).open_hosted_tarball(key, filename).await?;
+    let blob = state.inner.storage.for_hosted(&org).open_hosted_blob(key, filename).await?;
     Ok(match blob {
         Some((body, len)) => tarball_response(body, len),
         None => not_found(),
@@ -170,7 +170,7 @@ pub(super) async fn load_upstream_document(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let storage = &state.inner.storage;
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    if let Some(bytes) = storage.read_upstream_packument(namespace, request.name, ttl).await? {
+    if let Some(bytes) = storage.read_upstream_document(namespace, request.name, ttl).await? {
         return Ok(Some(bytes));
     }
     let fetched = upstream.fetch_document(request.relative_path, request.accept, request.limit);
@@ -179,14 +179,14 @@ pub(super) async fn load_upstream_document(
         FetchOutcome::NotFound => Ok(None),
     }) {
         Ok(Some(bytes)) => {
-            storage.write_upstream_packument(namespace, request.name, &bytes).await?;
+            storage.write_upstream_document(namespace, request.name, &bytes).await?;
             Ok(Some(bytes))
         }
         Ok(None) => {
             storage.remove_upstream_package(namespace, request.name).await?;
             Ok(None)
         }
-        Err(err) => match storage.read_upstream_packument_any(namespace, request.name).await? {
+        Err(err) => match storage.read_upstream_document_any(namespace, request.name).await? {
             Some(stale) => {
                 tracing::warn!(
                     ?err,
@@ -226,8 +226,7 @@ pub(super) async fn serve_upstream_artifact(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_tarball_tmp(namespace, name, filename).await
-    {
+    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename).await {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };

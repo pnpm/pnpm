@@ -1,8 +1,10 @@
 use pnpr_error::RegistryError;
 
-/// A package name validated to be safe for use as a filesystem path
+/// The name of a package in any ecosystem — an npm package, a crate, a
+/// Python project — validated to be safe for use as a filesystem path
 /// segment (no traversal, no absolute-path prefixes) and well-formed
-/// enough to send upstream.
+/// enough to send upstream. Callers canonicalize the name for their
+/// ecosystem first; this is what the storage layer keys a package by.
 #[derive(Debug, Clone)]
 pub struct PackageName {
     raw: String,
@@ -79,16 +81,24 @@ impl PackageName {
 // `:` is rejected because on Windows `C:foo` is a drive-relative *prefix*
 // component: `PathBuf::join` treats it as a new path rather than a child
 // segment, so a `:`-carrying name or filename could escape the storage or
-// cache root. No legitimate package name, semver version, or tarball
-// basename carries a `:`.
+// cache root.
+//
+// `?`, `#`, `%`, whitespace, and control characters are rejected because a name
+// reaches an upstream by interpolation into its URL: the request path is
+// percent-decoded before it gets here, so `foo#bar` and `foo?bar` fetch `foo`
+// while being authorized and cached under a name of their own.
+//
+// No package name, semver version, or artifact filename in any ecosystem this
+// serves carries one of these.
 fn is_safe_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.starts_with('.')
-        && !segment.contains('/')
-        && !segment.contains('\\')
-        && !segment.contains(':')
-        && !segment.contains('\0')
         && segment != ".."
+        && !segment.chars().any(|character| {
+            matches!(character, '/' | '\\' | ':' | '?' | '#' | '%')
+                || character.is_whitespace()
+                || character.is_control()
+        })
 }
 
 /// Whether `filename` is safe to use as a single on-disk path segment (no

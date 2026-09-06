@@ -639,7 +639,7 @@ async fn serve_registry_version_manifest(
                 Ok(org) => org,
                 Err(err) => return err.into_response(),
             };
-            match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
+            match state.inner.storage.for_hosted(&org).read_hosted_document(&name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
                 Err(err) => return err.into_response(),
@@ -851,7 +851,7 @@ async fn load_upstream_packument(
         && let Some(bytes) = timed(
             "packument:cache_read",
             name.as_str(),
-            state.inner.storage.read_upstream_packument(namespace, name, ttl),
+            state.inner.storage.read_upstream_document(namespace, name, ttl),
         )
         .await?
     {
@@ -875,7 +875,7 @@ async fn load_upstream_packument(
                 && let Err(err) = state
                     .inner
                     .storage
-                    .write_upstream_packument(namespace, name, &fetched.bytes)
+                    .write_upstream_document(namespace, name, &fetched.bytes)
                     .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
@@ -900,12 +900,12 @@ async fn load_upstream_packument(
         }
         // `load_upstream_packument` sends no conditional validators (the upstream
         // cache refetches stale entries rather than revalidating — see
-        // `Store::read_upstream_packument`), so a well-behaved upstream never
+        // `Store::read_upstream_document`), so a well-behaved upstream never
         // answers 304 here. If one does anyway, "not modified" means the cached
         // body is current, so serve it (fresh or stale) rather than a spurious
         // 404 that a client could cache as "package gone".
         PackumentFetch::NotModified => {
-            state.inner.storage.read_upstream_packument_any(namespace, name).await
+            state.inner.storage.read_upstream_document_any(namespace, name).await
         }
     }
 }
@@ -924,8 +924,7 @@ async fn recover_stale_upstream_packument(
     if !err.is_transient_upstream_error() || !upstream.caches() {
         return Err(err);
     }
-    let Some(bytes) = state.inner.storage.read_upstream_packument_any(namespace, name).await?
-    else {
+    let Some(bytes) = state.inner.storage.read_upstream_document_any(namespace, name).await? else {
         return Err(err);
     };
     // The upstream error may embed credentials in its request URL, so only its
@@ -990,7 +989,7 @@ async fn load_packument_for_read(
                 HostedGate::MaskNotFound => return Ok(None),
                 HostedGate::Denied(err) => return Err(err),
             };
-            state.inner.storage.for_hosted(&org).read_hosted_packument(name).await
+            state.inner.storage.for_hosted(&org).read_hosted_document(name).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
@@ -1134,11 +1133,11 @@ async fn serve_tarball_via_upstream(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write =
-        match state.inner.storage.open_upstream_tarball_tmp(&namespace, &name, &filename).await {
-            Ok(write) => write,
-            Err(err) => return err.into_response(),
-        };
+    let write = match state.inner.storage.open_upstream_blob_tmp(&namespace, &name, &filename).await
+    {
+        Ok(write) => write,
+        Err(err) => return err.into_response(),
+    };
     if !upstream.caches() {
         // Fetch-through: verify and stream from the temp file, then remove it,
         // so a `cache: false` upstream's tarball is never persisted.
@@ -1201,7 +1200,7 @@ async fn serve_upstream_revision_tarball(
     };
     let namespace = upstream_cache_namespace(state, registry);
     if upstream.caches() {
-        match state.inner.storage.open_upstream_revision_tarball(&namespace, digest).await {
+        match state.inner.storage.open_upstream_revision_blob(&namespace, digest).await {
             Ok(Some((file, len))) => {
                 return revision_tarball_response(
                     streaming::stream_file(file),
@@ -1221,11 +1220,11 @@ async fn serve_upstream_revision_tarball(
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write =
-        match state.inner.storage.open_upstream_revision_tarball_tmp(&namespace, digest).await {
-            Ok(write) => write,
-            Err(err) => return err.into_response(),
-        };
+    let write = match state.inner.storage.open_upstream_revision_blob_tmp(&namespace, digest).await
+    {
+        Ok(write) => write,
+        Err(err) => return err.into_response(),
+    };
     if !upstream.caches() {
         return match streaming::download_verified_to_temp(
             response,
@@ -1366,7 +1365,7 @@ async fn hosted_original_is_current(
     version: &str,
     digest: &str,
 ) -> Result<bool, RegistryError> {
-    let Some(bytes) = storage.read_hosted_packument(package).await? else {
+    let Some(bytes) = storage.read_hosted_document(package).await? else {
         return Ok(false);
     };
     let packument = serde_json::from_slice::<HostedRevisionPackument>(&bytes)?;
@@ -1387,7 +1386,7 @@ async fn open_hosted_revision_tarball(
     integrity: &Integrity,
 ) -> Response {
     let filename = package.tarball_name_for_version(version);
-    match storage.open_hosted_tarball(package, &filename).await {
+    match storage.open_hosted_blob(package, &filename).await {
         Ok(Some((body, len))) => revision_tarball_response(body, len, digest, integrity),
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
@@ -1474,7 +1473,7 @@ async fn cached_upstream_tarball(
     match timed(
         "tarball:cache_read",
         name.as_str(),
-        state.inner.storage.open_upstream_tarball(namespace, name, filename),
+        state.inner.storage.open_upstream_blob(namespace, name, filename),
     )
     .await
     {
@@ -1843,7 +1842,7 @@ async fn serve_hosted_packument(
     };
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    match state.inner.storage.for_hosted(&org).read_hosted_packument(name).await {
+    match state.inner.storage.for_hosted(&org).read_hosted_document(name).await {
         Ok(Some(bytes)) => match packument_response(
             name,
             &bytes,
@@ -1878,7 +1877,7 @@ async fn serve_hosted_tarball(
     if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
         return err.into_response();
     }
-    match state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &filename).await {
+    match state.inner.storage.for_hosted(&org).open_hosted_blob(name, &filename).await {
         Ok(Some((body, len))) => tarball_response(body, len),
         Ok(None) => not_found(),
         Err(err) => {
@@ -2004,7 +2003,7 @@ fn expected_tarball_dist(
 }
 
 fn tarball_stream_error(
-    err: streaming::TarballStreamError,
+    err: streaming::BlobStreamError,
     name: &PackageName,
     filename: &str,
 ) -> RegistryError {
@@ -2012,21 +2011,21 @@ fn tarball_stream_error(
 }
 
 fn tarball_stream_error_for_package(
-    err: streaming::TarballStreamError,
+    err: streaming::BlobStreamError,
     package: &str,
     filename: &str,
 ) -> RegistryError {
     match err {
-        streaming::TarballStreamError::Upstream { url, source } => {
+        streaming::BlobStreamError::Upstream { url, source } => {
             RegistryError::UpstreamBody { url, source }
         }
-        streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
-        streaming::TarballStreamError::Integrity(err) => tarball_integrity_error(
+        streaming::BlobStreamError::Io(err) => RegistryError::Io(err),
+        streaming::BlobStreamError::Integrity(err) => tarball_integrity_error(
             package,
             filename,
             format!("integrity verification failed: {err}"),
         ),
-        streaming::TarballStreamError::TooLarge { limit, received } => tarball_integrity_error(
+        streaming::BlobStreamError::TooLarge { limit, received } => tarball_integrity_error(
             package,
             filename,
             format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),

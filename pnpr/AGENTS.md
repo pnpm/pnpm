@@ -47,7 +47,7 @@ pnpr/
     config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
     error/         -> package "pnpr-error"         (the error type every layer returns)
     osv/           -> package "pnpr-osv"           (the OSV advisory index)
-    package-name/  -> package "pnpr-package-name"  (npm package-name parsing)
+    package-name/  -> package "pnpr-package-name"  (a validated package name)
     registry/      -> package "pnpr-registry"      (the registry routing table)
     route/         -> package "pnpr-route"         (classifies a fetch route public or private)
     search/        -> package "pnpr-search"        (the local /-/v1/search index scan)

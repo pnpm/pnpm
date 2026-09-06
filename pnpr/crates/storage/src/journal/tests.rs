@@ -3,7 +3,7 @@ use super::{
     JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
     sync_dir,
 };
-use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_journaled_packument};
+use crate::{BlobFinalize, HostedRevisionRefWrite, Storage, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
@@ -220,7 +220,7 @@ async fn commit_drops_a_version_that_cannot_reserve_a_revision_reference() {
         storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
 
     assert_eq!(outcome.reference_limit, Some(crate::MAX_HOSTED_REVISION_REFS));
-    let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
+    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"], json!({}));
     assert_eq!(hosted["dist-tags"], json!({}));
@@ -305,7 +305,7 @@ async fn commit_only_removes_transaction_owned_references_for_a_dropped_version(
         storage.read_hosted_revision_refs(&previously_owned_digest).await.unwrap(),
         vec![record],
     );
-    let hosted = storage.read_hosted_packument(&name).await.unwrap().unwrap();
+    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
     let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
     assert_eq!(hosted["versions"], json!({}));
 }
@@ -324,11 +324,11 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
     let later_name = PackageName::parse("later-pkg").unwrap();
     let filename = "conflicted-pkg-1.0.0.tgz";
 
-    let winner = storage.reserve_hosted_tarball(&conflicted_name, filename).await.unwrap();
+    let winner = storage.reserve_hosted_blob(&conflicted_name, filename).await.unwrap();
     fs::write(&winner.tmp_path, b"winner").await.unwrap();
-    assert_eq!(storage.finalize_tarball_slot(winner).await.unwrap(), TarballFinalize::Written);
+    assert_eq!(storage.finalize_blob_slot(winner).await.unwrap(), BlobFinalize::Written);
 
-    let loser = storage.reserve_hosted_tarball(&conflicted_name, filename).await.unwrap();
+    let loser = storage.reserve_hosted_blob(&conflicted_name, filename).await.unwrap();
     fs::write(&loser.tmp_path, b"loser").await.unwrap();
     let loser_tmp_path = loser.tmp_path.clone();
     let conflicted_slots = [loser];
@@ -397,12 +397,12 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         .await
         .unwrap();
 
-    let conflicted_hosted = storage.read_hosted_packument(&conflicted_name).await.unwrap().unwrap();
+    let conflicted_hosted = storage.read_hosted_document(&conflicted_name).await.unwrap().unwrap();
     let conflicted_hosted: serde_json::Value = serde_json::from_slice(&conflicted_hosted).unwrap();
     assert_eq!(conflicted_hosted["versions"], json!({}));
     assert_eq!(conflicted_hosted["dist-tags"], json!({}));
     assert_eq!(conflicted_hosted["time"].get("1.0.0"), None);
-    let later_hosted = storage.read_hosted_packument(&later_name).await.unwrap().unwrap();
+    let later_hosted = storage.read_hosted_document(&later_name).await.unwrap().unwrap();
     let later_hosted: serde_json::Value = serde_json::from_slice(&later_hosted).unwrap();
     assert_eq!(later_hosted["versions"]["2.0.0"]["version"], "2.0.0");
     #[cfg(unix)]
@@ -532,4 +532,49 @@ async fn commit_keeps_the_journal_entry_when_the_retry_fails_too() {
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(journal_entries.len(), 1, "{journal_entries:?}");
+}
+
+#[tokio::test]
+async fn recovery_applies_a_journal_with_the_alias_manifest_keys() {
+    let tmp = tempdir().unwrap();
+    let storage =
+        Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), tmp.path().join("cache"))
+            .unwrap();
+    let name = PackageName::parse("pkg").unwrap();
+    let slot = storage.reserve_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap();
+    fs::write(&slot.tmp_path, b"tarball bytes").await.unwrap();
+
+    let txn_dir = tmp.path().join("hosted").join(JOURNAL_DIR).join("0000000000000001-1-0");
+    fs::create_dir_all(&txn_dir).await.unwrap();
+    fs::write(
+        txn_dir.join("packument-0.json"),
+        serde_json::to_vec(&json!({
+            "name": "pkg",
+            "versions": { "1.0.0": { "version": "1.0.0" } },
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::write(
+        txn_dir.join(MANIFEST_FILE),
+        serde_json::to_vec(&json!({
+            "packages": [{
+                "name": "pkg",
+                "packument_file": "packument-0.json",
+                "tarballs": [{ "filename": "pkg-1.0.0.tgz", "tmp_path": slot.tmp_path }],
+            }],
+        }))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
+    fs::write(txn_dir.join(super::COMMIT_MARKER), b"").await.unwrap();
+
+    storage.publish_journal().recover(&storage, &NpmDocuments).await.unwrap();
+
+    let hosted = storage.read_hosted_document(&name).await.unwrap().unwrap();
+    let hosted: serde_json::Value = serde_json::from_slice(&hosted).unwrap();
+    assert_eq!(hosted["versions"]["1.0.0"]["version"], "1.0.0");
+    assert!(storage.open_hosted_blob(&name, "pkg-1.0.0.tgz").await.unwrap().is_some());
 }

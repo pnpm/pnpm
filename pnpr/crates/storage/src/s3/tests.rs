@@ -34,43 +34,43 @@ async fn collect(body: Body) -> Vec<u8> {
     axum::body::to_bytes(body, usize::MAX).await.expect("read body").to_vec()
 }
 
-/// Stage a tarball through the same path the publish flow uses: write
+/// Stage a blob through the same path the publish flow uses: write
 /// the decoded bytes to the reserved local tmp file, then upload.
 /// (Cleaning up the staging file belongs to the `HostedBackend` impl, not
-/// to `upload_tarball`, so it stays behind here.)
+/// to `upload_blob`, so it stays behind here.)
 async fn upload(store: &S3Store, name: &PackageName, filename: &str, bytes: &[u8]) {
     let tmp = store.staging_tmp_path(name, filename).await.expect("reserve staging path");
     tokio::fs::write(&tmp, bytes).await.expect("write staging file");
-    store.upload_tarball(&tmp, name, filename).await.expect("upload");
+    store.upload_blob(&tmp, name, filename).await.expect("upload");
 }
 
-async fn write_packument(store: &S3Store, name: &PackageName, bytes: &[u8]) {
-    assert!(store.write_packument_if_current(name, bytes, None).await.unwrap());
+async fn write_document(store: &S3Store, name: &PackageName, bytes: &[u8]) {
+    assert!(store.write_document_if_current(name, bytes, None).await.unwrap());
 }
 
 #[tokio::test]
-async fn packument_roundtrips_and_missing_is_none() {
+async fn document_roundtrips_and_missing_is_none() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
-    assert_eq!(store.read_packument(&name).await.unwrap(), None);
-    write_packument(&store, &name, br#"{"name":"is-positive"}"#).await;
+    assert_eq!(store.read_document(&name).await.unwrap(), None);
+    write_document(&store, &name, br#"{"name":"is-positive"}"#).await;
     assert_eq!(
-        store.read_packument(&name).await.unwrap().as_deref(),
+        store.read_document(&name).await.unwrap().as_deref(),
         Some(&br#"{"name":"is-positive"}"#[..]),
     );
 }
 
 #[tokio::test]
-async fn stale_packument_update_is_rejected() {
+async fn stale_document_update_is_rejected() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("racer");
-    store.write_packument_if_current(&name, br#"{"name":"racer"}"#, None).await.unwrap();
+    store.write_document_if_current(&name, br#"{"name":"racer"}"#, None).await.unwrap();
 
-    let first_read = store.read_packument_for_update(&name).await.unwrap().unwrap();
-    let second_read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+    let first_read = store.read_document_for_update(&name).await.unwrap().unwrap();
+    let second_read = store.read_document_for_update(&name).await.unwrap().unwrap();
 
     let first_written = store
-        .write_packument_if_current(
+        .write_document_if_current(
             &name,
             br#"{"name":"racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
             Some(&first_read.version),
@@ -80,7 +80,7 @@ async fn stale_packument_update_is_rejected() {
     assert!(first_written);
 
     let second_written = store
-        .write_packument_if_current(
+        .write_document_if_current(
             &name,
             br#"{"name":"racer","versions":{"2.0.0":{"version":"2.0.0"}}}"#,
             Some(&second_read.version),
@@ -89,22 +89,22 @@ async fn stale_packument_update_is_rejected() {
         .unwrap();
     assert!(!second_written);
     assert_eq!(
-        store.read_packument(&name).await.unwrap().as_deref(),
+        store.read_document(&name).await.unwrap().as_deref(),
         Some(&br#"{"name":"racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#[..]),
     );
 }
 
 #[tokio::test]
-async fn deleted_packument_update_is_rejected() {
+async fn deleted_document_update_is_rejected() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("removed-racer");
-    write_packument(&store, &name, br#"{"name":"removed-racer"}"#).await;
+    write_document(&store, &name, br#"{"name":"removed-racer"}"#).await;
 
-    let read = store.read_packument_for_update(&name).await.unwrap().unwrap();
+    let read = store.read_document_for_update(&name).await.unwrap().unwrap();
     store.remove_package(&name).await.unwrap();
 
     let written = store
-        .write_packument_if_current(
+        .write_document_if_current(
             &name,
             br#"{"name":"removed-racer","versions":{"1.0.0":{"version":"1.0.0"}}}"#,
             Some(&read.version),
@@ -112,49 +112,46 @@ async fn deleted_packument_update_is_rejected() {
         .await
         .unwrap();
     assert!(!written);
-    assert!(store.read_packument(&name).await.unwrap().is_none());
+    assert!(store.read_document(&name).await.unwrap().is_none());
 }
 
 #[tokio::test]
-async fn concurrent_tarball_finalize_does_not_overwrite() {
-    use crate::TarballFinalize;
+async fn concurrent_blob_finalize_does_not_overwrite() {
+    use crate::BlobFinalize;
     let (store, _staging) = store_with_prefix("");
     let name = pkg("racer");
     let file = "racer-1.0.0.tgz";
 
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Written);
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Written);
 
     // Re-promoting byte-identical content is a tolerated no-op, so idempotent
     // journal roll-forward and concurrent identical publishes don't conflict.
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball A").await.unwrap();
-    assert_eq!(
-        store.upload_tarball(&tmp, &name, file).await.unwrap(),
-        TarballFinalize::AlreadyIdentical,
-    );
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::AlreadyIdentical);
 
     // Different bytes for the same version's key are rejected without
-    // overwriting the first writer's tarball.
+    // overwriting the first writer's blob.
     let tmp = store.staging_tmp_path(&name, file).await.unwrap();
     tokio::fs::write(&tmp, b"tarball B").await.unwrap();
-    assert_eq!(store.upload_tarball(&tmp, &name, file).await.unwrap(), TarballFinalize::Conflict);
+    assert_eq!(store.upload_blob(&tmp, &name, file).await.unwrap(), BlobFinalize::Conflict);
 
-    let (body, _len) = store.open_tarball(&name, file).await.unwrap().unwrap();
+    let (body, _len) = store.open_blob(&name, file).await.unwrap().unwrap();
     assert_eq!(collect(body).await, b"tarball A");
 }
 
 #[tokio::test]
-async fn tarball_uploads_streams_and_reports_length() {
+async fn blob_uploads_streams_and_reports_length() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
-    assert!(store.open_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
+    assert!(store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
 
     let payload = b"a fake tarball payload";
     upload(&store, &name, "is-positive-1.0.0.tgz", payload).await;
 
-    let (body, len) = store.open_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap().unwrap();
+    let (body, len) = store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().unwrap();
     assert_eq!(len, Some(payload.len() as u64));
     assert_eq!(collect(body).await, payload);
 }
@@ -163,38 +160,38 @@ async fn tarball_uploads_streams_and_reports_length() {
 async fn scoped_keys_and_prefix_are_honored() {
     let (store, _staging) = store_with_prefix("packages");
     let name = pkg("@scope/thing");
-    write_packument(&store, &name, br#"{"name":"@scope/thing"}"#).await;
+    write_document(&store, &name, br#"{"name":"@scope/thing"}"#).await;
     upload(&store, &name, "thing-1.0.0.tgz", b"scoped tarball").await;
 
-    let (body, _len) = store.open_tarball(&name, "thing-1.0.0.tgz").await.unwrap().unwrap();
+    let (body, _len) = store.open_blob(&name, "thing-1.0.0.tgz").await.unwrap().unwrap();
     assert_eq!(collect(body).await, b"scoped tarball");
-    assert!(store.read_packument(&name).await.unwrap().is_some());
+    assert!(store.read_document(&name).await.unwrap().is_some());
 }
 
 #[tokio::test]
-async fn remove_tarball_then_package() {
+async fn remove_blob_then_package() {
     let (store, _staging) = store_with_prefix("");
     let name = pkg("is-positive");
-    write_packument(&store, &name, b"{}").await;
+    write_document(&store, &name, b"{}").await;
     upload(&store, &name, "is-positive-1.0.0.tgz", b"payload").await;
 
-    assert!(store.remove_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap());
+    assert!(store.remove_blob(&name, "is-positive-1.0.0.tgz").await.unwrap());
     // S3 (and the in-memory store) deletes are idempotent and don't
     // report whether the key existed, so a second delete still succeeds.
-    store.remove_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap();
-    assert!(store.open_tarball(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
+    store.remove_blob(&name, "is-positive-1.0.0.tgz").await.unwrap();
+    assert!(store.open_blob(&name, "is-positive-1.0.0.tgz").await.unwrap().is_none());
 
     store.remove_package(&name).await.unwrap();
-    assert!(store.read_packument(&name).await.unwrap().is_none());
+    assert!(store.read_document(&name).await.unwrap().is_none());
 }
 
 #[tokio::test]
 async fn lists_hosted_package_names() {
     for prefix in ["", "packages"] {
         let (store, _staging) = store_with_prefix(prefix);
-        write_packument(&store, &pkg("is-positive"), b"{}").await;
-        write_packument(&store, &pkg("@scope/thing"), b"{}").await;
-        // A stray tarball-only key must not be mistaken for a package.
+        write_document(&store, &pkg("is-positive"), b"{}").await;
+        write_document(&store, &pkg("@scope/thing"), b"{}").await;
+        // A stray blob-only key must not be mistaken for a package.
         upload(&store, &pkg("is-positive"), "is-positive-1.0.0.tgz", b"x").await;
 
         let mut names = store.list_package_names().await.unwrap();

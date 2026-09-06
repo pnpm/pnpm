@@ -1,6 +1,6 @@
 use super::{
-    AsyncWriteExt, ErrorKind, HostedRevisionRefWrite, HostedStoreConfig, MAX_HOSTED_REVISION_REFS,
-    PackageName, RegistryError, Storage, TarballWrite, create_tmp_file_with, fs,
+    AsyncWriteExt, BlobWrite, ErrorKind, HostedRevisionRefWrite, HostedStoreConfig,
+    MAX_HOSTED_REVISION_REFS, PackageName, RegistryError, Storage, create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
@@ -14,11 +14,11 @@ fn pkg(name: &str) -> PackageName {
 }
 
 #[test]
-fn packument_write_conflict_delay_caps_growth() {
-    assert_eq!(super::packument_write_conflict_delay(0).as_millis(), 5);
-    assert_eq!(super::packument_write_conflict_delay(1).as_millis(), 10);
-    assert_eq!(super::packument_write_conflict_delay(6).as_millis(), 250);
-    assert_eq!(super::packument_write_conflict_delay(32).as_millis(), 250);
+fn document_write_conflict_delay_caps_growth() {
+    assert_eq!(super::document_write_conflict_delay(0).as_millis(), 5);
+    assert_eq!(super::document_write_conflict_delay(1).as_millis(), 10);
+    assert_eq!(super::document_write_conflict_delay(6).as_millis(), 250);
+    assert_eq!(super::document_write_conflict_delay(32).as_millis(), 250);
 }
 
 #[tokio::test]
@@ -134,7 +134,7 @@ async fn concurrent_hosted_revision_ref_writes_cannot_exceed_the_limit() {
 }
 
 #[tokio::test]
-async fn hosted_tarball_under_non_directory_package_path_is_an_error() {
+async fn hosted_blob_under_non_directory_package_path_is_an_error() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
@@ -142,8 +142,8 @@ async fn hosted_tarball_under_non_directory_package_path_is_an_error() {
     fs::create_dir_all(&storage_root).await.unwrap();
     fs::write(storage_root.join("foo"), b"not a directory").await.unwrap();
 
-    let Err(err) = storage.open_hosted_tarball(&name, "foo-1.0.0.tgz").await else {
-        panic!("expected hosted tarball open to fail");
+    let Err(err) = storage.open_hosted_blob(&name, "foo-1.0.0.tgz").await else {
+        panic!("expected hosted blob open to fail");
     };
     match err {
         RegistryError::Io(err) => assert_eq!(err.kind(), ErrorKind::NotADirectory),
@@ -206,7 +206,7 @@ async fn temp_file_creation_does_not_follow_symlink_candidate() {
 }
 
 #[tokio::test]
-async fn failed_tarball_finalize_removes_tmp_file() {
+async fn failed_blob_finalize_removes_tmp_file() {
     let tmp = TempDir::new().unwrap();
     let tmp_path = tmp.path().join("foo-1.0.0.tgz.tmp.test");
     let final_path = tmp.path().join("foo-1.0.0.tgz");
@@ -214,7 +214,7 @@ async fn failed_tarball_finalize_removes_tmp_file() {
     fs::write(final_path.join("block-rename"), b"occupied").await.unwrap();
 
     let file = fs::File::create(&tmp_path).await.unwrap();
-    let mut write = TarballWrite { file: Some(file), tmp_path: Some(tmp_path.clone()), final_path };
+    let mut write = BlobWrite { file: Some(file), tmp_path: Some(tmp_path.clone()), final_path };
     write.write_all(b"tarball").await.unwrap();
 
     assert!(write.finalize().await.is_err());

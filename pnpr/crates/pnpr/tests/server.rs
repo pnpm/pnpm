@@ -4924,3 +4924,29 @@ async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
         app.oneshot(Request::get("/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+/// A percent-encoded `#` or `?` is decoded before the handler sees it, so a
+/// name carrying one would be authorized and cached under itself while the
+/// upstream URL it is interpolated into addresses the bare name before the
+/// delimiter.
+#[tokio::test]
+async fn url_delimiters_in_a_package_name_are_rejected() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bare = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"foo","versions":{}}"#)
+        .expect(0)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+
+    for path in ["/foo%23bar", "/foo%3Fbar", "/foo%25bar", "/foo%20bar"] {
+        let app = router(config.clone());
+        let response = app.oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+    }
+    bare.assert_async().await;
+}

@@ -15,7 +15,7 @@ use pnpr_package_name::PackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedPackumentVersion,
+    HostedDocumentVersion,
     journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
@@ -396,8 +396,8 @@ pub(super) struct StagedPublish {
     /// The document to record, merged with what the store held when it was
     /// read: a packument, a crate document, a project document.
     pub(super) document: Vec<u8>,
-    pub(super) base_version: Option<HostedPackumentVersion>,
-    pub(super) slots: Vec<pnpr_storage::TarballSlot>,
+    pub(super) base_version: Option<HostedDocumentVersion>,
+    pub(super) slots: Vec<pnpr_storage::BlobSlot>,
     pub(super) revision_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
@@ -419,7 +419,7 @@ pub(super) async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
-    let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
+    let hosted_packument = storage.read_hosted_document_for_update(&name).await?;
     let (hosted_bytes, base_version) = match hosted_packument {
         Some(packument) => (Some(packument.bytes), Some(packument.version)),
         None => (None, None),
@@ -498,7 +498,7 @@ pub(super) async fn stage_publish(
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
-        let slot = match storage.reserve_hosted_tarball(&name, &canonical).await {
+        let slot = match storage.reserve_hosted_blob(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -625,7 +625,7 @@ pub(super) fn publish_created_response() -> Response {
 /// already wrote. Errors are swallowed: the caller is already
 /// returning an error response, and a leftover `*.tmp.*` file is
 /// harmless beyond a small amount of disk.
-pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
+pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::BlobSlot>) {
     for slot in slots {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }

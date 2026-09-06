@@ -49,3 +49,18 @@ fn rejects_windows_drive_prefixes() {
     let name = PackageName::parse("foo").unwrap();
     assert!(name.parse_tarball_name("foo-1.0.0:x.tgz").is_err());
 }
+
+/// A name is interpolated into an upstream URL, so a `?`, `#`, or `%` in it
+/// would address a different package there than the one it is authorized and
+/// cached under.
+#[test]
+fn rejects_url_delimiters_and_blanks() {
+    for raw in ["foo?bar", "foo#bar", "foo%2fbar", "foo bar", "foo\tbar", "foo\u{7f}bar"] {
+        assert!(PackageName::parse(raw).is_err(), "{raw:?}");
+        assert!(!is_safe_path_segment(raw), "{raw:?}");
+    }
+    assert!(PackageName::parse("@scope/foo?bar").is_err());
+    assert!(PackageName::parse("@sco?pe/foo").is_err());
+    let name = PackageName::parse("foo").unwrap();
+    assert!(name.parse_tarball_name("foo-1.0.0?x.tgz").is_err());
+}

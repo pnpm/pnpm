@@ -31,8 +31,8 @@
 //! what was published between the failed apply and the restart.
 
 use crate::{
-    COMMIT_DOCUMENT_WRITE_RETRIES, HostedPackumentVersion, HostedRevisionRefWrite, PackumentUpdate,
-    PackumentWrite, Storage, TarballFinalize, TarballSlot, is_canonical_revision_ref_owner,
+    BlobFinalize, BlobSlot, COMMIT_DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite,
+    HostedDocumentVersion, HostedRevisionRefWrite, Storage, is_canonical_revision_ref_owner,
     unique_tmp_path,
 };
 use pnpr_config::Config;
@@ -125,8 +125,8 @@ pub struct JournaledPublish<'publish> {
     /// The version of the stored document `document` was computed from, when
     /// the publish read one. While the store is still at that version the
     /// commit writes `document` as it is; otherwise it merges.
-    pub base_version: Option<&'publish HostedPackumentVersion>,
-    pub slots: &'publish [TarballSlot],
+    pub base_version: Option<&'publish HostedDocumentVersion>,
+    pub slots: &'publish [BlobSlot],
     pub revision_refs: &'publish [JournaledRevisionRef],
 }
 
@@ -213,7 +213,7 @@ struct SealedTxn {
     /// The stored-document version each sealed package was computed from,
     /// positionally. Empty when startup recovery reopens the transaction,
     /// which always merges instead.
-    base_versions: Vec<Option<HostedPackumentVersion>>,
+    base_versions: Vec<Option<HostedDocumentVersion>>,
 }
 
 impl PublishJournal {
@@ -402,17 +402,17 @@ impl SealedTxn {
                 // no journal state left to retry from. Propagate it instead so
                 // the apply aborts and the entry survives for a later attempt.
                 if fs::try_exists(&blob.tmp_path).await? {
-                    let slot = TarballSlot::from_parts(
+                    let slot = BlobSlot::from_parts(
                         blob.tmp_path.clone(),
                         name.clone(),
                         blob.filename.clone(),
                     );
-                    match store.finalize_tarball_slot(slot).await? {
-                        TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
+                    match store.finalize_blob_slot(slot).await? {
+                        BlobFinalize::Written | BlobFinalize::AlreadyIdentical => {}
                         // Another writer placed different bytes under this
                         // filename. Keep the tmp file so a retry detects the
                         // same conflict, and leave the entry out of the merge.
-                        TarballFinalize::Conflict => {
+                        BlobFinalize::Conflict => {
                             lost_tmp_paths.push(blob.tmp_path.as_path());
                             lost_blobs.insert(blob.filename.clone());
                         }
@@ -468,13 +468,9 @@ impl SealedTxn {
             {
                 written = matches!(
                     store
-                        .write_hosted_packument_if_current(
-                            &name,
-                            &journaled,
-                            base_version.as_ref(),
-                        )
+                        .write_hosted_document_if_current(&name, &journaled, base_version.as_ref(),)
                         .await?,
-                    PackumentWrite::Written,
+                    DocumentWrite::Written,
                 );
                 if written {
                     progress.wrote_documents.insert(package.id());
@@ -482,7 +478,7 @@ impl SealedTxn {
             }
             if !written {
                 let update = store
-                    .update_hosted_packument_with_retry(
+                    .update_hosted_document_with_retry(
                         &name,
                         COMMIT_DOCUMENT_WRITE_RETRIES,
                         |existing| {
@@ -497,10 +493,10 @@ impl SealedTxn {
                     )
                     .await?;
                 match update {
-                    PackumentUpdate::Written => {
+                    DocumentUpdate::Written => {
                         progress.wrote_documents.insert(package.id());
                     }
-                    PackumentUpdate::NotFound => outcome.unrecorded.push(package.id()),
+                    DocumentUpdate::NotFound => outcome.unrecorded.push(package.id()),
                 }
             }
             for revision_ref in claimed.into_values().flatten() {

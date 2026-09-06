@@ -45,7 +45,7 @@ use pnpr_error::RegistryError;
 use pnpr_package_name::{PackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
-use pnpr_storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate};
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate};
 use std::{collections::HashMap, fmt::Display};
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Cargo;
@@ -518,7 +518,7 @@ async fn set_yanked(
         .inner
         .storage
         .for_hosted(&target.org)
-        .update_hosted_packument_with_retry(&key, PACKUMENT_WRITE_RETRIES, |existing| {
+        .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
             let Some(bytes) = existing else { return Ok(None) };
             let mut document = CrateDocument::parse(bytes)?;
             let Some(entry) = document.version_mut(version) else { return Ok(None) };
@@ -527,8 +527,8 @@ async fn set_yanked(
         })
         .await;
     match outcome {
-        Ok(PackumentUpdate::Written) => json_response(StatusCode::OK, &ok_json()),
-        Ok(PackumentUpdate::NotFound) => not_found(),
+        Ok(DocumentUpdate::Written) => json_response(StatusCode::OK, &ok_json()),
+        Ok(DocumentUpdate::NotFound) => not_found(),
         Err(err) => error_response(err),
     }
 }
