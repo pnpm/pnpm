@@ -57,7 +57,7 @@ fn an_index_url_gains_the_slash_a_project_page_resolves_against() {
     assert_eq!(url.as_str(), "https://example.test/simple/");
     assert_eq!(
         url.join("demo/").expect("project page").as_str(),
-        "https://example.test/simple/demo/"
+        "https://example.test/simple/demo/",
     );
 }
 

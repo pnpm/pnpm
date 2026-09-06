@@ -45,10 +45,19 @@ locally:
 pnpm config set pnprServer http://127.0.0.1:7677/
 ```
 
-npm and Cargo dependencies both resolve this way. For Cargo, pnpr walks
-the crates.io sparse index and answers with the `Cargo.lock`, so a
-workspace resolves without the client fetching one index file per crate;
-the index files pnpr reads are cached for every client that follows.
+npm, Cargo and Python dependencies all resolve this way.
+
+For Cargo, pnpr walks the crates.io sparse index and answers with the
+`Cargo.lock`, so a workspace resolves without the client fetching one
+index file per crate.
+
+For Python, pnpr reads the index and answers with the `pylock.toml`.
+Reading what a distribution requires means reading a wheel's `METADATA`,
+so a client resolving alone downloads whole wheels for versions it then
+rejects; pnpr reads the metadata file the index publishes beside each
+wheel instead.
+
+Everything pnpr reads is cached for every client that follows.
 
 ## CLI flags
 
@@ -63,7 +72,7 @@ the index files pnpr reads are cached for every client that follows.
 | `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
-| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm and Cargo, `/-/pnpr/v0/verify-lockfile`). |
+| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm, Cargo and Python, `/-/pnpr/v0/verify-lockfile`). |
 | `--disable-artifacts` | Disable the signed shared-artifact surface. |
 
 Every flag can also be set through an environment variable named after

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// which extras it offers, and which interpreters it accepts. A caller
 /// that reads more (the dist-info directory name, whether the wheel is
 /// pure) keeps that to itself.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct WheelMetadata {
     pub name: String,
     pub version: String,

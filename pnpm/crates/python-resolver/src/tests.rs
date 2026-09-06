@@ -167,7 +167,7 @@ fn candidates_carry_the_metadata_file_an_index_advertises() {
 fn wheel_identity_refuses_a_filename_that_is_not_one() {
     let error = wheel_identity("demo-1.0.0.whl", &target().tags).expect_err("too few parts");
     assert!(error.to_string().contains("invalid Python wheel filename"), "{error}");
-    assert!(wheel_identity("demo-1.0.0.tar.gz", &target().tags).expect("not a wheel").is_none(),);
+    assert!(wheel_identity("demo-1.0.0.tar.gz", &target().tags).expect("not a wheel").is_none());
 }
 
 #[test]
