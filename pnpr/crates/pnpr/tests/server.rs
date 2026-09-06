@@ -5000,8 +5000,6 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     }
 }
 
-/// Every address is registered with the methods it serves, so a request that
-/// names one of them with any other method is a `405`.
 #[tokio::test]
 async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
     let tmp = TempDir::new().unwrap();
