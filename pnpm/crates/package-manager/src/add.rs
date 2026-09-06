@@ -1588,7 +1588,6 @@ impl ProtocolSelector {
         Ok(Some(Self::Workspace { name }))
     }
 
-    /// The name the manifest entry is keyed by.
     fn package_name(&self) -> &str {
         match self {
             Self::Npm { name, .. } | Self::Workspace { name } => name,
@@ -1608,9 +1607,6 @@ impl ProtocolSelector {
     }
 }
 
-/// The package name a protocol spells out, rejected when it is not a name
-/// a dependency can be declared under — an empty `pacquet add npm:`
-/// included.
 fn protocol_package_name(name: &str, selector: &str) -> Result<String, AddError> {
     if !is_valid_dependency_alias(name) {
         return Err(AddError::InvalidPackageName {
