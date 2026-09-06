@@ -1,8 +1,8 @@
 use super::{
     CrateArchiveError, CrateDocument, CrateNameError, DependencyKind, IndexConfig, IndexEntry,
-    PublishBodyError, PublishMetadata, SearchCrate, crate_filename, download_url, parse_index,
-    parse_publish_body, render_index, sparse_index_path, validate_crate_archive,
-    validate_crate_archive_with_limit, validate_crate_name,
+    MAX_DESCRIPTION_LEN, PublishBodyError, PublishMetadata, SearchCrate, bounded_description,
+    crate_filename, download_url, parse_index, parse_publish_body, render_index, sparse_index_path,
+    validate_crate_archive, validate_crate_archive_with_limit, validate_crate_name,
 };
 use serde_json::json;
 use std::{collections::BTreeMap, io::Write as _};
@@ -393,7 +393,6 @@ fn max_version_prefers_the_newest_release_that_is_not_yanked() {
     document.versions[1].yanked = true;
     assert_eq!(document.max_version().as_deref(), Some("1.9.0"));
 
-    // With nothing left to prefer, the newest yanked release is reported.
     for version in &mut document.versions {
         version.yanked = true;
     }
@@ -419,4 +418,17 @@ fn a_search_row_carries_the_name_as_published() {
             max_version: "0.11.4".to_string(),
         },
     );
+}
+
+#[test]
+fn a_description_is_cut_to_the_documented_length() {
+    assert_eq!(bounded_description(None), None);
+    assert_eq!(bounded_description(Some("short")).as_deref(), Some("short"));
+
+    let long = "d".repeat(MAX_DESCRIPTION_LEN + 1);
+    assert_eq!(bounded_description(Some(&long)).unwrap().len(), MAX_DESCRIPTION_LEN);
+
+    // Cut by character, so a multi-byte description stays valid UTF-8.
+    let wide = "é".repeat(MAX_DESCRIPTION_LEN + 1);
+    assert_eq!(bounded_description(Some(&wide)).unwrap().chars().count(), MAX_DESCRIPTION_LEN);
 }

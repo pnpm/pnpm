@@ -415,7 +415,6 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
         }
     };
 
-    // The newest release is the one reported, and the description rides along.
     let body = search(app.clone(), "q=demo&per_page=10").await;
     assert_eq!(
         body,
@@ -425,12 +424,10 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
         }),
     );
 
-    // The query is a substring match over crate names, as npm search is.
     let body = search(app.clone(), "q=flect").await;
     assert_eq!(body["crates"][0]["name"], "inflector");
     assert_eq!(body["meta"]["total"], 1);
 
-    // `total` counts every match; `per_page` and `page` cut the window.
     let body = search(app.clone(), "q=o&per_page=1").await;
     assert_eq!(body["crates"].as_array().unwrap().len(), 1);
     assert_eq!(body["crates"][0]["name"], "demo");
@@ -442,8 +439,48 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
     // A query that names nothing is not a request to dump the registry.
     let body = search(app.clone(), "q=nothing-matches-this").await;
     assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
-    let body = search(app, "per_page=10").await;
+    let body = search(app.clone(), "per_page=10").await;
     assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
+
+    // Results depend on the caller, so they must never be shared-cached.
+    let response = app
+        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    assert_eq!(response.headers()[header::VARY], "Authorization");
+}
+
+#[tokio::test]
+async fn a_publishers_description_cannot_grow_a_search_response() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(
+        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all"),
+        auth,
+    );
+    let mut published = metadata("demo", "0.1.0");
+    published["description"] = json!("d".repeat(pnpr_cargo::MAX_DESCRIPTION_LEN + 500));
+    let response = app
+        .clone()
+        .oneshot(publish_request(
+            Some(&token),
+            publish_body(&published, &crate_archive("demo", "0.1.0")),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = app
+        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(
+        body["crates"][0]["description"].as_str().unwrap().len(),
+        pnpr_cargo::MAX_DESCRIPTION_LEN,
+    );
 }
 
 #[tokio::test]

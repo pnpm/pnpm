@@ -27,7 +27,7 @@ use super::{
         load_upstream_document, registry_endpoint, registry_requires_auth, serve_hosted_blob,
         serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
-    hosted_search_names, json_response, not_found,
+    hosted_search_names, json_response, not_found, private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source, resolve_write_target_for,
 };
@@ -41,8 +41,8 @@ use axum::{
 };
 use pnpr_cargo::{
     CrateDocument, IndexConfig, IndexEntry, PublishMetadata, SearchCrate, SearchMeta,
-    SearchResponse, crate_filename, download_url, errors_json, ok_json, parse_index,
-    parse_publish_body, publish_ok_json, sparse_index_path, validate_crate_archive,
+    SearchResponse, bounded_description, crate_filename, download_url, errors_json, ok_json,
+    parse_index, parse_publish_body, publish_ok_json, sparse_index_path, validate_crate_archive,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{CanonicalPackageName, is_safe_path_segment};
@@ -128,26 +128,41 @@ async fn get_search(
             Err(err) => return error_response(err),
         };
         for name in names {
-            if !page.push_name(&name) {
-                continue;
-            }
-            let Some(entry) = search_crate(&storage, &name).await else {
+            // A hosted namespace shared with another ecosystem holds names
+            // that are not crate names. Dropping them before the position
+            // is claimed keeps them out of the page and out of the total,
+            // and costs no read.
+            let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
                 continue;
             };
-            page.objects.push(entry);
+            if page.push_name(&name) {
+                page.objects.push(search_crate(&storage, &key).await);
+            }
         }
     }
     let total = page.total();
-    caller_scoped(&state, ECOSYSTEM, registry.as_deref(), None, respond(page.objects, total))
+    // Results are filtered per caller (registry access plus per-package
+    // ACL), so they must never land in a shared HTTP cache.
+    private_no_cache(respond(page.objects, total))
 }
 
-/// One search row, read from the crate's stored document. `None` when the
-/// document is unreadable, which leaves the crate out of the page rather
-/// than failing the whole search.
-async fn search_crate(storage: &pnpr_storage::Storage, name: &str) -> Option<SearchCrate> {
-    let key = CanonicalPackageName::parse(name, ECOSYSTEM).ok()?;
-    let bytes = storage.read_hosted_document(&key).await.ok()??;
-    CrateDocument::parse(&bytes).ok().map(|document| document.to_search_crate())
+/// One search row, read from the crate's stored document. A document that
+/// cannot be read or parsed still answers with the name the caller matched,
+/// so the page never disagrees with the total it reports.
+async fn search_crate(storage: &pnpr_storage::Storage, key: &CanonicalPackageName) -> SearchCrate {
+    let document = async {
+        let bytes = storage.read_hosted_document(key).await.ok()??;
+        CrateDocument::parse(&bytes).ok()
+    }
+    .await;
+    document.as_ref().map_or_else(
+        || SearchCrate {
+            name: key.as_str().to_string(),
+            description: None,
+            max_version: String::new(),
+        },
+        CrateDocument::to_search_crate,
+    )
 }
 
 /// A registry error in the crates API's JSON shape, so `cargo` prints the
@@ -472,7 +487,7 @@ pub(super) async fn verify_crate_archive(
     .map_err(RegistryError::JoinError)??;
     let (cksum, archive) = checked;
     let filename = crate_filename(&metadata.name, &metadata.vers);
-    let description = metadata.description.clone();
+    let description = bounded_description(metadata.description.as_deref());
     Ok(CratePublication {
         key,
         org,

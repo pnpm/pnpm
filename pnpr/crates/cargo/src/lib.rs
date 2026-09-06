@@ -230,6 +230,20 @@ impl CrateDocument {
     }
 }
 
+/// The longest description a crate document keeps, which is also the cap
+/// crates.io puts on one. A search response carries a page of descriptions,
+/// and a publisher writes them, so an unbounded one would let a publisher
+/// decide how large every later search response is.
+pub const MAX_DESCRIPTION_LEN: usize = 1_000;
+
+/// A publish's description, cut to [`MAX_DESCRIPTION_LEN`] characters. Cut
+/// rather than refused: the description was accepted and discarded before
+/// crate documents kept one, and a publish that worked should keep working.
+#[must_use]
+pub fn bounded_description(description: Option<&str>) -> Option<String> {
+    description.map(|description| description.chars().take(MAX_DESCRIPTION_LEN).collect())
+}
+
 /// One row of `GET api/v1/crates`. `cargo search` reads exactly these three
 /// fields, so the response stays that narrow rather than modelling all of
 /// what crates.io returns.
