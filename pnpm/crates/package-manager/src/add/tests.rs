@@ -200,8 +200,6 @@ async fn add_saves_a_jsr_selector_under_its_jsr_name_with_the_picked_version_pin
     assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo").await, Some("jsr:^1.0.0".to_string()));
 }
 
-/// The range operator comes off the selector, the same way it does for a
-/// registry range: `pnpm add jsr:@scope/pkg@1.0` tracks patches only.
 #[tokio::test]
 async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo@1.0").await, Some("jsr:~1.0.0".to_string()));

@@ -1500,6 +1500,9 @@ fn workspace_save_specifier(
                 .and_then(|packages| packages.get(&target_name))
                 .and_then(|versions| {
                     let available: Vec<String> = versions.keys().cloned().collect();
+                    // Not `spec.version`: the pinned form records the local
+                    // package's own version, which wins over the range the
+                    // user typed.
                     resolve_workspace_range("*", &available)
                 });
             (target_name, resolved_version)

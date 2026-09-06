@@ -67,8 +67,6 @@ fn add_saves_a_jsr_selector_under_its_jsr_name() {
     drop((root, anchor));
 }
 
-/// A version selector pins the picked version with the operator it asks
-/// for, the same way a plain registry range does.
 #[test]
 fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     let (root, workspace, anchor) = setup();
