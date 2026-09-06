@@ -100,6 +100,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+mod workspace_option;
 
 pub(crate) mod cli_command;
 mod dispatch;

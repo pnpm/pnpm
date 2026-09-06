@@ -7,6 +7,7 @@ use crate::{
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
         update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
+        workspace_option::{WorkspaceOptionError, workspace_link_root},
     },
     github_actions,
 };
@@ -163,20 +164,6 @@ pub struct UpdateArgs {
 
     #[clap(skip)]
     pub(crate) prompt: UpdatePrompt,
-}
-
-/// The option combinations `--workspace` rejects, checked before any
-/// resolution happens on every dispatch path — plain, selected, and
-/// global (whose global directory is never a workspace).
-#[derive(Debug, Display, Error, Diagnostic)]
-enum WorkspaceUpdateError {
-    #[display("Cannot use --latest with --workspace simultaneously")]
-    #[diagnostic(code(ERR_PNPM_BAD_OPTIONS))]
-    LatestWithWorkspace,
-
-    #[display("--workspace can only be used inside a workspace")]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_OPTION_OUTSIDE_WORKSPACE))]
-    OutsideWorkspace,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -515,13 +502,10 @@ impl UpdateArgs {
         &self,
         workspace_root: Option<&'root Path>,
     ) -> miette::Result<Option<&'root Path>> {
-        if !self.workspace {
-            return Ok(None);
+        if self.workspace && self.latest {
+            return Err(WorkspaceOptionError::LatestWithWorkspace.into());
         }
-        if self.latest {
-            return Err(WorkspaceUpdateError::LatestWithWorkspace.into());
-        }
-        workspace_root.ok_or_else(|| WorkspaceUpdateError::OutsideWorkspace.into()).map(Some)
+        workspace_link_root(self.workspace, workspace_root)
     }
 
     fn check_patches_options(&self) -> miette::Result<()> {
