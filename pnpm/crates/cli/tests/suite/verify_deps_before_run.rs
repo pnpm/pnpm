@@ -304,6 +304,30 @@ fn separate_lockfiles_check_only_the_active_workspace_project() {
     drop(root);
 }
 
+/// A workspace root only needs `pnpm-workspace.yaml`; a package manifest is
+/// required by the nested project that owns its dedicated lockfile and state.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_allow_a_nested_project_without_a_root_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let marker = project.join("project-marker.txt");
+    write_manifest(&project, &marker);
+
+    pacquet_in(&project).with_arg("install").assert().success();
+    pacquet_in(&project).with_args(["run", "hello"]).assert().success();
+    assert!(marker.exists(), "the nested workspace script must run");
+
+    drop(root);
+}
+
 /// `warn` reports the drift but still runs the script.
 #[cfg(unix)]
 #[test]

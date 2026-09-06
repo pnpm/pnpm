@@ -175,15 +175,6 @@ pub fn check_deps_status_before_run_at(
     let Some(manifest_dir) = manifest.path().parent() else {
         return cannot_check();
     };
-    let root_manifest = match pnpm_workspace::read_project_manifest_only(&workspace_root) {
-        Ok(manifest) => manifest,
-        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-            if workspace_dir_opt.is_none() =>
-        {
-            return None;
-        }
-        Err(_) => return cannot_check(),
-    };
     let workspace_manifest = match workspace_dir_opt.as_deref() {
         Some(dir) => match pnpm_workspace::read_workspace_manifest(dir) {
             Ok(manifest) => manifest,
@@ -219,8 +210,24 @@ pub fn check_deps_status_before_run_at(
     } else {
         None
     };
+    let root_manifest = if config.shares_one_lockfile() {
+        Some(match pnpm_workspace::read_project_manifest_only(&workspace_root) {
+            Ok(manifest) => manifest,
+            Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound {
+                ..
+            }) if workspace_dir_opt.is_none() => {
+                return None;
+            }
+            Err(_) => return cannot_check(),
+        })
+    } else {
+        None
+    };
     let project_manifests = if config.shares_one_lockfile() {
-        build_project_manifests_list(&root_manifest, workspace_projects.as_deref())
+        let Some(root_manifest) = root_manifest.as_ref() else {
+            return cannot_check();
+        };
+        build_project_manifests_list(root_manifest, workspace_projects.as_deref())
     } else {
         vec![(lockfile_root.clone(), &manifest)]
     };
