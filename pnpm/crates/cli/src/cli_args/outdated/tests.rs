@@ -1,7 +1,8 @@
 use super::{
-    Change, DependentProject, OutdatedDependencyOptions, OutdatedInWorkspace, OutdatedPackage,
-    classify, current_versions_from_importer, render_dependents, render_json, render_latest,
-    render_recursive_json, render_recursive_table, sort_outdated,
+    Change, DEPENDENTS_COLUMN_WIDTH, DependentProject, OutdatedDependencyOptions,
+    OutdatedInWorkspace, OutdatedPackage, classify, current_versions_from_importer,
+    render_dependents, render_json, render_latest, render_recursive_json, render_recursive_table,
+    sort_outdated,
 };
 use node_semver::Version;
 use pnpm_lockfile::Lockfile;
@@ -266,6 +267,11 @@ fn dependent_names_are_sanitized_for_terminal_output() {
 // wraps.
 #[test]
 fn recursive_table_wraps_the_dependents_column() {
+    // The last dependent is one unbreakable name longer than the clamp, so the
+    // rendered column lands on exactly `DEPENDENTS_COLUMN_WIDTH` rather than on
+    // whatever width the shorter names happen to pack into.
+    let long_name = "example-workspace-package-with-a-name-past-the-clamp";
+    assert!(long_name.len() > DEPENDENTS_COLUMN_WIDTH);
     let entry = OutdatedInWorkspace {
         package: pkg("is-odd", "3.0.0", "3.0.1", DependencyGroup::Prod),
         dependents: (1..=12)
@@ -273,23 +279,38 @@ fn recursive_table_wraps_the_dependents_column() {
                 name: format!("example-workspace-package-{index:02}"),
                 location: PathBuf::from(format!("packages/pkg-{index:02}")),
             })
+            .chain([DependentProject {
+                name: long_name.to_string(),
+                location: PathBuf::from("packages/pkg-long"),
+            }])
             .collect(),
     };
 
     let table = render_recursive_table(&[entry], false);
     println!("{table}");
     assert_borders_aligned(&table);
-
-    let width = border_columns(table.lines().next().expect("top border"))
-        .last()
-        .copied()
-        .expect("box-drawing borders")
-        + 1;
-    assert!(width <= 80, "the table must fit a normal terminal, got {width} columns");
+    assert_eq!(last_column_width(&table), DEPENDENTS_COLUMN_WIDTH);
 
     let dependent_lines =
         table.lines().filter(|line| line.contains("example-workspace-package-")).count();
     assert!(dependent_lines > 1, "the dependents cell must wrap onto several lines");
+
+    for index in 1..=12 {
+        let name = format!("example-workspace-package-{index:02}");
+        assert!(table.contains(&name), "wrapping must not drop {name}");
+    }
+}
+
+/// Content width of the table's rightmost column: the span between the two
+/// rightmost boundaries of the top border, less the boundary itself and the
+/// column's one-space padding on each side.
+fn last_column_width(table: &str) -> usize {
+    const PADDING: usize = 2;
+    let borders = border_columns(table.lines().next().expect("top border"));
+    let [.., left, right] = borders[..] else {
+        panic!("expected at least two column boundaries in:\n{table}");
+    };
+    right - left - 1 - PADDING
 }
 
 #[cfg(unix)]
