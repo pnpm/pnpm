@@ -577,12 +577,6 @@ fn runtime_alias_and_flags_parse() {
 }
 
 #[test]
-fn version_message_short_flag_is_an_alias_of_message() {
-    let args = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
-    assert_eq!(args.message.as_deref(), Some("release %s"));
-}
-
-#[test]
 fn runtime_global_flag_parses_after_version() {
     let parsed = CliArgs::try_parse_from(["pacquet", "runtime", "set", "node", "22", "-g"])
         .expect("parses runtime global flag after params");
@@ -591,6 +585,15 @@ fn runtime_global_flag_parses_after_version() {
     };
     assert!(args.global);
     assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn version_message_short_flag_is_an_alias_of_message() {
+    let short = version_args(&["pacquet", "version", "patch", "-m", "release %s"]);
+    let long = version_args(&["pacquet", "version", "patch", "--message", "release %s"]);
+    assert_eq!(short.message.as_deref(), Some("release %s"));
+    assert_eq!(short.message, long.message);
+    assert_eq!(short.params, ["patch"]);
 }
 
 #[test]
