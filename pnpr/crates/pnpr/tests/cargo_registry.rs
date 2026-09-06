@@ -205,7 +205,6 @@ async fn publish_then_resolve_and_download_a_hosted_crate() {
     // Storage layout: the hosted org namespace, keyed by the lowercase name.
     assert!(tmp.path().join("crates/demo/demo-0.1.0.crate").is_file());
     assert!(tmp.path().join("crates/demo/package.json").is_file());
-    // The publish went through the commit journal and left nothing behind.
     assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
 
     // The crate is reachable at its one sparse-index path only.
@@ -729,9 +728,8 @@ fn fabricate_crashed_crate_publish(storage: &Path, archive: &[u8]) -> PathBuf {
     tmp_path
 }
 
-/// A `cargo publish` that crashed after its archive was staged and before the
-/// crate document recorded it is completed on the next startup: both halves
-/// land, so the store never holds an archive no index file mentions.
+/// Both halves land, so the store never holds an archive that no index file
+/// mentions.
 #[tokio::test]
 async fn a_crashed_publish_is_completed_on_startup() {
     let tmp = TempDir::new().unwrap();
@@ -766,7 +764,7 @@ async fn a_crashed_publish_is_completed_on_startup() {
 }
 
 /// Applying a sealed transaction adds its version to the document as it
-/// stands, so a crate published between the crash and the restart survives.
+/// stands rather than to the one the crashed publish read.
 #[tokio::test]
 async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
     let tmp = TempDir::new().unwrap();

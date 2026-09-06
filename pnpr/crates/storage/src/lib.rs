@@ -356,8 +356,9 @@ pub enum PackumentWrite {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackumentUpdate {
     Written,
-    /// The `build` closure reported that the packument does not exist
-    /// (returned `Ok(None)`), so there was nothing to update.
+    /// `build` returned `Ok(None)`, so nothing was written: the packument
+    /// the caller wanted to change does not exist, or the change it computed
+    /// turned out to be no change at all.
     NotFound,
 }
 

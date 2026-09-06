@@ -24,6 +24,16 @@ impl HostedDocuments for NpmDocuments {
     }
 }
 
+/// A merge that records nothing, the way an ecosystem document merge answers
+/// when every entry the transaction journaled is already stored.
+struct RecordsNothing;
+
+impl HostedDocuments for RecordsNothing {
+    fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+}
+
 /// A journaled npm publish of `packument` for `name`, with no staged blobs
 /// unless the test adds them.
 fn npm_publish<'publish>(
@@ -338,4 +348,31 @@ async fn applying_preserves_a_blob_conflict_across_a_later_package_failure() {
         !fs::try_exists(&txn_dir).await.unwrap(),
         "완료된 트랜잭션은 journal을 제거해야 합니다",
     );
+}
+
+/// A commit whose merge records nothing reports the package, so the surface
+/// can tell its publisher that what the store serves under that name is not
+/// what they uploaded.
+#[tokio::test]
+async fn commit_reports_a_package_whose_merge_recorded_nothing() {
+    let tmp = tempdir().unwrap();
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let storage = Storage::new(
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
+        tmp.path().join("hosted"),
+        tmp.path().join("cache"),
+    )
+    .unwrap();
+    let name = PackageName::parse("pkg").unwrap();
+    let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
+    let entries = [npm_publish(&name, &document, &[])];
+    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+
+    // The document is on disk now, so this commit's `base_version: None` is
+    // stale and the merge decides what to write.
+    let outcome =
+        storage.publish_journal().commit(&storage, &entries, &RecordsNothing).await.unwrap();
+
+    assert_eq!(outcome.unrecorded, vec!["pkg".to_string()]);
+    assert!(outcome.lost_blobs.is_empty());
 }

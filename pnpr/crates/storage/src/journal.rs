@@ -31,8 +31,9 @@
 //! what was published between the failed apply and the restart.
 
 use crate::{
-    COMMIT_DOCUMENT_WRITE_RETRIES, HostedPackumentVersion, HostedRevisionRefWrite, PackumentWrite,
-    Storage, TarballFinalize, TarballSlot, is_canonical_revision_ref_owner, unique_tmp_path,
+    COMMIT_DOCUMENT_WRITE_RETRIES, HostedPackumentVersion, HostedRevisionRefWrite, PackumentUpdate,
+    PackumentWrite, Storage, TarballFinalize, TarballSlot, is_canonical_revision_ref_owner,
+    unique_tmp_path,
 };
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
@@ -71,8 +72,7 @@ struct Manifest {
 struct ManifestPackage {
     name: String,
     /// The ecosystem whose document format this package's document is in.
-    /// Defaulted for back-compat with journals written before pnpr served
-    /// more than npm.
+    /// An entry that names none holds an npm packument.
     #[serde(default)]
     ecosystem: Ecosystem,
     /// Hosted-org storage namespace this package publishes into, or `None` for
@@ -160,6 +160,10 @@ pub struct CommitOutcome {
     /// Set when an entry could not claim a digest-reference slot, to the
     /// limit that was reached.
     pub reference_limit: Option<usize>,
+    /// Packages whose merge left the stored document exactly as it was:
+    /// every entry this transaction journaled for them was already recorded,
+    /// or was lost with its blob. Nothing of theirs became newly visible.
+    pub unrecorded: Vec<String>,
 }
 
 /// Handle to the journal directory of one [`Storage`].
@@ -195,18 +199,30 @@ impl PublishJournal {
         packages: &[JournaledPublish<'_>],
         documents: &dyn HostedDocuments,
     ) -> Result<CommitOutcome> {
-        match self.seal(packages).await {
-            Ok(txn) => txn.apply(storage, documents).await.inspect_err(|err| {
-                tracing::warn!(
-                    %err,
-                    "publish apply failed after the seal; startup recovery will complete it",
-                );
-            }),
+        let txn = match self.seal(packages).await {
+            Ok(txn) => txn,
             Err(err) => {
                 for slot in packages.iter().flat_map(|package| package.slots) {
                     let _ = fs::remove_file(&slot.tmp_path).await;
                 }
-                Err(err)
+                return Err(err);
+            }
+        };
+        let dir = txn.dir.clone();
+        match txn.apply(storage, documents).await {
+            Ok(outcome) => Ok(outcome),
+            Err(err) => {
+                tracing::warn!(%err, "publish apply failed after the seal; retrying it");
+                // An apply can stop with some of the batch already promoted,
+                // and past the seal there is nothing to undo. Run the same
+                // idempotent apply once more so a running server does not
+                // leave the batch half-visible until the next restart; a
+                // second failure keeps the sealed entry for startup recovery
+                // and reports the failure that started it.
+                match SealedTxn::reopen(dir) {
+                    Ok(txn) => txn.apply(storage, documents).await.map_err(|_| err),
+                    Err(_) => Err(err),
+                }
             }
         }
     }
@@ -406,7 +422,7 @@ impl SealedTxn {
                 );
             }
             if !written {
-                store
+                let update = store
                     .update_hosted_packument_with_retry(
                         &name,
                         COMMIT_DOCUMENT_WRITE_RETRIES,
@@ -421,6 +437,9 @@ impl SealedTxn {
                         },
                     )
                     .await?;
+                if update == PackumentUpdate::NotFound {
+                    outcome.unrecorded.push(package.name.clone());
+                }
             }
             for revision_ref in claimed.into_values().flatten() {
                 store

@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-A `cargo publish` or `twine upload` that pnpr accepted is now recorded in one crash-safe step, as an npm publish already was. If the server stops between storing the file and recording it in the crate or project document, the next startup completes the publish instead of leaving a file nothing points at.
+pnpr now stores an uploaded crate or Python distribution and records it in the registry document in one crash-safe step, as it already does for an npm publish. A server that stopped between the two steps left behind a file that nothing pointed at. The next startup now finishes the publish.

@@ -113,7 +113,6 @@ async fn uploads_a_wheel_and_serves_the_simple_pages_and_the_file() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(tmp.path().join("python/demo-pkg").join(filename).is_file());
-    // The upload went through the commit journal and left nothing behind.
     assert!(std::fs::read_dir(tmp.path().join(".pnpr-journal")).unwrap().next().is_none());
 
     // PEP 691 JSON, with the file URL pointing back at this registry.
@@ -604,9 +603,8 @@ fn fabricate_crashed_upload(storage: &Path, filename: &str, wheel: &[u8]) -> Pat
     tmp_path
 }
 
-/// An upload that crashed after its file was staged and before the project
-/// document recorded it is completed on the next startup: both halves land,
-/// so the store never holds a file no Simple API page mentions.
+/// Both halves land, so the store never holds a file that no Simple API page
+/// mentions.
 #[tokio::test]
 async fn a_crashed_upload_is_completed_on_startup() {
     let tmp = TempDir::new().unwrap();
@@ -632,8 +630,8 @@ async fn a_crashed_upload_is_completed_on_startup() {
     assert_eq!(body_bytes(response.into_body()).await, wheel);
 }
 
-/// Applying a sealed transaction adds its file to the document as it stands,
-/// so an upload accepted between the crash and the restart survives.
+/// Applying a sealed transaction adds its file to the document as it stands
+/// rather than to the one the crashed upload read.
 #[tokio::test]
 async fn a_crashed_upload_keeps_what_was_uploaded_while_it_was_down() {
     let tmp = TempDir::new().unwrap();

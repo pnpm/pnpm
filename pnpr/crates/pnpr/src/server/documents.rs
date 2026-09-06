@@ -163,8 +163,9 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 /// Writers of the same key on this instance are serialized by the package
 /// lock; `refuse` rejects a document the publish must not land on (an entry
 /// already present) before anything is written. Across instances the blob's
-/// immutable slot decides: a publish whose bytes lose it records nothing and
-/// reports the conflict.
+/// immutable slot decides: a publish whose bytes lose it reports the
+/// conflict, and one that finds its entry already recorded by the writer that
+/// won answers `refuse` on the document that writer left.
 pub(super) async fn store_hosted_artifact<Document: HostedDocument>(
     state: &AppState,
     org: &str,
@@ -207,6 +208,11 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument>(
         .await?;
     if outcome.lost_blobs.iter().any(|lost| lost == filename) {
         return Err(RegistryError::PackumentWriteConflict { package: key.as_str().to_string() });
+    }
+    if !outcome.unrecorded.is_empty()
+        && let Some(stored) = storage.read_hosted_packument(key).await?
+    {
+        refuse(&Document::parse(&stored).map_err(RegistryError::Json)?)?;
     }
     Ok(())
 }
