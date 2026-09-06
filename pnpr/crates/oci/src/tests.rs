@@ -13,8 +13,8 @@ fn entry(body: &str) -> ManifestEntry {
     }
 }
 
-fn tag(name: &str, body: &str, updated: &str) -> TagEntry {
-    TagEntry { tag: name.to_string(), digest: digest_of(body), updated: updated.to_string() }
+fn tag(name: &str, body: &str, updated: u64) -> TagEntry {
+    TagEntry { tag: name.to_string(), digest: digest_of(body), updated }
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn digest_of_matches_the_spec_vector() {
 fn resolves_a_reference_as_tag_or_digest() {
     let mut document = ImageDocument::new("acme/app");
     document.insert_manifest(entry("one"));
-    document.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    document.set_tag(tag("latest", "one", 1));
 
     assert_eq!(document.resolve("latest").unwrap().digest, digest_of("one"));
     assert_eq!(document.resolve(&digest_of("one").to_string()).unwrap().digest, digest_of("one"));
@@ -54,7 +54,7 @@ fn lists_tags_in_lexical_order() {
     let mut document = ImageDocument::new("acme/app");
     document.insert_manifest(entry("one"));
     for name in ["v2", "latest", "v10"] {
-        document.set_tag(tag(name, "one", "2026-01-01T00:00:00.000Z"));
+        document.set_tag(tag(name, "one", 1));
     }
     assert_eq!(document.tag_names(), ["latest", "v10", "v2"]);
 }
@@ -64,8 +64,8 @@ fn removing_a_manifest_drops_the_tags_that_named_it() {
     let mut document = ImageDocument::new("acme/app");
     document.insert_manifest(entry("one"));
     document.insert_manifest(entry("two"));
-    document.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
-    document.set_tag(tag("stable", "two", "2026-01-01T00:00:00.000Z"));
+    document.set_tag(tag("latest", "one", 1));
+    document.set_tag(tag("stable", "two", 1));
 
     assert!(document.remove_manifest(&digest_of("one")));
     assert_eq!(document.tag_names(), ["stable"]);
@@ -76,7 +76,7 @@ fn removing_a_manifest_drops_the_tags_that_named_it() {
 fn removing_a_tag_keeps_the_manifest() {
     let mut document = ImageDocument::new("acme/app");
     document.insert_manifest(entry("one"));
-    document.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    document.set_tag(tag("latest", "one", 1));
 
     assert!(document.remove_tag("latest"));
     assert!(document.manifest(&digest_of("one")).is_some());
@@ -87,11 +87,11 @@ fn removing_a_tag_keeps_the_manifest() {
 fn merge_keeps_the_newer_tag_whichever_order_it_arrives_in() {
     fn older(document: &mut ImageDocument) {
         document.insert_manifest(entry("one"));
-        document.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+        document.set_tag(tag("latest", "one", 1));
     }
     fn newer(document: &mut ImageDocument) {
         document.insert_manifest(entry("two"));
-        document.set_tag(tag("latest", "two", "2026-02-02T00:00:00.000Z"));
+        document.set_tag(tag("latest", "two", 2));
     }
 
     type Write = fn(&mut ImageDocument);
@@ -112,7 +112,7 @@ fn merge_skips_entries_whose_blob_was_lost() {
     let mut stored = ImageDocument::new("acme/app");
     let mut addition = ImageDocument::new("acme/app");
     addition.insert_manifest(entry("one"));
-    addition.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    addition.set_tag(tag("latest", "one", 1));
 
     let lost = HashSet::from([digest_of("one").blob_filename()]);
     assert!(!stored.merge(addition, &lost));
@@ -124,7 +124,7 @@ fn merge_skips_entries_whose_blob_was_lost() {
 fn merge_refuses_a_tag_with_no_manifest_behind_it() {
     let mut stored = ImageDocument::new("acme/app");
     let mut addition = ImageDocument::new("acme/app");
-    addition.set_tag(tag("latest", "absent", "2026-01-01T00:00:00.000Z"));
+    addition.set_tag(tag("latest", "absent", 1));
 
     assert!(!stored.merge(addition, &HashSet::new()));
     assert!(stored.tags.is_empty());
@@ -134,7 +134,7 @@ fn merge_refuses_a_tag_with_no_manifest_behind_it() {
 fn merge_reports_no_change_when_everything_is_already_held() {
     let mut stored = ImageDocument::new("acme/app");
     stored.insert_manifest(entry("one"));
-    stored.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    stored.set_tag(tag("latest", "one", 1));
     let addition = stored.clone();
 
     assert!(!stored.merge(addition, &HashSet::new()));
@@ -144,7 +144,7 @@ fn merge_reports_no_change_when_everything_is_already_held() {
 fn document_round_trips() {
     let mut document = ImageDocument::new("acme/app");
     document.insert_manifest(entry("one"));
-    document.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    document.set_tag(tag("latest", "one", 1));
 
     assert_eq!(ImageDocument::parse(&document.to_bytes()).unwrap(), document);
 }
@@ -219,7 +219,7 @@ fn refuses_references_that_are_neither_tag_nor_digest() {
 fn a_tag_written_in_the_same_millisecond_still_moves() {
     // Live writes to one repository are serialized by its package lock, so a
     // tie is an ordering the clock could not resolve, not a conflict.
-    let same_instant = "2026-01-01T00:00:00.000Z";
+    let same_instant = 1;
     let mut stored = ImageDocument::new("acme/app");
     stored.insert_manifest(entry("one"));
     stored.set_tag(tag("latest", "one", same_instant));
@@ -241,16 +241,16 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
     let mut stored = ImageDocument::new("acme/app");
     stored.insert_manifest(entry("one"));
     stored.insert_manifest(entry("two"));
-    stored.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+    stored.set_tag(tag("latest", "one", 1));
 
     let mut re_push = ImageDocument::new("acme/app");
     re_push.insert_manifest(entry("one"));
-    re_push.set_tag(tag("latest", "one", "2026-01-03T00:00:00.000Z"));
+    re_push.set_tag(tag("latest", "one", 3));
     stored.merge(re_push, &HashSet::new());
 
     let mut journaled = ImageDocument::new("acme/app");
     journaled.insert_manifest(entry("two"));
-    journaled.set_tag(tag("latest", "two", "2026-01-02T00:00:00.000Z"));
+    journaled.set_tag(tag("latest", "two", 2));
     stored.merge(journaled, &HashSet::new());
 
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("one"));

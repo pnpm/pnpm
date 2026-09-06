@@ -167,3 +167,22 @@ async fn a_blob_finalized_before_any_document_does_not_break_the_listing() {
 
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
 }
+
+#[tokio::test]
+async fn an_unmanifested_package_does_not_have_its_blobs_walked() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    // An image push finalizes blobs before the manifest that records them,
+    // so this is an ordinary state, not a crafted one. Walking into it would
+    // enumerate every blob on a path an anonymous listing reaches.
+    let half_pushed = image("acme/half-pushed");
+    for blob in ["sha256-aa", "sha256-bb", "sha256-cc"] {
+        let slot = storage.reserve_hosted_blob(&half_pushed, blob).await.unwrap();
+        tokio::fs::write(&slot.tmp_path, b"layer").await.unwrap();
+        storage.finalize_blob_slot(slot).await.unwrap();
+    }
+    storage.write_hosted_document_if_current(&image("acme/complete"), b"{}", None).await.unwrap();
+
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
+}

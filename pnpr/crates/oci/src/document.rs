@@ -17,22 +17,26 @@ pub struct ManifestEntry {
 pub struct TagEntry {
     pub tag: String,
     pub digest: Digest,
-    /// When this tag last moved, as an ISO-8601 UTC timestamp.
+    /// When this tag last moved, in milliseconds since the Unix epoch.
     ///
     /// A tag is the one mutable thing in a repository, so "what is already
     /// here wins" — the rule that makes an immutable version safe to
     /// re-apply — would let a transaction recovered after a crash drag a tag
-    /// back to an older manifest. Comparing timestamps instead makes the
-    /// merge monotonic, so re-applying an old write is a no-op.
+    /// back to an older manifest. Comparing when instead makes the merge
+    /// monotonic, so re-applying an old write is a no-op.
+    ///
+    /// A number rather than a formatted date, because the comparison is the
+    /// whole point of the field: two spellings of one instant would otherwise
+    /// order as different ones.
     ///
     /// A tie goes to the incoming write. Live writes to one repository are
     /// serialized by its package lock, so two of them landing in the same
     /// millisecond are still ordered, and the later one has to win or a push
-    /// that answered `201` would leave the tag where it was. Timestamps from
-    /// two instances can still disagree under clock skew, which is part of
-    /// the cross-replica write story tracked in
+    /// that answered `201` would leave the tag where it was. Clocks on two
+    /// instances can still disagree, which is part of the cross-replica write
+    /// story tracked in
     /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
-    pub updated: String,
+    pub updated: u64,
 }
 
 /// What a hosted registry stores per image repository.

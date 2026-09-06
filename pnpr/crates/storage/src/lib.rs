@@ -1102,6 +1102,16 @@ impl Store {
                     continue;
                 }
                 if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
+                    // A namespace holds only directories, so a file means
+                    // this is a package that has not written its document
+                    // yet — an ordinary state between an image's blobs and
+                    // its manifest. Reading the rest would enumerate every
+                    // blob it holds, on a path an anonymous listing reaches.
+                    // The root is the exception: it is one directory, and
+                    // abandoning it would truncate the whole listing.
+                    if depth > 1 {
+                        break;
+                    }
                     continue;
                 }
                 let entry_path = entry.path();

@@ -650,3 +650,30 @@ async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-9");
 }
+
+#[tokio::test]
+async fn a_manifest_repeating_one_descriptor_is_not_thousands_of_lookups() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+    push_blob(&app, &auth, "acme/app", b"layer").await;
+
+    // One digest repeated far past any real image. It is looked up once, so
+    // this is accepted rather than turned into a lookup per entry.
+    let layer = json!({ "digest": digest_of(b"layer"), "size": 5 });
+    let manifest = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": { "digest": digest_of(b"config"), "size": 6 },
+        "layers": vec![layer; 20_000],
+    }))
+    .unwrap();
+    let request = Request::put("/v2/acme/app/manifests/1.0")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(manifest))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}

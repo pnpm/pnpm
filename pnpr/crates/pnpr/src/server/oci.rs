@@ -41,12 +41,13 @@ use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use pnpr_search::percent_decode;
-use pnpr_storage::{
-    DOCUMENT_WRITE_RETRIES, DocumentUpdate, Storage, publish::now_iso, upload::BlobUpload,
-};
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, Storage, upload::BlobUpload};
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    time::{SystemTime, UNIX_EPOCH},
+};
 use tokio::io::AsyncReadExt as _;
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Oci;
@@ -62,6 +63,11 @@ const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 /// requests, so [`append_body`] holds the whole upload to the same
 /// ceiling; without that, chunks that are each under the limit add up past it.
 const MAX_BLOB_BYTES: usize = 10 * 1024 * 1024 * 1024;
+
+/// The most distinct blobs one manifest may reference. An image index lists
+/// a handful of manifests and an image its layers, so this is far above any
+/// real one and only bounds what a crafted manifest can ask the store to do.
+const MAX_MANIFEST_REFERENCES: usize = 4096;
 
 /// How much of a blob is hashed per read when verifying a finished upload.
 const HASH_CHUNK: usize = 64 * 1024;
@@ -344,7 +350,23 @@ impl Request {
             Err(err) => return error(ErrorCode::ManifestInvalid, err.to_string()),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
+        // One digest is looked up once however often the manifest names it,
+        // and a manifest that names more than any image could is refused:
+        // otherwise a single 4 MiB body of repeated descriptors becomes tens
+        // of thousands of blob lookups.
+        let mut looked_up = HashSet::new();
         for descriptor in manifest.references() {
+            if !looked_up.insert(descriptor.digest.clone()) {
+                continue;
+            }
+            if looked_up.len() > MAX_MANIFEST_REFERENCES {
+                return error(
+                    ErrorCode::ManifestInvalid,
+                    format!(
+                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
+                    ),
+                );
+            }
             // The size is part of what a client verifies, so a descriptor that
             // disagrees with the stored bytes publishes an image nothing can
             // pull. Refuse it here rather than at every puller.
@@ -382,7 +404,7 @@ impl Request {
             addition.set_tag(TagEntry {
                 tag: reference.to_string(),
                 digest: digest.clone(),
-                updated: now_iso(),
+                updated: now_millis(),
             });
         }
         // Re-pushing a manifest is how a client retries and moving a tag is
@@ -893,6 +915,13 @@ async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Resu
 fn advance_within_ceiling(written: u64, chunk: usize) -> Option<u64> {
     let next = written.saturating_add(chunk as u64);
     (next <= MAX_BLOB_BYTES as u64).then_some(next)
+}
+
+/// Milliseconds since the Unix epoch: the ordering one tag write carries.
+fn now_millis() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since_epoch| u64::try_from(since_epoch.as_millis()).unwrap_or(u64::MAX))
 }
 
 /// An upload's key in the shared lock table, kept out of the package keyspace
