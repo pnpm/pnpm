@@ -48,6 +48,7 @@ pnpm-reporter                          = { workspace = true }
 pnpm-resolving-default-resolver        = { workspace = true }
 pnpm-resolving-deps-resolver           = { workspace = true }
 pnpm-resolving-git-resolver            = { workspace = true }
+pnpm-resolving-jsr-specifier-parser    = { workspace = true }
 pnpm-resolving-local-resolver          = { workspace = true }
 pnpm-resolving-npm-resolver            = { workspace = true }
 pnpm-resolving-parse-wanted-dependency = { workspace = true }

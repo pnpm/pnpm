@@ -1,7 +1,7 @@
 use super::{
-    Add, AddError, node_runtime_version_spec, normalized_save_specifier,
-    persist_selected_manifests, prepare_selected_manifests, protocol_prefixed_selector_name,
-    selected_project_indices, split_name_spec, workspace_save_specifier,
+    Add, AddError, ProtocolSelector, node_runtime_version_spec, normalized_save_specifier,
+    persist_selected_manifests, prepare_selected_manifests, selected_project_indices,
+    workspace_save_specifier,
 };
 use crate::ResolvedPackages;
 use pnpm_config::{Config, LinkWorkspacePackages};
@@ -39,20 +39,34 @@ fn explicit_npm_specifier_is_not_rewritten_as_a_workspace_dependency() {
 }
 
 #[test]
-fn split_protocol_prefixed_add_selector_keeps_the_protocol_specifier() {
-    for (input, expected_name) in [
-        ("npm:foo@^1.0.0", "foo"),
-        ("jsr:@scope/foo@^1.0.0", "@scope/foo"),
-        ("workspace:@scope/foo@^1.0.0", "@scope/foo"),
-        ("catalog:@scope/foo", "@scope/foo"),
+fn protocol_selector_keys_the_manifest_entry_by_the_name_inside_the_protocol() {
+    for (input, expected_name, expected_spec) in [
+        ("npm:foo@^1.0.0", "foo", Some("^1.0.0")),
+        ("npm:@scope/foo", "@scope/foo", None),
+        ("jsr:@scope/foo@^1.0.0", "@scope/foo", Some("jsr:@scope/foo@^1.0.0")),
+        ("jsr:@scope/foo", "@scope/foo", Some("jsr:@scope/foo")),
+        ("workspace:foo@*", "foo", Some("workspace:foo@*")),
+        ("workspace:@scope/foo@^1.0.0", "@scope/foo", Some("workspace:@scope/foo@^1.0.0")),
     ] {
-        assert_eq!(split_name_spec(input), (expected_name, Some(input)));
+        let selector = ProtocolSelector::parse(input)
+            .unwrap_or_else(|error| panic!("{input} should parse: {error}"))
+            .unwrap_or_else(|| panic!("{input} should name a package"));
+        assert_eq!(selector.package_name(), expected_name);
+        assert_eq!(selector.explicit_spec(input), expected_spec);
     }
 }
 
 #[test]
-fn workspace_protocol_local_path_is_not_a_named_protocol_selector() {
+fn selectors_that_name_no_package_are_left_to_the_registry_split() {
     for input in [
+        // `catalog:` is followed by a catalog name, never a package name.
+        "catalog:",
+        "catalog:default",
+        "catalog:@scope/foo",
+        // Every `workspace:` form that is a range or a path rather than a
+        // name, Windows drive letters and UNC shares included.
+        "workspace:*",
+        "workspace:^1.0.0",
         "workspace:./pkg",
         "workspace:../pkg",
         "workspace:/tmp/pkg",
@@ -60,20 +74,42 @@ fn workspace_protocol_local_path_is_not_a_named_protocol_selector() {
         r"workspace:C:\repo\pkg",
         "workspace:C:/repo/pkg",
         r"workspace:\\server\pkg",
+        // Plain registry selectors.
+        "foo",
+        "@scope/foo@^1.0.0",
     ] {
-        assert_eq!(protocol_prefixed_selector_name(input), None);
+        let parsed = ProtocolSelector::parse(input)
+            .unwrap_or_else(|error| panic!("{input} should parse: {error}"));
+        let names_no_package = parsed.is_none();
+        assert!(names_no_package, "{input} should not be read as a protocol selector");
     }
 }
 
 #[test]
-fn named_package_extracted_from_protocol_selector() {
-    for (input, expected_name) in [
-        ("workspace:foo", "foo"),
-        ("workspace:@scope/pkg", "@scope/pkg"),
-        ("npm:foo@1", "foo"),
-        ("jsr:@scope/pkg", "@scope/pkg"),
-    ] {
-        assert_eq!(protocol_prefixed_selector_name(input), Some(expected_name));
+fn protocol_selector_rejects_a_name_no_dependency_can_be_declared_under() {
+    for input in ["npm:", "npm:@", "npm:../evil"] {
+        let error = ProtocolSelector::parse(input)
+            .err()
+            .unwrap_or_else(|| panic!("{input} should be rejected"));
+        let rejected_the_name = matches!(error, AddError::InvalidPackageName { .. });
+        assert!(
+            rejected_the_name,
+            "{input} should be rejected as an invalid package name, got {error:?}",
+        );
+    }
+}
+
+#[test]
+fn jsr_selector_without_a_package_name_reports_the_parser_diagnostic() {
+    for input in ["jsr:^1.0.0", "jsr:foo@^1.0.0", "jsr:@scope"] {
+        let error = ProtocolSelector::parse(input)
+            .err()
+            .unwrap_or_else(|| panic!("{input} should be rejected"));
+        let surfaced_the_parser_error = matches!(error, AddError::ParseJsrSpecifier(_));
+        assert!(
+            surfaced_the_parser_error,
+            "{input} should surface the jsr parser diagnostic, got {error:?}",
+        );
     }
 }
 
@@ -157,6 +193,91 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     default_latest.assert_async().await;
     default_packument.assert_async().await;
     scoped_latest.assert_async().await;
+}
+
+#[tokio::test]
+async fn add_saves_a_jsr_selector_under_its_jsr_name_with_the_picked_version_pinned() {
+    assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo").await, Some("jsr:^1.0.0".to_string()));
+}
+
+/// The range operator comes off the selector, the same way it does for a
+/// registry range: `pnpm add jsr:@scope/pkg@1.0` tracks patches only.
+#[tokio::test]
+async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
+    assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo@1.0").await, Some("jsr:~1.0.0".to_string()));
+}
+
+/// Run `pacquet add <selector>` against a mocked `@jsr` registry and report
+/// the specifier the manifest ends up with. The default registry is mocked
+/// too, expecting no request: a JSR package must be looked up under the
+/// `@jsr` scope, never on the registry the project defaults to.
+async fn add_jsr_selector(selector: &str) -> Option<String> {
+    const JSR_NPM_NAME: &str = "@jsr/pnpm-e2e__foo";
+
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+
+    let mut default_registry = mockito::Server::new_async().await;
+    let default_requests =
+        default_registry.mock("GET", mockito::Matcher::Any).expect(0).create_async().await;
+
+    let mut jsr_registry = mockito::Server::new_async().await;
+    let jsr_registry_url = format!("{}/", jsr_registry.url());
+    let _jsr_latest = jsr_registry
+        .mock("GET", "/@jsr%2Fpnpm-e2e__foo/latest")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(version_body(JSR_NPM_NAME, &jsr_registry_url))
+        .create_async()
+        .await;
+    let _jsr_packument = jsr_registry
+        .mock("GET", "/@jsr%2Fpnpm-e2e__foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body(JSR_NPM_NAME, &jsr_registry_url))
+        .create_async()
+        .await;
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = format!("{}/", default_registry.url());
+    config.registries_by_scope.insert("@jsr".to_string(), jsr_registry_url);
+    config.minimum_release_age = None;
+    let config = config.leak();
+
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    let package_names = [selector.to_string()];
+    Add {
+        tarball_mem_cache: Arc::default(),
+        resolved_packages: &resolved_packages,
+        http_client: &http_client,
+        http_client_arc: Arc::new(ThrottledClient::default()),
+        config,
+        manifest: &mut manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: Some([DependencyGroup::Prod]),
+        package_names: &package_names,
+        range_spec_style: RangeSpecStyle::Major,
+        save_catalog_name: None,
+        supported_architectures: None,
+        lockfile_only: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_or_else(|error| panic!("add {selector} should succeed: {error}"));
+
+    default_requests.assert_async().await;
+    saved_dependency_specifier(&manifest, "@pnpm-e2e/foo")
 }
 
 #[tokio::test]

@@ -5462,6 +5462,7 @@ dependencies = [
  "pnpm-resolving-default-resolver",
  "pnpm-resolving-deps-resolver",
  "pnpm-resolving-git-resolver",
+ "pnpm-resolving-jsr-specifier-parser",
  "pnpm-resolving-local-resolver",
  "pnpm-resolving-npm-resolver",
  "pnpm-resolving-parse-wanted-dependency",

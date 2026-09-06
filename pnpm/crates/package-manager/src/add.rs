@@ -32,6 +32,7 @@ use pnpm_resolving_deps_resolver::{UpdateDepth, UpdateTargets, is_valid_dependen
 use pnpm_resolving_git_resolver::{
     GitFetchContext, GitResolver, HostedGit, HostedOpts, RealGitProbe, RealGitRunner,
 };
+use pnpm_resolving_jsr_specifier_parser::{JsrSpec, ParseJsrSpecifierError, parse_jsr_specifier};
 use pnpm_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
     WantedLocalDependency, is_local_filesystem_specifier, resolve_from_local_path,
@@ -208,6 +209,13 @@ pub enum AddError {
     /// release index (to pin the manifest to the picked version) failed.
     #[diagnostic(transparent)]
     ResolveRuntimeSpec(#[error(source)] NodeResolverError),
+
+    /// A `jsr:` add selector that names no package, an unscoped one, or
+    /// one npm would reject. Kept as the diagnostic the parser raised, so
+    /// `pacquet add jsr:foo` reports the same code an install of the same
+    /// specifier does.
+    #[diagnostic(transparent)]
+    ParseJsrSpecifier(#[error(source)] ParseJsrSpecifierError),
 
     /// `minimumReleaseAgeExclude` contained an invalid rule.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
@@ -880,19 +888,19 @@ async fn resolve_added_dependency<'a>(
     workspace_packages: Option<&WorkspacePackages>,
 ) -> Result<ResolvedAddedDependency, AddError> {
     let parsed = pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency(package_selector);
-    let protocol_prefixed_name = protocol_prefixed_selector_name(package_selector);
+    let protocol = ProtocolSelector::parse(package_selector)?;
     let aliasless = match (parsed.alias.as_deref(), parsed.bare_specifier.as_deref()) {
-        (None, Some(specifier)) if protocol_prefixed_name.is_none() => {
+        (None, Some(specifier)) if protocol.is_none() => {
             resolve_aliasless_specifier(specifier, config, http_client_arc, manifest).await?
         }
         _ => None,
     };
-    let (package_name, explicit_spec) = match aliasless.as_ref() {
-        Some(dep) => (dep.package_name.as_str(), Some(dep.manifest_specifier.as_str())),
-        None => match protocol_prefixed_name {
-            Some(name) => (name, Some(package_selector)),
-            None => split_name_spec(package_selector),
-        },
+    let (package_name, explicit_spec) = match (aliasless.as_ref(), protocol.as_ref()) {
+        (Some(dep), _) => (dep.package_name.as_str(), Some(dep.manifest_specifier.as_str())),
+        (None, Some(protocol)) => {
+            (protocol.package_name(), protocol.explicit_spec(package_selector))
+        }
+        (None, None) => split_name_spec(package_selector),
     };
 
     // The dependency's current specifier, so a re-add keeps the
@@ -923,6 +931,8 @@ async fn resolve_added_dependency<'a>(
     //   picked Node.js version, so the `devEngines.runtime` entry the
     //   saved dependency folds into records e.g. `26.5.0`, not the
     //   requested `26`;
+    // - a `jsr:` selector is pinned the same way and rendered back under
+    //   its protocol — `pnpm add jsr:@scope/pkg` records `jsr:^1.2.3`;
     // - a re-add with no version keeps the dependency's current
     //   specifier verbatim (a `catalog:` reference, a range, or an
     //   exact pin) — `pnpm add <existing>` without a
@@ -949,6 +959,19 @@ async fn resolve_added_dependency<'a>(
             .resolve_save_specifier(version_spec, prev_specifier.as_deref())
             .await
             .map_err(AddError::ResolveRuntimeSpec)?
+    } else if let Some(ProtocolSelector::Jsr(jsr)) = protocol.as_ref() {
+        resolve_jsr_save_specifier(
+            jsr,
+            config,
+            http_client,
+            range_spec_style,
+            lockfile,
+            manifest,
+            meta_cache,
+            fetch_locker,
+        )
+        .await?
+        .unwrap_or_else(|| package_selector.to_string())
     } else {
         match (explicit_spec, prev_specifier.as_deref()) {
             (Some(spec), prev) => resolve_explicit_registry_spec(
@@ -1351,11 +1374,7 @@ async fn resolve_explicit_registry_spec(
     meta_cache: &InMemoryPackageMetaCache,
     fetch_locker: &PackumentFetchLocker,
 ) -> Result<Option<String>, AddError> {
-    if spec.starts_with("npm:")
-        || spec.starts_with("jsr:")
-        || spec.starts_with("workspace:")
-        || spec.starts_with("catalog:")
-    {
+    if spec.starts_with("npm:") {
         return Ok(None);
     }
     let registries: std::collections::HashMap<String, String> =
@@ -1523,50 +1542,133 @@ fn workspace_save_specifier(
     Some(workspace_specifier)
 }
 
+/// A `pacquet add` argument that spells its package name *inside* a
+/// dependency protocol, so the manifest key cannot be read off the front of
+/// the argument: `pacquet add jsr:@scope/pkg` keys on `@scope/pkg`, not on
+/// `jsr:`.
+///
+/// `catalog:` has no variant. The text after it names a catalog, not a
+/// package, so `catalog:foo` carries no name to key an entry by.
+enum ProtocolSelector {
+    /// `npm:<name>[@<spec>]`. Nothing here is aliased — the install name is
+    /// the real package name — so the entry is saved as the plain
+    /// `<name>[@<spec>]` request would be.
+    Npm { name: String, spec: Option<String> },
+    /// `jsr:@<scope>/<name>[@<selector>]`.
+    Jsr(JsrSpec),
+    /// The alias form `workspace:<name>@<range>`. A version-only
+    /// (`workspace:^1.2.3`) or path (`workspace:./pkg`, `workspace:C:\pkg`)
+    /// specifier names no package, and [`WorkspaceSpec`] already tells the
+    /// three apart.
+    Workspace { name: String },
+}
+
+impl ProtocolSelector {
+    /// Returns `Ok(None)` for an argument that carries no name-bearing
+    /// protocol, so the caller falls through to the alias-less resolvers
+    /// and then to [`split_name_spec`].
+    fn parse(selector: &str) -> Result<Option<Self>, AddError> {
+        if let Some(rest) = selector.strip_prefix("npm:") {
+            let (name, spec) = split_name_spec(rest);
+            let name = protocol_package_name(name, selector)?;
+            return Ok(Some(Self::Npm { name, spec: spec.map(str::to_string) }));
+        }
+        if let Some(spec) =
+            parse_jsr_specifier(selector, None).map_err(AddError::ParseJsrSpecifier)?
+        {
+            return Ok(Some(Self::Jsr(spec)));
+        }
+        let Some(alias) = WorkspaceSpec::parse(selector).and_then(|spec| spec.alias) else {
+            return Ok(None);
+        };
+        let name = protocol_package_name(&alias, selector)?;
+        Ok(Some(Self::Workspace { name }))
+    }
+
+    /// The name the manifest entry is keyed by.
+    fn package_name(&self) -> &str {
+        match self {
+            Self::Npm { name, .. } | Self::Workspace { name } => name,
+            Self::Jsr(spec) => &spec.jsr_pkg_name,
+        }
+    }
+
+    /// The specifier half to reconcile against the manifest and the
+    /// catalogs. `jsr:` and `workspace:` keep the whole argument, since what
+    /// is saved for them is rendered back under the protocol; an `npm:`
+    /// request keeps only the registry range it wraps.
+    fn explicit_spec<'a>(&'a self, selector: &'a str) -> Option<&'a str> {
+        match self {
+            Self::Npm { spec, .. } => spec.as_deref(),
+            Self::Jsr(_) | Self::Workspace { .. } => Some(selector),
+        }
+    }
+}
+
+/// The package name a protocol spells out, rejected when it is not a name
+/// a dependency can be declared under — an empty `pacquet add npm:`
+/// included.
+fn protocol_package_name(name: &str, selector: &str) -> Result<String, AddError> {
+    if !is_valid_dependency_alias(name) {
+        return Err(AddError::InvalidPackageName {
+            specifier: selector.to_string(),
+            name: name.to_string(),
+        });
+    }
+    Ok(name.to_string())
+}
+
+/// The `jsr:` specifier to save for `spec`, with the version the install
+/// will lock pinned into it: `pacquet add jsr:@scope/pkg` records
+/// `jsr:^1.2.3` and `jsr:@scope/pkg@0.1` records `jsr:~0.1.0`.
+///
+/// JSR ships every package on npm under the `@jsr` scope, so the version is
+/// picked through the same registry path a plain `@jsr/<scope>__<name>` add
+/// takes. `None` when that pick finds no version — the caller then keeps the
+/// argument verbatim, as it does for any other unresolvable specifier.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a resolve helper threading the install's resolution inputs"
+)]
+async fn resolve_jsr_save_specifier(
+    spec: &JsrSpec,
+    config: &Config,
+    http_client: &ThrottledClient,
+    range_spec_style: RangeSpecStyle,
+    lockfile: Option<&Lockfile>,
+    manifest: &PackageManifest,
+    meta_cache: &InMemoryPackageMetaCache,
+    fetch_locker: &PackumentFetchLocker,
+) -> Result<Option<String>, AddError> {
+    let version_selector = spec.version_selector.as_deref().unwrap_or("latest");
+    let range = resolve_explicit_registry_spec(
+        &spec.npm_pkg_name,
+        version_selector,
+        // The range operator is read off the selector the user typed, the
+        // way pnpm reads it for an alias-less request: there is no alias to
+        // find a manifest entry by.
+        None,
+        config,
+        http_client,
+        range_spec_style,
+        lockfile,
+        manifest,
+        meta_cache,
+        fetch_locker,
+    )
+    .await?;
+    Ok(range.map(|range| format!("jsr:{range}")))
+}
+
 /// Split a `pacquet add` argument into its package name and optional
 /// `@<version>` part. The version separator is the first `@` at or after
 /// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
 /// version.
-///
-/// If the argument is prefixed with a named dependency protocol, the package
-/// name is extracted from the protocol string, and the entire argument is
-/// treated as the explicit spec.
 fn split_name_spec(input: &str) -> (&str, Option<&str>) {
-    if let Some(name) = protocol_prefixed_selector_name(input) {
-        return (name, Some(input));
-    }
-
     match input.get(1..).and_then(|rest| rest.find('@')).map(|offset| offset + 1) {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
         None => (input, None),
     }
-}
-
-fn protocol_prefixed_selector_name(input: &str) -> Option<&str> {
-    for prefix in ["npm:", "jsr:", "catalog:"] {
-        if let Some(rest) = input.strip_prefix(prefix) {
-            return Some(protocol_prefixed_name(rest));
-        }
-    }
-    let rest = input.strip_prefix("workspace:")?;
-    if rest.starts_with('.') || rest.starts_with('/') || rest.starts_with('~') {
-        return None;
-    }
-    // Windows drive-letter paths: C:\repo\pkg or C:/repo/pkg
-    if rest.len() >= 2 && rest.as_bytes()[1] == b':' {
-        return None;
-    }
-    // UNC paths: \\server\pkg
-    if rest.starts_with('\\') {
-        return None;
-    }
-    Some(protocol_prefixed_name(rest))
-}
-
-fn protocol_prefixed_name(rest: &str) -> &str {
-    let name_end =
-        rest.get(1..).and_then(|input| input.find('@')).map_or(rest.len(), |offset| offset + 1);
-    &rest[..name_end]
 }
 
 /// The specifier `pacquet add <name>@<spec>` saves when `<spec>` isn't a plain
