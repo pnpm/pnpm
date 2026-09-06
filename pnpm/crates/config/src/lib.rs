@@ -3349,7 +3349,7 @@ impl Config {
         // `modulesDir`/`virtualStoreDir` defaults are resolved against
         // `pnpmConfig.dir`.
         self.modules_dir = start_dir.join("node_modules");
-        self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
+        self.virtual_store_dir = start_dir.join("node_modules").join(".pnpm");
 
         // Read the project/workspace .npmrc plus trusted user-level sources
         // and apply only the auth/network subset. Everything else is
@@ -3659,7 +3659,7 @@ impl Config {
             // been applied yet at this point in the cascade.
             self.modules_dir = base_dir.join("node_modules");
             if !virtual_store_dir_explicit {
-                self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+                self.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
             }
             // The workspace root is structural context (env-lockfile reads/
             // writes, pin persistence), not a "setting" — set it whenever a

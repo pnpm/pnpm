@@ -631,7 +631,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         config.extra_env = extra_env;
     }
     if virtual_store_dir_cleared {
-        config.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+        config.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
     }
     for (key, value) in [
         ("preferFrozenLockfile", changed_prefer_frozen_lockfile),

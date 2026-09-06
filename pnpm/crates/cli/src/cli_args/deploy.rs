@@ -418,7 +418,7 @@ fn create_deploy_install_config(
 ) -> Config {
     let mut deploy_config = base_config.clone();
     deploy_config.modules_dir = deploy_dir.join("node_modules");
-    deploy_config.virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
+    deploy_config.virtual_store_dir = deploy_dir.join("node_modules").join(".pnpm");
     // The deploy directory owns the lockfile this install runs against —
     // the generated one for a shared deploy, its own resolution for the
     // legacy path. A `lockfileDir` pinning the *source* workspace's
