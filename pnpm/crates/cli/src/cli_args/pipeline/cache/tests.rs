@@ -1,6 +1,7 @@
 use super::{RecordedFile, TaskCache, collect_output_files};
 #[cfg(unix)]
 use pnpm_crypto_hash::create_hex_hash_from_file;
+use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::fs;
 
 fn setup() -> (tempfile::TempDir, tempfile::TempDir, TaskCache) {
@@ -158,4 +159,75 @@ fn symlinked_project_roots_are_rejected() {
     let stored = cache.lookup("abcdef").unwrap();
     assert!(cache.restore(&stored, &link, "build").is_err());
     assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
+}
+
+fn setup_input_cache() -> (tempfile::TempDir, GitRepoFixture, TaskCache) {
+    let root = tempfile::tempdir().unwrap();
+    let repo = GitRepoFixture::init(root.path(), "inputs");
+    repo.write_file("input", "source");
+    let _ = repo.commit("initial input");
+    let cache =
+        TaskCache::open(&root.path().join("cache"), &root.path().join("inputs-src")).unwrap();
+    (root, repo, cache)
+}
+
+#[test]
+fn hashing_inputs_preserves_deleted_tracked_files() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    fs::remove_file(project.join("input")).unwrap();
+    let files = cache.hashed_project_files(&project).unwrap();
+    assert!(files.is_empty(), "deleted tracked input must be absent: {files:?}");
+}
+
+#[test]
+fn hashing_inputs_reports_read_errors() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    fs::remove_file(project.join("input")).unwrap();
+    fs::create_dir(project.join("input")).unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("hashing cache input"), "{error}");
+    assert!(error.contains("input") && error.contains(&project.display().to_string()), "{error}");
+    assert!(
+        cache.project_files.lock().unwrap().is_empty(),
+        "failed enumeration must not be cached",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_non_utf8_names() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    fs::write(project.join(OsStr::from_bytes(b"invalid-\xff")), "source").unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("non-UTF-8") && error.contains("invalid-"), "{error}");
+    assert!(error.contains(&project.display().to_string()), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_keeps_literal_backslashes_distinct_from_separators() {
+    let (root, repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    repo.write_file("src/input", "nested source");
+    fs::write(project.join(r"src\input"), "literal source").unwrap();
+    let files = cache.hashed_project_files(&project).unwrap();
+    for relative in ["src/input", r"src\input"] {
+        let file =
+            files.iter().find(|file| file.rel_path == relative).expect("each filename is retained");
+        assert_eq!(file.hash, create_hex_hash_from_file(&project.join(relative)).unwrap());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_dangling_symlinks() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    std::os::unix::fs::symlink("missing", project.join("linked-input")).unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("linked-input"), "{error}");
 }

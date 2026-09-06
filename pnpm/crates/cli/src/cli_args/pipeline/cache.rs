@@ -431,16 +431,32 @@ impl TaskCache {
             if rel_path.is_empty() {
                 continue;
             }
-            let rel_path = String::from_utf8_lossy(rel_path).replace('\\', "/");
+            let rel_path = std::str::from_utf8(rel_path).map_err(|error| {
+                let display_path = String::from_utf8_lossy(rel_path);
+                miette::miette!(
+                    "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
+                )
+            })?;
             if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
                 continue;
             }
-            // A tracked file deleted from the working tree contributes
-            // nothing; the deletion shows up as the file's absence.
-            let Ok(hash) = create_hex_hash_from_file(&project.join(&rel_path)) else {
-                continue;
+            let absolute = project.join(rel_path);
+            let hash = match create_hex_hash_from_file(&absolute) {
+                Ok(hash) => hash,
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        && fs::symlink_metadata(&absolute)
+                            .is_err_and(|error| error.kind() == io::ErrorKind::NotFound) =>
+                {
+                    continue;
+                }
+                Err(error) => {
+                    return Err(miette::miette!(
+                        "hashing cache input {rel_path:?} in {project_display}: {error}",
+                    ));
+                }
             };
-            files.push(HashedFile { rel_path, hash });
+            files.push(HashedFile { rel_path: rel_path.to_string(), hash });
         }
         files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
         let files = Arc::new(files);
