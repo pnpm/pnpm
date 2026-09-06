@@ -220,7 +220,16 @@ impl PublishJournal {
                 // second failure keeps the sealed entry for startup recovery
                 // and reports the failure that started it.
                 match SealedTxn::reopen(dir) {
-                    Ok(txn) => txn.apply(storage, documents).await.map_err(|_| err),
+                    // A retry cannot attribute a document that already holds
+                    // this transaction's entries: the first attempt may have
+                    // written them and then failed to clean up after itself.
+                    // Reporting them as recorded by someone else would tell a
+                    // publisher their publish was a duplicate of itself.
+                    Ok(txn) => txn
+                        .apply(storage, documents)
+                        .await
+                        .map(|outcome| CommitOutcome { unrecorded: Vec::new(), ..outcome })
+                        .map_err(|_| err),
                     Err(_) => Err(err),
                 }
             }

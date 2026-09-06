@@ -6,11 +6,14 @@ use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_jou
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use object_store::{ObjectStore, memory::InMemory};
 use pnpr_config::HostedStoreConfig;
-use pnpr_error::Result;
+use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::PackageName;
 use pnpr_registry::Ecosystem;
 use serde_json::json;
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 use tempfile::tempdir;
 use tokio::fs;
 
@@ -30,6 +33,23 @@ struct RecordsNothing;
 
 impl HostedDocuments for RecordsNothing {
     fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+}
+
+/// A merge that fails once and then records nothing: the shape of a first
+/// apply that wrote its document and failed afterwards, whose retry finds the
+/// entries already there.
+#[derive(Default)]
+struct FailsThenRecordsNothing {
+    merges: AtomicUsize,
+}
+
+impl HostedDocuments for FailsThenRecordsNothing {
+    fn merge(&self, _merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+        if self.merges.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Err(RegistryError::Internal { reason: "merge failed".to_string() });
+        }
         Ok(None)
     }
 }
@@ -375,4 +395,29 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
 
     assert_eq!(outcome.unrecorded, vec!["pkg".to_string()]);
     assert!(outcome.lost_blobs.is_empty());
+}
+
+/// An apply that fails partway is re-run before the commit gives up, and what
+/// its first attempt already recorded is not held against the publisher: the
+/// entries the retry finds in place may be the ones it wrote itself.
+#[tokio::test]
+async fn commit_retries_a_failed_apply_and_keeps_its_own_writes_unreported() {
+    let tmp = tempdir().unwrap();
+    let object_store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let storage = Storage::new(
+        &HostedStoreConfig::ObjectStore { store: object_store, prefix: String::new() },
+        tmp.path().join("hosted"),
+        tmp.path().join("cache"),
+    )
+    .unwrap();
+    let name = PackageName::parse("pkg").unwrap();
+    let document = serde_json::to_vec(&json!({ "name": "pkg", "versions": {} })).unwrap();
+    let entries = [npm_publish(&name, &document, &[])];
+    storage.publish_journal().commit(&storage, &entries, &NpmDocuments).await.unwrap();
+
+    let documents = FailsThenRecordsNothing::default();
+    let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
+
+    assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
+    assert!(outcome.unrecorded.is_empty());
 }
