@@ -117,6 +117,21 @@ testOnNonWindows('writeEnvLockfile accepts a symlinked lockfile when the env doc
   expect(fs.readFileSync(realLockfile, 'utf8')).toBe(content)
 })
 
+test('writeEnvLockfile leaves an unchanged CRLF lockfile untouched', async () => {
+  const dir = temporaryDirectory()
+  const lockfilePath = path.join(dir, WANTED_LOCKFILE)
+  const lockfile = envLockfileWithConfigDep()
+  await writeEnvLockfile(dir, lockfile)
+  const crlfContent = fs.readFileSync(lockfilePath, 'utf8').replace(/\n/g, '\r\n')
+  fs.writeFileSync(lockfilePath, crlfContent)
+  const mtimeBefore = fs.statSync(lockfilePath).mtimeMs
+
+  await writeEnvLockfile(dir, lockfile)
+
+  expect(fs.readFileSync(lockfilePath, 'utf8')).toBe(crlfContent)
+  expect(fs.statSync(lockfilePath).mtimeMs).toBe(mtimeBefore)
+})
+
 test('writeEnvLockfile replaces the env document of a lockfile that carries a BOM', async () => {
   const dir = temporaryDirectory()
   const lockfilePath = path.join(dir, WANTED_LOCKFILE)

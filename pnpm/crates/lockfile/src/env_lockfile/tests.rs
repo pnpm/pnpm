@@ -136,6 +136,22 @@ fn write_accepts_symlinked_lockfile_when_unchanged() {
 }
 
 #[test]
+fn write_leaves_an_unchanged_crlf_lockfile_untouched() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join(Lockfile::FILE_NAME);
+    let env = sample_env_lockfile();
+    env.write(dir.path()).unwrap();
+    let crlf_content = std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n");
+    std::fs::write(&path, &crlf_content).unwrap();
+    let mtime_before = std::fs::metadata(&path).unwrap().modified().unwrap();
+
+    env.write(dir.path()).unwrap();
+
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), crlf_content);
+    assert_eq!(std::fs::metadata(&path).unwrap().modified().unwrap(), mtime_before);
+}
+
+#[test]
 fn write_replaces_the_env_document_of_a_lockfile_carrying_a_bom() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join(Lockfile::FILE_NAME);
@@ -148,9 +164,10 @@ fn write_replaces_the_env_document_of_a_lockfile_carrying_a_bom() {
     let raw = std::fs::read_to_string(&path).unwrap();
     assert!(raw.starts_with("---\n"), "the BOM must not survive into the written lockfile");
     assert_eq!(extract_main_document(&raw), main_doc);
-    assert!(
-        !extract_main_document(&raw).contains("configDependencies: {}"),
-        "the replaced env document must not end up inside the main document",
+    assert_eq!(
+        EnvLockfile::read(dir.path()).unwrap(),
+        Some(sample_env_lockfile()),
+        "the new env document must have replaced the old one",
     );
 }
 

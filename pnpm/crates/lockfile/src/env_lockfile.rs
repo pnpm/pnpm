@@ -133,9 +133,7 @@ impl EnvLockfile {
             Err(error) if error.kind() == ErrorKind::NotFound => None,
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
-        let main_doc = existing
-            .as_deref()
-            .map_or_else(String::new, |existing| extract_main_document(existing).to_string());
+        let main_doc = existing.as_deref().map(extract_main_document).unwrap_or_default();
         let combined =
             format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
         if existing.as_deref() == Some(combined.as_str()) {
