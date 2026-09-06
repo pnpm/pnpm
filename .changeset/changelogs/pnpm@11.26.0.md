@@ -2,79 +2,66 @@
 
 ### Minor Changes
 
-- Added `pnpm change check`. It validates the committed package versions against the `versioning.epics` bands and the `versioning.fixed` groups in `pnpm-workspace.yaml` and lists every violation. It is meant to run in CI, because `pnpm version -r` only checks the packages it releases.
-
-- `pnpm remove` and `pnpm update` now accept `--trust-lockfile`, `--no-trust-lockfile`, `--trust-policy`, `--trust-policy-exclude` and `--trust-policy-ignore-after`, the same flags `pnpm install` and `pnpm add` take, so the supply-chain settings can be overridden for a single run. `pnpm remove` verifies the lockfile against the active policies the way `pnpm install` does, and `--trust-lockfile` skips that pass for every entry, not only the package being removed.
-
-  The Rust CLI now also honors `--config.trust-lockfile=<value>`, and accepts the bare `--trust-lockfile` / `--no-trust-lockfile` spelling on the commands that previously took the setting from the config file alone.
-
 - Catalogs can now resolve workspace dependencies through the `workspace:` protocol.
+
+- `pnpm remove` and `pnpm update` now accept `--trust-lockfile`, `--no-trust-lockfile`, `--trust-policy`, `--trust-policy-exclude`, and `--trust-policy-ignore-after`. `pnpm remove` checks the whole lockfile against the active policies unless `--trust-lockfile` is set.
+
+- Added `pnpm change check` for CI validation of package versions against the `versioning.epics` bands and `versioning.fixed` groups in `pnpm-workspace.yaml`.
 
 ### Patch Changes
 
-- Build scripts can now be rejected before the package is installed [#14067](https://github.com/pnpm/pnpm/issues/14067):
+- Fetch and tarball errors and retry logs now hide URL credentials, query strings, and fragments that could expose secrets.
 
-  - `pnpm add --allow-build=!<pkg>` records `<pkg>: false` in `allowBuilds`. It used to write a `!<pkg>: true` entry that matched no package. On a global install the denial was dropped altogether, so the post-install prompt offered the build for approval.
-  - `pnpm approve-builds <pkg>` and `pnpm approve-builds !<pkg>` record their decision even when no packages are awaiting approval, and report a package that is not awaiting approval with a warning so a typo stays visible. Both cases used to fail the command with an error.
+- Fixed a race during config dependency updates that could redirect a lockfile write through a symlink [#14322](https://github.com/pnpm/pnpm/issues/14322).
 
-- Fixed `pnpm audit --fix` failing with `ERR_PNPM_INVALID_FIX_OPTION` when used without a value, including when another flag follows it, as in `pnpm audit --fix --json` [#13261](https://github.com/pnpm/pnpm/issues/13261). Fixed `pnpm audit --fix=override` ignoring the `saveExact` and `savePrefix` settings when writing vulnerability overrides [#11523](https://github.com/pnpm/pnpm/issues/11523).
+- `pnpm add --allow-build=!<pkg>` now correctly denies builds, including in global installs. `pnpm approve-builds <pkg>` and `pnpm approve-builds !<pkg>` now save decisions even when the package is not awaiting approval, with a warning [#14067](https://github.com/pnpm/pnpm/issues/14067).
 
-- `pnpm audit` no longer counts advisories suppressed by `auditConfig` in its summary. The headline total and the `Severity:` breakdown now count only the advisories that survive the `ignoreGhsas` filter. Suppressed advisories get their own line, `2 ignored: 1 moderate | 1 critical`. A run whose advisories were all suppressed printed a red `1 vulnerabilities found` next to a zero exit code. It now reads `All found vulnerabilities were already reviewed and decided to be ignored` [#14535](https://github.com/pnpm/pnpm/issues/14535).
+- Fixed `pnpm audit --fix` failing without a value or when followed by another flag. `pnpm audit --fix=override` now respects `saveExact` and `savePrefix` when writing overrides [#13261](https://github.com/pnpm/pnpm/issues/13261), [#11523](https://github.com/pnpm/pnpm/issues/11523).
 
-- Authenticate Node.js runtime downloads from `nodeDownloadMirrors` with URL-scoped npm registry credentials, including bearer tokens, basic auth, and `tokenHelper` [pnpm/pnpm#14334](https://github.com/pnpm/pnpm/issues/14334).
+- `pnpm audit` now excludes ignored advisories from vulnerability totals and severity counts, and reports them separately [#14535](https://github.com/pnpm/pnpm/issues/14535).
 
-- Made downloaded runtimes available to dependency lifecycle scripts during installation.
+- `pnpm deploy` no longer requires `injectWorkspacePackages`. If a workspace dependency's peer has multiple possible versions, deployment reports `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER` with the conflicting versions. Pin the peer with `overrides` to deploy without injection [#9386](https://github.com/pnpm/pnpm/issues/9386).
 
-- A relative `scriptShell` path in `pnpm-workspace.yaml` is now resolved against the workspace root, so scripts run from a nested workspace package find the shell [#14422](https://github.com/pnpm/pnpm/issues/14422). A bare command name such as `bash` is still looked up on `PATH`.
+- Fixed concurrent installs sharing a store occasionally failing with an `ENOENT` error while importing a package file [#14353](https://github.com/pnpm/pnpm/issues/14353).
 
-- `pnpm deploy` no longer requires `injectWorkspacePackages` to be enabled. A linked workspace dependency is rewritten to a `file:` dependency in the dedicated deploy lockfile, and the peer dependencies it declares are bound to the deployed graph's own resolution.
+- Fixed installation failures when a linked local dependency provides a peer dependency also provided by an ancestor, including with `pnpm deploy --legacy`.
 
-  When a peer resolves to more than one version in that graph the binding is ambiguous, and choosing between the candidates is exactly what injecting the package would have decided, so the deploy still fails — now with `ERR_PNPM_DEPLOY_AMBIGUOUS_PEER`, which names the package, the peer, and the competing versions, instead of refusing every non-injected workspace up front, and suggests pinning the peer to one version with an `overrides` entry as the way to keep deploying without injection [#9386](https://github.com/pnpm/pnpm/issues/9386).
+- `pnpm install --node-linker=hoisted` no longer downloads skipped optional dependencies when `node_modules` already exists [#14139](https://github.com/pnpm/pnpm/issues/14139).
 
-- The JavaScript pnpm can again switch to the pnpm version a project pins in `packageManager` on hosts where the native pnpm build ships no binary, such as Alpine Linux with pnpm 10 or an Intel Mac with pnpm 11 [#13622](https://github.com/pnpm/pnpm/issues/13622).
+- Fixed `pnpm install` rejecting a symlinked lockfile when config dependencies are unchanged. Updates to config dependencies also preserve lockfiles with a byte order mark. Writes through symlinked lockfiles remain blocked [#14372](https://github.com/pnpm/pnpm/issues/14372).
 
-  When the pnpm build being switched to is native and ships no binary for the host, pnpm now names the host target it lacks. pnpm reported that the binary was missing from `pnpm-lock.yaml`.
+- `pnpm install` now relinks workspace packages when `publishConfig.linkDirectory` changes. Frozen installs require the lockfile to be regenerated [#14488](https://github.com/pnpm/pnpm/issues/14488).
 
-- Fixed `pnpm install` failing with `ERR_PNPM_LOCKFILE_IS_SYMLINK` in a project with config dependencies when `pnpm-lock.yaml` is a symlink, as build sandboxes such as Bazel and Nix stage it. pnpm no longer rewrites the lockfile when the recorded config dependencies are unchanged. Writing changed config dependencies through a symlinked lockfile is still refused. A lockfile that starts with a byte order mark now keeps its main document when its config dependencies are updated [#14372](https://github.com/pnpm/pnpm/issues/14372).
+- Auto-installed optional peers now satisfy their declared range even when the workspace root uses a version outside that range [#13867](https://github.com/pnpm/pnpm/issues/13867).
 
-- Fixed global virtual store hashes for dependency cycles. Every package that transitively depends on an allowed build now includes the engine in its store path, independent of traversal order [pnpm/pnpm#14341](https://github.com/pnpm/pnpm/issues/14341).
+- Fixed global virtual store paths for dependency cycles to consistently account for the runtime engine when dependencies have allowed builds [#14341](https://github.com/pnpm/pnpm/issues/14341).
 
-- `pnpm outdated` and `pnpm update` now follow local actions and reusable workflows referenced with GitHub's self-repository syntax (`uses: $/.github/actions/setup`) when looking for outdated GitHub Actions, the same way they follow `./` references.
+- Standalone installations now preserve the bundled `node-gyp` files needed to build native dependencies.
 
-- `globalDir` and `globalBinDir` are honored wherever they are set, so `pnpm add -g` no longer fails with `ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH` after `pnpm config set -g global-bin-dir` [#14336](https://github.com/pnpm/pnpm/issues/14336). The global `config.yaml` is read again, `PNPM_CONFIG_GLOBAL_DIR` / `PNPM_CONFIG_GLOBAL_BIN_DIR` reach the directories derived from them, and a leading `~/` is expanded before that derivation. A project's `pnpm-workspace.yaml` still cannot set either key.
+- Downloaded runtimes are now available to dependency lifecycle scripts during installation.
 
-- Installation no longer fails with `Cannot convert undefined or null to object` when a linked local dependency provides a peer dependency that is also provided by one of its ancestors. This was reachable via `pnpm deploy --legacy`.
+- Node.js downloads from `nodeDownloadMirrors` now use URL-scoped npm credentials, including bearer tokens, basic auth, and `tokenHelper` [#14334](https://github.com/pnpm/pnpm/issues/14334).
 
-- `pnpm install` no longer lets a symlink swapped into the path of `pnpm-lock.yaml` during a config dependency update redirect the lockfile write to the symlink target [pnpm/pnpm#14322](https://github.com/pnpm/pnpm/issues/14322).
+- Fixed `globalDir` and `globalBinDir` handling in global configuration and environment variables, including `~/` expansion. This fixes `pnpm add -g` failing after `pnpm config set -g global-bin-dir` [#14336](https://github.com/pnpm/pnpm/issues/14336).
 
-- `pnpm install --node-linker=hoisted` no longer downloads every optional dependency it reports as skipped when `node_modules` already exists. Those downloads also continued after pnpm printed `Done` [#14139](https://github.com/pnpm/pnpm/issues/14139).
+- The JavaScript pnpm can again switch to the project's pinned pnpm version on hosts without a matching native binary. If the requested version requires an unavailable native binary, the error now identifies the unsupported host [#13622](https://github.com/pnpm/pnpm/issues/13622).
 
-- `pnpm import` now leaves the project-local lockfile unchanged when `lockfileDir` points to another directory. Failed imports restore the destination lockfile. Imports that use a branch lockfile leave the shared lockfile unchanged [#14563](https://github.com/pnpm/pnpm/issues/14563).
+- Global `pnpm config` commands now skip project package manager version switching, allowing authentication to be configured before downloading the pinned version [#14463](https://github.com/pnpm/pnpm/issues/14463).
 
-- Fixed concurrent installs sharing a store occasionally failing with an ENOENT error while importing a package file [#14353](https://github.com/pnpm/pnpm/issues/14353).
+- `pnpm self-update`, `pnpm with`, and automatic version switching no longer wait through registry retries when a configured registry has no signatures and `registry.npmjs.org` is unavailable [#14483](https://github.com/pnpm/pnpm/issues/14483).
 
-- Network and archive retry logs hide credentials and signed query parameters in request URLs.
+- Fixed argument forwarding on Windows with `shellEmulator` enabled. Trailing backslashes, line breaks, and literal shell expressions are preserved [#14548](https://github.com/pnpm/pnpm/issues/14548).
 
-- `catalogMode` and `--save-catalog` no longer move a local path, tarball, or `workspace:<path>` specifier into a catalog. Such a specifier is resolved against the project that declares it, so one catalog entry cannot mean the same directory for every project that references it [#14437](https://github.com/pnpm/pnpm/issues/14437).
+- Relative `scriptShell` paths now resolve from the workspace root. Bare command names such as `bash` still use `PATH` [#14422](https://github.com/pnpm/pnpm/issues/14422).
 
-- An auto-installed optional peer is now resolved to a version its declared peer range accepts, even when the workspace root depends on that package at a version outside the range. Previously the root's version was used and then reported as an unmet optional peer [#13867](https://github.com/pnpm/pnpm/issues/13867).
+- `pnpm import` now preserves the project-local lockfile when `lockfileDir` points elsewhere and restores the destination lockfile on failure. Branch lockfile imports leave the shared lockfile unchanged [#14563](https://github.com/pnpm/pnpm/issues/14563).
 
-- `pnpm self-update`, `pnpm with`, and automatic package-manager version switching no longer wait through registry retry delays when a configured registry has no signatures and `registry.npmjs.org` is unavailable [#14483](https://github.com/pnpm/pnpm/issues/14483).
+- `catalogMode` and `--save-catalog` no longer move local paths, tarballs, or `workspace:<path>` specifiers into catalogs [#14437](https://github.com/pnpm/pnpm/issues/14437).
 
-- Fixed `pnpm config` commands targeting global configuration to skip project package manager version switching, allowing registry authentication to be configured before pnpm downloads a project-pinned version [pnpm/pnpm#14463](https://github.com/pnpm/pnpm/issues/14463).
+- `--side-effects-cache`, `--no-side-effects-cache`, and `PNPM_CONFIG_SIDE_EFFECTS_CACHE` now toggle only the local cache, preserving any remote cache configured in `sideEffectsCache`.
 
-- Fetch and tarball errors no longer print the secrets of the URL they name. Inline `user:pass@` credentials and the query string or fragment of a signed URL are hidden, so a failed install or `pnpm add <url>` cannot leak them into terminal scrollback or CI logs.
+- `pnpm unpublish` now handles registry two-factor authentication challenges through web authentication or a one-time password prompt [#14464](https://github.com/pnpm/pnpm/issues/14464).
 
-- `pnpm install` now relinks workspace packages when `publishConfig.linkDirectory` changes. Frozen installs report an outdated lockfile until it is regenerated [pnpm/pnpm#14488](https://github.com/pnpm/pnpm/issues/14488).
+- `pnpm outdated` and `pnpm update` now follow GitHub Actions references using self-repository syntax, such as `uses: $/.github/actions/setup`.
 
-- Fixed argument forwarding on Windows when `shellEmulator` is enabled. Paths ending in a backslash, line breaks, and literal shell expressions are preserved [pnpm/pnpm#14548](https://github.com/pnpm/pnpm/issues/14548).
-
-- Fixed `--side-effects-cache`/`--no-side-effects-cache` and `PNPM_CONFIG_SIDE_EFFECTS_CACHE` discarding a remote side-effects cache declared under the object form of `sideEffectsCache` in `pnpm-workspace.yaml`. The boolean now switches only the local cache off or on, as it already does when a config file declares it.
-
-- Fixed standalone installations to preserve the bundled `node-gyp` files used to build native dependencies.
-
-- `pnpm unpublish` now completes the two-factor authentication a registry asks for instead of failing with `ERR_PNPM_UNAUTHORIZED` while logged in. A 401 that is an OTP challenge starts the web-based authentication flow, or prompts for a classic one-time password. The obtained password is reused by every request of the run [#14464](https://github.com/pnpm/pnpm/issues/14464).
-
-- pnpm 12 now accepts the boolean settings as command-line flags on every command that takes them in pnpm 11, for example `pnpm install --unsafe-perm`, `pnpm add foo --offline`, and `pnpm install --dangerously-allow-all-builds`. pnpm 12 rejected them with `unexpected argument`, which failed every install on Vercel, whose build runs `pnpm install --unsafe-perm` [#14346](https://github.com/pnpm/pnpm/issues/14346).
-
-  `pnpm remove` now accepts `--unsafe-perm`, the same flag `pnpm install`, `pnpm add`, and `pnpm update` take.
+- `pnpm remove` now accepts `--unsafe-perm`.
