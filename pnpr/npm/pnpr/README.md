@@ -55,7 +55,9 @@ For Python, pnpr reads the index and answers with the `pylock.toml`.
 Reading what a distribution requires means reading a wheel's `METADATA`,
 so a client resolving alone downloads whole wheels for versions it then
 rejects; pnpr reads the metadata file the index publishes beside each
-wheel instead.
+wheel instead. When an index publishes no such file, pnpr downloads the
+wheel itself and keeps the metadata it holds, so only the first client
+pays for that download.
 
 Everything pnpr reads is cached for every client that follows.
 
