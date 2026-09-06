@@ -406,6 +406,25 @@ describe('plugin-commands-audit', () => {
     expect(stripAnsi(output)).toMatchSnapshot()
   })
 
+  test('audit: summary is net of advisories suppressed by ignoreGhsas', async () => {
+    getMockAgent().get(AUDIT_REGISTRY.replace(/\/$/, ''))
+      .intercept({ path: '/-/npm/v1/security/advisories/bulk', method: 'POST' })
+      .reply(200, responses.INFO_VULN_RESP)
+
+    const { exitCode, output } = await audit.handler({
+      ...AUDIT_REGISTRY_OPTS,
+      auditLevel: 'info',
+      dir: hasVulnerabilitiesDir,
+      rootProjectManifestDir: hasVulnerabilitiesDir,
+      auditConfig: {
+        ignoreGhsas: ['GHSA-info-info-info'],
+      },
+    })
+
+    expect(exitCode).toBe(0)
+    expect(stripAnsi(output)).toBe('No known vulnerabilities found (1 ignored)\n')
+  })
+
   test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {
     const tmp = f.prepare('has-vulnerabilities')
 

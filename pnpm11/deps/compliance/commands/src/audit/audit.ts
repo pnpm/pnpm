@@ -386,8 +386,6 @@ ${newIgnores.join('\n')}`,
     high: 0,
     critical: 0,
   }
-  const totalVulnerabilityCount = Object.values(vulnerabilities)
-    .reduce((sum: number, vulnerabilitiesCount: number) => sum + vulnerabilitiesCount, 0)
   const ignoreGhsas = opts.auditConfig?.ignoreGhsas
   if (ignoreGhsas?.length) {
     // Compare GHSA ids after normalizing so stored entries with varying
@@ -437,7 +435,7 @@ ${newIgnores.join('\n')}`,
   }
   return {
     exitCode: output ? 1 : 0,
-    output: `${output}${reportSummary(auditReport.metadata.vulnerabilities, totalVulnerabilityCount, ignoredVulnerabilities)}`,
+    output: `${output}${reportSummary(vulnerabilities, ignoredVulnerabilities)}`,
   }
 }
 
@@ -450,12 +448,29 @@ function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
   return fix === '' || fix === true || fix === 'true'
 }
 
-function reportSummary (vulnerabilities: AuditVulnerabilityCounts, totalVulnerabilityCount: number, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
-  if (totalVulnerabilityCount === 0) return 'No known vulnerabilities found\n'
+/**
+ * Counts are net of what `auditConfig` suppressed, so the summary describes
+ * the same advisory set the exit code is based on.
+ */
+function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
+  const severities = Object.entries(vulnerabilities)
+    .map(([auditLevel, vulnerabilitiesCount]) => {
+      const ignoredCount = ignoredVulnerabilities[auditLevel as AuditLevelString]
+      return {
+        auditLevel: auditLevel as AuditLevelString,
+        count: vulnerabilitiesCount - ignoredCount,
+        ignoredCount,
+      }
+    })
+  const totalVulnerabilityCount = severities.reduce((sum, { count }) => sum + count, 0)
+  if (totalVulnerabilityCount === 0) {
+    const totalIgnoredCount = severities.reduce((sum, { ignoredCount }) => sum + ignoredCount, 0)
+    return `No known vulnerabilities found${totalIgnoredCount > 0 ? ` (${totalIgnoredCount} ignored)` : ''}\n`
+  }
   return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
-    Object.entries(vulnerabilities)
-      .filter(([_auditLevel, vulnerabilitiesCount]) => vulnerabilitiesCount > 0)
-      .map(([auditLevel, vulnerabilitiesCount]) => AUDIT_COLOR[auditLevel as AuditLevelString](`${vulnerabilitiesCount as string} ${auditLevel}${ignoredVulnerabilities[auditLevel as AuditLevelString] > 0 ? ` (${ignoredVulnerabilities[auditLevel as AuditLevelString]} ignored)` : ''}`))
+    severities
+      .filter(({ count, ignoredCount }) => count > 0 || ignoredCount > 0)
+      .map(({ auditLevel, count, ignoredCount }) => AUDIT_COLOR[auditLevel](`${count} ${auditLevel}${ignoredCount > 0 ? ` (${ignoredCount} ignored)` : ''}`))
       .join(' | ')
   }`
 }
