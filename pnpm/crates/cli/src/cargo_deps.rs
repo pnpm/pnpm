@@ -305,9 +305,9 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
         .map(Some)
 }
 
-/// Whether `pnpr_server` advertises Cargo resolution, asked once per server
-/// for the life of the process. A workspace's Cargo roots each resolve
-/// through the same server, and its answer is the same for all of them.
+/// Whether `pnpr_server` advertises Cargo resolution. Asked once per
+/// server for the life of the process, so a server that gains Cargo
+/// support while an install runs is not noticed until the next one.
 async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result<bool> {
     if let Some(supported) = CARGO_RESOLUTION_SUPPORT
         .lock()

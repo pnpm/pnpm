@@ -775,9 +775,8 @@ impl PnprClient {
                 "/-/pnpr/v0/resolve returned no terminal frame".to_string(),
             ));
         };
-        // Exactly one terminal frame closes a Cargo resolve, so a second
-        // one is a server contradicting itself — the lockfile of a response
-        // that also reports a failure is not one to write.
+        // A lockfile from a response that also reports a failure is not one
+        // to write.
         if frames.next().is_some() {
             return Err(PnprClientError::Protocol(
                 "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
