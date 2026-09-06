@@ -30,6 +30,10 @@ Add `target/` to `.gitignore`, commit the Cargo lockfile, and run
 applies. `includeWorkspaceRoot` is needed when the script is at the workspace
 root; workspace packages do not need it.
 
+`pnpm pipeline --dry-run` prints the task graph without installing dependencies
+or loading workspace hooks. It uses the declarative configuration, so changes
+made by `updateConfig` hooks are not reflected in the preview.
+
 `cargoTargetDir` is relative to the project that runs the script. pnpm sets both
 `CARGO_TARGET_DIR` and `CARGO_BUILD_BUILD_DIR` to that directory. Do not override
 these variables or pass a different target directory in the script. Give each

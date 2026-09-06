@@ -130,3 +130,38 @@ fn affected_selection_keeps_the_workspace_root_as_an_upstream_dependency() {
         "root dependency must participate: {document}",
     );
 }
+
+#[test]
+fn dry_run_prints_the_graph_without_executing_workspace_code() {
+    let project = tempfile::tempdir().unwrap();
+    fs::write(
+        project.path().join("package.json"),
+        serde_json::json!({
+            "name": "probe", "version": "1.0.0", "scripts": {
+                "build": r#"node -e "throw new Error('dry-run executed build')""#
+            }
+        })
+        .to_string(),
+    )
+    .unwrap();
+    fs::write(project.path().join("pnpm-workspace.yaml"), "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n").unwrap();
+    fs::write(
+        project.path().join(".pnpmfile.cjs"),
+        "throw new Error('dry-run executed workspace configuration')",
+    )
+    .unwrap();
+    let result = Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .current_dir(project.path())
+        .env("XDG_CONFIG_HOME", project.path().join("config"))
+        .args(["pipeline", "--full", "--dry-run", "--json"])
+        .assert()
+        .success();
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    assert_eq!(document["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(document["tasks"][0]["script"], "build");
+    for path in ["node_modules", "pnpm-lock.yaml", "pnpm-lock.env.yaml"] {
+        assert!(!project.path().join(path).exists(), "dry-run must not create {path}");
+    }
+}

@@ -414,13 +414,7 @@ pub(super) fn pipeline<'a>(
     let reporter = ctx.reporter;
     let config = ctx.config;
     Ok(Box::pin(async move {
-        let cfg = if let Some(install) = install_future {
-            install.await?
-        } else {
-            let cfg = config()?;
-            apply_update_config(cfg, dir, reporter).await?;
-            cfg
-        };
+        let cfg = if let Some(install) = install_future { install.await? } else { config()? };
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
         // The run is recorded before the failure exit is raised, so a red
         // run reaches the server too.
