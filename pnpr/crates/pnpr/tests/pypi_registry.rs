@@ -479,17 +479,25 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
         app.oneshot(get("/pypi/simple/demo-pkg/", Some(JSON))).await.unwrap().status(),
         StatusCode::NOT_FOUND,
     );
-    fn assert_no_staged_files(path: &std::path::Path) {
+    fn staged_files(path: &Path) -> Vec<PathBuf> {
+        let mut staged = Vec::new();
         for entry in std::fs::read_dir(path).unwrap() {
             let path = entry.unwrap().path();
             if path.is_dir() {
-                assert_no_staged_files(&path);
-            } else {
-                assert!(!path.to_string_lossy().contains(".tmp"), "{}", path.display());
+                staged.extend(staged_files(&path));
+            } else if path.to_string_lossy().contains(".tmp") {
+                staged.push(path);
             }
         }
+        staged
     }
-    assert_no_staged_files(tmp.path());
+    // The losing bytes are cleaned up only once removing the journal entry is
+    // known to have reached the disk, and a journal entry that comes back
+    // needs them to re-detect the conflict. Windows offers no way to confirm
+    // that, so there they stay.
+    if cfg!(unix) {
+        assert_eq!(staged_files(tmp.path()), Vec::<PathBuf>::new());
+    }
 }
 
 #[tokio::test]
