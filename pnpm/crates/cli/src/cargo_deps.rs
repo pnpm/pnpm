@@ -278,8 +278,8 @@ async fn read_or_resolve_lockfile(
 /// per crate in the graph.
 ///
 /// `None` when there is no server to ask, or when the one configured
-/// resolves npm only: Cargo support arrived after `pnprServer` did, so an
-/// older server means a local resolve, not a failed install.
+/// resolves npm alone: a server that does not serve Cargo resolution
+/// means a local resolve, not a failed install.
 async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
     let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
         return Ok(None);

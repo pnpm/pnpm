@@ -71,7 +71,7 @@ use indexmap::IndexMap;
 use pnpm_config::Config as PacquetConfig;
 use pnpm_lockfile::Lockfile;
 use pnpm_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pnpm_network::{AuthHeaders, AuthHeadersByScope, ThrottledClient, UpstreamRouteHook};
+use pnpm_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
 use pnpm_package_manager::build_resolution_verifiers;
 use pnpm_resolving_npm_resolver::{
     InMemoryPackageMetaCache, ObservedDistStats, PackageMetaCache, observed_dist_stats_sink,
@@ -136,6 +136,9 @@ pub(crate) struct Resolver {
     /// server's `packument_ttl`, so index metadata ages out on the same
     /// schedule npm packuments do.
     cargo_index_ttl: Duration,
+    /// Serializes the fetch of one Cargo sparse-index file, so concurrent
+    /// resolves of the same cold graph fetch each entry once.
+    cargo_index_locks: Arc<crate::server::StripedLocks>,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
@@ -180,6 +183,7 @@ impl Resolver {
             route_context,
             public_url: config.public_url.clone(),
             cargo_index_ttl: config.packument_ttl,
+            cargo_index_locks: Arc::new(crate::server::StripedLocks::new()),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }
     }
@@ -192,7 +196,7 @@ impl Resolver {
     /// value (so `to_by_scope` still reflects them) but no longer consulted.
     fn hooked_auth(
         &self,
-        client_auth_headers: &AuthHeadersByScope,
+        request: &ResolveRequest,
         identity: &Identity,
         footprint: &Arc<Mutex<Footprint>>,
     ) -> Arc<AuthHeaders> {
@@ -202,7 +206,7 @@ impl Resolver {
             Arc::clone(footprint),
             Arc::clone(&self.resolution_cache_secret),
         ));
-        Arc::new(AuthHeaders::from_by_scope(client_auth_headers.clone()).with_route_hook(hook))
+        Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
     /// Where `registry`'s Cargo sparse-index files are cached. The origin
@@ -416,8 +420,7 @@ fn intern_config(
 
 /// Handle `POST /-/pnpr/v0/resolve`. One address serves every ecosystem;
 /// the body's `ecosystem` field selects which resolver reads it, and a
-/// body without one is npm, as every body was before other ecosystems
-/// existed.
+/// body without one means npm.
 pub(crate) async fn handle_resolve(
     runtime: &Resolver,
     identity: Identity,
@@ -479,7 +482,7 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     // resolve+verify performs records its route into `footprint`, which
     // then decides whether the resolution may populate the shared cache.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let request_auth = runtime.hooked_auth(&request.auth_headers, &identity, &footprint);
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
     let tarball_router = TarballRouter::new(
         Arc::clone(&runtime.route_context),
         identity.clone(),
@@ -651,7 +654,7 @@ pub(crate) async fn handle_verify_lockfile(
     // same footprint as a resolve would be — a verifier can't read or
     // populate a cache scope a resolve wouldn't.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let request_auth = runtime.hooked_auth(&request.auth_headers, &identity, &footprint);
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
     let tarball_router = TarballRouter::new(
         Arc::clone(&runtime.route_context),
         identity.clone(),

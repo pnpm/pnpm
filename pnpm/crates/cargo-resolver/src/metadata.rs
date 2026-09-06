@@ -17,8 +17,8 @@ const PACKAGE_KEYS: [&str; 3] = ["name", "version", "features"];
 /// The keys of a package's dependency that resolution reads. Mirrors
 /// [`crate::model::MetadataDependency`], so a field read there is listed
 /// here too.
-const DEPENDENCY_KEYS: [&str; 7] =
-    ["name", "source", "req", "kind", "rename", "optional", "uses_default_features"];
+const DEPENDENCY_KEYS: [&str; 8] =
+    ["name", "source", "req", "kind", "rename", "optional", "uses_default_features", "features"];
 
 /// Reduce a `cargo metadata` document to what resolution reads, replacing
 /// each package id with its position.

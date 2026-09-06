@@ -14,8 +14,7 @@ pub type DepMap = BTreeMap<String, String>;
 /// The package ecosystem a resolve request is written in. `POST
 /// /-/pnpr/v0/resolve` keeps one address for every ecosystem and the body
 /// names which one it speaks, so a client needs no second endpoint and no
-/// second handshake. An absent field is `npm`, which is what every client
-/// wrote before other ecosystems existed.
+/// second handshake. An absent field means npm.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ResolveEcosystem {

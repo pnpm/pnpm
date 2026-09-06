@@ -180,6 +180,62 @@ async fn cargo_resolve_reuses_cached_index_files() {
 }
 
 #[tokio::test]
+async fn concurrent_resolves_fetch_a_cold_index_entry_once() {
+    let (index, mocks) = sparse_index(1).await;
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+
+    let requests = (0..4).map(|_| {
+        let app = app.clone();
+        let request = cargo_resolve_request(&index.url(), &token);
+        async move { app.oneshot(request).await.unwrap() }
+    });
+    for response in futures_util::future::join_all(requests).await {
+        resolved_lockfile(response).await;
+    }
+
+    for mock in mocks {
+        mock.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn cargo_resolve_stops_on_an_oversized_index_entry() {
+    let mut index = mockito::Server::new_async().await;
+    let padding = "x".repeat(1024);
+    let oversized = (0..40_000)
+        .map(|version| {
+            format!(
+                r#"{{"name":"foo","vers":"1.0.{version}","deps":[],"cksum":"{CKSUM}","features":{{}},"yanked":false,"padding":"{padding}"}}"#,
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let entry = index.mock("GET", "/3/f/foo").with_body(oversized).create_async().await;
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+
+    let response = app.oneshot(cargo_resolve_request(&index.url(), &token)).await.unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let frames = frames(response.into_body()).await;
+    assert_eq!(frames[0]["type"], "error", "{frames:?}");
+    assert!(
+        frames[0]["message"].as_str().expect("error frame carries a message").contains("exceeds"),
+        "{frames:?}",
+    );
+    entry.assert_async().await;
+}
+
+#[tokio::test]
 async fn cargo_resolve_rejects_an_off_allowlist_registry() {
     let (index, mocks) = sparse_index(0).await;
     let tmp = TempDir::new().unwrap();

@@ -410,13 +410,13 @@ struct HandshakeCapability {
     #[serde(default, rename = "fixLockfile")]
     fix_lockfile: Vec<u32>,
     /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
-    /// body. Absent on servers that predate cross-ecosystem resolution,
-    /// which serve npm alone.
+    /// body. An empty list is a server that resolves npm alone.
     #[serde(default)]
     ecosystems: Vec<String>,
 }
 
-/// Inputs for a Cargo resolution.
+/// Inputs for a Cargo resolution. Send them only to a server that
+/// advertises the Cargo ecosystem ([`PnprClient::supports_ecosystem`]).
 #[derive(Clone)]
 pub struct CargoResolveOptions {
     /// `cargo metadata --no-deps --format-version 1` output for the
@@ -729,8 +729,8 @@ impl PnprClient {
     }
 
     /// Whether the server resolves `ecosystem` through
-    /// `/-/pnpr/v0/resolve`. A server that advertises no ecosystems at all
-    /// predates cross-ecosystem resolution and speaks npm only.
+    /// `/-/pnpr/v0/resolve`. A server advertising no ecosystems resolves
+    /// npm alone.
     pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
         let capability = self.fetch_handshake(None).await?;
         Self::require_resolver_protocol(&capability)?;
@@ -757,34 +757,27 @@ impl PnprClient {
         let response = post.send().await?;
         if !response.status().is_success() {
             let status = response.status();
-            let body = response.text().await.unwrap_or_default();
+            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
             return Err(PnprClientError::Server(format!(
-                "/-/pnpr/v0/resolve returned {status}: {body}",
+                "/-/pnpr/v0/resolve returned {status}: {}",
+                String::from_utf8_lossy(&body),
             )));
         }
 
-        let mut stream = response.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
-        while let Some(chunk) = stream.next().await {
-            buf.extend_from_slice(&chunk?);
-            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
-                let line: Vec<u8> = buf.drain(..=newline).collect();
-                let line = &line[..line.len() - 1];
-                if line.is_empty() {
-                    continue;
-                }
-                match parse_cargo_frame(line)? {
-                    CargoFrame::Done { lockfile } => return Ok(lockfile),
-                    CargoFrame::Error { message } => {
-                        return Err(PnprClientError::Server(message));
-                    }
-                }
-            }
+        // A Cargo resolve yields nothing before it yields everything, so
+        // the response is one terminal frame rather than a stream to
+        // consume as it arrives — and a bounded read keeps a compromised
+        // server from growing the install's memory without limit.
+        let body = response_body_bounded(response, MAX_CARGO_RESOLVE_RESPONSE_SIZE).await?;
+        let Some(frame) = body.split(|&byte| byte == b'\n').find(|line| !line.is_empty()) else {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned no terminal frame".to_string(),
+            ));
+        };
+        match parse_cargo_frame(frame)? {
+            CargoFrame::Done { lockfile } => Ok(lockfile),
+            CargoFrame::Error { message } => Err(PnprClientError::Server(message)),
         }
-
-        Err(PnprClientError::Protocol(
-            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
-        ))
     }
 
     /// Ask the server to verify a lockfile under the client's registry
@@ -1132,6 +1125,14 @@ enum Frame {
 /// The Cargo ecosystem's name in a resolve request body and in the
 /// handshake's `ecosystems` list.
 pub const CARGO_ECOSYSTEM: &str = "cargo";
+
+/// Cap on a Cargo resolve response. The whole response is one `Cargo.lock`,
+/// which reaches a few megabytes for the largest workspaces.
+const MAX_CARGO_RESOLVE_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
+
+/// Cap on the body read back from a failed request, which is quoted into
+/// the error message.
+const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
 
 /// One NDJSON frame from a Cargo `/-/pnpr/v0/resolve`. Cargo resolution
 /// yields nothing before it yields everything, so the response is a

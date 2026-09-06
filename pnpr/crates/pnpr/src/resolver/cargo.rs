@@ -9,8 +9,10 @@
 //! resolver and returns the rendered `Cargo.lock`.
 //!
 //! Index files are cached under the server's cache directory, namespaced
-//! by registry and by the caller's route scope, so one caller's private
-//! index never satisfies another caller's fetch.
+//! by registry and by the route scope the caller's identity and the crate
+//! resolve to, so one caller's private index never satisfies another
+//! caller's fetch. A crate whose index is not cached is fetched once
+//! across concurrent resolves.
 //!
 //! There are no per-package frames: Cargo resolution is a single pubgrub
 //! solve rather than an incrementally-yielding tree walk, so nothing is
@@ -26,18 +28,23 @@
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, SystemTime},
 };
 
 use axum::{http::StatusCode, response::Response};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use pnpm_network::{
-    AuthHeaders, AuthHeadersByScope, MetadataCacheScope, RetryOpts, ThrottledClient,
+    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
 };
 
 use pnpr_policy::Identity;
-use pnpr_route::{Footprint, url_has_inline_credentials};
+use pnpr_route::{Footprint, RouteContext, RouteHook, url_has_inline_credentials};
+
+use crate::server::StripedLocks;
 
 use super::{
     Resolver, json_error,
@@ -61,6 +68,14 @@ const MAX_INDEX_WAVES: usize = 256;
 /// megabytes, so this bounds a hostile registry's reply without truncating
 /// a real one.
 const MAX_INDEX_FILE_BYTES: usize = 32 * 1024 * 1024;
+
+/// Cap on the index bytes one resolve holds. [`MAX_INDEX_FILES`] and
+/// [`MAX_INDEX_FILE_BYTES`] bound the count and each entry, whose product
+/// is far more memory than a server has: the whole index of a real
+/// workspace is a few hundred megabytes at the very top of the scale, and
+/// past this budget a registry is feeding the resolver rather than
+/// answering it.
+const MAX_INDEX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 
 /// Index files fetched in parallel within one wave.
 const INDEX_FETCH_CONCURRENCY: usize = 16;
@@ -94,17 +109,20 @@ pub(super) async fn handle_resolve(
         return forbidden_off_allowlist(&registry);
     }
 
-    // Auth comes from this server's route policy for the caller, never from
-    // the request — the same rule the npm surface follows, so a caller
-    // cannot borrow the server's reach by describing a registry it has no
-    // credential for.
-    let footprint = Arc::new(Mutex::new(Footprint::default()));
-    let auth = runtime.hooked_auth(&AuthHeadersByScope::default(), &identity, &footprint);
     let index = IndexFetcher {
         client: Arc::clone(&runtime.client),
-        auth,
+        route: Arc::clone(&runtime.route_context),
+        identity,
+        // Auth comes from this server's route policy for the caller, never
+        // from the request — the same rule the npm surface follows, so a
+        // caller cannot borrow the server's reach by describing a registry
+        // it has no credential for.
+        footprint: Arc::new(Mutex::new(Footprint::default())),
+        secret: Arc::clone(&runtime.resolution_cache_secret),
+        locks: Arc::clone(&runtime.cargo_index_locks),
         cache_dir: runtime.cargo_index_cache_dir(&registry),
         ttl: runtime.cargo_index_ttl,
+        bytes_held: AtomicUsize::new(0),
         registry,
     };
 
@@ -133,15 +151,61 @@ fn report_message(report: &miette::Report) -> String {
     report.chain().map(ToString::to_string).collect::<Vec<_>>().join(": ")
 }
 
+/// The failure a resolve earns once the index bytes it holds pass
+/// [`MAX_INDEX_TOTAL_BYTES`], naming the crate the budget ran out on.
+fn over_index_budget(held: usize, name: &str) -> Option<String> {
+    (held > MAX_INDEX_TOTAL_BYTES).then(|| {
+        format!(
+            "resolving this workspace needs more than {MAX_INDEX_TOTAL_BYTES} bytes of \
+             sparse-index metadata (reached at {name})",
+        )
+    })
+}
+
+/// A [`RouteHook`] bound to one crate. The fetch helpers carry no package,
+/// so without this a route rule that names a crate would not reach the
+/// classification a resolve's fetch is made under.
+struct CrateRoute {
+    hook: RouteHook,
+    crate_key: String,
+}
+
+impl UpstreamRouteHook for CrateRoute {
+    fn authorize(&self, url: &str, _package: Option<&str>) -> Option<String> {
+        self.hook.authorize(url, Some(&self.crate_key))
+    }
+
+    fn allows_fetch(&self, url: &str) -> bool {
+        self.hook.allows_fetch(url)
+    }
+
+    fn metadata_scope(&self, url: &str, _package: Option<&str>) -> MetadataCacheScope {
+        self.hook.metadata_scope(url, Some(&self.crate_key))
+    }
+}
+
 /// Reads a sparse index for one resolve: cache first, then the registry.
 struct IndexFetcher {
     client: Arc<ThrottledClient>,
-    auth: Arc<AuthHeaders>,
+    route: Arc<RouteContext>,
+    identity: Identity,
+    /// The private routes this resolve's fetches touched, recorded by the
+    /// route hook as it selects each credential.
+    footprint: Arc<Mutex<Footprint>>,
+    /// HMAC secret keying a private route's cache namespace.
+    secret: Arc<[u8]>,
+    /// Serializes the fetch of one crate's index file across concurrent
+    /// resolves, so a cold graph is fetched once rather than once per
+    /// caller.
+    locks: Arc<StripedLocks>,
     /// Where this registry's index files are cached, already namespaced by
-    /// registry origin. The caller's route scope adds the last segment; see
+    /// registry origin. The route scope adds the last segment; see
     /// [`Self::cache_path`].
     cache_dir: PathBuf,
     ttl: Duration,
+    /// Index bytes this resolve is holding, against
+    /// [`MAX_INDEX_TOTAL_BYTES`].
+    bytes_held: AtomicUsize,
     /// The sparse index base URL, without its trailing slash.
     registry: String,
 }
@@ -177,18 +241,31 @@ impl IndexFetcher {
     }
 
     /// One crate's index file, from the cache when it is still fresh.
+    ///
+    /// A miss is taken under the crate's stripe: whoever holds it fetches
+    /// and caches the entry while the rest wait and read what it stored.
     async fn index_file(&self, name: &str) -> Result<String, String> {
         pnpr_cargo::validate_crate_name(name).map_err(|err| err.to_string())?;
         let relative_path = pnpr_cargo::sparse_index_path(name);
         let url = format!("{}/{relative_path}", self.registry);
-        let cache_path = self.cache_path(&url, &relative_path);
+        // The route policy classifies a fetch by the crate it is for, as the
+        // Cargo registry surface does, so an upstream's per-crate rules
+        // decide the credential and the cache namespace here too. The
+        // canonical (lowercased) crate name is the key both surfaces use.
+        let crate_key = name.to_ascii_lowercase();
+        let auth = self.auth_for(&crate_key);
+        let cache_path = self.cache_path(&auth, &url, &relative_path);
         if let Some(cached) = self.cached(&cache_path).await {
-            return Ok(cached);
+            return self.hold(name, cached);
+        }
+        let _fetching = self.locks.lock(&url).await;
+        if let Some(cached) = self.cached(&cache_path).await {
+            return self.hold(name, cached);
         }
         // The route policy decides what this deployment may reach at all;
         // a registry a caller merely names is refused here rather than
         // fetched (SSRF boundary).
-        if !self.auth.allows_fetch(&url) {
+        if !auth.allows_fetch(&url) {
             return Err(format!(
                 "{url:?} is not allowed by this pnpr server; the operator must declare its \
                  registry as a public route or an upstream",
@@ -198,7 +275,7 @@ impl IndexFetcher {
             .client
             .get_limited_bytes_with_secure_auth_and_retry(
                 &url,
-                &self.auth,
+                &auth,
                 None,
                 RetryOpts::default(),
                 MAX_INDEX_FILE_BYTES,
@@ -219,14 +296,39 @@ impl IndexFetcher {
         let contents = String::from_utf8(response.body)
             .map_err(|err| format!("decode sparse index entry for {name}: {err}"))?;
         Self::store(cache_path, contents.clone()).await;
-        Ok(contents)
+        self.hold(name, contents)
     }
 
-    /// Where `url`'s index file is cached. The caller's route scope keys the
-    /// namespace, so a private index cached for one caller's credential is
+    /// Account `contents` against this resolve's index-byte budget, which
+    /// bounds what one request can make the server hold in memory and write
+    /// to its cache.
+    fn hold(&self, name: &str, contents: String) -> Result<String, String> {
+        let held = self.bytes_held.fetch_add(contents.len(), Ordering::Relaxed) + contents.len();
+        match over_index_budget(held, name) {
+            Some(err) => Err(err),
+            None => Ok(contents),
+        }
+    }
+
+    /// The request auth for a fetch about `crate_key`: this server's route
+    /// policy for the caller, with the crate bound in so the package-blind
+    /// fetch helpers still classify by it.
+    fn auth_for(&self, crate_key: &str) -> AuthHeaders {
+        let hook = RouteHook::new(
+            Arc::clone(&self.route),
+            self.identity.clone(),
+            Arc::clone(&self.footprint),
+            Arc::clone(&self.secret),
+        );
+        AuthHeaders::default()
+            .with_route_hook(Arc::new(CrateRoute { hook, crate_key: crate_key.to_string() }))
+    }
+
+    /// Where `url`'s index file is cached. The route scope keys the
+    /// namespace, so a private index cached under one caller's credential is
     /// never read back for a caller who does not reproduce that scope.
-    fn cache_path(&self, url: &str, relative_path: &str) -> PathBuf {
-        let scope = match self.auth.metadata_scope(url, None) {
+    fn cache_path(&self, auth: &AuthHeaders, url: &str, relative_path: &str) -> PathBuf {
+        let scope = match auth.metadata_scope(url, None) {
             MetadataCacheScope::Public => "public".to_string(),
             MetadataCacheScope::Private { descriptor_id } => descriptor_id,
         };
@@ -258,3 +360,6 @@ impl IndexFetcher {
         .await;
     }
 }
+
+#[cfg(test)]
+mod tests;

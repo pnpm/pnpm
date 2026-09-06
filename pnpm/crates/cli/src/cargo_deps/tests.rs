@@ -468,8 +468,6 @@ async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
         .with_body(handshake_body(&["npm", "cargo"]))
         .create_async()
         .await;
-    // The request carries the reduced dependency graph, so no trace of
-    // where the workspace lives reaches the server.
     let sent_metadata = pnpm_cargo_resolver::resolve_inputs(METADATA).unwrap();
     assert!(!sent_metadata.contains("private-workspace"), "{sent_metadata}");
     let resolve = server
@@ -502,6 +500,33 @@ async fn a_server_without_cargo_support_leaves_resolution_local() {
     let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), "{}").await.unwrap();
 
     assert_eq!(lockfile, None);
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_unterminated_pnpr_response_does_not_grow_without_bound() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm", "cargo"]))
+        .create_async()
+        .await;
+    // One newline-free body past the response limit.
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("x".repeat(33 * 1024 * 1024))
+        .create_async()
+        .await;
+
+    let metadata = r#"{"packages":[],"workspace_members":[]}"#;
+    let error = resolve_via_pnpr(&config_for_pnpr(&server.url()), metadata).await.unwrap_err();
+
+    assert!(
+        error.chain().any(|cause| cause.to_string().contains("exceeds the")),
+        "the oversized body is refused by its size, not by parsing: {error:?}",
+    );
     handshake.assert_async().await;
     resolve.assert_async().await;
 }

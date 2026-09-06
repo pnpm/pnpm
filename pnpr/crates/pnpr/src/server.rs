@@ -140,7 +140,7 @@ struct HostedOriginalRef {
 /// sharing one hosted store, the same race needs a conditional write
 /// (S3 `If-Match` / `ETag`); that is the cross-replica half tracked in
 /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
-struct StripedLocks {
+pub(crate) struct StripedLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
 }
 
@@ -149,13 +149,13 @@ impl StripedLocks {
     /// rare while staying tiny in memory.
     const STRIPES: usize = 64;
 
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let stripes = (0..Self::STRIPES).map(|_| tokio::sync::Mutex::new(())).collect();
         Self { stripes }
     }
 
     /// Lock the stripe owning `name`, held until the returned guard is dropped.
-    async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
+    pub(crate) async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
         self.stripes[self.stripe_index(name)].lock().await
     }
 

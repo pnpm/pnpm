@@ -331,10 +331,39 @@ fn resolve_inputs_drops_everything_but_the_dependency_graph() {
         ("foo".to_string(), FOO_INDEX.to_string()),
         ("bar".to_string(), BAR_INDEX.to_string()),
     ]);
-    // The reduced document resolves to what the full one does, so nothing
-    // resolution reads was dropped along with the paths.
     assert_eq!(
         resolve_lockfile(&reduced, &index_files).unwrap(),
         resolve_lockfile(FULL_METADATA, &index_files).unwrap(),
+    );
+}
+
+#[test]
+fn resolve_inputs_keeps_the_features_a_dependency_requests() {
+    const FEATURE_GATED_FOO_INDEX: &str = r#"{"name":"foo","vers":"1.0.0","deps":[{"name":"bar","req":"^2","features":[],"optional":true,"default_features":true,"target":null,"kind":"normal","registry":null}],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{"bar-support":["dep:bar"]},"yanked":false}"#;
+    const METADATA: &str = r#"{
+      "packages": [{
+        "id": "path+file:///workspace#app@0.1.0",
+        "name": "app",
+        "version": "0.1.0",
+        "dependencies": [{
+          "name": "foo",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "req": "^1.0",
+          "features": ["bar-support"]
+        }]
+      }],
+      "workspace_members": ["path+file:///workspace#app@0.1.0"]
+    }"#;
+
+    let reduced = resolve_inputs(METADATA).unwrap();
+
+    let index_files = BTreeMap::from([
+        ("foo".to_string(), FEATURE_GATED_FOO_INDEX.to_string()),
+        ("bar".to_string(), BAR_INDEX.to_string()),
+    ]);
+    let lockfile = Lockfile::from_str(&resolve_lockfile(&reduced, &index_files).unwrap()).unwrap();
+    assert!(
+        lockfile.packages.iter().any(|package| package.name.as_str() == "bar"),
+        "the feature that activates bar survived the reduction: {lockfile:?}",
     );
 }
