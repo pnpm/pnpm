@@ -107,13 +107,13 @@ fn parse_staged_list_query(query: &str) -> StagedListQuery {
 }
 
 // ---------------------------------------------------------------------
-// Route handlers. Each is registered both bare and under `/{prefix}`;
+// Route handlers. Each is registered both bare and under `/~{registry}`;
 // `TargetRegistry` reports which form the request arrived on.
 // ---------------------------------------------------------------------
 
 /// Path capture of the staged routes that address one record. Named rather
 /// than a bare `Path<String>` because the prefixed registration captures the
-/// `{prefix}` segment too, which a single-value `Path` would refuse.
+/// `{registry}` segment too, which a single-value `Path` would refuse.
 #[derive(Deserialize)]
 pub(super) struct StageIdPath {
     id: String,

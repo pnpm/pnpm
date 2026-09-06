@@ -2145,6 +2145,60 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     mock.assert_async().await;
 }
 
+/// npm spells a scoped package's name either as two literal path segments or
+/// as one percent-encoded segment, so the same package has several addresses.
+#[tokio::test]
+async fn every_address_of_one_scoped_package_reaches_it() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"scoped-address-bytes";
+    let _packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
+    let _tarball_mock = upstream
+        .mock("GET", "/@types/node/-/node-20.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let get = |path: &str| {
+        let app = app.clone();
+        let path = path.to_string();
+        async move {
+            app.oneshot(Request::get(path.as_str()).body(Body::empty()).unwrap()).await.unwrap()
+        }
+    };
+
+    for path in ["/@types/node", "/@types%2Fnode", "/~npmjs/@types/node", "/~npmjs/@types%2Fnode"] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_json(response.into_body()).await["name"], "@types/node", "GET {path}");
+    }
+
+    for path in [
+        "/@types/node/20.0.0",
+        "/@types%2Fnode/20.0.0",
+        "/~npmjs/@types/node/20.0.0",
+        "/~npmjs/@types%2Fnode/20.0.0",
+    ] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_json(response.into_body()).await["version"], "20.0.0", "GET {path}");
+    }
+
+    for path in [
+        "/@types/node/-/node-20.0.0.tgz",
+        "/@types%2Fnode/-/node-20.0.0.tgz",
+        "/~npmjs/@types/node/-/node-20.0.0.tgz",
+        "/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
+    ] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_bytes(response.into_body()).await, bytes, "GET {path}");
+    }
+}
+
 #[tokio::test]
 async fn packument_is_refetched_after_ttl_expires() {
     let mut upstream = mockito::Server::new_async().await;
@@ -2978,24 +3032,21 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         }),
     );
 
-    // `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile` are NOT stubbed:
-    // with the resolver disabled they fall through to the registry's
-    // four-segment catch-all (`GET|DELETE /{a}/{b}/{c}/{d}`), which has no
-    // POST handler, so a POST returns 405. Only `/-/pnpr` needs a stub for
-    // clean capability detection.
+    // With the resolver disabled its two endpoints are not mounted, and no
+    // other route claims them.
     let resolve = app
         .clone()
         .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(resolve.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
 
     let verify = app
         .clone()
         .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(verify.status(), StatusCode::NOT_FOUND);
 
     mock.assert_async().await;
 }
@@ -4894,19 +4945,85 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     }
 }
 
-/// Falling through to the path-less behaviour here would let *any* first
-/// segment reach the account and staging endpoints.
+/// The account and staging endpoints answer under a `/~<name>/` prefix only.
+/// Letting *any* first segment reach them would expose them at as many
+/// addresses as a client cares to invent.
 #[tokio::test]
-async fn a_first_segment_that_is_not_a_tilde_prefix_is_not_found() {
+async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_endpoints() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    for path in ["/corp/-/whoami", "/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
+    for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
+    }
+
+    // `/corp/-/whoami` is a well-formed tarball address — package `corp`,
+    // file `whoami` — so it reads through the registry graph instead of
+    // answering as whoami. The configured upstream is unreachable, which is
+    // what a package read of it reports.
+    let tarball_shaped =
+        app.oneshot(Request::get("/corp/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(tarball_shaped.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// The scoped addresses spend two path segments on the package name, so their
+/// first segment has to be a scope. The configured upstream is unreachable, so
+/// a 404 rather than a 503 also shows the request was turned away before any
+/// registry lookup.
+#[tokio::test]
+async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for (method, path) in [
+        ("GET", "/notascope/widget/1.0.0"),
+        ("GET", "/notascope/widget/-/widget-1.0.0.tgz"),
+        ("GET", "/~npmjs/notascope/widget/1.0.0"),
+        ("GET", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
+        ("PUT", "/notascope/widget"),
+        ("PUT", "/~npmjs/notascope/widget"),
+        ("DELETE", "/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("DELETE", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+}
+
+/// An address that exists for other methods answers `405`, not the `404` a
+/// route matching only on segment count used to produce.
+#[tokio::test]
+async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for (method, path) in [
+        // `/{name}` reads and publishes.
+        ("DELETE", "/widget"),
+        // `/{name}/-rev/{rev}` updates and unpublishes.
+        ("GET", "/widget/-rev/1"),
+        ("GET", "/~npmjs/widget/-rev/1"),
+        // Search is a read.
+        ("DELETE", "/-/v1/search"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{method} {path}");
     }
 }
 

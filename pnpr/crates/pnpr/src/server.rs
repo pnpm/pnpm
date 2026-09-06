@@ -15,6 +15,7 @@ mod tests;
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize},
     documents::RegistryDocuments,
+    ecosystem::{addressed_registry, caller_scoped},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
         update_packument,
@@ -413,11 +414,7 @@ async fn shutdown_signal() {
 // --------------------------------------------------------------------
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
-// in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
-// whose `/{prefix}/...` route pattern also matches a non-`~` first
-// segment; that shape is not an account URL, so the handler 404s it —
-// though route-level layers still run first (an oversized body to a
-// non-`~` login path is the body cap's 413, not a 404).
+// in `router_with_auth_and_osv`), each with a `/~<name>/`-addressed twin.
 // --------------------------------------------------------------------
 
 /// The registry a `~<name>` path segment addresses, or `None` for a segment
@@ -432,14 +429,12 @@ pub(super) fn tilde_registry(segment: &str) -> Option<&str> {
 /// when it arrived on the path-less base.
 ///
 /// Every route that answers under a registry prefix is registered twice — once
-/// bare, once under `/{prefix}` — pointing at the same handler. This extractor
-/// is what tells the two apart, so a handler states once that it is
+/// bare, once under `/~{registry}` — pointing at the same handler. This
+/// extractor is what tells the two apart, so a handler states once that it is
 /// prefix-aware instead of needing a near-identical twin.
 ///
-/// A `{prefix}` segment that is present but is not a well-formed `~<name>`
-/// rejects with 404: the prefixed registration exists only to serve that
-/// shape, and falling through to the base behaviour would let any first
-/// segment reach an endpoint the route never meant to expose.
+/// A bare `~` names no registry, so it rejects with 404 rather than reading as
+/// the path-less base.
 pub(super) struct TargetRegistry(pub(super) Option<String>);
 
 impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry {
@@ -455,10 +450,10 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         let params = RawPathParams::from_request_parts(parts, &()).await.map_err(|err| {
             match err {
                 // The client sent a segment that percent-decodes to invalid
-                // UTF-8. It cannot be a well-formed `~<name>`, so answer it the
-                // same 404 every other malformed prefix gets rather than a 500
-                // — a bad URL is not a server fault, and rendering it as one
-                // would also let a client fill the error log.
+                // UTF-8. It cannot be a registry name, so answer it the same
+                // 404 every other malformed prefix gets rather than a 500 — a
+                // bad URL is not a server fault, and rendering it as one would
+                // also let a client fill the error log.
                 RawPathParamsRejection::InvalidUtf8InPathParam(_) => RegistryError::NotFound,
                 // The matched route registered no path parameters at all, which
                 // means the route table and this extractor disagree. Fail closed
@@ -469,12 +464,13 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
             }
             .into_response()
         })?;
-        let Some((_, prefix)) = params.iter().find(|(name, _)| *name == "prefix") else {
+        let Some((_, registry)) = params.iter().find(|(name, _)| *name == "registry") else {
             return Ok(Self(None));
         };
-        tilde_registry(prefix)
-            .map(|registry| Self(Some(registry.to_string())))
-            .ok_or_else(|| RegistryError::NotFound.into_response())
+        if registry.is_empty() {
+            return Err(RegistryError::NotFound.into_response());
+        }
+        Ok(Self(Some(registry.to_string())))
     }
 }
 
@@ -533,7 +529,7 @@ async fn delete_token_by_key(
 }
 
 /// The account routes capture their own parameter alongside the optional
-/// `{prefix}`, so each needs a named shape rather than a bare `Path<String>`:
+/// `{registry}`, so each needs a named shape rather than a bare `Path<String>`:
 /// the prefixed registration captures two segments and a single-value `Path`
 /// would refuse to deserialize it.
 #[derive(Deserialize)]
@@ -555,49 +551,44 @@ struct TokenKeyPath {
 // Handler bodies.
 // --------------------------------------------------------------------
 
+/// The base a served packument's `dist.tarball` URLs are rewritten onto: the
+/// `/~<name>/` endpoint the client addressed, so tarball requests come back
+/// through it (where this server re-checks access and proxies the bytes), or
+/// the bare host for the path-less base.
+fn npm_tarball_base(state: &AppState, registry: Option<&str>) -> String {
+    match registry {
+        Some(registry) => upstream_tarball_base(&state.inner.config.public_url, registry),
+        None => state.inner.config.public_url.clone(),
+    }
+}
+
 async fn serve_packument(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
+    registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    // The path-less base is an alias for the default-target registry: every
-    // request routes through the registry graph (authoritatively, no
-    // fall-through). With no default target the bare host has no registry.
-    match default_registry_target(state) {
-        Some(target) => {
-            // The path-less base: tarball URLs stay canonical for the bare host.
-            let base = state.inner.config.public_url.clone();
-            let response =
-                serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
-            private_if_caller_gated(state, raw_name, response)
-        }
-        None => not_found(),
-    }
+    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let base = npm_tarball_base(state, registry);
+    let response =
+        serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
+    caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 async fn serve_version_manifest(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
-    match default_registry_target(state) {
-        Some(target) => {
-            let base = state.inner.config.public_url.clone();
-            let response = serve_registry_version_manifest(
-                state,
-                identity,
-                &target,
-                raw_name,
-                version_or_tag,
-                &base,
-            )
+    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let base = npm_tarball_base(state, registry);
+    let response =
+        serve_registry_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
             .await;
-            private_if_caller_gated(state, raw_name, response)
-        }
-        None => not_found(),
-    }
+    caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
@@ -1659,24 +1650,6 @@ fn resolves_to_private_source(
     }
 }
 
-/// Apply the private-cache headers to a path-less response whenever it can
-/// vary by caller — the default-target resolution for `package` lands on a
-/// source whose effective per-package access denies anonymous callers (so the
-/// same URL answers differently depending on `Authorization`, even through a
-/// public registry). These are the same headers the `/~<name>/` surface applies
-/// unconditionally, so the two URL surfaces for the same content get the same
-/// defense against a shared HTTP cache replaying an authenticated response to
-/// an anonymous caller. A publicly-readable resolution stays cacheable: the
-/// path-less base is the hot install path.
-fn private_if_caller_gated(state: &AppState, package: &str, response: Response) -> Response {
-    match default_registry_target(state) {
-        Some(target) if resolves_to_private_source(state, &target, Ecosystem::Npm, package) => {
-            private_no_cache(response)
-        }
-        _ => response,
-    }
-}
-
 /// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
 async fn serve_registry_packument(
     state: &AppState,
@@ -1891,19 +1864,13 @@ async fn serve_hosted_tarball(
 async fn serve_tarball(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
     raw_name: &str,
     filename: &str,
 ) -> Response {
-    // The path-less base is an alias for the default-target registry — see
-    // `serve_packument`. With no default target the bare host has no registry.
-    match default_registry_target(state) {
-        Some(target) => {
-            let response =
-                serve_registry_tarball(state, identity, &target, raw_name, filename).await;
-            private_if_caller_gated(state, raw_name, response)
-        }
-        None => not_found(),
-    }
+    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let response = serve_registry_tarball(state, identity, &target, raw_name, filename).await;
+    caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
 
 /// The version a tarball request resolves to, plus that version's declared

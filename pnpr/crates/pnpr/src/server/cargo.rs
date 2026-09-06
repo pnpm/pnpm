@@ -57,12 +57,11 @@ const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
 const INDEX_CONFIG_KEY: &str = "config.json";
 
 /// The Cargo routes, each registered for the default target (`/cargo/...`)
-/// and for a named registry (`/cargo/~<name>/...`). A static `index` or `api`
-/// segment wins over `{prefix}` at the same position, and a registry name
-/// always carries its `~`, so the two forms never overlap.
+/// and for a named registry (`/cargo/~<name>/...`). The `~` is part of the
+/// route, so the two forms never overlap.
 pub(super) fn routes() -> Router<AppState> {
     let mut router = Router::new();
-    for base in ["/cargo", "/cargo/{prefix}"] {
+    for base in ["/cargo", "/cargo/~{registry}"] {
         router = router
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))

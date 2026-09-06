@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Duration};
 use axum::{
     Router,
     body::Body,
-    extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
+    extract::{DefaultBodyLimit, Path, RawQuery, Request, State},
     http::{HeaderMap, HeaderValue, Method, header},
     middleware,
     response::Response,
@@ -22,24 +22,23 @@ use tracing::Span;
 
 use pnpr_auth::AuthState;
 use pnpr_config::Config;
+use pnpr_registry::Ecosystem;
 use pnpr_storage::Storage;
 use pnpr_upstream::Upstream;
+use serde::Deserialize;
 
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, batch, cargo,
-    compute_upstream_cache_namespace, default_registry_target, delete_package,
-    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
-    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found,
-    pnpr_protocols_disabled, private_if_caller_gated, private_no_cache, publish_package, put_login,
-    pypi, reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
-    serve_artifact_blob, serve_batch_publish, serve_org_packages, serve_packument, serve_ping,
-    serve_pnpr_handshake, serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
-    serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
-    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
-    serve_version_manifest, set_dist_tag, staged, tilde_registry, update_packument,
-    upstream_tarball_base,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, TargetRegistry, addressed_registry, authenticate, batch,
+    caller_scoped, cargo, compute_upstream_cache_namespace, delete_package, delete_session_token,
+    delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams, get_profile,
+    get_team_members, get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
+    private_no_cache, publish_package, put_login, pypi, reject_team_mutation, remove_dist_tag,
+    require_artifact_caller, require_resolver_caller, serve_artifact_blob, serve_batch_publish,
+    serve_org_packages, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
+    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
+    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -79,9 +78,7 @@ pub(super) fn router_with_auth_and_osv(
             .iter()
             .map(|(name, upstream)| {
                 let client = Upstream::new(name, upstream);
-                let client = if config.registries.ecosystem(name)
-                    == Some(pnpr_registry::Ecosystem::Npm)
-                {
+                let client = if config.registries.ecosystem(name) == Some(Ecosystem::Npm) {
                     client
                 } else {
                     client
@@ -181,10 +178,6 @@ pub(super) fn router_with_auth_and_osv(
                     )),
             );
     }
-    // The npm-registry surface: every packument/tarball read, publish,
-    // unpublish, dist-tag, and search. When the surface is off (no registries
-    // declared, or `--disable-registry`), none of these routes are mounted.
-    // Resolver- and artifacts-only tiers expose no registry surface at all.
     if registry_enabled {
         let npm = npm_registry_routes();
         router = router
@@ -284,579 +277,457 @@ pub(super) fn router_with_auth_and_osv(
 /// credentials (`pnpm login --registry https://<resolver-host>/`) instead of
 /// depending on a registry-serving replica that shares the auth backend.
 ///
-/// Each endpoint also answers under any `/~<prefix>/`, so a client whose
+/// Each endpoint also answers under any `/~<name>/`, so a client whose
 /// registry URL is a registry endpoint can log in against it. The identity
 /// endpoints are global and consult no registry state; a registry-table lookup
 /// would gate nothing while turning the 401-vs-404 split into an existence
 /// oracle for private registry names that the content handlers carefully mask.
 fn account_routes() -> Router<AppState> {
-    Router::new()
-        .route("/-/whoami", get(get_whoami))
-        .route("/{prefix}/-/whoami", get(get_whoami))
-        .route(
-            "/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route(
-            "/{prefix}/-/user/{user}",
-            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
-        )
-        .route("/-/user/token/{token}", delete(delete_session_token))
-        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token))
-        .route("/-/npm/v1/user", get(get_profile))
-        .route("/{prefix}/-/npm/v1/user", get(get_profile))
-        .route("/-/npm/v1/tokens", get(get_token_list))
-        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list))
-        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
-        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+    let mut router = Router::new();
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            .route(&path("/-/whoami"), get(get_whoami))
+            .route(
+                &path("/-/user/{user}"),
+                put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+            )
+            .route(&path("/-/user/token/{token}"), delete(delete_session_token))
+            .route(&path("/-/npm/v1/user"), get(get_profile))
+            .route(&path("/-/npm/v1/tokens"), get(get_token_list))
+            .route(&path("/-/npm/v1/tokens/token/{key}"), delete(delete_token_by_key));
+    }
+    router
 }
 
 /// The npm-registry surface: every packument/tarball read, publish,
 /// unpublish, dist-tag, and search. Mounted only when the registry feature is
 /// on (registries declared and not `--disable-registry`), so resolver- and
 /// artifacts-only tiers expose no registry surface at all.
+///
+/// Every route is registered twice: bare, addressing the default target
+/// through the path-less base, and under `/~<name>/`, addressing one named
+/// registry. [`TargetRegistry`] is what tells a handler which of the two it
+/// was reached through.
 fn npm_registry_routes() -> Router<AppState> {
-    Router::new()
-        // Batch publish: one request carrying many packages' publish
-        // documents. Not part of the standard npm registry API —
-        // `pnpm publish --batch` opts into it explicitly.
-        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
-        // Staged (two-phase) publishing — the `pnpm stage` surface.
-        // Static `-`/`stage` segments take priority over the generic
-        // segment-count routes below, so these never shadow package
-        // reads. Each route has a `/~<name>/`-prefixed twin so a client
-        // whose registry URL is a registry endpoint can stage through it.
-        .route("/-/stage", get(staged::list_staged))
-        .route("/-/stage/package/{name}", post(staged::post_staged_publish))
-        .route("/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-        .route("/-/stage/{id}/approve", post(staged::approve_staged))
-        .route("/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-        .route("/{prefix}/-/stage", get(staged::list_staged))
-        .route("/{prefix}/-/stage/package/{name}", post(staged::post_staged_publish))
-        .route("/{prefix}/-/stage/{id}", get(staged::get_staged).delete(staged::reject_staged))
-        .route("/{prefix}/-/stage/{id}/approve", post(staged::approve_staged))
-        .route("/{prefix}/-/stage/{id}/tarball", get(staged::get_staged_tarball))
-        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-        .route(
-            "/{first}/{second}/{third}",
-            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-        )
-        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-        .route(
-            "/{a}/{b}/{c}/{d}",
-            get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
-        )
-        .route(
-            "/{a}/{b}/{c}/{d}/{e}",
-            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-        )
-        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
-        // plus the registry-addressed dist-tag write and unscoped tarball delete.
-        .route(
-            "/{a}/{b}/{c}/{d}/{e}/{f}",
-            get(get_six_segments).put(put_six_segments).delete(delete_six_segments),
-        )
-        // Registry-addressed scoped tarball delete:
-        // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
-        .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments))
-}
-
-// --------------------------------------------------------------------
-// GET handlers — packument, version manifest, tarball.
-// Same overall shape as before, with an access-policy check added
-// up front so protected packages return 401 to anonymous callers.
-// --------------------------------------------------------------------
-
-async fn get_packument_unscoped(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    headers: HeaderMap,
-    Path(name): Path<String>,
-) -> Response {
-    serve_packument(&state, &identity, &headers, &name).await
-}
-
-async fn get_two_segments(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    headers: HeaderMap,
-    Path((first, second)): Path<(String, String)>,
-) -> Response {
-    // `/~<name>/<pkg>` — unscoped packument through a registry endpoint. The
-    // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
-    // canonical for the registry the client actually addressed.
-    if let Some(registry) = tilde_registry(&first) {
-        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
-        return private_no_cache(
-            serve_registry_packument(&state, &identity, &headers, registry, &second, &base).await,
-        );
-    }
-    if first.starts_with('@') {
-        if first.contains('/') {
-            serve_version_manifest(&state, &identity, &first, &second).await
-        } else {
-            let full = format!("{first}/{second}");
-            serve_packument(&state, &identity, &headers, &full).await
-        }
-    } else {
-        serve_version_manifest(&state, &identity, &first, &second).await
-    }
-}
-
-async fn get_three_segments(
-    State(state): State<AppState>,
-    AuthedCaller(identity): AuthedCaller,
-    OriginalUri(uri): OriginalUri,
-    headers: HeaderMap,
-    Path((first, second, third)): Path<(String, String, String)>,
-) -> Response {
-    if first == "-" && second == "v1" && third == "search" {
-        let query = uri.query().unwrap_or("");
-        // Search results are filtered per caller (registry access + per-package
-        // ACL), so they must never land in a shared HTTP cache.
-        return private_no_cache(serve_search(&state, &identity, None, query).await);
-    }
-    if let Some(registry) = tilde_registry(&first) {
-        // The account endpoints (whoami, adduser, logout, profile, tokens)
-        // live on dedicated always-mounted routes; a `/~<name>/-/...` path
-        // that still reaches this handler names no registry content.
-        if second == "-" {
-            return not_found();
-        }
-        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
-        if second.starts_with('@') {
-            // `/~<name>/@scope%2Fname/<version>` — version manifest for an
-            // encoded scoped package through a registry endpoint.
-            if second.contains('/') {
-                return private_no_cache(
-                    serve_registry_version_manifest(
-                        &state, &identity, registry, &second, &third, &base,
-                    )
-                    .await,
-                );
-            }
-            // `/~<name>/@scope/<pkg>` — scoped packument through a registry.
-            let full = format!("{second}/{third}");
-            return private_no_cache(
-                serve_registry_packument(&state, &identity, &headers, registry, &full, &base).await,
+    // Batch publish: one request carrying many packages' publish documents.
+    // Not part of the standard npm registry API — `pnpm publish --batch` opts
+    // into it explicitly, and only against the path-less base.
+    let mut router = Router::new().route("/-/pnpm/v1/publish", put(serve_batch_publish));
+    for base in ["", "/~{registry}"] {
+        let path = |tail: &str| format!("{base}{tail}");
+        router = router
+            // Staged (two-phase) publishing — the `pnpm stage` surface.
+            .route(&path("/-/stage"), get(staged::list_staged))
+            .route(&path("/-/stage/package/{name}"), post(staged::post_staged_publish))
+            .route(&path("/-/stage/{id}"), get(staged::get_staged).delete(staged::reject_staged))
+            .route(&path("/-/stage/{id}/approve"), post(staged::approve_staged))
+            .route(&path("/-/stage/{id}/tarball"), get(staged::get_staged_tarball))
+            .route(&path("/-/v1/search"), get(get_search))
+            .route(&path("/-/tarballs/sha512/{digest}"), get(get_revision_tarball))
+            .route(&path("/-/package/{name}/dist-tags"), get(get_package_dist_tags))
+            .route(
+                &path("/-/package/{name}/dist-tags/{tag}"),
+                put(put_package_dist_tag).delete(delete_package_dist_tag),
+            )
+            .route(&path("/-/org/{scope}/team"), get(get_teams).put(put_team))
+            .route(&path("/-/org/{scope}/package"), get(get_org_package_list))
+            .route(&path("/-/team/{scope}/{team}"), delete(delete_team))
+            .route(
+                &path("/-/team/{scope}/{team}/user"),
+                get(get_team_users).put(put_team_user).delete(delete_team_user),
+            )
+            // Package addresses. npm spells a scoped name either as two
+            // literal segments (`/@scope/name`) or as one percent-encoded
+            // segment (`/@scope%2Fname`), so a path's segment count never says
+            // on its own which resource it names. The `-` and `-rev` markers
+            // do: whatever stands to their left is the package.
+            .route(&path("/{name}"), get(get_packument).put(put_package))
+            .route(
+                &path("/{first}/{second}"),
+                get(get_packument_or_version_manifest).put(put_scoped_package),
+            )
+            .route(&path("/{name}/-/{filename}"), get(get_tarball))
+            .route(
+                &path("/{name}/-rev/{rev}"),
+                put(put_packument_revision).delete(unpublish_package),
+            )
+            .route(&path("/{scope}/{name}/{version}"), get(get_scoped_version_manifest))
+            .route(&path("/{scope}/{name}/-/{filename}"), get(get_scoped_tarball))
+            .route(&path("/{name}/-/{filename}/-rev/{rev}"), delete(unpublish_tarball))
+            .route(
+                &path("/{scope}/{name}/-/{filename}/-rev/{rev}"),
+                delete(unpublish_scoped_tarball),
             );
-        }
-        // `/~<name>/<pkg>/<version-or-tag>` — unscoped version manifest
-        // through a registry endpoint. (The unscoped tarball shape
-        // `/~<name>/<pkg>/-/<file>` is a distinct literal-`-` route.)
-        return private_no_cache(
-            serve_registry_version_manifest(&state, &identity, registry, &second, &third, &base)
-                .await,
-        );
     }
-    if second == "-" {
-        serve_tarball(&state, &identity, &first, &third).await
-    } else if first.starts_with('@') {
-        let full = format!("{first}/{second}");
-        serve_version_manifest(&state, &identity, &full, &third).await
-    } else {
-        not_found()
-    }
+    router
 }
 
-async fn get_tarball_scoped(
+// --------------------------------------------------------------------
+// Path shapes. Each names only the segments its handlers read: the
+// `/~<name>/` registration captures a `registry` segment too, and the
+// `-rev` routes capture a revision token pnpr does not track.
+// --------------------------------------------------------------------
+
+/// A package addressed by a single segment: an unscoped name, or a scoped name
+/// percent-encoded as `@scope%2Fname`.
+#[derive(Deserialize)]
+struct NamePath {
+    name: String,
+}
+
+/// npm's overloaded two-segment address. Which package it names, and which
+/// resource of it, depends on the first segment's shape and on the method, so
+/// neither segment can be given a resource name here.
+#[derive(Deserialize)]
+struct TwoSegments {
+    first: String,
+    second: String,
+}
+
+#[derive(Deserialize)]
+struct ScopedVersionPath {
+    scope: String,
+    name: String,
+    version: String,
+}
+
+#[derive(Deserialize)]
+struct TarballPath {
+    name: String,
+    filename: String,
+}
+
+#[derive(Deserialize)]
+struct ScopedTarballPath {
+    scope: String,
+    name: String,
+    filename: String,
+}
+
+#[derive(Deserialize)]
+struct DistTagPath {
+    name: String,
+    tag: String,
+}
+
+#[derive(Deserialize)]
+struct ScopePath {
+    scope: String,
+}
+
+#[derive(Deserialize)]
+struct TeamPath {
+    scope: String,
+    team: String,
+}
+
+#[derive(Deserialize)]
+struct DigestPath {
+    digest: String,
+}
+
+// --------------------------------------------------------------------
+// Package reads — packument, version manifest, tarball.
+// --------------------------------------------------------------------
+
+/// `GET {base}/{pkg}`.
+async fn get_packument(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((scope, name, filename)): Path<(String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    Path(path): Path<NamePath>,
 ) -> Response {
-    // `/~<name>/<pkg>/-/<file>` — unscoped tarball through a registry endpoint.
-    if let Some(registry) = tilde_registry(&scope) {
-        return private_no_cache(
-            serve_registry_tarball(&state, &identity, registry, &name, &filename).await,
-        );
+    serve_packument(&state, &identity, &headers, registry.as_deref(), &path.name).await
+}
+
+/// `GET {base}/@{scope}/{pkg}` — a scoped package's packument — or
+/// `GET {base}/{pkg}/{version-or-tag}` — a version manifest for a package
+/// whose name fits one segment.
+async fn get_packument_or_version_manifest(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    headers: HeaderMap,
+    Path(path): Path<TwoSegments>,
+) -> Response {
+    let TwoSegments { first, second } = path;
+    if first.starts_with('@') && !first.contains('/') {
+        let name = format!("{first}/{second}");
+        return serve_packument(&state, &identity, &headers, registry.as_deref(), &name).await;
     }
+    serve_version_manifest(&state, &identity, registry.as_deref(), &first, &second).await
+}
+
+/// `GET {base}/@{scope}/{pkg}/{version-or-tag}` — a scoped package's version
+/// manifest. A first segment that is not a scope names no package.
+async fn get_scoped_version_manifest(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedVersionPath>,
+) -> Response {
+    let ScopedVersionPath { scope, name, version } = path;
     if !scope.starts_with('@') {
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_tarball(&state, &identity, &full, &filename).await
+    serve_version_manifest(&state, &identity, registry.as_deref(), &full, &version).await
 }
 
-/// 4-segment GET:
-/// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
-/// * `/-/org/{scope}/team` — the teams of the registry claiming `@scope`.
-/// * `/-/tarballs/sha512/{digest}` — immutable artifact through the default registry.
-/// * `/~<name>/-/v1/search` — search through a registry endpoint.
-/// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
-///   registry endpoint.
-async fn get_four_segments(
+/// `GET {base}/{pkg}/-/{filename}`.
+async fn get_tarball(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    OriginalUri(uri): OriginalUri,
-    Path((a, b, c, d)): Path<(String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TarballPath>,
 ) -> Response {
-    if a == "-" && b == "tarballs" && c == "sha512" {
-        let Some(registry) = default_registry_target(&state) else { return not_found() };
-        return serve_revision_tarball(&state, &identity, &registry, &d).await;
-    }
-    if a == "-" && b == "package" && d == "dist-tags" {
-        let response = get_dist_tags(&state, &identity, None, &c).await;
-        return private_if_caller_gated(&state, &c, response);
-    }
-    if a == "-" && b == "org" && d == "team" {
-        return private_no_cache(get_org_teams(&state, &identity, None, &c));
-    }
-    if a == "-" && b == "org" && d == "package" {
-        return private_no_cache(serve_org_packages(&state, &identity, None, &c).await);
-    }
-    if let Some(registry) = tilde_registry(&a) {
-        if b == "-" && c == "v1" && d == "search" {
-            let query = uri.query().unwrap_or("");
-            return private_no_cache(serve_search(&state, &identity, Some(registry), query).await);
-        }
-        if b.starts_with('@') && !b.contains('/') {
-            let full = format!("{b}/{c}");
-            let base = upstream_tarball_base(&state.inner.config.public_url, registry);
-            return private_no_cache(
-                serve_registry_version_manifest(&state, &identity, registry, &full, &d, &base)
-                    .await,
-            );
-        }
-    }
-    not_found()
+    serve_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
 }
 
-/// 5-segment GET:
-/// * `/-/team/{scope}/{team}/user` — a team's members.
-/// * `/~<name>/@scope/<pkg>/-/<file>` — scoped tarball through a registry
-///   endpoint.
-/// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
-///   endpoint.
-/// * `/~<name>/-/org/{scope}/team` — org teams through a registry endpoint.
-/// * `/~<name>/-/tarballs/sha512/{digest}`: immutable artifact through an addressed registry.
-///
-/// Every other 5-segment GET is a not-found catchall (the route exists so
-/// DELETE/PUT can sit on the same path).
-async fn get_five_segments(
+/// `GET {base}/@{scope}/{pkg}/-/{filename}`.
+async fn get_scoped_tarball(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedTarballPath>,
 ) -> Response {
-    if a == "-" && b == "team" && e == "user" {
-        return private_no_cache(get_team_members(&state, &identity, None, &c, &d));
+    let ScopedTarballPath { scope, name, filename } = path;
+    if !scope.starts_with('@') {
+        return not_found();
     }
-    if let Some(registry) = tilde_registry(&a) {
-        if b == "-" && c == "tarballs" && d == "sha512" {
-            return serve_revision_tarball(&state, &identity, registry, &e).await;
-        }
-        if b.starts_with('@') && d == "-" {
-            let full = format!("{b}/{c}");
-            return private_no_cache(
-                serve_registry_tarball(&state, &identity, registry, &full, &e).await,
-            );
-        }
-        if b == "-" && c == "package" && e == "dist-tags" {
-            return private_no_cache(get_dist_tags(&state, &identity, Some(registry), &d).await);
-        }
-        if b == "-" && c == "org" && e == "team" {
-            return private_no_cache(get_org_teams(&state, &identity, Some(registry), &d));
-        }
-        if b == "-" && c == "org" && e == "package" {
-            return private_no_cache(
-                serve_org_packages(&state, &identity, Some(registry), &d).await,
-            );
-        }
-    }
-    not_found()
+    let full = format!("{scope}/{name}");
+    serve_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
 }
 
-/// 6-segment GET:
-/// * `/~<name>/-/team/{scope}/{team}/user` — a team's members through a
-///   registry endpoint.
-async fn get_six_segments(
+/// `GET {base}/-/tarballs/sha512/{digest}` — an integrity-addressed tarball.
+async fn get_revision_tarball(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<DigestPath>,
 ) -> Response {
-    if let Some(registry) = tilde_registry(&a)
-        && b == "-"
-        && c == "team"
-        && f == "user"
-    {
-        return private_no_cache(get_team_members(&state, &identity, Some(registry), &d, &e));
-    }
-    not_found()
+    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+        return not_found();
+    };
+    serve_revision_tarball(&state, &identity, &target, &path.digest).await
+}
+
+/// `GET {base}/-/v1/search`.
+async fn get_search(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    RawQuery(query): RawQuery,
+) -> Response {
+    let query = query.unwrap_or_default();
+    // Results are filtered per caller (registry access plus per-package ACL),
+    // so they must never land in a shared HTTP cache.
+    private_no_cache(serve_search(&state, &identity, registry.as_deref(), &query).await)
 }
 
 // --------------------------------------------------------------------
-// PUT handlers — adduser, publish, dist-tag write.
+// Package writes — publish, unpublish, dist-tags.
 // --------------------------------------------------------------------
 
-/// `PUT /{name}` — publish an unscoped package.
-async fn put_one_segment(
+/// `PUT {base}/{pkg}`.
+async fn put_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path(name): Path<String>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &identity, None, &name, body).await
+    publish_package(&state, &identity, registry.as_deref(), &path.name, body).await
 }
 
-/// `PUT /{first}/{second}` — publish a scoped package
-/// (`/@scope/name`), or an unscoped package through a registry endpoint
-/// (`/~<name>/<pkg>`). The `/-/package/{pkg}` shape never lands here
-/// because that's at least 4 segments.
-async fn put_two_segments(
+/// `PUT {base}/@{scope}/{pkg}` — publish a scoped package. A first segment
+/// that is not a scope names no publishable package.
+async fn put_scoped_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((first, second)): Path<(String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TwoSegments>,
     body: axum::body::Bytes,
 ) -> Response {
-    // `PUT /~<name>/<pkg>` — publish an unscoped package through a registry.
-    if let Some(registry) = tilde_registry(&first) {
-        return publish_package(&state, &identity, Some(registry), &second, body).await;
+    let TwoSegments { first, second } = path;
+    if !first.starts_with('@') {
+        return not_found();
     }
-    if first.starts_with('@') {
-        let full = format!("{first}/{second}");
-        return publish_package(&state, &identity, None, &full, body).await;
-    }
-    not_found()
+    let full = format!("{first}/{second}");
+    publish_package(&state, &identity, registry.as_deref(), &full, body).await
 }
 
-/// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
-async fn put_three_segments(
+/// `PUT {base}/{pkg}/-rev/{rev}` — the full mutated packument, which is how
+/// npm spells a partial unpublish.
+async fn put_packument_revision(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((first, second, third)): Path<(String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<NamePath>,
     body: axum::body::Bytes,
 ) -> Response {
-    // `PUT /~<name>/@scope/<pkg>` — publish a scoped package through a registry.
-    if let Some(registry) = tilde_registry(&first)
-        && second.starts_with('@')
-    {
-        let full = format!("{second}/{third}");
-        return publish_package(&state, &identity, Some(registry), &full, body).await;
-    }
-    if second == "-rev" {
-        // `third` is the opaque revision token the client sent back.
-        // We don't track revisions, so it's only used for routing —
-        // the body is the full mutated packument.
-        let _ = third;
-        return update_packument(&state, &identity, None, &first, &body).await;
-    }
-    not_found()
+    update_packument(&state, &identity, registry.as_deref(), &path.name, &body).await
 }
 
-/// 4-segment PUT:
-/// * `/~<name>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
-///   through a registry endpoint. Scoped packages arrive percent-encoded as a
-///   single `@scope%2Fname` segment, like the path-less 3-segment form.
-async fn put_four_segments(
+/// `DELETE {base}/{pkg}/-rev/{rev}` — remove a whole package
+/// (`pnpm unpublish --force`).
+async fn unpublish_package(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d)): Path<(String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<NamePath>,
+) -> Response {
+    delete_package(&state, &identity, registry.as_deref(), &path.name).await
+}
+
+/// `DELETE {base}/{pkg}/-/{filename}/-rev/{rev}` — remove one version's
+/// tarball, a step of `pnpm unpublish <pkg>@<version>`.
+async fn unpublish_tarball(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TarballPath>,
+) -> Response {
+    delete_tarball(&state, &identity, registry.as_deref(), &path.name, &path.filename).await
+}
+
+/// `DELETE {base}/@{scope}/{pkg}/-/{filename}/-rev/{rev}` — remove one scoped
+/// version's tarball. The unpublish flow reconstructs this URL from the
+/// packument's `dist.tarball`, which spells a scoped name with a literal
+/// slash.
+async fn unpublish_scoped_tarball(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopedTarballPath>,
+) -> Response {
+    let ScopedTarballPath { scope, name, filename } = path;
+    if !scope.starts_with('@') {
+        return not_found();
+    }
+    let full = format!("{scope}/{name}");
+    delete_tarball(&state, &identity, registry.as_deref(), &full, &filename).await
+}
+
+/// `GET {base}/-/package/{pkg}/dist-tags`.
+async fn get_package_dist_tags(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<NamePath>,
+) -> Response {
+    let response = get_dist_tags(&state, &identity, registry.as_deref(), &path.name).await;
+    caller_scoped(&state, Ecosystem::Npm, registry.as_deref(), Some(&path.name), response)
+}
+
+/// `PUT {base}/-/package/{pkg}/dist-tags/{tag}`.
+async fn put_package_dist_tag(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<DistTagPath>,
     body: axum::body::Bytes,
 ) -> Response {
-    // `PUT /-/org/{scope}/team` — team create; config-managed, rejected.
-    if a == "-" && b == "org" && d == "team" {
-        return reject_team_mutation(&state, &identity, None, &c, "create a team");
-    }
-    if let Some(registry) = tilde_registry(&a)
-        && c == "-rev"
-    {
-        let _ = d; // revision token is unused
-        return update_packument(&state, &identity, Some(registry), &b, &body).await;
-    }
-    not_found()
+    set_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag, &body).await
 }
 
-/// `DELETE /{pkg}/-rev/{rev}` — remove the entire package
-/// (`pnpm unpublish --force`). For scoped packages the URL is
-/// `/@scope%2Fname/-rev/{rev}` and arrives as a single segment after
-/// axum's percent-decoding.
-async fn delete_three_segments(
+/// `DELETE {base}/-/package/{pkg}/dist-tags/{tag}`.
+async fn delete_package_dist_tag(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((first, second, third)): Path<(String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<DistTagPath>,
 ) -> Response {
-    if second == "-rev" {
-        let _ = third;
-        return delete_package(&state, &identity, None, &first).await;
-    }
-    not_found()
+    remove_dist_tag(&state, &identity, registry.as_deref(), &path.name, &path.tag).await
 }
 
-/// 5-segment PUT:
-/// * `/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
-/// * `/-/team/{scope}/{team}/user` — team member add; config-managed,
-///   rejected.
-/// * `/~<name>/-/org/{scope}/team` — team create through a registry
-///   endpoint; config-managed, rejected.
-async fn put_five_segments(
+// --------------------------------------------------------------------
+// Orgs and teams. Membership is config-managed, so every mutation is
+// rejected with an explanation rather than silently ignored.
+// --------------------------------------------------------------------
+
+/// `GET {base}/-/org/{scope}/team` — the teams of the registry claiming
+/// `scope`.
+async fn get_teams(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
-    body: axum::body::Bytes,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
 ) -> Response {
-    if a == "-" && b == "package" && d == "dist-tags" {
-        return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
-    }
-    if a == "-" && b == "team" && e == "user" {
-        return reject_team_mutation(&state, &identity, None, &c, "add a team member");
-    }
-    if let Some(registry) = tilde_registry(&a)
-        && b == "-"
-        && c == "org"
-        && e == "team"
-    {
-        return reject_team_mutation(&state, &identity, Some(registry), &d, "create a team");
-    }
-    not_found()
+    private_no_cache(get_org_teams(&state, &identity, registry.as_deref(), &path.scope))
 }
 
-/// 6-segment PUT:
-/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
-///   through a registry endpoint.
-/// * `/~<name>/-/team/{scope}/{team}/user` — team member add through a
-///   registry endpoint; config-managed, rejected.
-async fn put_six_segments(
+/// `GET {base}/-/org/{scope}/package` — the packages of the registry claiming
+/// `scope`.
+async fn get_org_package_list(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
-    body: axum::body::Bytes,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
 ) -> Response {
-    if let Some(registry) = tilde_registry(&a)
-        && b == "-"
-    {
-        if c == "package" && e == "dist-tags" {
-            return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
-        }
-        if c == "team" && f == "user" {
-            return reject_team_mutation(
-                &state,
-                &identity,
-                Some(registry),
-                &d,
-                "add a team member",
-            );
-        }
-    }
-    not_found()
+    private_no_cache(serve_org_packages(&state, &identity, registry.as_deref(), &path.scope).await)
 }
 
-/// 4-segment DELETE:
-/// * `/-/team/{scope}/{team}` — team destroy; config-managed, rejected.
-/// * `/~<name>/{pkg}/-rev/{rev}` — remove the entire package through a
-///   registry endpoint (scoped packages arrive percent-encoded as one
-///   `@scope%2Fname` segment).
-async fn delete_four_segments(
+/// `PUT {base}/-/org/{scope}/team`.
+async fn put_team(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d)): Path<(String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
 ) -> Response {
-    if a == "-" && b == "team" {
-        let _ = d; // team name — the mutation is rejected regardless
-        return reject_team_mutation(&state, &identity, None, &c, "destroy a team");
-    }
-    if let Some(registry) = tilde_registry(&a)
-        && c == "-rev"
-    {
-        let _ = d; // revision token is unused
-        return delete_package(&state, &identity, Some(registry), &b).await;
-    }
-    not_found()
+    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "create a team")
 }
 
-/// 5-segment DELETE:
-/// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
-/// * `/-/team/{scope}/{team}/user` — team member remove; config-managed,
-///   rejected.
-/// * `/~<name>/-/team/{scope}/{team}` — team destroy through a registry
-///   endpoint; config-managed, rejected.
-/// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
-///   (one step of `pnpm unpublish <pkg>@<version>`).
-async fn delete_five_segments(
+/// `DELETE {base}/-/team/{scope}/{team}`.
+async fn delete_team(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
 ) -> Response {
-    if a == "-" && b == "package" && d == "dist-tags" {
-        return remove_dist_tag(&state, &identity, None, &c, &e).await;
-    }
-    if a == "-" && b == "team" && e == "user" {
-        return reject_team_mutation(&state, &identity, None, &c, "remove a team member");
-    }
-    if let Some(registry) = tilde_registry(&a)
-        && b == "-"
-        && c == "team"
-    {
-        let _ = e; // team name — the mutation is rejected regardless
-        return reject_team_mutation(&state, &identity, Some(registry), &d, "destroy a team");
-    }
-    if b == "-" && d == "-rev" {
-        let _ = e; // revision token is unused
-        return delete_tarball(&state, &identity, None, &a, &c).await;
-    }
-    not_found()
+    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "destroy a team")
 }
 
-/// 6-segment DELETE:
-/// * `/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
-///   tarball. The pnpm unpublish flow gets here when the tarball URL
-///   it reconstructs from the packument is the literal-slash scoped
-///   form (`http://host/@scope/name/-/name-1.0.0.tgz`), so the
-///   request lands here unencoded rather than as a 5-seg
-///   `@scope%2Fname` URL.
-/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
-///   through a registry endpoint.
-/// * `/~<name>/-/team/{scope}/{team}/user` — team member remove through a
-///   registry endpoint; config-managed, rejected.
-/// * `/~<name>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
-///   tarball through a registry endpoint.
-async fn delete_six_segments(
+/// `GET {base}/-/team/{scope}/{team}/user`.
+async fn get_team_users(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<TeamPath>,
 ) -> Response {
-    if a.starts_with('@') && c == "-" && e == "-rev" {
-        let _ = f; // revision token is unused
-        let full = format!("{a}/{b}");
-        return delete_tarball(&state, &identity, None, &full, &d).await;
-    }
-    if let Some(registry) = tilde_registry(&a) {
-        if b == "-" && c == "package" && e == "dist-tags" {
-            return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
-        }
-        if b == "-" && c == "team" && f == "user" {
-            return reject_team_mutation(
-                &state,
-                &identity,
-                Some(registry),
-                &d,
-                "remove a team member",
-            );
-        }
-        if c == "-" && e == "-rev" {
-            let _ = f; // revision token is unused
-            return delete_tarball(&state, &identity, Some(registry), &b, &d).await;
-        }
-    }
-    not_found()
+    private_no_cache(get_team_members(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        &path.team,
+    ))
 }
 
-/// 7-segment DELETE:
-/// * `/~<name>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
-///   tarball through a registry endpoint (the unencoded literal-slash form the
-///   pnpm unpublish flow reconstructs from the packument's tarball URL).
-async fn delete_seven_segments(
+/// `PUT {base}/-/team/{scope}/{team}/user`.
+async fn put_team_user(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
-    Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
 ) -> Response {
-    if let Some(registry) = tilde_registry(&a)
-        && b.starts_with('@')
-        && d == "-"
-        && f == "-rev"
-    {
-        let _ = g; // revision token is unused
-        let full = format!("{b}/{c}");
-        return delete_tarball(&state, &identity, Some(registry), &full, &e).await;
-    }
-    not_found()
+    reject_team_mutation(&state, &identity, registry.as_deref(), &path.scope, "add a team member")
+}
+
+/// `DELETE {base}/-/team/{scope}/{team}/user`.
+async fn delete_team_user(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    TargetRegistry(registry): TargetRegistry,
+    Path(path): Path<ScopePath>,
+) -> Response {
+    reject_team_mutation(
+        &state,
+        &identity,
+        registry.as_deref(),
+        &path.scope,
+        "remove a team member",
+    )
 }

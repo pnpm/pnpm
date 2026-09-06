@@ -59,7 +59,7 @@ const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 /// trailing slash the Simple API spells its URLs with.
 pub(super) fn routes() -> Router<AppState> {
     let mut router = Router::new();
-    for base in ["/pypi", "/pypi/{prefix}"] {
+    for base in ["/pypi", "/pypi/~{registry}"] {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))

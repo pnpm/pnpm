@@ -49,10 +49,13 @@ pub(super) fn registry_endpoint(
     }
 }
 
-/// The cache headers a response on an ecosystem surface needs: a named
-/// registry's responses are always caller-scoped (like npm's `/~<name>/`
-/// surface), the default target's only when `package` resolves to a
-/// caller-gated source, so the hot public install path stays cacheable.
+/// The cache headers a response needs so a shared HTTP cache can never replay
+/// an authenticated response to an anonymous caller. A named registry's
+/// responses are always caller-scoped. The default target's are scoped only
+/// when `package` resolves to a source whose effective per-package access
+/// denies anonymous callers, so a URL that answers differently depending on
+/// `Authorization` says so. A publicly-readable resolution stays cacheable:
+/// the path-less base is the hot install path.
 pub(super) fn caller_scoped(
     state: &AppState,
     ecosystem: Ecosystem,
