@@ -237,15 +237,11 @@ fn install_with_update_check<'a>(
         // monomorphized install futures would otherwise each reserve
         // their full size in this frame.
         {
-            // CLI overrides for `offline` / `prefer_offline` live
-            // alongside `--frozen-lockfile`: they upgrade an
-            // unset / `false` yaml value to `true`, but cannot
-            // turn an explicit yaml `true` back off. Matches
-            // pnpm's CLI semantics — the flags are "enable", not
-            // a toggle. Applied here (between `config()` and
-            // `State::init`) while the loaded `Config` is still
-            // mutable through `Config::leak`'s
-            // `&'static mut Config` return.
+            // Applied between `config()` and `State::init`, while
+            // the loaded `Config` is still mutable through
+            // `Config::leak`'s `&'static mut Config` return. How
+            // each `--flag` / `--no-flag` pair beats the configured
+            // value is `resolve_bool_override`'s contract.
             let cfg = config()?;
             let recursive_sort = cfg.sort;
             args.lockfile_dir.apply_to(cfg, dir);
