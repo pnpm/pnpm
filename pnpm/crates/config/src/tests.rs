@@ -4662,14 +4662,20 @@ fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
 #[test]
 pub fn an_npmrc_registry_beats_the_global_auth_file() {
     let config =
-        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=http://project-choice.example/\n");
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=https://project-choice.example/\n");
 
-    assert_eq!(config.registry, "http://project-choice.example/");
-    // The credential still reaches the registry it was written for.
+    assert_eq!(config.registry, "https://project-choice.example/");
+    // The credential still reaches the registry it was written for, and
+    // does not follow the install to the one the `.npmrc` chose.
     assert_eq!(
         config.auth_tokens_by_uri.get("//private.example/").map(String::as_str),
         Some("stored-token"),
     );
+    assert_eq!(
+        config.auth_headers.for_url("https://private.example/is-positive").as_deref(),
+        Some("Bearer stored-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://project-choice.example/is-positive"), None);
 }
 
 #[test]
@@ -4683,6 +4689,19 @@ pub fn an_npmrc_scope_route_beats_the_global_auth_file() {
     );
     // The default registry is not declared, so the stored credential still routes it.
     assert_eq!(config.registry, "https://private.example/");
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://private.example/@org%2Fpkg", Some("@org/pkg"))
+            .as_deref(),
+        Some("Bearer stored-org-token"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://from-npmrc.example/@org%2Fpkg", Some("@org/pkg")),
+        None,
+    );
 }
 
 /// The trusted `.npmrc` an `npmrcAuthFile` names reaches the bootstrap
@@ -4709,6 +4728,12 @@ pub fn an_npmrc_registry_beats_the_global_auth_file_in_the_bootstrap() {
 
     assert_eq!(config.registry, "https://user-choice.example/");
     assert_eq!(config.package_manager_bootstrap.registry, "https://user-choice.example/");
+    let bootstrap_headers = &config.package_manager_bootstrap.auth_headers;
+    assert_eq!(
+        bootstrap_headers.for_url("https://private.example/@pnpm%2Fexe").as_deref(),
+        Some("Bearer stored-token"),
+    );
+    assert_eq!(bootstrap_headers.for_url("https://user-choice.example/@pnpm%2Fexe"), None);
 }
 
 /// The older `registries: { default: … }` spelling names the default
