@@ -9,6 +9,7 @@
 mod _utils;
 
 mod add;
+mod add_jsr;
 mod approve_builds;
 mod audit;
 mod auth;
