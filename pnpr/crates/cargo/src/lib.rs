@@ -489,10 +489,9 @@ pub enum CrateArchiveError {
     InvalidManifest { name: String, version: String },
 }
 
-/// Check that `archive` is a gzip-compressed tar whose every entry sits
-/// under `<name>-<version>/` and which carries that directory's
-/// `Cargo.toml`, the shape `cargo package` produces. Reading stops at
-/// [`MAX_CRATE_ARCHIVE_UNPACKED_BYTES`] of decompressed data.
+/// Accepts gzip-compressed tar archives containing only regular files and
+/// directories within `<name>-<version>`, with a matching `Cargo.toml`.
+/// Decompressed size must not exceed [`MAX_CRATE_ARCHIVE_UNPACKED_BYTES`].
 pub fn validate_crate_archive(
     archive: &[u8],
     name: &str,
@@ -517,6 +516,10 @@ fn validate_crate_archive_with_limit(
         let mut entry = entry.map_err(CrateArchiveError::Read)?;
         let path = entry.path().map_err(CrateArchiveError::Read)?;
         let path = path.to_string_lossy().into_owned();
+        let entry_type = entry.header().entry_type();
+        if path == expected && entry_type.is_dir() {
+            continue;
+        }
         let Some(inner) = path.strip_prefix(&expected).and_then(|rest| rest.strip_prefix('/'))
         else {
             return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
@@ -524,7 +527,6 @@ fn validate_crate_archive_with_limit(
         if path.contains(['\\', ':']) || inner.split('/').any(|part| part == "..") {
             return Err(CrateArchiveError::EntryOutsideRoot { path, expected });
         }
-        let entry_type = entry.header().entry_type();
         if !entry_type.is_file() && !entry_type.is_dir() {
             return Err(CrateArchiveError::UnsupportedEntry { path });
         }

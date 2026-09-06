@@ -342,3 +342,27 @@ fn crate_archive_limit_counts_concatenated_gzip_members() {
     ));
     validate_crate_archive_with_limit(&archive, "demo", "0.1.0", size + 1024).unwrap();
 }
+
+#[test]
+fn crate_archive_accepts_an_explicit_root_directory() {
+    let archive = crate_archive(
+        "demo-0.1.0",
+        &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"")],
+    );
+    for entry_type in [tar::EntryType::Directory, tar::EntryType::Regular] {
+        let mut root = tar::Header::new_gnu();
+        root.set_path("demo-0.1.0").unwrap();
+        root.set_entry_type(entry_type);
+        root.set_size(0);
+        root.set_mode(0o755);
+        root.set_cksum();
+        let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        encoder.write_all(root.as_bytes()).unwrap();
+        std::io::copy(&mut flate2::read::GzDecoder::new(archive.as_slice()), &mut encoder).unwrap();
+        let with_root = encoder.finish().unwrap();
+        assert_eq!(
+            validate_crate_archive(&with_root, "demo", "0.1.0").is_ok(),
+            entry_type.is_dir(),
+        );
+    }
+}
