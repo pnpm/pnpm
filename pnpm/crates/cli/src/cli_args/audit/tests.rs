@@ -980,9 +980,66 @@ fn text_report_separates_advisory_table_from_summary() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     let summary_start = output.find("1 vulnerabilities found").unwrap();
     assert_eq!(output.as_bytes()[summary_start - 1], b'\n');
+}
+
+#[test]
+fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
+    let report = AuditReport {
+        advisories: BTreeMap::new(),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 1,
+                critical: 0,
+            },
+            dependencies: 1,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 1,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    assert_eq!(output, "No known vulnerabilities found (1 ignored)\n");
+}
+
+#[test]
+fn text_report_summary_subtracts_ignored_advisories_from_severity_counts() {
+    let report = AuditReport {
+        advisories: BTreeMap::from([(
+            "1".to_string(),
+            advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
+        )]),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 1,
+                high: 2,
+                critical: 0,
+            },
+            dependencies: 3,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 3,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 1, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    assert!(output.contains("1 vulnerabilities found"), "headline is net of ignored:\n{output}");
+    assert!(
+        output.ends_with("Severity: 0 moderate (1 ignored) | 1 high (1 ignored)"),
+        "per-severity counts are net of ignored:\n{output}",
+    );
 }
 
 #[test]
@@ -1008,7 +1065,7 @@ fn text_report_shows_none_when_patched_version_was_unpublished() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     assert!(output.contains("Patched versions"), "row label should be present:\n{output}");
     assert!(
         output.contains("Patched versions    │ None"),
@@ -1043,7 +1100,7 @@ fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     assert!(
         output.contains("Patched versions    │ (unknown)"),
         "a non-inferable range renders as (unknown):\n{output}",

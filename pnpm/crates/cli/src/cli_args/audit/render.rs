@@ -22,7 +22,6 @@ pub(crate) fn render_json_report(
 pub(crate) fn render_text_report(
     report: &AuditReport,
     audit_level: ConfigAuditLevel,
-    total_vulnerability_count: usize,
     ignored: &AuditVulnerabilityCounts,
 ) -> String {
     let mut advisories = report
@@ -37,11 +36,7 @@ pub(crate) fn render_text_report(
     for advisory in advisories {
         output.push_str(&render_advisory(advisory));
     }
-    output.push_str(&report_summary(
-        &report.metadata.vulnerabilities,
-        total_vulnerability_count,
-        ignored,
-    ));
+    output.push_str(&report_summary(&report.metadata.vulnerabilities, ignored));
     output
 }
 
@@ -92,20 +87,34 @@ pub(crate) fn render_advisory(advisory: &AuditAdvisory) -> String {
     format!("{table}\n")
 }
 
+/// The summary describes the same advisory set the exit code is based on, so
+/// the reported counts are net of the advisories `auditConfig` suppressed.
 pub(crate) fn report_summary(
     vulnerabilities: &AuditVulnerabilityCounts,
-    total_vulnerability_count: usize,
     ignored: &AuditVulnerabilityCounts,
 ) -> String {
-    if total_vulnerability_count == 0 {
-        return "No known vulnerabilities found\n".to_string();
-    }
     let severities = vulnerabilities
         .entries()
         .into_iter()
-        .filter(|(_, count)| *count > 0)
         .map(|(level, count)| {
             let ignored_count = count_for_level(ignored, level);
+            (level, count.saturating_sub(ignored_count), ignored_count)
+        })
+        .collect::<Vec<_>>();
+    let total_vulnerability_count: usize = severities.iter().map(|(_, count, _)| count).sum();
+    if total_vulnerability_count == 0 {
+        let total_ignored_count: usize =
+            severities.iter().map(|(_, _, ignored_count)| ignored_count).sum();
+        return if total_ignored_count > 0 {
+            format!("No known vulnerabilities found ({total_ignored_count} ignored)\n")
+        } else {
+            "No known vulnerabilities found\n".to_string()
+        };
+    }
+    let rendered_severities = severities
+        .into_iter()
+        .filter(|(_, count, ignored_count)| *count > 0 || *ignored_count > 0)
+        .map(|(level, count, ignored_count)| {
             let label = if ignored_count > 0 {
                 format!("{count} {} ({ignored_count} ignored)", severity_name(level))
             } else {
@@ -116,7 +125,7 @@ pub(crate) fn report_summary(
         .collect::<Vec<_>>()
         .join(" | ");
     format!(
-        "{} vulnerabilities found\nSeverity: {severities}",
+        "{} vulnerabilities found\nSeverity: {rendered_severities}",
         red(&total_vulnerability_count.to_string()),
     )
 }

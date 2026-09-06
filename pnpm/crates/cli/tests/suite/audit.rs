@@ -354,7 +354,7 @@ fn audit_ignores_configured_ghsas_in_text_report() {
     assert_success(&output);
     let stdout = stdout(&output);
     assert!(!stdout.contains("ignored vulnerability"));
-    assert!(stdout.contains("1 high (1 ignored)"));
+    assert_eq!(stdout, "No known vulnerabilities found (1 ignored)\n");
     mock.assert();
 }
 

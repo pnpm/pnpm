@@ -108,10 +108,6 @@ impl AuditVulnerabilityCounts {
         }
     }
 
-    pub(crate) fn total(&self) -> usize {
-        self.info + self.low + self.moderate + self.high + self.critical
-    }
-
     pub(crate) fn entries(&self) -> [(ConfigAuditLevel, usize); 5] {
         [
             (ConfigAuditLevel::Info, self.info),
