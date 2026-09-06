@@ -352,14 +352,21 @@ fn maps_crate_names_to_sparse_index_paths() {
     assert_eq!(sparse_index_path("Serde_JSON").unwrap(), "se/rd/serde_json");
 }
 
-#[test]
-fn crate_downloads_keep_credentials_off_plaintext_hosts() {
+fn config_with_cargo_credentials(index_url: &str) -> Config {
     let mut config = Config::new();
+    config.cargo.index_url = index_url.to_string();
     config.auth_headers = Arc::new(AuthHeaders::from_creds_map([
         ("//registry.example.test/".to_string(), "Bearer crate-token".to_string()),
+        ("//npm.internal.test/".to_string(), "Bearer unrelated-token".to_string()),
         ("//127.0.0.1:4873/".to_string(), "Bearer local-token".to_string()),
     ]));
-    let auth_headers = download_auth_headers(&config);
+    config
+}
+
+#[test]
+fn crate_downloads_keep_credentials_off_plaintext_hosts() {
+    let config = config_with_cargo_credentials("https://registry.example.test/index/");
+    let auth_headers = download_auth_headers(&config, "https://registry.example.test/dl");
 
     assert_eq!(
         auth_headers.for_url_with_package("https://registry.example.test/dl/demo/1.0.0", None),
@@ -369,11 +376,26 @@ fn crate_downloads_keep_credentials_off_plaintext_hosts() {
         auth_headers.for_url_with_package("http://registry.example.test/dl/demo/1.0.0", None),
         None,
     );
-    // A registry on loopback has no network to eavesdrop on.
+}
+
+#[test]
+fn a_registry_on_loopback_still_authenticates_its_downloads() {
+    let config = config_with_cargo_credentials("http://127.0.0.1:4873/index/");
+    let auth_headers = download_auth_headers(&config, "http://127.0.0.1:4873/dl");
+
     assert_eq!(
         auth_headers.for_url_with_package("http://127.0.0.1:4873/dl/demo/1.0.0", None),
         Some("Bearer local-token".to_string()),
     );
+}
+
+#[test]
+fn a_download_template_off_the_registry_origin_carries_no_credential() {
+    let config = config_with_cargo_credentials("https://registry.example.test/index/");
+    let auth_headers = download_auth_headers(&config, "https://npm.internal.test/{crate}");
+
+    assert_eq!(auth_headers.for_url_with_package("https://npm.internal.test/demo", None), None);
+    assert!(auth_headers.allows_fetch("https://npm.internal.test/demo"));
 }
 
 #[tokio::test]

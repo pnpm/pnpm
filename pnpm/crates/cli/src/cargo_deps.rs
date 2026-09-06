@@ -202,9 +202,9 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
 
-    let auth_headers = download_auth_headers(config);
     let cargo_auth_headers = cargo_auth_headers(config)?;
     let registry_config = fetch_registry_config(config, &http_client, &cargo_auth_headers).await?;
+    let auth_headers = download_auth_headers(config, &registry_config.dl);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let retry_opts = config.retry_opts();
@@ -360,11 +360,32 @@ pub(crate) async fn latest_version(
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
 }
 
-/// The credentials a crate archive download may carry. The registry's `dl`
-/// template picks the download host, so a credential configured for that
-/// host travels only over TLS or loopback.
-fn download_auth_headers(config: &Config) -> Arc<AuthHeaders> {
-    Arc::new((*config.auth_headers).clone().with_secure_transport())
+/// The credentials a crate archive download may carry.
+///
+/// The registry named by `cargo.indexUrl` is repository-selected, and its
+/// `config.json` picks the download host through `download_template`. A
+/// credential is therefore offered only when that host is the registry's
+/// own — otherwise a registry could name any host and collect the
+/// credential the user configured for it. What it does get travels only
+/// over TLS or loopback.
+///
+/// A Cargo install runs from the CLI, which installs no route hook, so the
+/// anonymous headers deny nothing a hook would have allowed.
+fn download_auth_headers(config: &Config, download_template: &str) -> Arc<AuthHeaders> {
+    if same_origin(download_template, &config.cargo.index_url) {
+        Arc::new((*config.auth_headers).clone().with_secure_transport())
+    } else {
+        Arc::new(AuthHeaders::default())
+    }
+}
+
+/// Whether both URLs are absolute and share a scheme, host, and port. A URL
+/// that does not parse, or whose scheme has no host, matches nothing.
+fn same_origin(left: &str, right: &str) -> bool {
+    match (url::Url::parse(left), url::Url::parse(right)) {
+        (Ok(left), Ok(right)) => left.origin().is_tuple() && left.origin() == right.origin(),
+        _ => false,
+    }
 }
 
 pub(crate) fn cargo_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {
