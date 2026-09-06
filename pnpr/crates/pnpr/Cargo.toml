@@ -97,6 +97,7 @@ zip                           = { workspace = true }
 
 [dev-dependencies]
 mockito            = { workspace = true }
+walkdir            = { workspace = true }
 tar                = { workspace = true }
 pipe-trait         = { workspace = true }
 pnpm-testing-utils = { workspace = true }

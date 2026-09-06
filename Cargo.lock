@@ -6162,6 +6162,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "walkdir",
  "wax",
  "zip",
 ]

@@ -219,9 +219,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
             )
             .await?
             {
-                if lock.tool.pnpm != inputs || lock.requires_python != project.requires_python {
-                    bail!("the pnpr server resolved Python dependencies for other inputs");
-                }
+                accept_server_lockfile(&lock, &inputs, project.requires_python.as_deref())?;
                 lock.seed(&mut registry.packages)?;
                 registry.fetch_wheels::<Reporter>(&lock.packages).await?;
                 resolver::validate_locked(&registry, &requirements)?;
@@ -320,6 +318,22 @@ impl pnpm_install_coordinator::PreparedInstall for Prepared {
         }
     }
 }
+/// Refuse a server's lockfile that answers a different question: one
+/// resolved for other requirements, another interpreter, another index, or
+/// against a different `requires-python` than this project declares. Such
+/// a lockfile would be written and then read back as stale by the next
+/// install, and a frozen one would fail outright.
+fn accept_server_lockfile(
+    lock: &Lockfile,
+    inputs: &Inputs,
+    requires_python: Option<&str>,
+) -> Result<()> {
+    if lock.tool.pnpm != *inputs || lock.requires_python.as_deref() != requires_python {
+        bail!("the pnpr server resolved Python dependencies for other inputs");
+    }
+    Ok(())
+}
+
 /// Resolve through the configured pnpr server, which reads the index and
 /// each wheel's metadata instead of making this client download wheels to
 /// find out what they require.

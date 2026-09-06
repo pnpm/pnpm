@@ -281,12 +281,12 @@ impl IndexReader {
         let cache_path = self.cache_path(&auth, &metadata_url(&wheel_url));
         if let Some(cached) = self.cached(&cache_path).await {
             let document = self.hold("metadata", cached.body)?;
-            return parse_metadata(&document, name, version, &candidate.wheel.name);
+            return Self::cached_metadata(&document, name, version, candidate);
         }
         let _reading = self.locks.lock(&cache_path.to_string_lossy()).await;
         if let Some(cached) = self.cached(&cache_path).await {
             let document = self.hold("metadata", cached.body)?;
-            return parse_metadata(&document, name, version, &candidate.wheel.name);
+            return Self::cached_metadata(&document, name, version, candidate);
         }
         let document = if let Some(digests) = &candidate.core_metadata {
             let (document, _) = self
@@ -304,6 +304,22 @@ impl IndexReader {
         Self::store(cache_path, CachedDocument { url: wheel_url.to_string(), body: document })
             .await;
         Ok(metadata)
+    }
+
+    /// A cached metadata document, checked against what the index says
+    /// about it *now*: the digests come from the project page this resolve
+    /// just read, so a file republished with different content is not
+    /// answered from what was cached under the old one.
+    fn cached_metadata(
+        document: &str,
+        name: &pep508_rs::PackageName,
+        version: &pep440_rs::Version,
+        candidate: &Candidate,
+    ) -> Result<WheelMetadata, String> {
+        if let Some(digests) = &candidate.core_metadata {
+            verify_digest(document.as_bytes(), digests, "metadata file", &candidate.wheel.name)?;
+        }
+        parse_metadata(document, name, version, &candidate.wheel.name)
     }
 
     /// Read a document from the index, against this resolve's budget and

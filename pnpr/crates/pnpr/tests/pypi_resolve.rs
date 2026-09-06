@@ -87,6 +87,21 @@ fn resolve_request(index: &str, token: &str, requirements: &Value) -> Request<Bo
         .unwrap()
 }
 
+/// Remove the cached document read from a URL ending in `suffix`, which
+/// is what its TTL passing would do to it.
+fn forget_cached_page(storage: &std::path::Path, suffix: &str) {
+    for entry in walkdir::WalkDir::new(storage).into_iter().filter_map(Result::ok) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let Ok(bytes) = std::fs::read(entry.path()) else { continue };
+        let Ok(document) = serde_json::from_slice::<Value>(&bytes) else { continue };
+        if document["url"].as_str().is_some_and(|url| url.ends_with(suffix)) {
+            std::fs::remove_file(entry.path()).expect("forget the cached page");
+        }
+    }
+}
+
 async fn frames(body: Body) -> Vec<Value> {
     let bytes = to_bytes(body, usize::MAX).await.expect("read body");
     String::from_utf8_lossy(&bytes)
@@ -425,6 +440,64 @@ async fn an_index_url_keeps_its_query_on_every_read() {
     assert_eq!(lockfile["packages"][0]["name"], "demo");
     page.assert_async().await;
     metadata.assert_async().await;
+}
+
+#[tokio::test]
+async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
+    let mut index = mockito::Server::new_async().await;
+    let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
+    let served = "Name: demo\nVersion: 1.0.0\n";
+    let page = |digest_of: &str| {
+        project_page(&json!([{
+            "filename": "demo-1.0.0-py3-none-any.whl",
+            "url": "demo-1.0.0-py3-none-any.whl",
+            "hashes": { "sha256": digest(&wheel) },
+            "core-metadata": { "sha256": digest(digest_of.as_bytes()) },
+        }]))
+    };
+    let first_page =
+        index.mock("GET", "/simple/demo/").with_body(page(served)).expect(1).create_async().await;
+    let metadata = index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
+        .with_body(served)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+    let index_url = format!("{}/simple/", index.url());
+
+    resolved_lockfile(
+        app.clone().oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+    )
+    .await;
+    first_page.assert_async().await;
+    metadata.assert_async().await;
+
+    // Drop the cached project page, as its TTL passing would: the metadata
+    // entry outlives it, because it was written when a resolve first needed
+    // that version rather than when the page was read. The index now
+    // vouches for a different metadata file than the cache holds.
+    forget_cached_page(tmp.path(), "/simple/demo/");
+    index
+        .mock("GET", "/simple/demo/")
+        .with_body(page("Name: demo\nVersion: 1.0.0\nRequires-Dist: added\n"))
+        .create_async()
+        .await;
+    let response =
+        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap();
+
+    let frames = frames(response.into_body()).await;
+    assert_eq!(frames[0]["type"], "error", "{frames:?}");
+    assert!(
+        frames[0]["message"].as_str().unwrap().contains("does not match the SHA-256"),
+        "{frames:?}",
+    );
 }
 
 #[tokio::test]
