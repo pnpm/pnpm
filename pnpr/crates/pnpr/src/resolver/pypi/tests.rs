@@ -22,7 +22,10 @@ fn a_wheels_metadata_is_read_from_its_dist_info() {
 
     let document = metadata_from_wheel(&wheel, "demo-1.0.0-py3-none-any.whl").expect("metadata");
 
-    assert_eq!(document, "Name: demo\nVersion: 1.0.0\n");
+    assert_eq!(
+        String::from_utf8(document).expect("metadata is text"),
+        "Name: demo\nVersion: 1.0.0\n"
+    );
 }
 
 #[test]
@@ -47,7 +50,21 @@ fn only_the_dist_info_metadata_counts() {
 
     let document = metadata_from_wheel(&wheel, "demo-1.0.0-py3-none-any.whl").expect("metadata");
 
-    assert_eq!(document, "Name: demo\nVersion: 1.0.0\n");
+    assert_eq!(
+        String::from_utf8(document).expect("metadata is text"),
+        "Name: demo\nVersion: 1.0.0\n"
+    );
+}
+
+#[test]
+fn metadata_past_the_cap_is_refused_rather_than_cut_short() {
+    let long = format!("Name: demo\nVersion: 1.0.0\n{}", "Requires-Dist: filler\n".repeat(500_000));
+    let wheel = wheel_with(&[("demo-1.0.0.dist-info/METADATA", &long)]);
+
+    let error =
+        metadata_from_wheel(&wheel, "demo-1.0.0-py3-none-any.whl").expect_err("past the cap");
+
+    assert!(error.contains("exceeds"), "{error}");
 }
 
 #[test]

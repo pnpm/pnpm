@@ -219,13 +219,7 @@ async fn prepare<Reporter: self::Reporter + 'static>(
             )
             .await?
             {
-                // The server's answer is checked here, not taken: its
-                // lockfile has to record the inputs this install asked
-                // about, its wheels have to match the digests the index
-                // published, and the project has to re-solve to exactly
-                // these packages against the metadata of the wheels that
-                // were actually downloaded.
-                if lock.tool.pnpm != inputs {
+                if lock.tool.pnpm != inputs || lock.requires_python != project.requires_python {
                     bail!("the pnpr server resolved Python dependencies for other inputs");
                 }
                 lock.seed(&mut registry.packages)?;

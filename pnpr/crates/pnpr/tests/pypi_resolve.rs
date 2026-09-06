@@ -309,6 +309,125 @@ async fn a_metadata_file_that_is_not_what_the_index_vouched_for_is_refused() {
 }
 
 #[tokio::test]
+async fn metadata_describing_another_distribution_is_refused() {
+    let mut index = mockito::Server::new_async().await;
+    let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
+    index
+        .mock("GET", "/simple/demo/")
+        .with_body(project_page(&json!([{
+            "filename": "demo-1.0.0-py3-none-any.whl",
+            "url": "demo-1.0.0-py3-none-any.whl",
+            "hashes": { "sha256": digest(&wheel) },
+            "core-metadata": true,
+        }])))
+        .create_async()
+        .await;
+    index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
+        .with_body("Name: other\nVersion: 9.9.9\n")
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(resolve_request(&format!("{}/simple/", index.url()), &token, &json!(["demo"])))
+        .await
+        .unwrap();
+
+    let frames = frames(response.into_body()).await;
+    assert_eq!(frames[0]["type"], "error", "{frames:?}");
+    assert!(
+        frames[0]["message"].as_str().unwrap().contains("describes other 9.9.9, not demo 1.0.0"),
+        "{frames:?}",
+    );
+}
+
+#[tokio::test]
+async fn a_project_page_that_is_not_one_is_not_cached() {
+    let mut index = mockito::Server::new_async().await;
+    // Both resolves see the same broken page, so a page cached before it
+    // was parsed would leave the second one reading it from disk.
+    let page = index
+        .mock("GET", "/simple/demo/")
+        .with_body("<html>not a Simple API page</html>")
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+    let index_url = format!("{}/simple/", index.url());
+
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(resolve_request(&index_url, &token, &json!(["demo"])))
+            .await
+            .unwrap();
+        let frames = frames(response.into_body()).await;
+        assert_eq!(frames[0]["type"], "error", "{frames:?}");
+    }
+
+    page.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_index_url_keeps_its_query_on_every_read() {
+    let mut index = mockito::Server::new_async().await;
+    let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
+    let page = index
+        .mock("GET", "/simple/demo/")
+        .match_query(mockito::Matcher::UrlEncoded("token".to_string(), "secret".to_string()))
+        .with_body(project_page(&json!([{
+            "filename": "demo-1.0.0-py3-none-any.whl",
+            "url": "demo-1.0.0-py3-none-any.whl?token=secret",
+            "hashes": { "sha256": digest(&wheel) },
+            "core-metadata": true,
+        }])))
+        .expect(1)
+        .create_async()
+        .await;
+    let metadata = index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl.metadata")
+        .match_query(mockito::Matcher::UrlEncoded("token".to_string(), "secret".to_string()))
+        .with_body("Name: demo\nVersion: 1.0.0\n")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(resolve_request(
+            &format!("{}/simple/?token=secret", index.url()),
+            &token,
+            &json!(["demo"]),
+        ))
+        .await
+        .unwrap();
+    let lockfile = resolved_lockfile(response).await;
+
+    assert_eq!(lockfile["packages"][0]["name"], "demo");
+    page.assert_async().await;
+    metadata.assert_async().await;
+}
+
+#[tokio::test]
 async fn an_unsatisfiable_project_is_reported_as_one() {
     let mut index = mockito::Server::new_async().await;
     let wheel = wheel_bytes("Name: demo\nVersion: 1.0.0\n");

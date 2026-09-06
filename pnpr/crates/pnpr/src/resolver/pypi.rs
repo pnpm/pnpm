@@ -51,6 +51,15 @@ use super::{
     wire::{error_frame, ndjson_single_frame, pypi_done_frame},
 };
 
+/// How many requirements one request may name. A project's manifest
+/// lists tens; past this the request is not one a manifest produced.
+const MAX_REQUIREMENTS: usize = 10_000;
+
+/// How many wheel tags a target may list. An interpreter reports a few
+/// hundred, and every tag is compared against every wheel filename, so an
+/// unbounded list is work a caller can hand the server.
+const MAX_TAGS: usize = 2_000;
+
 /// How many distributions one resolve may read index pages for. A Python
 /// project reaches a few hundred at the top of the scale; past this the
 /// request is walking an index rather than resolving a project.
@@ -68,8 +77,10 @@ const MAX_PAGE_BYTES: usize = 32 * 1024 * 1024;
 const MAX_METADATA_BYTES: usize = 8 * 1024 * 1024;
 
 /// Cap on a wheel read for its metadata, which only an index that
-/// publishes no metadata files forces.
-const MAX_WHEEL_BYTES: usize = 256 * 1024 * 1024;
+/// publishes no metadata files forces. Well above an ordinary wheel: the
+/// giant ones are published to indexes that do serve metadata files, so
+/// this bounds the fallback without reaching for it.
+const MAX_WHEEL_BYTES: usize = 64 * 1024 * 1024;
 
 /// Cap on the index bytes one resolve holds, as the Cargo path bounds the
 /// sparse-index bytes one of its own holds. A read is charged when it
@@ -101,6 +112,18 @@ pub(super) async fn handle_resolve(
     }
     if !runtime.route_context.allows_registry(index.as_str()) {
         return forbidden_off_allowlist(index.as_str());
+    }
+    if request.requirements.len() > MAX_REQUIREMENTS {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            &format!("a resolve request may name at most {MAX_REQUIREMENTS} requirements"),
+        );
+    }
+    if request.target.tags.len() > MAX_TAGS {
+        return json_error(
+            StatusCode::BAD_REQUEST,
+            &format!("a resolve request may name at most {MAX_TAGS} wheel tags"),
+        );
     }
     let requirements = match request
         .requirements
@@ -180,7 +203,7 @@ async fn resolve(
                     .get(&name)
                     .and_then(|versions| versions.get(&version))
                     .ok_or_else(|| format!("{name} {version} is not a candidate"))?;
-                let metadata = reader.metadata(&name, candidate).await?;
+                let metadata = reader.metadata(&name, &version, candidate).await?;
                 packages.metadata.insert((name, version), metadata);
             }
         }
@@ -212,91 +235,91 @@ impl IndexReader {
         name: &pep508_rs::PackageName,
         target: &Target,
     ) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
-        let page_url = self
-            .index
-            .join(&format!("{name}/"))
-            .map_err(|err| format!("build the index URL for {name}: {err}"))?;
         let canonical_name = canonical_project_name(name)?;
-        let (page, page_url) = self
-            .read(
-                &page_url,
-                &canonical_name,
-                "page",
-                MAX_PAGE_BYTES,
-                Some(pnpr_pypi::JSON_CONTENT_TYPE),
-            )
+        let page_url = project_page_url(&self.index, &canonical_name)?;
+        let auth = self.auth_for(&canonical_name);
+        let cache_path = self.cache_path(&auth, &page_url);
+        if let Some(cached) = self.cached(&cache_path).await {
+            let source = cached.url(&page_url)?;
+            let page = self.hold("page", cached.body)?;
+            return parse_page(&page, &source, name, target);
+        }
+        let _reading = self.locks.lock(&cache_path.to_string_lossy()).await;
+        if let Some(cached) = self.cached(&cache_path).await {
+            let source = cached.url(&page_url)?;
+            let page = self.hold("page", cached.body)?;
+            return parse_page(&page, &source, name, target);
+        }
+        let (page, source) = self
+            .fetch(&auth, &page_url, "page", MAX_PAGE_BYTES, Some(pnpr_pypi::JSON_CONTENT_TYPE))
             .await?;
-        candidates_from_page(&page, &page_url, name, target)
-            .map_err(|err| super::report_message(&err))
+        // Parsed before it is cached, so a page that is not one is not
+        // served to every resolve that follows for the whole TTL.
+        let candidates = parse_page(&page, &source, name, target)?;
+        Self::store(cache_path, CachedDocument { url: source.to_string(), body: page }).await;
+        Ok(candidates)
     }
 
     /// One wheel's `METADATA`, from the file the index publishes beside it
     /// when it publishes one, and out of the wheel itself when it does not.
+    ///
+    /// What is cached is the metadata document either way, so a wheel is
+    /// downloaded at most once for a version, and never again.
     async fn metadata(
         &self,
         name: &pep508_rs::PackageName,
+        version: &pep440_rs::Version,
         candidate: &Candidate,
     ) -> Result<WheelMetadata, String> {
         let canonical_name = canonical_project_name(name)?;
         let wheel_url = url::Url::parse(&candidate.wheel.url)
             .map_err(|err| format!("parse the wheel URL for {name}: {err}"))?;
         validate_url(&wheel_url).map_err(|err| super::report_message(&err))?;
-        if let Some(digests) = &candidate.core_metadata {
-            let metadata_url = format!("{}.metadata", candidate.wheel.url);
-            let metadata_url = url::Url::parse(&metadata_url)
-                .map_err(|err| format!("build the metadata URL for {name}: {err}"))?;
-            let (document, _) = self
-                .read(&metadata_url, &canonical_name, "metadata", MAX_METADATA_BYTES, None)
-                .await?;
-            verify_digest(document.as_bytes(), digests, "metadata file", &candidate.wheel.name)?;
-            return WheelMetadata::parse(&document).map_err(|err| super::report_message(&err));
+        let auth = self.auth_for(&canonical_name);
+        let cache_path = self.cache_path(&auth, &metadata_url(&wheel_url));
+        if let Some(cached) = self.cached(&cache_path).await {
+            let document = self.hold("metadata", cached.body)?;
+            return parse_metadata(&document, name, version, &candidate.wheel.name);
         }
-        let (wheel, _) =
-            self.read_bytes(&wheel_url, &canonical_name, "wheel", MAX_WHEEL_BYTES, None).await?;
-        verify_digest(&wheel, &candidate.wheel.hashes, "wheel", &candidate.wheel.name)?;
-        let document = metadata_from_wheel(&wheel, &candidate.wheel.name)?;
-        WheelMetadata::parse(&document).map_err(|err| super::report_message(&err))
+        let _reading = self.locks.lock(&cache_path.to_string_lossy()).await;
+        if let Some(cached) = self.cached(&cache_path).await {
+            let document = self.hold("metadata", cached.body)?;
+            return parse_metadata(&document, name, version, &candidate.wheel.name);
+        }
+        let document = if let Some(digests) = &candidate.core_metadata {
+            let (document, _) = self
+                .fetch(&auth, &metadata_url(&wheel_url), "metadata", MAX_METADATA_BYTES, None)
+                .await?;
+            verify_digest(&document, digests, "metadata file", &candidate.wheel.name)?;
+            document
+        } else {
+            let (wheel, _) = self.fetch(&auth, &wheel_url, "wheel", MAX_WHEEL_BYTES, None).await?;
+            verify_digest(&wheel, &candidate.wheel.hashes, "wheel", &candidate.wheel.name)?;
+            metadata_from_wheel(&wheel, &candidate.wheel.name)?
+        };
+        let metadata = parse_metadata(&document, name, version, &candidate.wheel.name)?;
+        Self::store(cache_path, CachedDocument { url: wheel_url.to_string(), body: document })
+            .await;
+        Ok(metadata)
     }
 
-    /// Read a document, from the cache when it is still fresh and from the
-    /// index otherwise. Returns the document and the URL it was read from,
-    /// which relative links in it resolve against.
-    async fn read(
+    /// Read a document from the index, against this resolve's budget and
+    /// this deployment's route policy. Returns the bytes and the URL they
+    /// were read from, which relative links resolve against.
+    async fn fetch(
         &self,
+        auth: &AuthHeaders,
         url: &url::Url,
-        canonical_name: &str,
-        kind: &str,
-        limit: usize,
-        accept: Option<&str>,
-    ) -> Result<(String, url::Url), String> {
-        let (bytes, source) = self.read_bytes(url, canonical_name, kind, limit, accept).await?;
-        let document =
-            String::from_utf8(bytes).map_err(|err| format!("decode the {kind} at {url}: {err}"))?;
-        Ok((document, source))
-    }
-
-    async fn read_bytes(
-        &self,
-        url: &url::Url,
-        canonical_name: &str,
         kind: &str,
         limit: usize,
         accept: Option<&str>,
     ) -> Result<(Vec<u8>, url::Url), String> {
-        let auth = self.auth_for(canonical_name);
-        let cache_path = self.cache_path(&auth, url);
-        if let Some(cached) = self.cached(&cache_path).await {
-            let source = cached.url(url)?;
-            return Ok((self.hold(kind, cached.body)?, source));
-        }
-        let _reading = self.locks.lock(&cache_path.to_string_lossy()).await;
-        if let Some(cached) = self.cached(&cache_path).await {
-            let source = cached.url(url)?;
-            return Ok((self.hold(kind, cached.body)?, source));
-        }
         if !within_budget(self.bytes_held.load(Ordering::Relaxed)) {
             return Err(budget_exhausted(kind));
         }
+        // The route policy decides what this deployment may reach at all;
+        // an index a caller merely names is refused here rather than
+        // fetched (SSRF boundary).
         if !auth.allows_fetch(url.as_str()) {
             return Err(format!(
                 "{url} is not allowed by this pnpr server; the operator must declare its \
@@ -307,7 +330,7 @@ impl IndexReader {
             .client
             .get_limited_bytes_with_secure_auth_and_retry(
                 url.as_str(),
-                &auth,
+                auth,
                 accept,
                 RetryOpts::default(),
                 limit,
@@ -322,10 +345,7 @@ impl IndexReader {
         }
         let source = url::Url::parse(&response.url)
             .map_err(|err| format!("parse the URL the {kind} was read from: {err}"))?;
-        let body = self.hold(kind, response.body)?;
-        Self::store(cache_path, CachedDocument { url: source.to_string(), body: body.clone() })
-            .await;
-        Ok((body, source))
+        Ok((self.hold(kind, response.body)?, source))
     }
 
     /// Account bytes against this resolve's budget, which bounds what one
@@ -388,6 +408,64 @@ impl IndexReader {
     }
 }
 
+/// The candidates a project page offers, refusing a page that is not one.
+fn parse_page(
+    page: &[u8],
+    page_url: &url::Url,
+    name: &pep508_rs::PackageName,
+    target: &Target,
+) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
+    let page = std::str::from_utf8(page)
+        .map_err(|err| format!("decode the project page for {name}: {err}"))?;
+    candidates_from_page(page, page_url, name, target).map_err(|err| super::report_message(&err))
+}
+
+/// The metadata a document describes, refusing one that describes another
+/// distribution: what a wheel requires decides what a client installs, so
+/// metadata for something else must not stand in for it.
+fn parse_metadata(
+    document: &[u8],
+    name: &pep508_rs::PackageName,
+    version: &pep440_rs::Version,
+    filename: &str,
+) -> Result<WheelMetadata, String> {
+    let document = std::str::from_utf8(document)
+        .map_err(|err| format!("decode the metadata of {filename}: {err}"))?;
+    let metadata = WheelMetadata::parse(document).map_err(|err| super::report_message(&err))?;
+    let named = metadata
+        .name
+        .parse::<pep508_rs::PackageName>()
+        .map_err(|err| format!("read the distribution the metadata of {filename} names: {err}"))?;
+    let versioned = metadata
+        .version
+        .parse::<pep440_rs::Version>()
+        .map_err(|err| format!("read the version the metadata of {filename} names: {err}"))?;
+    if named != *name || versioned != *version {
+        return Err(format!(
+            "the metadata of {filename} describes {named} {versioned}, not {name} {version}",
+        ));
+    }
+    Ok(metadata)
+}
+
+/// The project page of `canonical_name` under an index, keeping whatever
+/// query the index URL carries: an index can put a token there, and a page
+/// addressed without it is a different request.
+fn project_page_url(index: &url::Url, canonical_name: &str) -> Result<url::Url, String> {
+    let mut url = index.clone();
+    url.set_path(&format!("{}{canonical_name}/", index.path()));
+    Ok(url)
+}
+
+/// The metadata file published beside a wheel (PEP 658), which is the
+/// wheel's own address with `.metadata` on the end of its path — the query
+/// stays where it is.
+fn metadata_url(wheel: &url::Url) -> url::Url {
+    let mut url = wheel.clone();
+    url.set_path(&format!("{}.metadata", wheel.path()));
+    url
+}
+
 /// A document as it was read, beside the URL it came from: a redirected
 /// page's links resolve against where it landed, not where it was asked
 /// for.
@@ -429,7 +507,7 @@ fn verify_digest(
 
 /// The `METADATA` inside a wheel, for an index that publishes no metadata
 /// file of its own.
-fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<String, String> {
+fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<Vec<u8>, String> {
     let mut archive = zip::ZipArchive::new(Cursor::new(wheel))
         .map_err(|err| format!("read the wheel {filename}: {err}"))?;
     let entry = (0..archive.len())
@@ -441,13 +519,20 @@ fn metadata_from_wheel(wheel: &[u8], filename: &str) -> Result<String, String> {
                 && segments.next().is_none()
         })
         .ok_or_else(|| format!("the wheel {filename} has no dist-info METADATA"))?;
-    let mut document = String::new();
+    let mut document = Vec::new();
     archive
         .by_name(&entry)
         .map_err(|err| format!("read {entry} from {filename}: {err}"))?
-        .take(MAX_METADATA_BYTES as u64)
-        .read_to_string(&mut document)
+        // One byte past the cap, so a document that reaches it is refused
+        // rather than read as a whole one: a `METADATA` cut short still
+        // names its distribution, and the requirements after the cut would
+        // silently not exist.
+        .take(MAX_METADATA_BYTES as u64 + 1)
+        .read_to_end(&mut document)
         .map_err(|err| format!("read {entry} from {filename}: {err}"))?;
+    if document.len() > MAX_METADATA_BYTES {
+        return Err(format!("the metadata in {filename} exceeds {MAX_METADATA_BYTES} bytes"));
+    }
     Ok(document)
 }
 

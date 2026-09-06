@@ -108,6 +108,39 @@ async fn python_resolution_is_offloaded_to_the_pnpr_server() {
 }
 
 #[tokio::test]
+async fn a_lockfile_resolved_for_other_inputs_is_refused() {
+    let index = "https://index.example.test/simple/";
+    let mut answered = lockfile(index);
+    answered["tool"]["pnpm"]["requirements"] = serde_json::json!(["demo", "extra"]);
+    let mut server = mockito::Server::new_async().await;
+    server.mock("GET", "/-/pnpr").with_body(handshake_body(&["npm", "pypi"])).create_async().await;
+    server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body(format!("{}\n", serde_json::json!({ "type": "done", "lockfile": answered })))
+        .create_async()
+        .await;
+
+    let resolved = resolve_via_pnpr(
+        &config_for_pnpr(&server.url()),
+        &requirements(&["demo"]),
+        &target(),
+        index,
+        None,
+    )
+    .await
+    .expect("the exchange itself succeeds")
+    .expect("the server answered");
+
+    // The install compares the answer's inputs with its own; this test
+    // pins what the server said so that comparison has something to catch.
+    assert_ne!(
+        resolved.tool.pnpm,
+        pnpm_python_resolver::Inputs::new(&requirements(&["demo"]), &target(), index),
+    );
+}
+
+#[tokio::test]
 async fn a_server_without_python_support_leaves_resolution_local() {
     let mut server = mockito::Server::new_async().await;
     let handshake = server

@@ -6,10 +6,9 @@ use std::{
 };
 
 /// Whether `pnpr_server` advertises resolution for `ecosystem`. Asked once
-/// per server and ecosystem for the life of the process — the roots of a
-/// workspace prepare concurrently and wait on the first one's answer,
-/// failures included — so a server that gains an ecosystem while an
-/// install runs is not noticed until the next one.
+/// per server and ecosystem for the life of the process, so a server that
+/// gains an ecosystem while an install runs is not noticed until the next
+/// one.
 pub(crate) async fn server_resolves(
     client: &PnprClient,
     pnpr_server: &str,
