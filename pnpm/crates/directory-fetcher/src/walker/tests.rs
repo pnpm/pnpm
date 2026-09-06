@@ -219,8 +219,9 @@ fn walk_all_files_confines_a_linked_root_to_its_real_path() {
     pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
 
     let out = walk_all_files(&root_link, false, false).unwrap();
+    let real_root = fs::canonicalize(&real_root).unwrap();
     let expected = BTreeMap::from([("index.js".to_string(), "index.js".to_string())]);
-    assert_eq!(collect_rels(&root_link, out), expected);
+    assert_eq!(collect_rels(&real_root, out), expected);
 }
 
 #[cfg(any(unix, windows))]
