@@ -1,4 +1,7 @@
-use super::{latest_version, missing_index_names, resolve_inputs, resolve_lockfile};
+use super::{
+    latest_version, missing_index_names, resolve_inputs, resolve_lockfile,
+    resolve_lockfile_for_registry,
+};
 use cargo_lock::Lockfile;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -120,6 +123,22 @@ fn resolves_newest_non_yanked_versions_into_a_cargo_lockfile() {
             .iter()
             .any(|package| package.name.as_str() == "app" && package.source.is_none()),
     );
+}
+
+#[test]
+fn writes_the_configured_sparse_registry_source() {
+    let files = BTreeMap::from([
+        ("foo".to_string(), FOO_INDEX.to_string()),
+        ("bar".to_string(), BAR_INDEX.to_string()),
+    ]);
+    let lockfile = resolve_lockfile_for_registry(
+        METADATA,
+        &files,
+        "sparse+https://registry.example.test/index/",
+    )
+    .unwrap();
+
+    assert!(lockfile.contains(r#"source = "sparse+https://registry.example.test/index/""#));
 }
 
 #[test]

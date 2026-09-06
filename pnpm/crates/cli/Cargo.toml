@@ -15,6 +15,7 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
+cargo-util-schemas                     = { workspace = true }
 pnpm-auth-commands                     = { workspace = true }
 pnpm-cargo-resolver                    = { workspace = true }
 pnpm-catalogs-config                   = { workspace = true }

@@ -2,7 +2,7 @@ use crate::{
     features::active_dependencies,
     metadata::active_metadata_dependencies,
     model::{CargoMetadata, FeatureSelection, PackageKey, RegistryVersion},
-    registry::{CRATES_IO_SOURCE, Registry, compatibility_line, matching_versions},
+    registry::{Registry, compatibility_line, matching_versions},
 };
 use cargo_lock::{Checksum, Dependency, Lockfile, Metadata, Name, Package, Patch, ResolveVersion};
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -17,10 +17,11 @@ pub(crate) fn lockfile_from_solution(
     registry: &Registry,
     solution: &pubgrub::SelectedDependencies<PackageKey, Version>,
     feature_selections: &BTreeMap<PackageKey, FeatureSelection>,
+    source: &str,
 ) -> Result<String> {
-    let source = cargo_lock::SourceId::from_url(CRATES_IO_SOURCE)
+    let source = cargo_lock::SourceId::from_url(source)
         .into_diagnostic()
-        .wrap_err("construct crates.io source identifier")?;
+        .wrap_err("construct Cargo registry source identifier")?;
     let selected = solution.iter().collect::<BTreeMap<_, _>>();
     let mut packages = Vec::new();
 

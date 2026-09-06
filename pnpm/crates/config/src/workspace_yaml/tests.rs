@@ -1001,13 +1001,19 @@ fn cargo_settings_parse_apply_and_remain_workspace_only() {
     let yaml = r"
 cargo:
   enabled: true
+  indexUrl: https://registry.example.test/index/
 ";
     let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
-    assert_eq!(settings.cargo.map(|cargo| cargo.enabled), Some(true));
+    assert_eq!(settings.cargo.as_ref().map(|cargo| cargo.enabled), Some(true));
+    assert_eq!(
+        settings.cargo.as_ref().map(|cargo| cargo.index_url.as_str()),
+        Some("https://registry.example.test/index/"),
+    );
     let mut config = Config::default();
     settings.apply_to(&mut config, Path::new("/workspace"));
 
     assert!(config.cargo.enabled);
+    assert_eq!(config.cargo.index_url, "https://registry.example.test/index/");
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
     assert!(settings.cargo.is_none());

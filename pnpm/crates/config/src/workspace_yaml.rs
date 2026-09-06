@@ -189,10 +189,17 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct CargoSettings {
     pub enabled: bool,
+    pub index_url: String,
+}
+
+impl Default for CargoSettings {
+    fn default() -> Self {
+        Self { enabled: false, index_url: "https://index.crates.io".to_string() }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]

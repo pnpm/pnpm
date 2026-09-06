@@ -63,7 +63,7 @@ async fn prepare_manifest(
     let auth_headers = packages
         .iter()
         .any(|package| package.version_spec.is_none())
-        .then(|| cargo_deps::crates_io_auth_headers(config))
+        .then(|| cargo_deps::cargo_auth_headers(config))
         .transpose()?;
 
     let resolved = stream::iter(packages)

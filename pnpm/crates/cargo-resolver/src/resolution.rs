@@ -54,6 +54,14 @@ pub fn missing_index_names(
 
 /// Resolve Cargo registry dependencies and serialize a format-v4 `Cargo.lock`.
 pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) -> Result<String> {
+    resolve_lockfile_for_registry(metadata, index_files, crate::registry::CRATES_IO_SOURCE)
+}
+
+pub fn resolve_lockfile_for_registry(
+    metadata: &str,
+    index_files: &BTreeMap<String, String>,
+    source: &str,
+) -> Result<String> {
     let metadata = parse_metadata(metadata)?;
     let registry = Registry::new(index_files)?;
     let root_dependencies = root_dependencies(&metadata)?;
@@ -76,6 +84,7 @@ pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) 
                 &registry,
                 &validated_solution,
                 &selected_features,
+                source,
             );
         }
         feature_selections = selected_features;

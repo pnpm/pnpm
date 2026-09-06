@@ -238,17 +238,7 @@ impl IndexConfig {
 /// `/{crate}/{version}/download` appended, as `cargo` does.
 #[must_use]
 pub fn download_url(template: &str, name: &str, version: &str, cksum: &str) -> String {
-    const MARKERS: [&str; 5] =
-        ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"];
-    if !MARKERS.iter().any(|marker| template.contains(marker)) {
-        return format!("{}/{name}/{version}/download", template.trim_end_matches('/'));
-    }
-    template
-        .replace("{crate}", name)
-        .replace("{version}", version)
-        .replace("{prefix}", &index_prefix(name))
-        .replace("{lowerprefix}", &index_prefix(&name.to_ascii_lowercase()))
-        .replace("{sha256-checksum}", cksum)
+    pnpm_cargo_resolver::download_url(template, name, version, cksum)
 }
 
 /// A `cargo publish` request body that could not be read.

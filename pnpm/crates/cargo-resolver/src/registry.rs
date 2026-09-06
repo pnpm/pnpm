@@ -12,6 +12,26 @@ const CRATES_IO_SPARSE_SOURCE: &str = "sparse+https://index.crates.io/";
 /// index file is fetched from when nothing else is configured.
 pub const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
 
+#[must_use]
+pub fn sparse_source(index_url: &str) -> String {
+    format!("sparse+{}/", index_url.trim_end_matches('/'))
+}
+
+#[must_use]
+pub fn download_url(template: &str, name: &str, version: &str, checksum: &str) -> String {
+    const MARKERS: [&str; 5] =
+        ["{crate}", "{version}", "{prefix}", "{lowerprefix}", "{sha256-checksum}"];
+    if !MARKERS.iter().any(|marker| template.contains(marker)) {
+        return format!("{}/{name}/{version}/download", template.trim_end_matches('/'));
+    }
+    template
+        .replace("{crate}", name)
+        .replace("{version}", version)
+        .replace("{prefix}", &index_prefix(name))
+        .replace("{lowerprefix}", &index_prefix(&name.to_ascii_lowercase()))
+        .replace("{sha256-checksum}", checksum)
+}
+
 pub(crate) struct Registry {
     packages: BTreeMap<String, Vec<RegistryVersion>>,
 }
@@ -134,4 +154,13 @@ pub(crate) fn compatibility_line(version: &Version) -> String {
 
 fn normalize_name(name: &str) -> String {
     name.to_ascii_lowercase()
+}
+
+fn index_prefix(name: &str) -> String {
+    match name.len() {
+        1 => "1".to_string(),
+        2 => "2".to_string(),
+        3 => format!("3/{}", &name[..1]),
+        _ => format!("{}/{}", &name[..2], &name[2..4]),
+    }
 }

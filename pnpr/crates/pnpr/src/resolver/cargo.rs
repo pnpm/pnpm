@@ -134,6 +134,7 @@ pub(super) async fn handle_resolve(
     };
 
     let metadata = request.metadata;
+    let source = pnpm_cargo_resolver::sparse_source(&index.registry);
     let index_files = match index.fetch_for(&metadata).await {
         Ok(index_files) => index_files,
         Err(err) => return ndjson_single_frame(&error_frame(&err)),
@@ -141,7 +142,7 @@ pub(super) async fn handle_resolve(
     // pubgrub's solve is CPU-bound and can run for a while on a large
     // workspace, so it stays off the async runtime's worker threads.
     let lockfile = tokio::task::spawn_blocking(move || {
-        pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files)
+        pnpm_cargo_resolver::resolve_lockfile_for_registry(&metadata, &index_files, &source)
     })
     .await;
     match lockfile {

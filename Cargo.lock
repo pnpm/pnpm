@@ -4417,6 +4417,7 @@ dependencies = [
  "assert_cmd",
  "base64 0.23.1",
  "cargo-lock",
+ "cargo-util-schemas",
  "chrono",
  "clap",
  "command-extra",
@@ -6202,6 +6203,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "flate2",
+ "pnpm-cargo-resolver",
  "pnpr-package-name",
  "semver",
  "serde",

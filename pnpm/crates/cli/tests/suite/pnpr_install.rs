@@ -16,7 +16,9 @@ use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::{get_all_files, is_symlink_or_junction},
 };
-use pnpr::TokenBackend;
+use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig};
+use reqwest::header::HeaderMap;
+use sha2::{Digest, Sha256};
 use std::{
     fmt::Write as _,
     fs,
@@ -115,6 +117,63 @@ fn start_pnpr_registry(upstream_url: &str) -> String {
 
     wait_until_ready(addr);
     format!("http://{addr}")
+}
+
+fn start_pnpr_cargo_registry(upstream_url: &str) -> String {
+    let upstream_url = upstream_url.to_string();
+    let storage = tempfile::tempdir().expect("pnpr storage").keep();
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
+    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
+    let addr = listener.local_addr().expect("pnpr addr");
+    let public_url = format!("http://{addr}");
+
+    thread::Builder::new()
+        .name("pnpr-cargo-registry".to_string())
+        .spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("pnpr runtime");
+            runtime.block_on(async move {
+                let mut config = pnpr::Config::proxy(addr, storage);
+                config.public_url = public_url;
+                config.upstreams.insert(
+                    "crates".to_string(),
+                    UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
+                );
+                config.registries = Registries::new(
+                    indexmap::IndexMap::from([(
+                        "crates".to_string(),
+                        Registry::Upstream { patterns: Vec::new() },
+                    )]),
+                    Some("crates".to_string()),
+                )
+                .with_ecosystem("crates", Ecosystem::Cargo);
+                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
+                let _ = pnpr::serve_listener(config, listener).await;
+            });
+        })
+        .expect("spawn pnpr Cargo registry thread");
+
+    wait_until_ready(addr);
+    format!("http://{addr}/cargo/")
+}
+
+fn crate_archive(name: &str, version: &str) -> Vec<u8> {
+    let root = format!("{name}-{version}");
+    let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+    let mut builder = tar::Builder::new(encoder);
+    for (path, contents) in [
+        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
+        ("src/lib.rs", "pub fn answer() -> u8 { 42 }\n".to_string()),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+    }
+    builder.into_inner().unwrap().finish().unwrap()
 }
 
 fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
@@ -1550,4 +1609,84 @@ fn filtered_workspace_pnpr_resolves_workspace_protocol_from_project_identity() {
     assert!(!workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
+    let mut upstream = mockito::Server::new();
+    let archive = crate_archive("demo", "1.0.0");
+    let checksum = format!("{:x}", Sha256::digest(&archive));
+    let _config_mock = upstream
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", upstream.url()),
+                "api": upstream.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    let index_mock = upstream
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n",
+            serde_json::json!({
+                "name": "demo",
+                "vers": "1.0.0",
+                "deps": [],
+                "cksum": checksum,
+                "features": {},
+                "yanked": false,
+                "v": 1,
+            }),
+        ))
+        .expect(1)
+        .create();
+    let download_mock =
+        upstream.mock("GET", "/dl/demo/1.0.0").with_body(&archive).expect(1).create();
+    let registry_url = start_pnpr_cargo_registry(&upstream.url());
+    let (pnpr_url, token) = start_pnpr(&format!("{registry_url}index"));
+
+    let root = tempfile::tempdir().expect("create Cargo project");
+    fs::create_dir(root.path().join("src")).expect("create source directory");
+    fs::write(root.path().join("src/lib.rs"), "pub use demo::answer;\n").expect("write source");
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ndemo = \"1\"\n",
+    )
+    .expect("write Cargo manifest");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\n  indexUrl: {registry_url}index/\npnprServer: {pnpr_url}\n",
+        ),
+    )
+    .expect("configure pnpm");
+    fs::write(
+        root.path().join(".npmrc"),
+        format!(
+            "//{}/:_authToken={token}\n",
+            pnpr_url.trim_start_matches("http://").trim_end_matches('/'),
+        ),
+    )
+    .expect("configure pnpr authentication");
+
+    pacquet_at(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
+    assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
+    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["check", "--offline"])
+        .assert()
+        .success();
+
+    index_mock.assert();
+    download_mock.assert();
 }
