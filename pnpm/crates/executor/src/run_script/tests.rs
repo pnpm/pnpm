@@ -23,14 +23,16 @@ fn posix_quote_escapes_embedded_single_quotes() {
 
 #[test]
 fn build_command_without_args_returns_script_unchanged() {
-    assert_eq!(build_command("tsc --build", &[]), "tsc --build");
+    for shell_emulator in [false, true] {
+        assert_eq!(build_command("tsc --build", &[], shell_emulator), "tsc --build");
+    }
 }
 
 #[test]
 #[cfg_attr(target_os = "windows", ignore = "asserts POSIX quoting; Windows uses JSON.stringify")]
 fn build_command_appends_quoted_args() {
     let args = ["plain".to_string(), "needs quoting".to_string()];
-    assert_eq!(build_command("echo", &args), "echo plain 'needs quoting'");
+    assert_eq!(build_command("echo", &args, false), "echo plain 'needs quoting'");
 }
 
 fn manifest() -> serde_json::Value {

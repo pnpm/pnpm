@@ -111,7 +111,7 @@ pub struct RunScript<'a> {
 /// Run a single user script in the foreground, sending its output where
 /// [`RunScript::output`] says.
 pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
-    let command = build_command(opts.script, opts.args);
+    let command = build_command(opts.script, opts.args, opts.shell_emulator);
 
     // The `scriptShell` value is validated even when the emulator will
     // run the script, matching pnpm's `runLifecycleHook`, which rejects a
@@ -235,13 +235,13 @@ fn run_piped(
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
 }
 
-/// Append shell-quoted `args` to `script`: `shlex`-style quoting on
-/// POSIX and per-argument `JSON.stringify` on Windows.
-fn build_command(script: &str, args: &[String]) -> String {
+/// Append shell-quoted `args` to `script`: POSIX quoting for the shell
+/// emulator and Unix shells, and per-argument JSON quoting for native Windows shells.
+fn build_command(script: &str, args: &[String], shell_emulator: bool) -> String {
     if args.is_empty() {
         return script.to_string();
     }
-    let quoted = if cfg!(windows) {
+    let quoted = if cfg!(windows) && !shell_emulator {
         args.iter().map(|arg| Value::String(arg.clone()).to_string()).collect::<Vec<_>>().join(" ")
     } else {
         args.iter().map(|arg| posix_quote(arg)).collect::<Vec<_>>().join(" ")

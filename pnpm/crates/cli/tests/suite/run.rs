@@ -2,10 +2,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::{
-    fs,
-    time::{Duration, Instant},
-};
+use std::{fs, time::Duration};
 
 #[cfg(unix)]
 fn write_executable(path: &std::path::Path, body: &str) {
@@ -957,19 +954,22 @@ fn regexp_selected_scripts_cancel_siblings_after_failure() {
             "name": "test",
             "version": "0.0.0",
             "scripts": {
-                "dev:slow": r#"node -e "require('fs').writeFileSync('slow-started', ''); setTimeout(() => {}, 5000)""#,
-                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(1) : setTimeout(wait, 10); wait()""#,
+                "dev:slow": r#"node -e "const fs = require('fs'); fs.writeFileSync('slow-started', ''); setTimeout(() => fs.writeFileSync('slow-finished', ''), 30000)""#,
+                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
             },
         })
         .to_string(),
     )
     .expect("write package.json");
 
-    let start = Instant::now();
-    pacquet.with_args(["--workspace-concurrency=2", "run", "/^dev:/"]).assert().failure();
+    assert_cmd::Command::from_std(pacquet)
+        .args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(17);
     assert!(
-        start.elapsed() < Duration::from_secs(4),
-        "a failed script should cancel its in-flight sibling",
+        !workspace.join("slow-finished").exists(),
+        "the slow script must be cancelled before its watchdog completes",
     );
 
     drop(root);
@@ -1107,6 +1107,46 @@ mod shell_emulator {
         assert_eq!(marker.trim(), "emulated");
 
         drop(root);
+    }
+
+    #[test]
+    fn preserves_literal_arguments() {
+        let args = [
+            r"C:\Program Files\tool\",
+            "",
+            "'it''s'",
+            r#"a"b"#,
+            "$PNPM_QUOTING_TEST",
+            "$(echo expanded)",
+            "a;b",
+            "*",
+            "line\nbreak",
+            "中文",
+        ];
+
+        for streamed in [false, true] {
+            let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+            write_project(&workspace, &json!({ "record": "node record-args.cjs" }), true);
+            fs::write(
+                workspace.join("record-args.cjs"),
+                "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+            )
+            .expect("write argument recorder");
+
+            if streamed {
+                pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+            }
+            pacquet.args(["run", "record"]).args(args).env("PNPM_QUOTING_TEST", "expanded");
+            pacquet.assert().success();
+
+            let recorded: Vec<String> = serde_json::from_slice(
+                &fs::read(workspace.join("args.json")).expect("read recorded arguments"),
+            )
+            .expect("parse recorded arguments");
+            assert_eq!(recorded, args, "streamed: {streamed}");
+
+            drop(root);
+        }
     }
 
     #[test]
