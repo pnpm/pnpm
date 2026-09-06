@@ -3,6 +3,8 @@ import { redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
 import { type Dispatcher, fetch as undiciFetch } from 'undici'
 
+import { getDispatcher } from './dispatcher.js'
+
 export { type RetryTimeoutOptions }
 
 interface URLLike {
@@ -45,11 +47,17 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
       op.attempt(async (attempt) => {
         const urlString = typeof url === 'string' ? url : url.href ?? url.toString()
         const { retry: _retry, timeout, dispatcher, ...fetchOpts } = opts
-        const signal = timeout ? AbortSignal.timeout(timeout) : undefined
         try {
           // undici's Response type differs slightly from globalThis.Response (iterator types),
           // requiring the double cast. This is a known TypeScript/undici compatibility issue.
-          const res = await undiciFetch(urlString, { ...fetchOpts, signal, dispatcher } as Parameters<typeof undiciFetch>[1]) as unknown as Response
+          const res = await undiciFetch(urlString, {
+            ...fetchOpts,
+            // The dispatcher enforces the timeout, restarting it on every chunk
+            // received. Aborting the request `timeout` after it started instead
+            // would kill downloads that are still making progress
+            // (https://github.com/pnpm/pnpm/issues/14604).
+            dispatcher: dispatcher ?? getDispatcher(urlString, { timeout }),
+          } as Parameters<typeof undiciFetch>[1]) as unknown as Response
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
             throw new ResponseError(res)

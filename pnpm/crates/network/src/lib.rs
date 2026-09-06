@@ -84,9 +84,9 @@ pub const BACKGROUND: u64 = u64::MAX - 1;
 /// request's class.
 pub const MAX_THROUGHPUT_PRIORITY: u64 = BACKGROUND - 1;
 
-/// Default per-request timeout in milliseconds: the `fetchTimeout`
-/// default of `60000`. Source of truth for `pnpm-config`'s
-/// `default_fetch_timeout`.
+/// Default network-inactivity timeout in milliseconds: the
+/// `fetchTimeout` default of `60000`. Source of truth for
+/// `pnpm-config`'s `default_fetch_timeout`.
 pub const DEFAULT_FETCH_TIMEOUT_MS: u64 = 60_000;
 
 /// Default slow-metadata-request warning threshold in milliseconds: the
@@ -109,8 +109,9 @@ pub struct NetworkSettings {
     /// semaphore size. Default: [`default_network_concurrency`].
     pub network_concurrency: usize,
 
-    /// Per-request total deadline, applied as both reqwest's response
-    /// timeout and its connect timeout, bounding the whole request.
+    /// How long a request may make no progress before it fails, applied
+    /// as both reqwest's read timeout and its connect timeout. A
+    /// download that keeps receiving data runs as long as it needs.
     /// Default: [`DEFAULT_FETCH_TIMEOUT_MS`].
     pub fetch_timeout: Duration,
 
@@ -446,11 +447,14 @@ impl ThrottledClient {
     /// runs hundreds of fetches in seconds) but well below the
     /// typical edge keepalive.
     ///
-    /// [`NetworkSettings::fetch_timeout`] is the per-request deadline,
-    /// not the socket inactivity timeout. A default `reqwest::Client`
-    /// has no deadlines at all, so a stalled upstream hangs the install
-    /// indefinitely. It is applied as both the response timeout and the
-    /// connect timeout, bounding the whole fetch. Default:
+    /// [`NetworkSettings::fetch_timeout`] bounds how long a request may
+    /// make no progress, not how long it may run. A default
+    /// `reqwest::Client` has no deadlines at all, so a stalled upstream
+    /// hangs the install indefinitely. It is applied as reqwest's read
+    /// timeout — which restarts on every chunk received — and as the
+    /// connect timeout. A total deadline would abort a healthy download
+    /// of a large archive over a slow link
+    /// ([#14604](https://github.com/pnpm/pnpm/issues/14604)). Default:
     /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
     /// default.
     ///
@@ -861,8 +865,8 @@ fn ignore_warning(_: &str) {}
 /// route through this helper so a single source of truth governs
 /// timeouts, HTTP-version, resolver, and the User-Agent header.
 ///
-/// `settings.fetch_timeout` drives both the per-request response
-/// timeout and the connect timeout, bounding the whole fetch.
+/// `settings.fetch_timeout` drives both the read timeout and the
+/// connect timeout, bounding how long a request may make no progress.
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
 /// A redirect-hop validator: returns `true` to follow a redirect to `url`,
@@ -1013,7 +1017,7 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .gzip(true)
         .default_headers(default_headers)
         .connect_timeout(settings.fetch_timeout)
-        .timeout(settings.fetch_timeout)
+        .read_timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4));
     configure_dns(builder)
 }

@@ -1,7 +1,10 @@
 /// <reference path="../../../__typings__/index.d.ts"/>
-import { expect, jest, test } from '@jest/globals'
+import { createServer, type ServerResponse } from 'node:http'
+import type { AddressInfo } from 'node:net'
+
+import { afterEach, describe, expect, jest, test } from '@jest/globals'
 import { requestRetryLogger } from '@pnpm/core-loggers'
-import { fetch } from '@pnpm/network.fetch'
+import { clearDispatcherCache, fetch } from '@pnpm/network.fetch'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
 
 test('metadata retry logs redact signed URL parameters', async () => {
@@ -77,3 +80,72 @@ test('fetch rejects, and does not hang, on a non-retryable error code', async ()
     setGlobalDispatcher(originalDispatcher)
   }
 })
+
+// https://github.com/pnpm/pnpm/issues/14604
+describe('the fetch timeout measures inactivity, not total time', () => {
+  const CHUNK = 'chunk'
+  const CHUNKS = 6
+  const CHUNK_INTERVAL = 60
+  const TIMEOUT = 300
+
+  afterEach(() => {
+    clearDispatcherCache()
+  })
+
+  test('a body that keeps arriving is read to the end', async () => {
+    await using server = await startServer((res) => {
+      let sent = 0
+      const writeChunk = (): void => {
+        res.write(CHUNK)
+        if (++sent < CHUNKS) {
+          setTimeout(writeChunk, CHUNK_INTERVAL)
+        } else {
+          res.end()
+        }
+      }
+      setTimeout(writeChunk, CHUNK_INTERVAL)
+    })
+
+    const response = await fetch(server.url, { timeout: TIMEOUT, retry: { retries: 0 } })
+
+    await expect(response.text()).resolves.toBe(CHUNK.repeat(CHUNKS))
+  })
+
+  test('a body that stops arriving fails', async () => {
+    await using server = await startServer((res) => {
+      res.write(CHUNK)
+    })
+
+    const response = await fetch(server.url, { timeout: TIMEOUT, retry: { retries: 0 } })
+
+    await expect(response.text()).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: 'UND_ERR_BODY_TIMEOUT' }),
+    })
+  })
+})
+
+interface TestServer extends AsyncDisposable {
+  url: string
+}
+
+async function startServer (respond: (res: ServerResponse) => void): Promise<TestServer> {
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'application/octet-stream' })
+    respond(res)
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  const { port } = server.address() as AddressInfo
+  return {
+    url: `http://127.0.0.1:${port}/`,
+    async [Symbol.asyncDispose] () {
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => {
+        server.close(() => {
+          resolve()
+        })
+      })
+    },
+  }
+}

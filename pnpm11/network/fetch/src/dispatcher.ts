@@ -13,6 +13,17 @@ const DEFAULT_MAX_SOCKETS = 50
 const KEEP_ALIVE_TIMEOUT = 30_000 // 30 seconds
 const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
 
+/**
+ * Default of the `fetch-timeout` setting: how long a request may make no
+ * progress before it fails.
+ *
+ * It is an inactivity timeout, not a deadline for the whole request: undici
+ * restarts the body timer on every chunk that arrives, so a big tarball may
+ * take as long as the connection needs. A total deadline would abort healthy
+ * downloads on slow connections (https://github.com/pnpm/pnpm/issues/14604).
+ */
+export const DEFAULT_FETCH_TIMEOUT = 60_000
+
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
 //
@@ -24,6 +35,8 @@ const GLOBAL_DISPATCHER = new Agent({
   connections: DEFAULT_MAX_SOCKETS,
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+  headersTimeout: DEFAULT_FETCH_TIMEOUT,
+  bodyTimeout: DEFAULT_FETCH_TIMEOUT,
   connect: {
     autoSelectFamily: true,
   },
@@ -86,6 +99,10 @@ export interface DispatcherOptions {
   localAddress?: string
   maxSockets?: number
   strictSsl?: boolean
+  /**
+   * How long the request may make no progress before it fails, in
+   * milliseconds. `0` disables it. Defaults to {@link DEFAULT_FETCH_TIMEOUT}.
+   */
   timeout?: number
   httpProxy?: string
   httpsProxy?: string
@@ -137,6 +154,10 @@ export function getDispatcher (uri: string, opts: DispatcherOptions): Dispatcher
   return getNonProxyDispatcher(parsedUri, opts)
 }
 
+function inactivityTimeout (opts: DispatcherOptions): number {
+  return opts.timeout ?? DEFAULT_FETCH_TIMEOUT
+}
+
 function hasClientCertificates (certs?: ClientCertificates): boolean {
   if (!certs) return false
   for (const uri in certs) {
@@ -156,7 +177,10 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.localAddress ||
     opts.strictSsl === false ||
     hasClientCertificates(opts.clientCertificates) ||
-    opts.maxSockets
+    opts.maxSockets ||
+    // The global dispatcher carries the default timeouts, so only a request
+    // that wants different ones needs an agent of its own.
+    (opts.timeout != null && opts.timeout !== DEFAULT_FETCH_TIMEOUT)
   )
 }
 
@@ -202,6 +226,7 @@ function getProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispatche
   const key = [
     `proxy:${proxyUrl.protocol}//${proxyUrl.username}:${proxyUrl.password}@${proxyUrl.host}:${proxyUrl.port}`,
     `https:${isHttps.toString()}`,
+    `timeout:${inactivityTimeout(opts).toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
@@ -239,6 +264,8 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    headersTimeout: inactivityTimeout(opts),
+    bodyTimeout: inactivityTimeout(opts),
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     requestTls: isHttps
@@ -270,6 +297,8 @@ function createSocksDispatcher (
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    headersTimeout: inactivityTimeout(opts),
+    bodyTimeout: inactivityTimeout(opts),
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: async (connectOpts, callback) => {
@@ -323,6 +352,7 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
 
   const key = [
     `https:${isHttps.toString()}`,
+    `timeout:${inactivityTimeout(opts).toString()}`,
     `local-address:${opts.localAddress ?? '>no-local-address<'}`,
     `max-sockets:${(opts.maxSockets ?? DEFAULT_MAX_SOCKETS).toString()}`,
     `strict-ssl:${isHttps ? Boolean(opts.strictSsl).toString() : '>no-strict-ssl<'}`,
@@ -335,13 +365,14 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
     return DISPATCHER_CACHE.get(key)!
   }
 
-  const connectTimeout = typeof opts.timeout !== 'number' || opts.timeout === 0
-    ? 0
-    : opts.timeout + 1
+  const timeout = inactivityTimeout(opts)
+  const connectTimeout = timeout === 0 ? 0 : timeout + 1
 
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
     connectTimeout,
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
     connect: isHttps

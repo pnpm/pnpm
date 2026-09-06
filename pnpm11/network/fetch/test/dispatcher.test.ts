@@ -2,7 +2,7 @@
 import net from 'node:net'
 
 import { afterEach, describe, expect, jest, test } from '@jest/globals'
-import { clearDispatcherCache, destroyDispatchers, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
+import { clearDispatcherCache, DEFAULT_FETCH_TIMEOUT, destroyDispatchers, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
 import { Agent, getGlobalDispatcher, ProxyAgent } from 'undici'
 
 afterEach(() => {
@@ -34,6 +34,13 @@ describe('getDispatcher', () => {
   test('returns a dispatcher when localAddress is set', () => {
     const dispatcher = getDispatcher('https://registry.npmjs.org/foo', { localAddress: '127.0.0.1' })
     expect(dispatcher).toBeDefined()
+  })
+
+  test('returns a dispatcher only when the timeout differs from the default', () => {
+    expect(getDispatcher('https://registry.npmjs.org/foo', { timeout: DEFAULT_FETCH_TIMEOUT })).toBeUndefined()
+    const dispatcher = getDispatcher('https://registry.npmjs.org/foo', { timeout: 5000 })
+    expect(dispatcher).toBeDefined()
+    expect(dispatcher).not.toBe(getDispatcher('https://registry.npmjs.org/foo', { timeout: 10000 }))
   })
 
   test('caches dispatchers by configuration', () => {
