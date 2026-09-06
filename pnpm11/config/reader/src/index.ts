@@ -516,13 +516,23 @@ export async function getConfig (opts: {
       if (ignoredPnpmFieldKeys.length > 0) {
         warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
-      const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
+    }
+
+    // `lockfileDir` moves `rootProjectManifestDir` off the workspace root,
+    // and the engine pins stay with the workspace the contributor works in.
+    // Re-read only when the two directories differ.
+    const enginePinManifestDir = pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.enginePinManifest = enginePinManifestDir === pnpmConfig.rootProjectManifestDir
+      ? pnpmConfig.rootProjectManifest
+      : await safeReadProjectManifestOnly(enginePinManifestDir) ?? undefined
+    if (pnpmConfig.enginePinManifest != null) {
+      const wantedPmResult = getWantedPackageManager(pnpmConfig.enginePinManifest)
       if (wantedPmResult.pm) {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
       if (pnpmConfig.nodeVersion == null) {
-        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.rootProjectManifest)
+        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
       }
     }
 
@@ -960,7 +970,7 @@ export async function getConfig (opts: {
   const {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -969,7 +979,7 @@ export async function getConfig (opts: {
   const context: ConfigContext = {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -1556,6 +1566,7 @@ const CONFIG_CONTEXT_KEYS = [
   'prodOnlySelectedProjectDirs',
   'rootProjectManifest',
   'rootProjectManifestDir',
+  'enginePinManifest',
   'cliOptions',
   'explicitlySetKeys',
   'packageManager',

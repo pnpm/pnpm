@@ -393,6 +393,58 @@ test('devEngines.packageManager with explicit onFail is respected (regression gu
   expect(context.wantedPackageManager?.onFail).toBe('error')
 })
 
+test('lockfileDir does not hide the engine pins declared at the workspace root', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+      runtime: {
+        name: 'node',
+        version: '20.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { context } = await getConfig({
+    cliOptions: { 'lockfile-dir': 'lf' },
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  // The lockfile moved, so the root project directory moved with it and
+  // carries no manifest of its own.
+  expect(context.rootProjectManifest).toBeUndefined()
+  // The pins stay with the workspace the contributor works in.
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'error',
+  })
+  expect(context.enginePinManifest?.devEngines?.runtime).toMatchObject({
+    name: 'node',
+    version: '20.0.0',
+  })
+})
+
+test('without lockfileDir the engine pin manifest is the root project manifest itself', async () => {
+  prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '11.0.0', onFail: 'error' },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.enginePinManifest).toBe(context.rootProjectManifest)
+})
+
 describe('"packageManager" / "devEngines.packageManager" conflict warning', () => {
   const HASH_A = 'sha512.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   const HASH_B = 'sha512.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
