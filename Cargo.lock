@@ -6310,6 +6310,7 @@ dependencies = [
  "pep508_rs",
  "pnpr-error",
  "serde",
+ "strum",
 ]
 
 [[package]]

@@ -732,3 +732,46 @@ fn image_registries_have_no_npm_scope_shapes() {
         );
     }
 }
+
+// --- the ecosystem list ------------------------------------------------------
+
+#[test]
+fn only_ecosystem_compares_against_every_ecosystem() {
+    // Derived from the enum rather than listed, so an ecosystem added without
+    // touching this still counts: a hand-written list would have reported an
+    // image-only server as npm-only, mounting two surfaces at the root.
+    let hosted = |ecosystem: Ecosystem| {
+        let mut registries = Registries::new(
+            std::iter::once(("only".to_string(), Registry::Hosted { patterns: patterns(&["**"]) }))
+                .collect(),
+            Some("only".to_string()),
+        );
+        registries = registries.with_ecosystem("only", ecosystem);
+        registries
+    };
+    for ecosystem in Ecosystem::all() {
+        let registries = hosted(ecosystem);
+        assert!(registries.is_only_ecosystem(ecosystem), "{ecosystem} serves alone");
+        for other in Ecosystem::all().filter(|other| *other != ecosystem) {
+            assert!(
+                !registries.is_only_ecosystem(other),
+                "{other} does not serve on an {ecosystem}-only server",
+            );
+        }
+    }
+}
+
+#[test]
+fn the_base_path_is_empty_only_where_the_ecosystem_serves_alone() {
+    let mut registries = Registries::new(
+        std::iter::once(("npm".to_string(), Registry::Hosted { patterns: patterns(&["**"]) }))
+            .collect(),
+        Some("npm".to_string()),
+    );
+    assert_eq!(registries.base_path(Ecosystem::Npm), "");
+
+    registries = registries.with_ecosystem("npm", Ecosystem::Cargo);
+    assert_eq!(registries.base_path(Ecosystem::Cargo), "");
+    assert_eq!(registries.base_path(Ecosystem::Npm), "/npm");
+    assert_eq!(registries.base_path(Ecosystem::Oci), "/oci");
+}

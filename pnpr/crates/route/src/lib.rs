@@ -338,6 +338,12 @@ impl RouteContext {
         self.registries.is_only_ecosystem(ecosystem)
     }
 
+    /// See [`Registries::base_path`].
+    #[must_use]
+    pub fn base_path(&self, ecosystem: Ecosystem) -> String {
+        self.registries.base_path(ecosystem)
+    }
+
     /// Whether the upstream registry's effective per-package access admits
     /// `identity` for `package`. A non-package fetch and an upstream with no
     /// rules entry (a programmatically folded one) gate at the registry
@@ -390,6 +396,9 @@ impl RouteContext {
             // Everyone else — and an unknown name — gets an anonymous fetch
             // the endpoint itself rejects, rather than falling through to
             // another registry's policy.
+            // Spelled out rather than built from `base_path`: this wants a
+            // path segment with a trailing slash, not the `/<ecosystem>`
+            // prefix that URL building uses.
             let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
                 hosted.to_string()
             } else {

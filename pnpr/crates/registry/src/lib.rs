@@ -351,9 +351,19 @@ impl Registries {
     #[must_use]
     pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
         self.has_ecosystem(ecosystem)
-            && [Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi, Ecosystem::Oci]
-                .into_iter()
+            && Ecosystem::all()
                 .all(|candidate| candidate == ecosystem || !self.has_ecosystem(candidate))
+    }
+
+    /// The path an ecosystem's endpoints sit under: nothing when it is the
+    /// only one served, `/<ecosystem>` when it shares the server.
+    ///
+    /// Every URL pnpr writes about itself and every route it mounts starts
+    /// here, so the decision lives in one place rather than being spelled out
+    /// again at each of them.
+    #[must_use]
+    pub fn base_path(&self, ecosystem: Ecosystem) -> String {
+        if self.is_only_ecosystem(ecosystem) { String::new() } else { format!("/{ecosystem}") }
     }
 
     fn concrete_ecosystem(&self, registry: &str) -> Ecosystem {

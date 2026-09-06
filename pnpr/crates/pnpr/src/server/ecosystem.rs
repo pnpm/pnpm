@@ -32,6 +32,17 @@ pub(super) fn addressed_registry(state: &AppState, registry: Option<&str>) -> Op
     registry.map(str::to_string).or_else(|| default_registry_target(state))
 }
 
+/// The two addresses a surface answers on: the default target, and one named
+/// registry. `prefixed` is whether the ecosystem shares the server, in which
+/// case both sit under `/<ecosystem>`.
+///
+/// Route templates rather than URLs — `{registry}` is a path parameter the
+/// [`TargetRegistry`](super::TargetRegistry) extractor reads back.
+pub(super) fn mount_bases(ecosystem: Ecosystem, prefixed: bool) -> [String; 2] {
+    let prefix = if prefixed { format!("/{ecosystem}") } else { String::new() };
+    [prefix.clone(), format!("{prefix}/~{{registry}}")]
+}
+
 /// The URL clients reach the addressed registry at for `ecosystem`, for the
 /// URLs a surface writes into the metadata it serves (a Cargo `config.json`,
 /// a Simple API page). Multi-ecosystem servers include the ecosystem segment;
@@ -42,11 +53,7 @@ pub(super) fn registry_endpoint(
     registry: Option<&str>,
 ) -> String {
     let public_url = state.inner.config.public_url.trim_end_matches('/');
-    let base = if state.inner.config.registries.is_only_ecosystem(ecosystem) {
-        public_url.to_string()
-    } else {
-        format!("{public_url}/{ecosystem}")
-    };
+    let base = format!("{public_url}{}", state.inner.config.registries.base_path(ecosystem));
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,

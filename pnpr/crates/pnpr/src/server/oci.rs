@@ -18,7 +18,7 @@
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
     documents::{read_hosted_document, store_hosted_artifact},
-    ecosystem::{addressed_registry, caller_scoped, hosted_sources},
+    ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
     hosted_read_namespace, private_no_cache,
     publishing::{PublishTarget, resolve_publish_target_for},
     resolve_ecosystem_source,
@@ -81,13 +81,12 @@ const API_VERSION_HEADER: &str = "docker-distribution-api-version";
 const CHALLENGE: &str = r#"Basic realm="pnpr""#;
 
 pub(super) fn routes(prefixed: bool) -> Router<AppState> {
+    // The root is this surface's own addition: a client derives the API root
+    // from the image reference's host, so `/v2/` answers there whether or not
+    // the ecosystem is prefixed.
     let mut bases = vec![String::new()];
-    if prefixed {
-        bases.push(format!("/{ECOSYSTEM}"));
-        bases.push(format!("/{ECOSYSTEM}/~{{registry}}"));
-    } else {
-        bases.push("/~{registry}".to_string());
-    }
+    bases.extend(mount_bases(ECOSYSTEM, prefixed));
+    bases.dedup();
     let mut router = Router::new();
     for base in bases {
         router = router

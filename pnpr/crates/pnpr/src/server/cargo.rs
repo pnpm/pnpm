@@ -24,8 +24,8 @@ use super::{
     documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
-        load_upstream_document, registry_endpoint, registry_requires_auth, serve_hosted_blob,
-        serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
+        load_upstream_document, mount_bases, registry_endpoint, registry_requires_auth,
+        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     hosted_search_names, json_response, not_found, private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
@@ -61,8 +61,7 @@ const INDEX_CONFIG_KEY: &str = "config.json";
 
 pub(super) fn routes(prefixed: bool) -> Router<AppState> {
     let mut router = Router::new();
-    let bases = if prefixed { ["/cargo", "/cargo/~{registry}"] } else { ["", "/~{registry}"] };
-    for base in bases {
+    for base in mount_bases(ECOSYSTEM, prefixed) {
         router = router
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))

@@ -3,9 +3,10 @@ use pep508_rs::PackageName as PythonPackageName;
 use pnpr_error::RegistryError;
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
+use strum::{EnumIter, IntoEnumIterator as _};
 
 /// The protocol whose naming rules a registry surface follows.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, EnumIter)]
 #[serde(rename_all = "lowercase")]
 pub enum Ecosystem {
     #[default]
@@ -24,6 +25,16 @@ impl Ecosystem {
             Ecosystem::Pypi => "pypi",
             Ecosystem::Oci => "oci",
         }
+    }
+
+    /// Every ecosystem pnpr can serve.
+    ///
+    /// Derived rather than written out, because a caller asking "is this the
+    /// only one configured" has to compare against all of them, and a list
+    /// maintained by hand answers that wrongly the moment an ecosystem is
+    /// added without it.
+    pub fn all() -> impl Iterator<Item = Self> {
+        Self::iter()
     }
 }
 

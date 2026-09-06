@@ -3184,8 +3184,11 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let resolver_enabled = state.inner.config.resolver.enabled;
     let versions = resolver_enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let fix_lockfile = versions.clone();
-    let resolved = if resolver_enabled { crate::resolver::RESOLVED_ECOSYSTEMS } else { &[] };
-    let ecosystems = resolved.iter().map(|ecosystem| ecosystem.as_str()).collect::<Vec<_>>();
+    let ecosystems: Vec<&str> = if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    } else {
+        Vec::new()
+    };
     let artifacts =
         state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let publish = state.inner.config.registry.enabled.then_some(0).into_iter().collect::<Vec<_>>();

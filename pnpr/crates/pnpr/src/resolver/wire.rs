@@ -59,13 +59,13 @@ impl TarballRouter {
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
-                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
-                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -139,13 +139,13 @@ impl TarballRouter {
             RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
-                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
-                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -159,9 +159,8 @@ impl TarballRouter {
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
     fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let ecosystem =
-            if self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm) { "" } else { "/npm" };
-        let prefix = format!("{}{ecosystem}/~", self.public_url.trim_end_matches('/'));
+        let base_path = self.context.base_path(pnpr_registry::Ecosystem::Npm);
+        let prefix = format!("{}{base_path}/~", self.public_url.trim_end_matches('/'));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
         let registry = self.context.upstream_registry(&self.identity, upstream)?;
@@ -181,21 +180,19 @@ fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
     )
 }
 
-fn pnpr_tarball_url(public_url: &str, only_npm: bool, package: &str, filename: &str) -> String {
-    let ecosystem = if only_npm { "" } else { "/npm" };
-    format!("{}{ecosystem}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+fn pnpr_tarball_url(public_url: &str, base_path: &str, package: &str, filename: &str) -> String {
+    format!("{}{base_path}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// The registry-endpoint URL a proxied route's tarball is served through.
 fn upstream_endpoint_tarball_url(
     public_url: &str,
-    only_npm: bool,
+    base_path: &str,
     upstream: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    let ecosystem = if only_npm { "" } else { "/npm" };
-    format!("{}{ecosystem}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}{base_path}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
