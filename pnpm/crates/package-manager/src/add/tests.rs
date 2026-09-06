@@ -205,6 +205,79 @@ async fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     assert_eq!(add_jsr_selector("jsr:@pnpm-e2e/foo@1.0").await, Some("jsr:~1.0.0".to_string()));
 }
 
+#[tokio::test]
+async fn add_saves_an_npm_selector_as_the_plain_registry_range() {
+    assert_eq!(add_npm_selector("npm:foo@^1").await, Some("^1.0.0".to_string()));
+}
+
+#[tokio::test]
+async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
+    assert_eq!(add_npm_selector("npm:foo").await, Some("^1.0.0".to_string()));
+}
+
+/// Run `pacquet add <selector>` against a mocked default registry and
+/// report the specifier the manifest ends up with.
+async fn add_npm_selector(selector: &str) -> Option<String> {
+    let dir = tempdir().unwrap();
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+    std::fs::create_dir_all(&project_root).unwrap();
+
+    let mut manifest = PackageManifest::create_if_needed(project_root.join("package.json"))
+        .expect("create manifest");
+
+    let mut registry = mockito::Server::new_async().await;
+    let registry_url = format!("{}/", registry.url());
+    let _latest = registry
+        .mock("GET", "/foo/latest")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(version_body("foo", &registry_url))
+        .create_async()
+        .await;
+    let _packument = registry
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(package_body("foo", &registry_url))
+        .create_async()
+        .await;
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir;
+    config.registry = registry_url;
+    config.minimum_release_age = None;
+    let config = config.leak();
+
+    let http_client = ThrottledClient::default();
+    let resolved_packages = ResolvedPackages::default();
+    let package_names = [selector.to_string()];
+    Add {
+        tarball_mem_cache: Arc::default(),
+        resolved_packages: &resolved_packages,
+        http_client: &http_client,
+        http_client_arc: Arc::new(ThrottledClient::default()),
+        config,
+        manifest: &mut manifest,
+        lockfile: None,
+        lockfile_path: None,
+        dependency_groups: Some([DependencyGroup::Prod]),
+        package_names: &package_names,
+        range_spec_style: RangeSpecStyle::Major,
+        save_catalog_name: None,
+        supported_architectures: None,
+        lockfile_only: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .unwrap_or_else(|error| panic!("add {selector} should succeed: {error}"));
+
+    saved_dependency_specifier(&manifest, "foo")
+}
+
 /// Run `pacquet add <selector>` against a mocked `@jsr` registry and report
 /// the specifier the manifest ends up with. The default registry is mocked
 /// too, expecting no request: a JSR package must be looked up under the
