@@ -1,10 +1,9 @@
 //! What the non-npm registry surfaces share.
 //!
-//! Every ecosystem is served under its own URL prefix — `/npm/`, `/cargo/`,
-//! `/pypi/` — where `/<ecosystem>/~<name>/...` addresses a registry and
-//! `/<ecosystem>/...` the default target. The prefix selects the protocol and
-//! the registry graph is consulted for that ecosystem only, so one router can
-//! front every ecosystem. This module holds the pieces the Cargo and Python
+//! A multi-ecosystem server uses `/npm/`, `/cargo/`, and `/pypi/`, while a
+//! single-ecosystem server serves that protocol at the root. The registry graph
+//! is consulted for the selected ecosystem only, so one router can front every
+//! ecosystem. This module holds the pieces the Cargo and Python
 //! surfaces both need: addressing (which registry, which endpoint URL, which
 //! cache headers), the anonymous-readability check, hosted blob downloads,
 //! and the proxy cache for an upstream's metadata documents and artifacts.
@@ -35,14 +34,19 @@ pub(super) fn addressed_registry(state: &AppState, registry: Option<&str>) -> Op
 
 /// The URL clients reach the addressed registry at for `ecosystem`, for the
 /// URLs a surface writes into the metadata it serves (a Cargo `config.json`,
-/// a Simple API page): `<public_url>/<ecosystem>` for the default target,
-/// `<public_url>/<ecosystem>/~<name>` for a named registry.
+/// a Simple API page). Multi-ecosystem servers include the ecosystem segment;
+/// single-ecosystem servers use `public_url` directly.
 pub(super) fn registry_endpoint(
     state: &AppState,
     ecosystem: Ecosystem,
     registry: Option<&str>,
 ) -> String {
-    let base = format!("{}/{ecosystem}", state.inner.config.public_url.trim_end_matches('/'));
+    let public_url = state.inner.config.public_url.trim_end_matches('/');
+    let base = if state.inner.config.registries.is_only_ecosystem(ecosystem) {
+        public_url.to_string()
+    } else {
+        format!("{public_url}/{ecosystem}")
+    };
     match registry {
         Some(registry) => format!("{base}/~{registry}"),
         None => base,

@@ -1,4 +1,4 @@
-//! The Cargo registry surface at `/cargo/`.
+//! The Cargo registry surface.
 //!
 //! Two URL families make up a Cargo registry. The **sparse index** —
 //! `index/config.json` and one `index/<prefix>/<crate>` file per crate — is
@@ -10,8 +10,9 @@
 //! checksum when proxied), accepts `cargo publish` (`PUT api/v1/crates/new`)
 //! and yank / unyank on hosted registries.
 //!
-//! Both families answer under `/cargo/` (the default target) and
-//! `/cargo/~<name>/` (a named registry). Crate names are case-insensitive:
+//! In a multi-ecosystem registry, both families answer under `/cargo/` (the
+//! default target) and `/cargo/~<name>/` (a named registry). A Cargo-only
+//! registry omits `/cargo`. Crate names are case-insensitive:
 //! the index path `cargo` requests is lowercase, so hosted documents and cache
 //! entries are keyed by the lowercase name while archives keep the name as
 //! published.
@@ -56,12 +57,10 @@ const INDEX_CONFIG_LIMIT: usize = 64 * 1024;
 /// `.`, so it can never collide with a crate's own entry.
 const INDEX_CONFIG_KEY: &str = "config.json";
 
-/// The Cargo routes, each registered for the default target (`/cargo/...`)
-/// and for a named registry (`/cargo/~<name>/...`). The `~` is part of the
-/// route, so the two forms never overlap.
-pub(super) fn routes() -> Router<AppState> {
+pub(super) fn routes(prefixed: bool) -> Router<AppState> {
     let mut router = Router::new();
-    for base in ["/cargo", "/cargo/~{registry}"] {
+    let bases = if prefixed { ["/cargo", "/cargo/~{registry}"] } else { ["", "/~{registry}"] };
+    for base in bases {
         router = router
             .route(&format!("{base}/index/config.json"), get(get_index_config))
             .route(&format!("{base}/index/{{a}}/{{b}}"), get(get_index_file))

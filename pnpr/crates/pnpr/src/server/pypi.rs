@@ -1,4 +1,4 @@
-//! The Python package index surface at `/pypi/`.
+//! The Python package index surface.
 //!
 //! The **Simple Repository API** — `simple/` (the project list) and
 //! `simple/<project>/` (a project's files) — is served as PEP 691 JSON or
@@ -10,10 +10,11 @@
 //! **legacy upload API** (`POST legacy/`) accepts what `twine upload` sends
 //! into a hosted registry.
 //!
-//! Every endpoint answers under `/pypi/` (the default target) and
-//! `/pypi/~<name>/` (a named registry). Project names are compared normalized
-//! (PEP 503); a page requested under a non-normalized spelling redirects to
-//! the normalized URL, as pypi.org does.
+//! In a multi-ecosystem registry, every endpoint answers under `/pypi/` (the
+//! default target) and `/pypi/~<name>/` (a named registry). A Python-only
+//! registry omits `/pypi`. Project names are compared normalized (PEP 503); a
+//! page requested under a non-normalized spelling redirects to the normalized
+//! URL, as pypi.org does.
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
@@ -54,12 +55,10 @@ const ECOSYSTEM: Ecosystem = Ecosystem::Pypi;
 /// The largest Simple API page accepted from an upstream.
 const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 
-/// The Python routes, each registered for the default target (`/pypi/...`)
-/// and for a named registry (`/pypi/~<name>/...`), with and without the
-/// trailing slash the Simple API spells its URLs with.
-pub(super) fn routes() -> Router<AppState> {
+pub(super) fn routes(prefixed: bool) -> Router<AppState> {
     let mut router = Router::new();
-    for base in ["/pypi", "/pypi/~{registry}"] {
+    let bases = if prefixed { ["/pypi", "/pypi/~{registry}"] } else { ["", "/~{registry}"] };
+    for base in bases {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))

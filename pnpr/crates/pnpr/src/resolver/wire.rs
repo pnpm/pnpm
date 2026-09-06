@@ -59,11 +59,13 @@ impl TarballRouter {
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
+                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
+                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -137,11 +139,13 @@ impl TarballRouter {
             RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
+                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
+                self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -149,13 +153,15 @@ impl TarballRouter {
         }
     }
 
-    /// Reverse a `/npm/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// Reverse a named endpoint tarball URL back to its
     /// upstream URL so an input lockfile carrying endpoint URLs can be verified
     /// against the real registry. Returns `None` for any other URL, and for an
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
     fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let prefix = format!("{}/npm/~", self.public_url.trim_end_matches('/'));
+        let ecosystem =
+            if self.context.is_only_ecosystem(pnpr_registry::Ecosystem::Npm) { "" } else { "/npm" };
+        let prefix = format!("{}{ecosystem}/~", self.public_url.trim_end_matches('/'));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
         let registry = self.context.upstream_registry(&self.identity, upstream)?;
@@ -175,21 +181,21 @@ fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
     )
 }
 
-fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
-    format!("{}/npm/{package}/-/{filename}", public_url.trim_end_matches('/'))
+fn pnpr_tarball_url(public_url: &str, only_npm: bool, package: &str, filename: &str) -> String {
+    let ecosystem = if only_npm { "" } else { "/npm" };
+    format!("{}{ecosystem}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
-/// The `/npm/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
-/// route's tarball is served through. Canonical for a client whose scope is
-/// configured at `https://<pnpr>/npm/~<name>/`, so the lockfile entry collapses
-/// to integrity-only; the upstream URL and credential stay server-side.
+/// The registry-endpoint URL a proxied route's tarball is served through.
 fn upstream_endpoint_tarball_url(
     public_url: &str,
+    only_npm: bool,
     upstream: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}/npm/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    let ecosystem = if only_npm { "" } else { "/npm" };
+    format!("{}{ecosystem}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object

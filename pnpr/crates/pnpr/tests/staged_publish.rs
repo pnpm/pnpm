@@ -91,7 +91,7 @@ fn publish_doc(name: &str, version: &str, tarball: &[u8]) -> Value {
 
 /// Stage `doc` and return the stage id the registry minted.
 async fn stage_package(app: axum::Router, name: &str, doc: &Value, token: &str) -> String {
-    let path = format!("/npm/-/stage/package/{}", name.replace('/', "%2f"));
+    let path = format!("/-/stage/package/{}", name.replace('/', "%2f"));
     let response = app.oneshot(json_request("POST", &path, doc, Some(token))).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
     let payload = body_json(response.into_body()).await;
@@ -122,7 +122,7 @@ async fn staged_publish_is_held_back_until_approved() {
     // under its name.
     let read = app
         .clone()
-        .oneshot(request("GET", "/npm/staged-pkg", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/staged-pkg", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
@@ -131,7 +131,7 @@ async fn staged_publish_is_held_back_until_approved() {
     // Listed, viewable, and its tarball downloadable.
     let list = app
         .clone()
-        .oneshot(request("GET", "/npm/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(list.status(), StatusCode::OK);
@@ -148,7 +148,7 @@ async fn staged_publish_is_held_back_until_approved() {
 
     let view = app
         .clone()
-        .oneshot(request("GET", &format!("/npm/-/stage/{stage_id}"), Body::empty(), Some(&token)))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::OK);
@@ -159,7 +159,7 @@ async fn staged_publish_is_held_back_until_approved() {
         .clone()
         .oneshot(request(
             "GET",
-            &format!("/npm/-/stage/{stage_id}/tarball"),
+            &format!("/-/stage/{stage_id}/tarball"),
             Body::empty(),
             Some(&token),
         ))
@@ -173,7 +173,7 @@ async fn staged_publish_is_held_back_until_approved() {
         .clone()
         .oneshot(request(
             "POST",
-            &format!("/npm/-/stage/{stage_id}/approve"),
+            &format!("/-/stage/{stage_id}/approve"),
             Body::empty(),
             Some(&token),
         ))
@@ -183,7 +183,7 @@ async fn staged_publish_is_held_back_until_approved() {
 
     let read = app
         .clone()
-        .oneshot(request("GET", "/npm/staged-pkg", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/staged-pkg", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(read.status(), StatusCode::OK);
@@ -193,15 +193,12 @@ async fn staged_publish_is_held_back_until_approved() {
         .expect("tarball promoted on approval");
     assert_eq!(on_disk, tarball);
 
-    let list = app
-        .clone()
-        .oneshot(request("GET", "/npm/-/stage", Body::empty(), Some(&token)))
-        .await
-        .unwrap();
+    let list =
+        app.clone().oneshot(request("GET", "/-/stage", Body::empty(), Some(&token))).await.unwrap();
     let listed = body_json(list.into_body()).await;
     assert_eq!(listed["total"], 0, "an approved stage leaves no record behind");
     let view = app
-        .oneshot(request("GET", &format!("/npm/-/stage/{stage_id}"), Body::empty(), Some(&token)))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
@@ -219,26 +216,19 @@ async fn rejecting_a_staged_publish_deletes_it_without_publishing() {
 
     let reject = app
         .clone()
-        .oneshot(request(
-            "DELETE",
-            &format!("/npm/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::NO_CONTENT);
 
     let view = app
         .clone()
-        .oneshot(request("GET", &format!("/npm/-/stage/{stage_id}"), Body::empty(), Some(&token)))
+        .oneshot(request("GET", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
-    let read = app
-        .oneshot(request("GET", "/npm/rejected-pkg", Body::empty(), Some(&token)))
-        .await
-        .unwrap();
+    let read =
+        app.oneshot(request("GET", "/rejected-pkg", Body::empty(), Some(&token))).await.unwrap();
     assert_eq!(read.status(), StatusCode::NOT_FOUND);
     assert!(!storage.join("rejected-pkg").exists(), "a rejected stage publishes nothing");
 }
@@ -256,12 +246,7 @@ async fn staging_supports_scoped_packages() {
 
     let list = app
         .clone()
-        .oneshot(request(
-            "GET",
-            "/npm/-/stage?package=%40scope%2Fstaged",
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("GET", "/-/stage?package=%40scope%2Fstaged", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let listed = body_json(list.into_body()).await;
@@ -272,7 +257,7 @@ async fn staging_supports_scoped_packages() {
         .clone()
         .oneshot(request(
             "POST",
-            &format!("/npm/-/stage/{stage_id}/approve"),
+            &format!("/-/stage/{stage_id}/approve"),
             Body::empty(),
             Some(&token),
         ))
@@ -295,15 +280,14 @@ async fn the_package_filter_narrows_the_listing() {
 
     let list = app
         .clone()
-        .oneshot(request("GET", "/npm/-/stage?package=filter-a", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage?package=filter-a", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let listed = body_json(list.into_body()).await;
     assert_eq!(listed["total"], 1);
     assert_eq!(listed["items"][0]["packageName"], "filter-a");
 
-    let all =
-        app.oneshot(request("GET", "/npm/-/stage", Body::empty(), Some(&token))).await.unwrap();
+    let all = app.oneshot(request("GET", "/-/stage", Body::empty(), Some(&token))).await.unwrap();
     let listed = body_json(all.into_body()).await;
     assert_eq!(listed["total"], 2);
 }
@@ -321,7 +305,7 @@ async fn pagination_slices_the_listing() {
 
     let page = app
         .clone()
-        .oneshot(request("GET", "/npm/-/stage?page=0&perPage=2", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=2", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let first = body_json(page.into_body()).await;
@@ -330,7 +314,7 @@ async fn pagination_slices_the_listing() {
     assert_eq!(first["items"].as_array().map(Vec::len), Some(2));
 
     let page = app
-        .oneshot(request("GET", "/npm/-/stage?page=1&perPage=2", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage?page=1&perPage=2", Body::empty(), Some(&token)))
         .await
         .unwrap();
     let second = body_json(page.into_body()).await;
@@ -345,7 +329,7 @@ async fn staging_requires_the_publish_right() {
 
     let doc = publish_doc("anon-staged", "1.0.0", b"bytes");
     let response = app
-        .oneshot(json_request("POST", "/npm/-/stage/package/anon-staged", &doc, None))
+        .oneshot(json_request("POST", "/-/stage/package/anon-staged", &doc, None))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -362,19 +346,19 @@ async fn approving_requires_the_publish_right() {
 
     let approve = app
         .clone()
-        .oneshot(request("POST", &format!("/npm/-/stage/{stage_id}/approve"), Body::empty(), None))
+        .oneshot(request("POST", &format!("/-/stage/{stage_id}/approve"), Body::empty(), None))
         .await
         .unwrap();
     assert_eq!(approve.status(), StatusCode::UNAUTHORIZED);
     let reject = app
         .clone()
-        .oneshot(request("DELETE", &format!("/npm/-/stage/{stage_id}"), Body::empty(), None))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), None))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::UNAUTHORIZED);
 
     // An anonymous listing shows nothing rather than leaking the record.
-    let list = app.oneshot(request("GET", "/npm/-/stage", Body::empty(), None)).await.unwrap();
+    let list = app.oneshot(request("GET", "/-/stage", Body::empty(), None)).await.unwrap();
     assert_eq!(list.status(), StatusCode::OK);
     let listed = body_json(list.into_body()).await;
     assert_eq!(listed["total"], 0);
@@ -393,7 +377,7 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
     let direct = publish_doc("conflicted-pkg", "1.0.0", b"direct-bytes");
     let response = app
         .clone()
-        .oneshot(json_request("PUT", "/npm/conflicted-pkg", &direct, Some(&token)))
+        .oneshot(json_request("PUT", "/conflicted-pkg", &direct, Some(&token)))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -402,7 +386,7 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
         .clone()
         .oneshot(request(
             "POST",
-            &format!("/npm/-/stage/{stage_id}/approve"),
+            &format!("/-/stage/{stage_id}/approve"),
             Body::empty(),
             Some(&token),
         ))
@@ -412,12 +396,7 @@ async fn approving_a_version_published_in_the_meantime_conflicts() {
 
     // The record survives a failed approval; it can still be rejected.
     let reject = app
-        .oneshot(request(
-            "DELETE",
-            &format!("/npm/-/stage/{stage_id}"),
-            Body::empty(),
-            Some(&token),
-        ))
+        .oneshot(request("DELETE", &format!("/-/stage/{stage_id}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(reject.status(), StatusCode::NO_CONTENT);
@@ -432,14 +411,14 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     let unknown = "1de6f3db-2ed9-4d72-b3dd-8f0e2b474a2f";
     let view = app
         .clone()
-        .oneshot(request("GET", &format!("/npm/-/stage/{unknown}"), Body::empty(), Some(&token)))
+        .oneshot(request("GET", &format!("/-/stage/{unknown}"), Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(view.status(), StatusCode::NOT_FOUND);
 
     // A path-traversal-shaped id is rejected before it can reach storage.
     let hostile = app
-        .oneshot(request("GET", "/npm/-/stage/%2e%2e%2fescape", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage/%2e%2e%2fescape", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
@@ -476,7 +455,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
         .clone()
         .oneshot(request(
             "POST",
-            &format!("/npm/-/stage/{stage_id}/approve"),
+            &format!("/-/stage/{stage_id}/approve"),
             Body::empty(),
             Some(&token),
         ))
@@ -485,7 +464,7 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     assert_eq!(approve.status(), StatusCode::CONFLICT);
 
     let list = app
-        .oneshot(request("GET", "/npm/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
         .await
         .unwrap();
     assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");

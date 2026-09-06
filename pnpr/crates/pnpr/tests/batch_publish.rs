@@ -109,7 +109,7 @@ async fn batch_publish_writes_every_package_in_one_request() {
     });
     let response = app
         .clone()
-        .oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token))
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -135,7 +135,7 @@ async fn batch_publish_writes_every_package_in_one_request() {
 
         let served = app
             .clone()
-            .oneshot(Request::get(format!("/npm/{name}")).body(Body::empty()).unwrap())
+            .oneshot(Request::get(format!("/{name}")).body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(served.status(), StatusCode::OK);
@@ -181,7 +181,7 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     });
     let response = app
         .clone()
-        .oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token))
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
@@ -195,21 +195,19 @@ async fn batch_publish_supports_scoped_packages_with_libnpmpublish_attachment_na
     // client submitted.
     let packument_response = app
         .clone()
-        .oneshot(Request::get("/npm/@scope/wire-form").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/@scope/wire-form").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
     let served_packument = body_json(packument_response.into_body()).await;
     assert_eq!(
         served_packument["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/@scope/wire-form/-/wire-form-1.0.0.tgz",
+        "http://example.test/@scope/wire-form/-/wire-form-1.0.0.tgz",
     );
 
     let served = app
         .oneshot(
-            Request::get("/npm/@scope/wire-form/-/wire-form-1.0.0.tgz")
-                .body(Body::empty())
-                .unwrap(),
+            Request::get("/@scope/wire-form/-/wire-form-1.0.0.tgz").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -224,7 +222,7 @@ async fn anonymous_batch_publish_is_rejected() {
     let app = router(static_config(storage.clone()));
 
     let body = json!({ "packages": [publish_doc("anon-batch", "1.0.0", b"bytes")] });
-    let response = app.oneshot(put_json("/npm/-/pnpm/v1/publish", &body)).await.unwrap();
+    let response = app.oneshot(put_json("/-/pnpm/v1/publish", &body)).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     assert!(!storage.join("anon-batch").exists());
 }
@@ -245,7 +243,7 @@ async fn batch_publish_rolls_back_every_package_when_one_fails_integrity() {
 
     let body = json!({ "packages": [good, bad] });
     let response =
-        app.oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("EINTEGRITY"), "error should carry EINTEGRITY: {body_text}");
@@ -279,7 +277,7 @@ async fn batch_publish_rejects_duplicate_package_names() {
         ],
     });
     let response =
-        app.oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body_text = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(body_text.contains("duplicate package"), "got: {body_text}");
@@ -295,7 +293,7 @@ async fn batch_publish_rejects_bodies_without_a_packages_array() {
     for body in [json!({}), json!({ "packages": [] }), json!({ "packages": "nope" }), json!([])] {
         let response = app
             .clone()
-            .oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token))
+            .oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token))
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "body: {body}");
@@ -310,7 +308,7 @@ async fn batch_publish_rejects_entries_without_a_name() {
 
     let body = json!({ "packages": [{ "versions": {} }] });
     let response =
-        app.oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &body, &token)).await.unwrap();
+        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &body, &token)).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -326,14 +324,14 @@ async fn batch_publish_merges_with_previously_published_versions() {
     let first = json!({ "packages": [publish_doc("merge-pkg", "1.0.0", b"v1")] });
     let response = app
         .clone()
-        .oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &first, &token))
+        .oneshot(put_json_with_token("/-/pnpm/v1/publish", &first, &token))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let second = json!({ "packages": [publish_doc("merge-pkg", "2.0.0", b"v2")] });
     let response =
-        app.oneshot(put_json_with_token("/npm/-/pnpm/v1/publish", &second, &token)).await.unwrap();
+        app.oneshot(put_json_with_token("/-/pnpm/v1/publish", &second, &token)).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let packument: Value =

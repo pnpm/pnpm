@@ -145,7 +145,7 @@ async fn anonymous_request_to_protected_package_returns_401() {
     // policy still requires auth for it because the package name
     // matches the `@pnpm.e2e/needs-auth` policy rule.
     let response = app
-        .oneshot(Request::get("/npm/@pnpm.e2e/needs-auth").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/@pnpm.e2e/needs-auth").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -159,7 +159,7 @@ async fn bearer_token_grants_access_to_protected_package() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/@pnpm.e2e/needs-auth")
+            Request::get("/@pnpm.e2e/needs-auth")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -181,7 +181,7 @@ async fn basic_auth_is_rejected_for_protected_package() {
     let basic = BASE64.encode(b"alice:secret");
     let response = app
         .oneshot(
-            Request::get("/npm/@pnpm.e2e/needs-auth")
+            Request::get("/@pnpm.e2e/needs-auth")
                 .header("Authorization", format!("Basic {basic}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -196,7 +196,7 @@ async fn anonymous_publish_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let body = sample_publish_body("anon-test", "1.0.0", b"tarball-bytes");
-    let response = app.oneshot(put_json("/npm/anon-test", body)).await.unwrap();
+    let response = app.oneshot(put_json("/anon-test", body)).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -209,7 +209,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
 
     let bytes = b"fake-tarball-bytes";
     let body = sample_publish_body("mypkg", "1.0.0", bytes);
-    let request = Request::put("/npm/mypkg")
+    let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -233,13 +233,12 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     assert_eq!(on_disk_tarball, bytes);
 
     // Subsequent GET serves it back with the public URL rewritten.
-    let response =
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let served = body_json(response.into_body()).await;
     assert_eq!(
         served["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
+        "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
     );
 }
 
@@ -252,7 +251,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
 
     let publish = |bytes: &[u8]| {
         let body = serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", bytes)).unwrap();
-        Request::put("/npm/mypkg")
+        Request::put("/mypkg")
             .header("content-type", "application/json")
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::from(body))
@@ -279,7 +278,7 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     // Publish 1.0.0 normally.
-    let first = Request::put("/npm/mypkg")
+    let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -295,9 +294,9 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     body["versions"]["1.0.0"] = json!({
         "name": "mypkg",
         "version": "1.0.0",
-        "dist": { "tarball": "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz", "integrity": "sha512-EVIL" },
+        "dist": { "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz", "integrity": "sha512-EVIL" },
     });
-    let smuggle = Request::put("/npm/mypkg")
+    let smuggle = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -312,7 +311,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -322,7 +321,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
     assert!(original_integrity.is_string(), "published version should carry an integrity");
@@ -332,14 +331,14 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(
         "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
     );
-    let tamper = Request::put("/npm/mypkg/-rev/1-0")
+    let tamper = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    let after = app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
 }
@@ -351,7 +350,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -361,12 +360,12 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     // A present-but-non-string integrity must be rejected — otherwise it slips
     // past the string-only immutability check and breaks tarball serving.
     packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
@@ -381,7 +380,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -391,20 +390,20 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
     // A non-object dist would skip the integrity-restore path and strip the hash,
     // so it must be rejected rather than silently persisted.
     packument["versions"]["1.0.0"]["dist"] = json!(null);
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    let after = app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
 }
@@ -416,7 +415,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -426,7 +425,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_tarball = packument["versions"]["1.0.0"]["dist"]["tarball"].clone();
 
@@ -434,15 +433,15 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     // keeps its immutable integrity, so this would make clients fetch bytes that
     // can't match it (or 404) — it must be rejected, not persisted.
     packument["versions"]["1.0.0"]["dist"]["tarball"] =
-        json!("http://example.test/npm/mypkg/-/mypkg-9.9.9.tgz");
-    let tamper = Request::put("/npm/mypkg/-rev/1-0")
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let tamper = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    let after = app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
 }
@@ -454,7 +453,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -464,7 +463,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_versions = packument["versions"].clone();
 
@@ -475,18 +474,18 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         "name": "mypkg",
         "version": "9.9.9",
         "dist": {
-            "tarball": "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
+            "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
             "integrity": packument["versions"]["1.0.0"]["dist"]["integrity"].clone(),
         },
     });
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+    let request = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&packument).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    let after = app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"], original_versions);
 }
@@ -498,7 +497,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let publish = Request::put("/npm/mypkg")
+    let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -518,8 +517,8 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
 
     let mut tampered = stored.clone();
     tampered["versions"]["1.0.0"]["dist"]["tarball"] =
-        json!("http://example.test/npm/mypkg/-/mypkg-9.9.9.tgz");
-    let request = Request::put("/npm/mypkg/-rev/1-0")
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let request = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
@@ -537,7 +536,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
     // PUT to the unpublish route with no prior publish would seed an authoritative
     // version that publish can never overwrite, so it must be rejected.
     let body = sample_publish_body("ghost", "1.0.0", b"bytes");
-    let request = Request::put("/npm/ghost/-rev/anything")
+    let request = Request::put("/ghost/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -557,7 +556,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let first = Request::put("/npm/mypkg")
+    let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -567,7 +566,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
 
     let get =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let hosted = body_json(get.into_body()).await;
     let hosted_dist = hosted["versions"]["1.0.0"]["dist"].clone();
     // Baseline so the dist-preservation assertion below isn't vacuous.
@@ -585,7 +584,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
             }
         }
     });
-    let deprecate = Request::put("/npm/mypkg")
+    let deprecate = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -593,10 +592,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     assert_eq!(app.clone().oneshot(deprecate).await.unwrap().status(), StatusCode::CREATED);
 
     let after = body_json(
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
@@ -616,7 +612,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
 
     let mut publish_body = sample_publish_body("mypkg", "1.0.0", b"original");
     publish_body["versions"]["1.0.0"]["dependencies"] = json!({ "lodash": "^4.0.0" });
-    let first = Request::put("/npm/mypkg")
+    let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
@@ -625,7 +621,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
 
     let hosted = body_json(
         app.clone()
-            .oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
             .await
             .unwrap()
             .into_body(),
@@ -644,7 +640,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
             }
         }
     });
-    let tamper = Request::put("/npm/mypkg")
+    let tamper = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -653,10 +649,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     // not applied: the published version's metadata is immutable.
     assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::CREATED);
     let after = body_json(
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
@@ -672,7 +665,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let first = Request::put("/npm/mypkg")
+    let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -683,7 +676,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
 
     let before = body_json(
         app.clone()
-            .oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
             .await
             .unwrap()
             .into_body(),
@@ -691,7 +684,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     .await;
 
     let body = json!({ "_id": "mypkg", "name": "mypkg", "versions": { "1.0.0": null } });
-    let malformed = Request::put("/npm/mypkg")
+    let malformed = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -701,10 +694,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
 
     // The hosted version is intact — its `dist` was not erased.
     let after = body_json(
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
     )
     .await;
     assert_eq!(after["versions"]["1.0.0"], before["versions"]["1.0.0"]);
@@ -721,7 +711,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let first = Request::put("/npm/mypkg")
+    let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
@@ -739,13 +729,13 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
                 "name": "mypkg",
                 "version": "9.9.9",
                 "dist": {
-                    "tarball": "http://example.test/npm/mypkg/-/mypkg-9.9.9.tgz",
+                    "tarball": "http://example.test/mypkg/-/mypkg-9.9.9.tgz",
                     "integrity": "sha512-AAAA",
                 },
             }
         }
     });
-    let squat = Request::put("/npm/mypkg")
+    let squat = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -754,10 +744,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
 
     // 9.9.9 was never added.
     let after = body_json(
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap())
-            .await
-            .unwrap()
-            .into_body(),
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
     )
     .await;
     assert!(after["versions"].get("9.9.9").is_none());
@@ -775,7 +762,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
 
     let bytes = b"durable-tarball-bytes";
     let body = sample_publish_body("durable-pkg", "1.0.0", bytes);
-    let request = Request::put("/npm/durable-pkg")
+    let request = Request::put("/durable-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -799,7 +786,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     // The package is still served, tarball and all.
     let response = app
         .clone()
-        .oneshot(Request::get("/npm/durable-pkg").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/durable-pkg").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -807,9 +794,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     assert_eq!(served["versions"]["1.0.0"]["version"], "1.0.0");
 
     let response = app
-        .oneshot(
-            Request::get("/npm/durable-pkg/-/durable-pkg-1.0.0.tgz").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/durable-pkg/-/durable-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -827,7 +812,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
 
     let hosted_bytes = b"hosted-bytes";
     let body = sample_publish_body("pref-pkg", "1.0.0", hosted_bytes);
-    let request = Request::put("/npm/pref-pkg")
+    let request = Request::put("/pref-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -840,7 +825,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     std::fs::write(cached.join("pref-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
 
     let response = app
-        .oneshot(Request::get("/npm/pref-pkg/-/pref-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/pref-pkg/-/pref-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -856,7 +841,7 @@ async fn publish_followed_by_dist_tag_set_works() {
 
     // First publish 1.0.0
     let body = sample_publish_body("tagpkg", "1.0.0", b"v1");
-    let request = Request::put("/npm/tagpkg")
+    let request = Request::put("/tagpkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -866,7 +851,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     // Then publish 2.0.0 (without changing latest)
     let mut body = sample_publish_body("tagpkg", "2.0.0", b"v2");
     body["dist-tags"] = json!({}); // don't bump latest
-    let request = Request::put("/npm/tagpkg")
+    let request = Request::put("/tagpkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -876,7 +861,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     // Confirm latest is still 1.0.0.
     let tags = app
         .clone()
-        .oneshot(Request::get("/npm/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(tags.status(), StatusCode::OK);
@@ -884,7 +869,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     assert_eq!(tags_body["latest"], "1.0.0");
 
     // PUT a new "beta" tag pointing at 2.0.0.
-    let request = Request::put("/npm/-/package/tagpkg/dist-tags/beta")
+    let request = Request::put("/-/package/tagpkg/dist-tags/beta")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("2.0.0").unwrap()))
@@ -895,7 +880,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     // Confirm the tag landed.
     let tags = app
         .clone()
-        .oneshot(Request::get("/npm/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
@@ -905,14 +890,14 @@ async fn publish_followed_by_dist_tag_set_works() {
     // And via the version-manifest endpoint resolving the tag.
     let manifest = app
         .clone()
-        .oneshot(Request::get("/npm/tagpkg/beta").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/tagpkg/beta").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let manifest_body = body_json(manifest.into_body()).await;
     assert_eq!(manifest_body["version"], "2.0.0");
 
     // Now DELETE it.
-    let request = Request::delete("/npm/-/package/tagpkg/dist-tags/beta")
+    let request = Request::delete("/-/package/tagpkg/dist-tags/beta")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -920,7 +905,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let tags = app
-        .oneshot(Request::get("/npm/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/tagpkg/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let tags_body = body_json(tags.into_body()).await;
@@ -935,7 +920,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("time-mod-pkg", "1.0.0", b"x");
-    let request = Request::put("/npm/time-mod-pkg")
+    let request = Request::put("/time-mod-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -953,7 +938,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
     // Wait long enough that ISO-millisecond timestamps will differ.
     tokio::time::sleep(std::time::Duration::from_millis(5)).await;
 
-    let request = Request::put("/npm/-/package/time-mod-pkg/dist-tags/next")
+    let request = Request::put("/-/package/time-mod-pkg/dist-tags/next")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
@@ -972,7 +957,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
 
     tokio::time::sleep(std::time::Duration::from_millis(5)).await;
 
-    let request = Request::delete("/npm/-/package/time-mod-pkg/dist-tags/next")
+    let request = Request::delete("/-/package/time-mod-pkg/dist-tags/next")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -993,7 +978,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
 async fn dist_tag_set_requires_auth_before_body_parsing() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let request = Request::put("/npm/-/package/anything/dist-tags/latest")
+    let request = Request::put("/-/package/anything/dist-tags/latest")
         .header("content-type", "application/json")
         .body(Body::from("not json"))
         .unwrap();
@@ -1008,7 +993,7 @@ async fn publish_rejects_body_name_that_doesnt_match_url() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("other-name", "1.0.0", b"x");
-    let request = Request::put("/npm/url-name")
+    let request = Request::put("/url-name")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1033,7 +1018,7 @@ async fn publish_rejects_tarball_that_doesnt_match_package() {
             "length": bytes.len()
         }
     });
-    let request = Request::put("/npm/foo")
+    let request = Request::put("/foo")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1056,7 +1041,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
     // won't match.
     body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
 
-    let request = Request::put("/npm/bad-pkg")
+    let request = Request::put("/bad-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1092,7 +1077,7 @@ async fn publish_rejects_shasum_mismatch() {
     // Keep integrity valid but corrupt the legacy shasum.
     body["versions"]["1.0.0"]["dist"]["shasum"] = json!("0000000000000000000000000000000000000000");
 
-    let request = Request::put("/npm/shasum-pkg")
+    let request = Request::put("/shasum-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1118,7 +1103,7 @@ async fn publish_rejects_missing_integrity_field() {
     let mut body = sample_publish_body("no-int-pkg", "1.0.0", bytes);
     body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("integrity");
 
-    let request = Request::put("/npm/no-int-pkg")
+    let request = Request::put("/no-int-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1185,7 +1170,7 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
             },
         }
     });
-    let request = Request::put("/npm/multi-attach")
+    let request = Request::put("/multi-attach")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1230,14 +1215,14 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
     // npm-client-style `%2F` encoding to verify the decoded path
     // reaches the handler.
     let body = sample_publish_body("@scope/pkg", "1.0.0", b"v1");
-    let request = Request::put("/npm/@scope/pkg")
+    let request = Request::put("/@scope/pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     app.clone().oneshot(request).await.unwrap();
 
-    let request = Request::put("/npm/-/package/@scope%2Fpkg/dist-tags/beta")
+    let request = Request::put("/-/package/@scope%2Fpkg/dist-tags/beta")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
@@ -1247,7 +1232,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
 
     // Fetch via the encoded form too — both should round-trip cleanly.
     let tags = app
-        .oneshot(Request::get("/npm/-/package/@scope%2Fpkg/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/@scope%2Fpkg/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(tags.status(), StatusCode::OK);
@@ -1265,7 +1250,7 @@ async fn publish_supports_scoped_packages() {
 
     let bytes = b"scoped-tarball";
     let body = sample_publish_body("@scope/pkg", "1.0.0", bytes);
-    let request = Request::put("/npm/@scope/pkg")
+    let request = Request::put("/@scope/pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1278,7 +1263,7 @@ async fn publish_supports_scoped_packages() {
 
     // And we can read it back.
     let response =
-        app.oneshot(Request::get("/npm/@scope/pkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/@scope/pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -1324,7 +1309,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
             },
         },
     });
-    let request = Request::put(format!("/npm/{pkg}"))
+    let request = Request::put(format!("/{pkg}"))
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1341,7 +1326,7 @@ async fn publish_accepts_libnpmpublish_scoped_attachment_filename() {
     // And it serves back via the spec URL form.
     let served = app
         .oneshot(
-            Request::get("/npm/@pnpmtest/lib-pub-form/-/lib-pub-form-1.0.0.tgz")
+            Request::get("/@pnpmtest/lib-pub-form/-/lib-pub-form-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1357,7 +1342,7 @@ async fn search_finds_packages_by_substring_in_local_storage() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
     let response = app
-        .oneshot(Request::get("/npm/-/v1/search?text=no-deps&size=20").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=no-deps&size=20").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1378,9 +1363,7 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
     // for $authenticated, so search shouldn't surface it.
     let response = app
         .clone()
-        .oneshot(
-            Request::get("/npm/-/v1/search?text=needs-auth&size=20").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/v1/search?text=needs-auth&size=20").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1401,7 +1384,7 @@ async fn search_filters_protected_packages_for_anonymous_callers() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
     let response = app
         .oneshot(
-            Request::get("/npm/-/v1/search?text=needs-auth&size=20")
+            Request::get("/-/v1/search?text=needs-auth&size=20")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1428,7 +1411,7 @@ async fn search_returns_empty_for_made_up_query() {
     let app = router(static_config(storage.path().to_path_buf()));
     let response = app
         .oneshot(
-            Request::get("/npm/-/v1/search?text=zzz-does-not-exist-99999&size=20")
+            Request::get("/-/v1/search?text=zzz-does-not-exist-99999&size=20")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1463,7 +1446,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let response = app
         .oneshot(
             Request::get(
-                "/npm/-/v1/search?text=this-package-definitely-does-not-exist-xyz-123&size=20",
+                "/-/v1/search?text=this-package-definitely-does-not-exist-xyz-123&size=20",
             )
             .body(Body::empty())
             .unwrap(),
@@ -1481,9 +1464,7 @@ async fn search_returns_empty_objects_in_static_mode() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
     let response = app
-        .oneshot(
-            Request::get("/npm/-/v1/search?text=anything&size=20").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/v1/search?text=anything&size=20").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1503,7 +1484,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // older one removed — simulating the partial-unpublish flow.
     for version in ["1.0.0", "2.0.0"] {
         let body = sample_publish_body("unpub-partial", version, version.as_bytes());
-        let request = Request::put("/npm/unpub-partial")
+        let request = Request::put("/unpub-partial")
             .header("content-type", "application/json")
             .header("Authorization", format!("Bearer {token}"))
             .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1517,11 +1498,11 @@ async fn unpublish_partial_writes_modified_packument() {
         "dist-tags": { "latest": "2.0.0" },
         "versions": {
             "2.0.0": { "name": "unpub-partial", "version": "2.0.0", "dist": {
-                "tarball": "http://example.test/npm/unpub-partial/-/unpub-partial-2.0.0.tgz"
+                "tarball": "http://example.test/unpub-partial/-/unpub-partial-2.0.0.tgz"
             }},
         },
     });
-    let request = Request::put("/npm/unpub-partial/-rev/anything")
+    let request = Request::put("/unpub-partial/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&modified).unwrap()))
@@ -1532,7 +1513,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // GET packument back — should only contain 2.0.0.
     let response = app
         .clone()
-        .oneshot(Request::get("/npm/unpub-partial").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/unpub-partial").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let served = body_json(response.into_body()).await;
@@ -1548,7 +1529,7 @@ async fn unpublish_partial_writes_modified_packument() {
     );
 
     // DELETE the 1.0.0 tarball next.
-    let request = Request::delete("/npm/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -1561,7 +1542,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // returns 201 here too (idempotent). The pnpm unpublish flow
     // tolerates 404 separately as a fallback, but we shouldn't even
     // get there.
-    let request = Request::delete("/npm/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -1580,7 +1561,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("blend-pkg", "1.0.0", b"hosted-bytes");
-    let request = Request::put("/npm/blend-pkg")
+    let request = Request::put("/blend-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1593,7 +1574,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
     std::fs::create_dir_all(&cached).unwrap();
     std::fs::write(cached.join("blend-pkg-1.0.0.tgz"), b"stale-proxied-bytes").unwrap();
 
-    let request = Request::delete("/npm/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/blend-pkg/-/blend-pkg-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -1604,7 +1585,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
 
     // With both stores cleared and no upstream, the version is gone.
     let response = app
-        .oneshot(Request::get("/npm/blend-pkg/-/blend-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/blend-pkg/-/blend-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -1618,7 +1599,7 @@ async fn unpublish_force_removes_entire_package() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("unpub-force", "1.0.0", b"contents");
-    let request = Request::put("/npm/unpub-force")
+    let request = Request::put("/unpub-force")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1626,7 +1607,7 @@ async fn unpublish_force_removes_entire_package() {
     app.clone().oneshot(request).await.unwrap();
     assert!(storage.join("unpub-force/package.json").exists());
 
-    let request = Request::delete("/npm/unpub-force/-rev/anything")
+    let request = Request::delete("/unpub-force/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -1636,7 +1617,7 @@ async fn unpublish_force_removes_entire_package() {
 
     // Re-fetch returns 404 (static mode + no on-disk packument).
     let response =
-        app.oneshot(Request::get("/npm/unpub-force").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/unpub-force").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -1648,7 +1629,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("@scope/unpub", "1.0.0", b"bytes");
-    let request = Request::put("/npm/@scope/unpub")
+    let request = Request::put("/@scope/unpub")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1659,7 +1640,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     // pnpm reconstructs the DELETE URL from the rewritten tarball URL
     // in the packument, which uses literal `/` for the scope segment
     // (not `%2F`). That lands on the 6-seg route.
-    let request = Request::delete("/npm/@scope/unpub/-/unpub-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/@scope/unpub/-/unpub-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -1681,14 +1662,14 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("missing-unpublish", "1.0.0", b"contents");
-    let request = Request::put("/npm/missing-unpublish")
+    let request = Request::put("/missing-unpublish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
 
-    let request = Request::delete("/npm/missing-unpublish/-rev/anything")
+    let request = Request::delete("/missing-unpublish/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
@@ -1711,7 +1692,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = sample_publish_body("unpub-policy", "1.0.0", b"contents");
-    let request = Request::put("/npm/unpub-policy")
+    let request = Request::put("/unpub-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1719,14 +1700,14 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
     assert!(storage.join("unpub-policy/package.json").exists());
 
-    let request = Request::delete("/npm/unpub-policy/-rev/anything")
+    let request = Request::delete("/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
     assert!(storage.join("unpub-policy/package.json").exists());
 
-    let request = Request::delete("/npm/unpub-policy/-rev/anything")
+    let request = Request::delete("/unpub-policy/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();
@@ -1749,7 +1730,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = sample_publish_body("tarball-policy", "1.0.0", b"contents");
-    let request = Request::put("/npm/tarball-policy")
+    let request = Request::put("/tarball-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1757,14 +1738,14 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
-    let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::empty())
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
     assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
 
-    let request = Request::delete("/npm/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::empty())
         .unwrap();
@@ -1787,7 +1768,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
     let body = sample_publish_body("replace-policy", "1.0.0", b"contents");
-    let request = Request::put("/npm/replace-policy")
+    let request = Request::put("/replace-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -1799,7 +1780,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
         serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     replacement["owner"] = json!("admin");
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
+    let request = Request::put("/replace-policy/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
@@ -1808,7 +1789,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     assert!(on_disk.get("owner").is_none());
 
-    let request = Request::put("/npm/replace-policy/-rev/anything")
+    let request = Request::put("/replace-policy/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {admin}"))
         .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
@@ -1836,7 +1817,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
         let token = token.clone();
         tokio::spawn(async move {
             let body = sample_publish_body("racer", version, version.as_bytes());
-            let request = Request::put("/npm/racer")
+            let request = Request::put("/racer")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))

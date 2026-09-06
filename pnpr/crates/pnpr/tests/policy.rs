@@ -95,10 +95,10 @@ async fn authenticated_access_token_from_yaml_gates_anonymous_reads() {
     let app = router(config);
 
     // `@secret/*` requires auth: an anonymous read is 401.
-    assert_eq!(status_of(app.clone(), get("/npm/@secret/thing")).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(status_of(app.clone(), get("/@secret/thing")).await, StatusCode::UNAUTHORIZED);
     // A `**` ($all) package is readable anonymously — it's just absent
     // on disk, so 404, which proves the access check passed.
-    assert_eq!(status_of(app, get("/npm/lodash")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status_of(app, get("/lodash")).await, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -109,11 +109,11 @@ async fn anonymous_rule_admits_anonymous_and_forbids_authenticated() {
     let app = router(config);
 
     // Anonymous read passes the access check (404 = allowed but absent).
-    assert_eq!(status_of(app.clone(), get("/npm/@anon/x")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status_of(app.clone(), get("/@anon/x")).await, StatusCode::NOT_FOUND);
 
     // An authenticated caller is outside the `$anonymous` group → 403.
     let token = add_user_and_get_token(&app, "alice", "secret").await;
-    assert_eq!(status_of(app, get_auth("/npm/@anon/x", &token)).await, StatusCode::FORBIDDEN);
+    assert_eq!(status_of(app, get_auth("/@anon/x", &token)).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -124,13 +124,13 @@ async fn username_in_access_list_grants_only_that_user() {
     let app = router(config);
 
     // Anonymous: no creds for a name-gated package → 401.
-    assert_eq!(status_of(app.clone(), get("/npm/@team/x")).await, StatusCode::UNAUTHORIZED);
+    assert_eq!(status_of(app.clone(), get("/@team/x")).await, StatusCode::UNAUTHORIZED);
 
     // A different authenticated user is not `alice` → 403.
     let bob = add_user_and_get_token(&app, "bob", "secret").await;
-    assert_eq!(status_of(app.clone(), get_auth("/npm/@team/x", &bob)).await, StatusCode::FORBIDDEN);
+    assert_eq!(status_of(app.clone(), get_auth("/@team/x", &bob)).await, StatusCode::FORBIDDEN);
 
     // `alice` is on the list → access granted (404 = allowed but absent).
     let alice = add_user_and_get_token(&app, "alice", "secret").await;
-    assert_eq!(status_of(app, get_auth("/npm/@team/x", &alice)).await, StatusCode::NOT_FOUND);
+    assert_eq!(status_of(app, get_auth("/@team/x", &alice)).await, StatusCode::NOT_FOUND);
 }

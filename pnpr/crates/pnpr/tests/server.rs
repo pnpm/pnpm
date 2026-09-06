@@ -366,7 +366,7 @@ fn hosted_publish_request(
         "name": package,
         "dist-tags": { "latest": version },
         "versions": { (version): { "name": package, "version": version, "dist": {
-            "tarball": format!("http://example.test/npm/{package}/-/{basename}-{version}.tgz"),
+            "tarball": format!("http://example.test/{package}/-/{basename}-{version}.tgz"),
             "integrity": sha512_integrity(tarball),
         } } },
         "_attachments": { (attachment): {
@@ -484,17 +484,17 @@ async fn packument_is_proxied_cached_and_rewritten() {
     let app = router(config);
 
     let response =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
+        "http://example.test/foo/-/foo-1.0.0.tgz",
     );
     assert_eq!(body["versions"]["1.0.0"]["dist"]["shasum"], "deadbeef");
 
     let cached =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(cached.status(), StatusCode::OK);
 
     packument_mock.assert_async().await;
@@ -561,8 +561,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     // The fractional `time.modified` rounds *up*: the header must stay
     // an upper bound on the publish time for release-age checks.
     let expected = "Sun, 21 Jun 2026 12:00:01 GMT";
-    let get =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let get = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(get.status(), StatusCode::OK);
     assert_eq!(
         get.headers().get("last-modified").and_then(|value| value.to_str().ok()),
@@ -573,7 +572,7 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     // so a client can read the bound without downloading the document.
     let head = app
         .clone()
-        .oneshot(Request::builder().method("HEAD").uri("/npm/foo").body(Body::empty()).unwrap())
+        .oneshot(Request::builder().method("HEAD").uri("/foo").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(head.status(), StatusCode::OK);
@@ -585,14 +584,11 @@ async fn packument_responses_carry_last_modified_for_head_probes() {
     // A document without a parsable `time.modified` omits the header
     // instead of guessing — absent and garbled values alike.
     let no_time =
-        app.clone().oneshot(Request::get("/npm/bare").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/bare").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(no_time.status(), StatusCode::OK);
     assert!(no_time.headers().get("last-modified").is_none());
-    let unparsable = app
-        .clone()
-        .oneshot(Request::get("/npm/garbled").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let unparsable =
+        app.clone().oneshot(Request::get("/garbled").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(unparsable.status(), StatusCode::OK);
     assert!(unparsable.headers().get("last-modified").is_none());
 }
@@ -637,7 +633,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     let app = router(config);
 
     let first =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(first.status(), StatusCode::OK);
     let body = body_json(first.into_body()).await;
     assert!(body["versions"].get("1.1.0").is_none());
@@ -647,7 +643,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert_eq!(body["dist-tags"]["stable"], "1.0.0");
 
     let cached =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(cached.status(), StatusCode::OK);
     let cached_body = body_json(cached.into_body()).await;
     assert!(cached_body["versions"].get("1.1.0").is_none());
@@ -655,24 +651,18 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert!(cached_body["dist-tags"].get("latest").is_none());
     assert_eq!(cached_body["dist-tags"]["stable"], "1.0.0");
 
-    let vulnerable_manifest = app
-        .clone()
-        .oneshot(Request::get("/npm/foo/1.1.0").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let vulnerable_manifest =
+        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(vulnerable_manifest.status(), StatusCode::NOT_FOUND);
 
-    let safe_manifest = app
-        .clone()
-        .oneshot(Request::get("/npm/foo/1.0.0").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let safe_manifest =
+        app.clone().oneshot(Request::get("/foo/1.0.0").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(safe_manifest.status(), StatusCode::OK);
     let safe_body = body_json(safe_manifest.into_body()).await;
     assert_eq!(safe_body["version"], "1.0.0");
 
     let dist_tags = app
-        .oneshot(Request::get("/npm/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(dist_tags.status(), StatusCode::OK);
@@ -713,7 +703,7 @@ async fn upstream_dist_tags_enforce_package_access() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/npm/-/package/restricted/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/restricted/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -772,7 +762,7 @@ async fn osv_filters_packument_identity_mismatches() {
     let app = router(config);
 
     let response =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     let versions = body["versions"].as_object().unwrap();
@@ -786,21 +776,18 @@ async fn osv_filters_packument_identity_mismatches() {
     assert!(time.contains_key("modified"));
     assert!(time.contains_key("1.0.0"));
 
-    let vulnerable_key_manifest = app
-        .clone()
-        .oneshot(Request::get("/npm/foo/1.1.0").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let vulnerable_key_manifest =
+        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(vulnerable_key_manifest.status(), StatusCode::NOT_FOUND);
     let vulnerable_manifest_version = app
         .clone()
-        .oneshot(Request::get("/npm/foo/safe-key").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/safe-key").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(vulnerable_manifest_version.status(), StatusCode::NOT_FOUND);
 
     let dist_tags = app
-        .oneshot(Request::get("/npm/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(dist_tags.status(), StatusCode::OK);
@@ -840,7 +827,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/foo")
+            Request::get("/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -882,7 +869,7 @@ async fn scoped_packument_is_served() {
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
-        app.oneshot(Request::get("/npm/@types/node").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/@types/node").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     mock.assert_async().await;
 }
@@ -907,7 +894,7 @@ async fn tarball_is_proxied_and_cached() {
 
     let first = app
         .clone()
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(first.status(), StatusCode::OK);
@@ -916,7 +903,7 @@ async fn tarball_is_proxied_and_cached() {
     // A fresh instance over the same storage and origin serves the cached
     // copy; the `expect(1)` mocks prove the upstream is never asked twice.
     let second = router(config_for(&upstream.url(), storage))
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::OK);
@@ -963,7 +950,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/~npmjs/foo")
+            Request::get("/~npmjs/foo")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -979,7 +966,7 @@ async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     // URL is canonical for the client's configured registry (integrity-only).
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/~npmjs/foo/-/foo-1.0.0.tgz",
+        "http://example.test/~npmjs/foo/-/foo-1.0.0.tgz",
     );
     mock.assert_async().await;
 }
@@ -1042,7 +1029,7 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/npm/~npmjs/foo")
+            Request::get("/~npmjs/foo")
                 .header(header::AUTHORIZATION, &authorization)
                 .body(Body::empty())
                 .unwrap(),
@@ -1054,10 +1041,10 @@ async fn upstream_endpoint_preserves_and_serves_revision_tarballs() {
     assert_eq!(body["versions"]["1.0.0"]["dist"]["revision"], 2);
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        format!("http://example.test/npm/~npmjs/{revision_path}"),
+        format!("http://example.test/~npmjs/{revision_path}"),
     );
 
-    for path in [format!("/npm/~npmjs/{revision_path}"), format!("/npm/{revision_path}")] {
+    for path in [format!("/~npmjs/{revision_path}"), format!("/{revision_path}")] {
         let response = app
             .clone()
             .oneshot(
@@ -1098,7 +1085,7 @@ async fn upstream_revision_tarball_does_not_follow_redirects() {
     let app = router_with_auth(config, auth);
     let response = app
         .oneshot(
-            Request::get(format!("/npm/~npmjs/{revision_path}"))
+            Request::get(format!("/~npmjs/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1124,7 +1111,7 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
         router_config(&upstream.url(), &upstream.url(), tmp.path().join("router")),
         AuthState::in_memory(),
     );
-    for path in [format!("/npm/~main/{revision_path}"), format!("/npm/{revision_path}")] {
+    for path in [format!("/~main/{revision_path}"), format!("/{revision_path}")] {
         let response = router_app
             .clone()
             .oneshot(Request::get(path).body(Body::empty()).unwrap())
@@ -1137,7 +1124,7 @@ async fn revision_tarballs_require_a_concrete_registry_without_package_access_ru
     config.upstreams.get_mut("npmjs").unwrap().rules =
         PackageRules::new(vec![access_rule("restricted", "$authenticated")], None);
     let response = router_with_auth(config, AuthState::in_memory())
-        .oneshot(Request::get(format!("/npm/~npmjs/{revision_path}")).body(Body::empty()).unwrap())
+        .oneshot(Request::get(format!("/~npmjs/{revision_path}")).body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -1152,7 +1139,7 @@ async fn upstream_endpoint_rejects_unauthorized_caller() {
     // Anonymous caller is not admitted by the upstream's access policy, and the
     // request fails closed before any upstream fetch.
     let response =
-        app.oneshot(Request::get("/npm/~npmjs/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/~npmjs/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
@@ -1197,7 +1184,7 @@ async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/npm/~npmjs/foo/-/foo-1.0.0.tgz")
+                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
                     .header(header::AUTHORIZATION, format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -1258,7 +1245,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     let private = app
         .clone()
         .oneshot(
-            Request::get("/npm/~corp/foo/-/foo-1.0.0.tgz")
+            Request::get("/~corp/foo/-/foo-1.0.0.tgz")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -1271,7 +1258,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     // The public path must serve the public upstream's bytes, never the
     // private upstream's cached copy.
     let public = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(public.status(), StatusCode::OK);
@@ -1311,7 +1298,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&old_origin.url(), tmp.path().to_path_buf()));
     let primed = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(primed.status(), StatusCode::OK);
@@ -1321,7 +1308,7 @@ async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     // from the new origin, not the still-fresh cache of the old one.
     let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(repointed.status(), StatusCode::OK);
@@ -1367,7 +1354,7 @@ async fn upstream_endpoint_cache_false_streams_without_caching() {
         let response = app
             .clone()
             .oneshot(
-                Request::get("/npm/~npmjs/foo/-/foo-1.0.0.tgz")
+                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
                     .header(header::AUTHORIZATION, format!("Bearer {token}"))
                     .body(Body::empty())
                     .unwrap(),
@@ -1401,7 +1388,7 @@ async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -1431,7 +1418,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
+            Request::get("/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1460,7 +1447,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
     let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let warmed = warming_app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(warmed.status(), StatusCode::OK);
@@ -1473,7 +1460,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
     let screened_app = router(config);
 
     let response = screened_app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -1525,7 +1512,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     let cache_dir = tmp.path().to_path_buf();
     let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
     let warmed = warming_app
-        .oneshot(Request::get("/npm/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(warmed.status(), StatusCode::OK);
@@ -1549,7 +1536,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     let screened_app = router(config);
 
     let response = screened_app
-        .oneshot(Request::get("/npm/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
@@ -1617,23 +1604,23 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 
     let selected = app
         .clone()
-        .oneshot(Request::get("/npm/foo/latest").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/latest").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(selected["dist"]["tarball"], "http://example.test/npm/foo/-/foo-2.0.0.tgz");
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-2.0.0.tgz");
 
     let full =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
     assert_eq!(
         full["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-2.0.0.tgz",
+        "http://example.test/foo/-/foo-2.0.0.tgz",
     );
     assert_eq!(
         full["versions"]["2.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
+        "http://example.test/foo/-/foo-1.0.0.tgz",
     );
 
     let route =
@@ -1707,15 +1694,12 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     // but the SRI mismatch on the full body means they are never promoted to
     // the cache — so they can't poison a later request.
     let app = router(config_for(&upstream.url(), storage.clone()));
-    let packument_response = app
-        .clone()
-        .oneshot(Request::get("/npm/poisoned").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
+    let packument_response =
+        app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
 
     let tarball_response = app
-        .oneshot(Request::get("/npm/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(tarball_response.status(), StatusCode::OK);
@@ -1733,7 +1717,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     let url = upstream.url();
     drop(upstream);
     let cached_response = router(config_for(&url, storage))
-        .oneshot(Request::get("/npm/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert!(
@@ -1768,7 +1752,7 @@ async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
 
@@ -1802,7 +1786,7 @@ async fn shasum_only_tarball_is_served_with_sha1_verification() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1857,7 +1841,7 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
 
@@ -1906,7 +1890,7 @@ async fn invalid_tarball_integrities_are_controlled_failures() {
 
         let tmp = TempDir::new().unwrap();
         let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
-            .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
             .await
             .unwrap();
 
@@ -1930,7 +1914,7 @@ async fn upstream_404_is_propagated() {
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
-        app.oneshot(Request::get("/npm/missing").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/missing").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -1953,7 +1937,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let response = app
-        .oneshot(Request::get("/npm/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -1982,8 +1966,7 @@ async fn upstream_5xx_maps_to_bad_gateway() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/npm/broken").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/broken").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 }
 
@@ -2000,8 +1983,7 @@ async fn unreachable_upstream_maps_to_service_unavailable() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&dead_upstream, tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
@@ -2025,7 +2007,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
 
     let response = app
         .clone()
-        .oneshot(Request::get("/npm/foo/-/bar-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/bar-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
@@ -2033,7 +2015,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
     // A filename that is not even a safe path segment stays an early 400,
     // before any packument or tarball I/O.
     let unsafe_name = app
-        .oneshot(Request::get("/npm/foo/-/..%5Cescape.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/..%5Cescape.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(unsafe_name.status(), StatusCode::BAD_REQUEST);
@@ -2082,14 +2064,14 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
 
     // The served packument advertises the preserved basename on this server.
     let served =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     let doc = body_json(served.into_body()).await;
     let advertised = doc["versions"]["3001.1.0-exotic"]["dist"]["tarball"].as_str().unwrap();
-    assert!(advertised.ends_with(&format!("/npm/foo/-/{exotic}")), "got {advertised}");
+    assert!(advertised.ends_with(&format!("/foo/-/{exotic}")), "got {advertised}");
 
     // And fetching that URL back serves the verified bytes.
     let response = app
-        .oneshot(Request::get(format!("/npm/foo/-/{exotic}").as_str()).body(Body::empty()).unwrap())
+        .oneshot(Request::get(format!("/foo/-/{exotic}").as_str()).body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -2115,7 +2097,7 @@ async fn scoped_tarball_is_proxied() {
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
-        .oneshot(Request::get("/npm/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -2144,9 +2126,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     let noncanonical = app
         .clone()
         .oneshot(
-            Request::get("/npm/@types/node/-/%40types%2Fnode-20.0.0.tgz")
-                .body(Body::empty())
-                .unwrap(),
+            Request::get("/@types/node/-/%40types%2Fnode-20.0.0.tgz").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -2154,7 +2134,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     assert_eq!(body_bytes(noncanonical.into_body()).await, bytes);
 
     let canonical = app
-        .oneshot(Request::get("/npm/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(canonical.status(), StatusCode::OK);
@@ -2190,22 +2170,17 @@ async fn every_address_of_one_scoped_package_reaches_it() {
         }
     };
 
-    for path in [
-        "/npm/@types/node",
-        "/npm/@types%2Fnode",
-        "/npm/~npmjs/@types/node",
-        "/npm/~npmjs/@types%2Fnode",
-    ] {
+    for path in ["/@types/node", "/@types%2Fnode", "/~npmjs/@types/node", "/~npmjs/@types%2Fnode"] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
         assert_eq!(body_json(response.into_body()).await["name"], "@types/node", "GET {path}");
     }
 
     for path in [
-        "/npm/@types/node/20.0.0",
-        "/npm/@types%2Fnode/20.0.0",
-        "/npm/~npmjs/@types/node/20.0.0",
-        "/npm/~npmjs/@types%2Fnode/20.0.0",
+        "/@types/node/20.0.0",
+        "/@types%2Fnode/20.0.0",
+        "/~npmjs/@types/node/20.0.0",
+        "/~npmjs/@types%2Fnode/20.0.0",
     ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
@@ -2213,10 +2188,10 @@ async fn every_address_of_one_scoped_package_reaches_it() {
     }
 
     for path in [
-        "/npm/@types/node/-/node-20.0.0.tgz",
-        "/npm/@types%2Fnode/-/node-20.0.0.tgz",
-        "/npm/~npmjs/@types/node/-/node-20.0.0.tgz",
-        "/npm/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
+        "/@types/node/-/node-20.0.0.tgz",
+        "/@types%2Fnode/-/node-20.0.0.tgz",
+        "/~npmjs/@types/node/-/node-20.0.0.tgz",
+        "/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
     ] {
         let response = get(path).await;
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
@@ -2241,15 +2216,14 @@ async fn packument_is_refetched_after_ttl_expires() {
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
-    let r1 =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
 
     // Wait past the TTL so the cached packument is stale.
     tokio::time::sleep(Duration::from_millis(120)).await;
 
-    let r2 = app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r2.status(), StatusCode::OK);
 
     // Mock asserts exactly 2 upstream calls were made.
@@ -2281,8 +2255,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     let app = router(config);
 
     // Prime the cache with a fresh fetch.
-    let r1 =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
     ok.assert_async().await;
@@ -2297,7 +2270,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     tokio::time::sleep(Duration::from_millis(1200)).await;
 
     // The stale cached packument is served (200), not a 502.
-    let r2 = app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r2.status(), StatusCode::OK);
     let body = body_bytes(r2.into_body()).await;
     assert!(
@@ -2327,8 +2300,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
-    let r1 =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
     ok.assert_async().await;
@@ -2339,7 +2311,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
         upstream.mock("GET", "/foo").with_status(403).expect_at_least(1).create_async().await;
     tokio::time::sleep(Duration::from_millis(1200)).await;
 
-    let r2 = app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_ne!(r2.status(), StatusCode::OK, "a 4xx must not be answered from stale cache");
     denied.assert_async().await;
 }
@@ -2352,7 +2324,7 @@ async fn invalid_package_name_returns_bad_request() {
 
     // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
     let response =
-        app.oneshot(Request::get("/npm/.hidden").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/.hidden").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
@@ -2374,13 +2346,13 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let packument =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
     let req1 =
-        app.clone().oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
     let req2 =
-        app.clone().oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
+        app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
     let (r1, r2) = tokio::join!(req1, req2);
     let (r1, r2) = (r1.unwrap(), r2.unwrap());
     assert_eq!(r1.status(), StatusCode::OK);
@@ -2419,7 +2391,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     let app = router(config_for(&upstream.url(), blocked.clone()));
 
     let response = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -2443,8 +2415,7 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/npm/borked").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/borked").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 }
 
@@ -2518,7 +2489,7 @@ async fn upstream_stream_error_clears_cache() {
     let app = router(config_for(&upstream_url, cache_dir.clone()));
 
     let response = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     // The status line is sent before the upstream truncation is known, so the
@@ -2550,7 +2521,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let response = app
-        .oneshot(Request::get("/npm/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -2640,7 +2611,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/foo").header("accept-encoding", "gzip").body(Body::empty()).unwrap(),
+            Request::get("/foo").header("accept-encoding", "gzip").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -2658,7 +2629,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
     let body: Value = serde_json::from_slice(&decoded).unwrap();
     assert_eq!(
         body["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/foo/-/foo-1.0.0.tgz",
+        "http://example.test/foo/-/foo-1.0.0.tgz",
     );
 
     mock.assert_async().await;
@@ -2679,8 +2650,7 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    let response =
-        app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
         response.headers().get("content-encoding").is_none(),
@@ -2713,7 +2683,7 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     // them even when the client offers `Accept-Encoding: gzip`.
     let response = app
         .oneshot(
-            Request::get("/npm/foo/-/foo-1.0.0.tgz")
+            Request::get("/foo/-/foo-1.0.0.tgz")
                 .header("accept-encoding", "gzip")
                 .body(Body::empty())
                 .unwrap(),
@@ -2755,12 +2725,11 @@ async fn per_upstream_maxage_overrides_global_packument_ttl() {
         Some(Duration::from_millis(0));
     let app = router(config);
 
-    let r1 =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
 
-    let r2 = app.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r2.status(), StatusCode::OK);
 
     mock.assert_async().await;
@@ -2793,7 +2762,7 @@ async fn cache_false_upstream_streams_tarball_without_mirroring() {
     for _ in 0..2 {
         let response = app
             .clone()
-            .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+            .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -2834,7 +2803,7 @@ async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/npm/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -2891,19 +2860,16 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     // read, a publish, and a batch publish all 404 without any upstream
     // call (the route itself is absent).
     let packument =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND);
 
-    let publish = app
-        .clone()
-        .oneshot(Request::put("/npm/foo").body(Body::from("{}")).unwrap())
-        .await
-        .unwrap();
+    let publish =
+        app.clone().oneshot(Request::put("/foo").body(Body::from("{}")).unwrap()).await.unwrap();
     assert_eq!(publish.status(), StatusCode::NOT_FOUND);
 
     let batch_publish = app
         .clone()
-        .oneshot(Request::put("/npm/-/pnpm/v1/publish").body(Body::from("{}")).unwrap())
+        .oneshot(Request::put("/-/pnpm/v1/publish").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
     assert_eq!(batch_publish.status(), StatusCode::NOT_FOUND);
@@ -3045,7 +3011,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     assert_eq!(ping.status(), StatusCode::OK);
 
     let packument =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
     // The registry tier has a pnpr protocol of its own — the cross-ecosystem
@@ -3159,7 +3125,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     let corp_tar = app
         .clone()
         .oneshot(
-            Request::get("/npm/~main/@corp/secret/-/secret-1.0.0.tgz").body(Body::empty()).unwrap(),
+            Request::get("/~main/@corp/secret/-/secret-1.0.0.tgz").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -3169,7 +3135,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     // Everything else falls to the npmjs upstream via the `**` route.
     let public_tar = app
         .clone()
-        .oneshot(Request::get("/npm/~main/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~main/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(public_tar.status(), StatusCode::OK);
@@ -3178,7 +3144,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     // The path-less base aliases the `main` router (the default target), so the
     // bare host routes identically.
     let bare = app
-        .oneshot(Request::get("/npm/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(bare.status(), StatusCode::OK);
@@ -3216,7 +3182,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // The claimed private scope still serves.
     let matched = app
         .clone()
-        .oneshot(Request::get("/npm/~main/@corp/secret").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(matched.status(), StatusCode::OK);
@@ -3224,7 +3190,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // An unclaimed public name is a definitive not-found, not a fall-through.
     let unclaimed = app
         .clone()
-        .oneshot(Request::get("/npm/~main/lodash").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(unclaimed.status(), StatusCode::NOT_FOUND);
@@ -3232,7 +3198,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // Addressing the upstream registry directly is bounded the same way, without
     // an upstream fetch.
     let direct =
-        app.oneshot(Request::get("/npm/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(direct.status(), StatusCode::NOT_FOUND);
     off_pattern_fetch.assert_async().await;
 }
@@ -3260,7 +3226,7 @@ async fn router_unavailable_source_errors_not_404() {
     let app = router_with_auth(config, AuthState::in_memory());
 
     let response = app
-        .oneshot(Request::get("/npm/~main/@corp/secret").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_ne!(response.status(), StatusCode::NOT_FOUND);
@@ -3274,7 +3240,7 @@ fn seed_hosted(storage: &Path, pkg: &str) {
         "name": pkg,
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
-            "tarball": format!("http://example.test/npm/{pkg}/-/widget-1.0.0.tgz"),
+            "tarball": format!("http://example.test/{pkg}/-/widget-1.0.0.tgz"),
             "shasum": "abc",
         } } },
     });
@@ -3307,7 +3273,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     // A hosted package is served from the org registry.
     let hit = app
         .clone()
-        .oneshot(Request::get("/npm/~acme/@acme/widget").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(hit.status(), StatusCode::OK);
@@ -3315,7 +3281,7 @@ async fn hosted_registry_serves_only_what_it_hosts() {
     // A name the org does not host is a definitive not-found — a hosted org has
     // no upstream fall-through.
     let miss = app
-        .oneshot(Request::get("/npm/~acme/@acme/absent").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~acme/@acme/absent").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(miss.status(), StatusCode::NOT_FOUND);
@@ -3341,7 +3307,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     // existence is not revealed.
     let anon = app
         .clone()
-        .oneshot(Request::get("/npm/~acme/@acme/widget").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(anon.status(), StatusCode::NOT_FOUND);
@@ -3349,7 +3315,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     // The authorized caller reads it.
     let authed = app
         .oneshot(
-            Request::get("/npm/~acme/@acme/widget")
+            Request::get("/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3386,9 +3352,9 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     let app = router_with_auth(config, AuthState::in_memory());
 
     for path in [
-        "/npm/~acme/@acme/widget",                    // packument
-        "/npm/~acme/@acme/widget/1.0.0",              // version manifest
-        "/npm/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
+        "/~acme/@acme/widget",                    // packument
+        "/~acme/@acme/widget/1.0.0",              // version manifest
+        "/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
     ] {
         let resp =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
@@ -3420,9 +3386,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let app = router_with_auth(config, AuthState::in_memory());
 
     let resp = app
-        .oneshot(
-            Request::get("/npm/-/package/@acme%2Fwidget/dist-tags").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/package/@acme%2Fwidget/dist-tags").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -3463,7 +3427,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
             "version": "1.0.0",
             "_npmUser": { "name": "mallory" },
             "dist": {
-                "tarball": "http://example.test/npm/@acme/widget/-/widget-1.0.0.tgz",
+                "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
                 "integrity": sha512_integrity(tarball),
             },
         } },
@@ -3478,7 +3442,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let publish = app
         .clone()
         .oneshot(
-            Request::put("/npm/~acme/@acme/widget")
+            Request::put("/~acme/@acme/widget")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -3502,7 +3466,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let read = app
         .clone()
         .oneshot(
-            Request::get("/npm/~acme/@acme/widget")
+            Request::get("/~acme/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3521,7 +3485,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let search = app
         .clone()
         .oneshot(
-            Request::get("/npm/~acme/-/v1/search?text=maintainer%3Aalice")
+            Request::get("/~acme/-/v1/search?text=maintainer%3Aalice")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3537,7 +3501,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let tar = app
         .clone()
         .oneshot(
-            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz")
+            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3551,7 +3515,7 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     // an upstream registry.
     let rejected = app
         .oneshot(
-            Request::put("/npm/lodash")
+            Request::put("/lodash")
                 .header("content-type", "application/json")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -3585,7 +3549,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let publish = router_with_auth(config.clone(), auth.clone())
         .oneshot(hosted_publish_request(
-            "/npm/~acme/@acme/widget",
+            "/~acme/@acme/widget",
             "@acme/widget",
             "1.0.0",
             tarball,
@@ -3597,9 +3561,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let app = router_with_auth(config, auth);
     for path in [
-        format!("/npm/~acme/{revision_path}"),
-        format!("/npm/~main/{revision_path}"),
-        format!("/npm/{revision_path}"),
+        format!("/~acme/{revision_path}"),
+        format!("/~main/{revision_path}"),
+        format!("/{revision_path}"),
     ] {
         let response =
             app.clone().oneshot(Request::get(&path).body(Body::empty()).unwrap()).await.unwrap();
@@ -3619,7 +3583,7 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
 
     let canonical = app
         .oneshot(
-            Request::get("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz").body(Body::empty()).unwrap(),
+            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz").body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -3648,7 +3612,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
         let response = app
             .clone()
             .oneshot(hosted_publish_request(
-                &format!("/npm/~acme/{package}"),
+                &format!("/~acme/{package}"),
                 &package,
                 "1.0.0",
                 tarball,
@@ -3662,7 +3626,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let rejected = app
         .clone()
         .oneshot(hosted_publish_request(
-            "/npm/~acme/shared-artifact-overflow",
+            "/~acme/shared-artifact-overflow",
             "shared-artifact-overflow",
             "1.0.0",
             tarball,
@@ -3675,7 +3639,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
     let overflow_packument = app
         .clone()
         .oneshot(
-            Request::get("/npm/~acme/shared-artifact-overflow")
+            Request::get("/~acme/shared-artifact-overflow")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3688,7 +3652,7 @@ async fn hosted_publish_rejects_digest_reference_overflow_without_disabling_exis
 
     let existing = app
         .oneshot(
-            Request::get(format!("/npm/~acme/{revision_path}"))
+            Request::get(format!("/~acme/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3718,13 +3682,13 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let publish = app
         .clone()
-        .oneshot(hosted_publish_request("/npm/~corp/secret", "secret", "1.0.0", tarball, &alice))
+        .oneshot(hosted_publish_request("/~corp/secret", "secret", "1.0.0", tarball, &alice))
         .await
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
     for authorization in [None, Some(format!("Bearer {bob}"))] {
-        let mut request = Request::get(format!("/npm/~corp/{revision_path}"));
+        let mut request = Request::get(format!("/~corp/{revision_path}"));
         if let Some(authorization) = authorization {
             request = request.header(header::AUTHORIZATION, authorization);
         }
@@ -3736,7 +3700,7 @@ async fn hosted_digest_route_rechecks_package_access() {
 
     let response = app
         .oneshot(
-            Request::get(format!("/npm/~corp/{revision_path}"))
+            Request::get(format!("/~corp/{revision_path}"))
                 .header(header::AUTHORIZATION, format!("Bearer {alice}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -3784,7 +3748,7 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
             "name": pkg,
             "dist-tags": { "latest": "1.0.0" },
             "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
-                "tarball": format!("http://example.test/npm/{pkg}/-/{bare}-1.0.0.tgz"),
+                "tarball": format!("http://example.test/{pkg}/-/{bare}-1.0.0.tgz"),
                 "integrity": sha512_integrity(tarball),
             } } },
             "_attachments": { format!("{pkg}-1.0.0.tgz"): {
@@ -3806,9 +3770,9 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     // An off-pattern publish is rejected on the registry's own URL, through the
     // router, and via the path-less base — and nothing lands in the store.
     for (url, pkg) in [
-        ("/npm/~acme/@typo/widget", "@typo/widget"),
-        ("/npm/~main/@typo/widget", "@typo/widget"),
-        ("/npm/@typo%2Fwidget", "@typo/widget"),
+        ("/~acme/@typo/widget", "@typo/widget"),
+        ("/~main/@typo/widget", "@typo/widget"),
+        ("/@typo%2Fwidget", "@typo/widget"),
     ] {
         let rejected = app.clone().oneshot(publish_to(url, pkg)).await.unwrap();
         assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
@@ -3819,12 +3783,12 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     );
 
     // A claimed name publishes normally through the registry's own URL.
-    let accepted = app.clone().oneshot(publish_to("/npm/~acme/@acme/widget", "@acme/widget")).await;
+    let accepted = app.clone().oneshot(publish_to("/~acme/@acme/widget", "@acme/widget")).await;
     assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
 
     // An off-pattern read is a definitive 404 on both addresses, before the
     // hosted store is consulted.
-    for url in ["/npm/~acme/@typo/widget", "/npm/~main/@typo/widget"] {
+    for url in ["/~acme/@typo/widget", "/~main/@typo/widget"] {
         let read = app
             .clone()
             .oneshot(
@@ -3863,7 +3827,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/npm/~corp/@typo/widget")
+        Request::put("/~corp/@typo/widget")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
@@ -3983,7 +3947,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
     let app = router_with_auth(config, auth);
 
     let publish_as = |token: &str| {
-        Request::put("/npm/~corp/lodash")
+        Request::put("/~corp/lodash")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
@@ -4028,7 +3992,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
         "name": "@corp/tool",
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": { "name": "@corp/tool", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/npm/@corp/tool/-/tool-1.0.0.tgz",
+            "tarball": "http://example.test/@corp/tool/-/tool-1.0.0.tgz",
             "integrity": sha512_integrity(tarball),
         } } },
         "_attachments": { "@corp/tool-1.0.0.tgz": {
@@ -4039,14 +4003,14 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     })
     .to_string();
     let publish_as = |token: &str| {
-        Request::put("/npm/~corp/@corp/tool")
+        Request::put("/~corp/@corp/tool")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(publish_body.clone()))
             .unwrap()
     };
     let retag_as = |token: &str| {
-        Request::put("/npm/-/package/@corp%2Ftool/dist-tags/latest")
+        Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
             .body(Body::from(r#""1.0.0""#))
@@ -4074,7 +4038,7 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
     let unpublish_denied = app
         .clone()
         .oneshot(
-            Request::delete("/npm/@corp%2Ftool/-rev/1")
+            Request::delete("/@corp%2Ftool/-rev/1")
                 .header(header::AUTHORIZATION, format!("Bearer {outsider}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -4115,7 +4079,7 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
     let app = router_with_auth(config, auth);
 
     let search_with = |authorization: Option<String>| {
-        let mut request = Request::get("/npm/-/v1/search?text=secret");
+        let mut request = Request::get("/-/v1/search?text=secret");
         if let Some(value) = authorization {
             request = request.header(header::AUTHORIZATION, value);
         }
@@ -4152,9 +4116,7 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
 
     let page = app
         .clone()
-        .oneshot(
-            Request::get("/npm/-/v1/search?text=tool&from=1&size=1").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/v1/search?text=tool&from=1&size=1").body(Body::empty()).unwrap())
         .await
         .unwrap();
     let page = body_json(page.into_body()).await;
@@ -4163,7 +4125,7 @@ async fn search_paginates_visible_results_and_filters_by_maintainer() {
 
     let maintained = app
         .oneshot(
-            Request::get("/npm/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
+            Request::get("/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4185,7 +4147,7 @@ async fn organization_packages_are_available_on_both_registry_routes() {
         tmp.path().to_path_buf(),
     ));
 
-    for route in ["/npm/-/org/acme/package", "/npm/~main/-/org/acme/package"] {
+    for route in ["/-/org/acme/package", "/~main/-/org/acme/package"] {
         let response =
             app.clone().oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -4229,7 +4191,7 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
     let missing = app
         .clone()
         .oneshot(
-            Request::get("/npm/missing")
+            Request::get("/missing")
                 .header(header::ORIGIN, "https://npmx.example")
                 .body(Body::empty())
                 .unwrap(),
@@ -4258,7 +4220,7 @@ async fn cors_allows_only_configured_origins_and_handles_preflight() {
         .oneshot(
             Request::builder()
                 .method("OPTIONS")
-                .uri("/npm/-/v1/search?text=tool")
+                .uri("/-/v1/search?text=tool")
                 .header(header::ORIGIN, "https://npmx.example")
                 .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
                 .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization")
@@ -4319,7 +4281,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
     let response = app
         .clone()
         .oneshot(
-            Request::get("/npm/-/v1/search?text=remote&size=5")
+            Request::get("/-/v1/search?text=remote&size=5")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -4332,7 +4294,7 @@ async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/-/org/acme/package")
+            Request::get("/-/org/acme/package")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -4400,7 +4362,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
 
     let first_page = app
         .clone()
-        .oneshot(Request::get("/npm/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(first_page.status(), StatusCode::OK);
@@ -4410,9 +4372,7 @@ async fn search_paginates_across_hosted_and_upstream_sources() {
     assert_eq!(first_page["objects"][1]["package"]["name"], json!("ajv-remote-a"));
 
     let second_page = app
-        .oneshot(
-            Request::get("/npm/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(second_page.status(), StatusCode::OK);
@@ -4465,7 +4425,7 @@ async fn upstream_search_exhausts_results_to_return_an_exact_total() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/npm/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
         .await
         .unwrap();
 
@@ -4496,15 +4456,13 @@ async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
 
     let offset = app
         .clone()
-        .oneshot(
-            Request::get("/npm/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap(),
-        )
+        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
 
     let result_set = app
-        .oneshot(Request::get("/npm/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
@@ -4535,7 +4493,7 @@ async fn upstream_search_rejects_more_than_eight_short_pages() {
     let app = router(config);
 
     let response = app
-        .oneshot(Request::get("/npm/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
         .await
         .unwrap();
 
@@ -4575,7 +4533,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
         "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/npm/@acme/widget/-/widget-1.0.0.tgz",
+            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
             "integrity": sha512_integrity(tarball),
         } } },
         "_attachments": { "@acme/widget-1.0.0.tgz": {
@@ -4587,7 +4545,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let publish = app
         .clone()
         .oneshot(
-            authed(Request::put("/npm/~acme/@acme/widget"))
+            authed(Request::put("/~acme/@acme/widget"))
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
                 .unwrap(),
@@ -4600,7 +4558,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let tags = app
         .clone()
         .oneshot(
-            authed(Request::get("/npm/~acme/-/package/@acme%2Fwidget/dist-tags"))
+            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4613,7 +4571,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let add = app
         .clone()
         .oneshot(
-            authed(Request::put("/npm/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+            authed(Request::put("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
                 .header("content-type", "application/json")
                 .body(Body::from(r#""1.0.0""#))
                 .unwrap(),
@@ -4624,7 +4582,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let tags = app
         .clone()
         .oneshot(
-            authed(Request::get("/npm/~acme/-/package/@acme%2Fwidget/dist-tags"))
+            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4634,7 +4592,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let remove = app
         .clone()
         .oneshot(
-            authed(Request::delete("/npm/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+            authed(Request::delete("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4656,7 +4614,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let search = app
         .clone()
         .oneshot(
-            authed(Request::get("/npm/~acme/-/v1/search?text=widget")).body(Body::empty()).unwrap(),
+            authed(Request::get("/~acme/-/v1/search?text=widget")).body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -4665,7 +4623,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     assert_eq!(body["objects"][0]["package"]["name"], json!("@acme/widget"));
     let anon_search = app
         .clone()
-        .oneshot(Request::get("/npm/~acme/-/v1/search?text=widget").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/~acme/-/v1/search?text=widget").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
@@ -4674,14 +4632,14 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     // the registry's own base.
     let manifest = app
         .clone()
-        .oneshot(authed(Request::get("/npm/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
+        .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(manifest.status(), StatusCode::OK);
     let manifest = body_json(manifest.into_body()).await;
     assert_eq!(
         manifest["dist"]["tarball"],
-        json!("http://example.test/npm/~acme/@acme/widget/-/widget-1.0.0.tgz"),
+        json!("http://example.test/~acme/@acme/widget/-/widget-1.0.0.tgz"),
     );
 
     // The unpublish flow: PUT back a packument without the version, delete
@@ -4690,7 +4648,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let put_back = app
         .clone()
         .oneshot(
-            authed(Request::put("/npm/~acme/@acme%2Fwidget/-rev/1"))
+            authed(Request::put("/~acme/@acme%2Fwidget/-rev/1"))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
@@ -4703,7 +4661,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let delete_tar = app
         .clone()
         .oneshot(
-            authed(Request::delete("/npm/~acme/@acme/widget/-/widget-1.0.0.tgz/-rev/1"))
+            authed(Request::delete("/~acme/@acme/widget/-/widget-1.0.0.tgz/-rev/1"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -4714,9 +4672,7 @@ async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and
     let delete_pkg = app
         .clone()
         .oneshot(
-            authed(Request::delete("/npm/~acme/@acme%2Fwidget/-rev/1"))
-                .body(Body::empty())
-                .unwrap(),
+            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1")).body(Body::empty()).unwrap(),
         )
         .await
         .unwrap();
@@ -4743,11 +4699,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
 
-    for path in [
-        "/npm/@acme/widget",
-        "/npm/@acme%2Fwidget/1.0.0",
-        "/npm/-/package/@acme%2Fwidget/dist-tags",
-    ] {
+    for path in ["/@acme/widget", "/@acme%2Fwidget/1.0.0", "/-/package/@acme%2Fwidget/dist-tags"] {
         let response = app
             .clone()
             .oneshot(
@@ -4782,7 +4734,7 @@ async fn pathless_private_registry_responses_carry_private_cache_headers() {
     );
     let app = router_with_auth(config, AuthState::in_memory());
     let response =
-        app.oneshot(Request::get("/npm/@acme/widget").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/@acme/widget").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert!(
         response.headers().get(header::CACHE_CONTROL).is_none(),
@@ -4817,7 +4769,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
 
     let response = app
         .oneshot(
-            Request::get("/npm/@acme/widget")
+            Request::get("/@acme/widget")
                 .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
@@ -4857,7 +4809,7 @@ async fn upstream_404_purges_cached_packument() {
     let app = router(config);
 
     let first =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(first.status(), StatusCode::OK);
     let _ = body_bytes(first.into_body()).await;
     ok_mock.assert_async().await;
@@ -4870,13 +4822,13 @@ async fn upstream_404_purges_cached_packument() {
     upstream.mock("GET", "/foo").with_status(404).create_async().await;
     tokio::time::sleep(Duration::from_millis(120)).await;
     let gone =
-        app.clone().oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(gone.status(), StatusCode::NOT_FOUND);
     assert!(!cached.exists(), "the 404 must purge the cached packument");
 
     // A later transient outage can no longer resurrect it from stale cache.
     let dead = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
-    let outage = dead.oneshot(Request::get("/npm/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let outage = dead.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
 }
 
@@ -5003,7 +4955,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    for path in ["/~/-/whoami", "/npm/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
+    for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
@@ -5014,7 +4966,7 @@ async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_e
     // answering as whoami. The configured upstream is unreachable, which is
     // what a package read of it reports.
     let tarball_shaped =
-        app.oneshot(Request::get("/npm/corp/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/corp/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(tarball_shaped.status(), StatusCode::SERVICE_UNAVAILABLE);
 }
 
@@ -5030,14 +4982,14 @@ async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
     let app = router(config);
 
     for (method, path) in [
-        ("GET", "/npm/notascope/widget/1.0.0"),
-        ("GET", "/npm/notascope/widget/-/widget-1.0.0.tgz"),
-        ("GET", "/npm/~npmjs/notascope/widget/1.0.0"),
-        ("GET", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
-        ("PUT", "/npm/notascope/widget"),
-        ("PUT", "/npm/~npmjs/notascope/widget"),
-        ("DELETE", "/npm/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
-        ("DELETE", "/npm/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("GET", "/notascope/widget/1.0.0"),
+        ("GET", "/notascope/widget/-/widget-1.0.0.tgz"),
+        ("GET", "/~npmjs/notascope/widget/1.0.0"),
+        ("GET", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
+        ("PUT", "/notascope/widget"),
+        ("PUT", "/~npmjs/notascope/widget"),
+        ("DELETE", "/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("DELETE", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
     ] {
         let response = app
             .clone()
@@ -5059,12 +5011,12 @@ async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
 
     for (method, path) in [
         // `/{name}` reads and publishes.
-        ("DELETE", "/npm/widget"),
+        ("DELETE", "/widget"),
         // `/{name}/-rev/{rev}` updates and unpublishes.
-        ("GET", "/npm/widget/-rev/1"),
-        ("GET", "/npm/~npmjs/widget/-rev/1"),
+        ("GET", "/widget/-rev/1"),
+        ("GET", "/~npmjs/widget/-rev/1"),
         // Search is a read.
-        ("DELETE", "/npm/-/v1/search"),
+        ("DELETE", "/-/v1/search"),
     ] {
         let response = app
             .clone()
@@ -5086,7 +5038,7 @@ async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
     let app = router(config);
 
     let response =
-        app.oneshot(Request::get("/npm/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -5108,7 +5060,7 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
     let tmp = TempDir::new().unwrap();
     let config = config_for(&upstream.url(), tmp.path().to_path_buf());
 
-    for path in ["/npm/foo%23bar", "/npm/foo%3Fbar", "/npm/foo%25bar", "/npm/foo%20bar"] {
+    for path in ["/foo%23bar", "/foo%3Fbar", "/foo%25bar", "/foo%20bar"] {
         let app = router(config.clone());
         let response = app.oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
@@ -5116,12 +5068,8 @@ async fn url_delimiters_in_a_package_name_are_rejected() {
     bare.assert_async().await;
 }
 
-/// Every ecosystem is addressed through its own prefix, so the npm surface
-/// answers under `/npm/` and the apex serves no packages. That also makes the
-/// npm packages named for an ecosystem reachable: `npm`, `cargo` and `pypi`
-/// have nowhere to collide with the prefixes.
 #[tokio::test]
-async fn the_npm_surface_answers_only_under_its_prefix() {
+async fn a_single_npm_ecosystem_answers_at_the_root() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"npm-tarball-bytes";
     let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes).await;
@@ -5136,20 +5084,11 @@ async fn the_npm_surface_answers_only_under_its_prefix() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    for path in ["/npm-only-at-the-prefix", "/@scope/pkg", "/~npmjs/pkg"] {
-        let response =
-            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
-        assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
-    }
-
-    // The package named `npm` is reachable, and the tarball URL its packument
-    // advertises is one this server answers.
-    let doc =
-        app.clone().oneshot(Request::get("/npm/npm").body(Body::empty()).unwrap()).await.unwrap();
+    let doc = app.clone().oneshot(Request::get("/npm").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(doc.status(), StatusCode::OK);
     let doc = body_json(doc.into_body()).await;
     let advertised = doc["versions"]["10.0.0"]["dist"]["tarball"].as_str().unwrap().to_string();
-    assert_eq!(advertised, "http://example.test/npm/npm/-/npm-10.0.0.tgz");
+    assert_eq!(advertised, "http://example.test/npm/-/npm-10.0.0.tgz");
 
     let fetched = app
         .oneshot(

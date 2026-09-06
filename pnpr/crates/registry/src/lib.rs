@@ -321,6 +321,21 @@ impl Registries {
         }
     }
 
+    #[must_use]
+    pub fn has_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.entries.iter().any(|(name, registry)| {
+            registry.is_concrete() && self.concrete_ecosystem(name) == ecosystem
+        })
+    }
+
+    #[must_use]
+    pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.has_ecosystem(ecosystem)
+            && [Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi]
+                .into_iter()
+                .all(|candidate| candidate == ecosystem || !self.has_ecosystem(candidate))
+    }
+
     fn concrete_ecosystem(&self, registry: &str) -> Ecosystem {
         self.ecosystems.get(registry).copied().unwrap_or_default()
     }

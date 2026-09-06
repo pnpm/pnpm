@@ -42,7 +42,7 @@ async fn publishes_to_and_serves_from_the_object_store() {
 
     let bytes = b"fake-tarball-bytes";
     let body = sample_publish_body("mypkg", "1.0.0", bytes);
-    let request = Request::put("/npm/mypkg")
+    let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -57,17 +57,17 @@ async fn publishes_to_and_serves_from_the_object_store() {
     // The packument round-trips out of the bucket, with the tarball URL
     // rewritten to the public URL.
     let response =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let served = body_json(response.into_body()).await;
     assert_eq!(
         served["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/npm/mypkg/-/mypkg-1.0.0.tgz",
+        "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
     );
 
     // The tarball streams back byte-for-byte out of the bucket.
     let response = app
-        .oneshot(Request::get("/npm/mypkg/-/mypkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/mypkg/-/mypkg-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -94,7 +94,7 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("mypkg", "1.0.0", b"the losing tarball");
-    let request = Request::put("/npm/mypkg")
+    let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -102,8 +102,7 @@ async fn a_publish_that_loses_the_tarball_key_is_refused() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CONFLICT);
 
-    let response =
-        app.oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(body_json(response.into_body()).await["versions"], json!({}));
     let winner = store.get(&ObjectPath::from("mypkg/mypkg-1.0.0.tgz")).await.unwrap();
     assert_eq!(winner.bytes().await.unwrap(), "the winning tarball");
@@ -124,7 +123,7 @@ async fn rejected_publish_uploads_nothing_and_leaves_no_staging_file() {
     // Declare an integrity over different bytes than the body carries,
     // so the server's recomputed hash won't match.
     body["versions"]["1.0.0"]["dist"]["integrity"] = json!(sri_sha512(b"different-bytes"));
-    let request = Request::put("/npm/bad-pkg")
+    let request = Request::put("/bad-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -149,7 +148,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let body = sample_publish_body("mypkg", "1.0.0", b"fake-tarball-bytes");
-    let request = Request::put("/npm/mypkg")
+    let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -157,7 +156,7 @@ async fn unpublish_removes_the_package_from_the_bucket() {
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
     assert_eq!(bucket_keys(&store, "mypkg").await.len(), 2, "packument + tarball uploaded");
 
-    let request = Request::delete("/npm/mypkg/-rev/anything")
+    let request = Request::delete("/mypkg/-rev/anything")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
         .unwrap();
@@ -291,7 +290,7 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
     let response = app
         .clone()
         .oneshot(
-            Request::put("/npm/mypkg")
+            Request::put("/mypkg")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
@@ -314,6 +313,6 @@ async fn a_caller_supplied_prefix_is_normalized_before_it_reaches_the_keys() {
 
     // And the package still serves back through the prefixed keys.
     let response =
-        app.clone().oneshot(Request::get("/npm/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }

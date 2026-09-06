@@ -35,7 +35,7 @@ use wax::{Glob, Program};
 
 use pnpr_config::{Config, PublicRoute, UpstreamConfig};
 use pnpr_policy::{AccessList, Identity, PackageRules};
-use pnpr_registry::{ConcreteKind, Registries, Resolved};
+use pnpr_registry::{ConcreteKind, Ecosystem, Registries, Resolved};
 
 /// The classification of a single fetch route.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -333,6 +333,11 @@ impl RouteContext {
         }
     }
 
+    #[must_use]
+    pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.registries.is_only_ecosystem(ecosystem)
+    }
+
     /// Whether the upstream registry's effective per-package access admits
     /// `identity` for `package`. A non-package fetch and an upstream with no
     /// rules entry (a programmatically folded one) gate at the registry
@@ -385,7 +390,12 @@ impl RouteContext {
             // Everyone else — and an unknown name — gets an anonymous fetch
             // the endpoint itself rejects, rather than falling through to
             // another registry's policy.
-            if let Some(rest) = fetch.strip_prefix(hosted)
+            let npm_endpoint = if self.registries.is_only_ecosystem(Ecosystem::Npm) {
+                hosted.to_string()
+            } else {
+                format!("{hosted}npm/")
+            };
+            if let Some(rest) = fetch.strip_prefix(&npm_endpoint)
                 && let Some(registry) =
                     rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
                 && !registry.is_empty()
