@@ -5535,6 +5535,7 @@ dependencies = [
  "pnpm-lockfile",
  "pnpm-lockfile-verification",
  "pnpm-network",
+ "pnpm-python-resolver",
  "pnpm-shared-artifact-protocol",
  "pnpm-testing-utils",
  "pnpr",

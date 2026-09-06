@@ -20,7 +20,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
     str::FromStr,
-    sync::{Arc, LazyLock, Mutex, atomic::AtomicU8},
+    sync::{Arc, atomic::AtomicU8},
 };
 
 pub(crate) mod add;
@@ -285,7 +285,13 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
         return Ok(None);
     };
     let client = PnprClient::new(pnpr_server);
-    if !server_resolves_cargo(&client, pnpr_server).await? {
+    if !crate::pnpr_ecosystems::server_resolves(
+        &client,
+        pnpr_server,
+        pnpm_pnpr_client::CARGO_ECOSYSTEM,
+    )
+    .await?
+    {
         return Ok(None);
     }
     // Only the dependency graph leaves the machine: the rest of a
@@ -304,42 +310,6 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
         .wrap_err("resolve Cargo dependencies through the pnpr server")
         .map(Some)
 }
-
-/// Whether `pnpr_server` advertises Cargo resolution. Asked once per
-/// server for the life of the process — the roots of a workspace prepare
-/// concurrently and wait on the first one's answer, failures included —
-/// so a server that gains Cargo support while an install runs is not
-/// noticed until the next one.
-async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result<bool> {
-    let answer = Arc::clone(
-        CARGO_RESOLUTION_SUPPORT
-            .lock()
-            .expect("Cargo resolution support memo is poisoned")
-            .entry(pnpr_server.to_string())
-            .or_default(),
-    );
-    answer
-        .get_or_init(|| async {
-            client
-                .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
-                .await
-                .map_err(|err| err.to_string())
-        })
-        .await
-        .as_ref()
-        .copied()
-        .map_err(|err| miette::miette!("{err}"))
-        .wrap_err("negotiate Cargo resolution with the pnpr server")
-}
-
-/// A server's answer, or the failure to get one. The failure is kept too:
-/// a server that cannot be reached cannot be reached for the next root
-/// either, and retrying per root would serialize one timeout per root
-/// behind the shared cell.
-type EcosystemAnswer = Arc<tokio::sync::OnceCell<Result<bool, String>>>;
-
-static CARGO_RESOLUTION_SUPPORT: LazyLock<Mutex<HashMap<String, EcosystemAnswer>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) async fn latest_version(
     config: &Config,

@@ -17,6 +17,7 @@ mod package_specifier;
 mod parse_boundary;
 mod path_env;
 mod pm_prefix;
+mod pnpr_ecosystems;
 mod python;
 mod renamed_options;
 mod shim_dispatch;

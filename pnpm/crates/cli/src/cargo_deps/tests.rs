@@ -597,7 +597,7 @@ async fn concurrent_roots_share_one_failed_handshake() {
     for resolved in futures_util::future::join_all(roots).await {
         let error = resolved.unwrap_err();
         assert!(
-            error.to_string().contains("negotiate Cargo resolution"),
+            error.to_string().contains("whether it resolves cargo"),
             "every root reports the same refusal: {error:?}",
         );
     }

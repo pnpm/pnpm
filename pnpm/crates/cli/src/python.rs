@@ -7,6 +7,7 @@ use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, I
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use host::Interpreter;
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
+use pnpm_pnpr_client::{PYPI_ECOSYSTEM, PnprClient, PypiResolveOptions};
 use pnpm_python_resolver::{Inputs, Lockfile};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{StoreIndex, StoreIndexWriter};
@@ -209,6 +210,28 @@ async fn prepare<Reporter: self::Reporter + 'static>(
                 registry.fetch_wheels::<Reporter>(&lock.packages).await?;
                 resolver::validate_locked(&registry, &requirements)?;
                 lock
+            } else if let Some(lock) = resolve_via_pnpr(
+                config,
+                &requirements,
+                &interpreter.target,
+                index.as_str(),
+                project.requires_python.clone(),
+            )
+            .await?
+            {
+                // The server's answer is checked here, not taken: its
+                // lockfile has to record the inputs this install asked
+                // about, its wheels have to match the digests the index
+                // published, and the project has to re-solve to exactly
+                // these packages against the metadata of the wheels that
+                // were actually downloaded.
+                if lock.tool.pnpm != inputs {
+                    bail!("the pnpr server resolved Python dependencies for other inputs");
+                }
+                lock.seed(&mut registry.packages)?;
+                registry.fetch_wheels::<Reporter>(&lock.packages).await?;
+                resolver::validate_locked(&registry, &requirements)?;
+                lock
             } else {
                 let solution = resolver::resolve::<Reporter>(&mut registry, &requirements).await?;
                 Lockfile::new(
@@ -303,6 +326,43 @@ impl pnpm_install_coordinator::PreparedInstall for Prepared {
         }
     }
 }
+/// Resolve through the configured pnpr server, which reads the index and
+/// each wheel's metadata instead of making this client download wheels to
+/// find out what they require.
+///
+/// `None` when there is no server to ask, or when the one configured
+/// resolves Python not at all.
+async fn resolve_via_pnpr(
+    config: &pnpm_config::Config,
+    requirements: &[pep508_rs::Requirement],
+    target: &pnpm_python_resolver::Target,
+    index: &str,
+    requires_python: Option<String>,
+) -> Result<Option<Lockfile>> {
+    let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
+        return Ok(None);
+    };
+    let client = PnprClient::new(pnpr_server);
+    if !crate::pnpr_ecosystems::server_resolves(&client, pnpr_server, PYPI_ECOSYSTEM)
+        .await
+        .wrap_err("negotiate Python resolution with the pnpr server")?
+    {
+        return Ok(None);
+    }
+    client
+        .resolve_pypi(PypiResolveOptions {
+            requirements: requirements.iter().map(ToString::to_string).collect(),
+            target: target.clone(),
+            index: index.to_string(),
+            requires_python,
+            authorization: config.auth_headers.for_url(pnpr_server),
+        })
+        .await
+        .into_diagnostic()
+        .wrap_err("resolve Python dependencies through the pnpr server")
+        .map(Some)
+}
+
 fn ensure_environment_parent(root: &Path) -> Result<()> {
     let mut path = root.to_path_buf();
     for component in [".pnpm", "python-envs"] {
@@ -388,3 +448,6 @@ pub(crate) fn execution_paths<'a>(
     paths.extend(config.extra_bin_paths.iter().cloned());
     std::borrow::Cow::Owned(paths)
 }
+
+#[cfg(test)]
+mod tests;

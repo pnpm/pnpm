@@ -15,6 +15,7 @@ pnpm-catalogs-types           = { workspace = true }
 pnpm-config                   = { workspace = true }
 pnpm-graph-hasher             = { workspace = true }
 pnpm-lockfile                 = { workspace = true }
+pnpm-python-resolver          = { workspace = true }
 pnpm-lockfile-verification    = { workspace = true }
 pnpm-network                  = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
