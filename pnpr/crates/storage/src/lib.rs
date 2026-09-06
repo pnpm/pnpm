@@ -1111,11 +1111,13 @@ impl Store {
                     format!("{prefix}/{name_str}")
                 };
                 if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                    names.push(name.clone());
-                }
-                // One name may be a prefix of another, so a directory that is
-                // itself a package can still hold packages below it.
-                if depth < MAX_NAME_COMPONENTS {
+                    // Stopping here is what keeps a listing proportional to
+                    // the number of packages: descending would enumerate
+                    // every blob a package holds, on a path an anonymous
+                    // search reaches. A package nested under another is
+                    // therefore not listed — pnpm/pnpm#14630.
+                    names.push(name);
+                } else if depth < MAX_NAME_COMPONENTS {
                     pending.push((entry_path, name, depth + 1));
                 }
             }

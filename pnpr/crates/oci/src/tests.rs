@@ -231,3 +231,27 @@ fn a_tag_written_in_the_same_millisecond_still_moves() {
     assert!(stored.merge(addition, &HashSet::new()));
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("two"));
 }
+
+#[test]
+fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
+    // The tag is pushed to `one`, a push to `two` is journaled but not
+    // applied, then `one` is pushed again. Replaying the journal afterwards
+    // must not resurrect `two`, which it would if the re-push had left the
+    // first push's timestamp in place.
+    let mut stored = ImageDocument::new("acme/app");
+    stored.insert_manifest(entry("one"));
+    stored.insert_manifest(entry("two"));
+    stored.set_tag(tag("latest", "one", "2026-01-01T00:00:00.000Z"));
+
+    let mut re_push = ImageDocument::new("acme/app");
+    re_push.insert_manifest(entry("one"));
+    re_push.set_tag(tag("latest", "one", "2026-01-03T00:00:00.000Z"));
+    stored.merge(re_push, &HashSet::new());
+
+    let mut journaled = ImageDocument::new("acme/app");
+    journaled.insert_manifest(entry("two"));
+    journaled.set_tag(tag("latest", "two", "2026-01-02T00:00:00.000Z"));
+    stored.merge(journaled, &HashSet::new());
+
+    assert_eq!(stored.tag("latest").unwrap().digest, digest_of("one"));
+}

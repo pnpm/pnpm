@@ -1,6 +1,6 @@
 use crate::Digest;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::{cmp::Ordering, collections::HashSet};
 
 /// One manifest the repository holds, keyed by the digest of its bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -161,13 +161,19 @@ impl ImageDocument {
             {
                 continue;
             }
-            // A tie goes to the incoming write, but only where it moves the
-            // tag: re-applying the mapping already held is not a change, and
-            // reporting one would cost a document write for nothing.
-            let moves_the_tag = self
-                .tag(&entry.tag)
-                .is_none_or(|held| held.updated <= entry.updated && held.digest != entry.digest);
-            if !moves_the_tag {
+            // A newer write always wins, even where it names the digest the
+            // tag already holds: dropping it would leave the older timestamp
+            // in place, and a stale journaled write replayed later would then
+            // compare as newer and move the tag backward. On a tie only a
+            // different digest is a change, so re-applying the mapping
+            // already held costs no document write.
+            let supersedes =
+                self.tag(&entry.tag).is_none_or(|held| match held.updated.cmp(&entry.updated) {
+                    Ordering::Less => true,
+                    Ordering::Equal => held.digest != entry.digest,
+                    Ordering::Greater => false,
+                });
+            if !supersedes {
                 continue;
             }
             self.set_tag(entry);
