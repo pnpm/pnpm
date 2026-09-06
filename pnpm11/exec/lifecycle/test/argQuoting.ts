@@ -20,6 +20,7 @@ test('runLifecycleHook() quotes arguments for the emulator rather than for cmd o
     'C:\\Program Files\\tool\\',
     '',
     'a"b',
+    "it's",
     '$PNPM_QUOTING_TEST',
     'line\nbreak',
   ]

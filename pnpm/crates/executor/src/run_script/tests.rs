@@ -38,8 +38,10 @@ fn build_command_appends_posix_quoted_args() {
 
 #[test]
 fn build_command_appends_json_quoted_args_for_the_windows_shell() {
-    let args = [r"C:\dir\".to_string(), "needs quoting".to_string()];
-    assert_eq!(build_command("echo", &args, true), r#"echo "C:\\dir\\" "needs quoting""#);
+    let args =
+        [r"C:\dir\".to_string(), String::new(), r#"a"b"#.to_string(), "line\nbreak".to_string()];
+    let expected = r#"echo "C:\\dir\\" "" "a\"b" "line\nbreak""#;
+    assert_eq!(build_command("echo", &args, true), expected);
 }
 
 #[test]
