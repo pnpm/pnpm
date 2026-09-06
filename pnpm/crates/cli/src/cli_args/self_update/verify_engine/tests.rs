@@ -239,6 +239,23 @@ fn a_native_engine_verifies_the_host_platform_binary() {
 }
 
 #[test]
+fn a_native_engine_whose_snapshot_lists_no_platform_binaries_is_unverifiable() {
+    // `pnpm` owns the (empty) optional dependencies, so `@pnpm/exe` has none
+    // recorded at all.
+    let env = env_lockfile_owned_by("pnpm", &[]);
+
+    let Err(error) = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    ) else {
+        panic!("an engine with no platform binaries recorded cannot be verified");
+    };
+
+    assert!(matches!(error, SelfUpdateError::EngineIdentityUnverifiable { .. }), "{error:?}");
+}
+
+#[test]
 fn a_native_engine_without_a_binary_for_the_host_is_refused() {
     let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
 
