@@ -128,11 +128,12 @@ impl EnvLockfile {
     pub fn write(&self, root_dir: &Path) -> Result<(), SaveLockfileError> {
         let path = root_dir.join(Lockfile::FILE_NAME);
         let env_yaml = serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
-        let existing = match fs::read_to_string(&path) {
-            Ok(existing) => Some(normalize_lockfile_content(&existing).into_owned()),
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => Some(raw),
             Err(error) if error.kind() == ErrorKind::NotFound => None,
             Err(error) => return Err(SaveLockfileError::WriteFile(error)),
         };
+        let existing = raw.as_deref().map(normalize_lockfile_content);
         let main_doc = existing.as_deref().map(extract_main_document).unwrap_or_default();
         let combined =
             format!("{YAML_DOCUMENT_START}{env_yaml}{YAML_DOCUMENT_SEPARATOR}{main_doc}");
