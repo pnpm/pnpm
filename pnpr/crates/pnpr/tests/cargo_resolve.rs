@@ -207,7 +207,7 @@ async fn concurrent_resolves_fetch_a_cold_index_entry_once() {
 async fn cargo_resolve_stops_on_an_oversized_index_entry() {
     let mut index = mockito::Server::new_async().await;
     let padding = "x".repeat(1024);
-    let oversized = (0..40_000)
+    let oversized = (0..20_000)
         .map(|version| {
             format!(
                 r#"{{"name":"foo","vers":"1.0.{version}","deps":[],"cksum":"{CKSUM}","features":{{}},"yanked":false,"padding":"{padding}"}}"#,

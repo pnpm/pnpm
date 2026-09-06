@@ -64,10 +64,10 @@ const MAX_INDEX_FILES: usize = 20_000;
 /// waves; the cap only stops a loop that stops making progress.
 const MAX_INDEX_WAVES: usize = 256;
 
-/// Cap on a single index file. The largest crates.io entries are a few
-/// megabytes, so this bounds a hostile registry's reply without truncating
-/// a real one.
-const MAX_INDEX_FILE_BYTES: usize = 32 * 1024 * 1024;
+/// Cap on a single index file. The largest crates.io entries are a couple
+/// of megabytes, so this bounds a hostile registry's reply without
+/// truncating a real one.
+const MAX_INDEX_FILE_BYTES: usize = 16 * 1024 * 1024;
 
 /// Cap on the index bytes one resolve holds. [`MAX_INDEX_FILES`] and
 /// [`MAX_INDEX_FILE_BYTES`] bound the count and each entry, whose product
@@ -75,6 +75,13 @@ const MAX_INDEX_FILE_BYTES: usize = 32 * 1024 * 1024;
 /// workspace is a few hundred megabytes at the very top of the scale, and
 /// past this budget a registry is feeding the resolver rather than
 /// answering it.
+///
+/// An entry is charged when it lands, and no fetch starts once the budget
+/// is spent, so a wave already in flight overshoots by at most
+/// [`INDEX_FETCH_CONCURRENCY`] × [`MAX_INDEX_FILE_BYTES`]. Charging a
+/// reservation up front instead would bound the peak exactly but refuse
+/// real workspaces, whose entries are three orders of magnitude smaller
+/// than the per-entry cap.
 const MAX_INDEX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 
 /// Index files fetched in parallel within one wave.
@@ -262,6 +269,11 @@ impl IndexFetcher {
         if let Some(cached) = self.cached(&cache_path).await {
             return self.hold(name, cached);
         }
+        // Nothing more is fetched once the budget is spent, so the entries
+        // still in flight bound how far past it the resolve can reach.
+        if let Some(exhausted) = over_index_budget(self.bytes_held.load(Ordering::Relaxed), name) {
+            return Err(exhausted);
+        }
         // The route policy decides what this deployment may reach at all;
         // a registry a caller merely names is refused here rather than
         // fetched (SSRF boundary).
@@ -295,8 +307,11 @@ impl IndexFetcher {
         }
         let contents = String::from_utf8(response.body)
             .map_err(|err| format!("decode sparse index entry for {name}: {err}"))?;
+        // Charged before it is cached, so an entry that spends the last of
+        // the budget is not left behind for the next resolve to read.
+        let contents = self.hold(name, contents)?;
         Self::store(cache_path, contents.clone()).await;
-        self.hold(name, contents)
+        Ok(contents)
     }
 
     /// Account `contents` against this resolve's index-byte budget, which
