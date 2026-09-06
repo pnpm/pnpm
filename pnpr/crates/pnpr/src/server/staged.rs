@@ -394,13 +394,23 @@ async fn serve_staged_approve(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
-        return err.into_response();
-    }
+    let outcome = match commit_publishes(state, vec![staged]).await {
+        Ok(outcome) => outcome,
+        Err(err) => return err.into_response(),
+    };
+    // Past the commit the stage is spent, whatever the transaction could not
+    // record: leaving the record listed would offer an approval that cannot
+    // happen again.
+    // Past the commit the stage is spent, whatever the transaction could not
+    // record: leaving the record listed would offer an approval that cannot
+    // happen again.
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
         // cleanup must not report the approval as failed.
         tracing::warn!(error = %err, stage_id, "approved staged publish but its record cleanup failed");
+    }
+    if let Err(err) = report_unrecorded(outcome) {
+        return err.into_response();
     }
     json_response(StatusCode::CREATED, &json!({ "ok": true }))
 }

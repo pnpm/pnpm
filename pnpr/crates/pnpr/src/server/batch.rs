@@ -10,8 +10,13 @@
 //! is already a valid one — and carries what that surface's own publish
 //! endpoint takes, with the binary parts base64-encoded. Every entry is
 //! validated and staged before any of them is committed, and the commit is a
-//! single journal transaction, so a workspace that spans ecosystems becomes
-//! visible all at once.
+//! single journal transaction: a release that spans ecosystems either lands
+//! whole or leaves nothing behind, and one interrupted by a crash is
+//! completed on the next startup rather than staying half-published.
+//!
+//! That is a guarantee about outcomes, not about what a reader sees while it
+//! happens: the transaction promotes and records one package at a time, so a
+//! read that lands mid-commit can see some of the release and not the rest.
 //!
 //! One thing that cannot be undone: a blob whose immutable slot another
 //! writer already owns. Its bytes are someone's published release, so the
@@ -174,10 +179,6 @@ async fn publish_batch(
             }
         }
     }
-    // A package whose blob lost its immutable slot to another writer is left
-    // out of the document the transaction wrote, and the rest of the batch is
-    // published: the bytes that won the slot are someone's published release,
-    // and unpublishing around them would be worse than reporting this.
     report_unrecorded(commit_publishes(state, staged).await?)
 }
 
