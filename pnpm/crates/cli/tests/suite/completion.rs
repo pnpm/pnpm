@@ -22,7 +22,7 @@ fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
         ("bash", "_pnpm_completion"),
         ("fish", "complete -c pnpm"),
         ("pwsh", "Register-ArgumentCompleter -Native -CommandName pnpm"),
-        ("zsh", "#compdef pnpm pn"),
+        ("zsh", "#compdef pnpm"),
     ];
 
     for (shell, marker) in cases {

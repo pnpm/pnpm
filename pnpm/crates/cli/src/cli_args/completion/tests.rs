@@ -104,6 +104,19 @@ fn generated_scripts_register_pn_alias() {
 }
 
 #[test]
+fn pn_is_stripped_like_the_other_pnpm_binary_names() {
+    for binary in ["pnpm", "pn", "pacquet", "/usr/local/bin/pn", "pn.exe"] {
+        assert_eq!(
+            super::words_without_binary(&strings(&[binary, "add", ""])),
+            strings(&["add", ""]),
+            "{binary} should be dropped",
+        );
+    }
+
+    assert_eq!(super::words_without_binary(&strings(&["npm", ""])), strings(&["npm", ""]));
+}
+
+#[test]
 fn completion_server_treats_pn_as_the_pnpm_binary() {
     let pnpm = super::complete_words(&strings(&["pnpm", ""]));
     let pn = super::complete_words(&strings(&["pn", ""]));
