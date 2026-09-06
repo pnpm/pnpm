@@ -4,6 +4,7 @@ use super::{
     materialize, parse_lockfile, resolve_via_pnpr, sparse_index_path, update_managed_config,
     workspace_root,
 };
+use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -357,16 +358,21 @@ fn config_with_cargo_credentials(index_url: &str) -> Config {
     config.cargo.index_url = index_url.to_string();
     config.auth_headers = Arc::new(AuthHeaders::from_creds_map([
         ("//registry.example.test/".to_string(), "Bearer crate-token".to_string()),
-        ("//npm.internal.test/".to_string(), "Bearer unrelated-token".to_string()),
+        ("//cdn.example.test/".to_string(), "Bearer unrelated-token".to_string()),
         ("//127.0.0.1:4873/".to_string(), "Bearer local-token".to_string()),
     ]));
     config
 }
 
+fn registry_config(dl: &str, auth_required: bool) -> RegistryConfig {
+    RegistryConfig { dl: dl.to_string(), api: None, auth_required }
+}
+
 #[test]
 fn crate_downloads_keep_credentials_off_plaintext_hosts() {
     let config = config_with_cargo_credentials("https://registry.example.test/index/");
-    let auth_headers = download_auth_headers(&config, "https://registry.example.test/dl");
+    let auth_headers =
+        download_auth_headers(&config, &registry_config("https://registry.example.test/dl", false));
 
     assert_eq!(
         auth_headers.for_url_with_package("https://registry.example.test/dl/demo/1.0.0", None),
@@ -381,7 +387,8 @@ fn crate_downloads_keep_credentials_off_plaintext_hosts() {
 #[test]
 fn a_registry_on_loopback_still_authenticates_its_downloads() {
     let config = config_with_cargo_credentials("http://127.0.0.1:4873/index/");
-    let auth_headers = download_auth_headers(&config, "http://127.0.0.1:4873/dl");
+    let auth_headers =
+        download_auth_headers(&config, &registry_config("http://127.0.0.1:4873/dl", false));
 
     assert_eq!(
         auth_headers.for_url_with_package("http://127.0.0.1:4873/dl/demo/1.0.0", None),
@@ -390,12 +397,26 @@ fn a_registry_on_loopback_still_authenticates_its_downloads() {
 }
 
 #[test]
-fn a_download_template_off_the_registry_origin_carries_no_credential() {
+fn an_unauthenticated_archive_host_carries_no_credential() {
     let config = config_with_cargo_credentials("https://registry.example.test/index/");
-    let auth_headers = download_auth_headers(&config, "https://npm.internal.test/{crate}");
+    let auth_headers =
+        download_auth_headers(&config, &registry_config("https://cdn.example.test/{crate}", false));
 
-    assert_eq!(auth_headers.for_url_with_package("https://npm.internal.test/demo", None), None);
-    assert!(auth_headers.allows_fetch("https://npm.internal.test/demo"));
+    assert_eq!(auth_headers.for_url_with_package("https://cdn.example.test/demo", None), None);
+    assert!(auth_headers.allows_fetch("https://cdn.example.test/demo"));
+}
+
+#[test]
+fn an_authenticated_archive_host_carries_the_credential_of_the_registry() {
+    let config = config_with_cargo_credentials("https://registry.example.test/index/");
+    let auth_headers =
+        download_auth_headers(&config, &registry_config("https://cdn.example.test/{crate}", true));
+
+    // The registry's credential, not the one configured for the host it named.
+    assert_eq!(
+        auth_headers.for_url_with_package("https://cdn.example.test/demo", None),
+        Some("Bearer crate-token".to_string()),
+    );
 }
 
 #[tokio::test]

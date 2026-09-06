@@ -204,7 +204,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
 
     let cargo_auth_headers = cargo_auth_headers(config)?;
     let registry_config = fetch_registry_config(config, &http_client, &cargo_auth_headers).await?;
-    let auth_headers = download_auth_headers(config, &registry_config.dl);
+    let auth_headers = download_auth_headers(config, &registry_config);
     let verified_files_cache = SharedVerifiedFilesCache::default();
     let logged_methods = Arc::new(AtomicU8::new(0));
     let retry_opts = config.retry_opts();
@@ -362,30 +362,48 @@ pub(crate) async fn latest_version(
 
 /// The credentials a crate archive download may carry.
 ///
-/// The registry named by `cargo.indexUrl` is repository-selected, and its
-/// `config.json` picks the download host through `download_template`. A
-/// credential is therefore offered only when that host is the registry's
-/// own — otherwise a registry could name any host and collect the
-/// credential the user configured for it. What it does get travels only
-/// over TLS or loopback.
+/// `cargo.indexUrl` is repository-selected and its `config.json` names the
+/// download host, so the only credential that may travel is the one
+/// configured for the registry itself, never one looked up by the host the
+/// registry names. Off the registry's own origin it travels only when the
+/// registry sets `auth-required`, which is the same condition under which
+/// `cargo` sends its own token. Either way it travels only over TLS or
+/// loopback.
 ///
 /// A Cargo install runs from the CLI, which installs no route hook, so the
 /// anonymous headers deny nothing a hook would have allowed.
-fn download_auth_headers(config: &Config, download_template: &str) -> Arc<AuthHeaders> {
-    if same_origin(download_template, &config.cargo.index_url) {
-        Arc::new((*config.auth_headers).clone().with_secure_transport())
-    } else {
-        Arc::new(AuthHeaders::default())
+fn download_auth_headers(config: &Config, registry_config: &RegistryConfig) -> Arc<AuthHeaders> {
+    // The registry serves its own downloads: every credential configured
+    // for it applies to them as it does to its index.
+    if same_origin(&registry_config.dl, &config.cargo.index_url) {
+        return Arc::new((*config.auth_headers).clone().with_secure_transport());
     }
+    let credential = registry_config
+        .auth_required
+        .then(|| config.auth_headers.for_secure_url(&config.cargo.index_url))
+        .flatten();
+    let Some((credential, origin)) = credential.zip(origin_of(&registry_config.dl)) else {
+        return Arc::new(AuthHeaders::default());
+    };
+    let mut auth_headers = AuthHeaders::default().with_secure_transport();
+    auth_headers.insert_url_header(&origin, credential);
+    Arc::new(auth_headers)
 }
 
 /// Whether both URLs are absolute and share a scheme, host, and port. A URL
 /// that does not parse, or whose scheme has no host, matches nothing.
 fn same_origin(left: &str, right: &str) -> bool {
-    match (url::Url::parse(left), url::Url::parse(right)) {
-        (Ok(left), Ok(right)) => left.origin().is_tuple() && left.origin() == right.origin(),
+    match (origin_of(left), origin_of(right)) {
+        (Some(left), Some(right)) => left == right,
         _ => false,
     }
+}
+
+/// `scheme://host:port` of an absolute URL whose scheme has a host. `None`
+/// for anything else, including a download template that is a bare path.
+fn origin_of(url: &str) -> Option<String> {
+    let origin = url::Url::parse(url).ok()?.origin();
+    origin.is_tuple().then(|| origin.ascii_serialization())
 }
 
 pub(crate) fn cargo_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {
