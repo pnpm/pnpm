@@ -215,8 +215,6 @@ async fn add_saves_an_npm_selector_without_a_version_at_the_default_pin() {
     assert_eq!(add_npm_selector("npm:foo").await, Some("^1.0.0".to_string()));
 }
 
-/// Run `pacquet add <selector>` against a mocked default registry and
-/// report the specifier the manifest ends up with.
 async fn add_npm_selector(selector: &str) -> Option<String> {
     let dir = tempdir().unwrap();
     let project_root = dir.path().join("project");
