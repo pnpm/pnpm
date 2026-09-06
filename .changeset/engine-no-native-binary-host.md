@@ -4,6 +4,6 @@
 "pacquet": patch
 ---
 
-Switching to the pnpm version a project pins in `packageManager` works again on hosts where that release ships no native binary, such as Alpine Linux with pnpm 10 or an Intel Mac with pnpm 11. The version switch verifies only the pnpm build it installs and runs, so a JavaScript pnpm no longer fails because the `@pnpm/exe` pinned beside it has no binary for the host [#13622](https://github.com/pnpm/pnpm/issues/13622).
+The JavaScript pnpm can again switch to the pnpm version a project pins in `packageManager` on hosts where the native pnpm build ships no binary, such as Alpine Linux with pnpm 10 or an Intel Mac with pnpm 11 [#13622](https://github.com/pnpm/pnpm/issues/13622).
 
-When the build that would run is native and ships no binary for the host, pnpm now says so instead of reporting that the binary is missing from `pnpm-lock.yaml`.
+When the pnpm build being switched to is native and ships no binary for the host, pnpm now names the host target it lacks. pnpm reported that the binary was missing from `pnpm-lock.yaml`.

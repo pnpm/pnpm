@@ -196,11 +196,37 @@ describe('verifyPnpmEngineIdentity', () => {
     const lockfile = envLockfile()
     delete lockfile.importers['.'].packageManagerDependencies!['pnpm']
 
-    await expect(verifyPnpmEngineIdentity(lockfile, JS_ENGINE, optsTrusting(createSigningKey()))).rejects.toThrow(/pnpm@9.1.0: its integrity metadata is missing/)
+    await expect(verifyPnpmEngineIdentity(lockfile, JS_ENGINE, optsTrusting(createSigningKey()))).rejects.toThrow(/pnpm@9.1.0: the environment lockfile does not pin it/)
+  })
+
+  test('verifies a platform binary the JavaScript pnpm itself lists, which the install would link and run', async () => {
+    const key = createSigningKey()
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
+    // Signed over different bytes than the lockfile pins, so the switch is
+    // refused rather than executing an unverified native binary.
+    mockPackument({ name: PLATFORM_PKG_NAME, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME}@9.1.0`, 'sha512-genuine-platform') }] })
+
+    const lockfile = envLockfile()
+    ;(lockfile.snapshots as Record<string, unknown>)['pnpm@9.1.0'] = { optionalDependencies: { [PLATFORM_PKG_NAME]: '9.1.0' } }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, JS_ENGINE, optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
+  test('throws when the lockfile pins a different version of the engine than the one being installed', async () => {
+    const key = createSigningKey()
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@9.1.0', PNPM_INTEGRITY) }] })
+
+    // The install roots at 9.2.0, so a signature over the pinned 9.1.0 would
+    // prove nothing about the bytes that run.
+    await expect(verifyPnpmEngineIdentity(envLockfile(), { name: 'pnpm', version: '9.2.0' }, optsTrusting(key)))
+      .rejects.toThrow(/pnpm@9.2.0: the environment lockfile does not pin it/)
   })
 
   test('verifies the platform binary of the unscoped pnpm, which is the native wrapper from v12', async () => {
     const key = createSigningKey()
+    // The wrapper itself verifies, so only the platform binary's signature
+    // mismatch can reject.
+    mockPackument({ name: 'pnpm', integrity: PNPM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign('pnpm@12.0.0', PNPM_INTEGRITY) }], version: '12.0.0' })
     mockPackument({ name: PLATFORM_PKG_NAME_NEXT, integrity: PLATFORM_INTEGRITY, signatures: [{ keyid: key.keyid, sig: key.sign(`${PLATFORM_PKG_NAME_NEXT}@12.0.0`, 'sha512-genuine-platform') }], version: '12.0.0' })
 
     await expect(verifyPnpmEngineIdentity(envLockfileV12(), { name: 'pnpm', version: '12.0.0' }, optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)

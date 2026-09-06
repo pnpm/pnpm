@@ -21,16 +21,16 @@ use p256::{
 };
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
-use pnpm_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef, SpecifierAndResolution};
+use pnpm_lockfile::{EnvLockfile, PackageKey, PkgName, SnapshotDepRef};
 use pnpm_network::{
     RetryOpts, ThrottledClient, encode_package_name, redact_and_sanitize, send_with_retry,
 };
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use super::{
     SelfUpdateError,
-    install_pnpm::{exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next},
+    install_pnpm::{exe_platform_pkg_dir_name, exe_platform_pkg_dir_name_next, native_target_name},
 };
 
 /// npm's public registry signing keys, mirrored from
@@ -76,9 +76,22 @@ struct EngineComponent {
 pub(crate) struct EngineToVerify<'a> {
     /// `<name>@<version>` as the user asked for it, for diagnostics.
     pub(crate) label: &'a str,
-    /// The packages the env lockfile pins for the engine.
-    pub(crate) packages: &'a [&'a str],
+    /// The package the install is rooted at and then runs. The env lockfile
+    /// pins the JavaScript `pnpm` and the SEA `@pnpm/exe` side by side below
+    /// v12, but an install materializes only one of them, so a package that
+    /// ships no binary for the host must not block running the other.
+    pub(crate) package: &'a str,
+    /// The exact version of [`Self::package`] the install materializes.
+    pub(crate) version: &'a str,
     pub(crate) platform_binaries: PlatformBinaries,
+}
+
+impl EngineToVerify<'_> {
+    /// `<name>@<version>` of the package that is actually installed, which
+    /// is `@pnpm/exe@…` where [`Self::label`] says `pnpm@…`.
+    fn package_label(&self) -> String {
+        format!("{}@{}", self.package, self.version)
+    }
 }
 
 /// How an engine ships the native code that actually executes.
@@ -87,7 +100,7 @@ pub(crate) enum PlatformBinaries {
     /// `@pnpm/exe.<target>` packages, listed as optional dependencies of
     /// the pnpm wrapper.
     PnpmExe,
-    /// The engine is a JavaScript CLI — the pinned packages are all there
+    /// The engine is a JavaScript CLI, so the package itself is all there
     /// is to verify.
     None,
 }
@@ -124,13 +137,6 @@ pub(crate) async fn verify_engine_identity(
 ) -> Result<Option<String>, SelfUpdateError> {
     let label = engine.label;
     let to_verify = collect_engine_components(env, config, engine)?;
-    if to_verify.is_empty() {
-        return Err(SelfUpdateError::EngineIdentityUnverifiable {
-            message: format!(
-                "Cannot verify the identity of {label}: its integrity metadata is missing from pnpm-lock.yaml.",
-            ),
-        });
-    }
 
     let client = build_client(config)?;
     let retry_opts = config.retry_opts();
@@ -179,106 +185,92 @@ pub(crate) async fn verify_engine_identity(
     }
 }
 
-/// Collect the engine components to verify from the env lockfile: the
-/// engine's own packages, plus — for pnpm — the host's platform binary (an
-/// optional dependency of the native wrapper, see [`native_engine_wrapper`]).
-/// Errors if a present component carries no integrity.
+/// Collect the engine components to verify from the env lockfile: the one
+/// package the install is rooted at, plus the host's platform package among
+/// its optional dependencies. Errors if a component carries no integrity, or
+/// if a native engine has no platform package for the host.
 fn collect_engine_components(
     env: &EnvLockfile,
     config: &Config,
     engine: &EngineToVerify<'_>,
 ) -> Result<Vec<EngineComponent>, SelfUpdateError> {
-    let mut to_verify = Vec::new();
-    let pm_deps = env
+    let package_label = engine.package_label();
+    // The install is rooted at exactly this `name@version`, so a lockfile
+    // that pins another version of the engine would leave the bytes that run
+    // unverified.
+    let pinned = env
         .importers
         .get(EnvLockfile::ROOT_IMPORTER_KEY)
-        .and_then(|importer| importer.package_manager_dependencies.as_ref());
-    let Some(pm_deps) = pm_deps else {
-        return Ok(to_verify);
-    };
-
-    for name in engine.packages {
-        // The engine's package list is derived from the version being
-        // installed, so a package missing from the lockfile that pins it
-        // means the two disagree about what is about to run.
-        let dep =
-            pm_deps.get(*name).ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
-                message: format!(
-                    "Cannot verify the identity of {}: {name} is missing from pnpm-lock.yaml.",
-                    engine.label,
-                ),
-            })?;
-        to_verify.push(engine_component(env, config, name, &dep.version)?);
+        .and_then(|importer| importer.package_manager_dependencies.as_ref())
+        .and_then(|pm_deps| pm_deps.get(engine.package));
+    if pinned.is_none_or(|dep| dep.version != engine.version) {
+        return Err(SelfUpdateError::EngineIdentityUnverifiable {
+            message: format!(
+                "Cannot verify the identity of {package_label}: the environment lockfile does not pin it.",
+            ),
+        });
     }
+    let mut to_verify = vec![engine_component(env, config, engine.package, engine.version)?];
 
+    // `link_exe_platform_binary` hardlinks the host's platform binary over
+    // the engine's own `pnpm` bin, so whenever the lockfile carries a
+    // candidate for this host those are the bytes that execute and they must
+    // be verified — whichever engine lists them.
+    let snapshot_key = package_label.parse::<PackageKey>().map_err(|_| {
+        SelfUpdateError::EngineIdentityUnverifiable {
+            message: format!(
+                "Cannot verify the identity of {package_label}: its lockfile snapshot key is invalid.",
+            ),
+        }
+    })?;
+    let optional_deps = env
+        .snapshots
+        .get(&snapshot_key)
+        .and_then(|snapshot| snapshot.optional_dependencies.as_ref());
+    if let Some((platform_name, version)) = optional_deps.and_then(host_platform_package) {
+        to_verify.push(engine_component(env, config, &platform_name, &version)?);
+        return Ok(to_verify);
+    }
+    // A JavaScript engine runs on Node.js and has no binary to be missing.
     if engine.platform_binaries == PlatformBinaries::None {
         return Ok(to_verify);
     }
 
-    // The bytes actually executed are the host's platform binary, listed as
-    // an optional dependency of the native wrapper. Since this is the native
-    // code that will run, a missing snapshot, missing optional deps, or no
-    // host candidate fails closed rather than letting verification pass on
-    // the wrappers alone.
-    if let Some((wrapper_name, wrapper_version)) = native_engine_wrapper(pm_deps) {
-        let snapshot_label = format!("{wrapper_name}@{wrapper_version}");
-        let snapshot_key = snapshot_label.parse::<PackageKey>().map_err(|_| {
-            SelfUpdateError::EngineIdentityUnverifiable {
-                message: format!(
-                    "Cannot verify the identity of {snapshot_label}: its lockfile snapshot key is invalid.",
-                ),
-            }
-        })?;
-        let optional_deps = env
-            .snapshots
-            .get(&snapshot_key)
-            .and_then(|snapshot| snapshot.optional_dependencies.as_ref())
-            .ok_or_else(|| SelfUpdateError::EngineIdentityUnverifiable {
-                message: format!(
-                    "Cannot verify the identity of {snapshot_label}: its platform binaries are missing from pnpm-lock.yaml.",
-                ),
-            })?;
-        let platform = host_platform();
-        let arch = host_arch();
-        let libc = host_libc();
-        let candidate_names = [
-            format!("@pnpm/{}", exe_platform_pkg_dir_name(platform, arch, libc)),
-            format!("@pnpm/{}", exe_platform_pkg_dir_name_next(platform, arch, libc)),
-        ];
-        let platform_dep = candidate_names.iter().find_map(|platform_name| {
-            let key = platform_name.parse().ok()?;
-            let version = plain_version(optional_deps.get(&key)?)?;
-            Some((platform_name.clone(), version))
+    // The native code that will run is unaccounted for, so this fails closed
+    // rather than letting verification pass on the wrapper alone.
+    if optional_deps.is_none() {
+        return Err(SelfUpdateError::EngineIdentityUnverifiable {
+            message: format!(
+                "Cannot verify the identity of {package_label}: its platform binaries are missing from pnpm-lock.yaml.",
+            ),
         });
-        // The first candidate present in the lockfile is the binary the
-        // install links and executes.
-        let Some((platform_name, version)) = platform_dep else {
-            return Err(SelfUpdateError::EngineIdentityUnverifiable {
-                message: format!(
-                    "Cannot verify the identity of the @pnpm/exe.{platform}-{arch} native binary: it is missing from pnpm-lock.yaml.",
-                ),
-            });
-        };
-        to_verify.push(engine_component(env, config, &platform_name, &version)?);
     }
-
-    Ok(to_verify)
+    Err(SelfUpdateError::EngineNoNativeBinary {
+        label: package_label,
+        target: native_target_name(host_platform(), host_arch(), host_libc()),
+    })
 }
 
-/// The engine package whose optional dependencies carry the host's native
-/// binary: `@pnpm/exe` when the lockfile pins it, otherwise `pnpm` itself
-/// for `>=12`, where the unscoped package is the native executable. `None`
-/// when the lockfile pins only a JS-only `pnpm` (`<6.17.1`), which has no
-/// platform binaries.
-fn native_engine_wrapper(
-    pm_deps: &BTreeMap<String, SpecifierAndResolution>,
-) -> Option<(&str, &str)> {
-    if let Some(exe) = pm_deps.get("@pnpm/exe") {
-        return Some(("@pnpm/exe", &exe.version));
-    }
-    let pnpm = pm_deps.get("pnpm")?;
-    let version = node_semver::Version::parse(&pnpm.version).ok()?;
-    (version.major >= 12).then_some(("pnpm", pnpm.version.as_str()))
+/// The platform package among an engine's `optional_deps` that the install
+/// links and executes on this host: the first of the legacy
+/// `@pnpm/<os>-<arch>` and the `@pnpm/exe.<target>` names present, the same
+/// order `link_exe_platform_binary` searches. `None` when the engine ships
+/// no binary for the host.
+fn host_platform_package(
+    optional_deps: &HashMap<PkgName, SnapshotDepRef>,
+) -> Option<(String, String)> {
+    let platform = host_platform();
+    let arch = host_arch();
+    let libc = host_libc();
+    let candidate_names = [
+        format!("@pnpm/{}", exe_platform_pkg_dir_name(platform, arch, libc)),
+        format!("@pnpm/{}", exe_platform_pkg_dir_name_next(platform, arch, libc)),
+    ];
+    candidate_names.iter().find_map(|platform_name| {
+        let key = platform_name.parse().ok()?;
+        let version = plain_version(optional_deps.get(&key)?)?;
+        Some((platform_name.clone(), version))
+    })
 }
 
 /// Build the [`EngineComponent`] for `name@version`, reading its integrity

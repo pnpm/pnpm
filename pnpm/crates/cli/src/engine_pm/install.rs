@@ -158,7 +158,8 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     let label = format!("{}@{version}", pm.name());
     let engine = EngineToVerify {
         label: &label,
-        packages: package.pinned,
+        package: package.wrapper,
+        version,
         platform_binaries: if package.links_native_binary {
             PlatformBinaries::PnpmExe
         } else {

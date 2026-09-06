@@ -1,15 +1,16 @@
 use super::{
     EngineComponent, EngineToVerify, FailureCategory, NpmSigningKey, PackageSignature,
     PlatformBinaries, SelfUpdateError, SignatureFailure, build_client, collect_engine_components,
-    find_signature_failure, native_engine_wrapper, plain_version, signature_validates_against,
-    verify_one,
+    find_signature_failure, plain_version, signature_validates_against, verify_one,
 };
+use crate::cli_args::self_update::install_pnpm::{exe_platform_pkg_dir_name, native_target_name};
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
 use pnpm_config::Config;
-use pnpm_lockfile::{EnvLockfile, SnapshotDepRef, SpecifierAndResolution};
+use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
+use pnpm_lockfile::{EnvLockfile, SnapshotDepRef};
 use pnpm_network::RetryOpts;
-use std::{collections::BTreeMap, time::Duration};
+use std::time::Duration;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
@@ -118,49 +119,163 @@ fn plain_version_reads_only_plain_references() {
     assert_eq!(plain_version(&link), None);
 }
 
-fn pm_deps(entries: &[(&str, &str)]) -> BTreeMap<String, SpecifierAndResolution> {
-    entries
-        .iter()
-        .map(|(name, version)| {
-            (
-                (*name).to_string(),
-                SpecifierAndResolution {
-                    specifier: (*version).to_string(),
-                    version: (*version).to_string(),
-                },
-            )
-        })
-        .collect()
+/// An env lockfile pinning both pnpm builds at 11.0.0, whose `@pnpm/exe`
+/// snapshot lists `platform_optional_deps` as its platform binaries.
+fn env_lockfile(platform_optional_deps: &[(&str, &str)]) -> EnvLockfile {
+    env_lockfile_owned_by("@pnpm/exe", platform_optional_deps)
 }
 
-#[test]
-fn native_engine_wrapper_follows_the_package_that_ships_the_binary() {
-    assert_eq!(
-        native_engine_wrapper(&pm_deps(&[("pnpm", "11.0.0"), ("@pnpm/exe", "11.0.0")])),
-        Some(("@pnpm/exe", "11.0.0")),
+/// Like [`env_lockfile`], with the platform binaries listed by `owner`.
+fn env_lockfile_owned_by(owner: &str, platform_optional_deps: &[(&str, &str)]) -> EnvLockfile {
+    let packages =
+        |name: &str| serde_json::json!({ "resolution": { "integrity": format!("sha512-{name}") } });
+    let mut package_entries = serde_json::Map::new();
+    for name in ["pnpm", "@pnpm/exe"] {
+        package_entries.insert(format!("{name}@11.0.0"), packages(name));
+    }
+    let mut optional_dependencies = serde_json::Map::new();
+    for (name, version) in platform_optional_deps {
+        package_entries.insert(format!("{name}@{version}"), packages(name));
+        optional_dependencies
+            .insert((*name).to_string(), serde_json::Value::String((*version).to_string()));
+    }
+    let mut snapshots = serde_json::Map::new();
+    for name in ["pnpm", "@pnpm/exe"] {
+        snapshots.insert(format!("{name}@11.0.0"), serde_json::json!({}));
+    }
+    snapshots.insert(
+        format!("{owner}@11.0.0"),
+        serde_json::json!({ "optionalDependencies": optional_dependencies }),
     );
-    assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "12.0.0")])), Some(("pnpm", "12.0.0")));
-    assert_eq!(native_engine_wrapper(&pm_deps(&[("pnpm", "6.16.0")])), None);
-    assert_eq!(native_engine_wrapper(&pm_deps(&[])), None);
+    serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": {
+                "packageManagerDependencies": {
+                    "pnpm": { "specifier": "11.0.0", "version": "11.0.0" },
+                    "@pnpm/exe": { "specifier": "11.0.0", "version": "11.0.0" },
+                },
+            },
+        },
+        "packages": package_entries,
+        "snapshots": snapshots,
+    }))
+    .expect("build the env lockfile")
 }
 
-/// Verification covers every package the engine pins, so a lockfile that
-/// records only some of them is unverifiable rather than half-verified.
+fn host_platform_pkg_name() -> String {
+    format!("@pnpm/{}", exe_platform_pkg_dir_name(host_platform(), host_arch(), host_libc()))
+}
+
+fn engine_to_verify(package: &str, platform_binaries: PlatformBinaries) -> EngineToVerify<'_> {
+    EngineToVerify { label: "pnpm@11.0.0", package, version: "11.0.0", platform_binaries }
+}
+
+/// The install is rooted at one package, so verifying the other one the
+/// lockfile pins would prove nothing about the bytes that run.
 #[test]
-fn an_incomplete_engine_package_set_is_unverifiable() {
-    let mut env = EnvLockfile::create();
-    env.importers
-        .entry(EnvLockfile::ROOT_IMPORTER_KEY.to_string())
-        .or_default()
-        .package_manager_dependencies = Some(pm_deps(&[("pnpm", "11.0.0")]));
+fn only_the_package_that_is_installed_is_verified() {
+    let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("the JavaScript pnpm is verifiable on its own");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["pnpm"],
+    );
+}
+
+/// The JavaScript pnpm links no platform binary, so an `@pnpm/exe` pinned
+/// beside it that ships none for the host must not block the switch.
+#[test]
+fn the_javascript_pnpm_verifies_where_the_pinned_exe_has_no_host_binary() {
+    let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
+
+    collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("a foreign-platform @pnpm/exe does not block the JavaScript pnpm");
+}
+
+/// `link_exe_platform_binary` links whatever host binary the install
+/// materializes, so a platform package listed by the JavaScript pnpm is the
+/// code that would run and must be verified too.
+#[test]
+fn a_platform_binary_listed_by_the_javascript_pnpm_is_verified() {
+    let platform_name = host_platform_pkg_name();
+    let env = env_lockfile_owned_by("pnpm", &[(&platform_name, "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("pnpm", PlatformBinaries::None),
+    )
+    .expect("the JavaScript pnpm and the binary it lists are verifiable");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["pnpm", platform_name.as_str()],
+    );
+}
+
+#[test]
+fn a_native_engine_verifies_the_host_platform_binary() {
+    let platform_name = host_platform_pkg_name();
+    let env = env_lockfile(&[(&platform_name, "11.0.0")]);
+
+    let components = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    )
+    .expect("the native engine and its host binary are verifiable");
+
+    assert_eq!(
+        components.iter().map(|component| component.name.as_str()).collect::<Vec<_>>(),
+        ["@pnpm/exe", platform_name.as_str()],
+    );
+}
+
+#[test]
+fn a_native_engine_without_a_binary_for_the_host_is_refused() {
+    let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
+
+    let Err(error) = collect_engine_components(
+        &env,
+        &Config::default(),
+        &engine_to_verify("@pnpm/exe", PlatformBinaries::PnpmExe),
+    ) else {
+        panic!("an engine with no binary for the host cannot run");
+    };
+
+    let SelfUpdateError::EngineNoNativeBinary { label, target } = error else {
+        panic!("expected a no-native-binary error, got {error:?}");
+    };
+    assert_eq!(label, "@pnpm/exe@11.0.0");
+    assert_eq!(target, native_target_name(host_platform(), host_arch(), host_libc()));
+}
+
+/// A lockfile that pins another version of the engine leaves the bytes the
+/// install roots at unverified.
+#[test]
+fn an_engine_the_lockfile_does_not_pin_is_unverifiable() {
+    let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
     let engine = EngineToVerify {
-        label: "pnpm@11.0.0",
-        packages: &["pnpm", "@pnpm/exe"],
-        platform_binaries: PlatformBinaries::PnpmExe,
+        label: "pnpm@11.0.1",
+        package: "pnpm",
+        version: "11.0.1",
+        platform_binaries: PlatformBinaries::None,
     };
 
     let Err(error) = collect_engine_components(&env, &Config::default(), &engine) else {
-        panic!("a half-recorded engine cannot be verified");
+        panic!("an unpinned engine cannot be verified");
     };
 
     assert!(matches!(error, SelfUpdateError::EngineIdentityUnverifiable { .. }), "{error:?}");

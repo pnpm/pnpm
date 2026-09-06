@@ -17,7 +17,6 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
-use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
@@ -86,6 +85,13 @@ pub(crate) enum SelfUpdateError {
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
     EngineIdentityMismatch { message: String },
+
+    #[display("Cannot run {label} on this host: it ships no native binary for {target}.")]
+    #[diagnostic(
+        code(ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY),
+        help("Set `pmOnFail` to `ignore` to skip the version switch.")
+    )]
+    EngineNoNativeBinary { label: String, target: String },
 
     #[display("Unable to find the global bin directory")]
     #[diagnostic(
@@ -304,10 +310,16 @@ async fn handler<Reporter: self::Reporter + 'static>(
             ),
         })?;
     let label = format!("pnpm@{target_version}");
+    let package = install_pnpm::pnpm_package_to_install(&target_version);
     let engine = verify_engine::EngineToVerify {
         label: &label,
-        packages: pnpm_engine_packages(&target_version),
-        platform_binaries: verify_engine::PlatformBinaries::PnpmExe,
+        package: package.name,
+        version: &target_version,
+        platform_binaries: if package.links_native_binary {
+            verify_engine::PlatformBinaries::PnpmExe
+        } else {
+            verify_engine::PlatformBinaries::None
+        },
     };
     if let Some(warning) =
         Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?

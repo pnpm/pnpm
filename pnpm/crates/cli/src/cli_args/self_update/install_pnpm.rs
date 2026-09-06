@@ -333,9 +333,15 @@ pub(super) fn exe_platform_pkg_dir_name(platform: &str, arch: &str, libc: &str) 
 /// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 ships
 /// its native binaries under.
 pub(super) fn exe_platform_pkg_dir_name_next(platform: &str, arch: &str, libc: &str) -> String {
+    format!("exe.{}", native_target_name(platform, arch, libc))
+}
+
+/// The `<platform>-<arch>[-musl]` target a pnpm native binary is built for,
+/// as the `exe.<target>` platform packages are named after it.
+pub(super) fn native_target_name(platform: &str, arch: &str, libc: &str) -> String {
     let arch = normalized_arch(platform, arch);
     let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
-    format!("exe.{platform}-{arch}{libc_suffix}")
+    format!("{platform}-{arch}{libc_suffix}")
 }
 
 fn normalized_arch<'a>(platform: &str, arch: &'a str) -> &'a str {
