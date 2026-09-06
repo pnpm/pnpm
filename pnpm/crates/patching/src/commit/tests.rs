@@ -276,6 +276,41 @@ index 123..456 100644
 }
 
 #[test]
+fn patch_commit_diff_dirs_strips_temp_paths_from_deleted_files() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(after.path().join("index.js"), "module.exports = true\n").unwrap();
+    fs::write(before.path().join("readme.md"), "# readme\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert!(diff.contains("diff --git a/readme.md b/readme.md\n"), "diff: {diff}");
+    assert!(diff.contains("deleted file mode 100644\n"), "diff: {diff}");
+    assert!(!diff.contains(&before.path().display().to_string()), "diff: {diff}");
+}
+
+#[test]
+fn patch_commit_diff_normalization_keeps_dst_prefix_of_deleted_files() {
+    let diff = "\
+diff --git a/tmp/before/readme.md b/tmp/before/readme.md
+deleted file mode 100644
+index 123..000
+";
+
+    let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
+
+    assert_eq!(
+        normalized,
+        "\
+diff --git a/readme.md b/readme.md
+deleted file mode 100644
+index 123..000
+"
+    );
+}
+
+#[test]
 fn patch_commit_diff_dirs_reports_git_errors() {
     let tmp = tempdir().expect("temp dir");
 
