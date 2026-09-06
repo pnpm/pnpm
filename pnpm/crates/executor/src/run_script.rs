@@ -111,7 +111,11 @@ pub struct RunScript<'a> {
 /// Run a single user script in the foreground, sending its output where
 /// [`RunScript::output`] says.
 pub fn run_script(opts: &RunScript<'_>) -> Result<ScriptExit, RunScriptError> {
-    let command = build_command(opts.script, opts.args, opts.shell_emulator);
+    let command = build_command(
+        opts.script,
+        opts.args,
+        parsed_by_windows_shell(cfg!(windows), opts.shell_emulator),
+    );
 
     // The `scriptShell` value is validated even when the emulator will
     // run the script, matching pnpm's `runLifecycleHook`, which rejects a
@@ -235,13 +239,22 @@ fn run_piped(
         .map_err(|source| RunScriptError::Wait { script: command.to_string(), source })
 }
 
-/// Append shell-quoted `args` to `script`: POSIX quoting for the shell
-/// emulator and Unix shells, and per-argument JSON quoting for native Windows shells.
-fn build_command(script: &str, args: &[String], shell_emulator: bool) -> String {
+/// Whether `cmd` will parse the script. The shell emulator is a POSIX
+/// shell on every platform, so only a native Windows run reaches `cmd`.
+///
+/// `windows` is a parameter rather than a `cfg!` so that both answers stay
+/// reachable from a test on any host.
+fn parsed_by_windows_shell(windows: bool, shell_emulator: bool) -> bool {
+    windows && !shell_emulator
+}
+
+/// Append shell-quoted `args` to `script`: per-argument JSON quoting when
+/// `cmd` will parse them, and `shlex`-style POSIX quoting otherwise.
+fn build_command(script: &str, args: &[String], windows_shell: bool) -> String {
     if args.is_empty() {
         return script.to_string();
     }
-    let quoted = if cfg!(windows) && !shell_emulator {
+    let quoted = if windows_shell {
         args.iter().map(|arg| Value::String(arg.clone()).to_string()).collect::<Vec<_>>().join(" ")
     } else {
         args.iter().map(|arg| posix_quote(arg)).collect::<Vec<_>>().join(" ")

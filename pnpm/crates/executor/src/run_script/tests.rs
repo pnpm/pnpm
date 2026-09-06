@@ -1,4 +1,6 @@
-use super::{RunScript, ScriptOutput, build_command, posix_quote, run_script};
+use super::{
+    RunScript, ScriptOutput, build_command, parsed_by_windows_shell, posix_quote, run_script,
+};
 use crate::{extend_path::ScriptsPrependNodePath, script_exit::ScriptExit};
 use std::{collections::HashMap, fs, path::Path};
 use tempfile::tempdir;
@@ -23,16 +25,29 @@ fn posix_quote_escapes_embedded_single_quotes() {
 
 #[test]
 fn build_command_without_args_returns_script_unchanged() {
-    for shell_emulator in [false, true] {
-        assert_eq!(build_command("tsc --build", &[], shell_emulator), "tsc --build");
+    for windows_shell in [false, true] {
+        assert_eq!(build_command("tsc --build", &[], windows_shell), "tsc --build");
     }
 }
 
 #[test]
-#[cfg_attr(target_os = "windows", ignore = "asserts POSIX quoting; Windows uses JSON.stringify")]
-fn build_command_appends_quoted_args() {
+fn build_command_appends_posix_quoted_args() {
     let args = ["plain".to_string(), "needs quoting".to_string()];
     assert_eq!(build_command("echo", &args, false), "echo plain 'needs quoting'");
+}
+
+#[test]
+fn build_command_appends_json_quoted_args_for_the_windows_shell() {
+    let args = [r"C:\dir\".to_string(), "needs quoting".to_string()];
+    assert_eq!(build_command("echo", &args, true), r#"echo "C:\\dir\\" "needs quoting""#);
+}
+
+#[test]
+fn only_a_native_windows_run_is_parsed_by_the_windows_shell() {
+    assert!(parsed_by_windows_shell(true, false));
+    assert!(!parsed_by_windows_shell(true, true));
+    assert!(!parsed_by_windows_shell(false, false));
+    assert!(!parsed_by_windows_shell(false, true));
 }
 
 fn manifest() -> serde_json::Value {
