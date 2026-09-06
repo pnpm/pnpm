@@ -379,6 +379,8 @@ const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**
 const DOT_COMPONENT_IGNORE_PATTERN: &str = "**/.*/**";
 const PROJECT_MANIFEST_BASENAMES: &[&str] = &["package.json", "package.yaml"];
 
+/// A configured include pattern. `normalized` drives discovery; `source` is
+/// the text an invalid-glob diagnostic quotes back to the user.
 struct WorkspacePattern<'source> {
     source: &'source str,
     normalized: String,

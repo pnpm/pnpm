@@ -73,11 +73,11 @@ pub fn lexical_normalize_posix(path: &str) -> String {
     normalized
 }
 
-/// Drop `.` components and cancel each `..` against the component it follows,
-/// keeping the components the callers rebuild a path from. Callers rebuild
-/// component-by-component and never copy verbatim: besides the dot
-/// components, the rebuild also strips trailing and doubled separators, and
-/// callers compare and hash the results.
+/// Drop `.` components and cancel each `..` against the component it follows.
+///
+/// Callers rebuild the path component-by-component from this list instead of
+/// copying the input verbatim, so trailing and doubled separators are stripped
+/// as well: the results get compared and hashed.
 fn normalize_components<'path>(
     components: impl Iterator<Item = Component<'path>>,
 ) -> Vec<Component<'path>> {
