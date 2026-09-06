@@ -6,8 +6,8 @@
 //! webhook ingress, no coordinator: one daemon, one repository, one
 //! branch. Execution deliberately happens in a spawned `pnpm pipeline`
 //! process rather than in this one: the agent is the component that runs
-//! arbitrary workspace code, and its blast radius is the child process
-//! and the checkout, nothing else the agent holds.
+//! arbitrary workspace code. The child inherits the agent's permissions;
+//! process separation is not a sandbox.
 
 use pnpm_crypto_hash::create_short_hash;
 use std::{
@@ -41,18 +41,24 @@ struct AgentDirs {
     head_file: PathBuf,
 }
 
-pub fn run_watch(invocation: &WatchInvocation, cache_dir: &Path) -> miette::Result<()> {
-    let agent_dir = cache_dir
+pub fn run_watch(invocation: &WatchInvocation, state_dir: &Path) -> miette::Result<()> {
+    if invocation.interval.is_zero() {
+        return Err(miette::miette!("watch interval must be at least one second"));
+    }
+    let agent_dir = state_dir
         .join("pipeline")
         .join("agent")
         .join(create_short_hash(&format!("{}\0{}", invocation.repo, invocation.branch)));
     fs::create_dir_all(&agent_dir)
         .map_err(|error| miette::miette!("creating the agent directory: {error}"))?;
+    let agent_display = agent_dir.display();
+    let _lock = lock_agent(&agent_dir)
+        .map_err(|error| miette::miette!("locking watch agent {agent_display}: {error}"))?;
     // Named after the repository so everything derived from the checkout
     // path — the run record's workspace identity above all — reads as the
     // project, not as "checkout".
     let dirs = AgentDirs {
-        checkout: agent_dir.join(repo_basename(&invocation.repo)),
+        checkout: agent_dir.join("checkout").join(repo_basename(&invocation.repo)),
         head_file: agent_dir.join("head"),
     };
     println!(
@@ -63,11 +69,13 @@ pub fn run_watch(invocation: &WatchInvocation, cache_dir: &Path) -> miette::Resu
         dirs.checkout.display(),
     );
     loop {
-        match poll_and_build(invocation, &dirs) {
+        let result = poll_and_build(invocation, &dirs);
+        match result {
             Ok(Some(revision)) => println!("Built {revision}."),
             Ok(None) => println!("{} is up to date.", invocation.branch),
             // A failed poll (the remote is briefly unreachable, a fetch
             // hiccup) must not kill a daemon; the next tick retries.
+            Err(error) if invocation.once => return Err(error),
             Err(error) => eprintln!("[WARN] poll failed: {error}"),
         }
         if invocation.once {
@@ -91,11 +99,8 @@ fn poll_and_build(
     }
     materialize(invocation, dirs, &head)?;
     println!("New revision {head}; running the pipeline…");
-    run_pipeline_in_checkout(invocation, dirs, &head, last_built.as_deref());
-    // Recorded whether the build passed or failed: CI builds a revision
-    // once and the record (submitted before the child's failure exit)
-    // holds the verdict. Only a new revision triggers a new build.
-    fs::write(&dirs.head_file, &head)
+    run_pipeline_in_checkout(invocation, dirs, &head, last_built.as_deref())?;
+    pnpm_fs::write_atomic(&dirs.head_file, head.as_bytes())
         .map_err(|error| miette::miette!("recording the built revision: {error}"))?;
     Ok(Some(head))
 }
@@ -160,7 +165,9 @@ fn materialize(
             ],
         )?;
     }
-    git_ok(Some(&dirs.checkout), &["checkout", "--detach", revision])
+    git_ok(Some(&dirs.checkout), &["reset", "--hard", "HEAD"])?;
+    git_ok(Some(&dirs.checkout), &["clean", "-fd"])?;
+    git_ok(Some(&dirs.checkout), &["checkout", "--force", "--detach", revision])
 }
 
 fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
@@ -182,22 +189,16 @@ fn git_ok(cwd: Option<&Path>, args: &[&str]) -> miette::Result<()> {
 /// Run `pnpm pipeline` against the checkout as a child process. The base
 /// for affected selection is the previously built revision — "what
 /// changed since the last build" is the agent's native question — with
-/// the first build of a checkout running the full graph. A failing build
-/// is the child's verdict to report, not an agent error: the agent logs
-/// it and keeps watching.
+/// the first build of a checkout running the full graph. Unsuccessful
+/// children leave the revision pending for the next poll.
 fn run_pipeline_in_checkout(
     invocation: &WatchInvocation,
     dirs: &AgentDirs,
     revision: &str,
     last_built: Option<&str>,
-) {
-    let program = match std::env::current_exe() {
-        Ok(program) => program,
-        Err(error) => {
-            eprintln!("[WARN] cannot locate the pnpm executable: {error}");
-            return;
-        }
-    };
+) -> miette::Result<()> {
+    let program = std::env::current_exe()
+        .map_err(|error| miette::miette!("cannot locate the pnpm executable: {error}"))?;
     let mut child = Command::new(program);
     child.arg("pipeline");
     if let Some(name) = &invocation.pipeline_name {
@@ -227,8 +228,27 @@ fn run_pipeline_in_checkout(
     match child.status() {
         Ok(status) if status.success() => {}
         Ok(status) => {
-            eprintln!("[WARN] pipeline for {revision} failed with {status}");
+            return Err(miette::miette!(
+                "pipeline for {revision} failed with {status}; the revision will be retried"
+            ));
         }
-        Err(error) => eprintln!("[WARN] failed to spawn the pipeline for {revision}: {error}"),
+        Err(error) => {
+            return Err(miette::miette!("failed to run the pipeline for {revision}: {error}"));
+        }
     }
+    Ok(())
 }
+
+fn lock_agent(directory: &Path) -> std::io::Result<fs::File> {
+    let file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(directory.join("lock"))?;
+    file.try_lock().map_err(std::io::Error::other)?;
+    Ok(file)
+}
+
+#[cfg(test)]
+mod tests;

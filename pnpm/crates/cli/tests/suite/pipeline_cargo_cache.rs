@@ -44,8 +44,9 @@ fn run_binary(root: &Path) -> String {
 #[test]
 fn cargo_state_is_shared_between_worktrees_and_survives_cache_deletion() {
     let temp = tempfile::tempdir().unwrap();
-    let first_worktree = temp.path().join("a");
-    let second_worktree = temp.path().join("b");
+    let root = dunce::canonicalize(temp.path()).unwrap();
+    let first_worktree = root.join("a");
+    let second_worktree = root.join("b");
     let cache = temp.path().join("cache");
     fs::create_dir_all(first_worktree.join("src")).unwrap();
     git(&first_worktree, &["init"]);

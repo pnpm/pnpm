@@ -1244,6 +1244,15 @@ pub(crate) fn staged_id_of_meta_object(object: &str) -> Option<&str> {
 }
 
 pub async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_atomic_with_replace(path, bytes, true).await
+}
+
+/// Publishes a complete file without replacing an existing destination.
+pub async fn write_atomic_new(path: &Path, bytes: &[u8]) -> Result<()> {
+    write_atomic_with_replace(path, bytes, false).await
+}
+
+async fn write_atomic_with_replace(path: &Path, bytes: &[u8], replace: bool) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
@@ -1259,9 +1268,14 @@ pub async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
         return Err(err.into());
     }
     drop(file);
-    if let Err(err) = fs::rename(&tmp, path).await {
+    let committed =
+        if replace { fs::rename(&tmp, path).await } else { fs::hard_link(&tmp, path).await };
+    if let Err(err) = committed {
         let _ = fs::remove_file(&tmp).await;
         return Err(err.into());
+    }
+    if !replace {
+        fs::remove_file(&tmp).await?;
     }
     Ok(())
 }

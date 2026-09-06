@@ -75,3 +75,33 @@ async fn path_shaped_identifiers_are_refused() {
         assert!(store.get(workspace, run_id).is_err(), "get must refuse {workspace}/{run_id}");
     }
 }
+
+#[tokio::test]
+async fn concurrent_publications_cannot_replace_the_winner() {
+    let root = TempDir::new().unwrap();
+    let first_store = PipelineRunStore::new(root.path()).unwrap();
+    let second_store = PipelineRunStore::new(root.path()).unwrap();
+    let first = run("demo", "100-default");
+    let mut second = run("demo", "100-default");
+    second.summary = json!({"publisher": "second"});
+    let first_publication = first_store.publish(&first);
+    let second_publication = second_store.publish(&second);
+    let (first_result, second_result) = tokio::join!(first_publication, second_publication);
+    assert_ne!(first_result.is_ok(), second_result.is_ok(), "exactly one writer must succeed");
+    let expected = if first_result.is_ok() { first.summary } else { second.summary };
+    assert_eq!(first_store.get("demo", "100-default").unwrap().unwrap().summary, expected);
+    assert!(
+        second_store.publish(&run("demo", "100-default")).await.is_err(),
+        "later publication must be refused",
+    );
+    assert_eq!(second_store.get("demo", "100-default").unwrap().unwrap().summary, expected);
+}
+
+#[tokio::test]
+async fn listing_does_not_parse_records_outside_the_requested_page() {
+    let root = TempDir::new().unwrap();
+    let store = PipelineRunStore::new(root.path()).unwrap();
+    store.publish(&run("demo", "200-default")).await.unwrap();
+    std::fs::write(store.run_path("demo", "100-default"), "invalid JSON").unwrap();
+    assert_eq!(store.list(Some("demo"), 1).unwrap()[0].run_id, "200-default");
+}

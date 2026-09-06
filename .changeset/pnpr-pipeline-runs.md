@@ -2,4 +2,6 @@
 "@pnpm/pnpr": minor
 ---
 
-Added an experimental pipeline run-record surface, off by default and enabled with `pipeline.enabled: true`: `pnpm pipeline --report` (or `--report-to <url>`) publishes a run's summary and event stream to `PUT /-/pnpr/v0/pipeline/runs`, runs are append-only and listed at `GET /-/pnpr/v0/pipeline/runs` (with `?workspace=` and `?limit=`), a single run's full record including its events is served at `GET /-/pnpr/v0/pipeline/runs/{workspace}/{runId}`, and `GET /-/pnpr/v0/pipeline` serves a small viewer page over those endpoints.
+pnpr can store pipeline run reports with `pipeline.enabled`. Configure each workspace's `access` and `publish` permissions under `pipeline.workspaces`.
+
+`pnpm pipeline --report` and `--report-to` submit run summaries and events. pnpr provides authenticated listing and detail endpoints and a web viewer.

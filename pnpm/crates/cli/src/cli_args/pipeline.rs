@@ -51,6 +51,7 @@ mod agent;
 mod cache;
 mod capture;
 mod cargo_cache;
+mod paths;
 mod report;
 
 pub use agent::{WatchInvocation, run_watch};
@@ -124,7 +125,7 @@ pub struct PipelineArgs {
     pub branch: String,
 
     /// Seconds between polls of the watched repository.
-    #[clap(long, default_value_t = 30, value_name = "SECONDS")]
+    #[clap(long, default_value_t = 30, value_name = "SECONDS", value_parser = clap::value_parser!(u64).range(1..))]
     pub interval: u64,
 
     /// With `--watch`: poll once, build if there is a new revision, and
@@ -213,6 +214,13 @@ pub fn run_pipeline(
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
     let emit = reporter_emit(reporter);
     let silent = matches!(reporter, ReporterType::Ndjson | ReporterType::Silent);
+    let info = |message: String| {
+        emit(&LogEvent::Pnpm(PnpmLog {
+            level: LogLevel::Info,
+            message,
+            prefix: workspace_root.to_string_lossy().into_owned(),
+        }));
+    };
 
     if config.pipelines.is_empty() {
         return Err(PipelineError::NoPipelines.into());
@@ -244,12 +252,12 @@ pub fn run_pipeline(
     })?;
 
     let revision = git_stdout(workspace_root, &["rev-parse", "HEAD"]);
-    let report = RunReport::new(name, &base, &selection, revision);
+    let report = RunReport::new(name, &base, &selection, revision)?;
 
     if selection.requested.is_empty() {
-        println!("No projects are affected since {base} — nothing to run.");
+        info(format!("No projects are affected since {base} — nothing to run."));
         let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
-        println!("Report: {}", report_dir.display());
+        info(format!("Report: {}", report_dir.display()));
         return Ok(PipelineOutcome {
             failed_tasks: 0,
             upload: Some(report.to_upload(workspace_identity(workspace_root))),
@@ -383,11 +391,11 @@ pub fn run_pipeline(
     report.finish(&statuses, &task_keys, workspace_root);
     let report_dir = report.write(&pipeline_data_dir(config, workspace_root))?;
 
-    println!(
+    info(format!(
         r#"Pipeline "{name}": {total} tasks — {passed} passed ({hits} from cache), {failed} failed, {skipped} skipped."#,
         total = statuses.len(),
-    );
-    println!("Report: {}", report_dir.display());
+    ));
+    info(format!("Report: {}", report_dir.display()));
 
     Ok(PipelineOutcome {
         failed_tasks: failed,
@@ -420,8 +428,8 @@ fn build_full_graph<'a>(projects: &'a [Project], config: &Config) -> ProjectGrap
 /// How the run decided what to cover.
 pub struct Selection {
     /// The projects whose pipeline tasks the run requests: the changed
-    /// projects and their dependents (never the workspace root: root
-    /// tasks are out of the orchestration's scope).
+    /// projects and their dependents. Root tasks participate when
+    /// `includeWorkspaceRoot` is enabled.
     pub requested: Vec<PathBuf>,
     /// The dependency closure of `requested` — the projects the task
     /// graph spans. The extra projects participate only through
@@ -537,7 +545,9 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
     // A project whose only changes match `testPattern` is selected itself
     // without pulling in its dependents.
     affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
-    affected.remove(workspace_root);
+    if !config.include_workspace_root {
+        affected.remove(workspace_root);
+    }
 
     // The task graph additionally spans the affected set's transitive
     // dependencies; see [`Selection::selected`] for why.
@@ -597,9 +607,7 @@ fn git_stdout(cwd: &Path, args: &[&str]) -> Option<String> {
     if trimmed.is_empty() { None } else { Some(trimmed.to_string()) }
 }
 
-/// The cache key of every task, computed in sequenced order so each
-/// task's dependency keys are already present. Pass-through tasks get
-/// keys too: a dependent's key must account for the chain behind them.
+/// Pass-through tasks contribute keys to invalidate their dependents.
 fn compute_task_keys(
     task_graph: &TaskGraph,
     sequenced_tasks: &[TaskKey],
@@ -620,15 +628,17 @@ fn compute_task_keys(
             settings: config.tasks.get(&node.task_name),
             dependency_keys: &dependency_keys,
             script_bodies: &script_bodies,
+            environment: &task_environment(
+                config,
+                &node.project,
+                &config.extra_env_with_node_options(),
+            ),
         })?;
         keys.insert(key.clone(), task_key);
     }
     Ok(keys)
 }
 
-/// The `(stage, body)` pairs the task actually executes, including the
-/// `pre`/`post` hooks when they are enabled — they run as part of the
-/// task and change what it produces, so they are key components.
 fn task_script_bodies(
     node: &TaskNode,
     manifest: &Value,
@@ -670,9 +680,7 @@ struct RunTaskOptions<'a, 'graph> {
     summary_key: &'a str,
 }
 
-/// One task: a cache probe, then either a replayed hit or a real run
-/// that feeds the cache. Never returns `Err` for a script failure — only
-/// for infrastructure errors, which abort the run.
+/// Script failures are returned as statuses. Infrastructure errors abort the run.
 fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<ExecutionStatus> {
     let RunTaskOptions {
         node,
@@ -688,12 +696,7 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
     } = *options;
     let root = node.project.as_path();
     let settings = config.tasks.get(&node.task_name);
-    let cacheable = !invocation.no_cache
-        && settings.is_some_and(|settings| {
-            settings.outputs.is_some()
-                && settings.cache != Some(false)
-                && settings.cargo_target_dir.is_none()
-        });
+    let cacheable = task_cacheable(invocation, settings);
     let start = Instant::now();
     report.task_started(summary_key, task_key);
 
@@ -731,9 +734,12 @@ fn run_pipeline_task(options: &RunTaskOptions<'_, '_>) -> miette::Result<Executi
 
     let execution = execute_task_with_cargo_cache(options, settings)?;
     let duration = start.elapsed().as_secs_f64() * 1e3;
-    if execution.status == Status::Passed && cacheable {
+    if execution.status == Status::Passed
+        && cacheable
+        && let Some(captured) = execution.captured
+    {
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
-        if let Err(error) = cache.store(task_key, root, summary_key, outputs, execution.captured) {
+        if let Err(error) = cache.store(task_key, root, summary_key, outputs, captured) {
             emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!("{summary_key}: failed to store the task in the cache: {error}"),
@@ -827,34 +833,33 @@ fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
 struct TaskExecution {
     status: Status,
     message: Option<String>,
-    captured: Vec<capture::CapturedScript>,
+    captured: Option<Vec<capture::CapturedScript>>,
 }
 
 /// Run the task's scripts for real, capturing their output stream for
 /// the cache alongside the live reporter rendering.
 fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<TaskExecution> {
-    let RunTaskOptions { node, graph, config, init_cwd, base_extra_env, silent, .. } = *options;
+    let RunTaskOptions {
+        node,
+        graph,
+        config,
+        invocation,
+        init_cwd,
+        base_extra_env,
+        silent,
+        emit,
+        ..
+    } = *options;
     let root = node.project.as_path();
     let manifest = &graph[root].package.project.manifest;
 
-    let mut extra_env = base_extra_env.clone();
-    if let Some(pnp_path) = pnp_path_for_execution(config, root) {
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env
-            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
-    }
-    if let Some(package_map_path) = package_map_path_for_execution(config, root) {
-        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
-        extra_env.insert(
-            "NODE_OPTIONS".to_string(),
-            make_node_package_map_option(&package_map_path, node_options),
-        );
-    }
-
+    let extra_env = task_environment(config, root, base_extra_env);
+    let capture_output = task_cacheable(invocation, config.tasks.get(&node.task_name));
     let root_str = root.to_string_lossy().into_owned();
     let mut status = Status::Passed;
     let mut message = None;
-    let mut captured: Vec<capture::CapturedScript> = Vec::new();
+    let mut captured = capture_output.then(Vec::new);
+    let mut captured_bytes = 0usize;
     for selected in &node.scripts {
         let Some(script) = manifest.script(selected, true).map_err(miette::Report::new)? else {
             continue;
@@ -874,13 +879,34 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
             config,
             extra_env: &extra_env,
             silent,
-            output: ScriptOutput::Streamed { dep_path: &root_str, emit: capture::capturing_emit },
+            output: ScriptOutput::Streamed {
+                dep_path: &root_str,
+                emit: if capture_output { capture::capturing_emit } else { emit },
+            },
             // The pipeline never bails, so there is no cancellation to
             // propagate into running children.
             process_tracker: None,
         };
-        let exit = run_stages(&ctx, selected, script, &[])?;
-        captured.extend(capture::drain_task(&root_str, selected, config.enable_pre_post_scripts));
+        let exit = run_stages(&ctx, selected, script, &[]);
+        if capture_output {
+            match capture::drain_task(&root_str, selected, config.enable_pre_post_scripts) {
+                Some(stages) => {
+                    captured_bytes += stages
+                        .iter()
+                        .flat_map(|stage| &stage.lines)
+                        .map(|line| line.line.len() + std::mem::size_of::<capture::CapturedLine>())
+                        .sum::<usize>();
+                    if captured_bytes > capture::MAX_CAPTURE_BYTES {
+                        captured = None;
+                    }
+                    if let Some(captured) = &mut captured {
+                        captured.extend(stages);
+                    }
+                }
+                None => captured = None,
+            }
+        }
+        let exit = exit?;
         if !exit.success() {
             status = Status::Failure;
             message = Some(format!("command failed with exit code {}", exit.code().unwrap_or(1)));
@@ -909,4 +935,38 @@ fn sync_injected_deps_if_configured(
         manifest_before_scripts: Some(manifest),
     })?;
     Ok(())
+}
+
+fn task_cacheable(
+    invocation: &PipelineInvocation,
+    settings: Option<&pnpm_config::TaskSettings>,
+) -> bool {
+    !invocation.no_cache
+        && settings.is_some_and(|settings| {
+            settings.outputs.is_some()
+                && settings.cache != Some(false)
+                && settings.cargo_target_dir.is_none()
+        })
+}
+
+fn task_environment(
+    config: &Config,
+    root: &Path,
+    base_extra_env: &HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut extra_env = base_extra_env.clone();
+    if let Some(pnp_path) = pnp_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env
+            .insert("NODE_OPTIONS".to_string(), make_node_require_option(&pnp_path, node_options));
+    }
+    if let Some(package_map_path) = package_map_path_for_execution(config, root) {
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
+
+    extra_env
 }

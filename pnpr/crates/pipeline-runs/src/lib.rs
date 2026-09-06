@@ -10,10 +10,13 @@
 //! keeps its run records on the replica's local storage path.
 
 use pnpr_error::{RegistryError, Result};
-use pnpr_storage::write_atomic;
+use pnpr_storage::write_atomic_new;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 /// Bounds a submission the same way the artifact endpoints bound theirs:
 /// a malformed or hostile client must not be able to grow a record
@@ -77,17 +80,19 @@ impl PipelineRunStore {
             });
         }
         let path = self.run_path(&run.workspace, &run.run_id);
-        if path.exists() {
-            return Err(RegistryError::BadRequest {
-                reason: format!(
-                    "run {} is already recorded for workspace {} (runs are append-only)",
-                    run.run_id, run.workspace,
-                ),
-            });
-        }
         std::fs::create_dir_all(path.parent().expect("run path has a workspace parent"))?;
         let document = serde_json::to_vec(&run)?;
-        write_atomic(&path, &document).await
+        match write_atomic_new(&path, &document).await {
+            Err(RegistryError::Io(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                Err(RegistryError::BadRequest {
+                    reason: format!(
+                        "run {} is already recorded for workspace {} (runs are append-only)",
+                        run.run_id, run.workspace,
+                    ),
+                })
+            }
+            result => result,
+        }
     }
 
     /// The most recent runs, newest first — run ids sort by their leading
@@ -109,7 +114,7 @@ impl PipelineRunStore {
             }
             workspaces
         };
-        let mut entries: Vec<PipelineRunEntry> = Vec::new();
+        let mut newest = BTreeSet::new();
         for workspace in workspaces {
             for entry in read_dir_or_empty(&self.root.join(&workspace))? {
                 let entry = entry?;
@@ -118,16 +123,20 @@ impl PipelineRunStore {
                 else {
                     continue;
                 };
-                let Some(record) = read_run(&entry.path())? else { continue };
-                entries.push(PipelineRunEntry {
-                    workspace: workspace.clone(),
-                    run_id: run_id.to_string(),
-                    summary: record.summary,
-                });
+                if entry.file_type()?.is_file() {
+                    newest.insert((run_id.to_string(), workspace.clone()));
+                    if newest.len() > limit {
+                        newest.pop_first();
+                    }
+                }
             }
         }
-        entries.sort_by(|left, right| right.run_id.cmp(&left.run_id));
-        entries.truncate(limit);
+        let mut entries = Vec::with_capacity(newest.len());
+        for (run_id, workspace) in newest.into_iter().rev() {
+            if let Some(record) = self.get(&workspace, &run_id)? {
+                entries.push(PipelineRunEntry { workspace, run_id, summary: record.summary });
+            }
+        }
         Ok(entries)
     }
 
@@ -153,12 +162,15 @@ fn read_run(path: &Path) -> Result<Option<PublishPipelineRun>> {
     Ok(Some(serde_json::from_slice(&text)?))
 }
 
-fn read_dir_or_empty(path: &Path) -> Result<Vec<std::io::Result<std::fs::DirEntry>>> {
-    match std::fs::read_dir(path) {
-        Ok(entries) => Ok(entries.collect()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
-        Err(error) => Err(error.into()),
-    }
+fn read_dir_or_empty(
+    path: &Path,
+) -> Result<impl Iterator<Item = std::io::Result<std::fs::DirEntry>>> {
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => Some(entries),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    Ok(entries.into_iter().flatten())
 }
 
 /// The identifiers key filesystem paths, so their alphabet is closed:

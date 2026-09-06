@@ -79,3 +79,32 @@ This is an opt-in, local prototype with a bounded input contract:
 The earlier reflink benchmark did not include these validation and publication
 costs or relocation invalidation. Its startup timings are not performance claims
 for this implementation.
+
+## Pipeline execution and reporting
+
+Completed-task log capture is limited to 1 MiB per task. Tasks with larger logs
+still stream their output, but their completed result is not cached. Cargo tasks
+and tasks with caching disabled do not capture logs in memory.
+
+The watch agent retries unsuccessful child runs. It only acknowledges a revision
+after the child exits successfully. Before switching revisions it discards tracked
+changes and unignored untracked files in its managed checkout. Ignored build
+artifacts remain available. The watch agent is for trusted repositories. Its managed checkout, revision
+record, and exclusive lock live under `stateDir`, outside the disposable cache.
+Run it with the permissions appropriate for the repository it builds. A child process does not isolate repository scripts from the
+agent's credentials or filesystem permissions.
+
+pnpr requires explicit read and publication policies for each report workspace:
+
+```yaml
+pipeline:
+  enabled: true
+  workspaces:
+    demo-abc123:
+      access: [alice, ci-writer]
+      publish: [ci-writer]
+```
+
+Use the workspace identifier carried by the client's run upload. Unconfigured
+workspaces are inaccessible. The viewer lists only readable workspaces and keeps
+its bearer token in the page's memory, without persisting it in browser storage.

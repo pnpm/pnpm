@@ -1,3 +1,4 @@
+use super::paths::{check_ancestors, validate_relative_path};
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -5,7 +6,7 @@ use std::{
     env,
     fs::{self, File, FileTimes, OpenOptions},
     io,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     process::Command,
 };
 
@@ -328,40 +329,6 @@ fn command_output(
     String::from_utf8(output.stdout).map_err(io::Error::other)
 }
 
-fn validate_relative_path(path: &Path) -> io::Result<()> {
-    if path.as_os_str().is_empty()
-        || path.components().any(|part| !matches!(part, Component::Normal(_)))
-        || path
-            .components()
-            .any(|part| part.as_os_str() == ".git" || part.as_os_str() == "node_modules")
-    {
-        return Err(io::Error::other(format!(
-            "Cargo cache path must stay inside the project: {}",
-            path.display(),
-        )));
-    }
-    Ok(())
-}
-
-fn check_ancestors(root: &Path, relative: &Path) -> io::Result<()> {
-    let mut path = root.to_path_buf();
-    for component in relative.components() {
-        path.push(component);
-        match fs::symlink_metadata(&path) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(io::Error::other(format!(
-                    "Cargo cache path is a symlink: {}",
-                    path.display(),
-                )));
-            }
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-    }
-    Ok(())
-}
-
 fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
     let metadata = fs::symlink_metadata(source)?;
     if !metadata.is_file() {
@@ -372,10 +339,14 @@ fn clone_file(source: &Path, target: &Path) -> io::Result<()> {
     }
     fs::create_dir_all(target.parent().expect("file parent"))?;
     reflink_copy::reflink_or_copy(source, target)?;
-    File::options()
-        .write(true)
-        .open(target)?
-        .set_times(FileTimes::new().set_modified(metadata.modified()?))?;
+    let mut options = File::options();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.access_mode(windows_sys::Win32::Storage::FileSystem::FILE_WRITE_ATTRIBUTES);
+    }
+    options.open(target)?.set_times(FileTimes::new().set_modified(metadata.modified()?))?;
     fs::set_permissions(target, metadata.permissions())
 }
 

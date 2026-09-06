@@ -564,8 +564,13 @@ impl PnprClient {
         request: &PublishPipelineRunRequest,
         authorization: Option<&str>,
     ) -> Result<(), PnprClientError> {
-        let mut put = self
-            .http
+        if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(&self.base_url) {
+            return Err(PnprClientError::Protocol(
+                "pipeline report credentials require HTTPS or a loopback server".to_string(),
+            ));
+        }
+        let http = Client::builder().redirect(reqwest::redirect::Policy::none()).build()?;
+        let mut put = http
             .put(format!("{}-/pnpr/v0/pipeline/runs", self.base_url))
             .timeout(self.artifact_request_timeout)
             .json(request);

@@ -6,7 +6,10 @@
 //! deliberate `PoC` stand-in for the per-importer dependency-graph hash the
 //! RFC specifies.
 
-use super::capture::CapturedScript;
+use super::{
+    capture::CapturedScript,
+    paths::{check_ancestors, validate_relative_path},
+};
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file, create_short_hash};
 use pnpm_workspace_task_scheduler::TaskNode;
@@ -18,7 +21,10 @@ use std::{
     process::Command,
     sync::{Arc, Mutex},
 };
-use wax::{Glob, Program};
+use wax::{
+    Glob, Program,
+    walk::{Entry, FileIterator},
+};
 
 /// How a task met the cache, for the run report.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -38,6 +44,7 @@ pub struct StoredTask {
     pub version: u32,
     pub task: String,
     pub files: Vec<String>,
+    pub hashes: HashMap<String, String>,
     pub scripts: Vec<CapturedScript>,
     /// Where the entry's `outputs/` tree lives; not serialized.
     #[serde(skip)]
@@ -76,6 +83,7 @@ pub struct TaskKeyInputs<'a> {
     /// The cache keys of the tasks this task depends on, sorted.
     pub dependency_keys: &'a [&'a str],
     /// `(stage, body)` of every script the task runs, in run order.
+    pub environment: &'a HashMap<String, String>,
     pub script_bodies: &'a [(String, String)],
 }
 
@@ -116,10 +124,12 @@ impl TaskCache {
     /// The task's cache key: `pnpm-pipeline-task:v0` over the components
     /// the RFC names, NUL-separated and hashed.
     pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<String> {
-        let TaskKeyInputs { node, settings, dependency_keys, script_bodies } = *inputs;
+        let TaskKeyInputs { node, settings, dependency_keys, script_bodies, environment } = *inputs;
         let project_rel = self.project_rel(&node.project);
         let mut components: Vec<String> = vec![
-            "pnpm-pipeline-task:v0".to_string(),
+            "pnpm-pipeline-task:v1".to_string(),
+            format!("platform:{}:{}", env::consts::OS, env::consts::ARCH),
+            format!("outputs:{:?}", settings.and_then(|settings| settings.outputs.as_ref())),
             project_rel,
             node.task_name.clone(),
             format!("lockfile:{}", self.lockfile_hash),
@@ -129,8 +139,8 @@ impl TaskCache {
             components.push(format!("script:{stage}={body}"));
         }
         for name in settings.and_then(|settings| settings.env.as_deref()).unwrap_or_default() {
-            let value = env::var(name).unwrap_or_default();
-            components.push(format!("env:{name}={value}"));
+            let value = environment.get(name).cloned().or_else(|| env::var(name).ok());
+            components.push(format!("env:{name}={value:?}"));
         }
         for file in self.input_files(node, settings)?.iter() {
             components.push(format!("file:{}={}", file.rel_path, file.hash));
@@ -143,8 +153,12 @@ impl TaskCache {
 
     pub fn lookup(&self, key: &str) -> Option<StoredTask> {
         let entry_dir = self.entry_dir(key);
+        check_ancestors(&self.tasks_dir, entry_dir.strip_prefix(&self.tasks_dir).ok()?).ok()?;
         let meta = fs::read_to_string(entry_dir.join("meta.json")).ok()?;
         let mut stored: StoredTask = serde_json::from_str(&meta).ok()?;
+        if stored.version != 2 {
+            return None;
+        }
         stored.entry_dir = entry_dir;
         Some(stored)
     }
@@ -166,6 +180,28 @@ impl TaskCache {
         task_id: &str,
     ) -> Result<(), String> {
         let previous = self.read_output_record(task_id);
+        let validate = |root: &Path, relative: &str| {
+            validate_relative_path(Path::new(relative))
+                .and_then(|()| check_ancestors(root, Path::new(relative)))
+                .map_err(|error| error.to_string())
+        };
+        for relative in stored
+            .files
+            .iter()
+            .map(String::as_str)
+            .chain(previous.iter().map(|record| record.path.as_str()))
+        {
+            validate(project_dir, relative)?;
+        }
+        for relative in &stored.files {
+            validate(&stored.entry_dir, &format!("outputs/{relative}"))?;
+            let actual =
+                create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(relative))
+                    .map_err(|error| error.to_string())?;
+            if stored.hashes.get(relative) != Some(&actual) {
+                return Err(format!("cached output failed integrity: {relative}"));
+            }
+        }
         for rel_path in &stored.files {
             let target = project_dir.join(rel_path);
             if !target.exists() {
@@ -209,14 +245,16 @@ impl TaskCache {
             stale.push(recorded);
         }
         for recorded in stale {
-            let _ = fs::remove_file(project_dir.join(&recorded.path));
+            validate(project_dir, &recorded.path)?;
+            fs::remove_file(project_dir.join(&recorded.path)).map_err(|error| error.to_string())?;
         }
         let mut record: Vec<RecordedFile> = Vec::with_capacity(stored.files.len());
         for rel_path in &stored.files {
             let source = stored.entry_dir.join("outputs").join(rel_path);
             let target = project_dir.join(rel_path);
+            validate(project_dir, rel_path)?;
             if let Some(parent) = target.parent() {
-                let _ = fs::create_dir_all(parent);
+                fs::create_dir_all(parent).map_err(|error| error.to_string())?;
             }
             if let Err(error) = fs::copy(&source, &target) {
                 return Err(format!("copying {rel_path}: {error}"));
@@ -241,15 +279,18 @@ impl TaskCache {
     ) -> io::Result<()> {
         let files = collect_output_files(project_dir, outputs)?;
         let entry_dir = self.entry_dir(key);
-        let staging_dir = entry_dir.with_extension("staging");
-        let _ = fs::remove_dir_all(&staging_dir);
-        fs::create_dir_all(&staging_dir)?;
+        let parent = entry_dir.parent().expect("cache entry parent");
+        fs::create_dir_all(parent)?;
+        let staging = tempfile::Builder::new().prefix(".publish-").tempdir_in(parent)?;
+        let staging_dir = staging.path();
         let mut record: Vec<RecordedFile> = Vec::with_capacity(files.len());
         for rel_path in &files {
             let target = staging_dir.join("outputs").join(rel_path);
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent)?;
             }
+            validate_relative_path(Path::new(rel_path))?;
+            check_ancestors(project_dir, Path::new(rel_path))?;
             fs::copy(project_dir.join(rel_path), &target)?;
             record.push(RecordedFile {
                 path: rel_path.clone(),
@@ -257,18 +298,19 @@ impl TaskCache {
             });
         }
         let meta = StoredTask {
-            version: 1,
+            version: 2,
+            hashes: record.iter().map(|file| (file.path.clone(), file.hash.clone())).collect(),
             task: task_id.to_string(),
             files,
             scripts,
             entry_dir: PathBuf::new(),
         };
         fs::write(staging_dir.join("meta.json"), serde_json::to_vec_pretty(&meta)?)?;
-        let _ = fs::remove_dir_all(&entry_dir);
-        if let Some(parent) = entry_dir.parent() {
-            fs::create_dir_all(parent)?;
+        match fs::rename(staging_dir, &entry_dir) {
+            Ok(()) => {}
+            Err(_) if entry_dir.is_dir() => {}
+            Err(error) => return Err(error),
         }
-        fs::rename(&staging_dir, &entry_dir)?;
         self.write_output_record(task_id, &record);
         Ok(())
     }
@@ -290,7 +332,7 @@ impl TaskCache {
 
     fn write_output_record(&self, task_id: &str, files: &[RecordedFile]) {
         if let Ok(contents) = serde_json::to_vec(files) {
-            let _ = fs::write(self.output_record_path(task_id), contents);
+            let _ = pnpm_fs::write_atomic(&self.output_record_path(task_id), &contents);
         }
     }
 
@@ -396,30 +438,28 @@ fn collect_output_files(project_dir: &Path, outputs: &[String]) -> io::Result<Ve
         return Ok(Vec::new());
     }
     let mut files = Vec::new();
-    let mut stack = vec![project_dir.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        for entry in fs::read_dir(&dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            let file_type = entry.file_type()?;
-            if file_type.is_dir() {
-                let name = entry.file_name();
-                if name != "node_modules" && name != ".git" {
-                    stack.push(path);
-                }
-            } else if file_type.is_file() {
-                let rel_path = path
+    for glob in globs {
+        for entry in glob
+            .walk(project_dir)
+            .not(wax::any(["**/node_modules/**", "**/.git/**"]))
+            .map_err(io::Error::other)?
+        {
+            let entry = entry.map_err(io::Error::other)?;
+            if entry.file_type().is_file() {
+                let relative = entry
+                    .path()
                     .strip_prefix(project_dir)
-                    .expect("walked path is under the project directory")
+                    .map_err(|_| io::Error::other("output glob must stay inside the project"))?
                     .to_string_lossy()
                     .replace(std::path::MAIN_SEPARATOR, "/");
-                if globs.iter().any(|glob| glob.is_match(rel_path.as_str())) {
-                    files.push(rel_path);
-                }
+                validate_relative_path(Path::new(&relative))?;
+                check_ancestors(project_dir, Path::new(&relative))?;
+                files.push(relative);
             }
         }
     }
     files.sort();
+    files.dedup();
     Ok(files)
 }
 
@@ -451,3 +491,6 @@ fn compile_globs_owned(patterns: &[String]) -> miette::Result<Vec<Glob<'static>>
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests;

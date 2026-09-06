@@ -230,3 +230,25 @@ fn restoration_falls_back_to_copy_on_tmpfs() {
     fs::remove_dir_all(storage.path()).unwrap();
     assert_eq!(fs::read_to_string(consumer.target.join("state")).unwrap(), "edited");
 }
+
+#[test]
+fn snapshots_preserve_read_only_files() {
+    let publishing_project = project();
+    let storage = tempfile::tempdir().unwrap();
+    let cache = CargoCache::open(publishing_project.path(), "target").unwrap();
+    fs::create_dir(&cache.target).unwrap();
+    let source = cache.target.join("read-only");
+    fs::write(&source, "immutable").unwrap();
+    let mut permissions = fs::metadata(&source).unwrap().permissions();
+    permissions.set_readonly(true);
+    fs::set_permissions(&source, permissions).unwrap();
+    let timestamp = fs::metadata(&source).unwrap().modified().unwrap();
+    let entry = storage.path().join("entry");
+    cache.publish(&entry, "inputs", &[]).unwrap();
+    let restored_project = project();
+    let restored = CargoCache::open(restored_project.path(), "target").unwrap();
+    assert!(restored.restore(&entry, "inputs").unwrap());
+    let metadata = fs::metadata(restored.target.join("read-only")).unwrap();
+    assert!(metadata.permissions().readonly());
+    assert_eq!(metadata.modified().unwrap(), timestamp);
+}

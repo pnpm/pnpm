@@ -2999,6 +2999,17 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
     config.registry.enabled = false;
     config.resolver.enabled = false;
     config.pipeline.enabled = true;
+    for (workspace, reader, writer) in
+        [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
+    {
+        config.pipeline.workspaces.insert(
+            workspace.to_string(),
+            pnpr_config::StorageAccess {
+                access: pnpr_policy::AccessList::from_tokens([reader]),
+                publish: pnpr_policy::AccessList::from_tokens([writer]),
+            },
+        );
+    }
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
@@ -3080,7 +3091,46 @@ async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
         "summary": {},
     }))
     .await;
-    assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(hostile.status(), StatusCode::NOT_FOUND);
+
+    for (workspace, expected) in [
+        ("hidden", StatusCode::NOT_FOUND),
+        ("unknown", StatusCode::NOT_FOUND),
+        ("read-only", StatusCode::FORBIDDEN),
+    ] {
+        assert_eq!(
+            publish(json!({"workspace": workspace, "runId": "100-default", "summary": {}}))
+                .await
+                .status(),
+            expected,
+        );
+    }
+    for path in
+        ["/-/pnpr/v0/pipeline/runs?workspace=hidden", "/-/pnpr/v0/pipeline/runs/hidden/100-default"]
+    {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+    let unfiltered = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(body_json(unfiltered.into_body()).await["runs"].as_array().unwrap().len(), 1);
 
     let listed = app
         .clone()
@@ -5234,4 +5284,18 @@ async fn a_single_npm_ecosystem_answers_at_the_root() {
     assert_eq!(fetched.status(), StatusCode::OK);
     assert_eq!(body_bytes(fetched.into_body()).await, bytes);
     tarball.assert_async().await;
+}
+
+#[test]
+fn pipeline_viewer_renders_publisher_data_as_text() {
+    let output = std::process::Command::new("node")
+        .args(["--test", concat!(env!("CARGO_MANIFEST_DIR"), "/tests/pipeline_ui.mjs")])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "viewer regression: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

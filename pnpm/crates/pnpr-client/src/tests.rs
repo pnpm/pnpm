@@ -401,3 +401,44 @@ fn an_untyped_frame_is_a_protocol_error() {
         panic!("expected a Protocol error");
     };
 }
+
+#[tokio::test]
+async fn pipeline_reports_refuse_credentials_on_non_loopback_http() {
+    let client = PnprClient::new("http://example.invalid");
+    let request = super::PublishPipelineRunRequest {
+        workspace: "demo".to_string(),
+        run_id: "100-run".to_string(),
+        summary: json!({}),
+        events: Vec::new(),
+    };
+    let error = client.publish_pipeline_run(&request, Some("Bearer secret")).await.unwrap_err();
+    assert!(
+        matches!(error, PnprClientError::Protocol(_)),
+        "insecure credentials must be rejected before any request: {error}",
+    );
+}
+
+#[tokio::test]
+async fn pipeline_report_redirects_are_not_followed() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("PUT", "/-/pnpr/v0/pipeline/runs")
+        .with_status(307)
+        .with_header("location", "/unexpected")
+        .create_async()
+        .await;
+    let destination = server.mock("PUT", "/unexpected").expect(0).create_async().await;
+    let client = PnprClient::new(server.url());
+    let request = super::PublishPipelineRunRequest {
+        workspace: "demo".to_string(),
+        run_id: "100-run".to_string(),
+        summary: json!({}),
+        events: Vec::new(),
+    };
+    assert!(
+        client.publish_pipeline_run(&request, Some("Bearer secret")).await.is_err(),
+        "report redirects must not receive credentials",
+    );
+    redirect.assert_async().await;
+    destination.assert_async().await;
+}

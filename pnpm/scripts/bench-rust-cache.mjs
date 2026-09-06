@@ -56,8 +56,9 @@ try {
     registered.push(worktree)
   }
   const sources = worktrees.map(worktree => {
-    const source = path.resolve(worktree, values.source)
-    if (!source.startsWith(`${worktree}${path.sep}`)) throw new Error('--source must be inside the worktree')
+    const worktreeRoot = fs.realpathSync(worktree)
+    const source = fs.realpathSync(path.resolve(worktreeRoot, values.source))
+    if (!source.startsWith(`${worktreeRoot}${path.sep}`)) throw new Error('--source must be inside the worktree')
     return source
   })
   const original = fs.readFileSync(sources[1], 'utf8')

@@ -31,7 +31,6 @@
   const status = document.getElementById('status');
   const table = document.getElementById('runs');
   const detail = document.getElementById('detail');
-  try { token.value = localStorage.getItem('pnpr-pipeline-token') || ''; } catch {}
 
   async function api(path) {
     const response = await fetch(path, { headers: { authorization: 'Bearer ' + token.value } });
@@ -40,16 +39,15 @@
   }
 
   function counts(tasks) {
-    const totals = {};
-    for (const entry of Object.values(tasks || {})) totals[entry.status] = (totals[entry.status] || 0) + 1;
+    const totals = Object.create(null);
+    for (const entry of Object.values(tasks || {})) totals[entry?.status] = (totals[entry?.status] || 0) + 1;
     return ['passed', 'failure', 'skipped', 'queued']
       .filter((status) => totals[status])
-      .map((status) => `<span class="${status === 'failure' ? 'failed' : status}">${totals[status]} ${status}</span>`)
+      .map((status) => `${totals[status]} ${status}`)
       .join(' · ') || '—';
   }
 
   async function refresh() {
-    try { localStorage.setItem('pnpr-pipeline-token', token.value); } catch {}
     detail.hidden = true;
     status.textContent = 'Loading…';
     const workspace = document.getElementById('workspace').value.trim();
@@ -57,15 +55,26 @@
       const query = workspace ? '?workspace=' + encodeURIComponent(workspace) : '';
       const { runs } = await api('/-/pnpr/v0/pipeline/runs' + query);
       const rows = runs.map((run) => {
-        const selection = run.summary.selection || {};
+        const summary = run.summary || {};
+        const selection = summary.selection || {};
         const when = new Date(Number(String(run.runId).split('-')[0])).toLocaleString();
-        return `<tr data-workspace="${run.workspace}" data-run="${run.runId}">
-          <td><a href="#">${when}</a></td><td>${run.workspace}</td>
-          <td>${run.summary.pipeline || '?'}</td><td>${run.summary.base || ''}</td>
-          <td class="mode">${selection.mode || ''} (${selection.requestedProjects ?? '?'} of ${selection.includedProjects ?? '?'})</td>
-          <td>${counts(run.summary.tasks)}</td></tr>`;
+        const row = document.createElement('tr');
+        row.dataset.workspace = run.workspace;
+        row.dataset.run = run.runId;
+        for (const value of [when, run.workspace, summary.pipeline || '?', summary.base || '',
+          `${selection.mode || ''} (${selection.requestedProjects ?? '?'} of ${selection.includedProjects ?? '?'})`,
+          counts(summary.tasks)]) {
+          const cell = document.createElement('td');
+          cell.textContent = String(value);
+          row.append(cell);
+        }
+        const link = document.createElement('a');
+        link.href = '#';
+        link.textContent = when;
+        row.firstChild.replaceChildren(link);
+        return row;
       });
-      table.querySelector('tbody').innerHTML = rows.join('');
+      table.querySelector('tbody').replaceChildren(...rows);
       table.hidden = false;
       status.textContent = runs.length + ' runs.';
     } catch (error) {
@@ -79,7 +88,7 @@
     if (!row) return;
     event.preventDefault();
     try {
-      const run = await api('/-/pnpr/v0/pipeline/runs/' + row.dataset.workspace + '/' + row.dataset.run);
+      const run = await api('/-/pnpr/v0/pipeline/runs/' + encodeURIComponent(row.dataset.workspace) + '/' + encodeURIComponent(row.dataset.run));
       detail.textContent = JSON.stringify(run, null, 2);
       detail.hidden = false;
     } catch (error) {

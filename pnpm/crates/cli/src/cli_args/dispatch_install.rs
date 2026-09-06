@@ -371,7 +371,7 @@ pub(super) fn pipeline<'a>(
                 report_to,
                 npmrc_auth_file: cfg.npmrc_auth_file.clone(),
             };
-            run_watch(&invocation, &cfg.cache_dir)
+            run_watch(&invocation, &cfg.state_dir)
         }));
     }
     let PipelineArgs {
@@ -405,6 +405,7 @@ pub(super) fn pipeline<'a>(
             install.await?;
         }
         let cfg = config()?;
+        apply_update_config(cfg, dir, reporter).await?;
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
         // The run is recorded before the failure exit is raised, so a red
         // run reaches the server too.
@@ -448,7 +449,7 @@ async fn report_pipeline_run(
         return;
     };
     let client = pnpm_pnpr_client::PnprClient::new(server);
-    let authorization = cfg.auth_headers.for_url(server);
+    let authorization = cfg.auth_headers.for_secure_url(server);
     let request = pnpm_pnpr_client::PublishPipelineRunRequest {
         workspace: upload.workspace,
         run_id: upload.run_id,
@@ -456,7 +457,14 @@ async fn report_pipeline_run(
         events: upload.events,
     };
     match client.publish_pipeline_run(&request, authorization.as_deref()).await {
-        Ok(()) => println!("Run recorded on {server} as {}/{}", request.workspace, request.run_id),
+        Ok(()) => emit(&pnpm_reporter::LogEvent::Pnpm(pnpm_reporter::PnpmLog {
+            level: pnpm_reporter::LogLevel::Info,
+            message: format!(
+                "Run recorded on {server} as {}/{}",
+                request.workspace, request.run_id,
+            ),
+            prefix: String::new(),
+        })),
         Err(error) => warn(format!("failed to publish the pipeline run to {server}: {error}")),
     }
 }

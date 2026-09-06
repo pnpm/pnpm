@@ -46,13 +46,17 @@ impl RunReport {
         base: &str,
         selection: &Selection,
         revision: Option<String>,
-    ) -> RunReport {
+    ) -> miette::Result<RunReport> {
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random)
+            .map_err(|error| miette::miette!("generating a pipeline run ID: {error}"))?;
+        let nonce = u128::from_le_bytes(random);
         let mode = match selection.mode {
             SelectionMode::Affected => "affected",
             SelectionMode::Full => "full",
         };
-        RunReport {
-            run_id: format!("{}-{pipeline}", now_millis()),
+        Ok(RunReport {
+            run_id: format!("{}-{nonce:032x}", now_millis()),
             pipeline: pipeline.to_string(),
             base: base.to_string(),
             revision,
@@ -66,7 +70,7 @@ impl RunReport {
             events: Mutex::new(Vec::new()),
             cache_hits: AtomicUsize::new(0),
             summary: Mutex::new(Value::Null),
-        }
+        })
     }
 
     pub fn task_started(&self, task: &str, key: &str) {
@@ -186,3 +190,6 @@ impl RunReport {
 fn now_millis() -> u128 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis())
 }
+
+#[cfg(test)]
+mod tests;

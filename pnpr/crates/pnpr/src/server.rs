@@ -2974,6 +2974,9 @@ async fn serve_publish_pipeline_run(
             );
         }
     };
+    if let Err(error) = authorize_pipeline_workspace(&state, &identity, &run.workspace, true) {
+        return private_no_cache(error.into_response());
+    }
     private_no_cache(
         match state
             .inner
@@ -2999,16 +3002,12 @@ async fn serve_list_pipeline_runs(
     if let Err(err) = require_caller(&identity, "pipeline runs") {
         return private_no_cache(err.into_response());
     }
-    // Parsed by hand: the two recognized parameters do not justify
-    // enabling axum's `query` feature for this one endpoint.
     let mut workspace: Option<String> = None;
     let mut limit: usize = 50;
-    for pair in uri.query().unwrap_or_default().split('&') {
-        match pair.split_once('=') {
-            Some(("workspace", value)) if !value.is_empty() => {
-                workspace = Some(value.to_string());
-            }
-            Some(("limit", value)) => {
+    for (key, value) in url::form_urlencoded::parse(uri.query().unwrap_or_default().as_bytes()) {
+        match key.as_ref() {
+            "workspace" if !value.is_empty() => workspace = Some(value.into_owned()),
+            "limit" => {
                 if let Ok(value) = value.parse() {
                     limit = value;
                 }
@@ -3016,10 +3015,36 @@ async fn serve_list_pipeline_runs(
             _ => {}
         }
     }
-    let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
-    private_no_cache(match store.list(workspace.as_deref(), limit) {
-        Ok(runs) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
-        Err(err) => err.into_response(),
+    let limit = limit.clamp(1, pnpr_pipeline_runs::MAX_LIST_RUNS);
+    if let Some(workspace) = &workspace
+        && let Err(error) = authorize_pipeline_workspace(&state, &identity, workspace, false)
+    {
+        return private_no_cache(error.into_response());
+    }
+    let result = tokio::task::spawn_blocking(move || {
+        let store =
+            state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
+        let mut runs = Vec::new();
+        for (name, policy) in &state.inner.config.pipeline.workspaces {
+            if !policy.access.allows(&identity)
+                || workspace.as_ref().is_some_and(|requested| requested != name)
+            {
+                continue;
+            }
+            match store.list(Some(name), limit) {
+                Ok(entries) => runs.extend(entries),
+                Err(error) => return Err(error),
+            }
+            runs.sort_by(|left, right| right.run_id.cmp(&left.run_id));
+            runs.truncate(limit);
+        }
+        Ok::<_, RegistryError>(runs)
+    })
+    .await;
+    private_no_cache(match result {
+        Ok(Ok(runs)) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
+        Ok(Err(error)) => error.into_response(),
+        Err(error) => RegistryError::Io(std::io::Error::other(error)).into_response(),
     })
 }
 
@@ -3030,8 +3055,8 @@ async fn serve_get_pipeline_run(
     AuthedCaller(identity): AuthedCaller,
     Path((workspace, run_id)): Path<(String, String)>,
 ) -> Response {
-    if let Err(err) = require_caller(&identity, "pipeline runs") {
-        return private_no_cache(err.into_response());
+    if let Err(error) = authorize_pipeline_workspace(&state, &identity, &workspace, false) {
+        return private_no_cache(error.into_response());
     }
     let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
     private_no_cache(match store.get(&workspace, &run_id) {
@@ -3039,6 +3064,27 @@ async fn serve_get_pipeline_run(
         Ok(None) => not_found(),
         Err(err) => err.into_response(),
     })
+}
+
+fn authorize_pipeline_workspace(
+    state: &AppState,
+    identity: &Identity,
+    workspace: &str,
+    publish: bool,
+) -> Result<(), RegistryError> {
+    let username = require_caller(identity, "pipeline runs")?;
+    let policy = state.inner.config.pipeline.workspaces.get(workspace);
+    if !policy.is_some_and(|policy| policy.access.allows(identity)) {
+        return Err(RegistryError::NotFound);
+    }
+    if publish && !policy.is_some_and(|policy| policy.publish.allows(identity)) {
+        return Err(RegistryError::Forbidden {
+            user: username,
+            action: "publish pipeline runs",
+            resource: workspace.to_string(),
+        });
+    }
+    Ok(())
 }
 
 /// `GET /-/pnpr/v0/pipeline` — a self-contained viewer over the run

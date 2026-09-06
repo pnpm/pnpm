@@ -268,11 +268,11 @@ pub struct ArtifactsFeature {
     /// Master switch for artifact and compiler-cache endpoints.
     pub enabled: bool,
     /// Named compiler caches with independent read and publication policies.
-    pub compiler_caches: IndexMap<String, CompilerCacheAccess>,
+    pub compiler_caches: IndexMap<String, StorageAccess>,
 }
 
 #[derive(Debug, Clone)]
-pub struct CompilerCacheAccess {
+pub struct StorageAccess {
     pub access: AccessList,
     pub publish: AccessList,
 }
@@ -283,6 +283,7 @@ pub struct CompilerCacheAccess {
 pub struct PipelineFeature {
     /// Master switch for the run submission, listing, and viewer endpoints.
     pub enabled: bool,
+    pub workspaces: IndexMap<String, StorageAccess>,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -1224,12 +1225,12 @@ struct ArtifactsFeatureFile {
     #[serde(default)]
     enabled: bool,
     #[serde(default, rename = "compilerCaches")]
-    compiler_caches: IndexMap<String, CompilerCacheAccessFile>,
+    compiler_caches: IndexMap<String, StorageAccessFile>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CompilerCacheAccessFile {
+struct StorageAccessFile {
     access: AccessSpec,
     publish: AccessSpec,
 }
@@ -1239,6 +1240,8 @@ struct CompilerCacheAccessFile {
 struct PipelineFeatureFile {
     #[serde(default)]
     enabled: bool,
+    #[serde(default)]
+    workspaces: IndexMap<String, StorageAccessFile>,
 }
 
 fn default_true() -> bool {
@@ -1663,27 +1666,15 @@ impl Config {
         let resolver =
             ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver };
         let artifacts_file = file.artifacts.unwrap_or_default();
-        let mut compiler_caches = IndexMap::new();
-        for (name, policy) in artifacts_file.compiler_caches {
-            validate_registry_name(&name)?;
-            let parse_access = |spec: &AccessSpec| {
-                spec.to_access_list(&Teams::default()).map_err(|reason| {
-                    RegistryError::InvalidConfig {
-                        reason: format!("compiler cache {name:?}: {reason}"),
-                    }
-                })
-            };
-            let access = CompilerCacheAccess {
-                access: parse_access(&policy.access)?,
-                publish: parse_access(&policy.publish)?,
-            };
-            compiler_caches.insert(name, access);
-        }
         let artifacts = ArtifactsFeature {
             enabled: artifacts_file.enabled && !overrides.disable_artifacts,
-            compiler_caches,
+            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
         };
-        let pipeline = PipelineFeature { enabled: file.pipeline.unwrap_or_default().enabled };
+        let pipeline_file = file.pipeline.unwrap_or_default();
+        let pipeline = PipelineFeature {
+            enabled: pipeline_file.enabled,
+            workspaces: parse_storage_access(pipeline_file.workspaces)?,
+        };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a
@@ -2420,3 +2411,24 @@ pub fn default_cache_dir(storage: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+fn parse_storage_access(
+    policies: IndexMap<String, StorageAccessFile>,
+) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
+    policies
+        .into_iter()
+        .map(|(name, policy)| {
+            validate_registry_name(&name)?;
+            let parse = |spec: &AccessSpec| {
+                spec.to_access_list(&Teams::default()).map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!("storage namespace {name:?}: {reason}"),
+                    }
+                })
+            };
+            let access =
+                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
+            Ok((name, access))
+        })
+        .collect()
+}

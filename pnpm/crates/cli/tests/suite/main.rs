@@ -89,6 +89,7 @@ mod package_manager_check;
 mod patch;
 mod peers;
 mod ping;
+mod pipeline_cache;
 mod pipeline_cargo_cache;
 mod pipeline_watch;
 mod pnpm_compatibility;
