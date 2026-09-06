@@ -393,15 +393,17 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
 
 /// `default_virtual_store_dir` joins onto the current directory, so the
 /// separator it appends is what lands in the `virtualStoreDir` recorded
-/// in `.modules.yaml`. Compares the string for the same reason as above.
-#[cfg(windows)]
+/// in `.modules.yaml`. Compares the rendered string for the same reason
+/// as above, through `display` so a working directory that is not valid
+/// Unicode renders lossily instead of panicking before the assertion.
 #[test]
+#[cfg_attr(not(windows), ignore = "only one path separator style is tested")]
 fn test_default_virtual_store_dir_uses_native_separators() {
     let virtual_store_dir = default_virtual_store_dir();
-    let rendered = virtual_store_dir.to_str().unwrap();
+    let rendered = virtual_store_dir.display().to_string();
     assert!(
         rendered.ends_with(r"\node_modules\.pnpm"),
-        "virtual store dir {rendered:?} must end with a backslash-separated suffix"
+        "virtual store dir {rendered:?} must end with a backslash-separated suffix",
     );
 }
 
