@@ -64,6 +64,16 @@ pub enum RegistryError {
         name: String,
     },
 
+    #[display("Package name {name:?} is not valid for {ecosystem}: {reason}")]
+    InvalidEcosystemPackageName {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        ecosystem: String,
+        #[error(not(source))]
+        reason: String,
+    },
+
     #[display("Tarball filename {filename:?} is not valid for package {package:?}")]
     InvalidTarballName {
         #[error(not(source))]
@@ -318,6 +328,7 @@ impl RegistryError {
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidEcosystemPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::NotFound => "not_found",
@@ -415,6 +426,7 @@ impl RegistryError {
             | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidEcosystemPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }

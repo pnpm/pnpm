@@ -65,13 +65,21 @@ pub struct CanonicalPackageName {
 
 impl CanonicalPackageName {
     pub fn parse(raw: &str, ecosystem: Ecosystem) -> Result<Self, RegistryError> {
-        let invalid = || RegistryError::InvalidPackageName { name: raw.to_string() };
         let canonical = match ecosystem {
             Ecosystem::Npm => raw.to_string(),
-            Ecosystem::Cargo => canonicalize_crate_name(raw).map_err(|_| invalid())?,
-            Ecosystem::Pypi => canonicalize_python_name(raw).map_err(|_| invalid())?,
+            Ecosystem::Cargo => canonicalize_crate_name(raw)
+                .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
+            Ecosystem::Pypi => canonicalize_python_name(raw)
+                .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
         };
-        Self::parse_canonical(&canonical)
+        Self::parse_canonical(&canonical).map_err(|error| match ecosystem {
+            Ecosystem::Npm => error,
+            Ecosystem::Cargo | Ecosystem::Pypi => invalid_ecosystem_name(
+                raw,
+                ecosystem,
+                "its canonical form is not a safe registry key".to_string(),
+            ),
+        })
     }
 
     fn parse_canonical(raw: &str) -> Result<Self, RegistryError> {
@@ -134,6 +142,14 @@ impl CanonicalPackageName {
             return Err(invalid());
         }
         Ok((self.tarball_name_for_version(version), version.to_string()))
+    }
+}
+
+fn invalid_ecosystem_name(name: &str, ecosystem: Ecosystem, reason: String) -> RegistryError {
+    RegistryError::InvalidEcosystemPackageName {
+        name: name.to_string(),
+        ecosystem: ecosystem.to_string(),
+        reason,
     }
 }
 

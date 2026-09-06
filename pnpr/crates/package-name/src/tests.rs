@@ -14,6 +14,21 @@ fn canonicalizes_each_ecosystem() {
 }
 
 #[test]
+fn reports_ecosystem_specific_name_errors() {
+    let cargo_error = CanonicalPackageName::parse("9lives", Ecosystem::Cargo).unwrap_err();
+    assert_eq!(
+        cargo_error.public_message(),
+        r#"Package name "9lives" is not valid for cargo: crate name "9lives" must start with a letter or `_`"#,
+    );
+
+    let python_error = CanonicalPackageName::parse("demo package", Ecosystem::Pypi).unwrap_err();
+    assert_eq!(
+        python_error.public_message(),
+        r#"Package name "demo package" is not valid for pypi: "demo package" is not a valid Python project name"#,
+    );
+}
+
+#[test]
 fn accepts_unscoped() {
     let name = CanonicalPackageName::parse("lodash", Ecosystem::Npm).unwrap();
     assert_eq!(name.as_str(), "lodash");
