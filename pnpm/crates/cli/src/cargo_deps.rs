@@ -202,7 +202,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
 
-    let auth_headers = Arc::clone(&config.auth_headers);
+    let auth_headers = download_auth_headers(config);
     let cargo_auth_headers = cargo_auth_headers(config)?;
     let registry_config = fetch_registry_config(config, &http_client, &cargo_auth_headers).await?;
     let verified_files_cache = SharedVerifiedFilesCache::default();
@@ -358,6 +358,13 @@ pub(crate) async fn latest_version(
     .await?;
     pnpm_cargo_resolver::latest_version(name, &index_file)
         .wrap_err_with(|| format!("select the latest version of crate {name}"))
+}
+
+/// The credentials a crate archive download may carry. The registry's `dl`
+/// template picks the download host, so a credential configured for that
+/// host travels only over TLS or loopback.
+fn download_auth_headers(config: &Config) -> Arc<AuthHeaders> {
+    Arc::new((*config.auth_headers).clone().with_secure_transport())
 }
 
 pub(crate) fn cargo_auth_headers(config: &Config) -> Result<Arc<AuthHeaders>> {

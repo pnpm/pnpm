@@ -1645,6 +1645,15 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
     let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
     assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
     assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    // The accelerator resolved: a local resolve would have walked the sparse
+    // index itself and left the entry it read in the client's index cache.
+    // Only the registry's config.json, which the download needs either way,
+    // is cached here.
+    let cached_index_files = get_all_files(&root.path().join("cache/v11/cargo-index"));
+    assert!(
+        cached_index_files.iter().all(|path| path.ends_with("config.json")),
+        "{cached_index_files:?}",
+    );
     Command::new("cargo")
         .with_current_dir(root.path())
         .with_args(["check", "--offline"])
