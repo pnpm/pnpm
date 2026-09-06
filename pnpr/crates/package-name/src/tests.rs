@@ -92,3 +92,62 @@ fn rejects_url_delimiters_and_blanks() {
     let name = CanonicalPackageName::parse("foo", Ecosystem::Npm).unwrap();
     assert!(name.parse_tarball_name("foo-1.0.0?x.tgz").is_err());
 }
+
+#[test]
+fn accepts_multi_component_image_names() {
+    let name = CanonicalPackageName::parse("acme/team/app", Ecosystem::Oci).unwrap();
+    assert_eq!(name.as_str(), "acme/team/app");
+
+    let single = CanonicalPackageName::parse("alpine", Ecosystem::Oci).unwrap();
+    assert_eq!(single.as_str(), "alpine");
+}
+
+#[test]
+fn folds_image_name_case() {
+    assert_eq!(
+        CanonicalPackageName::parse("ACME/App", Ecosystem::Oci).unwrap().as_str(),
+        "acme/app",
+    );
+}
+
+#[test]
+fn accepts_image_name_separators() {
+    for name in ["a.b/c_d", "a__b", "a---b", "x/y.z_0/w"] {
+        assert!(
+            CanonicalPackageName::parse(name, Ecosystem::Oci).is_ok(),
+            "{name} should be a valid image name",
+        );
+    }
+}
+
+#[test]
+fn rejects_malformed_image_names() {
+    for name in ["", "acme//app", "/app", "app/", ".app", "app.", "-app", "a..b", "a_-b", "a+b"] {
+        assert!(
+            CanonicalPackageName::parse(name, Ecosystem::Oci).is_err(),
+            "{name} should not be a valid image name",
+        );
+    }
+}
+
+#[test]
+fn rejects_image_name_traversal() {
+    assert!(CanonicalPackageName::parse("acme/../etc", Ecosystem::Oci).is_err());
+    assert!(CanonicalPackageName::parse("..", Ecosystem::Oci).is_err());
+}
+
+#[test]
+fn image_names_may_outrun_the_npm_length_limit() {
+    let long = format!("{}/{}", "a".repeat(120), "b".repeat(120));
+    assert!(CanonicalPackageName::parse(&long, Ecosystem::Oci).is_ok());
+    assert!(CanonicalPackageName::parse(&"a".repeat(256), Ecosystem::Oci).is_err());
+}
+
+#[test]
+fn reports_image_name_errors() {
+    let error = CanonicalPackageName::parse("acme//app", Ecosystem::Oci).unwrap_err();
+    assert_eq!(
+        error.public_message(),
+        r#"Package name "acme//app" is not valid for oci: image name "acme//app" has an empty path component"#,
+    );
+}

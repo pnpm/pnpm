@@ -57,7 +57,9 @@ pub fn mixed_router_config(
     let claimed = hosted
         .packages
         .iter()
-        .map(|name| PackagePattern::parse(name).expect("package name is a valid pattern"))
+        .map(|name| {
+            PackagePattern::parse(name, ecosystem).expect("package name is a valid pattern")
+        })
         .collect();
     let mut graph: indexmap::IndexMap<String, Registry> = config
         .registries
@@ -124,7 +126,7 @@ pub async fn assert_cache_tracks_metadata(ecosystem: Ecosystem) {
             "/requests/",
             "/pypi/files/requests/requests-1.0.0-py3-none-any.whl",
         ),
-        Ecosystem::Npm => unreachable!(),
+        Ecosystem::Npm | Ecosystem::Oci => unreachable!(),
     };
     upstream
         .mock("GET", "/config.json")

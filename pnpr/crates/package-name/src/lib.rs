@@ -12,6 +12,7 @@ pub enum Ecosystem {
     Npm,
     Cargo,
     Pypi,
+    Oci,
 }
 
 impl Ecosystem {
@@ -21,6 +22,7 @@ impl Ecosystem {
             Ecosystem::Npm => "npm",
             Ecosystem::Cargo => "cargo",
             Ecosystem::Pypi => "pypi",
+            Ecosystem::Oci => "oci",
         }
     }
 }
@@ -51,15 +53,39 @@ pub struct PythonNameError {
     pub name: String,
 }
 
-/// The canonical name of an npm package, Cargo crate, or Python project.
+/// The OCI distribution spec's limit on a whole repository name.
+pub const MAX_OCI_NAME_LEN: usize = 255;
+
+#[derive(Debug, Display, Error, Clone, PartialEq, Eq)]
+pub enum OciNameError {
+    #[display("image name must not be empty")]
+    Empty,
+    #[display("image name {name:?} is longer than {MAX_OCI_NAME_LEN} characters")]
+    TooLong { name: String },
+    #[display("image name {name:?} has an empty path component")]
+    EmptyComponent { name: String },
+    #[display("image name component {component:?} must start and end with a letter or digit")]
+    ComponentBoundary { component: String },
+    #[display(
+        "image name component {component:?} may only contain letters, digits, `.`, `_` and `-`"
+    )]
+    InvalidCharacter { component: String },
+    #[display(
+        "image name component {component:?} may only join alphanumeric runs with `.`, `_`, `__`, or `-`"
+    )]
+    ComponentSeparator { component: String },
+}
+
+/// The canonical name of an npm package, Cargo crate, Python project, or OCI
+/// image repository.
 /// Construction applies the ecosystem's normalization and validation before
 /// the name can be used as a storage or cache key.
 #[derive(Debug, Clone)]
 pub struct CanonicalPackageName {
     raw: String,
-    /// The unscoped portion — for `@scope/name` this is `name`, for
-    /// `name` this is the whole thing. Used to validate tarball
-    /// filenames, which are always `<basename>-<version>.tgz`.
+    /// The unscoped portion — for `@scope/name` and `namespace/image` this is
+    /// the last component, for `name` this is the whole thing. Used to
+    /// validate tarball filenames, which are always `<basename>-<version>.tgz`.
     basename: String,
 }
 
@@ -71,10 +97,22 @@ impl CanonicalPackageName {
                 .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
             Ecosystem::Pypi => canonicalize_python_name(raw)
                 .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?,
+            // An image name is many `/`-joined components and may outrun the
+            // npm length limit, so the OCI grammar is the whole check: it
+            // holds every component to starting and ending alphanumeric,
+            // which is stricter than `is_safe_segment` asks for.
+            Ecosystem::Oci => {
+                let canonical = canonicalize_oci_name(raw)
+                    .map_err(|error| invalid_ecosystem_name(raw, ecosystem, error.to_string()))?;
+                let basename =
+                    canonical.rsplit_once('/').map_or(canonical.as_str(), |(_, last)| last);
+                let basename = basename.to_string();
+                return Ok(Self { raw: canonical, basename });
+            }
         };
         Self::parse_canonical(&canonical).map_err(|error| match ecosystem {
             Ecosystem::Npm => error,
-            Ecosystem::Cargo | Ecosystem::Pypi => invalid_ecosystem_name(
+            Ecosystem::Cargo | Ecosystem::Pypi | Ecosystem::Oci => invalid_ecosystem_name(
                 raw,
                 ecosystem,
                 "its canonical form is not a safe registry key".to_string(),
@@ -182,6 +220,54 @@ pub fn canonicalize_python_name(raw: &str) -> Result<String, PythonNameError> {
                 .next_back()
                 .is_some_and(|character| character.is_ascii_alphanumeric());
     well_formed.then_some(normalized).ok_or_else(invalid)
+}
+
+/// Normalize and validate an OCI repository name against the distribution
+/// spec's grammar: `/`-joined components, each a `.`, `_`, `__`, or `-`-joined
+/// run of alphanumerics. Uppercase is folded rather than refused, so two names
+/// that differ only in case cannot become two repositories on a
+/// case-insensitive filesystem.
+pub fn canonicalize_oci_name(raw: &str) -> Result<String, OciNameError> {
+    if raw.is_empty() {
+        return Err(OciNameError::Empty);
+    }
+    if raw.len() > MAX_OCI_NAME_LEN {
+        return Err(OciNameError::TooLong { name: raw.to_string() });
+    }
+    let canonical = raw.to_ascii_lowercase();
+    for component in canonical.split('/') {
+        validate_oci_component(component, &canonical)?;
+    }
+    Ok(canonical)
+}
+
+fn validate_oci_component(component: &str, name: &str) -> Result<(), OciNameError> {
+    if component.is_empty() {
+        return Err(OciNameError::EmptyComponent { name: name.to_string() });
+    }
+    let alphanumeric = |character: char| character.is_ascii_alphanumeric();
+    if !component.starts_with(alphanumeric) || !component.ends_with(alphanumeric) {
+        return Err(OciNameError::ComponentBoundary { component: component.to_string() });
+    }
+    if component.chars().any(|character| {
+        !(character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-'))
+    }) {
+        return Err(OciNameError::InvalidCharacter { component: component.to_string() });
+    }
+    let mut rest = component;
+    while let Some(start) = rest.find(|character: char| !character.is_ascii_alphanumeric()) {
+        let tail = &rest[start..];
+        let end = tail.find(alphanumeric).unwrap_or(tail.len());
+        if !is_oci_separator(&tail[..end]) {
+            return Err(OciNameError::ComponentSeparator { component: component.to_string() });
+        }
+        rest = &tail[end..];
+    }
+    Ok(())
+}
+
+fn is_oci_separator(run: &str) -> bool {
+    matches!(run, "." | "_" | "__") || run.bytes().all(|byte| byte == b'-')
 }
 
 // `:` is rejected because on Windows `C:foo` is a drive-relative *prefix*

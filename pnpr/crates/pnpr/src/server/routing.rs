@@ -34,7 +34,7 @@ use super::{
     addressed_registry, authenticate, batch, caller_scoped, cargo, compiler_cache,
     compute_upstream_cache_namespace, delete_package, delete_session_token, delete_tarball,
     delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
-    get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled, private_no_cache,
+    get_token_list, get_whoami, loggable_uri, not_found, oci, pnpr_protocols_disabled, private_no_cache,
     publish_package, put_login, pypi, reject_team_mutation, remove_dist_tag,
     require_artifact_caller, require_pipeline_caller, require_resolver_caller, serve_artifact_blob,
     serve_batch_publish, serve_get_pipeline_run, serve_list_pipeline_runs, serve_org_packages,
@@ -248,6 +248,14 @@ pub(super) fn router_with_auth_and_osv(
         if state.inner.config.registries.has_ecosystem(Ecosystem::Pypi) {
             router = router.merge(pypi::routes(
                 !state.inner.config.registries.is_only_ecosystem(Ecosystem::Pypi),
+            ));
+        }
+        // The image surface keeps `/v2/` at the host root whatever else is
+        // served, because a client derives it from the image reference's host
+        // and cannot be pointed at a prefix.
+        if state.inner.config.registries.has_ecosystem(Ecosystem::Oci) {
+            router = router.merge(oci::routes(
+                !state.inner.config.registries.is_only_ecosystem(Ecosystem::Oci),
             ));
         }
     }

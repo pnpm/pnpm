@@ -6147,6 +6147,7 @@ dependencies = [
  "pnpr-cargo",
  "pnpr-config",
  "pnpr-error",
+ "pnpr-oci",
  "pnpr-osv",
  "pnpr-package-name",
  "pnpr-pipeline-runs",
@@ -6270,6 +6271,17 @@ dependencies = [
  "tar",
  "tempfile",
  "walkdir",
+]
+
+[[package]]
+name = "pnpr-oci"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pnpr-package-name",
+ "serde",
+ "serde_json",
+ "sha2",
 ]
 
 [[package]]

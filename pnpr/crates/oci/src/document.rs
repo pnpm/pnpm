@@ -1,0 +1,162 @@
+use crate::Digest;
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+
+/// One manifest the repository holds, keyed by the digest of its bytes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestEntry {
+    pub digest: Digest,
+    pub media_type: String,
+    pub size: u64,
+}
+
+/// One tag and the manifest it currently names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagEntry {
+    pub tag: String,
+    pub digest: Digest,
+    /// When this tag last moved, as an ISO-8601 UTC timestamp.
+    ///
+    /// A tag is the one mutable thing in a repository, so "what is already
+    /// here wins" — the rule that makes an immutable version safe to
+    /// re-apply — would let a transaction recovered after a crash drag a tag
+    /// back to an older manifest. Comparing timestamps instead makes the
+    /// merge monotonic, so re-applying an old write is a no-op.
+    pub updated: String,
+}
+
+/// What a hosted registry stores per image repository.
+///
+/// Layer and config blobs are absent on purpose: they are content-addressed,
+/// immutable, and uploaded before anything points at them. The manifest is
+/// what publishes a release, so it is what the document records.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageDocument {
+    pub name: String,
+    #[serde(default)]
+    pub manifests: Vec<ManifestEntry>,
+    #[serde(default)]
+    pub tags: Vec<TagEntry>,
+}
+
+impl ImageDocument {
+    #[must_use]
+    pub fn new(name: &str) -> Self {
+        Self { name: name.to_string(), ..Self::default() }
+    }
+
+    pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
+    }
+
+    #[must_use]
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).expect("image document serializes")
+    }
+
+    #[must_use]
+    pub fn manifest(&self, digest: &Digest) -> Option<&ManifestEntry> {
+        self.manifests
+            .binary_search_by(|entry| entry.digest.hex().cmp(digest.hex()))
+            .ok()
+            .map(|index| &self.manifests[index])
+    }
+
+    #[must_use]
+    pub fn tag(&self, tag: &str) -> Option<&TagEntry> {
+        self.tags
+            .binary_search_by(|entry| entry.tag.as_str().cmp(tag))
+            .ok()
+            .map(|index| &self.tags[index])
+    }
+
+    /// The manifest a `<reference>` path segment names, whether it spells a
+    /// digest or a tag.
+    #[must_use]
+    pub fn resolve(&self, reference: &str) -> Option<&ManifestEntry> {
+        match Digest::parse(reference) {
+            Ok(digest) => self.manifest(&digest),
+            Err(_) => self.tag(reference).and_then(|tag| self.manifest(&tag.digest)),
+        }
+    }
+
+    /// Tag names in lexical order, as `GET /v2/<name>/tags/list` serves them.
+    #[must_use]
+    pub fn tag_names(&self) -> Vec<&str> {
+        self.tags.iter().map(|entry| entry.tag.as_str()).collect()
+    }
+
+    pub fn insert_manifest(&mut self, entry: ManifestEntry) {
+        match self.manifests.binary_search_by(|held| held.digest.hex().cmp(entry.digest.hex())) {
+            Ok(index) => self.manifests[index] = entry,
+            Err(index) => self.manifests.insert(index, entry),
+        }
+    }
+
+    pub fn set_tag(&mut self, entry: TagEntry) {
+        match self.tags.binary_search_by(|held| held.tag.cmp(&entry.tag)) {
+            Ok(index) => self.tags[index] = entry,
+            Err(index) => self.tags.insert(index, entry),
+        }
+    }
+
+    /// Drop a manifest and every tag that named it, reporting whether
+    /// anything was held.
+    pub fn remove_manifest(&mut self, digest: &Digest) -> bool {
+        let Ok(index) = self.manifests.binary_search_by(|held| held.digest.hex().cmp(digest.hex()))
+        else {
+            return false;
+        };
+        self.manifests.remove(index);
+        self.tags.retain(|tag| &tag.digest != digest);
+        true
+    }
+
+    /// Drop a tag, reporting whether it was held. The manifest it named
+    /// stays: it is still reachable by digest.
+    pub fn remove_tag(&mut self, tag: &str) -> bool {
+        let Ok(index) = self.tags.binary_search_by(|held| held.tag.as_str().cmp(tag)) else {
+            return false;
+        };
+        self.tags.remove(index);
+        true
+    }
+
+    /// Take on everything in `addition` this document does not already hold,
+    /// skipping whatever points at a blob in `lost_blobs`, and report
+    /// whether that changed anything.
+    ///
+    /// Manifests are content-addressed, so one already here is the same
+    /// bytes and is left alone. A tag is compared by [`TagEntry::updated`],
+    /// so the newer write wins whichever order the two arrive in.
+    pub fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+        let mut changed = false;
+        if self.name.is_empty() && !addition.name.is_empty() {
+            self.name.clone_from(&addition.name);
+            changed = true;
+        }
+        for entry in addition.manifests {
+            if lost_blobs.contains(&entry.digest.blob_filename())
+                || self.manifest(&entry.digest).is_some()
+            {
+                continue;
+            }
+            self.insert_manifest(entry);
+            changed = true;
+        }
+        for entry in addition.tags {
+            if lost_blobs.contains(&entry.digest.blob_filename())
+                || self.manifest(&entry.digest).is_none()
+                || self.tag(&entry.tag).is_some_and(|held| held.updated >= entry.updated)
+            {
+                continue;
+            }
+            self.set_tag(entry);
+            changed = true;
+        }
+        changed
+    }
+}

@@ -3,6 +3,7 @@ pub mod journal;
 pub mod publish;
 mod s3;
 pub mod streaming;
+pub mod upload;
 
 use crate::s3::S3Store;
 use async_trait::async_trait;
@@ -31,6 +32,10 @@ pub(crate) use self::backend::HostedBackend;
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
 const DOCUMENT_FILE: &str = "package.json";
+/// How deep the hosted walk looks for a package document. An `@scope/name`
+/// needs two components and an image repository a few more; the bound is what
+/// keeps a stray deep directory from turning a listing into a full tree walk.
+const MAX_NAME_COMPONENTS: usize = 5;
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
 pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
 /// Bounds both the persisted candidate set and work triggered by one digest request.
@@ -786,6 +791,14 @@ impl Storage {
         self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
+    /// Where the hosted backend stages locally: the store root on the fs
+    /// backend, the cache scratch on the S3 backend. The publish journal and
+    /// in-progress blob uploads both live here.
+    #[must_use]
+    pub fn hosted_scratch_root(&self) -> &Path {
+        self.hosted.local_scratch_root()
+    }
+
     /// The commit journal for this storage's publish flow. It lives in
     /// the same local root as the staged tmp files: the hosted store
     /// root on the fs backend, the cache scratch on the S3 backend
@@ -1071,29 +1084,29 @@ impl Store {
     /// propagates.
     async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
-        let mut top = match fs::read_dir(&self.root).await {
-            Ok(rd) => rd,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(names),
-            Err(err) => return Err(err.into()),
-        };
-        while let Some(entry) = top.next_entry().await? {
-            let entry_path = entry.path();
-            let entry_name = entry.file_name();
-            let name_str = entry_name.to_string_lossy();
-            if name_str.starts_with('.') {
-                continue;
-            }
-            if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                names.push(name_str.into_owned());
-                continue;
-            }
-            if name_str.starts_with('@')
-                && let Ok(mut inner) = fs::read_dir(&entry_path).await
-            {
-                while let Some(child) = inner.next_entry().await? {
-                    if fs::try_exists(child.path().join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                        names.push(format!("{name_str}/{}", child.file_name().to_string_lossy()));
-                    }
+        let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
+        while let Some((dir, prefix, depth)) = pending.pop() {
+            let mut entries = match fs::read_dir(&dir).await {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err.into()),
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                let entry_name = entry.file_name();
+                let name_str = entry_name.to_string_lossy();
+                if name_str.starts_with('.') {
+                    continue;
+                }
+                let entry_path = entry.path();
+                let name = if prefix.is_empty() {
+                    name_str.into_owned()
+                } else {
+                    format!("{prefix}/{name_str}")
+                };
+                if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
+                    names.push(name);
+                } else if depth < MAX_NAME_COMPONENTS {
+                    pending.push((entry_path, name, depth + 1));
                 }
             }
         }

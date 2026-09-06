@@ -281,7 +281,7 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 #[test]
 fn upstream_per_package_rules_gate_alias_selection() {
     use pnpr_policy::{PackageRule, PackageRules};
-    use pnpr_registry::PackagePattern;
+    use pnpr_registry::{Ecosystem, PackagePattern};
 
     let mut config = base_config();
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
@@ -289,7 +289,8 @@ fn upstream_per_package_rules_gate_alias_selection() {
     // is refined down to alice.
     upstream.rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            pattern: PackagePattern::parse("@corp/secret", Ecosystem::Npm)
+                .expect("test pattern parses"),
             access: Some(AccessList::from_tokens(["alice"])),
             publish: None,
             unpublish: None,

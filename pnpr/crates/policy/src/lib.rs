@@ -181,6 +181,7 @@ pub struct PackageRules {
 struct RuleIndex {
     exact: BTreeMap<String, usize>,
     scopes: BTreeMap<String, usize>,
+    namespaces: BTreeMap<String, usize>,
     any_scoped: Option<usize>,
     all: Option<usize>,
 }
@@ -196,6 +197,9 @@ impl RuleIndex {
                 PackagePattern::Scope(scope) => {
                     index.scopes.insert(scope.clone(), position);
                 }
+                PackagePattern::Namespace(namespace) => {
+                    index.namespaces.insert(namespace.clone(), position);
+                }
                 PackagePattern::AnyScoped => index.any_scoped = Some(position),
                 PackagePattern::All => index.all = Some(position),
             }
@@ -207,6 +211,13 @@ impl RuleIndex {
     /// with a matching key.
     fn winner(&self, package: &str) -> Option<usize> {
         if let Some(&position) = self.exact.get(package) {
+            return Some(position);
+        }
+        // An npm scope carries a leading `@`, which no image repository name
+        // may, so the two tier-two keyspaces cannot collide.
+        if let Some(namespace) = PackagePattern::namespace_of(package)
+            && let Some(&position) = self.namespaces.get(namespace)
+        {
             return Some(position);
         }
         if let Some(scope) = PackagePattern::scope_of(package) {

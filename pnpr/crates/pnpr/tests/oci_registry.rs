@@ -1,0 +1,481 @@
+//! The OCI distribution surface: the version check, blob upload in one
+//! request and in chunks, manifests, tags, the catalog, and the access rules
+//! every one of them goes through.
+
+// `#[path]` rather than the `tests/common/mod.rs` layout, which the
+// Perfectionist dylint forbids.
+#[path = "common/ecosystem.rs"]
+#[allow(
+    dead_code,
+    reason = "the shared fixtures also carry the upstream-proxy helpers the Cargo and Python               surfaces use, which this surface has no half of yet"
+)]
+mod common;
+
+use axum::{
+    Router,
+    body::Body,
+    http::{Request, StatusCode, header},
+};
+use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
+use pnpr::{AccessList, AuthState, Config, Ecosystem, router_with_auth};
+use serde_json::{Value, json};
+use std::path::PathBuf;
+use tempfile::TempDir;
+use tower::ServiceExt;
+
+/// The challenge a 401 carries, which is what tells a client to retry with
+/// credentials.
+const CHALLENGE: &str = r#"Basic realm="pnpr""#;
+
+/// A hosted image registry (`images`, claiming the `acme` namespace) beside
+/// an image upstream that claims everything else.
+fn oci_config(storage: PathBuf, hosted_access: &str) -> Config {
+    mixed_router_config(
+        storage,
+        Ecosystem::Oci,
+        HostedSource {
+            name: "images",
+            org: "images",
+            access: hosted_access,
+            packages: &["acme/*"],
+        },
+        ("dockerhub", "http://images.invalid/"),
+    )
+}
+
+fn app(tmp: &TempDir) -> Router {
+    router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), AuthState::in_memory())
+}
+
+/// The same registry with destructive writes opened up, which the
+/// registry-level default denies.
+fn app_allowing_deletes(tmp: &TempDir) -> Router {
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    let hosted = config.hosted.get_mut("images").expect("the hosted image registry");
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
+    router_with_auth(config, AuthState::in_memory())
+}
+
+fn digest_of(bytes: &[u8]) -> String {
+    format!("sha256:{}", sha256_hex(bytes))
+}
+
+async fn token(app: &Router) -> String {
+    let body = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.com",
+        "type": "user",
+        "roles": [],
+    });
+    let request = Request::put("/-/user/org.couchdb.user:alice")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    payload["token"].as_str().expect("token in response").to_string()
+}
+
+/// `docker login` sends the token as the `Basic` password.
+fn basic(token: &str) -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    format!("Basic {}", STANDARD.encode(format!("alice:{token}")))
+}
+
+/// Push `bytes` as a blob of `repository` in one request, returning its digest.
+async fn push_blob(app: &Router, auth: &str, repository: &str, bytes: &[u8]) -> String {
+    let digest = digest_of(bytes);
+    let request = Request::post(format!("/v2/{repository}/blobs/uploads/?digest={digest}"))
+        .header(header::AUTHORIZATION, auth)
+        .body(Body::from(bytes.to_vec()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED, "blob push should succeed");
+    digest
+}
+
+fn image_manifest(config: &str, layers: &[&str]) -> Vec<u8> {
+    let layer_values: Vec<Value> = layers
+        .iter()
+        .map(|layer| json!({ "digest": digest_of(layer.as_bytes()), "size": layer.len() }))
+        .collect();
+    serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": { "digest": digest_of(config.as_bytes()), "size": config.len() },
+        "layers": layer_values,
+    }))
+    .unwrap()
+}
+
+/// Push a complete image and return the manifest's digest.
+async fn push_image(app: &Router, auth: &str, repository: &str, reference: &str) -> String {
+    push_blob(app, auth, repository, b"config").await;
+    push_blob(app, auth, repository, b"layer").await;
+    let manifest = image_manifest("config", &["layer"]);
+    let request = Request::put(format!("/v2/{repository}/manifests/{reference}"))
+        .header(header::AUTHORIZATION, auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(manifest.clone()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED, "manifest push should succeed");
+    digest_of(&manifest)
+}
+
+async fn get(app: &Router, path: &str) -> axum::response::Response {
+    app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap()
+}
+
+#[tokio::test]
+async fn the_version_check_answers_at_the_host_root() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    let request =
+        Request::get("/v2/").header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers().get("docker-distribution-api-version").unwrap(), "registry/2.0");
+}
+
+#[tokio::test]
+async fn the_version_check_challenges_an_anonymous_caller_even_where_reads_are_open() {
+    let tmp = TempDir::new().unwrap();
+    // Reads are `$all` here, and the challenge still has to come: a client
+    // settles its authentication scheme on this one response, so a 200 would
+    // leave it with no way to authenticate a later push.
+    let response = get(&app(&tmp), "/v2/").await;
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(response.headers().get(header::WWW_AUTHENTICATE).unwrap(), CHALLENGE);
+}
+
+#[tokio::test]
+async fn a_challenged_ping_does_not_stop_an_anonymous_pull() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    assert_eq!(get(&app, "/v2/").await.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn an_image_pushed_in_one_request_each_pulls_back() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    let manifest_digest = push_image(&app, &auth, "acme/app", "1.0").await;
+
+    let response = get(&app, "/v2/acme/app/manifests/1.0").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers().get("docker-content-digest").unwrap(), &manifest_digest);
+    assert_eq!(
+        response.headers().get(header::CONTENT_TYPE).unwrap(),
+        "application/vnd.oci.image.manifest.v1+json",
+    );
+    assert_eq!(body_bytes(response.into_body()).await, image_manifest("config", &["layer"]));
+
+    // The same manifest is reachable by digest.
+    let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let response = get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, b"layer".as_slice());
+}
+
+#[tokio::test]
+async fn a_head_request_carries_the_headers_without_the_body() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    for path in
+        ["/v2/acme/app/manifests/1.0", &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))]
+    {
+        let request = Request::head(path).body(Body::empty()).unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert!(response.headers().contains_key("docker-content-digest"), "{path}");
+        assert!(response.headers().contains_key(header::CONTENT_LENGTH), "{path}");
+        assert!(body_bytes(response.into_body()).await.is_empty(), "{path}");
+    }
+}
+
+#[tokio::test]
+async fn a_chunked_upload_resumes_from_where_it_left_off() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+
+    let request = Request::patch(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_RANGE, "0-4")
+        .body(Body::from("hello"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-4");
+
+    // A chunk that does not continue where the last one ended is refused.
+    let request = Request::patch(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_RANGE, "99-103")
+        .body(Body::from("nope!"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+
+    let request = Request::patch(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_RANGE, "5-10")
+        .body(Body::from(" world"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let digest = digest_of(b"hello world");
+    let request = Request::put(format!("{location}?digest={digest}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let response = get(&app, &format!("/v2/acme/app/blobs/{digest}")).await;
+    assert_eq!(body_bytes(response.into_body()).await, b"hello world".as_slice());
+}
+
+#[tokio::test]
+async fn bytes_that_do_not_match_the_promised_digest_are_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let lie = digest_of(b"something else");
+    let request = Request::post(format!("/v2/acme/app/blobs/uploads/?digest={lie}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::from("real bytes"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let response = get(&app, &format!("/v2/acme/app/blobs/{lie}")).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_manifest_naming_a_blob_the_repository_lacks_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+
+    // The layer was never uploaded.
+    let request = Request::put("/v2/acme/app/manifests/1.0")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(image_manifest("config", &["layer"])))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["errors"][0]["code"], "MANIFEST_BLOB_UNKNOWN");
+
+    let response = get(&app, "/v2/acme/app/manifests/1.0").await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_manifest_pushed_under_the_wrong_digest_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+    push_blob(&app, &auth, "acme/app", b"layer").await;
+
+    let wrong = digest_of(b"not the manifest");
+    let request = Request::put(format!("/v2/acme/app/manifests/{wrong}"))
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(image_manifest("config", &["layer"])))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["errors"][0]["code"], "DIGEST_INVALID");
+}
+
+#[tokio::test]
+async fn tags_list_in_lexical_order_and_a_moved_tag_repoints() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+    push_image(&app, &auth, "acme/app", "latest").await;
+
+    let response = get(&app, "/v2/acme/app/tags/list").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["name"], "acme/app");
+    assert_eq!(payload["tags"], json!(["1.0", "latest"]));
+
+    // A second image, and `latest` moved onto it.
+    push_blob(&app, &auth, "acme/app", b"config2").await;
+    let moved = image_manifest("config2", &[]);
+    let request = Request::put("/v2/acme/app/manifests/latest")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(moved.clone()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    let response = get(&app, "/v2/acme/app/manifests/latest").await;
+    assert_eq!(response.headers().get("docker-content-digest").unwrap(), &digest_of(&moved));
+}
+
+#[tokio::test]
+async fn deleting_a_tag_keeps_the_manifest_and_deleting_the_manifest_drops_the_tag() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_allowing_deletes(&tmp);
+    let auth = basic(&token(&app).await);
+    let manifest_digest = push_image(&app, &auth, "acme/app", "1.0").await;
+
+    let request = Request::delete("/v2/acme/app/manifests/1.0")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::ACCEPTED);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
+        StatusCode::OK,
+    );
+
+    let request = Request::delete(format!("/v2/acme/app/manifests/{manifest_digest}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn the_catalog_lists_only_hosted_repositories() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+    push_image(&app, &auth, "acme/team/tool", "1.0").await;
+
+    let response = get(&app, "/v2/_catalog").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/app", "acme/team/tool"]));
+}
+
+#[tokio::test]
+async fn an_anonymous_push_is_refused_with_a_challenge() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/").body(Body::empty()).unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(response.headers().get(header::WWW_AUTHENTICATE).unwrap(), CHALLENGE);
+}
+
+#[tokio::test]
+async fn a_name_no_hosted_registry_claims_is_not_served() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    // `other/app` routes to the image upstream, which is not proxied yet.
+    let request = Request::post("/v2/other/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    assert_eq!(get(&app, "/v2/other/app/tags/list").await.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_repository_name_the_grammar_refuses_never_reaches_storage() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+
+    for name in ["acme/../etc", "acme/App"] {
+        let response = get(&app, &format!("/v2/{name}/tags/list")).await;
+        assert_ne!(response.status(), StatusCode::OK, "{name}");
+    }
+}
+
+#[tokio::test]
+async fn the_named_form_serves_the_same_repository() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    let response = get(&app, "/oci/~images/v2/acme/app/tags/list").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["tags"], json!(["1.0"]));
+}
+
+#[tokio::test]
+async fn an_upload_started_through_a_prefixed_base_continues_there() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/oci/~images/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap();
+    assert!(
+        location.starts_with("/oci/~images/v2/acme/app/blobs/uploads/"),
+        "an upload must continue where it started, got {location}",
+    );
+}
+
+#[tokio::test]
+async fn a_delete_is_refused_unless_the_registry_opens_destructive_writes() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    let request = Request::delete("/v2/acme/app/manifests/1.0")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
+}

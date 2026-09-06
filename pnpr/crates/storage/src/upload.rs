@@ -1,0 +1,173 @@
+//! Resumable blob uploads.
+//!
+//! A blob whose bytes arrive across several requests cannot be held in
+//! memory between them, so an upload is a local file the client appends to
+//! and an id that names it. Only when the client finishes and the bytes hash
+//! to what it promised does the file become a hosted blob.
+//!
+//! The file lives beside the publish journal in the backend's local scratch
+//! root, so an S3-backed registry stages here too and the eventual promotion
+//! is one rename or one upload rather than a second copy through memory.
+
+use crate::{BlobSlot, Storage};
+use pnpr_error::{RegistryError, Result};
+use pnpr_package_name::CanonicalPackageName;
+use std::{fmt::Write as _, path::PathBuf};
+use tokio::{
+    fs,
+    io::{AsyncWriteExt, ErrorKind},
+};
+
+/// Where in-progress uploads live under the backend's local scratch root.
+/// The dot prefix keeps it out of the hosted store's package walk.
+pub(crate) const UPLOADS_DIR: &str = ".pnpr-uploads";
+
+/// One in-progress blob upload.
+#[derive(Debug, Clone)]
+pub struct BlobUpload {
+    id: String,
+    path: PathBuf,
+}
+
+impl BlobUpload {
+    /// The id the client quotes back on every later request of this upload.
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// How many bytes have been accepted so far, which is where the next
+    /// chunk must start.
+    pub async fn offset(&self) -> Result<u64> {
+        match fs::metadata(&self.path).await {
+            Ok(metadata) => Ok(metadata.len()),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(0),
+            Err(error) => Err(RegistryError::Io(error)),
+        }
+    }
+
+    /// Where the accumulated bytes are, for a caller that needs to read them
+    /// back without holding them in memory.
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        &self.path
+    }
+
+    /// Open the upload for appending. Held for one request, so a chunk is
+    /// written with one open rather than one per buffer.
+    pub async fn append(&self) -> Result<BlobUploadWriter> {
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)
+            .await
+            .map_err(RegistryError::Io)?;
+        Ok(BlobUploadWriter { file })
+    }
+}
+
+/// The append handle for one request's worth of an upload.
+pub struct BlobUploadWriter {
+    file: fs::File,
+}
+
+impl BlobUploadWriter {
+    pub async fn write_all(&mut self, bytes: &[u8]) -> Result<()> {
+        self.file.write_all(bytes).await.map_err(RegistryError::Io)
+    }
+
+    /// Flush to disk and report the upload's new length.
+    pub async fn finish(self) -> Result<u64> {
+        self.file.sync_all().await.map_err(RegistryError::Io)?;
+        self.file.metadata().await.map(|metadata| metadata.len()).map_err(RegistryError::Io)
+    }
+}
+
+impl Storage {
+    /// Start an upload and give it an unguessable id.
+    pub async fn begin_blob_upload(&self) -> Result<BlobUpload> {
+        let root = self.uploads_root();
+        fs::create_dir_all(&root).await.map_err(RegistryError::Io)?;
+        let id = generate_upload_id();
+        let path = root.join(&id);
+        // `create_new` so a colliding id is an error rather than a silent
+        // adoption of someone else's upload.
+        fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)
+            .await
+            .map_err(RegistryError::Io)?;
+        Ok(BlobUpload { id, path })
+    }
+
+    /// Reopen an upload by id, or `None` when no such upload is held.
+    pub async fn open_blob_upload(&self, id: &str) -> Result<Option<BlobUpload>> {
+        if !is_upload_id(id) {
+            return Ok(None);
+        }
+        let path = self.uploads_root().join(id);
+        match fs::metadata(&path).await {
+            Ok(_) => Ok(Some(BlobUpload { id: id.to_string(), path })),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(RegistryError::Io(error)),
+        }
+    }
+
+    /// Discard an upload, reporting whether one was held.
+    pub async fn abort_blob_upload(&self, id: &str) -> Result<bool> {
+        if !is_upload_id(id) {
+            return Ok(false);
+        }
+        match fs::remove_file(self.uploads_root().join(id)).await {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(RegistryError::Io(error)),
+        }
+    }
+
+    /// Move a finished upload into a hosted blob slot, ready for
+    /// [`Storage::finalize_blob_slot`]. The upload is consumed either way:
+    /// its bytes are the slot's now.
+    pub async fn stage_uploaded_blob(
+        &self,
+        upload: BlobUpload,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<BlobSlot> {
+        let slot = self.reserve_hosted_blob(name, filename).await?;
+        if let Some(parent) = slot.tmp_path.parent() {
+            fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+        }
+        // Both paths are under the backend's local scratch root, so this is a
+        // rename rather than a copy through memory. A cross-device staging
+        // root is the one case that needs the copy.
+        if fs::rename(&upload.path, &slot.tmp_path).await.is_err() {
+            fs::copy(&upload.path, &slot.tmp_path).await.map_err(RegistryError::Io)?;
+            let _ = fs::remove_file(&upload.path).await;
+        }
+        Ok(slot)
+    }
+
+    fn uploads_root(&self) -> PathBuf {
+        self.hosted_scratch_root().join(UPLOADS_DIR)
+    }
+}
+
+/// Upload ids are 32 lowercase hex characters, which is both unguessable and
+/// a safe single path segment. Anything else never reaches the filesystem.
+fn is_upload_id(id: &str) -> bool {
+    id.len() == 32 && id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn generate_upload_id() -> String {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
+    bytes.iter().fold(String::with_capacity(32), |mut hex, byte| {
+        write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+        hex
+    })
+}
+
+#[cfg(test)]
+mod tests;

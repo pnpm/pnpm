@@ -456,6 +456,10 @@ pub(crate) async fn handle_resolve(
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
         Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
+        Ecosystem::Oci => json_error(
+            StatusCode::BAD_REQUEST,
+            "images have no dependency graph to resolve; pull them from /v2/",
+        ),
     }
 }
 

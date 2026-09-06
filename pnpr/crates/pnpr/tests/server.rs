@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MaxUsers, PackagePattern, PackageRule,
+    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRule,
     PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use serde_json::{Value, json};
@@ -55,7 +55,7 @@ fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
 /// One `packages:` entry carrying only an `access` rule.
 fn access_rule(pattern: &str, access: &str) -> PackageRule {
     PackageRule {
-        pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+        pattern: PackagePattern::parse(pattern, Ecosystem::Npm).expect("test pattern parses"),
         access: Some(AccessList::from_tokens([access])),
         publish: None,
         unpublish: None,
@@ -3282,7 +3282,9 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         (
             "main".to_string(),
@@ -3357,7 +3359,9 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let graph = vec![
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
@@ -3403,7 +3407,9 @@ async fn router_unavailable_source_errors_not_404() {
     let graph = vec![
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
@@ -3591,7 +3597,9 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         (
             "main".to_string(),
@@ -3719,7 +3727,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
     let graph = vec![
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
@@ -3915,7 +3925,9 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     let graph = vec![
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
@@ -4000,7 +4012,9 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
     config.registries = Registries::new(
         vec![(
             "corp".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         )]
         .into_iter()
         .collect(),

@@ -4,6 +4,7 @@ mod cargo;
 mod compiler_cache;
 mod documents;
 mod ecosystem;
+mod oci;
 mod package_mutation;
 mod publishing;
 mod pypi;

@@ -48,37 +48,52 @@ pub enum PackagePattern {
     /// `@<scope>/*` — every package in one scope. Stores the scope without its
     /// leading `@`.
     Scope(String),
-    /// A literal package name (`foo` or `@scope/foo`).
+    /// `<namespace>/*` — every image repository under one leading path
+    /// component. One component only, so two namespace patterns are either
+    /// equal or disjoint and the specificity chain stays strict.
+    Namespace(String),
+    /// A literal package name (`foo`, `@scope/foo`, or `namespace/image`).
     Exact(String),
 }
 
 impl PackagePattern {
-    /// Parse a registry pattern. Rejects any `*` that is not one of the three
-    /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), and any
-    /// remaining literal that is not a well-formed package name — so an
-    /// unsupported glob or a typo like `@acme` (meaning `@acme/*`) fails
-    /// loudly instead of being read as a literal name that silently never
+    /// Parse a registry pattern. `**` claims everything in any ecosystem; the
+    /// wildcard shape below it is the one that ecosystem's names can carry,
+    /// and everything else must be a well-formed name.
+    ///
+    /// An unsupported glob, or a typo like `@acme` meaning `@acme/*`, fails
+    /// loudly rather than being read as a literal name that silently never
     /// matches and lets the scope land on a later router source.
-    pub fn parse(pattern: &str) -> Result<Self, RegistryConfigError> {
-        let invalid = || RegistryConfigError::InvalidPattern { pattern: pattern.to_string() };
+    pub fn parse(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.is_empty() {
-            return Err(invalid());
+            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
         }
         if pattern == "**" {
             return Ok(PackagePattern::All);
         }
+        match ecosystem {
+            Ecosystem::Npm => Self::parse_scoped_pattern(pattern),
+            Ecosystem::Oci => Self::parse_image_pattern(pattern),
+            // A crate or project name is one flat token with no namespace in
+            // it, so an exact name is the only claim below `**`. A scoped
+            // shape here would be a claim no name of this ecosystem could
+            // ever match.
+            Ecosystem::Cargo | Ecosystem::Pypi => Self::parse_exact(pattern, ecosystem),
+        }
+    }
+
+    /// The npm shapes: `@*/*` for every scoped name, `@<scope>/*` for one
+    /// scope, or a literal name.
+    fn parse_scoped_pattern(pattern: &str) -> Result<Self, RegistryConfigError> {
         if pattern == "@*/*" {
             return Ok(PackagePattern::AnyScoped);
         }
         if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
-            // A single, concrete scope: `@acme/*`. A wildcard inside the
-            // scope is an unsupported glob; a scope that request parsing
-            // (`CanonicalPackageName::parse`) would reject — `@.acme`, `@..`, a
-            // separator — is a claim no valid package name can ever match,
-            // so both fail loudly instead of becoming a dead pattern that
-            // silently lets the scope land on a later router source.
+            // A wildcard inside the scope is an unsupported glob; a scope
+            // that request parsing would reject — `@.acme`, `@..`, a
+            // separator — is a claim no valid package name can ever match.
             if scope.contains('*') {
-                return Err(invalid());
+                return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
             }
             if !pnpr_package_name::is_safe_path_segment(scope) {
                 return Err(RegistryConfigError::ScopePatternNotAScope {
@@ -87,14 +102,34 @@ impl PackagePattern {
             }
             return Ok(PackagePattern::Scope(scope.to_string()));
         }
-        // Anything left that still carries a `*` is an unsupported glob.
+        Self::parse_exact(pattern, Ecosystem::Npm)
+    }
+
+    /// The image-repository shapes: `<namespace>/*` for one leading path
+    /// component, or a literal repository name. An image name carries no `@`,
+    /// so npm's scoped shapes are not reachable here.
+    fn parse_image_pattern(pattern: &str) -> Result<Self, RegistryConfigError> {
+        let Some(namespace) = pattern.strip_suffix("/*") else {
+            return Self::parse_exact(pattern, Ecosystem::Oci);
+        };
+        // One component only, so two namespace patterns are either equal or
+        // disjoint and the specificity chain below stays strict.
+        if namespace.contains('*') || namespace.contains('/') {
+            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
+        }
+        pnpr_package_name::canonicalize_oci_name(namespace).map(PackagePattern::Namespace).map_err(
+            |_| RegistryConfigError::NamespacePatternNotANamespace { pattern: pattern.to_string() },
+        )
+    }
+
+    /// A literal name, canonicalized the way a request for it will be.
+    fn parse_exact(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.contains('*') {
-            return Err(invalid());
+            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
         }
-        if CanonicalPackageName::parse(pattern, Ecosystem::Npm).is_err() {
-            return Err(RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
-        }
-        Ok(PackagePattern::Exact(pattern.to_string()))
+        CanonicalPackageName::parse(pattern, ecosystem)
+            .map(|name| PackagePattern::Exact(name.as_str().to_string()))
+            .map_err(|_| RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() })
     }
 
     /// How specific this pattern is: an exact name beats `@scope/*` beats
@@ -108,7 +143,7 @@ impl PackagePattern {
         match self {
             PackagePattern::All => 0,
             PackagePattern::AnyScoped => 1,
-            PackagePattern::Scope(_) => 2,
+            PackagePattern::Scope(_) | PackagePattern::Namespace(_) => 2,
             PackagePattern::Exact(_) => 3,
         }
     }
@@ -121,6 +156,14 @@ impl PackagePattern {
         scoped_name(package).map(|(scope, _)| scope)
     }
 
+    /// The leading path component of a multi-component image repository name
+    /// (`acme/app` → `acme`); `None` for a single-component name. The
+    /// namespace-tier key a specificity lookup consults.
+    #[must_use]
+    pub fn namespace_of(package: &str) -> Option<&str> {
+        package.split_once('/').map(|(namespace, _)| namespace)
+    }
+
     /// Whether this pattern matches `package`.
     #[must_use]
     pub fn matches(&self, package: &str) -> bool {
@@ -131,6 +174,9 @@ impl PackagePattern {
             PackagePattern::AnyScoped => scoped_name(package).is_some(),
             PackagePattern::Scope(scope) => {
                 scoped_name(package).is_some_and(|(package_scope, _)| package_scope == scope)
+            }
+            PackagePattern::Namespace(namespace) => {
+                Self::namespace_of(package).is_some_and(|leading| leading == namespace)
             }
             PackagePattern::Exact(name) => name == package,
         }
@@ -145,11 +191,11 @@ impl PackagePattern {
     /// coverage is sufficient for union coverage in this language.
     #[must_use]
     pub fn covers(&self, other: &PackagePattern) -> bool {
-        use PackagePattern::{All, AnyScoped, Exact, Scope};
+        use PackagePattern::{All, AnyScoped, Exact, Namespace, Scope};
         match self {
             All => true,
             AnyScoped => match other {
-                All => false,
+                All | Namespace(_) => false,
                 AnyScoped | Scope(_) => true,
                 // Consistent with `matches`: an exact name is scoped only when
                 // it is a well-formed `@scope/name`, never a bare `@scope`.
@@ -158,7 +204,12 @@ impl PackagePattern {
             Scope(scope) => match other {
                 Scope(other_scope) => other_scope == scope,
                 Exact(name) => scoped_name(name).is_some_and(|(name_scope, _)| name_scope == scope),
-                All | AnyScoped => false,
+                All | AnyScoped | Namespace(_) => false,
+            },
+            Namespace(namespace) => match other {
+                Namespace(other_namespace) => other_namespace == namespace,
+                Exact(name) => Self::namespace_of(name).is_some_and(|leading| leading == namespace),
+                All | AnyScoped | Scope(_) => false,
             },
             Exact(name) => matches!(other, Exact(other_name) if other_name == name),
         }
@@ -171,6 +222,7 @@ impl fmt::Display for PackagePattern {
             PackagePattern::All => f.write_str("**"),
             PackagePattern::AnyScoped => f.write_str("@*/*"),
             PackagePattern::Scope(scope) => write!(f, "@{scope}/*"),
+            PackagePattern::Namespace(namespace) => write!(f, "{namespace}/*"),
             PackagePattern::Exact(name) => f.write_str(name),
         }
     }
@@ -299,7 +351,7 @@ impl Registries {
     #[must_use]
     pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
         self.has_ecosystem(ecosystem)
-            && [Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi]
+            && [Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi, Ecosystem::Oci]
                 .into_iter()
                 .all(|candidate| candidate == ecosystem || !self.has_ecosystem(candidate))
     }
@@ -583,6 +635,9 @@ pub enum RegistryConfigError {
     /// A `@<scope>/*` pattern whose scope no well-formed package name can
     /// carry, so it could never match any request.
     ScopePatternNotAScope { pattern: String },
+    /// A `<namespace>/*` pattern whose namespace no well-formed image
+    /// repository name can carry, so it could never match any request.
+    NamespacePatternNotANamespace { pattern: String },
     /// `defaultRegistry` names a registry that does not exist.
     UndefinedDefaultRegistry { target: String },
     /// A router has no sources at all, so it can never serve any package.
@@ -625,6 +680,11 @@ impl fmt::Display for RegistryConfigError {
                 f,
                 "registry pattern {pattern:?} does not name a valid scope, so it can never match \
                  any package",
+            ),
+            RegistryConfigError::NamespacePatternNotANamespace { pattern } => write!(
+                f,
+                "registry pattern {pattern:?} does not name a valid image namespace, so it can \
+                 never match any repository",
             ),
             RegistryConfigError::UndefinedDefaultRegistry { target } => {
                 write!(f, "defaultRegistry {target:?} is not a defined registry")

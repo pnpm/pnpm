@@ -130,8 +130,14 @@ async fn resolve_caller(
 /// The pnpr token an `Authorization` header carries, in any of the shapes
 /// the supported clients send: `Bearer <token>` (npm, pnpm), the bare
 /// `<token>` with no scheme (`cargo`, which sends registry tokens raw), or
-/// `Basic` with the pypi.org `__token__` pseudo-user and the token as password
-/// (`twine`, `pip`). A `Basic` pair with any other username is not a token.
+/// `Basic` with the token as the password (`twine` and `pip` pair it with
+/// pypi.org's `__token__` pseudo-user, `docker` and `podman` with whatever
+/// name the user typed at login).
+///
+/// The password is the whole credential: the `Basic` username is not checked
+/// against the token's owner, so a caller authenticates as whoever the token
+/// belongs to. That is what every registry taking a personal access token as
+/// a password does, and what its clients expect.
 pub(super) fn token_credentials(header_value: &str) -> Option<String> {
     let value = header_value.trim();
     if let Some(bearer) = bearer_credentials(value) {
@@ -145,12 +151,9 @@ pub(super) fn token_credentials(header_value: &str) -> Option<String> {
     }
     let decoded = BASE64_STANDARD.decode(credentials.trim()).ok()?;
     let decoded = String::from_utf8(decoded).ok()?;
-    let (username, password) = decoded.split_once(':')?;
-    (username == PYPI_TOKEN_USERNAME && !password.is_empty()).then(|| password.to_string())
+    let (_, password) = decoded.split_once(':')?;
+    (!password.is_empty()).then(|| password.to_string())
 }
-
-/// The username pypi.org clients pair an API token with in `Basic` credentials.
-const PYPI_TOKEN_USERNAME: &str = "__token__";
 
 /// Enforce a bearer token's own restrictions. A read-only token may not
 /// drive a mutating request; a CIDR-pinned token may only be used from a
@@ -252,11 +255,21 @@ pub(super) fn bearer_credentials(header_value: &str) -> Option<&str> {
 /// Whether a request mutates registry state. Every npm and Cargo write
 /// surface (publish, unpublish, dist-tag add/remove, yank, adduser, logout,
 /// token revoke) is a PUT or DELETE; reads and the resolver POSTs are not.
-/// The one mutating POST is the Python legacy upload API, recognized by its
-/// path. A read-only token is confined to the non-mutating requests.
+/// The mutating POSTs are the Python legacy upload API and the start of an
+/// image blob upload, both recognized by their path. A read-only token is
+/// confined to the non-mutating requests.
 pub(super) fn is_write_request(method: &Method, path: &str) -> bool {
     matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
-        || (*method == Method::POST && is_python_upload_path(path))
+        || (*method == Method::POST && (is_python_upload_path(path) || is_image_upload_path(path)))
+}
+
+/// `POST <v2 base>/<name>/blobs/uploads/` starts a blob upload. The
+/// repository name is many segments, so the tail is what identifies it.
+fn is_image_upload_path(path: &str) -> bool {
+    let Some(rest) = path.trim_end_matches('/').strip_suffix("/blobs/uploads") else {
+        return false;
+    };
+    rest.split('/').any(|segment| segment == pnpr_oci::API_SEGMENT)
 }
 
 fn is_python_upload_path(path: &str) -> bool {

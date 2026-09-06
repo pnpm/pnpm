@@ -13,7 +13,6 @@ use object_store::{
 };
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
-use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
 use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
@@ -1295,7 +1294,7 @@ fn registry_mock_rules() -> PackageRules {
     let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
         .iter()
         .map(|pattern| PackageRule {
-            pattern: PackagePattern::parse(pattern)
+            pattern: PackagePattern::parse(pattern, Ecosystem::Npm)
                 .expect("valid built-in fixture registry pattern"),
             access: (*pattern == "@private/*").then(authenticated).flatten(),
             publish: (*pattern == "@private/*").then(authenticated).flatten(),
@@ -1303,7 +1302,7 @@ fn registry_mock_rules() -> PackageRules {
         })
         .collect();
     rules.push(PackageRule {
-        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth")
+        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth", Ecosystem::Npm)
             .expect("valid built-in fixture registry pattern"),
         access: authenticated(),
         publish: authenticated(),
@@ -1957,7 +1956,7 @@ fn build_registries(
                 let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
                 let packages =
                     ecosystem_package_keys(&name, registry.ecosystem, registry.packages)?;
-                let rules = build_rules(&name, &packages, access, &teams)?;
+                let rules = build_rules(&name, registry.ecosystem, &packages, access, &teams)?;
                 let patterns = rules.patterns();
                 hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
                 ecosystems.insert(name.clone(), registry.ecosystem);
@@ -1974,7 +1973,7 @@ fn build_registries(
                 let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
                 let packages =
                     ecosystem_package_keys(&name, upstream.ecosystem, upstream.packages.clone())?;
-                let rules = build_rules(&name, &packages, access, &teams)?;
+                let rules = build_rules(&name, upstream.ecosystem, &packages, access, &teams)?;
                 ecosystems.insert(name.clone(), upstream.ecosystem);
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
@@ -2020,18 +2019,13 @@ fn ecosystem_package_keys(
 ) -> Result<IndexMap<String, Option<PackageAccess>>, RegistryError> {
     let mut normalized = IndexMap::new();
     for (key, access) in packages {
-        let normalized_key = if ecosystem == Ecosystem::Npm || key == "**" {
-            key.clone()
-        } else {
-            CanonicalPackageName::parse(&key, ecosystem)
-                .map(|name| name.as_str().to_string())
-                .map_err(|error| RegistryError::InvalidConfig {
-                    reason: format!(
-                        "{ecosystem} registry {registry:?} `packages:` key: {}",
-                        error.public_message(),
-                    ),
-                })?
-        };
+        // Through the pattern language, so a wildcard shape is normalized as
+        // itself rather than failing the ecosystem's name rules.
+        let normalized_key = PackagePattern::parse(&key, ecosystem)
+            .map(|pattern| pattern.to_string())
+            .map_err(|error| RegistryError::InvalidConfig {
+                reason: format!("{ecosystem} registry {registry:?} `packages:` key: {error}"),
+            })?;
         if normalized.contains_key(&normalized_key) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -2125,6 +2119,7 @@ fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
 /// [`Registries::validate`] once the whole graph exists.
 fn build_rules(
     registry: &str,
+    ecosystem: Ecosystem,
     packages: &IndexMap<String, Option<PackageAccess>>,
     default_access: Option<AccessList>,
     teams: &Teams,
@@ -2132,7 +2127,7 @@ fn build_rules(
     let rules = packages
         .iter()
         .map(|(key, rule)| {
-            let pattern = PackagePattern::parse(key).map_err(|err| {
+            let pattern = PackagePattern::parse(key, ecosystem).map_err(|err| {
                 RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
             })?;
             let fields = rule.as_ref();
