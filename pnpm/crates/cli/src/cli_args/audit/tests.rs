@@ -1035,6 +1035,7 @@ fn text_report_summary_subtracts_ignored_advisories_from_severity_counts() {
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
+    eprintln!("REPORT:\n{output}\n");
     assert_eq!(
         output,
         "┌─────────────────────┬───────────────────────────────────────────────────┐\n\
