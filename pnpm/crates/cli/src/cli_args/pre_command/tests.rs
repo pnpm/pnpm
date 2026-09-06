@@ -378,8 +378,6 @@ fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_t
     assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
 }
 
-/// `--global` does not act on the project, so it records nothing there
-/// either.
 #[test]
 fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turned_off() {
     let root = TempDir::new().expect("tmp dir");
