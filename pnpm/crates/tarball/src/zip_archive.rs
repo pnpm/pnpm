@@ -252,8 +252,9 @@ pub(crate) fn write_zip_entry_to_cas(
 /// extract every file entry into the CAFS. Mirrors
 /// [`crate::download::fetch_and_extract_once`] one-for-one (same network permit
 /// shape, same post-download semaphore gate, same retry-friendly
-/// errors) — only the `spawn_blocking` body differs: integrity check
-/// then [`extract_zip_entries`] instead of the gzip + tar path.
+/// errors) — only the [`crate::extraction_task::spawn_extraction`] body
+/// differs: integrity check then [`extract_zip_entries`] instead of the
+/// gzip + tar path.
 ///
 /// Writes directly into the CAS via [`StoreDir::write_cas_file`]
 /// rather than extracting to a temp dir and importing each file.

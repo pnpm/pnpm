@@ -9,6 +9,7 @@ use super::{
     normalize_bundled_manifest, oversized_manifest_error, post_download_semaphore,
     tar_entry_payload, verify_tarball_integrity,
 };
+use crate::extraction_task::spawn_extraction;
 use pnpm_package_manifest::parse_manifest_bytes;
 use ssri::Integrity;
 use tar::Archive;
@@ -206,7 +207,7 @@ pub async fn read_local_tarball_metadata(
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
-    crate::extraction_task::spawn_extraction(post_download_permit, move || {
+    spawn_extraction(post_download_permit, move || {
         let integrity = verify_tarball_integrity(&buffer, None, package_url)?;
         let (manifest, has_manifest_entry) =
             read_bundled_manifest_from_archive(&buffer, &tarball_path)?;
