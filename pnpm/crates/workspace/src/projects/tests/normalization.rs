@@ -106,3 +106,18 @@ fn invalid_normalized_globs_report_the_original_pattern() {
         assert_eq!(pattern, source);
     }
 }
+
+#[test]
+fn negations_that_normalize_to_the_workspace_root_are_dropped() {
+    let tmp = TempDir::new().unwrap();
+    make_project(tmp.path(), ".", "root");
+    make_project(tmp.path(), "packages/alpha", "alpha");
+
+    for exclude in ["!.", "!./", "!packages/.."] {
+        assert_eq!(
+            find_project_names(tmp.path(), &["packages/*", exclude]),
+            vec!["root", "alpha"],
+            "exclude: {exclude}",
+        );
+    }
+}

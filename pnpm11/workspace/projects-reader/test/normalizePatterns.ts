@@ -61,3 +61,12 @@ test('deduplicates normalized patterns and preserves the workspace root', async 
   })
   expect(projects.map(({ manifest }) => manifest.name).sort()).toStrictEqual(['component-1', 'many-pkgs-2'])
 })
+
+test.each([
+  '!.',
+  '!./',
+  '!components/..',
+])('drops negation %s that normalizes to the workspace root', async (pattern) => {
+  const projects = await findPackages(root, { patterns: ['components/*', pattern], includeRoot: true })
+  expect(projects.map(({ manifest }) => manifest.name).sort()).toStrictEqual(['component-1', 'component-2', 'many-pkgs-2'])
+})
