@@ -1,13 +1,15 @@
 //! `pacquet add` over `jsr:` selectors, the shape reported in
 //! [pnpm/pnpm#14590](https://github.com/pnpm/pnpm/issues/14590).
 
+use crate::_utils;
+
+use _utils::{dependency_spec, pacquet_in, read_lockfile};
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_lockfile::{Lockfile, PkgName};
-use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use pnpm_lockfile::{Lockfile, PkgName, ResolvedDependencySpec};
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use pretty_assertions::assert_eq;
-use std::{ffi::OsStr, fs, path::Path, process::Command};
+use std::fs;
 use tempfile::TempDir;
 
 /// `jsr:` specifiers resolve through the `@jsr` scope, which defaults to
@@ -25,43 +27,33 @@ fn setup() -> (TempDir, std::path::PathBuf, AddMockedRegistry) {
     (root, workspace, npmrc_info)
 }
 
-fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
-    Command::cargo_bin("pnpm")
-        .expect("find the pnpm binary")
-        .with_current_dir(workspace)
-        .with_args(args)
-}
-
-fn dep_spec(workspace: &Path, name: &str) -> Option<String> {
-    let manifest = PackageManifest::from_path(workspace.join("package.json")).unwrap();
-    manifest
-        .dependencies([DependencyGroup::Prod])
-        .find(|(key, _)| *key == name)
-        .map(|(_, spec)| spec.to_string())
-}
-
-/// The lockfile's recorded `(specifier, version)` for a root dependency.
-fn lockfile_entry(workspace: &Path, alias: &str) -> Option<(String, String)> {
-    let text = fs::read_to_string(workspace.join(Lockfile::FILE_NAME)).expect("read lockfile");
-    let lockfile: Lockfile = serde_saphyr::from_str(&text)
-        .unwrap_or_else(|error| panic!("parse pnpm-lock.yaml: {error}\n{text}"));
+fn root_dependency<'a>(lockfile: &'a Lockfile, alias: &str) -> &'a ResolvedDependencySpec {
     let alias: PkgName = alias.parse().expect("parse alias");
-    let entry =
-        lockfile.importers.get(Lockfile::ROOT_IMPORTER_KEY)?.dependencies.as_ref()?.get(&alias)?;
-    Some((entry.specifier.clone(), entry.version.to_string()))
+    lockfile
+        .importers
+        .get(Lockfile::ROOT_IMPORTER_KEY)
+        .expect("root importer")
+        .dependencies
+        .as_ref()
+        .expect("root dependencies")
+        .get(&alias)
+        .expect("the added dependency")
 }
 
 #[test]
 fn add_saves_a_jsr_selector_under_its_jsr_name() {
     let (root, workspace, anchor) = setup();
 
-    pacquet(&workspace, ["add", "jsr:@pnpm-e2e/bar"]).assert().success();
+    pacquet_in(&workspace).with_args(["add", "jsr:@pnpm-e2e/bar"]).assert().success();
 
-    assert_eq!(dep_spec(&workspace, "@pnpm-e2e/bar").as_deref(), Some("jsr:^2.0.0"));
     assert_eq!(
-        lockfile_entry(&workspace, "@pnpm-e2e/bar"),
-        Some(("jsr:^2.0.0".to_string(), "@jsr/pnpm-e2e__bar@2.0.0".to_string())),
+        dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),
+        Some("jsr:^2.0.0"),
     );
+    let lockfile = read_lockfile(&workspace.join(Lockfile::FILE_NAME));
+    let entry = root_dependency(&lockfile, "@pnpm-e2e/bar");
+    assert_eq!(entry.specifier, "jsr:^2.0.0");
+    assert_eq!(entry.version.to_string(), "@jsr/pnpm-e2e__bar@2.0.0");
     assert!(workspace.join("node_modules/@pnpm-e2e/bar/package.json").exists());
 
     drop((root, anchor));
@@ -71,13 +63,16 @@ fn add_saves_a_jsr_selector_under_its_jsr_name() {
 fn add_keeps_the_range_operator_a_jsr_selector_asks_for() {
     let (root, workspace, anchor) = setup();
 
-    pacquet(&workspace, ["add", "jsr:@pnpm-e2e/bar@1.0"]).assert().success();
+    pacquet_in(&workspace).with_args(["add", "jsr:@pnpm-e2e/bar@1.0"]).assert().success();
 
-    assert_eq!(dep_spec(&workspace, "@pnpm-e2e/bar").as_deref(), Some("jsr:~1.0.1"));
     assert_eq!(
-        lockfile_entry(&workspace, "@pnpm-e2e/bar"),
-        Some(("jsr:~1.0.1".to_string(), "@jsr/pnpm-e2e__bar@1.0.1".to_string())),
+        dependency_spec(&workspace, "dependencies", "@pnpm-e2e/bar").as_deref(),
+        Some("jsr:~1.0.1"),
     );
+    let lockfile = read_lockfile(&workspace.join(Lockfile::FILE_NAME));
+    let entry = root_dependency(&lockfile, "@pnpm-e2e/bar");
+    assert_eq!(entry.specifier, "jsr:~1.0.1");
+    assert_eq!(entry.version.to_string(), "@jsr/pnpm-e2e__bar@1.0.1");
 
     drop((root, anchor));
 }
