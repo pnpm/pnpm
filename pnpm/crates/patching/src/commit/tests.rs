@@ -300,14 +300,14 @@ index 123..000
 
     let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
 
-    assert_eq!(
-        normalized,
-        "\
+    let expected = "\
 diff --git a/readme.md b/readme.md
 deleted file mode 100644
 index 123..000
-"
-    );
+";
+    eprintln!("normalized:\n{normalized}");
+    eprintln!("expected:\n{expected}");
+    assert_eq!(normalized, expected);
 }
 
 #[test]
