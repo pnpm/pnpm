@@ -23,7 +23,7 @@ use super::{
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     publishing::{
         StagedPublish, cleanup_tmp_slots, commit_publishes, publish_created_response,
-        stage_publish, validate_publish_doc,
+        report_unrecorded, stage_publish, validate_publish_doc,
     },
     pypi::{PypiPublication, authorize_upload, verify_upload},
 };
@@ -41,7 +41,7 @@ use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::HashSet;
 
 pub(super) async fn serve_ecosystem_publish(
     State(state): State<AppState>,
@@ -117,7 +117,7 @@ async fn publish_batch(
     identity: &Identity,
     body: Bytes,
 ) -> Result<(), RegistryError> {
-    let mut incoming: Value = serde_json::from_slice(&body)?;
+    let mut incoming: Value = serde_json::from_slice(&body).map_err(|err| malformed_body(&err))?;
     // The parsed body holds everything the entries need, and the payloads are
     // decoded out of it below: keep only one copy of a body that may run to
     // the request limit.
@@ -174,20 +174,11 @@ async fn publish_batch(
             }
         }
     }
-    let outcome = commit_publishes(state, staged).await?;
-    // A package whose blob lost its immutable slot to another writer, or whose
-    // entries were all already recorded, is left out of the document the
-    // transaction wrote. The rest of the batch is published — the bytes that
-    // won the slot are someone's published release, and unpublishing around
-    // them would be worse than reporting this.
-    let mut missing: BTreeSet<String> = outcome.unrecorded.into_iter().collect();
-    missing.extend(outcome.lost_blobs.into_iter().map(|lost| lost.package));
-    if !missing.is_empty() {
-        return Err(RegistryError::PublishNotRecorded {
-            packages: missing.into_iter().collect::<Vec<_>>().join(", "),
-        });
-    }
-    Ok(())
+    // A package whose blob lost its immutable slot to another writer is left
+    // out of the document the transaction wrote, and the rest of the batch is
+    // published: the bytes that won the slot are someone's published release,
+    // and unpublishing around them would be worse than reporting this.
+    report_unrecorded(commit_publishes(state, staged).await?)
 }
 
 /// Check one entry as far as its ecosystem allows before anything is staged:
@@ -214,7 +205,8 @@ async fn validate_entry(
             Ok(ValidatedEntry::Npm(Box::new(doc), target.org))
         }
         Ecosystem::Cargo => {
-            let entry: CargoEntry = serde_json::from_value(package)?;
+            let entry: CargoEntry =
+                serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
             // Decide where this crate writes, and whether the caller may write
             // it, before spending anything on decoding its archive.
             let target = authorize_crate_publish(state, identity, None, &entry.metadata)?;
@@ -224,7 +216,8 @@ async fn validate_entry(
             ))
         }
         Ecosystem::Pypi => {
-            let entry: PypiEntry = serde_json::from_value(package)?;
+            let entry: PypiEntry =
+                serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
             let mut upload = Upload {
                 name: entry.name,
                 version: entry.version,
@@ -250,6 +243,13 @@ fn entry_ecosystem(package: &Value) -> Result<Ecosystem, RegistryError> {
             RegistryError::BadRequest { reason: format!("unknown ecosystem {value} in `packages`") }
         }),
     }
+}
+
+/// A body this endpoint could not read is the client's mistake, not a
+/// gateway's: `RegistryError::Json` answers 502, which is for the JSON an
+/// upstream sent us.
+fn malformed_body(err: &serde_json::Error) -> RegistryError {
+    RegistryError::BadRequest { reason: format!("malformed publish batch: {err}") }
 }
 
 fn decode_base64(data: &str, field: &'static str) -> Result<Vec<u8>, RegistryError> {

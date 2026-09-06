@@ -26,8 +26,8 @@ use serde_json::{Value, json};
 
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
-    commit_publishes, json_response, not_found, private_no_cache, resolve_write_target,
-    stage_publish, validate_publish_doc,
+    commit_publishes, json_response, not_found, private_no_cache, publishing::report_unrecorded,
+    resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
@@ -394,7 +394,7 @@ async fn serve_staged_approve(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = commit_publishes(state, vec![staged]).await {
+    if let Err(err) = commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
         return err.into_response();
     }
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {

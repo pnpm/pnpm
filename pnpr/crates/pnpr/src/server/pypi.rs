@@ -378,10 +378,7 @@ pub(super) struct PypiPublication {
     content: Vec<u8>,
 }
 
-/// Run every check a legacy-API upload must pass before anything is written:
-/// the project and version normalize, the filename belongs to them, the
-/// declared digest matches the bytes, and the caller may publish the project
-/// to the registry it routes to.
+/// Every check a legacy-API upload must pass before anything is written.
 pub(super) async fn validate_upload(
     state: &AppState,
     identity: &Identity,
@@ -451,7 +448,11 @@ pub(super) fn verify_upload(
 ) -> Result<PypiPublication, RegistryError> {
     let PypiTarget { key, org } = target;
     let sha256 = sha256_hex(&upload.content);
-    if upload.sha256_digest.as_deref().is_some_and(|declared| declared != sha256) {
+    if upload
+        .sha256_digest
+        .as_deref()
+        .is_some_and(|declared| !declared.eq_ignore_ascii_case(&sha256))
+    {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
     let entry = ProjectFile {

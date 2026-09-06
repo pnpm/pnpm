@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use axum::{
     body::Body,
@@ -197,10 +197,10 @@ pub(super) async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = commit_publishes(state, vec![staged]).await {
-        return err.into_response();
+    match commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
+        Ok(()) => publish_created_response(),
+        Err(err) => err.into_response(),
     }
-    publish_created_response()
 }
 
 /// `PUT /-/pnpm/v1/publish` — publish several packages with one
@@ -293,10 +293,10 @@ pub(super) async fn serve_batch_publish(
             }
         }
     }
-    if let Err(err) = commit_publishes(&state, staged).await {
-        return err.into_response();
+    match commit_publishes(&state, staged).await.and_then(report_unrecorded) {
+        Ok(()) => publish_created_response(),
+        Err(err) => err.into_response(),
     }
-    publish_created_response()
 }
 
 /// A publish document that passed every check that can run before
@@ -590,6 +590,25 @@ pub(super) async fn commit_publishes(
         Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
         None => Ok(outcome),
     }
+}
+
+/// The packages a commit could not record, as the error a publisher gets
+/// instead of a success it did not earn: another writer owns the blob their
+/// version described, so that version is not the one the store serves. Each
+/// is named with its ecosystem, since the same name in two of them is two
+/// packages.
+pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryError> {
+    let mut missing: BTreeSet<String> = outcome
+        .unrecorded
+        .into_iter()
+        .chain(outcome.lost_blobs.into_iter().map(|lost| lost.package))
+        .map(|package| format!("{} {}", package.ecosystem, package.name))
+        .collect();
+    let Some(first) = missing.pop_first() else {
+        return Ok(());
+    };
+    let packages = std::iter::once(first).chain(missing).collect::<Vec<_>>().join(", ");
+    Err(RegistryError::PublishNotRecorded { packages })
 }
 
 pub(super) fn publish_created_response() -> Response {

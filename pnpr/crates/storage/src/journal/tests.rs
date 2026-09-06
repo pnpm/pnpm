@@ -1,6 +1,7 @@
 use super::{
     ApplyProgress, DocumentMerge, HostedDocuments, JOURNAL_DIR, JournaledPublish,
-    JournaledRevisionRef, MANIFEST_FILE, Manifest, SealedTxn, cleanup_lost_tmp_paths, sync_dir,
+    JournaledRevisionRef, MANIFEST_FILE, Manifest, PackageId, SealedTxn, cleanup_lost_tmp_paths,
+    sync_dir,
 };
 use crate::{HostedRevisionRefWrite, Storage, TarballFinalize, publish::merge_journaled_packument};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -89,6 +90,10 @@ impl HostedDocuments for AlwaysFails {
         let attempt = self.merges.fetch_add(1, Ordering::Relaxed);
         Err(RegistryError::Internal { reason: format!("merge failed on attempt {attempt}") })
     }
+}
+
+fn npm_package(name: &str) -> PackageId {
+    PackageId { ecosystem: Ecosystem::Npm, name: name.to_string() }
 }
 
 /// A journaled npm publish of `packument` for `name`, with no staged blobs
@@ -434,7 +439,7 @@ async fn commit_reports_a_package_whose_merge_recorded_nothing() {
     let outcome =
         storage.publish_journal().commit(&storage, &entries, &RecordsNothing).await.unwrap();
 
-    assert_eq!(outcome.unrecorded, vec!["pkg".to_string()]);
+    assert_eq!(outcome.unrecorded, vec![npm_package("pkg")]);
     assert!(outcome.lost_blobs.is_empty());
 }
 
@@ -460,7 +465,7 @@ async fn commit_reports_an_entry_the_retry_found_recorded_by_another_writer() {
     let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
 
     assert_eq!(documents.merges.load(Ordering::Relaxed), 2, "the failed apply is re-run");
-    assert_eq!(outcome.unrecorded, vec!["pkg".to_string()]);
+    assert_eq!(outcome.unrecorded, vec![npm_package("pkg")]);
 }
 
 /// The entries the first attempt wrote itself are not reported: the retry
@@ -497,7 +502,7 @@ async fn commit_does_not_report_what_its_own_first_attempt_wrote() {
     };
     let outcome = storage.publish_journal().commit(&storage, &entries, &documents).await.unwrap();
 
-    assert_eq!(outcome.unrecorded, vec!["failed-pkg".to_string()]);
+    assert_eq!(outcome.unrecorded, vec![npm_package("failed-pkg")]);
 }
 
 /// When the retry fails too, the commit reports the failure that started it

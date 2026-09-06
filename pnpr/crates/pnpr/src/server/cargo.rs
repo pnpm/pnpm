@@ -356,10 +356,7 @@ pub(super) struct CratePublication {
     archive: Bytes,
 }
 
-/// Run every check a `cargo publish` must pass before anything is written:
-/// the metadata is well-formed, the caller may publish the crate to the
-/// registry it routes to, and the archive is a `.crate` of exactly that name
-/// and version.
+/// Every check a `cargo publish` must pass before anything is written.
 pub(super) async fn validate_crate_publish(
     state: &AppState,
     identity: &Identity,

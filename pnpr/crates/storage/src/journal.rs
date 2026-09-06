@@ -91,6 +91,12 @@ struct ManifestPackage {
     revision_refs: Vec<JournaledRevisionRef>,
 }
 
+impl ManifestPackage {
+    fn id(&self) -> PackageId {
+        PackageId { ecosystem: self.ecosystem, name: self.name.clone() }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct ManifestBlob {
     /// Canonical on-disk filename (`<basename>-<version>.tgz` for npm).
@@ -150,12 +156,20 @@ pub trait HostedDocuments: Send + Sync {
     fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>>;
 }
 
+/// A package a transaction could not record, named the way the journal
+/// addressed it: the same name in two ecosystems is two packages.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PackageId {
+    pub ecosystem: Ecosystem,
+    pub name: String,
+}
+
 /// A blob this transaction could not place, because another writer already
 /// owned its immutable slot with different bytes, and the package whose entry
 /// would have described it.
 #[derive(Debug)]
 pub struct LostBlob {
-    pub package: String,
+    pub package: PackageId,
     pub filename: String,
 }
 
@@ -172,7 +186,7 @@ pub struct CommitOutcome {
     /// Packages whose merge left the stored document exactly as it was:
     /// every entry this transaction journaled for them was already recorded,
     /// or was lost with its blob. Nothing of theirs became newly visible.
-    pub unrecorded: Vec<String>,
+    pub unrecorded: Vec<PackageId>,
 }
 
 /// What one attempt at applying a transaction got done. A failed attempt
@@ -182,7 +196,7 @@ pub struct CommitOutcome {
 #[derive(Debug, Default)]
 struct ApplyProgress {
     outcome: CommitOutcome,
-    wrote_documents: HashSet<String>,
+    wrote_documents: HashSet<PackageId>,
 }
 
 /// Handle to the journal directory of one [`Storage`].
@@ -463,7 +477,7 @@ impl SealedTxn {
                     PackumentWrite::Written,
                 );
                 if written {
-                    progress.wrote_documents.insert(package.name.clone());
+                    progress.wrote_documents.insert(package.id());
                 }
             }
             if !written {
@@ -484,9 +498,9 @@ impl SealedTxn {
                     .await?;
                 match update {
                     PackumentUpdate::Written => {
-                        progress.wrote_documents.insert(package.name.clone());
+                        progress.wrote_documents.insert(package.id());
                     }
-                    PackumentUpdate::NotFound => outcome.unrecorded.push(package.name.clone()),
+                    PackumentUpdate::NotFound => outcome.unrecorded.push(package.id()),
                 }
             }
             for revision_ref in claimed.into_values().flatten() {
@@ -499,9 +513,7 @@ impl SealedTxn {
                     .await?;
             }
             outcome.lost_blobs.extend(
-                lost_blobs
-                    .into_iter()
-                    .map(|filename| LostBlob { package: package.name.clone(), filename }),
+                lost_blobs.into_iter().map(|filename| LostBlob { package: package.id(), filename }),
             );
         }
         // Remove the journal before cleaning lost tmp files so an interruption

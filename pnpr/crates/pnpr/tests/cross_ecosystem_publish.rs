@@ -211,6 +211,13 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         app.clone().oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     assert_eq!(body_json(packument.into_body()).await["dist-tags"]["latest"], "1.0.0");
+    let npm_tarball = app
+        .clone()
+        .oneshot(Request::get("/mixed-pkg/-/mixed-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(npm_tarball.status(), StatusCode::OK);
+    assert_eq!(body_bytes(npm_tarball.into_body()).await, tarball);
 
     let index = app
         .clone()
@@ -426,6 +433,52 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
         app.oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the npm package must not be published");
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
+}
+
+/// A body this endpoint cannot read is the client's mistake: `502` would tell
+/// them a gateway is broken.
+#[tokio::test]
+async fn a_malformed_batch_is_a_bad_request() {
+    let tmp = TempDir::new().unwrap();
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let token = token_for(&app, "alice").await;
+
+    for body in [
+        json!({ "packages": "not an array" }),
+        json!({ "packages": [] }),
+        json!({ "packages": [{ "ecosystem": "cargo", "archive": "not base64!" }] }),
+        json!({ "packages": [{ "ecosystem": "brew", "name": "demo" }] }),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(publish_request("/-/pnpr/v0/publish", &body, Some(&token)))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{body}");
+    }
+}
+
+/// A digest is hexadecimal, and an uploader may spell it in either case.
+#[tokio::test]
+async fn an_uppercase_digest_is_accepted() {
+    let tmp = TempDir::new().unwrap();
+    let app =
+        router_with_auth(tri_ecosystem_config(tmp.path().to_path_buf()), AuthState::in_memory());
+    let token = token_for(&app, "alice").await;
+    let wheel = b"PK\x03\x04 pretend wheel";
+    let mut entry = pypi_entry("demo-pkg", "1.0.0", WHEEL, wheel);
+    entry["sha256_digest"] = json!(sha256_hex(wheel).to_uppercase());
+
+    let response = app
+        .oneshot(publish_request(
+            "/-/pnpr/v0/publish",
+            &json!({ "packages": [entry] }),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
 }
 
 #[tokio::test]
