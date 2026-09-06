@@ -257,3 +257,35 @@ fn hashing_inputs_rejects_dangling_parent_symlinks() {
     let error = cache.hashed_project_files(&project).unwrap_err().to_string();
     assert!(error.contains("symlink") && error.contains("dir"), "{error}");
 }
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_valid_leaf_symlinks() {
+    let (root, _repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    let outside = root.path().join("outside-input");
+    fs::write(&outside, "external source").unwrap();
+    std::os::unix::fs::symlink(&outside, project.join("linked-input")).unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("symlink") && error.contains("linked-input"), "{error}");
+    assert!(cache.project_files.lock().unwrap().is_empty(), "unsafe inputs must not be cached");
+}
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_valid_parent_symlinks() {
+    let (root, repo, cache) = setup_input_cache();
+    let project = root.path().join("inputs-src");
+    repo.write_file("dir/input", "source");
+    let _ = repo.commit("nested input");
+    repo.write_file(".gitignore", "dir\n");
+    fs::remove_file(project.join("dir/input")).unwrap();
+    fs::remove_dir(project.join("dir")).unwrap();
+    let outside = root.path().join("outside");
+    fs::create_dir(&outside).unwrap();
+    fs::write(outside.join("input"), "external source").unwrap();
+    std::os::unix::fs::symlink(&outside, project.join("dir")).unwrap();
+    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
+    assert!(error.contains("symlink") && error.contains("dir"), "{error}");
+    assert!(cache.project_files.lock().unwrap().is_empty(), "unsafe inputs must not be cached");
+}

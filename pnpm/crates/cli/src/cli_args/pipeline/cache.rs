@@ -452,6 +452,7 @@ impl TaskCache {
             if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
                 continue;
             }
+            check_ancestors(project, Path::new(rel_path)).into_diagnostic()?;
             let absolute = project.join(rel_path);
             let hash = match create_hex_hash_from_file(&absolute) {
                 Ok(hash) => hash,
@@ -460,7 +461,6 @@ impl TaskCache {
                         && fs::symlink_metadata(&absolute)
                             .is_err_and(|error| error.kind() == io::ErrorKind::NotFound) =>
                 {
-                    check_ancestors(project, Path::new(rel_path)).into_diagnostic()?;
                     continue;
                 }
                 Err(error) => {
