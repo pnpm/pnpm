@@ -393,9 +393,10 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
 
 /// `default_virtual_store_dir` joins onto the current directory, so the
 /// separator it appends is what lands in the `virtualStoreDir` recorded
-/// in `.modules.yaml`. Compares the rendered string for the same reason
-/// as above, through `display` so a working directory that is not valid
-/// Unicode renders lossily instead of panicking before the assertion.
+/// in `.modules.yaml`. Compares the rendered string for the reason given
+/// on `test_dynamic_default_store_dir_with_windows_same_drive`, through
+/// `display` so a working directory that is not valid Unicode renders
+/// lossily instead of panicking before the assertion.
 #[test]
 #[cfg_attr(not(windows), ignore = "only one path separator style is tested")]
 fn test_default_virtual_store_dir_uses_native_separators() {
