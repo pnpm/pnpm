@@ -135,9 +135,8 @@ impl ImportArgs {
     }
 }
 
-/// Takes back what an import wrote: whatever it left at `lockfile_path`
-/// goes, and the backup, when the import had a lockfile to back up, moves
-/// into its place. An import that started without one leaves none behind.
+/// Restores the destination an import replaced. An import that started
+/// without a lockfile there leaves none behind.
 fn discard_failed_import(
     lockfile_path: &std::path::Path,
     backup_path: Option<&std::path::Path>,

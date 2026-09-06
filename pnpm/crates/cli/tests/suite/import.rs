@@ -19,7 +19,6 @@ use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::{fs, path::Path};
 
-/// A finished import leaves no backup behind, whatever it named one.
 fn assert_no_import_backups(lockfile_dir: &Path) {
     let leftovers: Vec<_> = fs::read_dir(lockfile_dir)
         .expect("read the lockfile directory")
