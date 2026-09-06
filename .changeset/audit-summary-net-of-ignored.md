@@ -4,4 +4,4 @@
 "pacquet": patch
 ---
 
-`pnpm audit` no longer counts advisories suppressed by `auditConfig` in its summary [#14535](https://github.com/pnpm/pnpm/issues/14535). The headline total and the per-severity counts now describe the same advisories the exit code is based on, and each severity keeps its `(N ignored)` note. When every advisory is suppressed, the summary reads `No known vulnerabilities found (1 ignored)` instead of reporting a vulnerability alongside a zero exit code.
+`pnpm audit` no longer counts advisories suppressed by `auditConfig` in its summary. The headline total and the per-severity counts now describe the same advisories the exit code is based on, and each severity keeps its `(N ignored)` note. A run whose only advisory was suppressed printed a red `1 vulnerabilities found` next to a zero exit code. It now reads `No known vulnerabilities found (1 ignored)` [#14535](https://github.com/pnpm/pnpm/issues/14535).
