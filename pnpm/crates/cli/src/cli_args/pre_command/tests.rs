@@ -378,6 +378,23 @@ fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_t
     assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
 }
 
+/// `--global` does not act on the project, so it records nothing there
+/// either.
+#[test]
+fn pre_command_plan_records_nothing_for_a_global_command_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &PreCommandInput { global: true, ..pre_command_input(root.path()) },
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
 #[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");
