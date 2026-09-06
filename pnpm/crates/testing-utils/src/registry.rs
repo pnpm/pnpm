@@ -6,6 +6,13 @@ use std::{
     thread,
 };
 
+/// The npm registry URL of a pnpr instance: every ecosystem answers under its
+/// own prefix, so an npm client is configured at `<instance>/npm/` while the
+/// instance's own `public_url` stays the host root.
+fn npm_surface_url(instance_url: &str) -> String {
+    format!("{}/npm/", instance_url.trim_end_matches('/'))
+}
+
 #[derive(Debug)]
 #[must_use]
 pub struct TestRegistry {
@@ -18,12 +25,14 @@ pub struct TestRegistry {
 
 impl TestRegistry {
     pub fn start() -> Self {
-        Self { url: TestRegistryInstance::get().url.clone(), storage: None }
+        Self { url: npm_surface_url(&TestRegistryInstance::get().url), storage: None }
     }
 
     pub fn start_with_storage(storage: &Path) -> Self {
         Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
+            url: npm_surface_url(
+                &TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Proxy).url,
+            ),
             storage: Some(storage.to_path_buf()),
         }
     }
@@ -55,7 +64,9 @@ impl TestRegistry {
 
     pub fn start_static_with_storage(storage: &Path) -> Self {
         Self {
-            url: TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
+            url: npm_surface_url(
+                &TestRegistryInstance::start(storage.to_path_buf(), RegistryMode::Static).url,
+            ),
             storage: Some(storage.to_path_buf()),
         }
     }

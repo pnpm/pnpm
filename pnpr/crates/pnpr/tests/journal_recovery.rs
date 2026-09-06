@@ -157,7 +157,7 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     // And it serves.
     let app = router(static_config(storage));
     let response =
-        app.oneshot(Request::get("/crash-fwd").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/npm/crash-fwd").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 }
 
@@ -253,7 +253,7 @@ async fn successful_batch_publish_leaves_no_journal_residue() {
             "length": tarball.len(),
         },
     });
-    let request = Request::put("/-/pnpm/v1/publish")
+    let request = Request::put("/npm/-/pnpm/v1/publish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(serde_json::to_vec(&json!({ "packages": [doc] })).unwrap()))

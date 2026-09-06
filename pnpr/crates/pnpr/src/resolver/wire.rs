@@ -149,13 +149,13 @@ impl TarballRouter {
         }
     }
 
-    /// Reverse a `/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// Reverse a `/npm/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
     /// upstream URL so an input lockfile carrying endpoint URLs can be verified
     /// against the real registry. Returns `None` for any other URL, and for an
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
     fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
+        let prefix = format!("{}/npm/~", self.public_url.trim_end_matches('/'));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
         let registry = self.context.upstream_registry(&self.identity, upstream)?;
@@ -176,12 +176,12 @@ fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
 }
 
 fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
-    format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}/npm/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
-/// The `/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
+/// The `/npm/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
 /// route's tarball is served through. Canonical for a client whose scope is
-/// configured at `https://<pnpr>/~<name>/`, so the lockfile entry collapses
+/// configured at `https://<pnpr>/npm/~<name>/`, so the lockfile entry collapses
 /// to integrity-only; the upstream URL and credential stay server-side.
 fn upstream_endpoint_tarball_url(
     public_url: &str,
@@ -189,7 +189,7 @@ fn upstream_endpoint_tarball_url(
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}/npm/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object

@@ -144,9 +144,9 @@ async fn config_json_points_downloads_and_the_api_back_at_the_registry() {
         assert_eq!(config["api"], format!("http://pnpr.test/cargo/~{registry}"));
     }
 
-    // The old npm-only address of a registry has no sparse index.
+    // The npm surface of a registry has no sparse index.
     let response = app
-        .oneshot(Request::get("/~crates/index/config.json").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/npm/~crates/index/config.json").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);

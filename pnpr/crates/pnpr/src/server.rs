@@ -15,7 +15,7 @@ mod tests;
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize},
     documents::RegistryDocuments,
-    ecosystem::{addressed_registry, caller_scoped},
+    ecosystem::{addressed_registry, caller_scoped, registry_endpoint},
     package_mutation::{
         delete_package, delete_tarball, get_dist_tags, remove_dist_tag, set_dist_tag,
         update_packument,
@@ -551,17 +551,6 @@ struct TokenKeyPath {
 // Handler bodies.
 // --------------------------------------------------------------------
 
-/// The base a served packument's `dist.tarball` URLs are rewritten onto: the
-/// `/~<name>/` endpoint the client addressed, so tarball requests come back
-/// through it (where this server re-checks access and proxies the bytes), or
-/// the bare host for the path-less base.
-fn npm_tarball_base(state: &AppState, registry: Option<&str>) -> String {
-    match registry {
-        Some(registry) => upstream_tarball_base(&state.inner.config.public_url, registry),
-        None => state.inner.config.public_url.clone(),
-    }
-}
-
 async fn serve_packument(
     state: &AppState,
     identity: &Identity,
@@ -570,7 +559,7 @@ async fn serve_packument(
     raw_name: &str,
 ) -> Response {
     let Some(target) = addressed_registry(state, registry) else { return not_found() };
-    let base = npm_tarball_base(state, registry);
+    let base = registry_endpoint(state, Ecosystem::Npm, registry);
     let response =
         serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
@@ -584,7 +573,7 @@ async fn serve_version_manifest(
     version_or_tag: &str,
 ) -> Response {
     let Some(target) = addressed_registry(state, registry) else { return not_found() };
-    let base = npm_tarball_base(state, registry);
+    let base = registry_endpoint(state, Ecosystem::Npm, registry);
     let response =
         serve_registry_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
             .await;
@@ -669,13 +658,6 @@ async fn serve_registry_version_manifest(
         Ok(body) => packument_bytes_response(body, "application/json", None),
         Err(err) => RegistryError::Json(err).into_response(),
     }
-}
-
-/// The `dist.tarball` rewrite base for an upstream's `/~<name>/` registry
-/// endpoint, so a served packument points tarball requests back at the same
-/// endpoint (where this server re-checks access and proxies the bytes).
-fn upstream_tarball_base(public_url: &str, upstream: &str) -> String {
-    format!("{}/~{upstream}", public_url.trim_end_matches('/'))
 }
 
 /// Resolve the upstream behind an authorized `/~<name>/` endpoint request.

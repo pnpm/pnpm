@@ -185,15 +185,10 @@ pub(super) fn router_with_auth_and_osv(
             // answers here rather than beside the npm batch endpoint, which
             // is part of the npm surface and served under `/npm/` with it.
             .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-            // The npm surface keeps its original addresses (the path-less base
-            // and `/~<name>/`) and gains the ecosystem-scoped alias every
-            // surface has: `/npm/...` and `/npm/~<name>/...`. The account
-            // endpoints ride along under the alias so a client can log in
-            // against `/npm/~<name>/`. Under the original addresses the first
-            // segments `npm`, `cargo`, and `pypi` are reserved for the
-            // ecosystem prefixes, so the npm packages of those names are
-            // reached through the alias (`/npm/npm`).
-            .merge(npm.clone())
+            // Every ecosystem is addressed through its own prefix, npm
+            // included: `/npm/...` and `/npm/~<name>/...`. The account
+            // endpoints ride along under the prefix so a client whose registry
+            // URL is an npm endpoint can log in against it.
             .nest("/npm", account.merge(npm))
             .merge(cargo::routes())
             .merge(pypi::routes());

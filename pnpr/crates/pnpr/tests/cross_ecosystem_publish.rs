@@ -207,13 +207,16 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    let packument =
-        app.clone().oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let packument = app
+        .clone()
+        .oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     assert_eq!(body_json(packument.into_body()).await["dist-tags"]["latest"], "1.0.0");
     let npm_tarball = app
         .clone()
-        .oneshot(Request::get("/mixed-pkg/-/mixed-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
+        .oneshot(Request::get("/npm/mixed-pkg/-/mixed-pkg-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(npm_tarball.status(), StatusCode::OK);
@@ -338,8 +341,11 @@ async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
     let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
     assert!(reason.contains("mixed-pkg"), "{reason}");
 
-    let packument =
-        app.clone().oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    let packument = app
+        .clone()
+        .oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     let packument = body_json(packument.into_body()).await;
     assert_eq!(packument["versions"], json!({}), "the version that lost is not advertised");
@@ -430,7 +436,7 @@ async fn a_duplicate_in_one_ecosystem_stops_the_whole_batch() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let packument =
-        app.oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the npm package must not be published");
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
 }
@@ -481,7 +487,7 @@ async fn a_spelled_out_npm_entry_does_not_leak_its_routing_field() {
     assert_eq!(response.status(), StatusCode::CREATED);
 
     let packument =
-        app.oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     let packument = body_json(packument.into_body()).await;
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0");
     assert!(packument.get("ecosystem").is_none(), "{packument}");
@@ -520,7 +526,7 @@ async fn an_anonymous_batch_publishes_nothing() {
         app.clone().oneshot(publish_request("/-/pnpr/v0/publish", &body, None)).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let packument =
-        app.oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+        app.oneshot(Request::get("/npm/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::NOT_FOUND);
 }
 

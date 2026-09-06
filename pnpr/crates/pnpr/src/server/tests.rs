@@ -351,9 +351,11 @@ async fn team_tokens_reach_package_authorization() {
     // credentials — rather than masked (masking is the registry-level
     // default's behavior, not an explicit entry's).
     let app = app_with_config_and_token(config, "tok", record(false, &[]));
-    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    let allowed =
+        app.clone().oneshot(signed(Method::GET, "/npm/@team/missing", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
-    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    let anonymous =
+        app.oneshot(signed(Method::GET, "/npm/@team/missing", "unknown")).await.unwrap();
     assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
@@ -363,9 +365,12 @@ async fn readonly_token_is_refused_for_writes() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // Publish (PUT) and unpublish (DELETE) are rejected before the
     // handler ever reads the body.
-    assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN);
     assert_eq!(
-        status(app, signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
+        status(app.clone(), signed(Method::PUT, "/npm/foo", "ro")).await,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        status(app, signed(Method::DELETE, "/npm/foo/-rev/1", "ro")).await,
         StatusCode::FORBIDDEN,
     );
 }
@@ -376,7 +381,7 @@ async fn readonly_token_still_reads() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // A GET is not a write, so the read-only gate lets it through; the
     // package simply isn't published, so it 404s rather than 403s.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "ro")).await, StatusCode::NOT_FOUND);
+    assert_eq!(status(app, signed(Method::GET, "/npm/foo", "ro")).await, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -386,7 +391,7 @@ async fn unrestricted_token_passes_the_gate_for_writes() {
     // The gate doesn't block an unrestricted token's write: the request
     // reaches the publish handler (which then rejects the empty body on
     // its own terms). The point is that it is not a 403 from the gate.
-    let status = status(app, signed(Method::PUT, "/foo", "rw")).await;
+    let status = status(app, signed(Method::PUT, "/npm/foo", "rw")).await;
     assert_ne!(status, StatusCode::FORBIDDEN);
     assert_ne!(status, StatusCode::UNAUTHORIZED);
 }
@@ -397,7 +402,7 @@ async fn cidr_token_is_refused_when_peer_is_unknown() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     // No ConnectInfo on the request: the restriction can't be checked, so
     // it fails closed even for a read.
-    assert_eq!(status(app, signed(Method::GET, "/foo", "pinned")).await, StatusCode::FORBIDDEN);
+    assert_eq!(status(app, signed(Method::GET, "/npm/foo", "pinned")).await, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -406,7 +411,7 @@ async fn cidr_token_is_refused_from_outside_the_range() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     let outside = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 5)), 40000);
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), outside)).await,
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), outside)).await,
         StatusCode::FORBIDDEN,
     );
 }
@@ -416,7 +421,7 @@ async fn cidr_token_is_allowed_from_inside_the_range() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     assert_eq!(
-        status(app, with_peer(signed(Method::GET, "/foo", "pinned"), PEER)).await,
+        status(app, with_peer(signed(Method::GET, "/npm/foo", "pinned"), PEER)).await,
         StatusCode::NOT_FOUND,
     );
 }
@@ -427,7 +432,7 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     let app = app_with_token(&tmp, "pinned", record(false, &["10.0.0.0/8"]));
     // A spoofed X-Forwarded-For for an in-range address must not help: the
     // gate reads the socket peer (here absent), never the header.
-    let request = signed(Method::GET, "/foo", "pinned");
+    let request = signed(Method::GET, "/npm/foo", "pinned");
     let request = {
         let mut request = request;
         request.headers_mut().insert("x-forwarded-for", "10.1.2.3".parse().unwrap());
@@ -481,12 +486,12 @@ async fn team_listing_serves_config_declared_teams() {
     // consumes.
     let expected = serde_json::json!([{ "name": "developers" }, { "name": "admins" }]);
     let response =
-        app.clone().oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+        app.clone().oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok")).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     // The same listing through the registry-addressed endpoint.
     let prefixed =
-        app.oneshot(signed(Method::GET, "/~local/-/org/myorg/team", "tok")).await.unwrap();
+        app.oneshot(signed(Method::GET, "/npm/~local/-/org/myorg/team", "tok")).await.unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
 }
@@ -499,20 +504,21 @@ async fn team_members_are_listed_sorted() {
     let expected = serde_json::json!([{ "name": "alice" }, { "name": "bob" }]);
     let response = app
         .clone()
-        .oneshot(signed(Method::GET, "/-/team/myorg/developers/user", "tok"))
+        .oneshot(signed(Method::GET, "/npm/-/team/myorg/developers/user", "tok"))
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_json(response).await, expected);
     let prefixed = app
         .clone()
-        .oneshot(signed(Method::GET, "/~local/-/team/myorg/developers/user", "tok"))
+        .oneshot(signed(Method::GET, "/npm/~local/-/team/myorg/developers/user", "tok"))
         .await
         .unwrap();
     assert_eq!(prefixed.status(), StatusCode::OK);
     assert_eq!(body_json(prefixed).await, expected);
     // A team the config does not declare is a definitive not-found.
-    let missing = app.oneshot(signed(Method::GET, "/-/team/myorg/nope/user", "tok")).await.unwrap();
+    let missing =
+        app.oneshot(signed(Method::GET, "/npm/-/team/myorg/nope/user", "tok")).await.unwrap();
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
@@ -521,14 +527,14 @@ async fn team_mutations_are_rejected_as_config_managed() {
     let tmp = TempDir::new().unwrap();
     let app = app_with_config_and_token(config_with_teams(&tmp), "tok", record(false, &[]));
     let mutations = [
-        (Method::PUT, "/-/org/myorg/team"),
-        (Method::DELETE, "/-/team/myorg/developers"),
-        (Method::PUT, "/-/team/myorg/developers/user"),
-        (Method::DELETE, "/-/team/myorg/developers/user"),
-        (Method::PUT, "/~local/-/org/myorg/team"),
-        (Method::DELETE, "/~local/-/team/myorg/developers"),
-        (Method::PUT, "/~local/-/team/myorg/developers/user"),
-        (Method::DELETE, "/~local/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/-/org/myorg/team"),
+        (Method::DELETE, "/npm/-/team/myorg/developers"),
+        (Method::PUT, "/npm/-/team/myorg/developers/user"),
+        (Method::DELETE, "/npm/-/team/myorg/developers/user"),
+        (Method::PUT, "/npm/~local/-/org/myorg/team"),
+        (Method::DELETE, "/npm/~local/-/team/myorg/developers"),
+        (Method::PUT, "/npm/~local/-/team/myorg/developers/user"),
+        (Method::DELETE, "/npm/~local/-/team/myorg/developers/user"),
     ];
     for (method, path) in mutations {
         let response = app.clone().oneshot(signed(method.clone(), path, "tok")).await.unwrap();
@@ -558,7 +564,7 @@ async fn team_listing_masks_callers_the_registry_denies() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
     }
     // The authenticated caller passes the gate.
-    let allowed = app.oneshot(signed(Method::GET, "/-/org/myorg/team", "tok")).await.unwrap();
+    let allowed = app.oneshot(signed(Method::GET, "/npm/-/org/myorg/team", "tok")).await.unwrap();
     assert_eq!(allowed.status(), StatusCode::OK);
 }
 

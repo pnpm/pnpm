@@ -106,7 +106,7 @@ async fn user_and_token_survive_restart() {
     let response = app
         .clone()
         .oneshot(
-            Request::put("/-/package/anything/dist-tags/latest")
+            Request::put("/npm/-/package/anything/dist-tags/latest")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(serde_json::to_string("1.0.0").unwrap()))
