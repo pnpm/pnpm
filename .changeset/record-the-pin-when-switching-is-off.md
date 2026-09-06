@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-Commands other than `pnpm install` now record the pinned pnpm version in `pnpm-lock.yaml` when package manager version switching is turned off. Alternating an install with any other command rewrote the same `packageManagerDependencies` lines back and forth [#14575](https://github.com/pnpm/pnpm/issues/14575).
+pnpm no longer rewrites the `packageManagerDependencies` block of `pnpm-lock.yaml` back and forth when package manager version switching is turned off. `pnpm install` recorded the pinned pnpm version there and commands such as `pnpm list` did not [#14575](https://github.com/pnpm/pnpm/issues/14575).
