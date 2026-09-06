@@ -109,8 +109,8 @@ pub(crate) struct NpmrcAuth {
     /// The same routes inferred from the `_auth` of the global config
     /// **file**. That file is the user's own store rather than a mandate —
     /// it is where `pnpm login` puts a credential — so a `registry` or
-    /// `registries` a config file declares outranks these, and they fill in
-    /// only what nothing else declares. See
+    /// `registries` a config file declares, whether an `.npmrc` or a yaml,
+    /// outranks these, and they fill in only what nothing else declares. See
     /// [`Self::apply_json_env_registries`].
     pub json_file_registries: BTreeMap<String, String>,
     /// Raw INI config keys (those for which
@@ -568,11 +568,22 @@ impl NpmrcAuth {
     /// after every other config layer (notably `pnpm-workspace.yaml`)
     /// has had a chance to override `registry`, so default-registry
     /// creds end up keyed at the final URL.
-    pub fn apply_registry_and_warn(&mut self, config: &mut Config) {
+    ///
+    /// The `registry=` and `@scope:registry=` lines the `.npmrc` files
+    /// carried are recorded on `declared` as they are consumed, since
+    /// once written to `config` they are indistinguishable by value from
+    /// the builtin default.
+    pub fn apply_registry_and_warn(
+        &mut self,
+        config: &mut Config,
+        declared: &mut DeclaredRegistries,
+    ) {
         if let Some(registry) = self.registry.take() {
+            declared.registry = true;
             config.registry =
                 if registry.ends_with('/') { registry } else { format!("{registry}/") };
         }
+        declared.scopes.extend(self.scoped_registries.keys().cloned());
         config.registries_by_scope.append(&mut self.scoped_registries);
         for message in std::mem::take(&mut self.warnings) {
             tracing::warn!(target: "pacquet::npmrc", "{message}");
@@ -587,9 +598,8 @@ impl NpmrcAuth {
     /// The file-sourced routes fill in only what a config file has not
     /// declared, which `declared` names: provenance rather than value,
     /// because pinning the registry a lower layer already resolved to is
-    /// still a declaration. A route the `.npmrc` merely resolved is not one,
-    /// so those give way. The environment-sourced routes replace whatever
-    /// they find.
+    /// still a declaration, while the builtin default is not one. The
+    /// environment-sourced routes replace whatever they find.
     pub fn apply_json_env_registries(
         &mut self,
         config: &mut Config,
@@ -851,7 +861,7 @@ impl NpmrcAuth {
     #[cfg(test)]
     pub fn apply_to<Sys: EnvVar>(mut self, config: &mut Config) {
         self.rescope_unscoped("<.npmrc>");
-        self.apply_registry_and_warn(config);
+        self.apply_registry_and_warn(config, &mut DeclaredRegistries::default());
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
         self.build_auth_headers(config).expect("valid credentials in test .npmrc");
@@ -1262,9 +1272,10 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
     }
 }
 
-/// What the config files declared about registry routing, as opposed to what
-/// the cascade merely resolved to. Collected before each layer is applied,
-/// because applying it is what makes the two indistinguishable by value.
+/// What the config files — the `.npmrc` files as much as the yamls —
+/// declared about registry routing, as opposed to what the cascade merely
+/// resolved to. Collected before each layer is applied, because applying it
+/// is what makes the two indistinguishable by value.
 #[derive(Debug, Default, Clone)]
 pub struct DeclaredRegistries {
     /// Whether any config file named the registry packages resolve from,

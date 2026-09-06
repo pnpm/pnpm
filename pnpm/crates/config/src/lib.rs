@@ -3565,7 +3565,10 @@ impl Config {
             global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         }
 
-        npmrc_auth.apply_registry_and_warn(&mut self);
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
+        npmrc_auth.apply_registry_and_warn(&mut self, &mut declared_registries);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
@@ -3609,9 +3612,6 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        // Collected as each file is applied, since applying it is what makes
-        // a declared route indistinguishable by value from a resolved one.
-        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
         if let Some(mut global_settings) = global_settings {
             note_declared_registries(&mut declared_registries, &global_settings);
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
@@ -3983,10 +3983,12 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
     let mut config = Config::default();
-    trusted_auth.apply_registry_and_warn(&mut config);
-    // No config file reaches the bootstrap cascade, so none declares here.
-    trusted_auth
-        .apply_json_env_registries(&mut config, &crate::npmrc_auth::DeclaredRegistries::default());
+    // The trusted `.npmrc` files are the only config files that reach the
+    // bootstrap cascade, so only what they declare holds the `_auth` file's
+    // routes back here.
+    let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
+    trusted_auth.apply_registry_and_warn(&mut config, &mut declared_registries);
+    trusted_auth.apply_json_env_registries(&mut config, &declared_registries);
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;

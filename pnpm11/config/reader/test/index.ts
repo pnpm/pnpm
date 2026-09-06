@@ -2986,6 +2986,65 @@ test('a scope declared in pnpm-workspace.yaml beats the global _auth file', asyn
   expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
 })
 
+test('a registry declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=http://project-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('http://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('http://project-choice.example/')
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@org:registry=https://from-npmrc.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://from-npmrc.example/')
+  // Nothing declares the default registry, so the stored credential still routes it.
+  expect(config.registry).toBe('https://private.example/')
+})
+
+test('a registry declared in the user .npmrc beats the global _auth file in the package-manager registries', async () => {
+  prepareEmpty()
+
+  const userNpmrc = path.resolve('user-npmrc')
+  fs.writeFileSync(userNpmrc, 'registry=https://user-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { cliOptions: { 'npmrc-auth-file': userNpmrc } }
+  )
+
+  expect(config.registry).toBe('https://user-choice.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://user-choice.example/')
+})
+
 test('a registry declared in the global config beats its own _auth file', async () => {
   prepareEmpty()
 

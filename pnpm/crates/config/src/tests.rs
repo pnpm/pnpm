@@ -4642,28 +4642,75 @@ pub fn a_registries_map_declaring_the_default_beats_the_global_auth_file() {
     assert_eq!(config.registry, "https://declared.example/");
 }
 
-/// An `.npmrc` route is what the cascade resolved, not what a config file
-/// declared, so the stored credential's route outranks it — as it does in
-/// pnpm's `config.reader`.
+/// Writing a global `config.yaml` whose `_auth` credits `registry` and the
+/// project `.npmrc` `npmrc`, then loading config from that project.
+fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), auth_yaml).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), npmrc).expect("write .npmrc");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    load_with_fake_env(project.path())
+}
+
+/// A `registry=` in the project's `.npmrc` declares where packages come from
+/// as plainly as a yaml does, so a credential stored for another registry
+/// must not redirect the install to it (pnpm/pnpm#14614).
 #[test]
-pub fn the_global_auth_file_outranks_an_npmrc_scope_route() {
+pub fn an_npmrc_registry_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=http://project-choice.example/\n");
+
+    assert_eq!(config.registry, "http://project-choice.example/");
+    // The credential still reaches the registry it was written for.
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//private.example/").map(String::as_str),
+        Some("stored-token"),
+    );
+}
+
+#[test]
+pub fn an_npmrc_scope_route_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "@org:registry=https://from-npmrc.example/\n");
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://from-npmrc.example/"),
+    );
+    // The default registry is not declared, so the stored credential still routes it.
+    assert_eq!(config.registry, "https://private.example/");
+}
+
+/// The trusted `.npmrc` an `npmrcAuthFile` names reaches the bootstrap
+/// cascade, so its declared registry holds the stored credential's route
+/// back there too.
+#[test]
+pub fn an_npmrc_registry_beats_the_global_auth_file_in_the_bootstrap() {
     fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(config_dir.join("config.yaml"), STORED_LOGIN).expect("write global config.yaml");
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("custom-npmrc");
+    fs::write(&auth_file, "registry=https://user-choice.example/\n").expect("write auth file");
 
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join(".npmrc"), "@org:registry=https://from-npmrc.example/\n")
-        .expect("write .npmrc");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
+    ]);
 
     let config = load_with_fake_env(project.path());
 
-    assert_eq!(
-        config.registries_by_scope.get("@org").map(String::as_str),
-        Some("https://private.example/"),
-    );
+    assert_eq!(config.registry, "https://user-choice.example/");
+    assert_eq!(config.package_manager_bootstrap.registry, "https://user-choice.example/");
 }
 
 /// The older `registries: { default: … }` spelling names the default

@@ -399,6 +399,9 @@ export async function getConfig (opts: {
     // reached only through a stored credential is reached the same way when
     // pnpm downloads itself as when it installs.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    // A `registry=` in a trusted `.npmrc` declares the default registry as
+    // plainly as a yaml does, so it holds the file fallback back here too.
+    ...npmrcResult.trustedDeclaredRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -587,7 +590,7 @@ export async function getConfig (opts: {
     }
   }
 
-  // Precedence: builtin < .npmrc < `_auth` file < yaml < `_auth` env < CLI. CLI
+  // Precedence: builtin < `_auth` file < .npmrc < yaml < `_auth` env < CLI. CLI
   // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
@@ -605,8 +608,11 @@ export async function getConfig (opts: {
     ...registriesFromNpmrc,
     // The global config file's `_auth` only fills in what nothing declares:
     // it is where a `pnpm login` stores a credential, and holding one is not
-    // a statement about where packages come from.
+    // a statement about where packages come from. `registriesFromNpmrc`
+    // carries the builtin default as well as what the `.npmrc` files
+    // declared, so only the latter are restated above the fallback.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
     ...declaredDefault,

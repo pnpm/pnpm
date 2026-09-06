@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 
 use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
 
-use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
+use super::{DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling
@@ -652,7 +652,7 @@ fn apply_registry_and_warn_drains_warnings() {
     let mut auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.warnings.len(), 1);
     let mut config = Config::new();
-    auth.apply_registry_and_warn(&mut config);
+    auth.apply_registry_and_warn(&mut config, &mut DeclaredRegistries::default());
     assert!(auth.warnings.is_empty(), "warnings should be drained after flush");
 }
 
