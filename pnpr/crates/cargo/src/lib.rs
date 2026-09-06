@@ -45,12 +45,7 @@ pub fn validate_crate_name(name: &str) -> Result<(), CrateNameError> {
 /// form is what the `{prefix}` download-template marker expands to.
 #[must_use]
 pub fn index_prefix(name: &str) -> String {
-    match name.len() {
-        1 => "1".to_string(),
-        2 => "2".to_string(),
-        3 => format!("3/{}", &name[..1]),
-        _ => format!("{}/{}", &name[..2], &name[2..4]),
-    }
+    pnpm_cargo_resolver::index_prefix(name)
 }
 
 /// The relative path of a crate's file inside a sparse index, lowercased as

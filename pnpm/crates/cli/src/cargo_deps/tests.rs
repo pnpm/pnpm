@@ -1,8 +1,9 @@
 use super::{
-    ArchiveStoreProjection, CRATES_IO_SPARSE_INDEX, Config, LockedCrate, MANAGED_CONFIG,
-    MaterializeOptions, add_cargo_checksum, fetch_sparse_index_file, managed_config, materialize,
-    parse_lockfile, resolve_via_pnpr, sparse_index_path, update_managed_config, workspace_root,
+    ArchiveStoreProjection, Config, LockedCrate, MANAGED_CONFIG, MaterializeOptions,
+    add_cargo_checksum, fetch_sparse_index_file, managed_config, materialize, parse_lockfile,
+    resolve_via_pnpr, sparse_index_path, update_managed_config, workspace_root,
 };
+use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::{
@@ -68,6 +69,56 @@ checksum = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
     let error = parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap_err().to_string();
     assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+}
+
+#[test]
+fn rejects_a_crates_io_source_under_a_configured_registry() {
+    let lockfile = r#"
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+"#;
+
+    let error =
+        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap_err().to_string();
+
+    assert!(error.contains("does not match the configured Cargo registry"), "{error}");
+}
+
+#[test]
+fn accepts_the_configured_registry_source() {
+    let lockfile = r#"
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "sparse+https://registry.example.test/index/"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+"#;
+
+    assert_eq!(
+        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap(),
+        vec![LockedCrate {
+            name: "serde".to_string(),
+            version: "1.0.228".to_string(),
+            checksum: "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+                .to_string(),
+        }],
+    );
+}
+
+#[test]
+fn accepts_the_sparse_spelling_of_crates_io() {
+    let lockfile = r#"
+[[package]]
+name = "serde"
+version = "1.0.228"
+source = "sparse+https://index.crates.io/"
+checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+"#;
+
+    assert_eq!(parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().len(), 1);
 }
 
 #[test]
@@ -140,6 +191,17 @@ fn configures_the_selected_sparse_registry_as_the_vendored_source() {
     assert!(config.contains("[source.pnpm-registry]"));
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
     assert!(config.contains(r#"replace-with = "pnpm-registry-directory""#));
+}
+
+#[test]
+fn escapes_a_registry_url_that_is_not_a_bare_toml_string() {
+    let config = managed_config("https://registry.example.test/o'brien/index");
+
+    let parsed: toml::Table = toml::from_str(&config).expect("managed config is valid TOML");
+    assert_eq!(
+        parsed["source"]["pnpm-registry"]["registry"].as_str(),
+        Some("sparse+https://registry.example.test/o'brien/index/"),
+    );
 }
 
 #[test]

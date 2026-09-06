@@ -16,6 +16,7 @@ mod bin;
 mod bugs;
 mod bundled_dependencies;
 mod cache;
+mod cargo_install;
 mod cat_file;
 mod cat_index;
 mod catalog;

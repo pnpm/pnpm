@@ -8,6 +8,7 @@
 //! client-supplied registry. The client then links `node_modules` from the
 //! server-produced lockfile.
 
+use crate::cargo_install::crate_archive;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
@@ -41,14 +42,8 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// boundary); returns its base URL and a pre-seeded bearer token.
 fn start_pnpr(registry_url: &str) -> (String, String) {
     let registry_url = registry_url.to_string();
-    // Persisted (not cleaned) because the detached server thread outlives
-    // this function.
-    let storage = tempfile::tempdir().expect("pnpr storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
-    // tokio's `from_std` requires the listener to be non-blocking.
-    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
-    let addr = listener.local_addr().expect("pnpr addr");
-    let tokens_path = storage.join("tokens.db");
+    let server = PnprServer::bind("pnpr");
+    let tokens_path = server.storage.join("tokens.db");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -58,122 +53,91 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
         tokens.issue("pacquet-test").await.expect("issue pnpr test token")
     });
 
-    thread::Builder::new()
-        .name("pnpr".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("pnpr runtime");
-            runtime.block_on(async move {
-                let mut config = pnpr::Config::proxy(addr, storage);
-                config.public_url = format!("http://{addr}");
-                config.auth.tokens.file = Some(tokens_path);
-                config
-                    .route_policy
-                    .public
-                    .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
-                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
-                let _ = pnpr::serve_listener(config, listener).await;
-            });
-        })
-        .expect("spawn pnpr thread");
-
-    wait_until_ready(addr);
+    let addr = server.serve(move |config| {
+        config.auth.tokens.file = Some(tokens_path);
+        config
+            .route_policy
+            .public
+            .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
+    });
     (format!("http://{addr}/"), token)
 }
 
-fn start_pnpr_registry(upstream_url: &str) -> String {
+/// Start an in-process pnpr that proxies one upstream registry of
+/// `ecosystem`, and return the base URL its clients address.
+fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
     let upstream_url = upstream_url.to_string();
-    let storage = tempfile::tempdir().expect("pnpr storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
-    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
-    let addr = listener.local_addr().expect("pnpr addr");
-
-    thread::Builder::new()
-        .name("pnpr-registry".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("pnpr runtime");
-            runtime.block_on(async move {
-                let mut config = pnpr::Config::proxy(addr, storage);
-                config.public_url = format!("http://{addr}");
-                config.upstreams.get_mut("npmjs").unwrap().url = upstream_url;
-                config.registries = pnpr::Registries::new(
-                    std::iter::once((
-                        "npmjs".to_string(),
-                        pnpr::Registry::Upstream { patterns: Vec::new() },
-                    ))
-                    .collect(),
-                    Some("npmjs".to_string()),
-                );
-                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
-                let _ = pnpr::serve_listener(config, listener).await;
-            });
-        })
-        .expect("spawn pnpr registry thread");
-
-    wait_until_ready(addr);
-    format!("http://{addr}")
-}
-
-fn start_pnpr_cargo_registry(upstream_url: &str) -> String {
-    let upstream_url = upstream_url.to_string();
-    let storage = tempfile::tempdir().expect("pnpr storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
-    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
-    let addr = listener.local_addr().expect("pnpr addr");
-    let public_url = format!("http://{addr}");
-
-    thread::Builder::new()
-        .name("pnpr-cargo-registry".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("pnpr runtime");
-            runtime.block_on(async move {
-                let mut config = pnpr::Config::proxy(addr, storage);
-                config.public_url = public_url;
-                config.upstreams.insert(
-                    "crates".to_string(),
-                    UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
-                );
-                config.registries = Registries::new(
-                    indexmap::IndexMap::from([(
-                        "crates".to_string(),
-                        Registry::Upstream { patterns: Vec::new() },
-                    )]),
-                    Some("crates".to_string()),
-                )
-                .with_ecosystem("crates", Ecosystem::Cargo);
-                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
-                let _ = pnpr::serve_listener(config, listener).await;
-            });
-        })
-        .expect("spawn pnpr Cargo registry thread");
-
-    wait_until_ready(addr);
-    format!("http://{addr}/cargo/")
-}
-
-fn crate_archive(name: &str, version: &str) -> Vec<u8> {
-    let root = format!("{name}-{version}");
-    let encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-    let mut builder = tar::Builder::new(encoder);
-    for (path, contents) in [
-        ("Cargo.toml", format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n")),
-        ("src/lib.rs", "pub fn answer() -> u8 { 42 }\n".to_string()),
-    ] {
-        let mut header = tar::Header::new_gnu();
-        header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder.append_data(&mut header, format!("{root}/{path}"), contents.as_bytes()).unwrap();
+    let name = "upstream";
+    let addr = PnprServer::bind("pnpr-registry").serve(move |config| {
+        config.upstreams.insert(
+            name.to_string(),
+            UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
+        );
+        config.registries = Registries::new(
+            indexmap::IndexMap::from([(
+                name.to_string(),
+                Registry::Upstream { patterns: Vec::new() },
+            )]),
+            Some(name.to_string()),
+        )
+        .with_ecosystem(name, ecosystem);
+    });
+    // The server's root is its npm alias; every other ecosystem is
+    // addressed under its own prefix.
+    if ecosystem == Ecosystem::Npm {
+        format!("http://{addr}")
+    } else {
+        format!("http://{addr}/{ecosystem}/")
     }
-    builder.into_inner().unwrap().finish().unwrap()
+}
+
+/// A bound port and storage directory waiting for [`Self::serve`] to start
+/// pnpr on them. Binding first lets a caller seed storage — a token store,
+/// say — with the address the server will answer on already known.
+struct PnprServer {
+    name: &'static str,
+    listener: TcpListener,
+    addr: SocketAddr,
+    /// Persisted (not cleaned) because the detached server thread outlives
+    /// the test that started it.
+    storage: std::path::PathBuf,
+}
+
+impl PnprServer {
+    fn bind(name: &'static str) -> Self {
+        let storage = tempfile::tempdir().expect("pnpr storage").keep();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
+        // tokio's `from_std` requires the listener to be non-blocking.
+        listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
+        let addr = listener.local_addr().expect("pnpr addr");
+        Self { name, listener, addr, storage }
+    }
+
+    /// Run the server on a detached thread until the process exits, with
+    /// `configure` applied to the proxy defaults. Returns once it answers.
+    fn serve(self, configure: impl FnOnce(&mut pnpr::Config) + Send + 'static) -> SocketAddr {
+        let Self { name, listener, addr, storage } = self;
+        thread::Builder::new()
+            .name(name.to_string())
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("pnpr runtime");
+                runtime.block_on(async move {
+                    let mut config = pnpr::Config::proxy(addr, storage);
+                    config.public_url = format!("http://{addr}");
+                    configure(&mut config);
+                    let listener =
+                        tokio::net::TcpListener::from_std(listener).expect("tokio listener");
+                    let _ = pnpr::serve_listener(config, listener).await;
+                });
+            })
+            .expect("spawn pnpr thread");
+
+        wait_until_ready(addr);
+        addr
+    }
 }
 
 fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
@@ -298,7 +262,7 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
         .with_body(&tarball)
         .expect(1)
         .create();
-    let registry = start_pnpr_registry(&upstream.url());
+    let registry = start_pnpr_registry(&upstream.url(), Ecosystem::Npm);
 
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -341,7 +305,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .with_body(&first_tarball)
         .expect(1)
         .create();
-    let first_registry = start_pnpr_registry(&first_upstream.url());
+    let first_registry = start_pnpr_registry(&first_upstream.url(), Ecosystem::Npm);
 
     let mut second_upstream = mockito::Server::new();
     let (second_integrity, second_packument) =
@@ -353,7 +317,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .with_body(&second_tarball)
         .expect(1)
         .create();
-    let second_registry = start_pnpr_registry(&second_upstream.url());
+    let second_registry = start_pnpr_registry(&second_upstream.url(), Ecosystem::Npm);
 
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -1644,7 +1608,7 @@ fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
         .create();
     let download_mock =
         upstream.mock("GET", "/dl/demo/1.0.0").with_body(&archive).expect(1).create();
-    let registry_url = start_pnpr_cargo_registry(&upstream.url());
+    let registry_url = start_pnpr_registry(&upstream.url(), Ecosystem::Cargo);
     let (pnpr_url, token) = start_pnpr(&format!("{registry_url}index"));
 
     let root = tempfile::tempdir().expect("create Cargo project");

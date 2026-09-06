@@ -1,6 +1,6 @@
 use crate::{
     model::{DependencyKind, FeatureSelection, PackageKey, RegistryDependency, RegistryVersion},
-    registry::{Registry, compatibility_line, matching_versions, validate_registry},
+    registry::{Registry, compatibility_line, matching_versions},
 };
 use miette::Result;
 use pubgrub::SelectedDependencies;
@@ -167,7 +167,7 @@ fn collect_feature_selections(
     let mut pending = VecDeque::from(root_dependencies.to_vec());
 
     while let Some(dependency) = pending.pop_front() {
-        validate_registry(dependency.registry.as_deref())?;
+        registry.validate_dependency_source(dependency.registry.as_deref())?;
         let versions = registry.package(&dependency.name)?;
         let compatibility = matching_versions(versions, &dependency.requirement)
             .next_back()

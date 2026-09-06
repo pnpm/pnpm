@@ -101,7 +101,7 @@ fn locked_registry_dependencies(
 ) -> Result<Vec<Dependency>> {
     let mut dependencies = BTreeSet::new();
     for dependency in active_dependencies(package, selection)? {
-        crate::registry::validate_registry(dependency.registry.as_deref())?;
+        registry.validate_dependency_source(dependency.registry.as_deref())?;
         dependencies.insert(locked_dependency(
             &dependency.name,
             &dependency.requirement,

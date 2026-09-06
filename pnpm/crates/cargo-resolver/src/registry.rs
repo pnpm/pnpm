@@ -12,9 +12,26 @@ const CRATES_IO_SPARSE_SOURCE: &str = "sparse+https://index.crates.io/";
 /// index file is fetched from when nothing else is configured.
 pub const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
 
+/// Whether `index_url` addresses the crates.io sparse index.
+#[must_use]
+pub fn is_crates_io(index_url: &str) -> bool {
+    index_url.trim_end_matches('/') == CRATES_IO_SPARSE_INDEX
+}
+
+/// The `source` identifier of a sparse registry, as `cargo` spells it in
+/// `.cargo/config.toml` and in `Cargo.lock`.
 #[must_use]
 pub fn sparse_source(index_url: &str) -> String {
     format!("sparse+{}/", index_url.trim_end_matches('/'))
+}
+
+/// The `source` a `Cargo.lock` records for packages taken from `index_url`.
+/// crates.io keeps the canonical git identifier `cargo` itself writes even
+/// when the sparse index served the metadata; every other registry is named
+/// by its sparse index.
+#[must_use]
+pub fn registry_source(index_url: &str) -> String {
+    if is_crates_io(index_url) { CRATES_IO_SOURCE.to_string() } else { sparse_source(index_url) }
 }
 
 #[must_use]
@@ -34,15 +51,31 @@ pub fn download_url(template: &str, name: &str, version: &str, checksum: &str) -
 
 pub(crate) struct Registry {
     packages: BTreeMap<String, Vec<RegistryVersion>>,
+    source: String,
 }
 
 impl Registry {
-    pub(crate) fn new(index_files: &BTreeMap<String, String>) -> Result<Self> {
+    pub(crate) fn new(index_files: &BTreeMap<String, String>, source: &str) -> Result<Self> {
         let mut packages = BTreeMap::new();
         for (name, contents) in index_files {
             packages.insert(normalize_name(name), parse_index_file(name, contents)?);
         }
-        Ok(Self { packages })
+        Ok(Self { packages, source: source.to_string() })
+    }
+
+    /// Reject a dependency that names a registry other than the one being
+    /// resolved from. An entry without a registry is served by this one, and
+    /// a registry that mirrors crates.io keeps the upstream spelling in the
+    /// entries it copies.
+    pub(crate) fn validate_dependency_source(&self, registry: Option<&str>) -> Result<()> {
+        let Some(registry) = registry else { return Ok(()) };
+        if is_crates_io_source(registry) || same_registry(registry, &self.source) {
+            return Ok(());
+        }
+        Err(miette::miette!(
+            "dependency from Cargo registry {registry:?} cannot be resolved from {:?}",
+            self.source,
+        ))
     }
 
     pub(crate) fn versions(&self, name: &str) -> Option<&[RegistryVersion]> {
@@ -58,7 +91,10 @@ impl Registry {
 
 /// Return the newest stable, non-yanked version from a crates.io sparse-index entry.
 pub fn latest_version(name: &str, index_file: &str) -> Result<String> {
-    let registry = Registry::new(&BTreeMap::from([(name.to_string(), index_file.to_string())]))?;
+    let registry = Registry::new(
+        &BTreeMap::from([(name.to_string(), index_file.to_string())]),
+        CRATES_IO_SOURCE,
+    )?;
     registry
         .package(name)?
         .iter()
@@ -130,16 +166,19 @@ pub(crate) fn matching_versions<'a>(
     versions.iter().filter(|version| !version.yanked && requirement.matches(&version.version))
 }
 
-pub(crate) fn validate_registry(registry: Option<&str>) -> Result<()> {
-    if registry.is_none_or(|registry| {
-        matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
-    }) {
-        Ok(())
-    } else {
-        Err(miette::miette!(
-            "alternate Cargo registry {registry:?} is not supported by the crates.io proof of concept"
-        ))
-    }
+fn is_crates_io_source(registry: &str) -> bool {
+    matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
+}
+
+fn same_registry(left: &str, right: &str) -> bool {
+    strip_source_kind(left) == strip_source_kind(right)
+}
+
+fn strip_source_kind(url: &str) -> &str {
+    url.strip_prefix("sparse+")
+        .or_else(|| url.strip_prefix("registry+"))
+        .unwrap_or(url)
+        .trim_end_matches('/')
 }
 
 pub(crate) fn compatibility_line(version: &Version) -> String {
@@ -156,7 +195,10 @@ fn normalize_name(name: &str) -> String {
     name.to_ascii_lowercase()
 }
 
-fn index_prefix(name: &str) -> String {
+/// The directory part of a crate's sparse-index path, in the name's own
+/// case: `1`, `2`, `3/<first letter>`, or `<first two>/<next two>`.
+#[must_use]
+pub fn index_prefix(name: &str) -> String {
     match name.len() {
         1 => "1".to_string(),
         2 => "2".to_string(),

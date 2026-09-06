@@ -134,7 +134,7 @@ pub(super) async fn handle_resolve(
     };
 
     let metadata = request.metadata;
-    let source = pnpm_cargo_resolver::sparse_source(&index.registry);
+    let source = pnpm_cargo_resolver::registry_source(&index.registry);
     let index_files = match index.fetch_for(&metadata).await {
         Ok(index_files) => index_files,
         Err(err) => return ndjson_single_frame(&error_frame(&err)),
@@ -142,7 +142,7 @@ pub(super) async fn handle_resolve(
     // pubgrub's solve is CPU-bound and can run for a while on a large
     // workspace, so it stays off the async runtime's worker threads.
     let lockfile = tokio::task::spawn_blocking(move || {
-        pnpm_cargo_resolver::resolve_lockfile_for_registry(&metadata, &index_files, &source)
+        pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
     })
     .await;
     match lockfile {
@@ -204,8 +204,9 @@ impl IndexFetcher {
     /// fetches those, and repeats until nothing is missing.
     async fn fetch_for(&self, metadata: &str) -> Result<BTreeMap<String, String>, String> {
         let mut index_files = BTreeMap::new();
+        let source = pnpm_cargo_resolver::registry_source(&self.registry);
         for _ in 0..MAX_INDEX_WAVES {
-            let missing = pnpm_cargo_resolver::missing_index_names(metadata, &index_files)
+            let missing = pnpm_cargo_resolver::missing_index_names(metadata, &index_files, &source)
                 .map_err(|err| report_message(&err))?;
             if missing.is_empty() {
                 return Ok(index_files);

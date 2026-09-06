@@ -6,7 +6,7 @@ use crate::{
     lockfile::lockfile_from_solution,
     metadata::{parse_metadata, root_dependencies},
     model::{FeatureSelection, PackageKey, RegistryDependency},
-    registry::{Registry, compatibility_line, matching_versions, validate_registry},
+    registry::{Registry, compatibility_line, matching_versions},
 };
 use miette::Result;
 use pubgrub::{
@@ -15,19 +15,21 @@ use pubgrub::{
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
-/// Return sparse-index package names still needed to resolve `metadata`.
+/// Return sparse-index package names still needed to resolve `metadata`
+/// against the registry identified by `source`.
 pub fn missing_index_names(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
+    source: &str,
 ) -> Result<Vec<String>> {
     let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new(index_files)?;
+    let registry = Registry::new(index_files, source)?;
     let mut pending = VecDeque::from(root_dependencies(&metadata)?);
     let mut visited = BTreeSet::new();
     let mut missing = BTreeSet::new();
 
     while let Some(dependency) = pending.pop_front() {
-        validate_registry(dependency.registry.as_deref())?;
+        registry.validate_dependency_source(dependency.registry.as_deref())?;
         let visit_key = (
             dependency.name.clone(),
             dependency.requirement.to_string(),
@@ -53,17 +55,17 @@ pub fn missing_index_names(
 }
 
 /// Resolve Cargo registry dependencies and serialize a format-v4 `Cargo.lock`.
-pub fn resolve_lockfile(metadata: &str, index_files: &BTreeMap<String, String>) -> Result<String> {
-    resolve_lockfile_for_registry(metadata, index_files, crate::registry::CRATES_IO_SOURCE)
-}
-
-pub fn resolve_lockfile_for_registry(
+///
+/// `source` identifies the registry the index files came from and is what the
+/// resolved packages are recorded under. Build it with
+/// [`crate::registry_source`].
+pub fn resolve_lockfile(
     metadata: &str,
     index_files: &BTreeMap<String, String>,
     source: &str,
 ) -> Result<String> {
     let metadata = parse_metadata(metadata)?;
-    let registry = Registry::new(index_files)?;
+    let registry = Registry::new(index_files, source)?;
     let root_dependencies = root_dependencies(&metadata)?;
     let mut feature_selections = root_feature_selections(&registry, &root_dependencies)?;
     let mut previous_selections = Vec::new();
@@ -206,7 +208,7 @@ fn constraints_for(
 }
 
 fn package_key(registry: &Registry, dependency: &RegistryDependency) -> Result<PackageKey> {
-    validate_registry(dependency.registry.as_deref())?;
+    registry.validate_dependency_source(dependency.registry.as_deref())?;
     let compatibility =
         matching_versions(registry.package(&dependency.name)?, &dependency.requirement)
             .next_back()
