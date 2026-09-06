@@ -53,10 +53,14 @@ fn target() -> Value {
 }
 
 fn wheel_bytes(metadata: &str) -> Vec<u8> {
+    wheel_of("demo-1.0.0", metadata)
+}
+
+fn wheel_of(dist_info: &str, metadata: &str) -> Vec<u8> {
     let mut archive = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     archive
         .start_file::<_, ()>(
-            "demo-1.0.0.dist-info/METADATA",
+            format!("{dist_info}.dist-info/METADATA"),
             zip::write::SimpleFileOptions::default(),
         )
         .expect("start the metadata entry");
@@ -498,6 +502,81 @@ async fn cached_metadata_is_refused_once_the_index_publishes_another_digest() {
         frames[0]["message"].as_str().unwrap().contains("does not match the SHA-256"),
         "{frames:?}",
     );
+}
+
+/// An index that publishes no metadata file leaves the server nothing to
+/// re-check an extracted document against, so the wheel it came out of has
+/// to be the thing the cache entry is bound to.
+#[tokio::test]
+async fn metadata_read_from_a_wheel_is_not_reused_for_the_wheel_that_replaces_it() {
+    let mut index = mockito::Server::new_async().await;
+    let first = wheel_bytes("Name: demo\nVersion: 1.0.0\n");
+    let second = wheel_bytes("Name: demo\nVersion: 1.0.0\nRequires-Dist: later\n");
+    let later = wheel_of("later-1.0.0", "Name: later\nVersion: 1.0.0\n");
+    let page = |wheel: &[u8], filename: &str| {
+        project_page(&json!([{
+            "filename": filename,
+            "url": filename,
+            "hashes": { "sha256": digest(wheel) },
+        }]))
+    };
+    let demo_page = |wheel: &[u8]| page(wheel, "demo-1.0.0-py3-none-any.whl");
+    let first_page = index
+        .mock("GET", "/simple/demo/")
+        .with_body(demo_page(&first))
+        .expect(1)
+        .create_async()
+        .await;
+    let first_wheel = index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl")
+        .with_body(&first)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let mut config = config_for(tmp.path().to_path_buf());
+    config.route_policy.public.push(PublicRoute { registry: Some(index.url()), package: None });
+    let app = router_with_auth(config, auth);
+    let index_url = format!("{}/simple/", index.url());
+
+    let locked = resolved_lockfile(
+        app.clone().oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+    )
+    .await;
+    assert_eq!(locked["packages"].as_array().unwrap().len(), 1, "{locked}");
+    first_page.assert_async().await;
+    first_wheel.assert_async().await;
+
+    // Drop the cached project page, as its TTL passing would. The index now
+    // serves another wheel at the address the metadata was read from.
+    forget_cached_page(tmp.path(), "/simple/demo/");
+    index.mock("GET", "/simple/demo/").with_body(demo_page(&second)).create_async().await;
+    index
+        .mock("GET", "/simple/demo/demo-1.0.0-py3-none-any.whl")
+        .with_body(&second)
+        .create_async()
+        .await;
+    index
+        .mock("GET", "/simple/later/")
+        .with_body(page(&later, "later-1.0.0-py3-none-any.whl"))
+        .create_async()
+        .await;
+    index
+        .mock("GET", "/simple/later/later-1.0.0-py3-none-any.whl")
+        .with_body(&later)
+        .create_async()
+        .await;
+
+    let locked = resolved_lockfile(
+        app.oneshot(resolve_request(&index_url, &token, &json!(["demo"]))).await.unwrap(),
+    )
+    .await;
+    let locked = locked["packages"].as_array().unwrap();
+    let names = locked.iter().map(|package| package["name"].as_str().unwrap()).collect::<Vec<_>>();
+    assert_eq!(names, ["demo", "later"], "{locked:?}");
 }
 
 #[tokio::test]

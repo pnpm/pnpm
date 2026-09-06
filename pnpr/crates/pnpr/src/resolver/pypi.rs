@@ -238,7 +238,7 @@ impl IndexReader {
         let canonical_name = canonical_project_name(name)?;
         let page_url = project_page_url(&self.index, &canonical_name)?;
         let auth = self.auth_for(&canonical_name);
-        let cache_path = self.cache_path(&auth, &page_url);
+        let cache_path = self.cache_path(&auth, &page_url, None);
         if let Some(cached) = self.cached(&cache_path).await {
             let source = cached.url(&page_url)?;
             let page = self.hold("page", cached.body)?;
@@ -278,7 +278,15 @@ impl IndexReader {
             .map_err(|err| format!("parse the wheel URL for {name}: {err}"))?;
         validate_url(&wheel_url).map_err(|err| super::report_message(&err))?;
         let auth = self.auth_for(&canonical_name);
-        let cache_path = self.cache_path(&auth, &metadata_url(&wheel_url));
+        // An index that publishes a metadata file vouches for a digest
+        // `cached_metadata` re-checks. One that publishes none leaves the
+        // extracted document nothing to be checked against, so its cache
+        // entry is bound to the wheel it came out of instead.
+        let derived_from = match candidate.core_metadata {
+            Some(_) => None,
+            None => candidate.wheel.hashes.get("sha256").map(String::as_str),
+        };
+        let cache_path = self.cache_path(&auth, &metadata_url(&wheel_url), derived_from);
         if let Some(cached) = self.cached(&cache_path).await {
             let document = self.hold("metadata", cached.body)?;
             return Self::cached_metadata(&document, name, version, candidate);
@@ -395,14 +403,25 @@ impl IndexReader {
     /// Where `url`'s document is cached. The route scope keys the
     /// namespace, so a private index cached under one caller's credential
     /// is never read back for a caller who does not reproduce that scope.
-    fn cache_path(&self, auth: &AuthHeaders, url: &url::Url) -> PathBuf {
+    /// Where the document read from `url` is cached. `derived_from` is the
+    /// digest of the artifact a document was extracted from rather than
+    /// read whole, and joins the key so a republished artifact is read
+    /// again rather than answered from what came out of the old one.
+    fn cache_path(
+        &self,
+        auth: &AuthHeaders,
+        url: &url::Url,
+        derived_from: Option<&str>,
+    ) -> PathBuf {
         let scope = match auth.metadata_scope(url.as_str(), None) {
             MetadataCacheScope::Public => "public".to_string(),
             MetadataCacheScope::Private { descriptor_id } => descriptor_id,
         };
-        self.cache_dir
-            .join(scope)
-            .join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(url.as_str())))
+        let key = match derived_from {
+            Some(digest) => format!("{url}#{digest}"),
+            None => url.to_string(),
+        };
+        self.cache_dir.join(scope).join(format!("{}.json", pnpm_crypto_hash::create_hex_hash(&key)))
     }
 
     async fn cached(&self, path: &Path) -> Option<CachedDocument> {
