@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -139,10 +138,16 @@ export async function handler (
   }
   const preferredVersions = getPreferredVersions(versionsByPackageNames)
   const lockfileDir = opts.lockfileDir ?? opts.dir
-  const lockfileName = await getWantedLockfileName(opts)
+  // Resolved the way the installer resolves it, so the backed up file and the
+  // file the import writes back are the same one.
+  const lockfileName = await getWantedLockfileName({
+    useGitBranchLockfile: opts.useGitBranchLockfile,
+    mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+  })
   const lockfilePath = path.join(lockfileDir, lockfileName)
+  // The env document leads pnpm-lock.yaml, so a branch import has none to carry over.
   const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined
-  const backupPath = `${lockfilePath}.${randomUUID()}.import.bak`
+  const backupPath = `${lockfilePath}.import.bak`
   let lockfileExisted = true
   // The existing pnpm lockfile must not influence the imported versions.
   try {

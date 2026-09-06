@@ -148,14 +148,29 @@ test.each([
   const dir = process.cwd()
   const lockfileDir = path.join(dir, 'lockfile')
   await fs.mkdir(lockfileDir)
+  const npmLockfilePath = path.join(dir, 'package-lock.json')
+  const npmLockfile = await fs.readFile(npmLockfilePath, 'utf8')
+  // The shared lockfile resolves the transitive dependency to a version the
+  // package-lock.json does not, so a branch import reading it gets caught.
+  await fs.writeFile(npmLockfilePath, JSON.stringify({
+    lockfileVersion: 1,
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': {
+        version: '100.0.0',
+        dependencies: { '@pnpm.e2e/dep-of-pkg-with-1-dep': { version: '100.1.0' } },
+      },
+    },
+  }))
+  await importCommand.handler({ ...DEFAULT_OPTS, dir, lockfileDir }, [])
+  await fs.writeFile(npmLockfilePath, npmLockfile)
   await fs.mkdir(path.join(dir, '.git'))
   await fs.writeFile(path.join(dir, '.git/HEAD'), 'ref: refs/heads/feature/import\n')
   const sharedLockfilePath = path.join(lockfileDir, 'pnpm-lock.yaml')
-  await fs.writeFile(sharedLockfilePath, "lockfileVersion: '9.0'\nimporters: {}\n")
   const envLockfile = createEnvLockfile()
   envLockfile.importers['.'].configDependencies['@pnpm.e2e/foo'] = { specifier: '1.0.0', version: '1.0.0' }
   await writeEnvLockfile(lockfileDir, envLockfile)
   const sharedLockfile = await fs.readFile(sharedLockfilePath, 'utf8')
+  expect(sharedLockfile).toContain('@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0')
   const branchLockfilePath = path.join(lockfileDir, 'pnpm-lock.feature!import.yaml')
   const branchLockfile = '# existing branch lockfile\n'
   if (existingBranch) {
