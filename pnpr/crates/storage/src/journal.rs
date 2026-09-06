@@ -200,9 +200,10 @@ impl PublishJournal {
 
     /// Seal `packages` and make them visible: one journaled transaction over
     /// every blob and document the publish touches. Until the seal nothing
-    /// has been promoted, so a failure there removes the staged tmp files and
-    /// leaves no trace; past it the transaction is committed, so a failure to
-    /// apply leaves the entry for startup recovery rather than undoing it.
+    /// has been promoted, so a failure there takes the staged tmp files and
+    /// the half-written entry with it and leaves no trace; past it the
+    /// transaction is committed, so a failure to apply leaves the entry for
+    /// startup recovery rather than undoing it.
     pub async fn commit(
         &self,
         storage: &Storage,
@@ -248,41 +249,56 @@ impl PublishJournal {
     async fn seal(&self, packages: &[JournaledPublish<'_>]) -> Result<SealedTxn> {
         let revision_ref_owner = txn_id();
         let dir = self.root.join(&revision_ref_owner);
-        fs::create_dir_all(&dir).await?;
-        let mut manifest = Manifest { packages: Vec::with_capacity(packages.len()) };
-        for (index, package) in packages.iter().enumerate() {
-            let document_file = format!("document-{index}.json");
-            write_synced(&dir.join(&document_file), package.document).await?;
-            manifest.packages.push(ManifestPackage {
-                name: package.name.as_str().to_string(),
-                ecosystem: package.ecosystem,
-                org: package.org.map(str::to_string),
-                document_file,
-                blobs: package
-                    .slots
-                    .iter()
-                    .map(|slot| ManifestBlob {
-                        filename: slot.filename().to_string(),
-                        tmp_path: slot.tmp_path.clone(),
-                    })
-                    .collect(),
-                revision_refs: package.revision_refs.to_vec(),
-            });
+        if let Err(err) = write_transaction(&dir, packages).await {
+            // Nothing of an unsealed transaction may become visible. Startup
+            // recovery would roll this one back, but removing it here keeps a
+            // publisher that keeps failing from piling up directories.
+            let _ = fs::remove_dir_all(&dir).await;
+            return Err(err);
         }
-        write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
-        let _ = sync_dir(&dir).await;
-        // The seal itself: a single same-directory rename, atomic on
-        // POSIX. Recovery treats a directory without this marker as an
-        // aborted transaction and rolls it back.
-        let marker = dir.join(COMMIT_MARKER);
-        let marker_tmp = unique_tmp_path(&marker);
-        write_synced(&marker_tmp, b"").await?;
-        fs::rename(&marker_tmp, &marker).await?;
-        let _ = sync_dir(&dir).await;
         let base_versions = packages.iter().map(|package| package.base_version.cloned()).collect();
         Ok(SealedTxn { dir, revision_ref_owner, base_versions })
     }
+}
 
+/// Write the transaction's documents and manifest and seal them with the
+/// commit marker, the single atomic rename that commits the publish.
+async fn write_transaction(dir: &Path, packages: &[JournaledPublish<'_>]) -> Result<()> {
+    fs::create_dir_all(dir).await?;
+    let mut manifest = Manifest { packages: Vec::with_capacity(packages.len()) };
+    for (index, package) in packages.iter().enumerate() {
+        let document_file = format!("document-{index}.json");
+        write_synced(&dir.join(&document_file), package.document).await?;
+        manifest.packages.push(ManifestPackage {
+            name: package.name.as_str().to_string(),
+            ecosystem: package.ecosystem,
+            org: package.org.map(str::to_string),
+            document_file,
+            blobs: package
+                .slots
+                .iter()
+                .map(|slot| ManifestBlob {
+                    filename: slot.filename().to_string(),
+                    tmp_path: slot.tmp_path.clone(),
+                })
+                .collect(),
+            revision_refs: package.revision_refs.to_vec(),
+        });
+    }
+    write_synced(&dir.join(MANIFEST_FILE), &serde_json::to_vec_pretty(&manifest)?).await?;
+    let _ = sync_dir(dir).await;
+    // The seal itself: a single same-directory rename, atomic on
+    // POSIX. Recovery treats a directory without this marker as an
+    // aborted transaction and rolls it back.
+    let marker = dir.join(COMMIT_MARKER);
+    let marker_tmp = unique_tmp_path(&marker);
+    write_synced(&marker_tmp, b"").await?;
+    fs::rename(&marker_tmp, &marker).await?;
+    let _ = sync_dir(dir).await;
+    Ok(())
+}
+
+impl PublishJournal {
     /// Bring every journal entry to a consistent state: sealed transactions
     /// are applied, unsealed ones rolled back. Must run before the server
     /// accepts requests — it takes no package locks.

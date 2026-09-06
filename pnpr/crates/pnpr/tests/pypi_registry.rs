@@ -485,7 +485,8 @@ async fn conflicting_object_store_upload_does_not_publish_metadata_or_leave_stag
             let path = entry.unwrap().path();
             if path.is_dir() {
                 staged.extend(staged_files(&path));
-            } else if path.to_string_lossy().contains(".tmp") {
+            } else if path.file_name().is_some_and(|name| name.to_string_lossy().contains(".tmp."))
+            {
                 staged.push(path);
             }
         }
