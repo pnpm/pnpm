@@ -245,6 +245,6 @@ fn workspace_selectors_reject_a_selector_without_a_package_name() {
 
     assert!(
         matches!(&err, AddError::NoPkgNameInSpec { selector } if selector == "./local-dir"),
-        "{err}"
+        "{err}",
     );
 }
