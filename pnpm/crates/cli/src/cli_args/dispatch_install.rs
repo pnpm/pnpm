@@ -236,6 +236,15 @@ fn install_with_update_check<'a>(
     args: InstallArgs,
     update_check_policy: UpdateCheckPolicy,
 ) -> miette::Result<CommandFuture<'a>> {
+    let install = install_with_config(ctx, args, update_check_policy)?;
+    Ok(Box::pin(async move { install.await.map(|_| ()) }))
+}
+
+fn install_with_config<'a>(
+    ctx: &RunCtx<'a>,
+    args: InstallArgs,
+    update_check_policy: UpdateCheckPolicy,
+) -> miette::Result<CommandFuture<'a, &'static Config>> {
     let dir = ctx.dir;
     let manifest_path = ctx.manifest_path;
     let reporter = ctx.reporter;
@@ -295,10 +304,14 @@ fn install_with_update_check<'a>(
             };
             let installed = match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(pipeline.run::<DefaultReporter>()).await
+                    Box::pin(pipeline.run_with_config::<DefaultReporter>()).await
                 }
-                ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await,
-                ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await,
+                ReporterType::Ndjson => {
+                    Box::pin(pipeline.run_with_config::<NdjsonReporter>()).await
+                }
+                ReporterType::Silent => {
+                    Box::pin(pipeline.run_with_config::<SilentReporter>()).await
+                }
             };
             update_notifier::settle(update_check, &installed).await;
             installed
@@ -395,17 +408,19 @@ pub(super) fn pipeline<'a>(
     let install_future = if invocation.dry_run {
         None
     } else {
-        Some(install_with_update_check(ctx, install_args, UpdateCheckPolicy::Skip)?)
+        Some(install_with_config(ctx, install_args, UpdateCheckPolicy::Skip)?)
     };
     let dir = ctx.dir;
     let reporter = ctx.reporter;
     let config = ctx.config;
     Ok(Box::pin(async move {
-        if let Some(install) = install_future {
-            install.await?;
-        }
-        let cfg = config()?;
-        apply_update_config(cfg, dir, reporter).await?;
+        let cfg = if let Some(install) = install_future {
+            install.await?
+        } else {
+            let cfg = config()?;
+            apply_update_config(cfg, dir, reporter).await?;
+            cfg
+        };
         let outcome = run_pipeline(&invocation, cfg, dir, reporter)?;
         // The run is recorded before the failure exit is raised, so a red
         // run reaches the server too.

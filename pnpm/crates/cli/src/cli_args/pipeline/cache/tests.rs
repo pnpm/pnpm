@@ -83,9 +83,22 @@ fn output_globs_select_only_declared_files_and_deduplicate() {
 fn repeat_publication_leaves_the_first_snapshot_complete() {
     let (project, _storage, cache) = setup();
     fs::write(project.path().join("out/result"), "changed").unwrap();
-    cache.store("abcdef", project.path(), "build", &["out/**".to_string()], Vec::new()).unwrap();
+    let previous = fs::read(cache.output_record_path("build")).unwrap();
+    fs::write(project.path().join("out/new-output"), "new output").unwrap();
+    assert!(
+        cache
+            .store("abcdef", project.path(), "build", &["out/**".to_string()], Vec::new())
+            .is_err(),
+        "conflicting snapshots must not update restoration ownership",
+    );
+    assert_eq!(fs::read(cache.output_record_path("build")).unwrap(), previous);
     let stored = cache.lookup("abcdef").unwrap();
     assert_eq!(fs::read_to_string(stored.entry_dir.join("outputs/out/result")).unwrap(), "built");
+    assert!(
+        cache.restore(&stored, project.path(), "build").is_err(),
+        "the changed working output must be preserved",
+    );
+    assert_eq!(fs::read_to_string(project.path().join("out/new-output")).unwrap(), "new output");
 }
 
 #[test]

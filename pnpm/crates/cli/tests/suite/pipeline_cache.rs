@@ -8,13 +8,13 @@ fn configured_environment_changes_invalidate_task_outputs() {
     assert!(Command::new("git").arg("init").arg(project.path()).output().unwrap().status.success());
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("src/input"), "source").unwrap();
-    fs::write(project.path().join(".gitignore"), "out/\nnode_modules/\n").unwrap();
+    fs::write(project.path().join(".gitignore"), "out/\nnode_modules/\nhook-count\n").unwrap();
     fs::write(project.path().join("package.json"), serde_json::json!({
         "name": "probe", "version": "1.0.0", "scripts": {
             "build": r#"node -e "require('fs').mkdirSync('out',{recursive:true});require('fs').writeFileSync('out/result',process.env.BUILD_MODE)""#
         }
     }).to_string()).unwrap();
-    fs::write(project.path().join(".pnpmfile.cjs"), "module.exports = { hooks: { updateConfig(config) { config.extraEnv = { ...config.extraEnv, BUILD_MODE: process.env.PIPELINE_TEST_MODE }; return config; } } }").unwrap();
+    fs::write(project.path().join(".pnpmfile.cjs"), r"module.exports = { hooks: { updateConfig(config) { const fs = require('fs'); const file = require('path').join(__dirname, 'hook-count'); fs.appendFileSync(file, 'called\n'); config.extraEnv = { ...config.extraEnv, BUILD_MODE: process.env.PIPELINE_TEST_MODE }; return config; } } }").unwrap();
     let storage = tempfile::tempdir().unwrap();
     let command = || {
         let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
@@ -34,6 +34,7 @@ fn configured_environment_changes_invalidate_task_outputs() {
                 .assert()
                 .success();
         }
+        fs::write(project.path().join("hook-count"), "").unwrap();
         let result = command()
             .env("PIPELINE_TEST_MODE", value)
             .env("BUILD_MODE", "ambient")
@@ -43,6 +44,7 @@ fn configured_environment_changes_invalidate_task_outputs() {
         let output = String::from_utf8_lossy(&result.get_output().stdout);
         assert_eq!(output.contains("restored from cache"), index == 2, "{output}");
         assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), value);
+        assert_eq!(fs::read_to_string(project.path().join("hook-count")).unwrap(), "called\n");
     }
     for reporter in ["ndjson", "silent"] {
         let result = command()
@@ -94,5 +96,37 @@ fn affected_selection_keeps_an_enabled_workspace_root_dependent() {
             .iter()
             .any(|task| task["project"] == "." && task["script"] == "build"),
         "root dependent must participate: {document}",
+    );
+}
+
+#[test]
+fn affected_selection_keeps_the_workspace_root_as_an_upstream_dependency() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "demo");
+    fixture.write_file(
+        "package.json",
+        r#"{"name":"root","version":"1.0.0","private":true,"scripts":{"build":"echo root"}}"#,
+    );
+    fixture.write_file("pnpm-workspace.yaml", "packages: [pkg]\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: ['^build']\n");
+    fixture.write_file("pkg/package.json", r#"{"name":"dep","version":"1.0.0","scripts":{"build":"echo dep"},"dependencies":{"root":"workspace:*"}}"#);
+    fixture.write_file("pkg/source", "first");
+    let base = fixture.commit("initial");
+    fixture.write_file("pkg/source", "second");
+    let result = Command::cargo_bin("pnpm")
+        .unwrap()
+        .without_ambient_pnpm_config()
+        .current_dir(root.path().join("demo-src"))
+        .env("XDG_CONFIG_HOME", root.path().join("config"))
+        .args(["pipeline", "--base", &base, "--dry-run", "--json"])
+        .assert()
+        .success();
+    let document: serde_json::Value = serde_json::from_slice(&result.get_output().stdout).unwrap();
+    assert!(
+        document["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|task| task["project"] == "." && task["script"] == "build"),
+        "root dependency must participate: {document}",
     );
 }

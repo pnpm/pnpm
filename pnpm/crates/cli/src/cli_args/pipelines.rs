@@ -355,6 +355,12 @@ pub(crate) struct InstallPipeline {
 
 impl InstallPipeline {
     pub(crate) async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        self.run_with_config::<Reporter>().await.map(|_| ())
+    }
+
+    pub(crate) async fn run_with_config<Reporter: self::Reporter + 'static>(
+        self,
+    ) -> miette::Result<&'static Config> {
         let InstallPipeline {
             args,
             cfg,
@@ -421,14 +427,14 @@ impl InstallPipeline {
             InstallFamilyPlan::Single => true,
         };
         if !installs_node && !ecosystem_install::is_enabled(cfg) {
-            return Ok(());
+            return Ok(cfg);
         }
 
         let http_client = State::new_http_client(cfg).wrap_err("initialize the install network")?;
         let cfg: &'static Config = cfg;
         let lockfile_only = args.lockfile_only;
         if !ecosystem_install::is_enabled(cfg) {
-            return run_node_install::<Reporter>(
+            run_node_install::<Reporter>(
                 plan,
                 args,
                 cfg,
@@ -437,7 +443,8 @@ impl InstallPipeline {
                 lockfile,
                 http_client,
             )
-            .await;
+            .await?;
+            return Ok(cfg);
         }
         let ecosystem_plan = ecosystem_install::plan::<Reporter>(
             ecosystem_install::InstallContext {
@@ -462,7 +469,8 @@ impl InstallPipeline {
         ecosystem_plan
             .with_task(pnpm_install_coordinator::InstallTask::in_place(Vec::new(), node_install))
             .run()
-            .await
+            .await?;
+        Ok(cfg)
     }
 }
 

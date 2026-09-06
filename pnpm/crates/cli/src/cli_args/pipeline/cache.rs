@@ -308,11 +308,38 @@ impl TaskCache {
         fs::write(staging_dir.join("meta.json"), serde_json::to_vec_pretty(&meta)?)?;
         match fs::rename(staging_dir, &entry_dir) {
             Ok(()) => {}
-            Err(_) if entry_dir.is_dir() => {}
-            Err(error) => return Err(error),
+            Err(error) => {
+                let destination_exists = matches!(
+                    error.kind(),
+                    io::ErrorKind::AlreadyExists | io::ErrorKind::DirectoryNotEmpty,
+                ) || cfg!(windows)
+                    && error.kind() == io::ErrorKind::PermissionDenied;
+                // Windows can report access denied when a destination directory already exists.
+                if !destination_exists || !self.matches_snapshot(key, &meta)? {
+                    return Err(error);
+                }
+            }
         }
         self.write_output_record(task_id, &record);
         Ok(())
+    }
+
+    fn matches_snapshot(&self, key: &str, expected: &StoredTask) -> io::Result<bool> {
+        let Some(stored) = self.lookup(key) else {
+            return Ok(false);
+        };
+        if stored.files != expected.files || stored.hashes != expected.hashes {
+            return Ok(false);
+        }
+        for relative in &stored.files {
+            check_ancestors(&stored.entry_dir, &Path::new("outputs").join(relative))?;
+            if create_hex_hash_from_file(&stored.entry_dir.join("outputs").join(relative))?
+                != stored.hashes[relative]
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     fn entry_dir(&self, key: &str) -> PathBuf {

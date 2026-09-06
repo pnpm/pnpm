@@ -83,8 +83,7 @@ pub struct PipelineArgs {
     #[clap(long)]
     pub json: bool,
 
-    /// Run every task even when a cached result exists, and overwrite the
-    /// cached entries.
+    /// Run every task without reading or writing cached results or Cargo snapshots.
     #[clap(long = "no-cache")]
     pub no_cache: bool,
 
@@ -557,7 +556,9 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         for dependency in
             graph.get(&dir).map(|node| node.dependencies.as_slice()).unwrap_or_default()
         {
-            if dependency.as_path() != workspace_root && selected.insert(dependency.clone()) {
+            if (config.include_workspace_root || dependency.as_path() != workspace_root)
+                && selected.insert(dependency.clone())
+            {
                 stack.push(dependency.clone());
             }
         }

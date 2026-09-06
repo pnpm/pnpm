@@ -22,7 +22,8 @@ use pnpm_network_web_auth::OtpNonInteractiveError;
 use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
 use std::{future::Future, path::Path, pin::Pin};
 
-pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
+pub(crate) type CommandFuture<'a, Output = ()> =
+    Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
 /// The shared context every subcommand handler needs: the canonicalized
 /// `--dir`, the derived `package.json` path, the selected reporter, the
