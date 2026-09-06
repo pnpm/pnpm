@@ -17,7 +17,10 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
-use pnpr::{AccessList, AuthState, Config, Ecosystem, router_with_auth};
+use pnpr::{
+    AccessList, AuthState, Config, Ecosystem, PackagePattern, PackageRule, PackageRules,
+    router_with_auth,
+};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -426,10 +429,64 @@ async fn a_repository_name_the_grammar_refuses_never_reaches_storage() {
     let tmp = TempDir::new().unwrap();
     let app = app(&tmp);
 
-    for name in ["acme/../etc", "acme/App"] {
+    for name in ["acme/../etc", "acme/.hidden", "acme/-leading"] {
         let response = get(&app, &format!("/v2/{name}/tags/list")).await;
-        assert_ne!(response.status(), StatusCode::OK, "{name}");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
+        let payload: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(payload["errors"][0]["code"], "NAME_INVALID", "{name}");
     }
+}
+
+#[tokio::test]
+async fn a_repository_name_is_case_folded_rather_than_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    // Two spellings are one repository, not two directories that a
+    // case-insensitive filesystem would then collide.
+    let response = get(&app, "/v2/ACME/App/tags/list").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["name"], "acme/app");
+    assert_eq!(payload["tags"], json!(["1.0"]));
+}
+
+#[tokio::test]
+async fn the_catalog_omits_repositories_the_caller_may_not_read() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    let hosted = config.hosted.get_mut("images").expect("the hosted image registry");
+    // Reads are open by default, and `acme/secret` refines that to require a
+    // caller. A listing must apply the same rule its fetches would.
+    hosted.rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("acme/secret", Ecosystem::Oci).unwrap(),
+            access: Some(AccessList::from_tokens(["$authenticated"])),
+            publish: None,
+            unpublish: None,
+        }],
+        Some(AccessList::from_tokens(["$all"])),
+    );
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+    push_image(&app, &auth, "acme/secret", "1.0").await;
+
+    let response = get(&app, "/v2/_catalog").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/app"]));
+
+    let request = Request::get("/v2/_catalog")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.oneshot(request).await.unwrap();
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/app", "acme/secret"]));
 }
 
 #[tokio::test]
@@ -478,4 +535,118 @@ async fn a_delete_is_refused_unless_the_registry_opens_destructive_writes() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
     assert_eq!(get(&app, "/v2/acme/app/manifests/1.0").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_manifest_whose_descriptor_size_is_wrong_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+    push_blob(&app, &auth, "acme/app", b"layer").await;
+
+    // The blobs are there, but the manifest lies about how long the layer is,
+    // which a client that verifies descriptors would refuse to pull.
+    let manifest = serde_json::to_vec(&json!({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": { "digest": digest_of(b"config"), "size": 6 },
+        "layers": [{ "digest": digest_of(b"layer"), "size": 9999 }],
+    }))
+    .unwrap();
+    let request = Request::put("/v2/acme/app/manifests/1.0")
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+        .body(Body::from(manifest))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["errors"][0]["code"], "MANIFEST_INVALID");
+}
+
+#[tokio::test]
+async fn a_reference_that_is_neither_tag_nor_digest_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    // `sha256:short` parses as neither, and storing it verbatim would leave a
+    // digest-shaped entry in the tag list.
+    for reference in ["sha256:short", ".leading-dot", "has%2Fslash"] {
+        let request = Request::put(format!("/v2/acme/app/manifests/{reference}"))
+            .header(header::AUTHORIZATION, &auth)
+            .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
+            .body(Body::from(image_manifest("config", &["layer"])))
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_ne!(response.status(), StatusCode::CREATED, "{reference} should not be a tag");
+    }
+
+    let response = get(&app, "/v2/acme/app/tags/list").await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["tags"], json!(["1.0"]));
+}
+
+#[tokio::test]
+async fn reads_of_a_private_repository_are_kept_out_of_shared_caches() {
+    let tmp = TempDir::new().unwrap();
+    let config = oci_config(tmp.path().to_path_buf(), "$authenticated");
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "1.0").await;
+
+    for path in ["/v2/acme/app/manifests/1.0", "/v2/acme/app/tags/list", "/v2/_catalog"] {
+        let request =
+            Request::get(path).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).map(|value| value.to_str().unwrap()),
+            Some("private, no-store"),
+            "{path} must not be storable by a shared cache",
+        );
+    }
+}
+
+#[tokio::test]
+async fn concurrent_chunks_of_one_upload_neither_lose_nor_duplicate_bytes() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+
+    // Requests for one upload are serialized, so whichever order these land in
+    // the upload holds exactly both chunks. Without that the two appends could
+    // interleave, and the digest a later PUT verified would not be the bytes
+    // that got promoted.
+    let patch = |chunk: &'static str| {
+        let app = app.clone();
+        let auth = auth.clone();
+        let location = location.clone();
+        async move {
+            let request = Request::patch(&location)
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from(chunk))
+                .unwrap();
+            app.oneshot(request).await.unwrap().status()
+        }
+    };
+    let one = patch("aaaaa");
+    let two = patch("bbbbb");
+    let (first, second) = tokio::join!(one, two);
+    assert_eq!(first, StatusCode::ACCEPTED);
+    assert_eq!(second, StatusCode::ACCEPTED);
+
+    let request =
+        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-9");
 }

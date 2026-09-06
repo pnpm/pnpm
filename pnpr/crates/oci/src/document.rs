@@ -24,6 +24,14 @@ pub struct TagEntry {
     /// re-apply — would let a transaction recovered after a crash drag a tag
     /// back to an older manifest. Comparing timestamps instead makes the
     /// merge monotonic, so re-applying an old write is a no-op.
+    ///
+    /// A tie goes to the incoming write. Live writes to one repository are
+    /// serialized by its package lock, so two of them landing in the same
+    /// millisecond are still ordered, and the later one has to win or a push
+    /// that answered `201` would leave the tag where it was. Timestamps from
+    /// two instances can still disagree under clock skew, which is part of
+    /// the cross-replica write story tracked in
+    /// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
     pub updated: String,
 }
 
@@ -150,8 +158,16 @@ impl ImageDocument {
         for entry in addition.tags {
             if lost_blobs.contains(&entry.digest.blob_filename())
                 || self.manifest(&entry.digest).is_none()
-                || self.tag(&entry.tag).is_some_and(|held| held.updated >= entry.updated)
             {
+                continue;
+            }
+            // A tie goes to the incoming write, but only where it moves the
+            // tag: re-applying the mapping already held is not a change, and
+            // reporting one would cost a document write for nothing.
+            let moves_the_tag = self
+                .tag(&entry.tag)
+                .is_none_or(|held| held.updated <= entry.updated && held.digest != entry.digest);
+            if !moves_the_tag {
                 continue;
             }
             self.set_tag(entry);

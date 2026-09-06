@@ -199,3 +199,35 @@ fn rejects_unusable_manifests() {
         Manifest::parse(unsupported_type.as_bytes(), Some("application/octet-stream")).is_err(),
     );
 }
+
+#[test]
+fn accepts_the_spec_tag_grammar() {
+    for tag in ["latest", "1.0", "v1_2-3", "_leading", "A", &"a".repeat(128)] {
+        assert!(crate::is_valid_tag(tag), "{tag} should be a valid tag");
+    }
+}
+
+#[test]
+fn refuses_references_that_are_neither_tag_nor_digest() {
+    for tag in ["", ".start", "-start", "has/slash", "sha256:short", "has space", &"a".repeat(129)]
+    {
+        assert!(!crate::is_valid_tag(tag), "{tag} should not be a valid tag");
+    }
+}
+
+#[test]
+fn a_tag_written_in_the_same_millisecond_still_moves() {
+    // Live writes to one repository are serialized by its package lock, so a
+    // tie is an ordering the clock could not resolve, not a conflict.
+    let same_instant = "2026-01-01T00:00:00.000Z";
+    let mut stored = ImageDocument::new("acme/app");
+    stored.insert_manifest(entry("one"));
+    stored.set_tag(tag("latest", "one", same_instant));
+
+    let mut addition = ImageDocument::new("acme/app");
+    addition.insert_manifest(entry("two"));
+    addition.set_tag(tag("latest", "two", same_instant));
+
+    assert!(stored.merge(addition, &HashSet::new()));
+    assert_eq!(stored.tag("latest").unwrap().digest, digest_of("two"));
+}

@@ -22,6 +22,27 @@ pub use document::{ImageDocument, ManifestEntry, TagEntry};
 pub use error_body::{ErrorBody, ErrorCode};
 pub use manifest::{Descriptor, Manifest, ManifestError};
 
+/// The longest tag the distribution spec admits.
+pub const MAX_TAG_LEN: usize = 128;
+
+/// Whether `tag` matches the spec's tag grammar,
+/// `[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}`.
+///
+/// A manifest reference is a tag or a digest and nothing else, so anything
+/// that is neither has to be refused: stored verbatim it would be metadata no
+/// conforming client could address, and a digest-shaped near-miss like
+/// `sha256:short` would sit in the tag list looking like a digest.
+#[must_use]
+pub fn is_valid_tag(tag: &str) -> bool {
+    let mut characters = tag.chars();
+    let Some(first) = characters.next() else { return false };
+    tag.len() <= MAX_TAG_LEN
+        && (first.is_ascii_alphanumeric() || first == '_')
+        && characters.all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '.' | '_' | '-')
+        })
+}
+
 /// The path segment every distribution endpoint sits under. Clients derive it
 /// from the image reference's host, so it cannot be moved or renamed.
 pub const API_SEGMENT: &str = "v2";

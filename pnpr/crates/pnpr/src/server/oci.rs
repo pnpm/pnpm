@@ -18,8 +18,8 @@
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
     documents::{read_hosted_document, store_hosted_artifact},
-    ecosystem::{addressed_registry, hosted_sources},
-    hosted_read_namespace,
+    ecosystem::{addressed_registry, caller_scoped, hosted_sources},
+    hosted_read_namespace, private_no_cache,
     publishing::{PublishTarget, resolve_publish_target_for},
     resolve_ecosystem_source,
 };
@@ -35,6 +35,7 @@ use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;
 use pnpr_oci::{
     API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry, TagEntry,
+    is_valid_tag,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -56,6 +57,10 @@ const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
 
 /// The largest single blob accepted. Image layers are the only artifact pnpr
 /// serves that routinely runs to gigabytes.
+///
+/// As a `DefaultBodyLimit` this bounds one request. A resumable upload is many
+/// requests, so [`append_body`] holds the whole upload to the same
+/// ceiling; without that, chunks that are each under the limit add up past it.
 const MAX_BLOB_BYTES: usize = 10 * 1024 * 1024 * 1024;
 
 /// How much of a blob is hashed per read when verifying a finished upload.
@@ -227,7 +232,9 @@ impl Request {
         }
         repositories.sort();
         repositories.dedup();
-        json(StatusCode::OK, &Catalog { repositories })
+        // The listing is built from what this caller may read, so it is
+        // caller-specific whichever registry it came through.
+        private_no_cache(json(StatusCode::OK, &Catalog { repositories }))
     }
 
     /// `GET /v2/<name>/tags/list`.
@@ -239,15 +246,25 @@ impl Request {
             Ok(found) => found,
             Err(refusal) => return refusal.respond(),
         };
-        match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
-            .await
-        {
-            Ok(Some(document)) => {
-                json(StatusCode::OK, &TagList { name: key.as_str(), tags: document.tag_names() })
-            }
-            Ok(None) => unknown_repository(name).respond(),
-            Err(err) => registry_error(err),
-        }
+        let response =
+            match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
+                .await
+            {
+                Ok(Some(document)) => json(
+                    StatusCode::OK,
+                    &TagList { name: key.as_str(), tags: document.tag_names() },
+                ),
+                Ok(None) => unknown_repository(name).respond(),
+                Err(err) => registry_error(err),
+            };
+        self.caller_scoped(Some(key.as_str()), response)
+    }
+
+    /// Keep a response that can vary by caller out of shared caches, the way
+    /// every other surface does. Without it an intermediary could replay an
+    /// authenticated pull of a private repository to the next caller.
+    fn caller_scoped(&self, package: Option<&str>, response: Response) -> Response {
+        caller_scoped(&self.state, ECOSYSTEM, self.registry.as_deref(), package, response)
     }
 
     /// `HEAD`/`GET`/`PUT`/`DELETE /v2/<name>/manifests/<reference>`.
@@ -288,15 +305,18 @@ impl Request {
             Ok(None) => return error(ErrorCode::ManifestUnknown, "no such manifest"),
             Err(err) => return registry_error(err),
         };
-        let body =
-            if self.method == Method::HEAD { Body::empty() } else { Body::from(bytes.clone()) };
-        Response::builder()
+        // `Content-Length` is the manifest's own length on a HEAD too, which is
+        // what a client reads to decide whether it already holds the bytes.
+        let length = bytes.len();
+        let body = if self.method == Method::HEAD { Body::empty() } else { Body::from(bytes) };
+        let response = Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, entry.media_type)
-            .header(header::CONTENT_LENGTH, bytes.len())
+            .header(header::CONTENT_LENGTH, length)
             .header(DOCKER_CONTENT_DIGEST, entry.digest.to_string())
             .body(body)
-            .unwrap_or_else(|_| server_error())
+            .unwrap_or_else(|_| server_error());
+        self.caller_scoped(Some(key.as_str()), response)
     }
 
     async fn write_manifest(&self, name: &str, reference: &str, body: Body) -> Response {
@@ -325,7 +345,19 @@ impl Request {
         };
         let storage = self.state.inner.storage.for_hosted(&org);
         for descriptor in manifest.references() {
+            // The size is part of what a client verifies, so a descriptor that
+            // disagrees with the stored bytes publishes an image nothing can
+            // pull. Refuse it here rather than at every puller.
             match storage.open_hosted_blob(&key, &descriptor.digest.blob_filename()).await {
+                Ok(Some((_, Some(size)))) if size != descriptor.size => {
+                    return error(
+                        ErrorCode::ManifestInvalid,
+                        format!(
+                            "{} is {size} bytes, but the manifest declares {}",
+                            descriptor.digest, descriptor.size,
+                        ),
+                    );
+                }
                 Ok(Some(_)) => {}
                 Ok(None) => {
                     return error(
@@ -344,6 +376,9 @@ impl Request {
             size: bytes.len() as u64,
         });
         if Digest::parse(reference).is_err() {
+            if !is_valid_tag(reference) {
+                return error(ErrorCode::ManifestInvalid, "not a valid tag or digest");
+            }
             addition.set_tag(TagEntry {
                 tag: reference.to_string(),
                 digest: digest.clone(),
@@ -441,7 +476,8 @@ impl Request {
             response = response.header(header::CONTENT_LENGTH, size);
         }
         let body = if self.method == Method::HEAD { Body::empty() } else { body };
-        response.body(body).unwrap_or_else(|_| server_error())
+        let response = response.body(body).unwrap_or_else(|_| server_error());
+        self.caller_scoped(Some(key.as_str()), response)
     }
 
     async fn delete_blob(&self, name: &str, digest: &Digest) -> Response {
@@ -484,7 +520,7 @@ impl Request {
             Ok(upload) => upload,
             Err(err) => return registry_error(err),
         };
-        if let Err(refusal) = append_body(&upload, body).await {
+        if let Err(refusal) = append_body(&storage, &upload, body).await {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return refusal.respond();
         }
@@ -502,6 +538,11 @@ impl Request {
             Ok(target) => target,
             Err(refusal) => return refusal.respond(),
         };
+        // One upload is one sequence of bytes, so its requests are serialized:
+        // two chunks appending at once, or a chunk landing between the hash
+        // and the promotion, would store bytes that are not the digest they
+        // are stored under.
+        let _guard = self.state.inner.package_locks.lock(&upload_lock_key(id)).await;
         let storage = self.state.inner.storage.for_hosted(&org);
         let upload = match storage.open_blob_upload(id).await {
             Ok(Some(upload)) => upload,
@@ -513,7 +554,7 @@ impl Request {
                 if let Err(response) = self.check_chunk_start(&key, &upload).await {
                     return response;
                 }
-                match append_body(&upload, body).await {
+                match append_body(&storage, &upload, body).await {
                     Ok(()) => self.upload_progress(&key, &upload).await,
                     Err(refusal) => refusal.respond(),
                 }
@@ -525,7 +566,7 @@ impl Request {
                         "a completed upload must name its digest",
                     );
                 };
-                if let Err(refusal) = append_body(&upload, body).await {
+                if let Err(refusal) = append_body(&storage, &upload, body).await {
                     return refusal.respond();
                 }
                 self.finish_upload(&storage, upload, &key, digest).await
@@ -819,17 +860,45 @@ async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
         .map_err(|_| Refusal::new(ErrorCode::SizeInvalid, "request body is too large or truncated"))
 }
 
-/// Stream a request body onto the end of an upload.
-async fn append_body(upload: &BlobUpload, body: Body) -> Result<(), Refusal> {
+/// Stream a request body onto the end of an upload, holding the whole upload
+/// to [`MAX_BLOB_BYTES`]. The per-request body limit cannot do that on its
+/// own: a resumable upload is many requests, each one under the limit.
+///
+/// An upload that runs over is dropped rather than kept truncated at the
+/// ceiling, because what was sent is not a blob anyone asked for.
+async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Result<(), Refusal> {
+    let mut written = upload.offset().await?;
     let mut writer = upload.append().await?;
     let mut stream = body.into_data_stream();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk
             .map_err(|_| Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"))?;
+        let Some(next) = advance_within_ceiling(written, chunk.len()) else {
+            let _ = storage.abort_blob_upload(upload.id()).await;
+            return Err(Refusal::new(
+                ErrorCode::SizeInvalid,
+                format!("a blob may not exceed {MAX_BLOB_BYTES} bytes"),
+            ));
+        };
+        written = next;
         writer.write_all(&chunk).await?;
     }
     writer.finish().await?;
     Ok(())
+}
+
+/// The upload's length once `chunk` is accepted, or `None` when that would
+/// take it past [`MAX_BLOB_BYTES`]. Saturating, so a length near `u64::MAX`
+/// refuses rather than wrapping into an accept.
+fn advance_within_ceiling(written: u64, chunk: usize) -> Option<u64> {
+    let next = written.saturating_add(chunk as u64);
+    (next <= MAX_BLOB_BYTES as u64).then_some(next)
+}
+
+/// An upload's key in the shared lock table, kept out of the package keyspace
+/// so an upload and a publish of the same name never contend by accident.
+fn upload_lock_key(id: &str) -> String {
+    format!("oci-upload:{id}")
 }
 
 /// Hash a finished upload without holding it in memory.

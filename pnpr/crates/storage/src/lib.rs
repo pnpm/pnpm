@@ -32,10 +32,14 @@ pub(crate) use self::backend::HostedBackend;
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
 const DOCUMENT_FILE: &str = "package.json";
-/// How deep the hosted walk looks for a package document. An `@scope/name`
-/// needs two components and an image repository a few more; the bound is what
-/// keeps a stray deep directory from turning a listing into a full tree walk.
-const MAX_NAME_COMPONENTS: usize = 5;
+/// How deep the hosted walk looks for a package document.
+///
+/// A name is at most 255 bytes and every component past the first costs at
+/// least two of them, so this is the deepest a name can be rather than a
+/// policy of its own: the object-store backend applies no depth limit, and a
+/// walk that stopped shallower would hide a repository from one backend that
+/// the other lists.
+const MAX_NAME_COMPONENTS: usize = 128;
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
 pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
 /// Bounds both the persisted candidate set and work triggered by one digest request.
@@ -1097,6 +1101,9 @@ impl Store {
                 if name_str.starts_with('.') {
                     continue;
                 }
+                if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
+                    continue;
+                }
                 let entry_path = entry.path();
                 let name = if prefix.is_empty() {
                     name_str.into_owned()
@@ -1104,8 +1111,11 @@ impl Store {
                     format!("{prefix}/{name_str}")
                 };
                 if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                    names.push(name);
-                } else if depth < MAX_NAME_COMPONENTS {
+                    names.push(name.clone());
+                }
+                // One name may be a prefix of another, so a directory that is
+                // itself a package can still hold packages below it.
+                if depth < MAX_NAME_COMPONENTS {
                     pending.push((entry_path, name, depth + 1));
                 }
             }

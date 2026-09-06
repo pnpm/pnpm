@@ -12,7 +12,7 @@
 use crate::{BlobSlot, Storage};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use std::{fmt::Write as _, path::PathBuf};
+use std::{fmt::Write as _, path::PathBuf, time::Duration};
 use tokio::{
     fs,
     io::{AsyncWriteExt, ErrorKind},
@@ -21,6 +21,14 @@ use tokio::{
 /// Where in-progress uploads live under the backend's local scratch root.
 /// The dot prefix keeps it out of the hosted store's package walk.
 pub(crate) const UPLOADS_DIR: &str = ".pnpr-uploads";
+
+/// How long an untouched upload is kept before it is reclaimed.
+///
+/// A client that disconnects mid-push leaves its bytes behind, and nothing
+/// else would ever remove them: the id is the only handle on an upload, and
+/// only the client that started it holds one. A day is far longer than any
+/// push and short enough that abandoned ones do not accumulate.
+pub const UPLOAD_MAX_AGE: Duration = Duration::from_hours(24);
 
 /// One in-progress blob upload.
 #[derive(Debug, Clone)]
@@ -147,6 +155,31 @@ impl Storage {
             let _ = fs::remove_file(&upload.path).await;
         }
         Ok(slot)
+    }
+
+    /// Reclaim uploads untouched for `max_age`, reporting how many went.
+    ///
+    /// Runs at startup, where it also clears whatever an unclean shutdown
+    /// left behind. An upload still being written has just been appended to,
+    /// so its age is its idle time rather than its lifetime.
+    pub async fn sweep_blob_uploads(&self, max_age: Duration) -> Result<usize> {
+        let root = self.uploads_root();
+        let mut entries = match fs::read_dir(&root).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(RegistryError::Io(error)),
+        };
+        let mut swept = 0;
+        while let Some(entry) = entries.next_entry().await.map_err(RegistryError::Io)? {
+            let Ok(metadata) = entry.metadata().await else { continue };
+            let idle = metadata.modified().ok().and_then(|at| at.elapsed().ok());
+            if idle.is_some_and(|idle| idle > max_age)
+                && fs::remove_file(entry.path()).await.is_ok()
+            {
+                swept += 1;
+            }
+        }
+        Ok(swept)
     }
 
     fn uploads_root(&self) -> PathBuf {

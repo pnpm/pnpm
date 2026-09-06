@@ -324,7 +324,7 @@ Use a pnpr token as the password; the username is not checked, as on every
 registry that takes a personal access token:
 
 ```sh
-docker login pnpr.example.com -u alice -p "$PNPR_TOKEN"
+printf '%s' "$PNPR_TOKEN" | docker login pnpr.example.com -u alice --password-stdin
 docker push pnpr.example.com/acme/app:1.0
 docker pull pnpr.example.com/acme/app:1.0
 skopeo copy docker://pnpr.example.com/acme/app:1.0 oci:./app:1.0

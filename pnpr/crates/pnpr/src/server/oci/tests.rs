@@ -70,3 +70,18 @@ fn a_digest_is_read_from_the_raw_query() {
     assert_eq!(query_param(Some("mount=x&from=y"), "digest"), None);
     assert_eq!(query_param(None, "digest"), None);
 }
+
+#[test]
+fn the_blob_ceiling_bounds_the_whole_upload_not_one_chunk() {
+    use super::{MAX_BLOB_BYTES, advance_within_ceiling};
+
+    let ceiling = MAX_BLOB_BYTES as u64;
+    assert_eq!(advance_within_ceiling(0, 1), Some(1));
+    assert_eq!(advance_within_ceiling(ceiling - 1, 1), Some(ceiling));
+    // A chunk that is itself small still refuses once the upload is full,
+    // which is what the per-request body limit cannot see.
+    assert_eq!(advance_within_ceiling(ceiling, 1), None);
+    assert_eq!(advance_within_ceiling(ceiling - 1, 2), None);
+    // Saturating, so a length near the top refuses rather than wrapping.
+    assert_eq!(advance_within_ceiling(u64::MAX, 1), None);
+}
