@@ -2784,7 +2784,14 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0] } }),
+        json!({
+            "pnpr": {
+                "versions": [0],
+                "artifacts": [],
+                "fixLockfile": [0],
+                "ecosystems": ["npm", "cargo"],
+            }
+        }),
     );
 
     let verify = app
@@ -2899,7 +2906,14 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [0], "fixLockfile": [] } }),
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [0],
+                "fixLockfile": [],
+                "ecosystems": [],
+            }
+        }),
     );
 
     let artifact = app

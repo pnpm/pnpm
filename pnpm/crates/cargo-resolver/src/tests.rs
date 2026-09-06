@@ -1,4 +1,4 @@
-use super::{latest_version, missing_index_names, resolve_lockfile};
+use super::{latest_version, missing_index_names, resolve_inputs, resolve_lockfile};
 use cargo_lock::Lockfile;
 use std::{collections::BTreeMap, str::FromStr};
 
@@ -301,4 +301,40 @@ fn selects_an_older_candidate_that_provides_a_requested_feature() {
     assert!(lockfile.packages.iter().any(|package| {
         package.name.as_str() == "foo" && package.version == semver::Version::new(1, 0, 0)
     }));
+}
+
+#[test]
+fn resolve_inputs_drops_everything_but_the_dependency_graph() {
+    const FULL_METADATA: &str = r#"{
+      "packages": [{
+        "id": "path+file:///home/dev/secret-workspace#app@0.1.0",
+        "name": "app",
+        "version": "0.1.0",
+        "license": "MIT",
+        "manifest_path": "/home/dev/secret-workspace/Cargo.toml",
+        "targets": [{"name": "app", "src_path": "/home/dev/secret-workspace/src/lib.rs"}],
+        "dependencies": [{
+          "name": "foo",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "req": "^1.0",
+          "path": "/home/dev/secret-workspace/vendor/foo"
+        }]
+      }],
+      "workspace_root": "/home/dev/secret-workspace",
+      "workspace_members": ["path+file:///home/dev/secret-workspace#app@0.1.0"]
+    }"#;
+
+    let reduced = resolve_inputs(FULL_METADATA).unwrap();
+
+    assert!(!reduced.contains("secret-workspace"), "{reduced}");
+    let index_files = BTreeMap::from([
+        ("foo".to_string(), FOO_INDEX.to_string()),
+        ("bar".to_string(), BAR_INDEX.to_string()),
+    ]);
+    // The reduced document resolves to what the full one does, so nothing
+    // resolution reads was dropped along with the paths.
+    assert_eq!(
+        resolve_lockfile(&reduced, &index_files).unwrap(),
+        resolve_lockfile(FULL_METADATA, &index_files).unwrap(),
+    );
 }

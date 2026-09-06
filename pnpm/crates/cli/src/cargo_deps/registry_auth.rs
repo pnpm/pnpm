@@ -47,7 +47,7 @@ fn crates_io_from_sources(
     let Some(token) = token else { return Ok(Arc::clone(configured)) };
 
     let mut auth_headers = (**configured).clone();
-    auth_headers.insert_url_header(super::CRATES_IO_SPARSE_INDEX, token);
+    auth_headers.insert_url_header(pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX, token);
     Ok(Arc::new(auth_headers))
 }
 

@@ -6,7 +6,11 @@ use std::collections::BTreeMap;
 
 pub(crate) const CRATES_IO_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const CRATES_IO_INDEX: &str = "https://github.com/rust-lang/crates.io-index";
-const CRATES_IO_SPARSE_INDEX: &str = "sparse+https://index.crates.io/";
+const CRATES_IO_SPARSE_SOURCE: &str = "sparse+https://index.crates.io/";
+
+/// The base URL of the crates.io sparse index: the registry a crate's
+/// index file is fetched from when nothing else is configured.
+pub const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
 
 pub(crate) struct Registry {
     packages: BTreeMap<String, Vec<RegistryVersion>>,
@@ -108,7 +112,7 @@ pub(crate) fn matching_versions<'a>(
 
 pub(crate) fn validate_registry(registry: Option<&str>) -> Result<()> {
     if registry.is_none_or(|registry| {
-        matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_INDEX)
+        matches!(registry, CRATES_IO_SOURCE | CRATES_IO_INDEX | CRATES_IO_SPARSE_SOURCE)
     }) {
         Ok(())
     } else {

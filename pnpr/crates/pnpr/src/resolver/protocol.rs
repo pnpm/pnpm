@@ -11,6 +11,48 @@ use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
 
+/// The package ecosystem a resolve request is written in. `POST
+/// /-/pnpr/v0/resolve` keeps one address for every ecosystem and the body
+/// names which one it speaks, so a client needs no second endpoint and no
+/// second handshake. An absent field is `npm`, which is what every client
+/// wrote before other ecosystems existed.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ResolveEcosystem {
+    #[default]
+    Npm,
+    Cargo,
+}
+
+/// The `ecosystem` field alone, read before the rest of the body so each
+/// ecosystem's request is deserialized into its own shape.
+#[derive(Debug, Default, Deserialize)]
+pub struct EcosystemProbe {
+    #[serde(default)]
+    pub ecosystem: ResolveEcosystem,
+}
+
+/// Body of `POST /-/pnpr/v0/resolve` with `"ecosystem": "cargo"`.
+///
+/// Cargo resolution reads one input only the client has — its workspace
+/// manifests — so the request carries them as a `cargo metadata`
+/// document, and the server runs the same resolver the client would have
+/// run locally against index files it fetches (and caches) itself. pnpm
+/// sends the document reduced to the dependency graph, but a full
+/// `cargo metadata` output resolves the same way.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CargoResolveRequest {
+    /// `cargo metadata --no-deps --format-version 1` output for the
+    /// workspace being resolved.
+    pub metadata: String,
+    /// The sparse index to resolve against. Falls back to the crates.io
+    /// sparse index when absent; either way the server fetches it only if
+    /// its route policy allows that origin.
+    #[serde(default)]
+    pub registry: Option<String>,
+}
+
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResolveRequestProject {

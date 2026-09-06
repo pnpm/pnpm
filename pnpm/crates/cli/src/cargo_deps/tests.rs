@@ -1,7 +1,7 @@
 use super::{
-    ArchiveStoreProjection, LockedCrate, MANAGED_CONFIG, MaterializeOptions, add_cargo_checksum,
-    fetch_sparse_index_file, materialize, parse_lockfile, sparse_index_path, update_managed_config,
-    workspace_root,
+    ArchiveStoreProjection, CRATES_IO_SPARSE_INDEX, Config, LockedCrate, MANAGED_CONFIG,
+    MaterializeOptions, add_cargo_checksum, fetch_sparse_index_file, materialize, parse_lockfile,
+    resolve_via_pnpr, sparse_index_path, update_managed_config, workspace_root,
 };
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_reporter::SilentReporter;
@@ -434,4 +434,87 @@ fn rejects_a_reparse_point_swapped_into_the_workspace_root() {
         .to_string();
 
     assert!(error.contains("must be a real directory"), "{error}");
+}
+
+/// A pnpr handshake advertising the resolver protocol and `ecosystems`.
+fn handshake_body(ecosystems: &[&str]) -> String {
+    serde_json::json!({
+        "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0], "ecosystems": ecosystems },
+    })
+    .to_string()
+}
+
+fn config_for_pnpr(server: &str) -> Config {
+    let mut config = Config::new();
+    config.pnpr_server = Some(server.to_string());
+    config
+}
+
+#[tokio::test]
+async fn cargo_resolution_is_offloaded_to_the_pnpr_server() {
+    const METADATA: &str = r#"{
+      "packages": [{
+        "id": "path+file:///home/dev/private-workspace#app@0.1.0",
+        "name": "app",
+        "version": "0.1.0",
+        "manifest_path": "/home/dev/private-workspace/Cargo.toml",
+        "dependencies": []
+      }],
+      "workspace_members": ["path+file:///home/dev/private-workspace#app@0.1.0"]
+    }"#;
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm", "cargo"]))
+        .create_async()
+        .await;
+    // The request carries the reduced dependency graph, so no trace of
+    // where the workspace lives reaches the server.
+    let sent_metadata = pnpm_cargo_resolver::resolve_inputs(METADATA).unwrap();
+    assert!(!sent_metadata.contains("private-workspace"), "{sent_metadata}");
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .match_body(mockito::Matcher::PartialJson(serde_json::json!({
+            "ecosystem": "cargo",
+            "metadata": sent_metadata,
+            "registry": CRATES_IO_SPARSE_INDEX,
+        })))
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .expect(1)
+        .create_async()
+        .await;
+
+    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), METADATA).await.unwrap();
+
+    assert_eq!(lockfile.as_deref(), Some("version = 4\n"));
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_server_without_cargo_support_leaves_resolution_local() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake =
+        server.mock("GET", "/-/pnpr").with_body(handshake_body(&["npm"])).create_async().await;
+    let resolve = server.mock("POST", "/-/pnpr/v0/resolve").expect(0).create_async().await;
+
+    let lockfile = resolve_via_pnpr(&config_for_pnpr(&server.url()), "{}").await.unwrap();
+
+    assert_eq!(lockfile, None);
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
+async fn an_offline_install_does_not_reach_the_pnpr_server() {
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server.mock("GET", "/-/pnpr").expect(0).create_async().await;
+    let mut config = config_for_pnpr(&server.url());
+    config.offline = true;
+
+    let lockfile = resolve_via_pnpr(&config, "{}").await.unwrap();
+
+    assert_eq!(lockfile, None);
+    handshake.assert_async().await;
 }

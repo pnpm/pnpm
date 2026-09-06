@@ -2995,10 +2995,15 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
 /// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks;
-/// `fixLockfile` narrows that list to versions that honor repair requests.
+/// `fixLockfile` narrows that list to versions that honor repair requests;
+/// `ecosystems` names the package ecosystems `/-/pnpr/v0/resolve` accepts
+/// in its request body, so a client meeting a server that does not serve
+/// one of them resolves it locally rather than failing.
 async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
-    let versions = state.inner.config.resolver.enabled.then_some(0).into_iter().collect::<Vec<_>>();
+    let resolver_enabled = state.inner.config.resolver.enabled;
+    let versions = resolver_enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let fix_lockfile = versions.clone();
+    let ecosystems: &[&str] = if resolver_enabled { &["npm", "cargo"] } else { &[] };
     let artifacts =
         state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     (
@@ -3008,6 +3013,7 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
                 "versions": versions,
                 "artifacts": artifacts,
                 "fixLockfile": fix_lockfile,
+                "ecosystems": ecosystems,
             }
         })),
     )

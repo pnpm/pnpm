@@ -409,6 +409,23 @@ struct HandshakeCapability {
     artifacts: Vec<u32>,
     #[serde(default, rename = "fixLockfile")]
     fix_lockfile: Vec<u32>,
+    /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
+    /// body. Absent on servers that predate cross-ecosystem resolution,
+    /// which serve npm alone.
+    #[serde(default)]
+    ecosystems: Vec<String>,
+}
+
+/// Inputs for a Cargo resolution.
+#[derive(Clone)]
+pub struct CargoResolveOptions {
+    /// `cargo metadata --no-deps --format-version 1` output for the
+    /// workspace being resolved.
+    pub metadata: String,
+    /// The sparse index to resolve against.
+    pub registry: String,
+    /// `Authorization` header identifying this caller to pnpr.
+    pub authorization: Option<String>,
 }
 
 impl PnprClient {
@@ -711,6 +728,65 @@ impl PnprClient {
         self.resolve_projects_streaming(opts, |_| {}).await
     }
 
+    /// Whether the server resolves `ecosystem` through
+    /// `/-/pnpr/v0/resolve`. A server that advertises no ecosystems at all
+    /// predates cross-ecosystem resolution and speaks npm only.
+    pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        Ok(capability.ecosystems.iter().any(|supported| supported == ecosystem))
+    }
+
+    /// Resolve a Cargo workspace against the server and return the
+    /// rendered `Cargo.lock`. The server walks the sparse index and runs
+    /// the same resolver the client would have run locally, so the
+    /// lockfile is written verbatim.
+    pub async fn resolve_cargo(
+        &self,
+        opts: CargoResolveOptions,
+    ) -> Result<String, PnprClientError> {
+        let request = serde_json::json!({
+            "ecosystem": CARGO_ECOSYSTEM,
+            "metadata": opts.metadata,
+            "registry": opts.registry,
+        });
+        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
+        if let Some(authorization) = opts.authorization.as_deref() {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/resolve returned {status}: {body}",
+            )));
+        }
+
+        let mut stream = response.bytes_stream();
+        let mut buf: Vec<u8> = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            buf.extend_from_slice(&chunk?);
+            while let Some(newline) = buf.iter().position(|&byte| byte == b'\n') {
+                let line: Vec<u8> = buf.drain(..=newline).collect();
+                let line = &line[..line.len() - 1];
+                if line.is_empty() {
+                    continue;
+                }
+                match parse_cargo_frame(line)? {
+                    CargoFrame::Done { lockfile } => return Ok(lockfile),
+                    CargoFrame::Error { message } => {
+                        return Err(PnprClientError::Server(message));
+                    }
+                }
+            }
+        }
+
+        Err(PnprClientError::Protocol(
+            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
+        ))
+    }
+
     /// Ask the server to verify a lockfile under the client's registry
     /// and policy settings, without resolving or echoing the lockfile
     /// back.
@@ -988,6 +1064,10 @@ fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCan
     payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
 }
 
+fn parse_cargo_frame(line: &[u8]) -> Result<CargoFrame, PnprClientError> {
+    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
@@ -1047,6 +1127,20 @@ enum Frame {
     Violations {
         violations: Vec<WireViolation>,
     },
+}
+
+/// The Cargo ecosystem's name in a resolve request body and in the
+/// handshake's `ecosystems` list.
+pub const CARGO_ECOSYSTEM: &str = "cargo";
+
+/// One NDJSON frame from a Cargo `/-/pnpr/v0/resolve`. Cargo resolution
+/// yields nothing before it yields everything, so the response is a
+/// single terminal frame: the rendered `Cargo.lock`, or the failure.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum CargoFrame {
+    Done { lockfile: String },
+    Error { message: String },
 }
 
 #[derive(Deserialize)]

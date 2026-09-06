@@ -39,11 +39,13 @@ pnpr-route                    = { workspace = true }
 pnpr-search                   = { workspace = true }
 pnpr-shared-artifacts         = { workspace = true }
 pnpr-upstream                 = { workspace = true }
+pnpm-cargo-resolver           = { workspace = true }
 pnpm-catalogs-types           = { workspace = true }
 pnpm-config                   = { workspace = true }
 pnpm-config-dir               = { workspace = true }
 pnpm-crypto-hash              = { workspace = true }
 pnpm-env-replace              = { workspace = true }
+pnpm-fs                       = { workspace = true }
 pnpm-lockfile                 = { workspace = true }
 pnpm-lockfile-verification    = { workspace = true }
 pnpm-network                  = { workspace = true }

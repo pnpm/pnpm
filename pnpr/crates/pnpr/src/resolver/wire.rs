@@ -356,6 +356,16 @@ pub(super) fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
     })
 }
 
+/// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
+/// the client writes verbatim. Cargo's lockfile is a TOML document rather
+/// than a structure the server rewrites, so it rides the frame as text.
+pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    ndjson_line(&frame).unwrap_or_else(|_| {
+        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+    })
+}
+
 /// Terminal `error` frame for a resolution that aborted mid-stream,
 /// after one or more `package` frames may already have been sent (so the
 /// HTTP status is locked at 200 — the failure has to ride in the body).

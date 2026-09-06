@@ -1,10 +1,12 @@
 use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext};
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
+use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
 use pnpm_config::Config;
 use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
 use pnpm_install_coordinator::{InstallTask, PreparedInstall};
 use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
@@ -28,7 +30,6 @@ mod registry_auth;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 const CRATES_IO_DOWNLOAD_BASE: &str = "https://static.crates.io/crates";
-const CRATES_IO_SPARSE_INDEX: &str = "https://index.crates.io";
 const WORKSPACE_INSTALL_CONCURRENCY: usize = 8;
 const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
 const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
@@ -263,10 +264,50 @@ async fn read_or_resolve_lockfile(
     }
 
     let metadata = read_cargo_metadata(root_dir).await?;
+    if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
+        return Ok(lockfile);
+    }
     let index_files = fetch_sparse_index(config, &metadata, http_client).await?;
     let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files)
         .wrap_err("resolve Cargo dependencies")?;
     Ok(lockfile)
+}
+
+/// Resolve through the configured pnpr server, which walks the sparse
+/// index server-side instead of making this client fetch one index file
+/// per crate in the graph.
+///
+/// `None` when there is no server to ask, or when the one configured
+/// resolves npm only: Cargo support arrived after `pnprServer` did, so an
+/// older server means a local resolve, not a failed install.
+async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<String>> {
+    let Some(pnpr_server) = config.pnpr_server.as_deref().filter(|_| !config.offline) else {
+        return Ok(None);
+    };
+    let client = PnprClient::new(pnpr_server);
+    if !client
+        .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
+        .await
+        .into_diagnostic()
+        .wrap_err("negotiate Cargo resolution with the pnpr server")?
+    {
+        return Ok(None);
+    }
+    // Only the dependency graph leaves the machine: the rest of a
+    // `cargo metadata` document describes local paths the server has no
+    // use for.
+    let metadata = pnpm_cargo_resolver::resolve_inputs(metadata)
+        .wrap_err("reduce cargo metadata for the pnpr server")?;
+    client
+        .resolve_cargo(CargoResolveOptions {
+            metadata,
+            registry: CRATES_IO_SPARSE_INDEX.to_string(),
+            authorization: config.auth_headers.for_url(pnpr_server),
+        })
+        .await
+        .into_diagnostic()
+        .wrap_err("resolve Cargo dependencies through the pnpr server")
+        .map(Some)
 }
 
 pub(crate) async fn latest_version(

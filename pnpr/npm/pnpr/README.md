@@ -35,6 +35,21 @@ by default. Point a client at it with:
 pnpm config set registry http://127.0.0.1:7677/
 ```
 
+### Install accelerator
+
+pnpr also resolves dependencies on a client's behalf. Point pnpm at it
+with `pnprServer` and pnpm sends its manifests instead of resolving
+locally:
+
+```sh
+pnpm config set pnprServer http://127.0.0.1:7677/
+```
+
+npm and Cargo dependencies both resolve this way. For Cargo, pnpr walks
+the crates.io sparse index and answers with the `Cargo.lock`, so a
+workspace resolves without the client fetching one index file per crate;
+the index files pnpr reads are cached for every client that follows.
+
 ## CLI flags
 
 | Flag | Description |
@@ -48,7 +63,7 @@ pnpm config set registry http://127.0.0.1:7677/
 | `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
 | `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
 | `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
-| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve`, `/-/pnpr/v0/verify-lockfile`). |
+| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm and Cargo, `/-/pnpr/v0/verify-lockfile`). |
 | `--disable-artifacts` | Disable the signed shared-artifact surface. |
 
 Every flag can also be set through an environment variable named after
