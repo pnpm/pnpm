@@ -363,7 +363,7 @@ async fn readonly_token_is_refused_for_writes() {
     let app = app_with_token(&tmp, "ro", record(true, &[]));
     // Publish (PUT) and unpublish (DELETE) are rejected before the
     // handler ever reads the body.
-    assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN,);
+    assert_eq!(status(app.clone(), signed(Method::PUT, "/foo", "ro")).await, StatusCode::FORBIDDEN);
     assert_eq!(
         status(app, signed(Method::DELETE, "/foo/-rev/1", "ro")).await,
         StatusCode::FORBIDDEN,
