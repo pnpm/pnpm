@@ -559,6 +559,34 @@ async fn a_second_terminal_frame_fails_the_resolve() {
 }
 
 #[tokio::test]
+async fn concurrent_roots_share_one_handshake() {
+    const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server
+        .mock("GET", "/-/pnpr")
+        .with_body(handshake_body(&["npm", "cargo"]))
+        .expect(1)
+        .create_async()
+        .await;
+    let resolve = server
+        .mock("POST", "/-/pnpr/v0/resolve")
+        .with_header("content-type", "application/x-ndjson")
+        .with_body("{\"type\":\"done\",\"lockfile\":\"version = 4\\n\"}\n")
+        .expect(4)
+        .create_async()
+        .await;
+    let config = config_for_pnpr(&server.url());
+
+    let roots = (0..4).map(|_| resolve_via_pnpr(&config, METADATA));
+    for resolved in futures_util::future::join_all(roots).await {
+        resolved.unwrap().expect("the server resolves Cargo");
+    }
+
+    handshake.assert_async().await;
+    resolve.assert_async().await;
+}
+
+#[tokio::test]
 async fn the_handshake_is_asked_once_per_server() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;

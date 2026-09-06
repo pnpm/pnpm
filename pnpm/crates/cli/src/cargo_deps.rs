@@ -306,29 +306,33 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
 }
 
 /// Whether `pnpr_server` advertises Cargo resolution. Asked once per
-/// server for the life of the process, so a server that gains Cargo
-/// support while an install runs is not noticed until the next one.
+/// server for the life of the process — the roots of a workspace prepare
+/// concurrently and wait on the first one's answer — so a server that
+/// gains Cargo support while an install runs is not noticed until the
+/// next one.
 async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result<bool> {
-    if let Some(supported) = CARGO_RESOLUTION_SUPPORT
-        .lock()
-        .expect("Cargo resolution support memo is poisoned")
-        .get(pnpr_server)
-    {
-        return Ok(*supported);
-    }
-    let supported = client
-        .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
+    let answer = Arc::clone(
+        CARGO_RESOLUTION_SUPPORT
+            .lock()
+            .expect("Cargo resolution support memo is poisoned")
+            .entry(pnpr_server.to_string())
+            .or_default(),
+    );
+    answer
+        .get_or_try_init(|| async {
+            client
+                .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
+                .await
+                .into_diagnostic()
+                .wrap_err("negotiate Cargo resolution with the pnpr server")
+        })
         .await
-        .into_diagnostic()
-        .wrap_err("negotiate Cargo resolution with the pnpr server")?;
-    CARGO_RESOLUTION_SUPPORT
-        .lock()
-        .expect("Cargo resolution support memo is poisoned")
-        .insert(pnpr_server.to_string(), supported);
-    Ok(supported)
+        .copied()
 }
 
-static CARGO_RESOLUTION_SUPPORT: LazyLock<Mutex<HashMap<String, bool>>> =
+type EcosystemAnswer = Arc<tokio::sync::OnceCell<bool>>;
+
+static CARGO_RESOLUTION_SUPPORT: LazyLock<Mutex<HashMap<String, EcosystemAnswer>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) async fn latest_version(
