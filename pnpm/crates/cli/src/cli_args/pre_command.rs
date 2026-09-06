@@ -660,6 +660,7 @@ impl PinFlags {
             CliCommand::Deploy(args) => Self::of_install(&args.install_args),
             CliCommand::Install(args) => Self::of_install(args),
             CliCommand::InstallTest(args) => Self::of_install(&args.install_args),
+            CliCommand::Pipeline(args) => Self::of_install(&args.install_args),
             CliCommand::Remove(args) => Self::of_lockfile_dir(&args.lockfile_dir),
             CliCommand::Update(args) => Self::of_lockfile_dir(&args.lockfile_dir),
             _ => Self::default(),

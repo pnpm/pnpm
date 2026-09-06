@@ -190,7 +190,9 @@ GitHub turns any `@name` into a mention of that user/org/team, which is wrong ei
 
 ## Changesets
 
-If your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
+Bug fixes for features that have not yet been released do not need a changeset. This exemption applies to both TypeScript and Rust products. Check whether the affected feature has shipped before adding a changeset for a bug fix.
+
+Except for the unreleased-feature bug fixes described above, if your changes affect published packages, you MUST create a changeset file in the `.changeset` directory (`pnpm change` records one interactively; `pnpm change status` shows the pending release plan). The file describes the change and specifies the affected packages with their pending version bump types: patch, minor, or major. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset. The bare `pnpm version -r` consumes the pending changesets at release time; there is no separate `@changesets/cli` dependency.
 
 **IMPORTANT: For changes to the TypeScript pnpm v11 CLI, always explicitly include `"pnpm"` in the changeset with a patch bump.** The changeset description will appear on the release notes page. For pnpm v12 changes, follow the Rust-product rules below and target `pacquet` instead.
 
@@ -247,7 +249,7 @@ After:
 
 ### Changesets for the Rust products
 
-The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, targeting:
+The Rust products are released through the same native flow. Their npm wrapper packages are workspace packages with committed versions, so a user-visible change to a Rust product needs a changeset too, unless it fixes a bug in an unreleased feature. Target:
 
 - `pacquet` — the Rust pnpm v12 CLI (published to npm as `pnpm` and `@pnpm/exe`; named `pacquet` in-repo so its name can't collide with the TypeScript CLI). `@pnpm/napi` is a `versioning.fixed` group with it and bumps with it automatically.
 - `@pnpm/napi` — the Node.js addon bindings for the Rust engine.
