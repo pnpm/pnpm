@@ -46,7 +46,7 @@ impl PackageSpecifierPlan {
                 } else {
                     specifier.to_string()
                 };
-                let requirement = crate::python::manifest::parse_requirement(&requirement)?;
+                let requirement = pnpm_python_resolver::parse_requirement(&requirement)?;
                 ecosystem_packages.push(EcosystemPackageSpecifier::Python(requirement.to_string()));
             } else {
                 node_packages.push(package_name.clone());

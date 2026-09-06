@@ -4474,6 +4474,7 @@ dependencies = [
  "pnpm-patching",
  "pnpm-pnpr-client",
  "pnpm-publish",
+ "pnpm-python-resolver",
  "pnpm-registry",
  "pnpm-reporter",
  "pnpm-resolving-default-resolver",
@@ -5580,6 +5581,20 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
+]
+
+[[package]]
+name = "pnpm-python-resolver"
+version = "0.0.1"
+dependencies = [
+ "miette 7.6.0",
+ "pep440_rs",
+ "pep508_rs",
+ "pubgrub",
+ "serde",
+ "serde_json",
+ "ssri",
  "url",
 ]
 

@@ -1,5 +1,5 @@
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep508_rs::MarkerEnvironment;
+use pnpm_python_resolver::Target;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::{collections::BTreeMap, path::PathBuf, process::Stdio};
 use tokio::{io::AsyncWriteExt, process::Command};
@@ -7,10 +7,15 @@ use tokio::{io::AsyncWriteExt, process::Command};
 #[derive(Debug, Serialize, Deserialize)]
 pub(super) struct Interpreter {
     pub(super) executable: String,
-    pub(super) environment: MarkerEnvironment,
-    pub(super) tags: Vec<String>,
+    /// What this interpreter resolves as: its marker environment and the
+    /// wheel tags it accepts, in preference order.
+    #[serde(flatten)]
+    pub(super) target: Target,
 }
 
+/// Everything the interpreter reports about a wheel: what resolution
+/// reads ([`pnpm_python_resolver::WheelMetadata`]) plus what installing it
+/// needs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct WheelMetadata {
     pub(super) name: String,

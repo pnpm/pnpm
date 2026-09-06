@@ -1,13 +1,11 @@
-use super::{
-    host::{self, Interpreter, Wheel, WheelMetadata},
-    lockfile::{LockedPackage, LockedWheel},
-};
+use super::host::{self, Interpreter, Wheel, WheelMetadata};
 use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr, bail};
-use pep440_rs::{Version, VersionSpecifiers};
+use pep440_rs::Version;
 use pep508_rs::PackageName;
 use pnpm_config::Config;
 use pnpm_network::{AuthHeaders, ThrottledClient};
+use pnpm_python_resolver::{LockedPackage, Packages, candidates_from_page, wheel_identity};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
 use pnpm_tarball::{ArchiveStoreProjection, IngestZipArchiveToStore};
@@ -19,26 +17,10 @@ use url::Url;
 const MAX_INDEX_BYTES: usize = 64 * 1024 * 1024;
 const MAX_CACHE_BYTES: usize = MAX_INDEX_BYTES + 64 * 1024;
 
-#[derive(Deserialize)]
-struct SimpleIndex {
-    files: Vec<IndexFile>,
-}
-
 #[derive(Serialize, Deserialize)]
 struct CachedIndex {
     url: Url,
     body: Box<serde_json::value::RawValue>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct IndexFile {
-    filename: String,
-    url: String,
-    hashes: BTreeMap<String, String>,
-    #[serde(default)]
-    yanked: serde_json::Value,
-    requires_python: Option<String>,
 }
 
 pub(super) struct Registry<'a> {
@@ -50,7 +32,11 @@ pub(super) struct Registry<'a> {
     pub(super) store_index: Option<SharedReadonlyStoreIndex>,
     pub(super) writer: Arc<StoreIndexWriter>,
     pub(super) verified: SharedVerifiedFilesCache,
-    pub(super) candidates: BTreeMap<PackageName, BTreeMap<Version, LockedWheel>>,
+    /// What resolution reads: the candidates each distribution offers and
+    /// the metadata of the wheels it has looked at.
+    pub(super) packages: Packages,
+    /// What installing reads: the store paths of every wheel downloaded so
+    /// far, beside the interpreter's full report on it.
     pub(super) wheels: BTreeMap<(PackageName, Version), Wheel>,
 }
 
@@ -104,39 +90,8 @@ impl Registry<'_> {
         if cached.body.get().len() > MAX_INDEX_BYTES {
             bail!("Python index response for {name} exceeds {MAX_INDEX_BYTES} bytes");
         }
-        let index: SimpleIndex = serde_json::from_str(cached.body.get())
-            .into_diagnostic()
-            .wrap_err("Python index must support the Simple JSON API")?;
-        let mut candidates = BTreeMap::<Version, (usize, LockedWheel)>::new();
-        for file in index.files {
-            if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
-                continue;
-            }
-            let Some((wheel_name, version, rank)) =
-                wheel_identity(&file.filename, self.interpreter)?
-            else {
-                continue;
-            };
-            if wheel_name != *name {
-                bail!("Python index for {name} contains a wheel for {wheel_name}");
-            }
-            if let Some(requirement) = &file.requires_python {
-                let specifiers: VersionSpecifiers = requirement.parse().into_diagnostic()?;
-                if !specifiers.contains(self.interpreter.environment.python_full_version()) {
-                    continue;
-                }
-            }
-            let url = cached.url.join(&file.url).into_diagnostic()?;
-            validate_url(&url)?;
-            let wheel =
-                LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
-            wheel.integrity()?;
-            if candidates.get(&version).is_none_or(|(previous, existing)| {
-                (rank, &wheel.name) < (*previous, &existing.name)
-            }) {
-                candidates.insert(version, (rank, wheel));
-            }
-        }
+        let candidates =
+            candidates_from_page(cached.body.get(), &cached.url, name, &self.interpreter.target)?;
         if !self.config.offline {
             tokio::fs::create_dir_all(cache.parent().expect("cache file has a parent"))
                 .await
@@ -147,10 +102,7 @@ impl Registry<'_> {
             }
             pnpm_fs::write_atomic(&cache, &contents).into_diagnostic()?;
         }
-        self.candidates.insert(
-            name.clone(),
-            candidates.into_iter().map(|(version, (_, wheel))| (version, wheel)).collect(),
-        );
+        self.packages.candidates.insert(name.clone(), candidates);
         Ok(())
     }
 
@@ -160,7 +112,7 @@ impl Registry<'_> {
         version: &Version,
     ) -> Result<()> {
         let wheel = self.download_wheel::<Reporter>(name, version).await?;
-        self.wheels.insert((name.clone(), version.clone()), wheel);
+        self.remember(name.clone(), version.clone(), wheel);
         Ok(())
     }
 
@@ -184,8 +136,26 @@ impl Registry<'_> {
             .buffer_unordered(self.config.network_concurrency.clamp(1, 16))
             .collect::<BTreeMap<_, _>>()
             .await;
-        self.wheels.extend(results.into_values().collect::<Result<BTreeMap<_, _>>>()?);
+        for ((name, version), wheel) in results.into_values().collect::<Result<Vec<_>>>()? {
+            self.remember(name, version, wheel);
+        }
         Ok(())
+    }
+
+    /// Keep a downloaded wheel for both readers: the interpreter's full
+    /// report for installing it, and the subset resolution reads.
+    fn remember(&mut self, name: PackageName, version: Version, wheel: Wheel) {
+        self.packages.metadata.insert(
+            (name.clone(), version.clone()),
+            pnpm_python_resolver::WheelMetadata {
+                name: wheel.metadata.name.clone(),
+                version: wheel.metadata.version.clone(),
+                requires_dist: wheel.metadata.requires_dist.clone(),
+                requires_python: wheel.metadata.requires_python.clone(),
+                provides_extra: wheel.metadata.provides_extra.clone(),
+            },
+        );
+        self.wheels.insert((name, version), wheel);
     }
 
     async fn download_wheel<Reporter: self::Reporter + 'static>(
@@ -193,9 +163,10 @@ impl Registry<'_> {
         name: &PackageName,
         version: &Version,
     ) -> Result<Wheel> {
-        let wheel = &self.candidates[name][version];
-        validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
-        let Some((wheel_name, wheel_version, _)) = wheel_identity(&wheel.name, self.interpreter)?
+        let wheel = &self.packages.candidates[name][version].wheel;
+        pnpm_python_resolver::validate_url(&Url::parse(&wheel.url).into_diagnostic()?)?;
+        let Some((wheel_name, wheel_version, _)) =
+            wheel_identity(&wheel.name, &self.interpreter.target.tags)?
         else {
             bail!("Python wheel is incompatible with this interpreter: {}", wheel.name)
         };
@@ -253,37 +224,4 @@ impl Registry<'_> {
         }
         Ok(Wheel { files, metadata })
     }
-}
-
-pub(super) fn wheel_identity(
-    filename: &str,
-    interpreter: &Interpreter,
-) -> Result<Option<(PackageName, Version, usize)>> {
-    let Some(stem) = filename.strip_suffix(".whl") else { return Ok(None) };
-    let parts = stem.split('-').collect::<Vec<_>>();
-    if !(parts.len() == 5 || parts.len() == 6) || filename.contains(['/', '\\']) {
-        bail!("invalid Python wheel filename: {filename}");
-    }
-    let tags = &parts[parts.len() - 3..];
-    let rank = interpreter.tags.iter().position(|tag| {
-        let actual = tag.split('-').collect::<Vec<_>>();
-        actual.len() == 3
-            && tags.iter().zip(actual).all(|(supported, actual)| {
-                supported.split('.').any(|supported| supported == actual)
-            })
-    });
-    rank.map(|rank| {
-        Ok((parts[0].parse().into_diagnostic()?, parts[1].parse().into_diagnostic()?, rank))
-    })
-    .transpose()
-}
-
-pub(super) fn validate_url(url: &Url) -> Result<()> {
-    if !matches!(url.scheme(), "http" | "https")
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        bail!("Python artifacts require HTTP(S) URLs without embedded credentials");
-    }
-    Ok(())
 }

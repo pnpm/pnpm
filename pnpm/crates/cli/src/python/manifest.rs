@@ -1,5 +1,7 @@
 use miette::{IntoDiagnostic, Result, bail};
 use pep508_rs::Requirement;
+use pnpm_python_resolver::parse_requirement;
+
 use pnpm_config::Config;
 use serde::Deserialize;
 use std::{collections::BTreeMap, fmt::Write as _, path::Path};
@@ -105,14 +107,6 @@ impl Manifest {
         visiting.pop();
         Ok(())
     }
-}
-
-pub(crate) fn parse_requirement(requirement: &str) -> Result<Requirement> {
-    let parsed: Requirement = requirement.parse().into_diagnostic()?;
-    if matches!(parsed.version_or_url, Some(pep508_rs::VersionOrUrl::Url(_))) {
-        bail!("direct URL Python requirements are not supported: {requirement}");
-    }
-    Ok(parsed)
 }
 
 pub(crate) fn add(path: &Path, requirements: &[String], development: bool) -> Result<()> {

@@ -40,6 +40,7 @@ pnpm-testing-utils                     = { path = "pnpm/crates/testing-utils" }
 pnpm-text-sanitize                     = { path = "pnpm/crates/text-sanitize" }
 pnpm-pack                              = { path = "pnpm/crates/pack" }
 pnpm-publish                           = { path = "pnpm/crates/publish" }
+pnpm-python-resolver                   = { path = "pnpm/crates/python-resolver" }
 pnpm-package-manifest                  = { path = "pnpm/crates/package-manifest" }
 pnpm-package-manager                   = { path = "pnpm/crates/package-manager" }
 pnpm-package-is-installable            = { path = "pnpm/crates/package-is-installable" }

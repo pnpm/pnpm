@@ -1,56 +1,65 @@
-use super::{host::Interpreter, registry::Registry};
+use crate::packages::{Candidate, Packages};
 use miette::{IntoDiagnostic, Result, bail};
 use pep440_rs::Version;
-use pep508_rs::{PackageName, Requirement};
+use pep508_rs::{MarkerEnvironment, PackageName, Requirement};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// What a resolution is for: the interpreter's marker environment and the
+/// wheel tags it accepts, in the order it prefers them. Both come from the
+/// interpreter that will run the environment, so a lockfile records them
+/// and is only reused for the same pair.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Target {
+    pub environment: MarkerEnvironment,
+    pub tags: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) struct Lockfile {
-    pub(super) lock_version: String,
-    pub(super) created_by: String,
-    pub(super) environments: Vec<String>,
+pub struct Lockfile {
+    pub lock_version: String,
+    pub created_by: String,
+    pub environments: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) requires_python: Option<String>,
-    pub(super) packages: Vec<LockedPackage>,
-    pub(super) tool: ToolMetadata,
+    pub requires_python: Option<String>,
+    pub packages: Vec<LockedPackage>,
+    pub tool: ToolMetadata,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct ToolMetadata {
-    pub(super) pnpm: Inputs,
+pub struct ToolMetadata {
+    pub pnpm: Inputs,
 }
 
+/// Everything a resolution depended on, so a lockfile can be reused only
+/// for the inputs that produced it.
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
-pub(super) struct Inputs {
+pub struct Inputs {
     requirements: Vec<String>,
-    environment: pep508_rs::MarkerEnvironment,
+    environment: MarkerEnvironment,
     tags: Vec<String>,
     index: String,
 }
 
 impl Inputs {
-    pub(super) fn set_requirements(&mut self, requirements: &[Requirement]) {
+    pub fn set_requirements(&mut self, requirements: &[Requirement]) {
         self.requirements = requirements.iter().map(ToString::to_string).collect();
         self.requirements.sort();
         self.requirements.dedup();
     }
 
-    pub(super) fn new(
-        requirements: &[Requirement],
-        interpreter: &Interpreter,
-        index: &str,
-    ) -> Self {
+    #[must_use]
+    pub fn new(requirements: &[Requirement], target: &Target, index: &str) -> Self {
         let mut requirements = requirements.iter().map(ToString::to_string).collect::<Vec<_>>();
         requirements.sort();
         requirements.dedup();
         Self {
             requirements,
-            environment: interpreter.environment.clone(),
-            tags: interpreter.tags.clone(),
+            environment: target.environment.clone(),
+            tags: target.tags.clone(),
             index: index.to_string(),
         }
     }
@@ -58,22 +67,25 @@ impl Inputs {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct LockedPackage {
-    pub(super) name: PackageName,
-    pub(super) version: Version,
-    pub(super) wheels: Vec<LockedWheel>,
+pub struct LockedPackage {
+    pub name: PackageName,
+    pub version: Version,
+    pub wheels: Vec<LockedWheel>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct LockedWheel {
-    pub(super) name: String,
-    pub(super) url: String,
-    pub(super) hashes: BTreeMap<String, String>,
+pub struct LockedWheel {
+    pub name: String,
+    pub url: String,
+    pub hashes: BTreeMap<String, String>,
 }
 
 impl LockedWheel {
-    pub(super) fn integrity(&self) -> Result<ssri::Integrity> {
+    /// The wheel's SHA-256 digest as an integrity string. A wheel with no
+    /// SHA-256 is refused: it is the digest every index publishes and the
+    /// only one a download is checked against.
+    pub fn integrity(&self) -> Result<ssri::Integrity> {
         let digest = self
             .hashes
             .get("sha256")
@@ -86,14 +98,16 @@ impl LockedWheel {
 }
 
 impl Lockfile {
-    pub(super) fn new(
-        registry: &Registry<'_>,
+    /// The lockfile a solved project produces: one wheel per package, the
+    /// marker environment it was solved for, and the inputs that chose it.
+    pub fn new(
+        packages: &Packages,
+        target: &Target,
         solution: BTreeMap<PackageName, Version>,
         inputs: Inputs,
         requires_python: Option<String>,
     ) -> Result<Self> {
-        let environment =
-            serde_json::to_value(&registry.interpreter.environment).into_diagnostic()?;
+        let environment = serde_json::to_value(&target.environment).into_diagnostic()?;
         let marker = environment
             .as_object()
             .expect("marker environment serializes to an object")
@@ -117,7 +131,7 @@ impl Lockfile {
             packages: solution
                 .into_iter()
                 .map(|(name, version)| {
-                    let wheel = registry.candidates[&name][&version].clone();
+                    let wheel = packages.candidates[&name][&version].wheel.clone();
                     LockedPackage { name, version, wheels: vec![wheel] }
                 })
                 .collect(),
@@ -125,7 +139,9 @@ impl Lockfile {
         })
     }
 
-    pub(super) fn seed(&self, registry: &mut Registry<'_>) -> Result<()> {
+    /// Load this lockfile's packages as the only candidates a resolution
+    /// may pick, so a locked install solves to exactly what was locked.
+    pub fn seed(&self, packages: &mut Packages) -> Result<()> {
         if self.lock_version != "1.0" {
             bail!("unsupported Python lock-version: {}", self.lock_version);
         }
@@ -134,11 +150,14 @@ impl Lockfile {
                 bail!("pnpm requires one target-compatible wheel per locked Python package")
             };
             wheel.integrity()?;
-            if registry
+            if packages
                 .candidates
                 .insert(
                     package.name.clone(),
-                    BTreeMap::from([(package.version.clone(), wheel.clone())]),
+                    BTreeMap::from([(
+                        package.version.clone(),
+                        Candidate { wheel: wheel.clone(), core_metadata: None },
+                    )]),
                 )
                 .is_some()
             {

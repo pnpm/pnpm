@@ -50,6 +50,7 @@ pnpm-deps-path                         = { workspace = true }
 pnpm-deps-restorer                     = { workspace = true }
 pnpm-pack                              = { workspace = true }
 pnpm-publish                           = { workspace = true }
+pnpm-python-resolver                   = { workspace = true }
 pnpm-package-manifest                  = { workspace = true }
 pnpm-package-manager                   = { workspace = true }
 pnpm-patching                          = { workspace = true }
