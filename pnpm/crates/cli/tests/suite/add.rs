@@ -539,6 +539,31 @@ fn add_accepts_multiple_local_package_selectors() {
     drop(root); // cleanup
 }
 
+/// Covers pnpm/pnpm#14618: `pnpm setup` re-runs from the globally
+/// installed `@pnpm/exe`, whose directory is the symlink pnpm's own
+/// `node_modules` layout puts there.
+#[test]
+fn add_installs_a_local_package_reached_through_a_symlinked_directory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let real_dir = workspace.join("fixtures/real-local");
+    std::fs::create_dir_all(&real_dir).expect("create local package directory");
+    std::fs::write(
+        real_dir.join("package.json"),
+        serde_json::json!({ "name": "local", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local package manifest");
+    std::fs::write(real_dir.join("index.js"), "module.exports = 1\n").expect("write index.js");
+    pnpm_fs::symlink_dir(&real_dir, &workspace.join("fixtures/linked-local"))
+        .expect("link the local package directory");
+
+    pacquet.with_args(["add", "file:./fixtures/linked-local"]).assert().success();
+
+    assert_eq!(prod_spec(&workspace, "local"), "file:fixtures/linked-local");
+    assert!(workspace.join("node_modules/local/index.js").is_file());
+
+    drop(root); // cleanup
+}
+
 /// A one-member workspace whose `fixtures/` packages let a `-w` add use
 /// `file:` specs instead of reaching the registry. Returns the member's
 /// directory.
