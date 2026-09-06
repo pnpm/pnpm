@@ -125,7 +125,7 @@ pub struct Config {
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
-    /// Organization-scoped signed build artifacts. Kept separate from the
+    /// Signed build artifacts and compiler caches. Kept separate from the
     /// resolver so deployments can scale the compute-bound resolver and the
     /// I/O-bound artifact store independently. See [`ArtifactsFeature`].
     pub artifacts: ArtifactsFeature,
@@ -258,12 +258,20 @@ impl Default for ResolverFeature {
     }
 }
 
-/// Toggle for the signed shared-artifact surface. Off by default while the
+/// Toggle for the shared-artifact surface. Off by default while the
 /// protocol is a proof of concept.
 #[derive(Debug, Default, Clone)]
 pub struct ArtifactsFeature {
-    /// Master switch for the artifact publish, lookup, and blob endpoints.
+    /// Master switch for artifact and compiler-cache endpoints.
     pub enabled: bool,
+    /// Named compiler caches with independent read and publication policies.
+    pub compiler_caches: IndexMap<String, CompilerCacheAccess>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CompilerCacheAccess {
+    pub access: AccessList,
+    pub publish: AccessList,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -1200,6 +1208,15 @@ impl Default for FeatureFile {
 struct ArtifactsFeatureFile {
     #[serde(default)]
     enabled: bool,
+    #[serde(default, rename = "compilerCaches")]
+    compiler_caches: IndexMap<String, CompilerCacheAccessFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompilerCacheAccessFile {
+    access: AccessSpec,
+    publish: AccessSpec,
 }
 
 fn default_true() -> bool {
@@ -1622,8 +1639,26 @@ impl Config {
         let resolver =
             ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver };
         let artifacts_file = file.artifacts.unwrap_or_default();
-        let artifacts =
-            ArtifactsFeature { enabled: artifacts_file.enabled && !overrides.disable_artifacts };
+        let mut compiler_caches = IndexMap::new();
+        for (name, policy) in artifacts_file.compiler_caches {
+            validate_registry_name(&name)?;
+            let parse_access = |spec: &AccessSpec| {
+                spec.to_access_list(&Teams::default()).map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!("compiler cache {name:?}: {reason}"),
+                    }
+                })
+            };
+            let access = CompilerCacheAccess {
+                access: parse_access(&policy.access)?,
+                publish: parse_access(&policy.publish)?,
+            };
+            compiler_caches.insert(name, access);
+        }
+        let artifacts = ArtifactsFeature {
+            enabled: artifacts_file.enabled && !overrides.disable_artifacts,
+            compiler_caches,
+        };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a

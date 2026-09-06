@@ -2,7 +2,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_testing_utils::{
+    bin::CommandTempCwd, command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains as assert_contains,
+};
 use std::{
     fs,
     path::Path,
@@ -667,20 +670,6 @@ fn assert_failure(output: &Output) {
         stdout(output),
         stderr(output),
     );
-}
-
-fn assert_contains(text: &str, expected: &str) {
-    assert!(
-        unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),
-        "expected {expected:?} in:\n{text}",
-    );
-}
-
-/// miette hard-wraps a diagnostic to the terminal width and prefixes the
-/// continuation lines with `│`, so an expected message only matches after
-/// both sides are flattened to single-spaced text.
-fn unwrap_diagnostic(text: &str) -> String {
-    text.replace('│', " ").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn output_text(output: &Output) -> String {

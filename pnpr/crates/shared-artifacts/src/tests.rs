@@ -29,9 +29,62 @@ use sha2::{Digest as _, Sha512};
 use tempfile::TempDir;
 
 use super::{
-    ArtifactUsage, ResolveBudget, SharedArtifactStore, artifact_operation_id, is_variant_file,
-    is_write_conflict, owner_key,
+    ArtifactUsage, CompilerCacheKey, ResolveBudget, SharedArtifactStore, artifact_operation_id,
+    is_variant_file, is_write_conflict, owner_key,
 };
+
+#[tokio::test]
+async fn compiler_cache_survives_side_effects_reclamation_and_shares_quota() {
+    let directory = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, directory.path()).unwrap();
+    let key = CompilerCacheKey::try_from("rust/cache-key".to_string()).unwrap();
+    store
+        .publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"compiled"))
+        .await
+        .unwrap();
+    store
+        .publish("acme", publication_with_blob("dependency-side-effects:v1:deps=abc", "ci/linux"))
+        .await
+        .unwrap();
+    let before = store.load_usage().await.unwrap().0;
+    let after = store.reclaim_unreferenced_blobs().await.unwrap();
+    assert_eq!(after.global_bytes, before.global_bytes);
+    assert_eq!(after.owner_bytes.len(), 1);
+    assert_eq!(store.read_compiler_cache("acme", &key).await.unwrap().unwrap(), "compiled");
+}
+
+#[tokio::test]
+async fn compiler_cache_failed_writes_reconcile_quota_even_after_remote_commit() {
+    for commit_before_error in [false, true] {
+        let backend: Arc<dyn ObjectStore> = Arc::new(FailArtifactWrites {
+            inner: InMemory::new(),
+            commit_before_error,
+            fail_deletes: false,
+            fail_next_quota_write: None,
+            claim_slot_first: None,
+            fail_slot_read_after_first: None,
+            publish_overlapping_after_create: None,
+            fail_reads_of: None,
+            fail_scope_writes: false,
+            fail_only: None,
+            usage_writes: None,
+        });
+        let hosted = HostedStoreConfig::ObjectStore { store: backend, prefix: String::new() };
+        let directory = TempDir::new().unwrap();
+        let store = SharedArtifactStore::new(&hosted, directory.path()).unwrap();
+        let key = CompilerCacheKey::try_from("cache-key".to_string()).unwrap();
+        let result =
+            store.publish_compiler_cache("acme", &key, bytes::Bytes::from_static(b"a")).await;
+        assert!(result.is_err(), "write failure must surface: {result:?}");
+        let usage = store.load_usage().await.unwrap().0;
+        assert_eq!(usage.global_bytes, if commit_before_error { 65 } else { 0 });
+        assert_eq!(usage.active_publications.len(), 0);
+        assert_eq!(
+            store.read_compiler_cache("acme", &key).await.unwrap().is_some(),
+            commit_before_error
+        );
+    }
+}
 
 #[test]
 fn resolve_budget_bounds_combined_scanned_and_serialized_bytes() {

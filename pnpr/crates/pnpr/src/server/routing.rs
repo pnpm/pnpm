@@ -31,14 +31,15 @@ use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
     MAX_PUBLISH_BODY_BYTES, StripedLocks, TargetRegistry, addressed_registry, authenticate, batch,
-    caller_scoped, cargo, compute_upstream_cache_namespace, delete_package, delete_session_token,
-    delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams, get_profile,
-    get_team_members, get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
-    private_no_cache, publish_package, put_login, pypi, reject_team_mutation, remove_dist_tag,
-    require_artifact_caller, require_resolver_caller, serve_artifact_blob, serve_batch_publish,
-    serve_org_packages, serve_packument, serve_ping, serve_pnpr_handshake, serve_publish_artifact,
-    serve_resolve, serve_resolve_artifacts, serve_revision_tarball, serve_search, serve_tarball,
-    serve_verify_lockfile, serve_version_manifest, set_dist_tag, staged, update_packument,
+    caller_scoped, cargo, compiler_cache, compute_upstream_cache_namespace, delete_package,
+    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
+    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found,
+    pnpr_protocols_disabled, private_no_cache, publish_package, put_login, pypi,
+    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
+    serve_artifact_blob, serve_batch_publish, serve_org_packages, serve_packument, serve_ping,
+    serve_pnpr_handshake, serve_publish_artifact, serve_resolve, serve_resolve_artifacts,
+    serve_revision_tarball, serve_search, serve_tarball, serve_verify_lockfile,
+    serve_version_manifest, set_dist_tag, staged, update_packument,
 };
 
 pub(super) fn router_with_auth_and_osv(
@@ -150,6 +151,20 @@ pub(super) fn router_with_auth_and_osv(
     }
     if artifacts_enabled {
         router = router
+            .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
+            .route(
+                "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
+                get(compiler_cache::read)
+                    .put(compiler_cache::write)
+                    .fallback(compiler_cache::directory)
+                    .route_layer(DefaultBodyLimit::max(
+                        pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
+                    ))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        compiler_cache::authorize_request,
+                    )),
+            )
             .route(
                 "/-/pnpr/v0/artifacts",
                 put(serve_publish_artifact)

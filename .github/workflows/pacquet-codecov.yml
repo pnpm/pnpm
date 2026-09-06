@@ -77,7 +77,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@5bf6ce016fd2e72eefc647cbca1e4213f65955b8 # v2.87.5
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sccache@0.17.0
 
       - name: Install llvm-tools-preview for llvm-cov
         run: rustup component add llvm-tools-preview

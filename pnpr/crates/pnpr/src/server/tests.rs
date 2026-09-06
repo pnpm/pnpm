@@ -1,3 +1,5 @@
+mod compiler_cache;
+
 use super::{
     HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
     authentication::{

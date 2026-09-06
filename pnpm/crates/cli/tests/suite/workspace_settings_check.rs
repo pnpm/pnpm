@@ -2,7 +2,9 @@
 //! settings warn, harden into an error when the running pnpm is the version
 //! the project pins, and stay off `pnpm config get <key>` entirely.
 
-use pnpm_testing_utils::bin::CommandTempCwd;
+use pnpm_testing_utils::{
+    bin::CommandTempCwd, diagnostics::assert_diagnostic_contains as assert_contains,
+};
 use std::{
     fs,
     path::Path,
@@ -197,20 +199,6 @@ fn assert_failure(output: &Output) {
         stdout(output),
         stderr(output),
     );
-}
-
-fn assert_contains(text: &str, expected: &str) {
-    assert!(
-        unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),
-        "expected {expected:?} in:\n{text}",
-    );
-}
-
-/// miette hard-wraps a diagnostic to the terminal width and prefixes the
-/// continuation lines with `│`, so an expected message only matches after
-/// both sides are flattened to single-spaced text.
-fn unwrap_diagnostic(text: &str) -> String {
-    text.replace('│', " ").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn stdout(output: &Output) -> String {

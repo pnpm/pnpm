@@ -19,6 +19,38 @@ use std::{
     time::Duration,
 };
 
+#[test]
+fn compiler_cache_policies_distinguish_readers_and_publishers() {
+    let config = Config::from_yaml_str(
+        "artifacts:\n  enabled: true\n  compilerCaches:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
+        Path::new("/config"), listen(), None,
+    ).unwrap();
+    let policy = &config.artifacts.compiler_caches["acme"];
+    assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
+    assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
+    assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
+    assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
+    assert!(
+        config.artifacts.compiler_caches["disabled"].access.is_empty(),
+        "empty access must deny reads"
+    );
+}
+
+#[test]
+fn compiler_cache_policies_reject_ambiguous_or_incomplete_declarations() {
+    for declaration in [
+        "    '../acme': { access: ci, publish: ci }",
+        "    acme: { access: ci }",
+        "    acme: { access: 'ci developer', publish: ci }",
+        "    acme: { access: ci, publish: 'team:missing' }",
+        "    acme: { access: ci, publish: ci, unexpected: true }",
+    ] {
+        let yaml = format!("artifacts:\n  enabled: true\n  compilerCaches:\n{declaration}\n");
+        let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
+        assert!(result.is_err(), "accepted {declaration:?}");
+    }
+}
+
 /// Test [`EnvVar`] provider with a fixed set of variables, so
 /// `token_env` resolution can be exercised without touching the real
 /// process environment.

@@ -90,6 +90,10 @@ The Python ecosystem end-to-end tests also require Python 3.10 or newer with
 `venv` and either `packaging` or pip's bundled copy of `packaging`. CI installs
 Python 3.13. These tests run the real pnpm CLI and Python interpreter.
 
+The pnpr compiler-cache tests require sccache 0.17.0 with WebDAV support,
+installed by `just init`. They run Cargo in isolated checkouts and use separate
+sccache daemons to verify remote reuse and local cache backfill.
+
 ## Automated Checks
 
 Before submitting, run:

@@ -55,8 +55,12 @@ storage: ./storage
 # always served.)
 #resolver:           # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
 #  enabled: true     # and /-/pnpr/v0/verify-lockfile
-#artifacts:          # organization-scoped shared-artifact PoC endpoints
+#artifacts:          # experimental shared artifacts and compiler caches
 #  enabled: false
+#  compilerCaches:  # sccache WebDAV caches, with pnpr account access rules
+#    acme:
+#      access: [ci-builder, alice]
+#      publish: ci-builder
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

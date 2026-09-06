@@ -12,7 +12,7 @@ alias t := test
 # You can download the pre-compiled binary from <https://github.com/cargo-bins/cargo-binstall#installation>
 # or install via `cargo install cargo-binstall`
 init:
-  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
+  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov sccache@0.17.0 -y
   # `cargo-fixit` has no prebuilt binaries, so install it from source
   # with `cargo install` (pinned) instead of `cargo binstall`.
   cargo install cargo-fixit@0.1.15 --locked

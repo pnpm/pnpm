@@ -1,3 +1,7 @@
+mod compiler_cache;
+
+pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
+
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     fs::{File, OpenOptions, TryLockError},
@@ -212,7 +216,16 @@ impl SharedArtifactStore {
                 self.publish_active(prepared, &publication, &mut reclamation_needed),
             )
             .await;
-        let finish = self.finish_publication(&publication, reclamation_needed).await;
+        self.complete_publication(&publication, reclamation_needed, result).await
+    }
+
+    async fn complete_publication<Outcome>(
+        &self,
+        publication: &str,
+        reclamation_needed: bool,
+        result: Result<Outcome>,
+    ) -> Result<Outcome> {
+        let finish = self.finish_publication(publication, reclamation_needed).await;
         if finish.is_ok()
             && let Err(error) = self.try_reclaim_unreferenced_blobs().await
         {

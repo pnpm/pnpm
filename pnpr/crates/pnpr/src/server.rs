@@ -1,6 +1,7 @@
 mod authentication;
 mod batch;
 mod cargo;
+mod compiler_cache;
 mod documents;
 mod ecosystem;
 mod package_mutation;
