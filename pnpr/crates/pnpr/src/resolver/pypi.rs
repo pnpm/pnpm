@@ -250,9 +250,11 @@ impl IndexReader {
             let page = self.hold("page", cached.body)?;
             return parse_page(&page, &source, name, target);
         }
+
         let (page, source) = self
             .fetch(&auth, &page_url, "page", MAX_PAGE_BYTES, Some(pnpr_pypi::JSON_CONTENT_TYPE))
             .await?;
+        let page = text(page, "project page", name.as_ref())?;
         // Parsed before it is cached, so a page that is not one is not
         // served to every resolve that follows for the whole TTL.
         let candidates = parse_page(&page, &source, name, target)?;
@@ -297,6 +299,7 @@ impl IndexReader {
             verify_digest(&wheel, &candidate.wheel.hashes, "wheel", &candidate.wheel.name)?;
             metadata_from_wheel(&wheel, &candidate.wheel.name)?
         };
+        let document = text(document, "metadata", &candidate.wheel.name)?;
         let metadata = parse_metadata(&document, name, version, &candidate.wheel.name)?;
         Self::store(cache_path, CachedDocument { url: wheel_url.to_string(), body: document })
             .await;
@@ -350,8 +353,9 @@ impl IndexReader {
 
     /// Account bytes against this resolve's budget, which bounds what one
     /// request can make the server hold and cache.
-    fn hold(&self, kind: &str, body: Vec<u8>) -> Result<Vec<u8>, String> {
-        let held = self.bytes_held.fetch_add(body.len(), Ordering::Relaxed) + body.len();
+    fn hold<Body: AsRef<[u8]>>(&self, kind: &str, body: Body) -> Result<Body, String> {
+        let held =
+            self.bytes_held.fetch_add(body.as_ref().len(), Ordering::Relaxed) + body.as_ref().len();
         if held > MAX_TOTAL_BYTES {
             return Err(budget_exhausted(kind));
         }
@@ -410,27 +414,28 @@ impl IndexReader {
 
 /// The candidates a project page offers, refusing a page that is not one.
 fn parse_page(
-    page: &[u8],
+    page: &str,
     page_url: &url::Url,
     name: &pep508_rs::PackageName,
     target: &Target,
 ) -> Result<BTreeMap<pep440_rs::Version, Candidate>, String> {
-    let page = std::str::from_utf8(page)
-        .map_err(|err| format!("decode the project page for {name}: {err}"))?;
     candidates_from_page(page, page_url, name, target).map_err(|err| super::report_message(&err))
+}
+
+/// A document as text, refusing one that is not.
+fn text(bytes: Vec<u8>, kind: &str, of: &str) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|err| format!("decode the {kind} of {of}: {err}"))
 }
 
 /// The metadata a document describes, refusing one that describes another
 /// distribution: what a wheel requires decides what a client installs, so
 /// metadata for something else must not stand in for it.
 fn parse_metadata(
-    document: &[u8],
+    document: &str,
     name: &pep508_rs::PackageName,
     version: &pep440_rs::Version,
     filename: &str,
 ) -> Result<WheelMetadata, String> {
-    let document = std::str::from_utf8(document)
-        .map_err(|err| format!("decode the metadata of {filename}: {err}"))?;
     let metadata = WheelMetadata::parse(document).map_err(|err| super::report_message(&err))?;
     let named = metadata
         .name
@@ -469,10 +474,15 @@ fn metadata_url(wheel: &url::Url) -> url::Url {
 /// A document as it was read, beside the URL it came from: a redirected
 /// page's links resolve against where it landed, not where it was asked
 /// for.
+///
+/// The body is text, which is what both cached documents are — a Simple
+/// API page and a `METADATA` file — and what keeps the cache entry the
+/// size of the document rather than the decimal array JSON would make of
+/// its bytes.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct CachedDocument {
     url: String,
-    body: Vec<u8>,
+    body: String,
 }
 
 impl CachedDocument {
