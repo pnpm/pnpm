@@ -26,15 +26,24 @@ fn corrupted_outputs_are_a_miss_before_any_project_changes() {
 fn traversal_in_outputs_or_stale_records_cannot_escape() {
     let (project, _storage, cache) = setup();
     let mut stored = cache.lookup("abcdef").unwrap();
-    for path in ["../outside", "/absolute", "out/../../outside", ".git/config", "node_modules/pkg"]
-    {
+    for path in [
+        "../outside",
+        "/absolute",
+        "out/../../outside",
+        ".git/config",
+        ".GIT/config",
+        "node_modules/pkg",
+        "Node_Modules/pkg",
+    ] {
         stored.files = vec![path.to_string()];
         assert!(cache.restore(&stored, project.path(), "build").is_err(), "must reject {path}");
         stored.files.clear();
-        cache.write_output_record(
-            "build",
-            &[RecordedFile { path: path.to_string(), hash: String::new() }],
-        );
+        cache
+            .write_output_record(
+                "build",
+                &[RecordedFile { path: path.to_string(), hash: String::new() }],
+            )
+            .unwrap();
         assert!(
             cache.restore(&stored, project.path(), "build").is_err(),
             "must reject stale {path}",
@@ -54,13 +63,15 @@ fn symlinked_outputs_cannot_overwrite_or_delete_external_files() {
     let mut stored = cache.lookup("abcdef").unwrap();
     assert!(cache.restore(&stored, project.path(), "build").is_err());
     stored.files.clear();
-    cache.write_output_record(
-        "build",
-        &[RecordedFile {
-            path: "out/result".to_string(),
-            hash: create_hex_hash_from_file(&external).unwrap(),
-        }],
-    );
+    cache
+        .write_output_record(
+            "build",
+            &[RecordedFile {
+                path: "out/result".to_string(),
+                hash: create_hex_hash_from_file(&external).unwrap(),
+            }],
+        )
+        .unwrap();
     assert!(cache.restore(&stored, project.path(), "build").is_err());
     assert_eq!(fs::read_to_string(external).unwrap(), "built");
 }
@@ -120,5 +131,31 @@ fn concurrent_task_publications_leave_a_complete_snapshot() {
     });
     let stored = cache.lookup("abcdef").unwrap();
     cache.restore(&stored, project.path(), "build").unwrap();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
+}
+
+#[test]
+fn output_record_write_failures_are_reported() {
+    let (project, _storage, cache) = setup();
+    let record_path = cache.output_record_path("build");
+    fs::remove_file(&record_path).unwrap();
+    fs::create_dir(&record_path).unwrap();
+    let stored = cache.lookup("abcdef").unwrap();
+    assert!(cache.restore(&stored, project.path(), "build").is_err());
+    assert!(
+        cache
+            .store("abcdef", project.path(), "build", &["out/**".to_string()], Vec::new())
+            .is_err(),
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_project_roots_are_rejected() {
+    let (project, storage, cache) = setup();
+    let link = storage.path().join("linked-project");
+    std::os::unix::fs::symlink(project.path(), &link).unwrap();
+    let stored = cache.lookup("abcdef").unwrap();
+    assert!(cache.restore(&stored, &link, "build").is_err());
     assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "built");
 }

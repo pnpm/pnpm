@@ -113,10 +113,12 @@ fn watch_agent_builds_new_revisions_and_skips_quiet_ticks() {
 
 #[test]
 fn watch_agent_refuses_a_zero_poll_interval() {
-    Command::cargo_bin("pnpm")
+    let result = Command::cargo_bin("pnpm")
         .unwrap()
         .without_ambient_pnpm_config()
         .args(["pipeline", "--watch", "--repo", "unused", "--interval", "0"])
         .assert()
         .failure();
+    let error = String::from_utf8_lossy(&result.get_output().stderr);
+    assert!(error.contains("0 is not in 1.."), "{error}");
 }

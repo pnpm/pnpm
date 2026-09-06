@@ -1274,8 +1274,8 @@ async fn write_atomic_with_replace(path: &Path, bytes: &[u8], replace: bool) -> 
         let _ = fs::remove_file(&tmp).await;
         return Err(err.into());
     }
-    if !replace {
-        fs::remove_file(&tmp).await?;
+    if !replace && let Err(err) = fs::remove_file(&tmp).await {
+        tracing::warn!(?err, path = %tmp.display(), "atomic publication temp cleanup failed");
     }
     Ok(())
 }

@@ -264,8 +264,7 @@ impl TaskCache {
                 hash: create_hex_hash_from_file(&source).unwrap_or_default(),
             });
         }
-        self.write_output_record(task_id, &record);
-        Ok(())
+        self.write_output_record(task_id, &record).map_err(|error| error.to_string())
     }
 
     /// Store a successful task: its declared outputs and captured logs.
@@ -320,8 +319,7 @@ impl TaskCache {
                 }
             }
         }
-        self.write_output_record(task_id, &record);
-        Ok(())
+        self.write_output_record(task_id, &record)
     }
 
     fn matches_snapshot(&self, key: &str, expected: &StoredTask) -> io::Result<bool> {
@@ -357,10 +355,9 @@ impl TaskCache {
             .unwrap_or_default()
     }
 
-    fn write_output_record(&self, task_id: &str, files: &[RecordedFile]) {
-        if let Ok(contents) = serde_json::to_vec(files) {
-            let _ = pnpm_fs::write_atomic(&self.output_record_path(task_id), &contents);
-        }
+    fn write_output_record(&self, task_id: &str, files: &[RecordedFile]) -> io::Result<()> {
+        let contents = serde_json::to_vec(files)?;
+        pnpm_fs::write_atomic(&self.output_record_path(task_id), &contents)
     }
 
     fn project_rel(&self, project: &Path) -> String {
