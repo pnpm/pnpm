@@ -367,6 +367,25 @@ pub(super) async fn validate_crate_publish(
     metadata: PublishMetadata,
     archive: Bytes,
 ) -> Result<CratePublication, RegistryError> {
+    let target = authorize_crate_publish(state, identity, registry, &metadata)?;
+    verify_crate_archive(target, metadata, archive).await
+}
+
+/// Where a crate publish writes, once the metadata is well-formed and the
+/// caller is allowed to publish it there. Everything this decides is cheap,
+/// so a caller holding an undecoded payload can settle the question before
+/// spending anything on the archive.
+pub(super) struct CrateTarget {
+    key: PackageName,
+    org: String,
+}
+
+pub(super) fn authorize_crate_publish(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    metadata: &PublishMetadata,
+) -> Result<CrateTarget, RegistryError> {
     metadata.validate().map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
     let key = crate_key(&metadata.name)?;
     let (source, org) =
@@ -377,6 +396,17 @@ pub(super) async fn validate_crate_publish(
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
     authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)?;
+    Ok(CrateTarget { key, org })
+}
+
+/// Check the archive against the metadata it was published with, and build
+/// the index entry that will record it.
+pub(super) async fn verify_crate_archive(
+    target: CrateTarget,
+    metadata: PublishMetadata,
+    archive: Bytes,
+) -> Result<CratePublication, RegistryError> {
+    let CrateTarget { key, org } = target;
     let (name, version) = (metadata.name.clone(), metadata.vers.clone());
     let checked = tokio::task::spawn_blocking(move || {
         validate_crate_archive(&archive, &name, &version)

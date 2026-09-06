@@ -178,7 +178,7 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     let _guard = state.inner.package_locks.lock(key.as_str()).await;
     let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
     let outcome = commit_publishes(state, vec![staged]).await?;
-    if outcome.lost_blobs.iter().any(|lost| lost == filename) {
+    if outcome.lost_blobs.iter().any(|lost| lost.filename == filename) {
         return Err(RegistryError::PackumentWriteConflict { package: key.as_str().to_string() });
     }
     // Another writer recorded this blob's entry between the read and the
@@ -216,7 +216,12 @@ pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
     document.merge(addition, &HashSet::new());
 
     let slot = storage.reserve_hosted_tarball(key, filename).await?;
-    tokio::fs::write(&slot.tmp_path, bytes).await?;
+    if let Err(err) = tokio::fs::write(&slot.tmp_path, bytes).await {
+        // Nothing owns this slot yet: not the journal, and not a `StagedPublish`
+        // the caller could clean up.
+        let _ = tokio::fs::remove_file(&slot.tmp_path).await;
+        return Err(err.into());
+    }
     Ok(StagedPublish {
         name: key.clone(),
         ecosystem: Document::ECOSYSTEM,

@@ -150,13 +150,22 @@ pub trait HostedDocuments: Send + Sync {
     fn merge(&self, merge: DocumentMerge<'_>) -> Result<Option<Vec<u8>>>;
 }
 
+/// A blob this transaction could not place, because another writer already
+/// owned its immutable slot with different bytes, and the package whose entry
+/// would have described it.
+#[derive(Debug)]
+pub struct LostBlob {
+    pub package: String,
+    pub filename: String,
+}
+
 /// What a committed transaction could not record. Its document was written
 /// without those entries, so the store never advertises what it does not
 /// hold; the surface decides what to report to the publisher.
 #[derive(Debug, Default)]
 pub struct CommitOutcome {
-    /// Canonical filenames whose immutable slot another writer already owned.
-    pub lost_blobs: Vec<String>,
+    /// The blobs whose immutable slot another writer already owned.
+    pub lost_blobs: Vec<LostBlob>,
     /// Set when an entry could not claim a digest-reference slot, to the
     /// limit that was reached.
     pub reference_limit: Option<usize>,
@@ -489,7 +498,11 @@ impl SealedTxn {
                     )
                     .await?;
             }
-            outcome.lost_blobs.extend(lost_blobs);
+            outcome.lost_blobs.extend(
+                lost_blobs
+                    .into_iter()
+                    .map(|filename| LostBlob { package: package.name.clone(), filename }),
+            );
         }
         // Remove the journal before cleaning lost tmp files so an interruption
         // cannot leave a retry that has lost the evidence needed to detect the

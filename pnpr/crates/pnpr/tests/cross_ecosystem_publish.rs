@@ -207,13 +207,11 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 
-    // The npm package is served, with its tarball.
     let packument =
         app.clone().oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
     assert_eq!(body_json(packument.into_body()).await["dist-tags"]["latest"], "1.0.0");
 
-    // The crate resolves through the sparse index and downloads.
     let index = app
         .clone()
         .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
@@ -233,7 +231,6 @@ async fn publishes_a_package_a_crate_and_a_wheel_in_one_transaction() {
         .unwrap();
     assert_eq!(body_bytes(download.into_body()).await, archive);
 
-    // The wheel is listed on the Simple API page and downloads.
     let page = app
         .clone()
         .oneshot(
@@ -287,6 +284,73 @@ async fn a_batch_with_one_bad_entry_publishes_none_of_it() {
     }
     assert_eq!(staged_files(&storage), Vec::<PathBuf>::new());
     assert_eq!(journal_entries(&storage), Vec::<PathBuf>::new());
+}
+
+/// A blob whose immutable slot another writer already owns is the one thing a
+/// batch cannot roll back: the bytes that won are someone's published release.
+/// The package that lost is reported, and the rest of the batch stays
+/// published. An npm packument is written even when a version drops out of
+/// it, so this case is only visible in the blobs the transaction lost.
+#[tokio::test]
+async fn a_package_that_loses_its_blob_is_reported_and_the_rest_stays() {
+    use object_store::{ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use pnpr::HostedStoreConfig;
+    use std::sync::Arc;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let store = Arc::new(InMemory::new());
+    // Another writer already published this tarball, with other bytes.
+    store
+        .put(
+            &ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"),
+            axum::body::Bytes::from_static(b"the winning tarball").into(),
+        )
+        .await
+        .unwrap();
+    let mut config = tri_ecosystem_config(storage.clone());
+    config.hosted_store = HostedStoreConfig::ObjectStore {
+        store: Arc::<InMemory>::clone(&store),
+        prefix: String::new(),
+    };
+    let app = router_with_auth(config, AuthState::in_memory());
+    let token = token_for(&app, "alice").await;
+
+    let body = json!({
+        "packages": [
+            npm_entry("mixed-pkg", "1.0.0", b"the losing tarball"),
+            cargo_entry("demo", "0.1.0", &crate_archive("demo", "0.1.0")),
+        ],
+    });
+    let response = app
+        .clone()
+        .oneshot(publish_request("/-/pnpr/v0/publish", &body, Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+    let reason = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(reason.contains("mixed-pkg"), "{reason}");
+
+    let packument =
+        app.clone().oneshot(Request::get("/mixed-pkg").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::OK);
+    let packument = body_json(packument.into_body()).await;
+    assert_eq!(packument["versions"], json!({}), "the version that lost is not advertised");
+    let index = app
+        .oneshot(Request::get("/cargo/index/de/mo/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(index.status(), StatusCode::OK, "the crate beside it stays published");
+    assert_eq!(
+        store
+            .get(&ObjectPath::from("mixed-pkg/mixed-pkg-1.0.0.tgz"))
+            .await
+            .unwrap()
+            .bytes()
+            .await
+            .unwrap(),
+        "the winning tarball",
+    );
 }
 
 /// The failure that matters most is the one after other packages have already

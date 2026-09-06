@@ -160,7 +160,9 @@ ecosystem's own publish endpoint takes, with the binary parts base64-encoded:
 
 Every entry is authorized and verified before any of them is written, and the
 write is one journaled transaction, so the release is visible all at once or
-not at all. The endpoint sits outside the per-ecosystem prefixes because the
+not at all. If another writer has already published one of the files, that
+package is left out and reported with `409`, and the rest of the release
+stays: the bytes that won the slot are someone else's published release. The endpoint sits outside the per-ecosystem prefixes because the
 batch belongs to no single ecosystem; the npm-only `PUT /-/pnpm/v1/publish`
 stays where it is. `GET /-/pnpr` advertises support as `publish: [0]`.
 

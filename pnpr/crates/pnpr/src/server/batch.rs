@@ -12,15 +12,20 @@
 //! validated and staged before any of them is committed, and the commit is a
 //! single journal transaction, so a workspace that spans ecosystems becomes
 //! visible all at once.
+//!
+//! One thing that cannot be undone: a blob whose immutable slot another
+//! writer already owns. Its bytes are someone's published release, so the
+//! transaction records everything else and reports the package that lost,
+//! rather than unpublishing around it.
 
 use super::{
     AppState, AuthedCaller, Identity,
-    cargo::{CratePublication, validate_crate_publish},
+    cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
     publishing::{
         StagedPublish, cleanup_tmp_slots, commit_publishes, publish_created_response,
         stage_publish, validate_publish_doc,
     },
-    pypi::{PypiPublication, validate_upload},
+    pypi::{PypiPublication, authorize_upload, verify_upload},
 };
 use axum::{
     body::Bytes,
@@ -36,14 +41,14 @@ use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
 use serde::Deserialize;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub(super) async fn serve_ecosystem_publish(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     body: Bytes,
 ) -> Response {
-    match publish_batch(&state, &identity, &body).await {
+    match publish_batch(&state, &identity, body).await {
         Ok(()) => publish_created_response(),
         Err(err) => err.into_response(),
     }
@@ -110,9 +115,13 @@ impl ValidatedEntry {
 async fn publish_batch(
     state: &AppState,
     identity: &Identity,
-    body: &Bytes,
+    body: Bytes,
 ) -> Result<(), RegistryError> {
-    let mut incoming: Value = serde_json::from_slice(body)?;
+    let mut incoming: Value = serde_json::from_slice(&body)?;
+    // The parsed body holds everything the entries need, and the payloads are
+    // decoded out of it below: keep only one copy of a body that may run to
+    // the request limit.
+    drop(body);
     let Some(Value::Array(packages)) =
         incoming.as_object_mut().and_then(|body| body.remove("packages"))
     else {
@@ -166,8 +175,17 @@ async fn publish_batch(
         }
     }
     let outcome = commit_publishes(state, staged).await?;
-    if !outcome.unrecorded.is_empty() {
-        return Err(RegistryError::PublishNotRecorded { packages: outcome.unrecorded.join(", ") });
+    // A package whose blob lost its immutable slot to another writer, or whose
+    // entries were all already recorded, is left out of the document the
+    // transaction wrote. The rest of the batch is published — the bytes that
+    // won the slot are someone's published release, and unpublishing around
+    // them would be worse than reporting this.
+    let mut missing: BTreeSet<String> = outcome.unrecorded.into_iter().collect();
+    missing.extend(outcome.lost_blobs.into_iter().map(|lost| lost.package));
+    if !missing.is_empty() {
+        return Err(RegistryError::PublishNotRecorded {
+            packages: missing.into_iter().collect::<Vec<_>>().join(", "),
+        });
     }
     Ok(())
 }
@@ -197,24 +215,28 @@ async fn validate_entry(
         }
         Ecosystem::Cargo => {
             let entry: CargoEntry = serde_json::from_value(package)?;
+            // Decide where this crate writes, and whether the caller may write
+            // it, before spending anything on decoding its archive.
+            let target = authorize_crate_publish(state, identity, None, &entry.metadata)?;
             let archive = decode_base64(&entry.archive, "archive")?;
-            let publication =
-                validate_crate_publish(state, identity, None, entry.metadata, archive.into())
-                    .await?;
-            Ok(ValidatedEntry::Cargo(publication))
+            Ok(ValidatedEntry::Cargo(
+                verify_crate_archive(target, entry.metadata, archive.into()).await?,
+            ))
         }
         Ecosystem::Pypi => {
             let entry: PypiEntry = serde_json::from_value(package)?;
-            let upload = Upload {
+            let mut upload = Upload {
                 name: entry.name,
                 version: entry.version,
                 filetype: entry.filetype,
                 filename: entry.filename,
-                content: decode_base64(&entry.content, "content")?,
+                content: Vec::new(),
                 sha256_digest: entry.sha256_digest,
                 requires_python: entry.requires_python,
             };
-            Ok(ValidatedEntry::Pypi(validate_upload(state, identity, None, upload).await?))
+            let target = authorize_upload(state, identity, None, &upload)?;
+            upload.content = decode_base64(&entry.content, "content")?;
+            Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
         }
     }
 }

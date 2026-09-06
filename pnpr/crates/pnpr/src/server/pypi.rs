@@ -388,6 +388,25 @@ pub(super) async fn validate_upload(
     registry: Option<&str>,
     upload: Upload,
 ) -> Result<PypiPublication, RegistryError> {
+    let target = authorize_upload(state, identity, registry, &upload)?;
+    verify_upload(target, upload)
+}
+
+/// Where an upload writes, once its fields are consistent and the caller is
+/// allowed to publish the project there. Everything this decides is cheap, so
+/// a caller holding an undecoded payload can settle the question before
+/// spending anything on the file.
+pub(super) struct PypiTarget {
+    key: PackageName,
+    org: String,
+}
+
+pub(super) fn authorize_upload(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    upload: &Upload,
+) -> Result<PypiTarget, RegistryError> {
     let project = normalize_name(&upload.name).map_err(bad_request)?;
     let version = normalize_version(&upload.version).map_err(bad_request)?;
     let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
@@ -421,6 +440,16 @@ pub(super) async fn validate_upload(
             PublishTarget::NotFound => return Err(RegistryError::NotFound),
         };
     authorize(state, identity, &RegistrySource::Hosted(source), &project, Action::Publish)?;
+    Ok(PypiTarget { key, org })
+}
+
+/// Check the file against the digest it was uploaded with, and build the
+/// entry that will record it.
+pub(super) fn verify_upload(
+    target: PypiTarget,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
+    let PypiTarget { key, org } = target;
     let sha256 = sha256_hex(&upload.content);
     if upload.sha256_digest.as_deref().is_some_and(|declared| declared != sha256) {
         return Err(bad_request("sha256_digest does not match the uploaded file"));
