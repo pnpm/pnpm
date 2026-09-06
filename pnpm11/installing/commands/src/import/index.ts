@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import util from 'node:util'
@@ -147,7 +148,8 @@ export async function handler (
   const lockfilePath = path.join(lockfileDir, lockfileName)
   // The env document leads pnpm-lock.yaml, so a branch import has none to carry over.
   const envLockfile = lockfileName === WANTED_LOCKFILE ? await readEnvLockfile(lockfileDir) : undefined
-  const backupPath = `${lockfilePath}.import.bak`
+  // A backup of its own keeps overlapping imports from restoring each other's copy.
+  const backupPath = `${lockfilePath}.${randomUUID()}.import.bak`
   let lockfileExisted = true
   // The existing pnpm lockfile must not influence the imported versions.
   try {

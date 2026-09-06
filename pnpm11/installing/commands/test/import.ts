@@ -140,6 +140,7 @@ test.each(['missing', 'malformed', 'unresolvable'])('failed import preserves the
 
 test.each([
   { failure: false, existingBranch: true },
+  { failure: false, existingBranch: false },
   { failure: true, existingBranch: true },
   { failure: true, existingBranch: false },
 ])('import preserves the shared lockfile with branch lockfiles ($failure, $existingBranch)', async ({ failure, existingBranch }) => {
@@ -195,7 +196,7 @@ test.each([
     expect(lockfile?.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
   }
   expect(await fs.readFile(sharedLockfilePath, 'utf8')).toBe(sharedLockfile)
-  expect((await fs.readdir(lockfileDir)).sort()).toEqual(existingBranch
+  expect((await fs.readdir(lockfileDir)).sort()).toEqual(existingBranch || !failure
     ? ['pnpm-lock.feature!import.yaml', 'pnpm-lock.yaml']
     : ['pnpm-lock.yaml'])
 })
