@@ -43,7 +43,10 @@ impl ImportArgs {
 
         let preferred_versions = to_preferred_versions(&read_foreign_lockfile_versions(dir)?);
 
-        let lockfile_backup = lockfile_path.with_extension("yaml.import.bak");
+        // A backup of its own keeps overlapping imports from restoring each
+        // other's copy.
+        let lockfile_backup =
+            lockfile_path.with_extension(format!("yaml.{}.import.bak", std::process::id()));
         let lockfile_existed = lockfile_path.exists();
         if lockfile_existed {
             std::fs::rename(&lockfile_path, &lockfile_backup)
@@ -116,27 +119,36 @@ impl ImportArgs {
                 Ok(())
             }
             Err(error) => {
-                if lockfile_existed {
-                    restore_lockfile(&lockfile_path, &lockfile_backup).wrap_err_with(|| {
-                        format!("restoring pnpm-lock.yaml after import failed: {error}")
-                    })?;
-                }
+                discard_failed_import(
+                    &lockfile_path,
+                    lockfile_existed.then_some(lockfile_backup.as_path()),
+                )
+                .wrap_err_with(|| {
+                    format!(
+                        "restoring {} after the failed import: {error}",
+                        lockfile_path.display(),
+                    )
+                })?;
                 Err(error)
             }
         }
     }
 }
 
-fn restore_lockfile(
+/// Takes back what an import wrote: whatever it left at `lockfile_path`
+/// goes, and the backup, when the import had a lockfile to back up, moves
+/// into its place. An import that started without one leaves none behind.
+fn discard_failed_import(
     lockfile_path: &std::path::Path,
-    backup_path: &std::path::Path,
+    backup_path: Option<&std::path::Path>,
 ) -> miette::Result<()> {
     if let Err(error) = std::fs::remove_file(lockfile_path)
         && error.kind() != std::io::ErrorKind::NotFound
     {
         return Err(error).into_diagnostic().wrap_err("removing the failed imported lockfile");
     }
+    let Some(backup_path) = backup_path else { return Ok(()) };
     std::fs::rename(backup_path, lockfile_path)
         .into_diagnostic()
-        .wrap_err("restoring the original pnpm-lock.yaml")
+        .wrap_err("restoring the original lockfile")
 }
