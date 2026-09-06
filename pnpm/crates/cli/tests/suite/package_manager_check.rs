@@ -2,8 +2,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_lockfile::EnvLockfile;
 use pnpm_testing_utils::{
-    bin::CommandTempCwd, command_env::CommandTestExt,
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
     diagnostics::assert_diagnostic_contains as assert_contains,
 };
 use std::{
@@ -360,6 +362,43 @@ fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
 
     assert_success(&output);
     assert!(!output_text(&output).contains("0.0.0"), "unexpected mention of the pinned version");
+}
+
+/// Turning version management off hands the user which pnpm runs, not which
+/// one the lockfile records: the install family records the pin from its own
+/// pipeline either way, so a read-only command has to record it too, or the
+/// two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn turning_off_version_management_still_records_the_pinned_package_manager() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output = run(
+        pacquet
+            .with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false")
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()),
+        root.path(),
+        &["list"],
+    );
+
+    assert_success(&output);
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+
+    drop(mock_instance);
 }
 
 #[test]

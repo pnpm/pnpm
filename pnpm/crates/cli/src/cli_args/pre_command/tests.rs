@@ -334,6 +334,50 @@ fn pre_command_plan_switches_to_the_version_the_pin_resolved_to() {
     assert_eq!(version, "99.0.0");
 }
 
+/// The install family records the pin from its own pipeline whether or not
+/// version switching is on, so every other command has to record it there
+/// too — otherwise the two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn pre_command_plan_records_a_pin_when_version_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), PNPM_VERSION);
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    let Some(PreCommandPlan::SyncEnvLockfile(sync)) = plan else {
+        panic!("expected an env lockfile sync, got {plan:?}");
+    };
+    assert_eq!(
+        sync.package_manager,
+        PackageManagerToSync {
+            specifier: PNPM_VERSION.to_string(),
+            version: PNPM_VERSION.to_string(),
+        },
+    );
+}
+
+/// A pin the running pnpm cannot satisfy resolves to no version to record,
+/// so turning the switch off never cements one nobody runs.
+#[test]
+fn pre_command_plan_records_nothing_for_an_unsatisfiable_pin_when_switching_is_turned_off() {
+    let root = TempDir::new().expect("tmp dir");
+    write_dev_engine_manifest(root.path(), "^999.0.0");
+
+    let plan = pre_command_plan_from_input(
+        &pre_command_input(root.path()),
+        &ConfigOverrides::default(),
+        SwitchProcessState { package_manager_switch_disabled: true, executed_by_corepack: false },
+    )
+    .expect("pre-command plan");
+
+    assert!(plan.is_none(), "unexpected pre-command plan: {plan:?}");
+}
+
 #[test]
 fn pre_command_plan_records_a_pin_the_pm_on_fail_setting_reactivated() {
     let root = TempDir::new().expect("tmp dir");

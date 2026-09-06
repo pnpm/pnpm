@@ -254,8 +254,24 @@ fn pre_command_plan_from_input(
         // the version and picked the wrong one, so the mismatch is reported
         // rather than switched.
         let unmanaged_pin = switch_wanted && process_state.package_manager_switch_disabled;
-        if on_fail != PmOnFail::Ignore && !unmanaged_pin {
-            if switch_wanted && !process_state.executed_by_corepack {
+        if on_fail != PmOnFail::Ignore {
+            if unmanaged_pin {
+                // Which pnpm runs is the user's choice here, but which one
+                // the lockfile records is still the project's, and the
+                // install family records it from its own pipeline whatever
+                // this setting says. A command that skipped the record would
+                // leave a block the next install rewrites, flipping the
+                // lockfile back and forth (pnpm/pnpm#14575).
+                if !input.global {
+                    package_manager_to_sync = env_lockfile_sync(
+                        root_manifest,
+                        &root_dir,
+                        on_fail,
+                        input,
+                        ReadEnvLockfile::NotYet,
+                    )?;
+                }
+            } else if switch_wanted && !process_state.executed_by_corepack {
                 let frozen_lockfile =
                     switch.frozen_lockfile.or(config.frozen_lockfile).unwrap_or(false);
                 if let Some(target) = switch_target(&config, &root_dir, frozen_lockfile)? {
