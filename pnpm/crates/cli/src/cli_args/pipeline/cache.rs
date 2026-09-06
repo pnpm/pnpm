@@ -418,6 +418,13 @@ impl TaskCache {
         {
             return Ok(files.as_ref().map(Arc::clone));
         }
+        if has_gitlinks(project)? {
+            self.project_files
+                .lock()
+                .expect("project-files lock is not poisoned")
+                .insert(project.to_path_buf(), None);
+            return Ok(None);
+        }
         let project_display = project.display();
         let output = Command::new("git")
             .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
@@ -448,13 +455,6 @@ impl TaskCache {
             let absolute = project.join(rel_path);
             let hash = match create_hex_hash_from_file(&absolute) {
                 Ok(hash) => hash,
-                Err(_) if is_gitlink(project, rel_path)? => {
-                    self.project_files
-                        .lock()
-                        .expect("project-files lock is not poisoned")
-                        .insert(project.to_path_buf(), None);
-                    return Ok(None);
-                }
                 Err(error)
                     if error.kind() == io::ErrorKind::NotFound
                         && fs::symlink_metadata(&absolute)
@@ -548,10 +548,10 @@ fn compile_globs_owned(patterns: &[String]) -> miette::Result<Vec<Glob<'static>>
 #[cfg(test)]
 mod tests;
 
-fn is_gitlink(project: &Path, relative: &str) -> miette::Result<bool> {
+fn has_gitlinks(project: &Path) -> miette::Result<bool> {
     let project_display = project.display();
     let output = Command::new("git")
-        .args(["--literal-pathspecs", "ls-files", "--stage", "-z", "--", relative])
+        .args(["ls-files", "--stage", "-z"])
         .current_dir(project)
         .output()
         .map_err(|error| {

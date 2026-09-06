@@ -193,6 +193,7 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
         repo.write_file(&format!("packages/{name}/package.json"), &manifest.to_string());
     }
     repo.write_file("packages/independent/input", "independent");
+    repo.write_file("packages/producer/a-unreadable-input", "source");
     Command::new("git")
         .current_dir(&workspace)
         .args([
@@ -208,6 +209,8 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
         .assert()
         .success();
     let _ = repo.commit("workspace with submodule");
+    fs::remove_file(workspace.join("packages/producer/a-unreadable-input")).unwrap();
+    fs::create_dir(workspace.join("packages/producer/a-unreadable-input")).unwrap();
     let command = || {
         let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
         command
