@@ -1,7 +1,7 @@
 use super::{
-    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinRoots, PreCommandInput,
-    PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource, frozen_lockfile_flag,
-    pre_command_plan_from_input, switch_target,
+    CliArgs, CliCommand, KeyIssueReporting, PackageManagerToSync, PinFlags, PinRoots,
+    PreCommandInput, PreCommandPlan, SwitchInput, SwitchProcessState, SwitchSource,
+    frozen_lockfile_flag, pre_command_plan_from_input, switch_target,
 };
 use crate::{boolean_negations::with_boolean_negations, config_overrides::ConfigOverrides};
 use clap::{CommandFactory, FromArgMatches};
@@ -461,8 +461,7 @@ fn pre_command_input(dir: &Path) -> PreCommandInput {
             npmrc_auth_file: None,
             command: Some("run".to_string()),
             frozen_lockfile: None,
-            lockfile_dir: None,
-            offline: None,
+            pin_flags: PinFlags::default(),
             color: None,
         },
         global: false,
@@ -745,6 +744,89 @@ fn the_switch_reads_frozen_lockfile_from_the_command_line() {
     // Only the install family carries the flag; every other command leaves the
     // `frozenLockfile` setting to answer on its own.
     assert_eq!(flag_of(&["pnpm", "run", "build"]), None);
+}
+
+/// The pin record reads `--lockfile-dir` and `--offline` straight from the
+/// command line, so a command that grows either flag and is not added to
+/// [`PinFlags::of`] would silently record against the wrong directory or go
+/// to the network. Ask clap which commands declare them rather than trusting
+/// a second hand-written list.
+#[test]
+fn pin_flags_cover_every_command_declaring_them() {
+    for subcommand in super::super::grammar().get_subcommands() {
+        let name = subcommand.get_name();
+        // A command that skips the package-manager checks records no pin, so
+        // neither flag reaches a write for it.
+        if super::should_skip_command_name(name) {
+            continue;
+        }
+        let declares =
+            |long: &str| subcommand.get_arguments().any(|arg| arg.get_long() == Some(long));
+        if declares("lockfile-dir") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--lockfile-dir", "lf"]));
+            assert_eq!(
+                flags.lockfile_dir.as_deref(),
+                Some(Path::new("lf")),
+                "`pnpm {name}` accepts --lockfile-dir but PinFlags::of ignores it",
+            );
+        }
+        if declares("offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--offline"]));
+            assert_eq!(
+                flags.offline,
+                Some(true),
+                "`pnpm {name}` accepts --offline but PinFlags::of ignores it",
+            );
+        }
+        if declares("prefer-offline") {
+            let flags = PinFlags::of(&parse_with_positional(name, &["--prefer-offline"]));
+            assert_eq!(
+                flags.prefer_offline,
+                Some(true),
+                "`pnpm {name}` accepts --prefer-offline but PinFlags::of ignores it",
+            );
+        }
+    }
+}
+
+/// The pair overrides the configured value in both directions, the
+/// precedence `resolve_bool_override` gives every install-family boolean. An
+/// `offline` that only ever turned on would send `--no-offline` to the
+/// network's opposite.
+#[test]
+fn a_negated_flag_clears_a_configured_value() {
+    let cases = [
+        (PinFlags::default(), true, true),
+        (PinFlags::default(), false, false),
+        (PinFlags { offline: Some(false), ..PinFlags::default() }, true, false),
+        (PinFlags { offline: Some(true), ..PinFlags::default() }, false, true),
+    ];
+    for (flags, configured, expected) in cases {
+        let mut config = Config { offline: configured, ..Config::default() };
+        flags.apply_to(&mut config, Path::new("/tmp"));
+        assert_eq!(
+            config.offline, expected,
+            "offline {:?} over a configured {configured}",
+            flags.offline,
+        );
+    }
+}
+
+/// Parse `pnpm <name> <args>`, adding a placeholder positional for the
+/// commands that require one.
+fn parse_with_positional(name: &str, args: &[&str]) -> CliCommand {
+    let mut argv = vec!["pnpm", name];
+    argv.extend_from_slice(args);
+    let parse = |argv: &[&str]| {
+        with_boolean_negations(CliArgs::command())
+            .try_get_matches_from(argv)
+            .and_then(|matches| CliArgs::from_arg_matches(&matches))
+            .map(|args| args.command)
+    };
+    parse(&argv).unwrap_or_else(|_| {
+        argv.push("placeholder");
+        parse(&argv).unwrap_or_else(|error| panic!("parse `pnpm {name}`: {error}"))
+    })
 }
 
 fn parse_command(argv: &[&str]) -> CliCommand {

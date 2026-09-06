@@ -12,6 +12,8 @@ mod system_runtime_version;
 use super::{
     cli_command::{CliArgs, CliCommand},
     config::{ConfigLocation, ConfigSubcommand},
+    install::{InstallArgs, resolve_bool_override},
+    lockfile_dir::LockfileDirArg,
     package_manager::{
         PACKAGE_MANAGER_SWITCH_ENV_VARS, PackageManagerToSync, WantedPackageManager,
         package_manager_to_sync, read_manifest_json, should_persist_package_manager_lockfile,
@@ -227,12 +229,7 @@ fn pre_command_plan_from_input(
     // `--lockfile-dir` moves the lockfile the pin is recorded in, and
     // `--offline` governs how that record is resolved. Both are install-family
     // flags, and the record below is made for every command.
-    if let Some(lockfile_dir) = switch.lockfile_dir.as_deref() {
-        config.pin_lockfile_dir(&dir.join(lockfile_dir));
-    }
-    if let Some(offline) = switch.offline {
-        config.offline = offline || config.offline;
-    }
+    switch.pin_flags.apply_to(&mut config, &dir);
 
     let roots = PinRoots {
         manifest: config.workspace_dir.clone().unwrap_or_else(|| dir.clone()),
@@ -632,37 +629,82 @@ fn frozen_lockfile_flag(command: &CliCommand) -> Option<bool> {
     }
 }
 
-/// `--lockfile-dir` as typed on the command line. The env lockfile is the
-/// first document of `pnpm-lock.yaml`, so it follows the flag that moves
-/// that file.
-fn lockfile_dir_flag(command: &CliCommand) -> Option<PathBuf> {
-    let lockfile_dir = match command {
-        CliCommand::Add(args) => &args.lockfile_dir,
-        CliCommand::Ci(args) => &args.install_args.lockfile_dir,
-        CliCommand::Install(args) => &args.lockfile_dir,
-        CliCommand::InstallTest(args) => &args.install_args.lockfile_dir,
-        CliCommand::Remove(args) => &args.lockfile_dir,
-        CliCommand::Update(args) => &args.lockfile_dir,
-        _ => return None,
-    };
-    lockfile_dir.lockfile_dir.clone()
+/// The install-family options the pin record reads, as typed on the command
+/// line.
+///
+/// One list, because a command that grows one of these flags has to be added
+/// in one place — `pin_flags_cover_every_command_declaring_them` fails when
+/// it is not.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct PinFlags {
+    /// `--lockfile-dir`, which moves the lockfile the pin is recorded in.
+    lockfile_dir: Option<PathBuf>,
+    /// `--offline` / `--no-offline`, which decide whether the record may be
+    /// resolved over the network.
+    offline: Option<bool>,
+    /// `--prefer-offline` / `--no-prefer-offline`, which decide whether the
+    /// resolution reaches for the cache first.
+    prefer_offline: Option<bool>,
 }
 
-/// `--offline` / `--no-offline` as typed on the command line. The flags
-/// only turn the setting on, matching [`apply_install_cli_config`].
-///
-/// [`apply_install_cli_config`]: super::pipelines::apply_install_cli_config
-fn offline_flag(command: &CliCommand) -> Option<bool> {
-    let (offline, no_offline) = match command {
-        CliCommand::Ci(args) => (args.install_args.offline, args.install_args.no_offline),
-        CliCommand::Dedupe(args) => (args.offline, args.no_offline),
-        CliCommand::Install(args) => (args.offline, args.no_offline),
-        CliCommand::InstallTest(args) => (args.install_args.offline, args.install_args.no_offline),
-        _ => return None,
-    };
-    if offline {
+impl PinFlags {
+    fn of(command: &CliCommand) -> Self {
+        match command {
+            CliCommand::Add(args) => Self::of_lockfile_dir(&args.lockfile_dir),
+            CliCommand::Ci(args) => Self::of_install(&args.install_args),
+            CliCommand::Dedupe(args) => Self {
+                lockfile_dir: None,
+                offline: typed_flag(args.offline, args.no_offline),
+                prefer_offline: typed_flag(args.prefer_offline, args.no_prefer_offline),
+            },
+            CliCommand::Deploy(args) => Self::of_install(&args.install_args),
+            CliCommand::Install(args) => Self::of_install(args),
+            CliCommand::InstallTest(args) => Self::of_install(&args.install_args),
+            CliCommand::Remove(args) => Self::of_lockfile_dir(&args.lockfile_dir),
+            CliCommand::Update(args) => Self::of_lockfile_dir(&args.lockfile_dir),
+            _ => Self::default(),
+        }
+    }
+
+    fn of_install(args: &InstallArgs) -> Self {
+        Self {
+            lockfile_dir: args.lockfile_dir.lockfile_dir.clone(),
+            offline: typed_flag(args.offline, args.no_offline),
+            prefer_offline: typed_flag(args.prefer_offline, args.no_prefer_offline),
+        }
+    }
+
+    fn of_lockfile_dir(lockfile_dir: &LockfileDirArg) -> Self {
+        Self { lockfile_dir: lockfile_dir.lockfile_dir.clone(), ..Self::default() }
+    }
+
+    /// Layer the flags onto `config` with the precedence
+    /// [`resolve_bool_override`] gives a `--flag` / `--no-flag` pair, so
+    /// `--no-offline` clears a configured `offline` here exactly as it does
+    /// for an install.
+    fn apply_to(&self, config: &mut Config, dir: &Path) {
+        if let Some(lockfile_dir) = self.lockfile_dir.as_deref() {
+            config.pin_lockfile_dir(&dir.join(lockfile_dir));
+        }
+        config.offline = resolve_bool_override(
+            self.offline == Some(true),
+            self.offline == Some(false),
+            config.offline,
+        );
+        config.prefer_offline = resolve_bool_override(
+            self.prefer_offline == Some(true),
+            self.prefer_offline == Some(false),
+            config.prefer_offline,
+        );
+    }
+}
+
+/// A `--flag` / `--no-flag` pair as typed on the command line, or `None`
+/// when neither spelling was.
+fn typed_flag(on: bool, off: bool) -> Option<bool> {
+    if on {
         Some(true)
-    } else if no_offline {
+    } else if off {
         Some(false)
     } else {
         None
@@ -1104,11 +1146,8 @@ struct SwitchInput {
     /// `--frozen-lockfile` / `--no-frozen-lockfile` as typed on the command
     /// line. `None` leaves the `frozenLockfile` setting to answer.
     frozen_lockfile: Option<bool>,
-    /// `--lockfile-dir` as typed on the command line, which moves the env
-    /// lockfile with the lockfile it is the first document of.
-    lockfile_dir: Option<PathBuf>,
-    /// `--offline` / `--no-offline` as typed on the command line.
-    offline: Option<bool>,
+    /// The install-family options the pin record reads.
+    pin_flags: PinFlags,
     color: Option<ColorMode>,
 }
 
@@ -1120,8 +1159,7 @@ impl SwitchInput {
             npmrc_auth_file: args.npmrc_auth_file.clone(),
             command: Some(command_name(&args.command).to_string()),
             frozen_lockfile: frozen_lockfile_flag(&args.command),
-            lockfile_dir: lockfile_dir_flag(&args.command),
-            offline: offline_flag(&args.command),
+            pin_flags: PinFlags::of(&args.command),
             color: args.color.or_else(|| args.no_color.then_some(ColorMode::Never)),
         }
     }
@@ -1134,8 +1172,7 @@ impl SwitchInput {
             npmrc_auth_file: None,
             command: None,
             frozen_lockfile: None,
-            lockfile_dir: None,
-            offline: None,
+            pin_flags: PinFlags::default(),
             color: None,
         };
         let mut index = 1;
