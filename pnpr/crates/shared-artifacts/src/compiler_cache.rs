@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use object_store::{ObjectStoreExt as _, PutPayload};
 use pnpm_shared_artifact_protocol::OwnerScope;
 use pnpr_error::{RegistryError, Result};
 use sha2::{Digest as _, Sha512};
@@ -51,7 +52,7 @@ impl SharedArtifactStore {
         }
         let owner = owner_key(cache, &OwnerScope::organization(cache))?;
         let path = compiler_cache_path(&owner, key);
-        if self.read_compiler_cache(cache, key).await?.is_some() {
+        if self.compiler_cache_size(cache, key).await?.is_some() {
             return Ok(false);
         }
         let publication = artifact_operation_id()?;
@@ -68,9 +69,8 @@ impl SharedArtifactStore {
                     return Err(error);
                 }
                 reclamation_needed = true;
-                let mut stored = Vec::with_capacity(size as usize);
-                stored.extend_from_slice(&compiler_cache_digest(&owner, key, &bytes));
-                stored.extend_from_slice(&bytes);
+                let digest = Bytes::copy_from_slice(&compiler_cache_digest(&owner, key, &bytes));
+                let stored: PutPayload = [digest, bytes].into_iter().collect();
                 let created = self.create_object(&path, stored).await?;
                 self.release_uncommitted(&owner, size, if created { size } else { 0 }).await?;
                 reclamation_needed = started.elapsed() >= ACTIVE_PUBLICATION_EXPIRY;
@@ -81,6 +81,31 @@ impl SharedArtifactStore {
             })
             .await;
         self.complete_publication(&publication, reclamation_needed, result).await
+    }
+
+    /// Returns the payload length using object metadata, without verifying content.
+    /// The caller must authorize access to this cache.
+    pub async fn compiler_cache_size(
+        &self,
+        cache: &str,
+        key: &CompilerCacheKey,
+    ) -> Result<Option<u64>> {
+        let owner = owner_key(cache, &OwnerScope::organization(cache))?;
+        let path = self.object_path(&compiler_cache_path(&owner, key));
+        match self.store.head(&path).await {
+            Ok(metadata) => {
+                let size = metadata
+                    .size
+                    .checked_sub(DIGEST_SIZE as u64)
+                    .filter(|size| *size <= MAX_COMPILER_CACHE_ENTRY_SIZE as u64)
+                    .ok_or_else(|| RegistryError::Internal {
+                        reason: format!("stored compiler cache entry {path} has an invalid size"),
+                    })?;
+                Ok(Some(size))
+            }
+            Err(object_store::Error::NotFound { .. }) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// Returns a cache entry only after verifying its stored digest against its

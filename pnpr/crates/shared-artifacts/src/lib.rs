@@ -560,7 +560,10 @@ impl SharedArtifactStore {
         let mut held = true;
         let mut retaken = Vec::new();
         for scope in &scopes {
-            if self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await? {
+            if self
+                .create_object(&scope_marker_path(owner, entry, scope), holder.to_string())
+                .await?
+            {
                 retaken.push(scope.clone());
                 continue;
             }
@@ -868,7 +871,8 @@ impl SharedArtifactStore {
         holder: &str,
         created: &mut Vec<String>,
     ) -> Result<bool> {
-        match self.create_object(&scope_marker_path(owner, entry, scope), holder.into()).await {
+        match self.create_object(&scope_marker_path(owner, entry, scope), holder.to_string()).await
+        {
             Ok(true) => {
                 created.push(scope.to_string());
                 Ok(true)
@@ -980,7 +984,7 @@ impl SharedArtifactStore {
                 let bytes = digest.len() as u64;
                 self.reserve_quota(owner, bytes).await?;
                 match self
-                    .create_object(&scope_marker_path(owner, entry, scope), digest.as_str().into())
+                    .create_object(&scope_marker_path(owner, entry, scope), digest.clone())
                     .await
                 {
                     Ok(true) => {}
@@ -1444,12 +1448,12 @@ impl SharedArtifactStore {
         Ok(())
     }
 
-    async fn create_object(&self, relative: &str, bytes: Vec<u8>) -> Result<bool> {
+    async fn create_object(&self, relative: &str, bytes: impl Into<PutPayload>) -> Result<bool> {
         match self
             .store
             .put_opts(
                 &self.object_path(relative),
-                PutPayload::from(bytes),
+                bytes.into(),
                 PutOptions { mode: PutMode::Create, ..PutOptions::default() },
             )
             .await

@@ -1,4 +1,3 @@
-/// Matches message text independently of miette's line wrapping and continuation bars.
 pub fn assert_diagnostic_contains(text: &str, expected: &str) {
     assert!(
         unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),

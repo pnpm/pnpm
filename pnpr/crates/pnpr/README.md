@@ -92,6 +92,11 @@ name, and 10 GiB globally across artifacts. A compiler cache sharing a name
 with a side-effects owner also shares its quota. There is no automatic
 eviction of live compiler entries yet.
 
+Each server accepts at most two concurrent compiler uploads, acquiring capacity
+before reading request bodies. Additional uploads receive HTTP 503 with
+`Retry-After: 1`. HEAD requests inspect object metadata without downloading the
+entry; GET requests always verify the full content digest.
+
 The endpoint implements GET, HEAD, and PUT at
 `/-/pnpr/v0/compiler-cache/<cache>/<key>`, plus PROPFIND for virtual parent
 directories. It is the subset used by sccache,

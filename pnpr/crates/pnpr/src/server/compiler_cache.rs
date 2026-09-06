@@ -59,6 +59,35 @@ pub(super) async fn write(
     })
 }
 
+pub(super) async fn head(
+    State(state): State<AppState>,
+    Path((cache, key)): Path<(String, String)>,
+) -> Response {
+    let result = async {
+        let key = CompilerCacheKey::try_from(key)?;
+        state
+            .inner
+            .artifacts
+            .as_ref()
+            .expect("compiler cache routes require an artifact store")
+            .compiler_cache_size(&cache, &key)
+            .await
+    }
+    .await;
+    private_no_cache(match result {
+        Ok(Some(size)) => (
+            [
+                (header::CONTENT_LENGTH, size.to_string()),
+                (header::CONTENT_TYPE, "application/octet-stream".to_string()),
+            ],
+            (),
+        )
+            .into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(error) => error.into_response(),
+    })
+}
+
 pub(super) async fn authorize_request(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -73,10 +102,22 @@ pub(super) async fn authorize_request(
     };
     let authorization = authorize(&state, &identity, &cache, request.method() == Method::PUT)
         .and_then(|()| CompilerCacheKey::try_from(key));
-    match authorization {
-        Ok(_) => private_no_cache(next.run(request).await),
-        Err(error) => private_no_cache(error.into_response()),
+    if let Err(error) = authorization {
+        return private_no_cache(error.into_response());
     }
+    let _upload = if request.method() == Method::PUT {
+        match state.inner.compiler_cache_uploads.try_acquire() {
+            Ok(permit) => Some(permit),
+            Err(_) => {
+                return private_no_cache(
+                    (StatusCode::SERVICE_UNAVAILABLE, [(header::RETRY_AFTER, "1")]).into_response(),
+                );
+            }
+        }
+    } else {
+        None
+    };
+    private_no_cache(next.run(request).await)
 }
 
 #[derive(Deserialize)]

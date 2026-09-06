@@ -108,3 +108,33 @@ async fn corrupted_and_relocated_entries_are_never_served() {
     let result = store.read_compiler_cache("ci", &input).await;
     assert!(result.is_err(), "served corrupted entry: {result:?}");
 }
+
+#[tokio::test]
+async fn metadata_and_duplicate_publication_do_not_read_or_verify_payloads() {
+    let directory = TempDir::new().unwrap();
+    let store = SharedArtifactStore::new(&HostedStoreConfig::Fs, directory.path()).unwrap();
+    let input = key("metadata");
+    assert_eq!(store.compiler_cache_size("ci", &input).await.unwrap(), None);
+    store.publish_compiler_cache("ci", &input, Bytes::from_static(b"compiled")).await.unwrap();
+    assert_eq!(store.compiler_cache_size("ci", &input).await.unwrap(), Some(8));
+    let owner = owner_key("ci", &OwnerScope::organization("ci")).unwrap();
+    let path = store.object_path(&compiler_cache_path(&owner, &input));
+    store.store.put(&path, vec![0; DIGEST_SIZE + 8].into()).await.unwrap();
+    assert_eq!(store.compiler_cache_size("ci", &input).await.unwrap(), Some(8));
+    assert!(
+        !store
+            .publish_compiler_cache("ci", &input, Bytes::from_static(b"replacement"))
+            .await
+            .unwrap(),
+        "metadata-only duplicate check must preserve the immutable entry",
+    );
+    assert!(
+        store.read_compiler_cache("ci", &input).await.is_err(),
+        "GET must still reject corruption",
+    );
+    store.store.put(&path, Bytes::from_static(b"truncated").into()).await.unwrap();
+    assert!(
+        store.compiler_cache_size("ci", &input).await.is_err(),
+        "invalid stored size must fail",
+    );
+}

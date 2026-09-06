@@ -14,6 +14,53 @@ use super::{app_with_config_and_token, record};
 const ENTRY: &str = "/-/pnpr/v0/compiler-cache/acme/a/b/cache-key";
 
 #[tokio::test]
+async fn parallel_uploads_are_rejected_before_buffering_and_cancellation_releases_capacity() {
+    let directory = TempDir::new().unwrap();
+    let app = app(config(&directory), "ci", false);
+    let (started, mut receiver) = tokio::sync::mpsc::unbounded_channel();
+    let mut uploads = Vec::new();
+    for _ in 0..2 {
+        let mut started = Some(started.clone());
+        let body = Body::from_stream(futures_util::stream::poll_fn(
+            move |_| -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
+                if let Some(started) = started.take() {
+                    started.send(()).unwrap();
+                }
+                std::task::Poll::Pending
+            },
+        ));
+        uploads.push(tokio::spawn(app.clone().oneshot(request(Method::PUT, ENTRY, body))));
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        receiver.recv().await.unwrap();
+        receiver.recv().await.unwrap();
+    })
+    .await
+    .expect("both upload bodies must start reading");
+    let body = Body::from_stream(futures_util::stream::poll_fn(
+        |_| -> std::task::Poll<Option<Result<Bytes, std::io::Error>>> {
+            panic!("overloaded upload body must not be read");
+        },
+    ));
+    let rejected = app
+        .clone()
+        .oneshot(request(Method::PUT, &ENTRY.replace("/acme/", "/other/"), body))
+        .await
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(rejected.headers()[header::RETRY_AFTER], "1");
+    assert_eq!(rejected.headers()[header::CACHE_CONTROL], "private, no-store");
+    let read = app.clone().oneshot(request(Method::GET, ENTRY, Body::empty())).await.unwrap();
+    assert_eq!(read.status(), StatusCode::NOT_FOUND);
+    for upload in uploads {
+        upload.abort();
+        assert!(upload.await.unwrap_err().is_cancelled(), "upload must be cancelled");
+    }
+    let published = app.oneshot(request(Method::PUT, ENTRY, Body::from("compiled"))).await.unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
+}
+
+#[tokio::test]
 async fn compiler_cache_limits_upload_size_and_rejects_invalid_keys() {
     let directory = TempDir::new().unwrap();
     let app = app(config(&directory), "ci", false);

@@ -100,6 +100,7 @@ pub(super) fn router_with_auth_and_osv(
         inner: Arc::new(AppInner {
             storage,
             artifacts,
+            compiler_cache_uploads: tokio::sync::Semaphore::new(2),
             upstreams,
             upstream_cache_namespaces,
             config,
@@ -155,6 +156,7 @@ pub(super) fn router_with_auth_and_osv(
             .route(
                 "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
                 get(compiler_cache::read)
+                    .head(compiler_cache::head)
                     .put(compiler_cache::write)
                     .fallback(compiler_cache::directory)
                     .route_layer(DefaultBodyLimit::max(
