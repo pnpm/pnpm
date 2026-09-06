@@ -28,12 +28,12 @@ use pnpr_upstream::Upstream;
 use super::{
     AppInner, AppState, AuthedCaller, MAX_ARTIFACT_BLOB_BODY_BYTES,
     MAX_ARTIFACT_PUBLISH_BODY_BYTES, MAX_ARTIFACT_RESOLVE_BODY_BYTES, MAX_LOGIN_BODY_BYTES,
-    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, cargo, compute_upstream_cache_namespace,
-    default_registry_target, delete_package, delete_session_token, delete_tarball,
-    delete_token_by_key, get_dist_tags, get_org_teams, get_profile, get_team_members,
-    get_token_list, get_whoami, loggable_uri, not_found, pnpr_protocols_disabled,
-    private_if_caller_gated, private_no_cache, publish_package, put_login, pypi,
-    reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
+    MAX_PUBLISH_BODY_BYTES, StripedLocks, authenticate, batch, cargo,
+    compute_upstream_cache_namespace, default_registry_target, delete_package,
+    delete_session_token, delete_tarball, delete_token_by_key, get_dist_tags, get_org_teams,
+    get_profile, get_team_members, get_token_list, get_whoami, loggable_uri, not_found,
+    pnpr_protocols_disabled, private_if_caller_gated, private_no_cache, publish_package, put_login,
+    pypi, reject_team_mutation, remove_dist_tag, require_artifact_caller, require_resolver_caller,
     serve_artifact_blob, serve_batch_publish, serve_org_packages, serve_packument, serve_ping,
     serve_pnpr_handshake, serve_publish_artifact, serve_registry_packument, serve_registry_tarball,
     serve_registry_version_manifest, serve_resolve, serve_resolve_artifacts,
@@ -129,7 +129,7 @@ pub(super) fn router_with_auth_and_osv(
     // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
     // carry no capability probe, so they are left unmounted rather than
     // stubbed.
-    if resolver_enabled || artifacts_enabled {
+    if resolver_enabled || artifacts_enabled || registry_enabled {
         router = router.route("/-/pnpr", get(serve_pnpr_handshake));
     } else {
         router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
@@ -188,6 +188,10 @@ pub(super) fn router_with_auth_and_osv(
     if registry_enabled {
         let npm = npm_registry_routes();
         router = router
+            // One publish transaction for packages of any ecosystem. It
+            // answers here rather than beside the npm batch endpoint, which
+            // is part of the npm surface and served under `/npm/` with it.
+            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
             // The npm surface keeps its original addresses (the path-less base
             // and `/~<name>/`) and gains the ecosystem-scoped alias every
             // surface has: `/npm/...` and `/npm/~<name>/...`. The account

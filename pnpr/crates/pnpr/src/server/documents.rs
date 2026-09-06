@@ -10,7 +10,10 @@
 //! and [`RegistryDocuments`] gives that journal the per-ecosystem merge rule
 //! it re-runs when a transaction is applied after a crash.
 
-use super::{AppState, hosted_read_namespace};
+use super::{
+    AppState, hosted_read_namespace,
+    publishing::{StagedPublish, commit_publishes},
+};
 use pnpr_cargo::{CrateDocument, crate_filename};
 use pnpr_error::RegistryError;
 use pnpr_package_name::PackageName;
@@ -18,10 +21,10 @@ use pnpr_policy::Identity;
 use pnpr_pypi::ProjectDocument;
 use pnpr_registry::Ecosystem;
 use pnpr_storage::{
-    journal::{DocumentMerge, HostedDocuments, JournaledPublish},
+    journal::{DocumentMerge, HostedDocuments},
     publish::merge_journaled_packument,
 };
-use std::{collections::HashSet, slice};
+use std::collections::HashSet;
 
 /// The per-project document a hosted registry keeps in its document slot: a
 /// crate's index entries, a Python project's file list. Read through
@@ -163,16 +166,46 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 /// immutable slot decides: a publish whose bytes lose it reports the
 /// conflict, and one that finds its entry already recorded by the writer that
 /// won answers `refuse` on the document that writer left.
-pub(super) async fn store_hosted_artifact<Document: HostedDocument>(
+pub(super) async fn store_hosted_artifact<Document: HostedDocument + Send>(
     state: &AppState,
     org: &str,
     key: &PackageName,
     filename: &str,
     bytes: &[u8],
-    refuse: impl Fn(&Document) -> Result<(), RegistryError>,
+    refuse: impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync,
     addition: Document,
 ) -> Result<(), RegistryError> {
     let _guard = state.inner.package_locks.lock(key.as_str()).await;
+    let staged = stage_hosted_artifact(state, org, key, filename, bytes, &refuse, addition).await?;
+    let outcome = commit_publishes(state, vec![staged]).await?;
+    if outcome.lost_blobs.iter().any(|lost| lost == filename) {
+        return Err(RegistryError::PackumentWriteConflict { package: key.as_str().to_string() });
+    }
+    // Another writer recorded this blob's entry between the read and the
+    // commit, so what the store serves under it is theirs. Answer with the
+    // duplicate error `refuse` would have given had it seen their document.
+    if !outcome.unrecorded.is_empty()
+        && let Some(stored) = state.inner.storage.for_hosted(org).read_hosted_packument(key).await?
+    {
+        refuse(&Document::parse(&stored).map_err(RegistryError::Json)?)?;
+    }
+    Ok(())
+}
+
+/// Everything [`store_hosted_artifact`] does up to the commit: verify the blob
+/// may be published, stage its bytes, and compute the document that records
+/// it. The caller holds the package lock from before this call until after the
+/// commit, which is what makes the read-compute-write sequence safe on this
+/// instance.
+pub(super) async fn stage_hosted_artifact<Document: HostedDocument + Send>(
+    state: &AppState,
+    org: &str,
+    key: &PackageName,
+    filename: &str,
+    bytes: &[u8],
+    refuse: &(impl Fn(&Document) -> Result<(), RegistryError> + Send + Sync),
+    addition: Document,
+) -> Result<StagedPublish, RegistryError> {
     let storage = state.inner.storage.for_hosted(org);
     let stored = storage.read_hosted_packument_for_update(key).await?;
     let mut document = match &stored {
@@ -181,35 +214,16 @@ pub(super) async fn store_hosted_artifact<Document: HostedDocument>(
     };
     refuse(&document)?;
     document.merge(addition, &HashSet::new());
-    let document = document.to_bytes();
 
     let slot = storage.reserve_hosted_tarball(key, filename).await?;
     tokio::fs::write(&slot.tmp_path, bytes).await?;
-    let outcome = state
-        .inner
-        .storage
-        .publish_journal()
-        .commit(
-            &state.inner.storage,
-            &[JournaledPublish {
-                name: key,
-                org: Some(org),
-                ecosystem: Document::ECOSYSTEM,
-                document: &document,
-                base_version: stored.as_ref().map(|stored| &stored.version),
-                slots: slice::from_ref(&slot),
-                revision_refs: &[],
-            }],
-            &RegistryDocuments,
-        )
-        .await?;
-    if outcome.lost_blobs.iter().any(|lost| lost == filename) {
-        return Err(RegistryError::PackumentWriteConflict { package: key.as_str().to_string() });
-    }
-    if !outcome.unrecorded.is_empty()
-        && let Some(stored) = storage.read_hosted_packument(key).await?
-    {
-        refuse(&Document::parse(&stored).map_err(RegistryError::Json)?)?;
-    }
-    Ok(())
+    Ok(StagedPublish {
+        name: key.clone(),
+        ecosystem: Document::ECOSYSTEM,
+        document: document.to_bytes(),
+        base_version: stored.map(|stored| stored.version),
+        slots: vec![slot],
+        revision_refs: Vec::new(),
+        org: Some(org.to_string()),
+    })
 }

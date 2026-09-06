@@ -167,6 +167,17 @@ pub enum RegistryError {
         entry: String,
     },
 
+    /// A publish transaction committed, but another writer already owned
+    /// what one of its packages tried to publish, so that package's entry
+    /// was left out of the document rather than pointed at bytes that are
+    /// not the ones it uploaded.
+    #[display("Publish transaction could not record: {packages}")]
+    #[from(skip)]
+    PublishNotRecorded {
+        #[error(not(source))]
+        packages: String,
+    },
+
     #[display("Hosted packument for package {package:?} changed while writing")]
     #[from(skip)]
     PackumentWriteConflict {
@@ -317,6 +328,7 @@ impl RegistryError {
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
+            RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
@@ -409,6 +421,7 @@ impl RegistryError {
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
+            | RegistryError::PublishNotRecorded { .. }
             | RegistryError::PackumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,

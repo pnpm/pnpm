@@ -1,4 +1,5 @@
 mod authentication;
+mod batch;
 mod cargo;
 mod documents;
 mod ecosystem;
@@ -2998,7 +2999,9 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// `fixLockfile` narrows that list to versions that honor repair requests;
 /// `ecosystems` names the package ecosystems `/-/pnpr/v0/resolve` accepts
 /// in its request body, so a client meeting a server that does not serve
-/// one of them resolves it locally rather than failing.
+/// one of them resolves it locally rather than failing; `publish` lists the
+/// `/-/pnpr/vN/publish` protocol versions, the cross-ecosystem publish
+/// transaction.
 async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let resolver_enabled = state.inner.config.resolver.enabled;
     let versions = resolver_enabled.then_some(0).into_iter().collect::<Vec<_>>();
@@ -3007,6 +3010,7 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let ecosystems = resolved.iter().map(|ecosystem| ecosystem.as_str()).collect::<Vec<_>>();
     let artifacts =
         state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
+    let publish = state.inner.config.registry.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     (
         StatusCode::OK,
         axum::Json(serde_json::json!({
@@ -3015,6 +3019,7 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
                 "artifacts": artifacts,
                 "fixLockfile": fix_lockfile,
                 "ecosystems": ecosystems,
+                "publish": publish,
             }
         })),
     )

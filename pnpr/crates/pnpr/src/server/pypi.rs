@@ -17,14 +17,14 @@
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, store_hosted_artifact},
+    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
         is_fetchable_artifact_url, load_upstream_document, registry_endpoint, serve_hosted_blob,
         serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     hosted_gate, not_found, private_no_cache,
-    publishing::{PublishTarget, resolve_publish_target_for},
+    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source,
 };
 use axum::{
@@ -40,9 +40,9 @@ use pnpr_package_name::{PackageName, is_safe_path_segment};
 use pnpr_policy::Identity;
 use pnpr_pypi::{
     DistributionKind, FILES_PATH, HTML_CONTENT_TYPE, JSON_CONTENT_TYPE, ProjectDocument,
-    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Yanked, multipart, normalize_name, normalize_version,
-    parse_distribution_filename, parse_upload, render_project_list_html, render_project_list_json,
-    wants_json, wants_versioned_html,
+    ProjectFile, SIMPLE_PATH, UPLOAD_PATH, Upload, Yanked, multipart, normalize_name,
+    normalize_version, parse_distribution_filename, parse_upload, render_project_list_html,
+    render_project_list_json, wants_json, wants_versioned_html,
 };
 use pnpr_registry::Ecosystem;
 use pnpr_storage::publish::now_iso;
@@ -364,6 +364,30 @@ async fn upload_file(
         .ok_or_else(|| bad_request("request body must be multipart/form-data"))?;
     let parts = multipart::parse_form(content_type, body).map_err(bad_request)?;
     let upload = parse_upload(parts).map_err(bad_request)?;
+    validate_upload(state, identity, registry, upload).await?.publish(state).await
+}
+
+/// An upload that may proceed: the caller is allowed to publish the project,
+/// the file's name matches the project and version it claims, and the entry
+/// that will record it is built. Publishing it is [`Self::publish`] on its
+/// own, or [`Self::stage`] as one package of a cross-ecosystem batch.
+pub(super) struct PypiPublication {
+    key: PackageName,
+    org: String,
+    entry: ProjectFile,
+    content: Vec<u8>,
+}
+
+/// Run every check a legacy-API upload must pass before anything is written:
+/// the project and version normalize, the filename belongs to them, the
+/// declared digest matches the bytes, and the caller may publish the project
+/// to the registry it routes to.
+pub(super) async fn validate_upload(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    upload: Upload,
+) -> Result<PypiPublication, RegistryError> {
     let project = normalize_name(&upload.name).map_err(bad_request)?;
     let version = normalize_version(&upload.version).map_err(bad_request)?;
     let distribution = parse_distribution_filename(&upload.filename).map_err(bad_request)?;
@@ -402,7 +426,7 @@ async fn upload_file(
         return Err(bad_request("sha256_digest does not match the uploaded file"));
     }
     let entry = ProjectFile {
-        filename: upload.filename.clone(),
+        filename: upload.filename,
         url: None,
         hashes: BTreeMap::from([("sha256".to_string(), sha256)]),
         requires_python: upload.requires_python,
@@ -410,19 +434,58 @@ async fn upload_file(
         size: Some(upload.content.len() as u64),
         upload_time: Some(now_iso()),
     };
-    store_hosted_artifact(
-        state,
-        &org,
-        &key,
-        &upload.filename,
-        &upload.content,
-        |document: &ProjectDocument| match document.file(&upload.filename) {
-            Some(_) => Err(RegistryError::BadRequest {
-                reason: format!("File already exists: {:?}", upload.filename),
-            }),
-            None => Ok(()),
-        },
-        ProjectDocument { name: project.clone(), files: vec![entry] },
-    )
-    .await
+    Ok(PypiPublication { key, org, entry, content: upload.content })
+}
+
+impl PypiPublication {
+    pub(super) fn key(&self) -> &PackageName {
+        &self.key
+    }
+
+    /// Publish this file on its own, in a transaction of one.
+    async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
+        store_hosted_artifact(
+            state,
+            &self.org,
+            &self.key,
+            &self.entry.filename.clone(),
+            &self.content,
+            refuse_existing_file(&self.entry.filename),
+            ProjectDocument {
+                name: self.key.as_str().to_string(),
+                files: vec![self.entry.clone()],
+            },
+        )
+        .await
+    }
+
+    /// Stage this file as one package of a larger transaction. The caller
+    /// holds the package lock and commits.
+    pub(super) async fn stage(self, state: &AppState) -> Result<StagedPublish, RegistryError> {
+        stage_hosted_artifact(
+            state,
+            &self.org,
+            &self.key,
+            &self.entry.filename.clone(),
+            &self.content,
+            &refuse_existing_file(&self.entry.filename),
+            ProjectDocument {
+                name: self.key.as_str().to_string(),
+                files: vec![self.entry.clone()],
+            },
+        )
+        .await
+    }
+}
+
+/// A published distribution file is immutable, so a document that already
+/// carries `filename` is one this upload must not land on.
+fn refuse_existing_file(filename: &str) -> impl Fn(&ProjectDocument) -> Result<(), RegistryError> {
+    let filename = filename.to_string();
+    move |document: &ProjectDocument| match document.file(&filename) {
+        Some(_) => {
+            Err(RegistryError::BadRequest { reason: format!("File already exists: {filename:?}") })
+        }
+        None => Ok(()),
+    }
 }

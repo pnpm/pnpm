@@ -18,14 +18,14 @@
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, store_hosted_artifact},
+    documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, is_fetchable_artifact_url,
         load_upstream_document, registry_endpoint, registry_requires_auth, serve_hosted_blob,
         serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     json_response, not_found,
-    publishing::{PublishTarget, resolve_publish_target_for},
+    publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
     resolve_ecosystem_source, resolve_write_target_for,
 };
 use axum::{
@@ -37,9 +37,9 @@ use axum::{
     routing::{delete, get, put},
 };
 use pnpr_cargo::{
-    CrateDocument, IndexConfig, crate_filename, download_url, errors_json, ok_json, parse_index,
-    parse_publish_body, publish_ok_json, sparse_index_path, validate_crate_archive,
-    validate_crate_name,
+    CrateDocument, IndexConfig, IndexEntry, PublishMetadata, crate_filename, download_url,
+    errors_json, ok_json, parse_index, parse_publish_body, publish_ok_json, sparse_index_path,
+    validate_crate_archive, validate_crate_name,
 };
 use pnpr_error::RegistryError;
 use pnpr_package_name::{PackageName, is_safe_path_segment};
@@ -328,62 +328,112 @@ async fn put_publish(
         Ok(parsed) => parsed,
         Err(err) => return bad_request(err),
     };
-    if let Err(err) = metadata.validate() {
-        return bad_request(err);
-    }
-    // The archive is the tail of the body; re-slice it so the check below
+    // The archive is the tail of the body; re-slice it so the checks below
     // can own it without copying.
     let archive = body.slice(body.len() - archive.len()..);
-    let key = match crate_key(&metadata.name) {
-        Ok(key) => key,
-        Err(err) => return error_response(err),
-    };
-    let target =
-        resolve_publish_target_for(&state, &identity, registry.as_deref(), ECOSYSTEM, key.as_str());
-    let (source, org) = match target {
-        PublishTarget::Hosted { source, org } => (source, org),
-        PublishTarget::Reject(reason) => return bad_request(reason),
-        PublishTarget::Denied(err) => return error_response(err),
-        PublishTarget::NotFound => return not_found(),
-    };
-    if let Err(err) =
-        authorize(&state, &identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)
-    {
-        return error_response(err);
+    let publication =
+        match validate_crate_publish(&state, &identity, registry.as_deref(), metadata, archive)
+            .await
+        {
+            Ok(publication) => publication,
+            Err(err) => return error_response(err),
+        };
+    match publication.publish(&state).await {
+        Ok(()) => json_response(StatusCode::OK, &publish_ok_json()),
+        Err(err) => error_response(err),
     }
+}
+
+/// A `cargo publish` that may proceed: the caller is allowed to publish the
+/// crate, the archive holds what its metadata says, and the index entry that
+/// will record it is built. Publishing it is [`Self::publish`] on its own, or
+/// [`Self::stage`] as one package of a cross-ecosystem batch.
+pub(super) struct CratePublication {
+    key: PackageName,
+    org: String,
+    filename: String,
+    entry: IndexEntry,
+    archive: Bytes,
+}
+
+/// Run every check a `cargo publish` must pass before anything is written:
+/// the metadata is well-formed, the caller may publish the crate to the
+/// registry it routes to, and the archive is a `.crate` of exactly that name
+/// and version.
+pub(super) async fn validate_crate_publish(
+    state: &AppState,
+    identity: &Identity,
+    registry: Option<&str>,
+    metadata: PublishMetadata,
+    archive: Bytes,
+) -> Result<CratePublication, RegistryError> {
+    metadata.validate().map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
+    let key = crate_key(&metadata.name)?;
+    let (source, org) =
+        match resolve_publish_target_for(state, identity, registry, ECOSYSTEM, key.as_str()) {
+            PublishTarget::Hosted { source, org } => (source, org),
+            PublishTarget::Reject(reason) => return Err(RegistryError::BadRequest { reason }),
+            PublishTarget::Denied(err) => return Err(err),
+            PublishTarget::NotFound => return Err(RegistryError::NotFound),
+        };
+    authorize(state, identity, &RegistrySource::Hosted(source), key.as_str(), Action::Publish)?;
     let (name, version) = (metadata.name.clone(), metadata.vers.clone());
     let checked = tokio::task::spawn_blocking(move || {
         validate_crate_archive(&archive, &name, &version)
             .map(|()| (sha256_hex(&archive), archive))
             .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })
     })
-    .await;
-    let (cksum, archive) = match checked {
-        Ok(Ok(checked)) => checked,
-        Ok(Err(err)) => return error_response(err),
-        Err(err) => return error_response(RegistryError::JoinError(err)),
-    };
+    .await
+    .map_err(RegistryError::JoinError)??;
+    let (cksum, archive) = checked;
     let filename = crate_filename(&metadata.name, &metadata.vers);
-    let entry = metadata.into_index_entry(cksum);
-    let vers = entry.vers.clone();
-    let stored = store_hosted_artifact(
-        &state,
-        &org,
-        &key,
-        &filename,
-        &archive,
-        |document: &CrateDocument| match document.version(&vers) {
-            Some(_) => Err(RegistryError::BadRequest {
-                reason: format!("crate version `{vers}` is already uploaded"),
-            }),
-            None => Ok(()),
-        },
-        CrateDocument { name: entry.name.clone(), versions: vec![entry] },
-    )
-    .await;
-    match stored {
-        Ok(()) => json_response(StatusCode::OK, &publish_ok_json()),
-        Err(err) => error_response(err),
+    Ok(CratePublication { key, org, filename, entry: metadata.into_index_entry(cksum), archive })
+}
+
+impl CratePublication {
+    pub(super) fn key(&self) -> &PackageName {
+        &self.key
+    }
+
+    /// Publish this crate on its own, in a transaction of one.
+    async fn publish(self, state: &AppState) -> Result<(), RegistryError> {
+        store_hosted_artifact(
+            state,
+            &self.org,
+            &self.key,
+            &self.filename,
+            &self.archive,
+            refuse_published_version(&self.entry.vers),
+            CrateDocument { name: self.entry.name.clone(), versions: vec![self.entry.clone()] },
+        )
+        .await
+    }
+
+    /// Stage this crate as one package of a larger transaction. The caller
+    /// holds the package lock and commits.
+    pub(super) async fn stage(self, state: &AppState) -> Result<StagedPublish, RegistryError> {
+        stage_hosted_artifact(
+            state,
+            &self.org,
+            &self.key,
+            &self.filename,
+            &self.archive,
+            &refuse_published_version(&self.entry.vers),
+            CrateDocument { name: self.entry.name.clone(), versions: vec![self.entry.clone()] },
+        )
+        .await
+    }
+}
+
+/// A published crate version is immutable, so a document that already carries
+/// `vers` is one this publish must not land on.
+fn refuse_published_version(vers: &str) -> impl Fn(&CrateDocument) -> Result<(), RegistryError> {
+    let vers = vers.to_string();
+    move |document: &CrateDocument| match document.version(&vers) {
+        Some(_) => Err(RegistryError::BadRequest {
+            reason: format!("crate version `{vers}` is already uploaded"),
+        }),
+        None => Ok(()),
     }
 }
 

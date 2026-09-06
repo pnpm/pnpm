@@ -138,6 +138,32 @@ page lists, verified against its `sha256`, and cached. The project list at
 only to the upstream's own origin, never to the separate host an index points
 downloads at.
 
+### One publish for a workspace that spans ecosystems
+
+`PUT /-/pnpr/v0/publish` publishes packages of any ecosystem in a single
+transaction. Each entry names its `ecosystem` — absent means npm, so the body
+the npm batch endpoint takes is already a valid one — and carries what that
+ecosystem's own publish endpoint takes, with the binary parts base64-encoded:
+
+```json
+{
+  "packages": [
+    { "name": "@acme/ui", "versions": {}, "_attachments": {} },
+    { "ecosystem": "cargo", "metadata": { "name": "acme", "vers": "0.1.0" },
+      "archive": "<base64 .crate>" },
+    { "ecosystem": "pypi", "name": "acme", "version": "0.1.0",
+      "filetype": "bdist_wheel", "filename": "acme-0.1.0-py3-none-any.whl",
+      "content": "<base64 wheel>" }
+  ]
+}
+```
+
+Every entry is authorized and verified before any of them is written, and the
+write is one journaled transaction, so the release is visible all at once or
+not at all. The endpoint sits outside the per-ecosystem prefixes because the
+batch belongs to no single ecosystem; the npm-only `PUT /-/pnpm/v1/publish`
+stays where it is. `GET /-/pnpr` advertises support as `publish: [0]`.
+
 Cargo and Python proxies restrict downloads and redirects to their configured
 upstream origin and the existing `routes.public` allowlist. The official
 crates.io and PyPI upstreams also permit their respective download hosts,

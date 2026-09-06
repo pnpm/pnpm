@@ -16,7 +16,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
     HostedPackumentVersion,
-    journal::{JournaledPublish, JournaledRevisionRef},
+    journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
         stream_decode_verify_and_write,
@@ -386,19 +386,23 @@ fn record_publisher(incoming: &mut Value, identity: &Identity) {
     }
 }
 
-/// A publish whose packument is merged and whose tarballs are fully
-/// written to tmp slots — everything verified, nothing visible to
-/// readers yet. [`commit_publishes`] makes it visible.
+/// A publish whose document is computed and whose blobs are fully written to
+/// tmp slots — everything verified, nothing visible to readers yet.
+/// [`commit_publishes`] makes it visible. Every surface stages into this, so
+/// one commit can carry packages of more than one ecosystem.
 pub(super) struct StagedPublish {
-    name: PackageName,
-    merged_bytes: Vec<u8>,
-    base_version: Option<HostedPackumentVersion>,
-    slots: Vec<pnpr_storage::TarballSlot>,
-    original_refs: Vec<JournaledRevisionRef>,
+    pub(super) name: PackageName,
+    pub(super) ecosystem: Ecosystem,
+    /// The document to record, merged with what the store held when it was
+    /// read: a packument, a crate document, a project document.
+    pub(super) document: Vec<u8>,
+    pub(super) base_version: Option<HostedPackumentVersion>,
+    pub(super) slots: Vec<pnpr_storage::TarballSlot>,
+    pub(super) revision_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
-    /// the write — and any crash-recovery roll-forward — lands in the right org.
-    org: Option<String>,
+    /// the write — and any crash recovery — lands in the right org.
+    pub(super) org: Option<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -524,10 +528,11 @@ pub(super) async fn stage_publish(
     }
     Ok(StagedPublish {
         name,
-        merged_bytes,
+        ecosystem: Ecosystem::Npm,
+        document: merged_bytes,
         base_version,
         slots: written_slots,
-        original_refs,
+        revision_refs: original_refs,
         org: org.map(str::to_string),
     })
 }
@@ -550,27 +555,29 @@ fn staged_hosted_original_ref(
 
 /// Make every staged publish visible, as one journaled transaction: a crash
 /// or I/O failure mid-apply can never leave the batch partially published,
-/// because startup recovery applies whatever the seal committed.
+/// because startup recovery applies whatever the seal committed. The batch
+/// may mix ecosystems; each package's document is merged by the rule its own
+/// surface owns.
 ///
-/// A version whose tarball lost its immutable slot to another replica is
-/// dropped from the packument the transaction writes, which keeps the store
-/// consistent with the tarball that won. One that could not claim a
-/// digest-reference slot is dropped the same way, but reported: the publisher
-/// asked for a version that is not there.
+/// A version whose blob lost its immutable slot to another replica is dropped
+/// from the document the transaction writes, which keeps the store consistent
+/// with the blob that won; the caller reads that out of the outcome. One that
+/// could not claim a digest-reference slot is dropped the same way, and
+/// reported here: the publisher asked for a version that is not there.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
-) -> Result<(), RegistryError> {
+) -> Result<CommitOutcome, RegistryError> {
     let entries: Vec<JournaledPublish<'_>> = staged
         .iter()
         .map(|stage| JournaledPublish {
             name: &stage.name,
             org: stage.org.as_deref(),
-            ecosystem: Ecosystem::Npm,
-            document: &stage.merged_bytes,
+            ecosystem: stage.ecosystem,
+            document: &stage.document,
             base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
-            revision_refs: &stage.original_refs,
+            revision_refs: &stage.revision_refs,
         })
         .collect();
     let outcome = state
@@ -581,11 +588,11 @@ pub(super) async fn commit_publishes(
         .await?;
     match outcome.reference_limit {
         Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
-        None => Ok(()),
+        None => Ok(outcome),
     }
 }
 
-fn publish_created_response() -> Response {
+pub(super) fn publish_created_response() -> Response {
     let body = json!({ "ok": true, "success": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
@@ -599,7 +606,7 @@ fn publish_created_response() -> Response {
 /// already wrote. Errors are swallowed: the caller is already
 /// returning an error response, and a leftover `*.tmp.*` file is
 /// harmless beyond a small amount of disk.
-async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
+pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
     for slot in slots {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }

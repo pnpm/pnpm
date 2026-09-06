@@ -2790,6 +2790,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
                 "artifacts": [],
                 "fixLockfile": [0],
                 "ecosystems": ["npm", "cargo"],
+                "publish": [],
             }
         }),
     );
@@ -2912,6 +2913,7 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
                 "artifacts": [0],
                 "fixLockfile": [],
                 "ecosystems": [],
+                "publish": [],
             }
         }),
     );
@@ -2958,17 +2960,23 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
-    // The resolver surface is gone: the handshake and both resolver
-    // endpoints 404.
+    // The registry tier has a pnpr protocol of its own — the cross-ecosystem
+    // publish transaction — so the handshake answers, and reports no resolver.
     let handshake =
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(handshake.status(), StatusCode::NOT_FOUND);
-
-    // `/-/pnpr` is the only stubbed resolver path, for every method, so
-    // capability detection cleanly concludes "no resolver here".
-    let handshake_post =
-        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
+    assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [],
+                "fixLockfile": [],
+                "ecosystems": [],
+                "publish": [0],
+            }
+        }),
+    );
 
     // `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile` are NOT stubbed:
     // with the resolver disabled they fall through to the registry's
