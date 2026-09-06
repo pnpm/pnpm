@@ -200,12 +200,13 @@ function collectEnginePackagesToVerify (
  * Whether `engine` cannot run without a platform binary from its optional
  * dependencies: `@pnpm/exe` always, and the unscoped `pnpm` from v12, where it
  * is the native executable. Below v12 the unscoped `pnpm` is a JavaScript CLI
- * that runs on Node.js.
+ * that runs on Node.js. A version no semver parse accepts counts as native, so
+ * an engine pnpm cannot classify fails closed instead of skipping the check.
  */
 function requiresPlatformBinary (engine: PnpmEngineToVerify): boolean {
   if (engine.name === '@pnpm/exe') return true
   const parsed = semver.parse(engine.version, { loose: true })
-  return parsed != null && parsed.major >= 12
+  return parsed == null || parsed.major >= 12
 }
 
 /**

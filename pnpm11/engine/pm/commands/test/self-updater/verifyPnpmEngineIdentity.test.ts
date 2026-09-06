@@ -15,9 +15,7 @@ const PLATFORM_INTEGRITY = 'sha512-platform-integrity'
 const PLATFORM_PKG_NAME = `@pnpm/${exePlatformPkgDirName(process.platform, process.arch, familySync())}`
 const PLATFORM_PKG_NAME_NEXT = `@pnpm/${exePlatformPkgDirNameNext(process.platform, process.arch, familySync())}`
 const HOST_TARGET = nativeTargetName(process.platform, process.arch, familySync())
-/** The SEA build, which executes the host's platform binary. */
 const EXE_ENGINE = { name: '@pnpm/exe', version: '9.1.0' }
-/** The JavaScript build, which runs on Node.js and links no platform binary. */
 const JS_ENGINE = { name: 'pnpm', version: '9.1.0' }
 
 beforeEach(async () => {
@@ -210,6 +208,17 @@ describe('verifyPnpmEngineIdentity', () => {
     ;(lockfile.snapshots as Record<string, unknown>)['pnpm@9.1.0'] = { optionalDependencies: { [PLATFORM_PKG_NAME]: '9.1.0' } }
 
     await expect(verifyPnpmEngineIdentity(lockfile, JS_ENGINE, optsTrusting(key))).rejects.toThrow(/Refusing to run pnpm/)
+  })
+
+  test('refuses an engine whose version no semver parse accepts, rather than assuming a JavaScript build', async () => {
+    const lockfile = envLockfile()
+    ;(lockfile.importers['.'].packageManagerDependencies as Record<string, unknown>)['pnpm'] = { specifier: 'nightly', version: 'nightly' }
+    ;(lockfile.packages as Record<string, unknown>)['pnpm@nightly'] = { resolution: { integrity: PNPM_INTEGRITY } }
+    ;(lockfile.snapshots as Record<string, unknown>)['pnpm@nightly'] = { optionalDependencies: {} }
+
+    await expect(verifyPnpmEngineIdentity(lockfile, { name: 'pnpm', version: 'nightly' }, optsTrusting(createSigningKey()))).rejects.toMatchObject({
+      code: 'ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY',
+    })
   })
 
   test('throws when the lockfile pins a different version of the engine than the one being installed', async () => {

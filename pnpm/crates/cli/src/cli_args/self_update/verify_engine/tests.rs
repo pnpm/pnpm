@@ -171,8 +171,6 @@ fn engine_to_verify(package: &str, platform_binaries: PlatformBinaries) -> Engin
     EngineToVerify { label: "pnpm@11.0.0", package, version: "11.0.0", platform_binaries }
 }
 
-/// The install is rooted at one package, so verifying the other one the
-/// lockfile pins would prove nothing about the bytes that run.
 #[test]
 fn only_the_package_that_is_installed_is_verified() {
     let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
@@ -190,8 +188,6 @@ fn only_the_package_that_is_installed_is_verified() {
     );
 }
 
-/// The JavaScript pnpm links no platform binary, so an `@pnpm/exe` pinned
-/// beside it that ships none for the host must not block the switch.
 #[test]
 fn the_javascript_pnpm_verifies_where_the_pinned_exe_has_no_host_binary() {
     let env = env_lockfile(&[("@pnpm/exe.aix-mips", "11.0.0")]);
@@ -204,9 +200,8 @@ fn the_javascript_pnpm_verifies_where_the_pinned_exe_has_no_host_binary() {
     .expect("a foreign-platform @pnpm/exe does not block the JavaScript pnpm");
 }
 
-/// `link_exe_platform_binary` links whatever host binary the install
-/// materializes, so a platform package listed by the JavaScript pnpm is the
-/// code that would run and must be verified too.
+/// `link_exe_platform_binary` hardlinks the host binary over the engine's own
+/// bin whichever engine listed it, so this one runs too.
 #[test]
 fn a_platform_binary_listed_by_the_javascript_pnpm_is_verified() {
     let platform_name = host_platform_pkg_name();
@@ -262,8 +257,6 @@ fn a_native_engine_without_a_binary_for_the_host_is_refused() {
     assert_eq!(target, native_target_name(host_platform(), host_arch(), host_libc()));
 }
 
-/// A lockfile that pins another version of the engine leaves the bytes the
-/// install roots at unverified.
 #[test]
 fn an_engine_the_lockfile_does_not_pin_is_unverifiable() {
     let env = env_lockfile(&[(&host_platform_pkg_name(), "11.0.0")]);
