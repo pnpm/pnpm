@@ -1505,7 +1505,7 @@ async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
     for mode in 0..3 {
         let guard = client.acquire_for_url(&url).await;
         let response = guard.get(&url).send().await.unwrap();
-        let response = guard.retain_for_body(response);
+        let response = guard.retain_for_body(response, Duration::from_secs(30));
         assert_eq!(response.url().as_str(), url);
         assert_eq!(response.content_length(), Some(14));
         assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
@@ -1519,18 +1519,66 @@ async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
         } else {
             let mut stream = Box::pin(response.bytes_stream());
             assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
-            assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
             if mode == 1 {
                 assert!(stream.next().await.is_none());
                 assert_eq!(client.semaphore.available_permits(), initial_permits);
             }
             drop(stream);
         }
-        assert_eq!(client.semaphore.available_permits(), initial_permits);
         let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
             .await
             .unwrap();
         drop(guard);
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
+    use futures_util::StreamExt;
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/artifact")
+        .with_body(vec![0; 2 * 1024 * 1024])
+        .expect(2)
+        .create_async()
+        .await;
+    let url = format!("{}/artifact", server.url());
+    let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let initial_permits = client.semaphore.available_permits();
+    for cancel in [false, true] {
+        let guard = client.acquire_for_url(&url).await;
+        let response = guard.get(&url).send().await.unwrap();
+        let budget = if cancel { Duration::from_secs(30) } else { Duration::from_millis(100) };
+        let mut stream = Box::pin(guard.retain_for_body(response, budget).bytes_stream());
+        stream.next().await.unwrap().unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
+                .await
+                .is_err(),
+        );
+        if cancel {
+            drop(stream);
+        } else {
+            let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+                .await
+                .expect("deadline releases a stalled stream's permits");
+            drop(guard);
+            loop {
+                if let Err(error) =
+                    stream.next().await.expect("deadline must surface as a body error")
+                {
+                    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+                    break;
+                }
+            }
+        }
+        let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+            .await
+            .unwrap();
+        drop(guard);
+        assert_eq!(client.semaphore.available_permits(), initial_permits);
     }
     mock.assert_async().await;
 }

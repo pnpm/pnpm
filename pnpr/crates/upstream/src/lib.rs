@@ -322,10 +322,10 @@ impl Upstream {
         Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
     }
 
-    /// Send the tarball request and return the streaming
-    /// [`reqwest::Response`] so the caller can pipe the body straight
-    /// to the client without buffering. Status and 404 handling
-    /// happen here before any bytes are forwarded.
+    /// Send the tarball request and return a [`ThrottledResponse`]. Use its
+    /// [`bytes_stream`](ThrottledResponse::bytes_stream) to forward the body
+    /// with bounded buffering and network permits held until the producer ends.
+    /// Status and 404 handling happen before any bytes are forwarded.
     ///
     /// Returns [`RegistryError::UpstreamUnavailable`] without hitting the
     /// network when the circuit breaker is open.
@@ -334,6 +334,7 @@ impl Upstream {
         name: &PackageName,
         filename: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let started = Instant::now();
         self.ensure_available()?;
         let url = format!("{}/{}/-/{}", self.base.trim_end_matches('/'), name.as_str(), filename);
         let (response, guard) = self.get_with_scoped_headers(&url, &HeaderMap::new()).await?;
@@ -346,7 +347,9 @@ impl Upstream {
         // the caller's to observe. Recording success on a clean status is
         // what verdaccio does too.
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(response)))
+        Ok(FetchOutcome::Ok(
+            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+        ))
     }
 
     /// Fetch a document by path relative to the upstream's base URL — a Cargo
@@ -409,6 +412,7 @@ impl Upstream {
         &self,
         url: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let started = Instant::now();
         self.ensure_available()?;
         let (response, guard) = self.get_with_scoped_headers(url, &HeaderMap::new()).await?;
         if response.status() == StatusCode::NOT_FOUND {
@@ -417,7 +421,9 @@ impl Upstream {
         }
         let response = self.checked(response, url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(guard.retain_for_body(response)))
+        Ok(FetchOutcome::Ok(
+            guard.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+        ))
     }
 
     /// Fetch an immutable sha512 registry artifact without following redirects.
@@ -425,6 +431,7 @@ impl Upstream {
         &self,
         digest: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
+        let started = Instant::now();
         self.ensure_available()?;
         let url = format!("{}/-/tarballs/sha512/{digest}", self.base.trim_end_matches('/'));
         let client = self.client.acquire_for_url_without_redirects_with_priority(&url, 0).await;
@@ -436,7 +443,9 @@ impl Upstream {
         }
         let response = self.checked(response, &url).await?;
         self.breaker.record_success();
-        Ok(FetchOutcome::Ok(client.retain_for_body(response)))
+        Ok(FetchOutcome::Ok(
+            client.retain_for_body(response, self.timeout.saturating_sub(started.elapsed())),
+        ))
     }
 
     /// Query an upstream npm search endpoint with the caller's already-encoded

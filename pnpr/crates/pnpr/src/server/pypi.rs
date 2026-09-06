@@ -268,9 +268,15 @@ async fn get_file(
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, &project) {
         RegistrySource::Hosted(source) => {
-            serve_hosted_blob(&state, &identity, &source, &key, filename)
-                .await
-                .unwrap_or_else(IntoResponse::into_response)
+            match read_hosted_document::<ProjectDocument>(&state, &identity, &source, &key).await {
+                Ok(Some(document)) if document.file(filename).is_some() => {
+                    serve_hosted_blob(&state, &identity, &source, &key, filename)
+                        .await
+                        .unwrap_or_else(IntoResponse::into_response)
+                }
+                Ok(_) => not_found(),
+                Err(err) => err.into_response(),
+            }
         }
         source @ RegistrySource::Upstream(_) => {
             file_via_upstream(&state, &identity, &source, &key, &project, filename).await

@@ -14,6 +14,13 @@ pub enum RegistryError {
         source: reqwest::Error,
     },
 
+    #[display("Upstream response body from {url} failed: {source}")]
+    UpstreamBody {
+        url: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("Upstream returned status {status} for {url}")]
     UpstreamStatus {
         url: String,
@@ -283,7 +290,9 @@ impl RegistryError {
     #[must_use]
     pub fn is_transient_upstream_error(&self) -> bool {
         match self {
-            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::Upstream { .. }
+            | RegistryError::UpstreamBody { .. }
+            | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             _ => false,
         }
@@ -292,7 +301,7 @@ impl RegistryError {
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         match self {
-            RegistryError::Upstream { .. } => "upstream",
+            RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
             RegistryError::UpstreamResponse { .. } => "upstream_response",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
@@ -373,6 +382,18 @@ impl RegistryError {
                     StatusCode::GATEWAY_TIMEOUT
                 } else if source.is_connect() {
                     StatusCode::SERVICE_UNAVAILABLE
+                } else {
+                    StatusCode::BAD_GATEWAY
+                }
+            }
+            RegistryError::UpstreamBody { source, .. } => {
+                if source.kind() == std::io::ErrorKind::TimedOut
+                    || source
+                        .get_ref()
+                        .and_then(|source| source.downcast_ref::<reqwest::Error>())
+                        .is_some_and(reqwest::Error::is_timeout)
+                {
+                    StatusCode::GATEWAY_TIMEOUT
                 } else {
                     StatusCode::BAD_GATEWAY
                 }

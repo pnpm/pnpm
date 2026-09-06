@@ -183,5 +183,5 @@ async fn throttled_response(url: String) -> pnpm_network::ThrottledResponse {
     let client = pnpm_network::ThrottledClient::new_for_installs();
     let guard = client.acquire_for_url(&url).await;
     let response = guard.get(url).send().await.unwrap();
-    guard.retain_for_body(response)
+    guard.retain_for_body(response, Duration::from_secs(30))
 }

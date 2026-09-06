@@ -532,3 +532,36 @@ async fn upstream_file_hosts_must_be_approved_by_the_operator() {
     artifact.assert_async().await;
     page.assert_async().await;
 }
+
+#[tokio::test]
+async fn hosted_downloads_reject_files_absent_from_publication_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let package_dir = tmp.path().join("python/demo-pkg");
+    tokio::fs::create_dir_all(&package_dir).await.unwrap();
+    let orphan = "demo_pkg-1.0.0-py3-none-any.whl";
+    tokio::fs::write(package_dir.join(orphan), b"unpublished wheel").await.unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app =
+        router_with_auth(pypi_config(tmp.path().to_path_buf(), "http://upstream.invalid/"), auth);
+    let orphan_path = format!("/pypi/files/demo-pkg/{orphan}");
+    let response = app.clone().oneshot(get(&orphan_path, None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    let published = "demo_pkg-2.0.0-py3-none-any.whl";
+    let response = app
+        .clone()
+        .oneshot(upload_request(
+            Some(&token),
+            wheel_upload("demo-pkg", "2.0.0", published, b"published wheel"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = app.clone().oneshot(get(&orphan_path, None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let response =
+        app.oneshot(get(&format!("/pypi/files/demo-pkg/{published}"), None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, b"published wheel");
+}

@@ -2007,7 +2007,7 @@ fn tarball_stream_error_for_package(
 ) -> RegistryError {
     match err {
         streaming::TarballStreamError::Upstream { url, source } => {
-            RegistryError::Upstream { url, source }
+            RegistryError::UpstreamBody { url, source }
         }
         streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
         streaming::TarballStreamError::Integrity(err) => tarball_integrity_error(

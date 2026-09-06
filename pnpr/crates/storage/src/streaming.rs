@@ -44,7 +44,7 @@ pub fn integrity_checker(integrity: &Integrity) -> Result<IntegrityChecker, ssri
 
 #[derive(Debug)]
 pub enum TarballStreamError {
-    Upstream { url: String, source: reqwest::Error },
+    Upstream { url: String, source: io::Error },
     Io(io::Error),
     Integrity(ssri::Error),
     TooLarge { limit: u64, received: u64 },
@@ -175,7 +175,7 @@ fn redact_url(url: &reqwest::Url) -> String {
 struct TeeState {
     /// The upstream tarball URL, kept only to tag failure logs.
     url: String,
-    upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
+    upstream: Pin<Box<dyn Stream<Item = io::Result<Bytes>> + Send>>,
     write: Option<TarballWrite>,
     checker: IntegrityChecker,
     written: u64,
