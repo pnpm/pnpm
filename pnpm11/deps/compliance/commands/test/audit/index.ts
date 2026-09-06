@@ -422,7 +422,7 @@ describe('plugin-commands-audit', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(stripAnsi(output)).toBe('No known vulnerabilities found (1 ignored)\n')
+    expect(stripAnsi(output)).toBe('No known vulnerabilities found\n1 ignored: 1 info\n')
   })
 
   test('audit: advisories outside ignoreGhsas stay counted in the summary', async () => {
@@ -474,7 +474,8 @@ describe('plugin-commands-audit', () => {
 │ More info           │ https://github.com/advisories/GHSA-high-high-high      │
 └─────────────────────┴────────────────────────────────────────────────────────┘
 1 vulnerabilities found
-Severity: 0 info (1 ignored) | 1 high`)
+Severity: 1 high
+1 ignored: 1 info`)
   })
 
   test('audit: advisories in ignoreGhsas do not show up when JSON output is used', async () => {

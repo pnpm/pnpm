@@ -91,41 +91,33 @@ pub(crate) fn report_summary(
     vulnerabilities: &AuditVulnerabilityCounts,
     ignored: &AuditVulnerabilityCounts,
 ) -> String {
-    let severities = vulnerabilities
+    let found = vulnerabilities
         .entries()
-        .into_iter()
-        .map(|(level, count)| {
-            let ignored_count = count_for_level(ignored, level);
-            (level, count.saturating_sub(ignored_count), ignored_count)
-        })
-        .collect::<Vec<_>>();
-    let total_vulnerability_count: usize = severities.iter().map(|(_, count, _)| count).sum();
+        .map(|(level, count)| (level, count.saturating_sub(count_for_level(ignored, level))));
+    let total_ignored_count = ignored.total();
+    let ignored_summary = if total_ignored_count > 0 {
+        format!("\n{total_ignored_count} ignored: {}", list_severity_counts(&ignored.entries()))
+    } else {
+        String::new()
+    };
+    let total_vulnerability_count: usize = found.iter().map(|(_, count)| count).sum();
     if total_vulnerability_count == 0 {
-        let total_ignored_count: usize =
-            severities.iter().map(|(_, _, ignored_count)| ignored_count).sum();
-        return if total_ignored_count > 0 {
-            format!("No known vulnerabilities found ({total_ignored_count} ignored)\n")
-        } else {
-            "No known vulnerabilities found\n".to_string()
-        };
+        return format!("No known vulnerabilities found{ignored_summary}\n");
     }
-    let rendered_severities = severities
-        .into_iter()
-        .filter(|(_, count, ignored_count)| *count > 0 || *ignored_count > 0)
-        .map(|(level, count, ignored_count)| {
-            let label = if ignored_count > 0 {
-                format!("{count} {} ({ignored_count} ignored)", severity_name(level))
-            } else {
-                format!("{count} {}", severity_name(level))
-            };
-            color_severity(level, &label)
-        })
-        .collect::<Vec<_>>()
-        .join(" | ");
     format!(
-        "{} vulnerabilities found\nSeverity: {rendered_severities}",
+        "{} vulnerabilities found\nSeverity: {}{ignored_summary}",
         red(&total_vulnerability_count.to_string()),
+        list_severity_counts(&found),
     )
+}
+
+fn list_severity_counts(severities: &[(ConfigAuditLevel, usize)]) -> String {
+    severities
+        .iter()
+        .filter(|(_, count)| *count > 0)
+        .map(|(level, count)| color_severity(*level, &format!("{count} {}", severity_name(*level))))
+        .collect::<Vec<_>>()
+        .join(" | ")
 }
 
 pub(crate) fn bold(text: &str) -> String {

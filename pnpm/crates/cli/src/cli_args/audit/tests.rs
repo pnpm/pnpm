@@ -1007,7 +1007,8 @@ fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
 
     let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
 
-    assert_eq!(output, "No known vulnerabilities found (1 ignored)\n");
+    eprintln!("REPORT:\n{output}\n");
+    assert_eq!(output, "No known vulnerabilities found\n1 ignored: 1 high\n");
 }
 
 #[test]
@@ -1052,7 +1053,8 @@ fn text_report_summary_subtracts_ignored_advisories_from_severity_counts() {
          │ More info           │ https://github.com/advisories/GHSA-high-3333-4444 │\n\
          └─────────────────────┴───────────────────────────────────────────────────┘\n\
          1 vulnerabilities found\n\
-         Severity: 0 moderate (1 ignored) | 1 high (1 ignored)",
+         Severity: 1 high\n\
+         2 ignored: 1 moderate | 1 high",
     );
 }
 

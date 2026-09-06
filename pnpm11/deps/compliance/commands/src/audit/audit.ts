@@ -449,26 +449,33 @@ function isFixWithoutMethod (fix: AuditOptions['fix']): boolean {
 }
 
 function reportSummary (vulnerabilities: AuditVulnerabilityCounts, ignoredVulnerabilities: IgnoredAuditVulnerabilityCounts): string {
-  const severities = Object.entries(vulnerabilities)
-    .map(([auditLevel, vulnerabilitiesCount]) => {
-      const ignoredCount = ignoredVulnerabilities[auditLevel as AuditLevelString]
-      return {
-        auditLevel: auditLevel as AuditLevelString,
-        count: vulnerabilitiesCount - ignoredCount,
-        ignoredCount,
-      }
-    })
-  const totalVulnerabilityCount = severities.reduce((sum, { count }) => sum + count, 0)
+  const auditLevels = Object.keys(vulnerabilities) as AuditLevelString[]
+  const found = auditLevels.map((auditLevel) => ({
+    auditLevel,
+    count: vulnerabilities[auditLevel] - ignoredVulnerabilities[auditLevel],
+  }))
+  const ignored = auditLevels.map((auditLevel) => ({
+    auditLevel,
+    count: ignoredVulnerabilities[auditLevel],
+  }))
+  const totalIgnoredCount = sumSeverityCounts(ignored)
+  const ignoredSummary = totalIgnoredCount === 0 ? '' : `\n${totalIgnoredCount} ignored: ${listSeverityCounts(ignored)}`
+  const totalVulnerabilityCount = sumSeverityCounts(found)
   if (totalVulnerabilityCount === 0) {
-    const totalIgnoredCount = severities.reduce((sum, { ignoredCount }) => sum + ignoredCount, 0)
-    return `No known vulnerabilities found${totalIgnoredCount > 0 ? ` (${totalIgnoredCount} ignored)` : ''}\n`
+    return `No known vulnerabilities found${ignoredSummary}\n`
   }
-  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${
-    severities
-      .filter(({ count, ignoredCount }) => count > 0 || ignoredCount > 0)
-      .map(({ auditLevel, count, ignoredCount }) => AUDIT_COLOR[auditLevel](`${count} ${auditLevel}${ignoredCount > 0 ? ` (${ignoredCount} ignored)` : ''}`))
-      .join(' | ')
-  }`
+  return `${chalk.red(totalVulnerabilityCount)} vulnerabilities found\nSeverity: ${listSeverityCounts(found)}${ignoredSummary}`
+}
+
+function sumSeverityCounts (severities: Array<{ count: number }>): number {
+  return severities.reduce((sum, { count }) => sum + count, 0)
+}
+
+function listSeverityCounts (severities: Array<{ auditLevel: AuditLevelString, count: number }>): string {
+  return severities
+    .filter(({ count }) => count > 0)
+    .map(({ auditLevel, count }) => AUDIT_COLOR[auditLevel](`${count} ${auditLevel}`))
+    .join(' | ')
 }
 
 export function formatFixWithUpdateOutput (result: FixWithUpdateResult, auditReport: AuditReport): string {

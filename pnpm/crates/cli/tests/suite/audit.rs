@@ -352,7 +352,9 @@ fn audit_ignores_configured_ghsas_in_text_report() {
         pacquet.arg("audit").arg("--audit-level").arg("moderate").output().expect("run pacquet");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "No known vulnerabilities found (1 ignored)\n");
+    let stdout = stdout(&output);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert_eq!(stdout, "No known vulnerabilities found\n1 ignored: 1 high\n");
     mock.assert();
 }
 
@@ -395,9 +397,7 @@ fn audit_keeps_reporting_advisories_that_are_not_ignored() {
     let stdout = stdout(&output);
     eprintln!("STDOUT:\n{stdout}\n");
     assert!(!stdout.contains("ignored vulnerability"));
-    assert!(
-        stdout.ends_with("1 vulnerabilities found\nSeverity: 1 moderate | 0 high (1 ignored)\n"),
-    );
+    assert!(stdout.ends_with("1 vulnerabilities found\nSeverity: 1 moderate\n1 ignored: 1 high\n"));
     mock.assert();
 }
 
