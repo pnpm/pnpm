@@ -79,6 +79,10 @@
   intents:
     - retire-execution-barriers
     - unite-side-effects-cache
+"@pnpm/building.commands@1101.2.1":
+  dir: pnpm11/building/commands
+  intents:
+    - allow-build-negation-support
 "@pnpm/building.during-install@1102.0.11":
   dir: pnpm11/building/during-install
   intents:
@@ -96,6 +100,10 @@
   intents:
     - calm-pandas-share
     - retire-execution-barriers
+"@pnpm/building.during-install@1102.2.0":
+  dir: pnpm11/building/during-install
+  intents:
+    - calm-runtimes-build
 "@pnpm/building.pkg-requires-build@1100.0.11":
   dir: pnpm11/building/pkg-requires-build
   intents:
@@ -112,6 +120,10 @@
   dir: pnpm11/building/policy
   intents:
     - prune-allow-builds-on-remove
+"@pnpm/building.policy@1100.1.0":
+  dir: pnpm11/building/policy
+  intents:
+    - allow-build-negation-support
 "@pnpm/cache.api@1100.0.33":
   dir: pnpm11/cache/api
   intents:
@@ -140,6 +152,10 @@
   dir: pnpm11/catalogs/resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/catalogs.resolver@1100.1.0":
+  dir: pnpm11/catalogs/resolver
+  intents:
+    - workspace-protocol-catalogs
 "@pnpm/catalogs.types@1100.0.1":
   dir: pnpm11/catalogs/types
   intents:
@@ -320,6 +336,12 @@
     - task-concurrency-limits
     - unite-side-effects-cache
     - workspace-task-orchestration
+"@pnpm/config.reader@1102.1.1":
+  dir: pnpm11/config/reader
+  intents:
+    - curly-shells-resolve
+    - global-dirs-from-the-global-config-file
+    - side-effects-cache-boolean-keeps-remote-tier
 "@pnpm/config.registry-auth-key@1100.0.0":
   dir: pnpm11/config/registry-auth-key
   intents:
@@ -390,6 +412,10 @@
   dir: pnpm11/crypto/shasums-file
   intents:
     - runtime-shasums-cache
+"@pnpm/crypto.shasums-file@1100.2.3":
+  dir: pnpm11/crypto/shasums-file
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/deps.compliance.audit@1101.0.26":
   dir: pnpm11/deps/compliance/audit
   intents:
@@ -421,6 +447,11 @@
   dir: pnpm11/deps/compliance/commands
   intents:
     - fruity-taxes-shake
+"@pnpm/deps.compliance.commands@1102.1.1":
+  dir: pnpm11/deps/compliance/commands
+  intents:
+    - audit-fix-bare-flag-and-save-exact
+    - audit-summary-net-of-ignored
 "@pnpm/deps.compliance.license-resolver@1100.0.1":
   dir: pnpm11/deps/compliance/license-resolver
   intents:
@@ -468,6 +499,10 @@
   dir: pnpm11/deps/github-actions
   intents:
     - interactive-update-github-actions-opt-in
+"@pnpm/deps.github-actions@1100.1.8":
+  dir: pnpm11/deps/github-actions
+  intents:
+    - github-actions-self-repository-refs
 "@pnpm/deps.graph-builder@1100.0.26":
   dir: pnpm11/deps/graph-builder
   intents:
@@ -505,6 +540,10 @@
   dir: pnpm11/deps/graph-hasher
   intents:
     - calm-pandas-share
+"@pnpm/deps.graph-hasher@1100.3.1":
+  dir: pnpm11/deps/graph-hasher
+  intents:
+    - fix-cyclic-build-hashes
 "@pnpm/deps.graph-sequencer@1100.0.1":
   dir: pnpm11/deps/graph-sequencer
   intents:
@@ -613,6 +652,10 @@
   dir: pnpm11/deps/security/signatures
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/deps.security.signatures@1102.0.2":
+  dir: pnpm11/deps/security/signatures
+  intents:
+    - quick-signature-fallback
 "@pnpm/deps.status@1100.1.12":
   dir: pnpm11/deps/status
   intents:
@@ -676,6 +719,11 @@
   intents:
     - init-pins-latest-pnpm
     - tidy-pianos-tap
+"@pnpm/engine.pm.commands@1102.1.1":
+  dir: pnpm11/engine/pm/commands
+  intents:
+    - engine-no-native-binary-host
+    - tidy-pandas-pack
 "@pnpm/engine.runtime.bun-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/bun-resolver
   intents:
@@ -692,6 +740,10 @@
   dir: pnpm11/engine/runtime/commands
   intents:
     - unite-side-effects-cache
+"@pnpm/engine.runtime.commands@1101.1.1":
+  dir: pnpm11/engine/runtime/commands
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/engine.runtime.deno-resolver@1102.0.11":
   dir: pnpm11/engine/runtime/deno-resolver
   intents:
@@ -704,6 +756,10 @@
   dir: pnpm11/engine/runtime/node-resolver
   intents:
     - runtime-shasums-cache
+"@pnpm/engine.runtime.node-resolver@1101.3.0":
+  dir: pnpm11/engine/runtime/node-resolver
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/engine.runtime.system-version@1100.0.6":
   dir: pnpm11/engine/runtime/system-version
   intents:
@@ -721,6 +777,10 @@
   dir: pnpm11/core/error
   intents:
     - slow-fetch-warnings
+"@pnpm/error@1100.1.4":
+  dir: pnpm11/core/error
+  intents:
+    - redact-tarball-error-urls
 "@pnpm/eslint-config@1100.0.1":
   dir: pnpm11/__utils__/eslint-config
   intents:
@@ -775,6 +835,10 @@
   intents:
     - retire-execution-barriers
     - tidy-lifecycle-children
+"@pnpm/exec.lifecycle@1100.1.16":
+  dir: pnpm11/exec/lifecycle
+  intents:
+    - shell-emulator-literal-arguments
 "@pnpm/exec.lifecycle@1100.1.3":
   dir: pnpm11/exec/lifecycle
   intents:
@@ -795,6 +859,10 @@
   dir: pnpm11/exec/prepare-package
   intents:
     - tough-flies-approve
+"@pnpm/fetching.binary-fetcher@1102.0.13":
+  dir: pnpm11/fetching/binary-fetcher
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/fetching.binary-fetcher@1102.0.4":
   dir: pnpm11/fetching/binary-fetcher
   intents:
@@ -848,6 +916,11 @@
   intents:
     - tidy-ravens-revise
     - tough-flies-approve
+"@pnpm/fetching.tarball-fetcher@1102.1.1":
+  dir: pnpm11/fetching/tarball-fetcher
+  intents:
+    - authenticated-node-mirrors
+    - network-retry-url-redaction
 "@pnpm/fetching.types@1100.0.3":
   dir: pnpm11/fetching/types
   intents:
@@ -934,6 +1007,10 @@
   dir: pnpm11/global/commands
   intents:
     - global-update-leaves-pnpm-to-self-update
+"@pnpm/global.commands@1102.0.0":
+  dir: pnpm11/global/commands
+  intents:
+    - allow-build-negation-support
 "@pnpm/global.packages@1100.0.13":
   dir: pnpm11/global/packages
   intents:
@@ -1003,6 +1080,10 @@
   dir: pnpm11/installing/client
   intents:
     - self-update-release-age
+"@pnpm/installing.client@1100.3.8":
+  dir: pnpm11/installing/client
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/installing.commands@1100.10.5":
   dir: pnpm11/installing/commands
   intents:
@@ -1067,6 +1148,13 @@
     - retire-execution-barriers
     - stage-approve-interactive
     - unite-side-effects-cache
+"@pnpm/installing.commands@1101.2.0":
+  dir: pnpm11/installing/commands
+  intents:
+    - allow-build-negation-support
+    - import-lockfile-directory
+    - remove-trust-lockfile-flags
+    - unsafe-perm-flag
 "@pnpm/installing.context@1100.0.28":
   dir: pnpm11/installing/context
   intents:
@@ -1198,6 +1286,12 @@
     - refresh-registry-revisions
     - retire-execution-barriers
     - safe-pnpr-project-transforms
+"@pnpm/installing.deps-installer@1104.1.1":
+  dir: pnpm11/installing/deps-installer
+  intents:
+    - calm-runtimes-build
+    - no-cataloging-of-local-paths
+    - relink-publish-directories
 "@pnpm/installing.deps-resolver@1100.2.11":
   dir: pnpm11/installing/deps-resolver
   intents:
@@ -1250,6 +1344,13 @@
     - keep-catalog-reference-of-overridden-dependency
     - keep-declared-range-an-override-repeats
     - refresh-registry-revisions
+"@pnpm/installing.deps-resolver@1102.2.0":
+  dir: pnpm11/installing/deps-resolver
+  intents:
+    - guard-missing-peer-dependencies-in-peer-resolution
+    - no-cataloging-of-local-paths
+    - optional-peer-hoist-skips-a-rejected-root-pin
+    - relink-publish-directories
 "@pnpm/installing.deps-restorer@1102.1.10":
   dir: pnpm11/installing/deps-restorer
   intents:
@@ -1285,6 +1386,11 @@
     - calm-pandas-share
     - persist-remote-build-artifacts
     - retire-execution-barriers
+"@pnpm/installing.deps-restorer@1103.1.1":
+  dir: pnpm11/installing/deps-restorer
+  intents:
+    - calm-runtimes-build
+    - hoisted-install-refetches-skipped-optionals
 "@pnpm/installing.env-installer@1102.0.12":
   dir: pnpm11/installing/env-installer
   intents:
@@ -1395,6 +1501,12 @@
   dir: pnpm11/lockfile/fs
   intents:
     - merged-branch-lockfiles-drop-removed-deps
+"@pnpm/lockfile.fs@1100.2.6":
+  dir: pnpm11/lockfile/fs
+  intents:
+    - env-lockfile-write-matches-main-document
+    - harden-env-lockfile-writes
+    - relink-publish-directories
 "@pnpm/lockfile.make-dedicated-lockfile@1100.0.30":
   dir: pnpm11/lockfile/make-dedicated-lockfile
   intents:
@@ -1436,6 +1548,10 @@
   dir: pnpm11/lockfile/types
   intents:
     - tidy-ravens-revise
+"@pnpm/lockfile.types@1100.1.1":
+  dir: pnpm11/lockfile/types
+  intents:
+    - relink-publish-directories
 "@pnpm/lockfile.utils@1100.1.5":
   dir: pnpm11/lockfile/utils
   intents:
@@ -1475,6 +1591,10 @@
   dir: pnpm11/lockfile/verification
   intents:
     - catalog-stale-sibling
+"@pnpm/lockfile.verification@1100.1.4":
+  dir: pnpm11/lockfile/verification
+  intents:
+    - relink-publish-directories
 "@pnpm/lockfile.walker@1100.0.16":
   dir: pnpm11/lockfile/walker
   intents:
@@ -1541,6 +1661,11 @@
   dir: pnpm11/network/fetch
   intents:
     - tidy-ravens-revise
+"@pnpm/network.fetch@1100.1.15":
+  dir: pnpm11/network/fetch
+  intents:
+    - authenticated-node-mirrors
+    - network-retry-url-redaction
 "@pnpm/network.fetch@1100.1.8":
   dir: pnpm11/network/fetch
   intents:
@@ -1563,6 +1688,10 @@
   dir: pnpm11/network/web-auth
   intents:
     - stage-approve-interactive
+"@pnpm/network.web-auth@1101.6.0":
+  dir: pnpm11/network/web-auth
+  intents:
+    - unpublish-otp-challenge
 "@pnpm/object.key-sorting@1100.0.2":
   dir: pnpm11/object/key-sorting
   intents:
@@ -1731,6 +1860,10 @@
   dir: pnpm11/registry-access/client
   intents:
     - republish-all-lib-packages
+"@pnpm/registry-access.client@1100.1.17":
+  dir: pnpm11/registry-access/client
+  intents:
+    - unpublish-otp-challenge
 "@pnpm/registry-access.commands@1100.5.0":
   dir: pnpm11/registry-access/commands
   intents:
@@ -1747,6 +1880,10 @@
   dir: pnpm11/registry-access/commands
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/registry-access.commands@1101.0.3":
+  dir: pnpm11/registry-access/commands
+  intents:
+    - unpublish-otp-challenge
 "@pnpm/releasing.commands@1100.6.0":
   dir: pnpm11/releasing/commands
   intents:
@@ -1801,6 +1938,11 @@
     - fuzzy-ducks-deploy
     - retire-execution-barriers
     - stage-approve-interactive
+"@pnpm/releasing.commands@1101.2.0":
+  dir: pnpm11/releasing/commands
+  intents:
+    - change-check-command
+    - deploy-singleton-peers
 "@pnpm/releasing.exportable-manifest@1100.1.10":
   dir: pnpm11/releasing/exportable-manifest
   intents:
@@ -1817,6 +1959,10 @@
   dir: pnpm11/releasing/exportable-manifest
   intents:
     - stable-packed-workspace-deps
+"@pnpm/releasing.exportable-manifest@1100.3.0":
+  dir: pnpm11/releasing/exportable-manifest
+  intents:
+    - workspace-protocol-catalogs
 "@pnpm/releasing.versioning@1100.1.0":
   dir: pnpm11/releasing/versioning
   intents:
@@ -1834,6 +1980,10 @@
   dir: pnpm11/releasing/versioning
   intents:
     - republish-all-lib-packages
+"@pnpm/releasing.versioning@1100.3.0":
+  dir: pnpm11/releasing/versioning
+  intents:
+    - change-check-command
 "@pnpm/resolving.default-resolver@1100.3.20":
   dir: pnpm11/resolving/default-resolver
   intents:
@@ -1850,6 +2000,10 @@
   dir: pnpm11/resolving/default-resolver
   intents:
     - registries-by-scope-by-prefix
+"@pnpm/resolving.default-resolver@1101.0.3":
+  dir: pnpm11/resolving/default-resolver
+  intents:
+    - authenticated-node-mirrors
 "@pnpm/resolving.git-resolver@1100.1.11":
   dir: pnpm11/resolving/git-resolver
   intents:
@@ -1885,6 +2039,10 @@
   dir: pnpm11/resolving/local-resolver
   intents:
     - republish-all-lib-packages
+"@pnpm/resolving.local-resolver@1101.2.0":
+  dir: pnpm11/resolving/local-resolver
+  intents:
+    - no-cataloging-of-local-paths
 "@pnpm/resolving.npm-resolver@1102.1.3":
   dir: pnpm11/resolving/npm-resolver
   intents:
@@ -2034,6 +2192,10 @@
     - persist-remote-build-artifacts
     - remote-side-effects-reuse-store-content
     - tough-flies-approve
+"@pnpm/store.cafs@1100.3.1":
+  dir: pnpm11/store/cafs
+  intents:
+    - keep-cas-blobs-on-verify-failure
 "@pnpm/store.commands@1100.0.38":
   dir: pnpm11/store/commands
   intents:
@@ -3928,3 +4090,38 @@ pnpm@11.25.0:
     - unite-side-effects-cache
     - violet-teachers-sort
     - workspace-task-orchestration
+pnpm@11.26.0:
+  dir: pnpm11/pnpm
+  intents:
+    - allow-build-negation-support
+    - audit-fix-bare-flag-and-save-exact
+    - audit-summary-net-of-ignored
+    - authenticated-node-mirrors
+    - calm-runtimes-build
+    - change-check-command
+    - curly-shells-resolve
+    - deploy-singleton-peers
+    - engine-no-native-binary-host
+    - env-lockfile-write-matches-main-document
+    - fix-cyclic-build-hashes
+    - github-actions-self-repository-refs
+    - global-dirs-from-the-global-config-file
+    - guard-missing-peer-dependencies-in-peer-resolution
+    - harden-env-lockfile-writes
+    - hoisted-install-refetches-skipped-optionals
+    - import-lockfile-directory
+    - keep-cas-blobs-on-verify-failure
+    - network-retry-url-redaction
+    - no-cataloging-of-local-paths
+    - optional-peer-hoist-skips-a-rejected-root-pin
+    - quick-signature-fallback
+    - quiet-pumas-configure
+    - redact-tarball-error-urls
+    - relink-publish-directories
+    - remove-trust-lockfile-flags
+    - shell-emulator-literal-arguments
+    - side-effects-cache-boolean-keeps-remote-tier
+    - tidy-pandas-pack
+    - unpublish-otp-challenge
+    - unsafe-perm-flag
+    - workspace-protocol-catalogs
