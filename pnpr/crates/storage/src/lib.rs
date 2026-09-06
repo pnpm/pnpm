@@ -1109,6 +1109,14 @@ impl Store {
                     // blob it holds, on a path an anonymous listing reaches.
                     // The root is the exception: it is one directory, and
                     // abandoning it would truncate the whole listing.
+                    //
+                    // A package nested under this one is missed as a result,
+                    // and which entry comes first is up to the filesystem.
+                    // That is the same gap a package nested under a
+                    // *manifested* one already has, and closing it by reading
+                    // to the end is what makes a listing cost the blob
+                    // population rather than the package count. It wants an
+                    // index, not a wider walk — pnpm/pnpm#14630.
                     if depth > 1 {
                         break;
                     }
