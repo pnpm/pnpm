@@ -370,7 +370,7 @@ fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
 /// two rewrite each other forever (pnpm/pnpm#14575).
 #[test]
 fn turning_off_version_management_still_records_the_pinned_package_manager() {
-    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
     write_dev_engines_package_manager(
@@ -379,14 +379,16 @@ fn turning_off_version_management_still_records_the_pinned_package_manager() {
         pnpm_config::PNPM_VERSION,
         Some("download"),
     );
-
-    let output = run(
-        pacquet
+    let unmanaged = || {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
             .with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false")
-            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()),
-        root.path(),
-        &["list"],
-    );
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+    };
+
+    let output = run(unmanaged(), root.path(), &["list"]);
 
     assert_success(&output);
     let env_lockfile = EnvLockfile::read(&workspace)
@@ -396,9 +398,31 @@ fn turning_off_version_management_still_records_the_pinned_package_manager() {
         .package_manager_dependencies
         .as_ref()
         .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].specifier, pnpm_config::PNPM_VERSION);
     assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+    let after_list = env_document(&workspace);
+
+    let output = run(unmanaged(), root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_eq!(
+        env_document(&workspace),
+        after_list,
+        "the install must leave the env document the other command wrote alone",
+    );
 
     drop(mock_instance);
+}
+
+/// The first YAML document of `pnpm-lock.yaml`, which is where the package
+/// manager's own resolutions live.
+fn env_document(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read pnpm-lock.yaml")
+        .split("\n---\n")
+        .next()
+        .expect("the env document")
+        .to_string()
 }
 
 #[test]
