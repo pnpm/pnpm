@@ -155,10 +155,7 @@ pub(super) async fn read_hosted_document<Document: HostedDocument>(
 
 /// Publish one blob: store `bytes` as `filename` under `key` in the hosted
 /// namespace `org` and record `addition` — the document holding just that
-/// blob's entry — in the project's document, as a single journaled
-/// transaction. A crash between the two leaves the journal entry, which
-/// startup recovery applies, so the store never holds a blob no document
-/// mentions.
+/// blob's entry — in the project's document, as one journaled transaction.
 ///
 /// Writers of the same key on this instance are serialized by the package
 /// lock; `refuse` rejects a document the publish must not land on (an entry
