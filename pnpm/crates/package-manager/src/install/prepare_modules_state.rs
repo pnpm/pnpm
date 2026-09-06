@@ -164,7 +164,12 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                                 Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                                     continue;
                                 }
-                                Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                                Err(err) => {
+                                    return Err(InstallError::RemoveModulesDir {
+                                        path: target.clone(),
+                                        error: err,
+                                    });
+                                }
                             };
                             let file_name = entry.file_name();
                             let file_name_str = file_name.to_string_lossy();
@@ -202,17 +207,25 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                                     && let Err(err) = std::fs::remove_dir_all(entry.path())
                                     && err.kind() != std::io::ErrorKind::NotFound
                                 {
-                                    return Err(InstallError::RemoveModulesDir(err));
+                                    return Err(InstallError::RemoveModulesDir {
+                                        path: entry.path(),
+                                        error: err,
+                                    });
                                 }
                             } else if let Err(err) = std::fs::remove_file(entry.path())
                                 && err.kind() != std::io::ErrorKind::NotFound
                             {
-                                return Err(InstallError::RemoveModulesDir(err));
+                                return Err(InstallError::RemoveModulesDir {
+                                    path: entry.path(),
+                                    error: err,
+                                });
                             }
                         }
                     }
                     Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                    Err(err) => {
+                        return Err(InstallError::RemoveModulesDir { path: target, error: err });
+                    }
                 }
             }
         } else {
