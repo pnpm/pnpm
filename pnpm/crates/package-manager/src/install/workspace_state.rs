@@ -139,12 +139,14 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
 /// [`OptimisticRepeatInstallCheck`] inputs from a bare directory and run
 /// [`crate::check_deps_status_before_run`].
 ///
-/// Returns `None` when `dir` has no manifest and no enclosing workspace:
-/// the run/exec command is about to fail with its own missing-manifest
-/// error, and reporting "outdated" would only trigger an install that
-/// can do nothing but crash with `NO_PKG_MANIFEST` (the same guard
-/// pnpm's `checkDepsStatus` applies when it finds neither a root
-/// manifest nor a workspace).
+/// Returns `None` when there is no manifest to check against. Outside a
+/// workspace the run/exec command is about to fail with its own
+/// missing-manifest error, and reporting "outdated" would only trigger
+/// an install that can do nothing but crash with `NO_PKG_MANIFEST` (the
+/// same guard pnpm's `checkDepsStatus` applies when it finds neither a
+/// root manifest nor a workspace). Under dedicated per-project
+/// lockfiles a directory with no manifest of its own owns no lockfile
+/// and no state either.
 ///
 /// Any other discovery failure conservatively reports the dependencies
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
@@ -165,15 +167,21 @@ pub fn check_deps_status_before_run_at(
         return cannot_check();
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
-    let manifest = match pnpm_workspace::read_project_manifest_only(dir) {
+    // One shared lockfile is written at the workspace root, whose
+    // manifest heads the importer list the install recorded. Dedicated
+    // per-project lockfiles give every project its own lockfile, state
+    // and single-importer list, so the gate reads the manifest of the
+    // project the command runs in.
+    let shares_one_lockfile = config.shares_one_lockfile();
+    let manifest_dir = if shares_one_lockfile { workspace_root.as_path() } else { dir };
+    let manifest = match pnpm_workspace::read_project_manifest_only(manifest_dir) {
         Ok(manifest) => manifest,
-        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. }) => {
+        Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
+            if workspace_dir_opt.is_none() || !shares_one_lockfile =>
+        {
             return None;
         }
         Err(_) => return cannot_check(),
-    };
-    let Some(manifest_dir) = manifest.path().parent() else {
-        return cannot_check();
     };
     let workspace_manifest = match workspace_dir_opt.as_deref() {
         Some(dir) => match pnpm_workspace::read_workspace_manifest(dir) {
@@ -183,8 +191,8 @@ pub fn check_deps_status_before_run_at(
         None => None,
     };
     // A pinned `lockfileDir` is where the install left the state and the
-    // lockfile. With dedicated workspace lockfiles it is the active
-    // project's directory, just as it is during install.
+    // lockfile; otherwise it follows the manifest read above, just as it
+    // does during install.
     let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
@@ -201,36 +209,18 @@ pub fn check_deps_status_before_run_at(
             Err(_) => return cannot_check(),
         },
     };
-    let workspace_projects = if config.shares_one_lockfile() {
-        let Ok(projects) = load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-        else {
-            return cannot_check();
-        };
-        projects
-    } else {
-        None
-    };
-    let root_manifest = if config.shares_one_lockfile() {
-        Some(match pnpm_workspace::read_project_manifest_only(&workspace_root) {
-            Ok(manifest) => manifest,
-            Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound {
-                ..
-            }) if workspace_dir_opt.is_none() => {
-                return None;
-            }
+    // The sibling projects only belong in the comparison when one
+    // lockfile and one state file cover them all; a dedicated-lockfile
+    // install records this project alone.
+    let workspace_projects = if shares_one_lockfile {
+        match load_workspace_projects(&workspace_root, workspace_manifest.as_ref()) {
+            Ok(projects) => projects,
             Err(_) => return cannot_check(),
-        })
+        }
     } else {
         None
     };
-    let project_manifests = if config.shares_one_lockfile() {
-        let Some(root_manifest) = root_manifest.as_ref() else {
-            return cannot_check();
-        };
-        build_project_manifests_list(root_manifest, workspace_projects.as_deref())
-    } else {
-        vec![(lockfile_root.clone(), &manifest)]
-    };
+    let project_manifests = build_project_manifests_list(&manifest, workspace_projects.as_deref());
     let lockfile = if config.lockfile {
         LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
