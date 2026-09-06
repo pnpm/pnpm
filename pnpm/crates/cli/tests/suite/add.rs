@@ -1872,9 +1872,6 @@ mod aliasless_selectors {
     }
 }
 
-/// `pnpm add --workspace`: the added packages are linked from the
-/// workspace instead of resolved from the registry.
-///
 /// Covers <https://github.com/pnpm/pnpm/issues/14602>.
 mod workspace_flag {
     use super::{Path, PathBuf, TempDir, saved_spec, workspace_with_lib, write_json};
@@ -1986,6 +1983,35 @@ mod workspace_flag {
         drop(root);
     }
 
+    /// Rejected before the add touches anything, so `--allow-build`
+    /// is not persisted to `pnpm-workspace.yaml` by a run that fails.
+    #[test]
+    fn is_rejected_with_config_dependencies_and_ecosystem_selectors() {
+        let (root, app_dir) = workspace("");
+        let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+        let yaml_path = workspace_dir.join("pnpm-workspace.yaml");
+        let yaml_before = std::fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+        assert_add_fails(
+            &app_dir,
+            &["--workspace", "--config", LIB, "--allow-build", "esbuild"],
+            "cannot be combined with --workspace",
+        );
+        assert_add_fails(
+            &app_dir,
+            &["--workspace", "crate:serde", "--allow-build", "esbuild"],
+            "--workspace cannot be combined with crate: or pypi: dependencies",
+        );
+
+        assert_eq!(
+            std::fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),
+            yaml_before,
+        );
+        drop(root);
+    }
+
+    /// Rejected before `--allow-build` is persisted, like the other
+    /// `--workspace` invocations that cannot run.
     #[test]
     fn is_rejected_outside_a_workspace() {
         let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -1996,10 +2022,14 @@ mod workspace_flag {
 
         assert_add_fails(
             &workspace,
-            &["--workspace", LIB],
+            &["--workspace", LIB, "--allow-build", "esbuild"],
             "--workspace can only be used inside a workspace",
         );
 
+        assert!(
+            !workspace.join("pnpm-workspace.yaml").exists(),
+            "a rejected add must not persist --allow-build",
+        );
         drop(root);
     }
 }

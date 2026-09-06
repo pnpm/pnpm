@@ -1,14 +1,9 @@
-//! The `--workspace` flag `pnpm add` and `pnpm update` share: both link
-//! the named dependencies to their workspace copies, so both reject the
-//! same invocations.
+//! The `--workspace` flag shared by `pnpm add` and `pnpm update`.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::Path;
 
-/// The invocations `--workspace` rejects, checked before any resolution
-/// happens on every dispatch path — plain, selected, and global (whose
-/// global directory is never a workspace).
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum WorkspaceOptionError {
     #[display("Cannot use --latest with --workspace simultaneously")]
@@ -20,8 +15,8 @@ pub(crate) enum WorkspaceOptionError {
     OutsideWorkspace,
 }
 
-/// The workspace root a `--workspace` run reads its link targets from.
-/// `Ok(None)` means the flag was not passed.
+/// The workspace root `--workspace` links from; `Ok(None)` when the flag
+/// was not passed.
 pub(crate) fn workspace_link_root(
     requested: bool,
     workspace_root: Option<&Path>,

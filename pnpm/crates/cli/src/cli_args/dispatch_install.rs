@@ -30,6 +30,7 @@ use super::{
     unlink::UnlinkArgs,
     update::UpdateArgs,
     update_notifier,
+    workspace_option::workspace_link_root,
 };
 use crate::{State, package_specifier::PackageSpecifierPlan};
 use miette::Context;
@@ -42,6 +43,15 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let package_specifier_plan = PackageSpecifierPlan::parse(&args.package_names)?;
     if args.dependency_options.save_build() && !package_specifier_plan.has_cargo() {
         return Err(miette::miette!("--save-build requires at least one crate: dependency"));
+    }
+    if args.workspace && (package_specifier_plan.has_cargo() || package_specifier_plan.has_python())
+    {
+        return Err(miette::miette!(
+            "--workspace cannot be combined with crate: or pypi: dependencies"
+        ));
+    }
+    if args.workspace && args.config {
+        return Err(miette::miette!("`pnpm add --config` cannot be combined with --workspace."));
     }
     if args.global {
         if package_specifier_plan.has_cargo() {
@@ -83,6 +93,9 @@ pub(super) fn add<'a>(ctx: &RunCtx<'a>, args: AddArgs) -> miette::Result<Command
     let config = ctx.config;
     Ok(Box::pin(async move {
         let cfg = config()?;
+        // Before `apply_allow_build` persists anything: a `--workspace` add
+        // that cannot run must leave `pnpm-workspace.yaml` untouched.
+        workspace_link_root(args.workspace, cfg.workspace_dir.as_deref())?;
         let recursive_sort = cfg.sort;
         if config_dependencies.is_none() {
             args.check_workspace_root(cfg, dir)?;
