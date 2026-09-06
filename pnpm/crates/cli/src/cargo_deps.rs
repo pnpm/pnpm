@@ -307,9 +307,9 @@ async fn resolve_via_pnpr(config: &Config, metadata: &str) -> Result<Option<Stri
 
 /// Whether `pnpr_server` advertises Cargo resolution. Asked once per
 /// server for the life of the process — the roots of a workspace prepare
-/// concurrently and wait on the first one's answer — so a server that
-/// gains Cargo support while an install runs is not noticed until the
-/// next one.
+/// concurrently and wait on the first one's answer, failures included —
+/// so a server that gains Cargo support while an install runs is not
+/// noticed until the next one.
 async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result<bool> {
     let answer = Arc::clone(
         CARGO_RESOLUTION_SUPPORT
@@ -319,18 +319,24 @@ async fn server_resolves_cargo(client: &PnprClient, pnpr_server: &str) -> Result
             .or_default(),
     );
     answer
-        .get_or_try_init(|| async {
+        .get_or_init(|| async {
             client
                 .supports_ecosystem(pnpm_pnpr_client::CARGO_ECOSYSTEM)
                 .await
-                .into_diagnostic()
-                .wrap_err("negotiate Cargo resolution with the pnpr server")
+                .map_err(|err| err.to_string())
         })
         .await
+        .as_ref()
         .copied()
+        .map_err(|err| miette::miette!("{err}"))
+        .wrap_err("negotiate Cargo resolution with the pnpr server")
 }
 
-type EcosystemAnswer = Arc<tokio::sync::OnceCell<bool>>;
+/// A server's answer, or the failure to get one. The failure is kept too:
+/// a server that cannot be reached cannot be reached for the next root
+/// either, and retrying per root would serialize one timeout per root
+/// behind the shared cell.
+type EcosystemAnswer = Arc<tokio::sync::OnceCell<Result<bool, String>>>;
 
 static CARGO_RESOLUTION_SUPPORT: LazyLock<Mutex<HashMap<String, EcosystemAnswer>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));

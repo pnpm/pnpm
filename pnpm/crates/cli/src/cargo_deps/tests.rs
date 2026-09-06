@@ -587,6 +587,25 @@ async fn concurrent_roots_share_one_handshake() {
 }
 
 #[tokio::test]
+async fn concurrent_roots_share_one_failed_handshake() {
+    const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
+    let mut server = mockito::Server::new_async().await;
+    let handshake = server.mock("GET", "/-/pnpr").with_status(500).expect(1).create_async().await;
+    let config = config_for_pnpr(&server.url());
+
+    let roots = (0..4).map(|_| resolve_via_pnpr(&config, METADATA));
+    for resolved in futures_util::future::join_all(roots).await {
+        let error = resolved.unwrap_err();
+        assert!(
+            error.to_string().contains("negotiate Cargo resolution"),
+            "every root reports the same refusal: {error:?}",
+        );
+    }
+
+    handshake.assert_async().await;
+}
+
+#[tokio::test]
 async fn the_handshake_is_asked_once_per_server() {
     const METADATA: &str = r#"{"packages":[],"workspace_members":[]}"#;
     let mut server = mockito::Server::new_async().await;
