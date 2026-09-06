@@ -23,7 +23,7 @@ use async_trait::async_trait;
 use axum::body::Body;
 use futures_util::StreamExt;
 use object_store::{
-    ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
+    MultipartUpload, ObjectStore, ObjectStoreExt, PutMode, PutOptions, PutPayload, UpdateVersion,
     path::Path as ObjectPath,
 };
 use pnpr_error::{RegistryError, Result};
@@ -81,6 +81,23 @@ pub(crate) struct S3DocumentForUpdate {
 /// staged before upload. Its own directory keeps the decode/verify tmp
 /// files away from the cache's `<pkg>/` package directories.
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
+
+/// Send `tmp_path` as parts and complete the upload.
+async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
+    let mut file = fs::File::open(tmp_path).await?;
+    let mut part = vec![0u8; MULTIPART_PART_BYTES];
+    loop {
+        let filled = read_part(&mut file, &mut part).await?;
+        if filled == 0 {
+            break;
+        }
+        // Every part but the last has to be the same size for S3, so the
+        // buffer is filled before it is sent rather than shipped per read.
+        upload.put_part(PutPayload::from(part[..filled].to_vec())).await?;
+    }
+    upload.complete().await?;
+    Ok(())
+}
 
 /// Fill `part` from `file`, returning how much was read. Short of the buffer
 /// only at the end of the file, so every part but the last is full.
@@ -267,20 +284,18 @@ impl S3Store {
         tmp_path: &Path,
         key: &ObjectPath,
     ) -> Result<BlobFinalize> {
-        let mut file = fs::File::open(tmp_path).await?;
         let mut upload = self.store.put_multipart(key).await?;
-        let mut part = vec![0u8; MULTIPART_PART_BYTES];
-        loop {
-            let filled = read_part(&mut file, &mut part).await?;
-            if filled == 0 {
-                break;
+        match send_parts(tmp_path, upload.as_mut()).await {
+            Ok(()) => Ok(BlobFinalize::Written),
+            Err(err) => {
+                // The parts already sent are stored, and billed, until the
+                // upload they belong to ends. Nothing else knows this one
+                // exists, so a push failing partway would leave them for the
+                // provider's own expiry rule to find.
+                let _ = upload.abort().await;
+                Err(err)
             }
-            // Every part but the last has to be the same size for S3, so the
-            // buffer is filled before it is sent rather than shipped per read.
-            upload.put_part(PutPayload::from(part[..filled].to_vec())).await?;
         }
-        upload.complete().await?;
-        Ok(BlobFinalize::Written)
     }
 
     pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {

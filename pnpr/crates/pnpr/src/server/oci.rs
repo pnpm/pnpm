@@ -882,8 +882,16 @@ fn query_param(query: Option<&str>, key: &str) -> Option<String> {
 }
 
 /// The first byte a `Content-Range: <start>-<end>` names.
+///
+/// Both halves are parsed, not just the first: reading only the text before
+/// the hyphen would accept `0-garbage` whenever its leading number happened
+/// to match the offset, letting a client advance an upload with a range that
+/// means nothing.
 fn parse_range_start(range: &str) -> Option<u64> {
-    range.trim().split('-').next()?.trim().parse().ok()
+    let (start, end) = range.trim().split_once('-')?;
+    let start = start.trim().parse().ok()?;
+    end.trim().parse::<u64>().ok()?;
+    Some(start)
 }
 
 async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {

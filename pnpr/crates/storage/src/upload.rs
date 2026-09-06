@@ -135,8 +135,11 @@ impl Storage {
     }
 
     /// Move a finished upload into a hosted blob slot, ready for
-    /// [`Storage::finalize_blob_slot`]. The upload is consumed either way:
-    /// its bytes are the slot's now.
+    /// [`Storage::finalize_blob_slot`].
+    ///
+    /// The upload is consumed on success, where its bytes become the slot's.
+    /// It is left where it was on failure, so a caller can retry or abort it
+    /// rather than lose bytes a client already sent.
     pub async fn stage_uploaded_blob(
         &self,
         upload: BlobUpload,

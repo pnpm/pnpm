@@ -445,6 +445,13 @@ pub(crate) const fn resolves(ecosystem: Ecosystem) -> bool {
     }
 }
 
+fn refuse_unresolvable(ecosystem: Ecosystem) -> Response {
+    json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("{ecosystem} projects have no dependency graph for this endpoint to resolve"),
+    )
+}
+
 /// The ecosystems the handshake advertises, in the enum's own order.
 pub(crate) fn resolved_ecosystems() -> impl Iterator<Item = Ecosystem> {
     Ecosystem::all().filter(|ecosystem| resolves(*ecosystem))
@@ -463,10 +470,7 @@ pub(crate) async fn handle_resolve(
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
     if !resolves(probe.ecosystem) {
-        return json_error(
-            StatusCode::BAD_REQUEST,
-            &format!("{} projects have no dependency graph to resolve here", probe.ecosystem),
-        );
+        return refuse_unresolvable(probe.ecosystem);
     }
     match probe.ecosystem {
         Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
@@ -474,11 +478,10 @@ pub(crate) async fn handle_resolve(
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
         Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
-        // Refused above, where the handshake reads the same answer.
-        Ecosystem::Oci => json_error(
-            StatusCode::BAD_REQUEST,
-            "images have no dependency graph to resolve; pull them from /v2/",
-        ),
+        // An arm rather than a catch-all so an ecosystem added to the shared
+        // enum has to decide here too, even though `resolves` turns this one
+        // away before the dispatch runs.
+        Ecosystem::Oci => refuse_unresolvable(probe.ecosystem),
     }
 }
 
