@@ -273,3 +273,18 @@ fn a_document_stored_out_of_order_still_finds_its_entries() {
     assert_eq!(document.resolve("zeta").unwrap().digest, digest_of("one"));
     assert_eq!(document.tag_names(), ["alpha", "zeta"]);
 }
+
+#[test]
+fn deserializing_directly_sorts_as_parsing_does() {
+    // The type derives `Deserialize`, so a caller can build one without going
+    // through `parse`. The ordering the lookups need has to hold for them too.
+    let stored = serde_json::json!({
+        "name": "acme/app",
+        "manifests": [entry("two"), entry("one")],
+        "tags": [tag("zeta", "one", 1), tag("alpha", "two", 1)],
+    });
+    let document: ImageDocument = serde_json::from_value(stored).unwrap();
+
+    assert!(document.manifest(&digest_of("one")).is_some());
+    assert_eq!(document.tag_names(), ["alpha", "zeta"]);
+}

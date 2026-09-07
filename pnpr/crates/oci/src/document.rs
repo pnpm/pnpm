@@ -39,6 +39,32 @@ pub struct TagEntry {
     pub updated: u64,
 }
 
+/// The stored shape, converted into [`ImageDocument`] on the way in.
+///
+/// Deserializing goes through here rather than straight into the document so
+/// that the ordering every lookup depends on is established by any caller who
+/// deserializes one, not only by the one that calls
+/// [`ImageDocument::parse`]. A document that reached storage in another
+/// order, or through another version, would otherwise hide entries it holds.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredImageDocument {
+    name: String,
+    #[serde(default)]
+    manifests: Vec<ManifestEntry>,
+    #[serde(default)]
+    tags: Vec<TagEntry>,
+}
+
+impl From<StoredImageDocument> for ImageDocument {
+    fn from(stored: StoredImageDocument) -> Self {
+        let StoredImageDocument { name, mut manifests, mut tags } = stored;
+        manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
+        tags.sort_by(|left, right| left.tag.cmp(&right.tag));
+        Self { name, manifests, tags }
+    }
+}
+
 /// What a hosted registry stores per image repository.
 ///
 /// Layer and config blobs are absent on purpose: they are content-addressed,
@@ -46,11 +72,11 @@ pub struct TagEntry {
 /// what publishes a release, so it is what the document records.
 ///
 /// Both collections are kept sorted, by digest and by tag, because every
-/// lookup here is a binary search. They are private so that the ordering
-/// holds however the document was built: [`Self::parse`] sorts what it reads
-/// rather than trusting the order it was stored in.
+/// lookup here is a binary search. They are private, and deserializing sorts
+/// what it reads, so the ordering holds however the document was built
+/// rather than only on the paths that maintain it.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", from = "StoredImageDocument")]
 pub struct ImageDocument {
     pub name: String,
     #[serde(default)]
@@ -66,13 +92,7 @@ impl ImageDocument {
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        let mut document: Self = serde_json::from_slice(bytes)?;
-        // Sorted on the way in rather than assumed: a document that reached
-        // storage in another order, or through another version, would make
-        // every binary search below miss entries it holds.
-        document.manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
-        document.tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Ok(document)
+        serde_json::from_slice(bytes)
     }
 
     /// The manifests this repository holds, ordered by digest.
