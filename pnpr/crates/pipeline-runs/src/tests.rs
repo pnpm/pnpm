@@ -139,6 +139,16 @@ async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
     assert_eq!(listed[0].run_id, "100-default");
 }
 
+/// The state every deployment starts in: a configured workspace nothing has
+/// reported a run for yet.
+#[tokio::test]
+async fn a_workspace_with_no_runs_lists_empty() {
+    let root = TempDir::new().unwrap();
+    let store = local_store(&root);
+    assert!(store.list(&["never-run"], 10).await.expect("list").is_empty());
+    assert!(store.get("never-run", "100-default").await.expect("get").is_none());
+}
+
 /// An operator should hear that a record cannot be read, and be told which.
 #[tokio::test]
 async fn a_corrupt_record_on_the_page_is_named() {
