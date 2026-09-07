@@ -477,9 +477,10 @@ impl ThrottledClient {
     ///   Basic-auth user/password halves embedded in the proxy URL
     ///   are percent-decoded before being forwarded as the
     ///   `Proxy-Authorization` header.
-    /// * **TLS.** Each PEM in [`TlsConfig::ca`] is added as a trusted
-    ///   root via `reqwest::Certificate::from_pem`. When both
-    ///   [`TlsConfig::cert`] and [`TlsConfig::key`] are set, they are
+    /// * **TLS.** Every certificate read out of [`TlsConfig::ca`] is
+    ///   added as a trusted root; material the TLS backend cannot read
+    ///   is skipped. When both [`TlsConfig::cert`] and
+    ///   [`TlsConfig::key`] are set and neither is blank, they are
     ///   concatenated and passed to `Identity::from_pem` (rustls
     ///   single-buffer form). rustls accepts PKCS#1, PKCS#8, and EC
     ///   private keys — the same surface Node's `tls` exposes.
@@ -495,10 +496,8 @@ impl ThrottledClient {
     /// Returns [`ProxyError::InvalidProxy`] when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
     /// retry (the `ERR_PNPM_INVALID_PROXY` code), or [`TlsError`] when
-    /// any CA or client identity PEM is malformed.
-    /// pnpm does not define `ERR_PNPM_INVALID_CA` / similar codes —
-    /// see [`TlsError`] for why pacquet still surfaces the failure
-    /// eagerly rather than at request time.
+    /// the client identity PEM is malformed. Unreadable CA material is
+    /// not an error — see [`TlsError`] for where that line sits.
     pub fn for_installs(
         proxy: &ProxyConfig,
         tls: &TlsConfig,
