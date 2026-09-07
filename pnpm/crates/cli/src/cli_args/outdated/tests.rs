@@ -291,14 +291,22 @@ fn recursive_table_wraps_the_dependents_column() {
     assert_borders_aligned(&table);
     assert_eq!(last_column_width(&table), DEPENDENTS_COLUMN_WIDTH);
 
-    let dependent_lines =
-        table.lines().filter(|line| line.contains("example-workspace-package-")).count();
-    assert!(dependent_lines > 1, "the dependents cell must wrap onto several lines");
+    let cells = last_column_cells(&table);
+    let (heading, wrapped) = cells.split_first().expect("a heading and one row");
+    assert_eq!(*heading, "Dependents");
+    assert!(wrapped.len() > 1, "the dependents cell must wrap onto several lines");
 
+    let rejoined = wrapped.concat();
     for index in 1..=12 {
         let name = format!("example-workspace-package-{index:02}");
-        assert!(table.contains(&name), "wrapping must not drop {name}");
+        assert!(rejoined.contains(&name), "wrapping must not drop {name}");
     }
+    assert!(rejoined.contains(long_name), "wrapping must not drop {long_name}");
+}
+
+/// Text of each row's rightmost cell, top to bottom, with padding trimmed.
+fn last_column_cells(table: &str) -> Vec<&str> {
+    table.lines().filter_map(|line| line.rsplit('│').nth(1)).map(str::trim).collect()
 }
 
 /// Content width of the table's rightmost column, excluding its border and
