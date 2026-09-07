@@ -207,6 +207,24 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
 })
 
+test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { status, stderr } = execPnpmSync(['install', '--lockfile-dir=lf', '--lockfile-only'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
 test('devEngines.runtime with onFail=warn should warn on Node.js version mismatch', async () => {
   prepare({
     devEngines: {

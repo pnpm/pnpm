@@ -486,7 +486,7 @@ const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {
 // devEngines.runtime takes precedence over engines.runtime per the iteration
 // order below: the first entry seen for a given runtime wins.
 function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
-  const manifest = context.rootProjectManifest
+  const manifest = context.enginePinManifest
   if (manifest == null) return []
   const result: EngineDependency[] = []
   const seen = new Set<RuntimeName>()
