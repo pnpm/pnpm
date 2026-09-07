@@ -1,5 +1,8 @@
 //! The npm publish fixtures the integration suites send: the document a
 //! client `PUT`s for one version, and the two digests it carries.
+//!
+//! A suite that takes only part of this includes it with an expectation that
+//! the rest is unused.
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use serde_json::{Value, json};

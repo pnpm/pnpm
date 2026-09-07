@@ -5,12 +5,15 @@
 // Perfectionist dylint forbids.
 #[path = "common/storage.rs"]
 mod common;
+#[path = "common/npm.rs"]
+mod npm;
 
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::{publish_doc, sha1_hex, sri_sha512};
 use pnpr::{Config, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
@@ -195,7 +198,7 @@ async fn basic_auth_is_rejected_for_protected_package() {
 async fn anonymous_publish_is_rejected() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));
-    let body = sample_publish_body("anon-test", "1.0.0", b"tarball-bytes");
+    let body = publish_doc("anon-test", "1.0.0", b"tarball-bytes");
     let response = app.oneshot(put_json("/anon-test", body)).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -208,7 +211,7 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"fake-tarball-bytes";
-    let body = sample_publish_body("mypkg", "1.0.0", bytes);
+    let body = publish_doc("mypkg", "1.0.0", bytes);
     let request = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -250,7 +253,7 @@ async fn republishing_an_existing_version_is_rejected_with_conflict() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let publish = |bytes: &[u8]| {
-        let body = serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", bytes)).unwrap();
+        let body = serde_json::to_vec(&publish_doc("mypkg", "1.0.0", bytes)).unwrap();
         Request::put("/mypkg")
             .header("content-type", "application/json")
             .header("Authorization", format!("Bearer {token}"))
@@ -281,16 +284,14 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
 
     // Publish 1.0.1 (with its own attachment) but smuggle a modified 1.0.0
     // entry into `versions` with no matching attachment. The conflict check
     // must still reject it because 1.0.0 is already hosted.
-    let mut body = sample_publish_body("mypkg", "1.0.1", b"new-bytes");
+    let mut body = publish_doc("mypkg", "1.0.1", b"new-bytes");
     body["versions"]["1.0.0"] = json!({
         "name": "mypkg",
         "version": "1.0.0",
@@ -315,7 +316,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
@@ -353,9 +354,7 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
@@ -383,9 +382,7 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
     let publish = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
@@ -419,7 +416,7 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
@@ -457,7 +454,7 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
@@ -501,7 +498,7 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+            serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"real-bytes")).unwrap(),
         ))
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
@@ -535,7 +532,7 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
 
     // PUT to the unpublish route with no prior publish would seed an authoritative
     // version that publish can never overwrite, so it must be rejected.
-    let body = sample_publish_body("ghost", "1.0.0", b"bytes");
+    let body = publish_doc("ghost", "1.0.0", b"bytes");
     let request = Request::put("/ghost/-rev/anything")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -559,9 +556,7 @@ async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
 
@@ -610,7 +605,7 @@ async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let mut publish_body = sample_publish_body("mypkg", "1.0.0", b"original");
+    let mut publish_body = publish_doc("mypkg", "1.0.0", b"original");
     publish_body["versions"]["1.0.0"]["dependencies"] = json!({ "lodash": "^4.0.0" });
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
@@ -668,9 +663,7 @@ async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
 
@@ -714,9 +707,7 @@ async fn metadata_put_cannot_inject_a_tarball_less_version() {
     let first = Request::put("/mypkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
-        .body(Body::from(
-            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
-        ))
+        .body(Body::from(serde_json::to_vec(&publish_doc("mypkg", "1.0.0", b"original")).unwrap()))
         .unwrap();
     assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
 
@@ -761,7 +752,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"durable-tarball-bytes";
-    let body = sample_publish_body("durable-pkg", "1.0.0", bytes);
+    let body = publish_doc("durable-pkg", "1.0.0", bytes);
     let request = Request::put("/durable-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -811,7 +802,7 @@ async fn hosted_tarball_is_preferred_over_a_cached_copy() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let hosted_bytes = b"hosted-bytes";
-    let body = sample_publish_body("pref-pkg", "1.0.0", hosted_bytes);
+    let body = publish_doc("pref-pkg", "1.0.0", hosted_bytes);
     let request = Request::put("/pref-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -840,7 +831,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     // First publish 1.0.0
-    let body = sample_publish_body("tagpkg", "1.0.0", b"v1");
+    let body = publish_doc("tagpkg", "1.0.0", b"v1");
     let request = Request::put("/tagpkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -849,7 +840,7 @@ async fn publish_followed_by_dist_tag_set_works() {
     app.clone().oneshot(request).await.unwrap();
 
     // Then publish 2.0.0 (without changing latest)
-    let mut body = sample_publish_body("tagpkg", "2.0.0", b"v2");
+    let mut body = publish_doc("tagpkg", "2.0.0", b"v2");
     body["dist-tags"] = json!({}); // don't bump latest
     let request = Request::put("/tagpkg")
         .header("content-type", "application/json")
@@ -919,7 +910,7 @@ async fn dist_tag_mutations_refresh_time_modified() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("time-mod-pkg", "1.0.0", b"x");
+    let body = publish_doc("time-mod-pkg", "1.0.0", b"x");
     let request = Request::put("/time-mod-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -992,7 +983,7 @@ async fn publish_rejects_body_name_that_doesnt_match_url() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("other-name", "1.0.0", b"x");
+    let body = publish_doc("other-name", "1.0.0", b"x");
     let request = Request::put("/url-name")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1009,7 +1000,7 @@ async fn publish_rejects_tarball_that_doesnt_match_package() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"tarball-bytes";
-    let mut body = sample_publish_body("foo", "1.0.0", bytes);
+    let mut body = publish_doc("foo", "1.0.0", bytes);
     // Override _attachments to use a filename for a different package
     body["_attachments"] = json!({
         "bar-1.0.0.tgz": {
@@ -1035,7 +1026,7 @@ async fn publish_rejects_integrity_mismatch_and_leaves_no_artifacts() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"actual-bytes";
-    let mut body = sample_publish_body("bad-pkg", "1.0.0", bytes);
+    let mut body = publish_doc("bad-pkg", "1.0.0", bytes);
     // Swap the integrity for one computed over different bytes — the
     // body keeps the original bytes, so the server's recomputed hash
     // won't match.
@@ -1073,7 +1064,7 @@ async fn publish_rejects_shasum_mismatch() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"shasum-test-bytes";
-    let mut body = sample_publish_body("shasum-pkg", "1.0.0", bytes);
+    let mut body = publish_doc("shasum-pkg", "1.0.0", bytes);
     // Keep integrity valid but corrupt the legacy shasum.
     body["versions"]["1.0.0"]["dist"]["shasum"] = json!("0000000000000000000000000000000000000000");
 
@@ -1100,7 +1091,7 @@ async fn publish_rejects_missing_integrity_field() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"no-integrity-bytes";
-    let mut body = sample_publish_body("no-int-pkg", "1.0.0", bytes);
+    let mut body = publish_doc("no-int-pkg", "1.0.0", bytes);
     body["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("integrity");
 
     let request = Request::put("/no-int-pkg")
@@ -1214,7 +1205,7 @@ async fn dist_tag_set_works_with_url_encoded_scoped_path() {
     // publish uses this form), then set a dist-tag using the
     // npm-client-style `%2F` encoding to verify the decoded path
     // reaches the handler.
-    let body = sample_publish_body("@scope/pkg", "1.0.0", b"v1");
+    let body = publish_doc("@scope/pkg", "1.0.0", b"v1");
     let request = Request::put("/@scope/pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1249,7 +1240,7 @@ async fn publish_supports_scoped_packages() {
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
     let bytes = b"scoped-tarball";
-    let body = sample_publish_body("@scope/pkg", "1.0.0", bytes);
+    let body = publish_doc("@scope/pkg", "1.0.0", bytes);
     let request = Request::put("/@scope/pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1483,7 +1474,7 @@ async fn unpublish_partial_writes_modified_packument() {
     // Publish two versions, then PUT a modified packument with the
     // older one removed — simulating the partial-unpublish flow.
     for version in ["1.0.0", "2.0.0"] {
-        let body = sample_publish_body("unpub-partial", version, version.as_bytes());
+        let body = publish_doc("unpub-partial", version, version.as_bytes());
         let request = Request::put("/unpub-partial")
             .header("content-type", "application/json")
             .header("Authorization", format!("Bearer {token}"))
@@ -1560,7 +1551,7 @@ async fn unpublish_tarball_also_clears_the_proxied_copy() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("blend-pkg", "1.0.0", b"hosted-bytes");
+    let body = publish_doc("blend-pkg", "1.0.0", b"hosted-bytes");
     let request = Request::put("/blend-pkg")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1598,7 +1589,7 @@ async fn unpublish_force_removes_entire_package() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("unpub-force", "1.0.0", b"contents");
+    let body = publish_doc("unpub-force", "1.0.0", b"contents");
     let request = Request::put("/unpub-force")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1628,7 +1619,7 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("@scope/unpub", "1.0.0", b"bytes");
+    let body = publish_doc("@scope/unpub", "1.0.0", b"bytes");
     let request = Request::put("/@scope/unpub")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {token}"))
@@ -1661,7 +1652,7 @@ async fn missing_unpublish_policy_denies_destructive_writes() {
     let app = router(config);
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
 
-    let body = sample_publish_body("missing-unpublish", "1.0.0", b"contents");
+    let body = publish_doc("missing-unpublish", "1.0.0", b"contents");
     let request = Request::put("/missing-unpublish")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
@@ -1691,7 +1682,7 @@ async fn unpublish_policy_denies_publish_authorized_package_delete() {
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
-    let body = sample_publish_body("unpub-policy", "1.0.0", b"contents");
+    let body = publish_doc("unpub-policy", "1.0.0", b"contents");
     let request = Request::put("/unpub-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
@@ -1729,7 +1720,7 @@ async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
-    let body = sample_publish_body("tarball-policy", "1.0.0", b"contents");
+    let body = publish_doc("tarball-policy", "1.0.0", b"contents");
     let request = Request::put("/tarball-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
@@ -1767,7 +1758,7 @@ async fn packument_replacement_requires_publish_and_unpublish_policy() {
     let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
     let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
 
-    let body = sample_publish_body("replace-policy", "1.0.0", b"contents");
+    let body = publish_doc("replace-policy", "1.0.0", b"contents");
     let request = Request::put("/replace-policy")
         .header("content-type", "application/json")
         .header("Authorization", format!("Bearer {alice}"))
@@ -1816,7 +1807,7 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
         let app = app.clone();
         let token = token.clone();
         tokio::spawn(async move {
-            let body = sample_publish_body("racer", version, version.as_bytes());
+            let body = publish_doc("racer", version, version.as_bytes());
             let request = Request::put("/racer")
                 .header("content-type", "application/json")
                 .header("Authorization", format!("Bearer {token}"))
@@ -1838,56 +1829,4 @@ async fn concurrent_publishes_of_distinct_versions_all_survive() {
     let packument: Value = serde_json::from_slice(&on_disk).unwrap();
     assert_eq!(packument["versions"]["1.0.0"]["version"], "1.0.0", "1.0.0 must survive");
     assert_eq!(packument["versions"]["2.0.0"]["version"], "2.0.0", "2.0.0 must survive");
-}
-
-fn sample_publish_body(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let basename = name.rsplit('/').next().unwrap_or(name);
-    let filename = format!("{basename}-{version}.tgz");
-    json!({
-        "_id": name,
-        "name": name,
-        "description": "test",
-        "dist-tags": { "latest": version },
-        "versions": {
-            version: {
-                "name": name,
-                "version": version,
-                "dist": {
-                    "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": sha1_hex(tarball),
-                    "integrity": sri_sha512(tarball),
-                }
-            }
-        },
-        "_attachments": {
-            filename: {
-                "content_type": "application/octet-stream",
-                "data": BASE64.encode(tarball),
-                "length": tarball.len()
-            }
-        }
-    })
-}
-
-/// Compute the SRI `sha512-...` string the way npm clients send it
-/// in `dist.integrity`.
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-/// Compute the 40-char hex SHA-1 the way npm clients send it in the
-/// legacy `dist.shasum` field.
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_base64 = &integrity.hashes[0].digest;
-    let digest_bytes = BASE64.decode(digest_base64).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        use std::fmt::Write;
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }
