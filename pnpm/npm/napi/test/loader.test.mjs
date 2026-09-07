@@ -9,47 +9,62 @@ import { fileURLToPath } from 'node:url'
 
 const loaderPath = path.resolve(fileURLToPath(import.meta.url), '../../index.js')
 
-test('a big-endian POWER host is not pointed at the released addon', (t) => {
-  const message = loadOn(t, { arch: 'ppc64', endianness: 'BE' })
+test('a big-endian POWER host is not offered the released addon', (t) => {
+  const result = loadOn(t, { arch: 'ppc64', endianness: 'BE' })
 
-  assert.match(message, /No addon is published for this host/)
-  // Only a little-endian POWER addon is released, so naming a platform package
-  // here would tell the user to install one that can never load.
-  assert.doesNotMatch(message, /@pnpm\/napi\./)
+  // Both POWER platform packages resolve in there, so loading one would have
+  // succeeded. Failing is what proves neither was offered as a candidate.
+  assert.match(result, /^FAILED /)
+  assert.match(result, /No addon is published for this host/)
+  assert.doesNotMatch(result, /@pnpm\/napi\./)
 })
 
-test('a little-endian POWER host is still pointed at its platform package', (t) => {
-  const message = loadOn(t, { arch: 'ppc64', endianness: 'LE' })
+test('a little-endian POWER host is offered its platform package', (t) => {
+  const result = loadOn(t, { arch: 'ppc64', endianness: 'LE' })
 
-  assert.match(message, /Install the matching @pnpm\/napi platform package/)
+  assert.equal(result, 'LOADED linux-ppc64')
 })
 
 /**
- * Load the addon loader in a child process presenting itself as a Linux host of
- * the given architecture and byte order, from a directory holding nothing but
- * the loader so that neither a platform package nor a locally built artifact
- * resolves.
+ * Load the addon loader in a child process presenting itself as a glibc Linux
+ * host of the given architecture and byte order, from a directory carrying a
+ * stand-in for each POWER platform package. Offering one is therefore
+ * observable: the load succeeds and names the package it came from.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {{ arch: string, endianness: 'LE' | 'BE' }} host The host to present.
- * @returns {string} The message of the load failure it reports.
+ * @returns {string} `LOADED <triple>`, or `FAILED <message>`.
  */
 function loadOn (t, host) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-napi-loader-'))
   t.after(() => { fs.rmSync(dir, { recursive: true, force: true }) })
   const loaderCopy = path.join(dir, 'index.js')
   fs.copyFileSync(loaderPath, loaderCopy)
+  for (const triple of ['linux-ppc64', 'linux-ppc64-musl']) {
+    const packageDir = path.join(dir, 'node_modules', '@pnpm', `napi.${triple}`)
+    fs.mkdirSync(packageDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(packageDir, 'package.json'),
+      JSON.stringify({ name: `@pnpm/napi.${triple}`, version: '0.0.0', main: 'index.js' })
+    )
+    fs.writeFileSync(path.join(packageDir, 'index.js'), `module.exports = { loadedFrom: ${JSON.stringify(triple)} }\n`)
+  }
 
+  // The libc is faked too, so the candidate order does not depend on the
+  // platform this test itself runs on.
   const script = `
     const os = require('node:os')
     Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
     Object.defineProperty(process, 'arch', { value: ${JSON.stringify(host.arch)}, configurable: true })
+    Object.defineProperty(process, 'report', {
+      value: { getReport: () => ({ header: { glibcVersionRuntime: '2.39' } }) },
+      configurable: true,
+    })
     Object.defineProperty(os, 'endianness', { value: () => ${JSON.stringify(host.endianness)}, configurable: true })
     try {
-      require(${JSON.stringify(loaderCopy)})
-      process.stdout.write('the loader unexpectedly succeeded')
+      process.stdout.write('LOADED ' + require(${JSON.stringify(loaderCopy)}).loadedFrom)
     } catch (err) {
-      process.stdout.write(err.message)
+      process.stdout.write('FAILED ' + err.message)
     }
   `
   const env = { ...process.env }
