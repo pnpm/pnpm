@@ -264,6 +264,7 @@ function createHttpProxyDispatcher (
       ? `Basic ${Buffer.from(`${decodeURIComponent(proxyUrl.username)}:${decodeURIComponent(proxyUrl.password)}`).toString('base64')}`
       : undefined,
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
+    connectTimeout: inactivityTimeout(opts),
     headersTimeout: inactivityTimeout(opts),
     bodyTimeout: inactivityTimeout(opts),
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
@@ -294,14 +295,26 @@ function createSocksDispatcher (
   const socksType = getSocksProxyType(proxyUrl.protocol)
   const proxyHost = proxyUrl.hostname
   const proxyPort = parseInt(proxyUrl.port, 10) || (socksType === 4 ? 1080 : 1080)
+  const timeout = inactivityTimeout(opts)
 
   return new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    headersTimeout: inactivityTimeout(opts),
-    bodyTimeout: inactivityTimeout(opts),
+    headersTimeout: timeout,
+    bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
     keepAliveMaxTimeout: KEEP_ALIVE_MAX_TIMEOUT,
+    // undici applies its own `connectTimeout` only to the connector it builds
+    // itself, so this one bounds the SOCKS handshake and the TLS handshake
+    // that follows it.
     connect: async (connectOpts, callback) => {
+      // A timed-out handshake surfaces as an 'error' on a socket that may
+      // already have been handed to undici, so every path settles at most once.
+      let settled = false
+      const claimSettle = (): boolean => {
+        if (settled) return false
+        settled = true
+        return true
+      }
       try {
         const { socket } = await SocksClient.createConnection({
           proxy: {
@@ -316,6 +329,7 @@ function createSocksDispatcher (
             host: connectOpts.hostname!,
             port: parseInt(String(connectOpts.port!), 10),
           },
+          timeout: timeout || undefined,
         })
 
         if (isHttps) {
@@ -328,17 +342,21 @@ function createSocksDispatcher (
             rejectUnauthorized: opts.strictSsl ?? true,
           }
           const tlsSocket = tls.connect(tlsOpts)
+          tlsSocket.setTimeout(timeout, () => {
+            tlsSocket.destroy(new PnpmError('TLS_HANDSHAKE_TIMEOUT', `The TLS handshake with ${connectOpts.hostname!} through the SOCKS proxy timed out after ${timeout}ms`))
+          })
           tlsSocket.on('secureConnect', () => {
-            callback(null, tlsSocket)
+            tlsSocket.setTimeout(0)
+            if (claimSettle()) callback(null, tlsSocket)
           })
           tlsSocket.on('error', (err) => {
-            callback(err, null)
+            if (claimSettle()) callback(err, null)
           })
-        } else {
+        } else if (claimSettle()) {
           callback(null, socket as net.Socket)
         }
       } catch (err) {
-        callback(err as Error, null)
+        if (claimSettle()) callback(err as Error, null)
       }
     },
   })
@@ -366,11 +384,10 @@ function getNonProxyDispatcher (parsedUri: URL, opts: DispatcherOptions): Dispat
   }
 
   const timeout = inactivityTimeout(opts)
-  const connectTimeout = timeout === 0 ? 0 : timeout + 1
 
   const agent = new Agent({
     connections: opts.maxSockets ?? DEFAULT_MAX_SOCKETS,
-    connectTimeout,
+    connectTimeout: timeout,
     headersTimeout: timeout,
     bodyTimeout: timeout,
     keepAliveTimeout: KEEP_ALIVE_TIMEOUT,

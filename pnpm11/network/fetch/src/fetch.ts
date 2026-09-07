@@ -26,6 +26,11 @@ export type RequestInfo = string | URLLike | URL
 
 export interface RequestInit extends globalThis.RequestInit {
   retry?: RetryTimeoutOptions
+  /**
+   * How long the request may make no progress before it fails, in
+   * milliseconds. Ignored when `dispatcher` is set: the timeout is enforced
+   * by the dispatcher, so a caller that brings its own configures it there.
+   */
   timeout?: number
   dispatcher?: Dispatcher
 }

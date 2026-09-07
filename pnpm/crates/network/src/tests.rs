@@ -1324,9 +1324,7 @@ fn for_installs_rejects_zero_network_concurrency() {
     assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
 }
 
-/// A download that keeps making progress must not be cut off once its
-/// total time passes `fetchTimeout`: the deadline restarts on every
-/// chunk received (<https://github.com/pnpm/pnpm/issues/14604>).
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.
 #[tokio::test]
 async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
     const CHUNKS: usize = 6;
@@ -1353,8 +1351,6 @@ async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
     mock.assert_async().await;
 }
 
-/// A connection that stops delivering data still fails after
-/// `fetchTimeout`, so a stalled upstream cannot hang an install.
 #[tokio::test]
 async fn a_stalled_body_fails_after_the_fetch_timeout() {
     let mut server = mockito::Server::new_async().await;
