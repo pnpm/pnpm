@@ -201,9 +201,8 @@ fn a_package_yaml_project_gets_its_settings() {
     assert_resolved_dep(&pinned, "100.0.0");
 }
 
-/// A `--filter`ed run installs the selected projects one by one through
-/// the plan that carries the whole selection, rather than the walk that
-/// installs a workspace's projects in order.
+/// A `--filter`ed run reaches its projects through a different plan than
+/// an unfiltered one.
 #[test]
 fn a_filtered_recursive_install_applies_the_entry() {
     let fixture = dedicated_lockfile_workspace(&format!(
@@ -226,8 +225,8 @@ fn a_filtered_recursive_install_applies_the_entry() {
     assert!(!other.join("pnpm-lock.yaml").exists(), "an unselected project is not installed");
 }
 
-/// The workspace root installs alongside the projects it declares but is
-/// not one of them, so its own name reaches the lookup separately.
+/// The workspace root installs with the projects it declares but is not
+/// one of them.
 #[test]
 fn the_workspace_root_gets_its_own_entry() {
     let fixture = dedicated_lockfile_workspace(&format!(
@@ -249,8 +248,7 @@ fn the_workspace_root_gets_its_own_entry() {
     assert_resolved_dep(&child, "100.1.0");
 }
 
-/// `update` re-resolves, so a project entry's `overrides` has to hold
-/// through it the way it holds through `install`.
+/// `update` re-resolves, so the entry has to hold through it too.
 #[test]
 fn update_keeps_the_entry_overrides() {
     let fixture = dedicated_lockfile_workspace(&format!(
