@@ -773,6 +773,41 @@ fn patch_commit_exact_version_writes_patch_and_reinstalls() {
 }
 
 #[test]
+fn patch_commit_writes_an_applicable_patch_for_a_deleted_file() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    fs::remove_file(edit_dir.join("readme.md")).expect("delete readme.md");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let patch =
+        fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
+    eprintln!("PATCH:\n{patch}");
+    assert!(patch.contains("diff --git a/readme.md b/readme.md\n"), "patch: {patch}");
+    assert!(
+        !workspace.join("node_modules/is-positive/readme.md").exists(),
+        "the reinstall should have dropped readme.md",
+    );
+
+    // Re-running `patch` applies the committed patch to a fresh copy of the package, so it fails
+    // when the generated patch cannot be parsed or applied.
+    fs::remove_dir_all(&edit_dir).expect("remove edit dir");
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+
+    assert!(!edit_dir.join("readme.md").exists(), "readme.md should stay deleted");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patch_commit_bare_name_writes_apply_to_all_key() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

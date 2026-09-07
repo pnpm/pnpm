@@ -527,6 +527,44 @@ deleted file mode 100644
     assert!(!target.exists(), "deleted target must be gone");
 }
 
+/// `git diff --irreversible-delete`, which `pnpm patch-commit` runs,
+/// writes the header of a deleted file without its preimage.
+#[test]
+fn applies_delete_that_carries_no_preimage() {
+    let patched = tempdir().unwrap();
+    let target = patched.path().join("to-delete.txt");
+    fs::write(&target, "going away\n").unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/to-delete.txt b/to-delete.txt"
+            "deleted file mode 100644"
+            "index 8993..0000"
+        },
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    assert!(!target.exists(), "deleted target must be gone");
+}
+
+#[test]
+fn delete_that_carries_no_preimage_on_an_already_deleted_file_is_noop() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(
+        patch_dir.path(),
+        text_block_fnl! {
+            "diff --git a/to-delete.txt b/to-delete.txt"
+            "deleted file mode 100644"
+            "index 8993..0000"
+        },
+    );
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    assert!(!patched.path().join("to-delete.txt").exists());
+}
+
 #[cfg(unix)]
 #[test]
 fn read_patch_file_surfaces_non_not_found_error() {

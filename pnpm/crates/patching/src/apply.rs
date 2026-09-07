@@ -247,11 +247,21 @@ fn apply_one_file(
         }
         FileOperation::Delete(path) => {
             let target = resolve_target(Path::new(path.as_ref()))?;
-            // Validate that the existing file matches the patch
-            // before unlinking — a stale or wrong-target patch
-            // would otherwise silently delete the wrong file.
-            // diffy::apply on a delete patch produces the empty
-            // string when every hunk matches.
+            let text_patch = file_patch
+                .patch()
+                .as_text()
+                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
+            // A delete block that carries hunks is validated against the
+            // file on disk before unlinking — a stale or wrong-target
+            // patch would otherwise silently delete the wrong file.
+            // diffy::apply on such a patch produces the empty string
+            // when every hunk matches.
+            //
+            // `git diff --irreversible-delete`, which `pnpm patch` and
+            // `pnpm patch-commit` run, writes the header of a deleted
+            // file without its preimage. There are no hunks to check
+            // then, so the file is unlinked on the header alone, as
+            // pnpm 11 does for every deletion.
             //
             // Lossy UTF-8 decoding for the same reason as the
             // `Modify` branch above: match the patch-file reader
@@ -260,29 +270,33 @@ fn apply_one_file(
             // Idempotency: a missing target means the file was
             // already removed by an earlier apply of the same
             // patch — treat as no-op.
-            let bytes = match fs::read(&target) {
-                Ok(b) => b,
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-                Err(source) => {
-                    return Err(failed(format!("read {}: {source}", target.display())));
+            if !text_patch.hunks().is_empty() {
+                let bytes = match fs::read(&target) {
+                    Ok(b) => b,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+                    Err(source) => {
+                        return Err(failed(format!("read {}: {source}", target.display())));
+                    }
+                };
+                let original = String::from_utf8_lossy(&bytes).into_owned();
+                let after = tolerant::apply(&original, text_patch).map_err(|message| {
+                    failed(format!("apply to {}: {message}", target.display()))
+                })?;
+                if !after.is_empty() {
+                    return Err(failed(format!(
+                        "delete patch left {} non-empty after apply ({} bytes remain)",
+                        target.display(),
+                        after.len(),
+                    )));
                 }
-            };
-            let original = String::from_utf8_lossy(&bytes).into_owned();
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let after = tolerant::apply(&original, text_patch)
-                .map_err(|message| failed(format!("apply to {}: {message}", target.display())))?;
-            if !after.is_empty() {
-                return Err(failed(format!(
-                    "delete patch left {} non-empty after apply ({} bytes remain)",
-                    target.display(),
-                    after.len(),
-                )));
             }
-            fs::remove_file(&target)
-                .map_err(|source| failed(format!("delete {}: {source}", target.display())))?;
+            match fs::remove_file(&target) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(source) => {
+                    return Err(failed(format!("delete {}: {source}", target.display())));
+                }
+            }
         }
         FileOperation::Rename { .. } | FileOperation::Copy { .. } => {
             return Err(failed(

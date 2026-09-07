@@ -374,12 +374,13 @@ fn is_diff_path_line(line: &str) -> bool {
 
 fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> String {
     let mut out = line.to_string();
-    // `git diff --no-index --irreversible-delete` names both sides of a deleted file after the
-    // source folder, so each prefix has to be matched against both folders before the bare
-    // folder fallback runs, otherwise that fallback also consumes the `/` of the `b/` prefix.
-    for prefix in ['a', 'b'] {
-        for folder in [folder_a, folder_b] {
-            let trimmed = folder.trim_matches('/');
+    // `git diff --no-index` names both sides of an added or a deleted file after the single
+    // folder that holds it, so each prefix has to be matched against both folders. Leaving one
+    // of them to the bare folder fallback below would strip the `/` of its prefix along with
+    // the folder.
+    for folder in [folder_a, folder_b] {
+        let trimmed = folder.trim_matches('/');
+        for prefix in ['a', 'b'] {
             out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));
             out = out.replace(&format!("{prefix}{folder}/"), &format!("{prefix}/"));
         }
