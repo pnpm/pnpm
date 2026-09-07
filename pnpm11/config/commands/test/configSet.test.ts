@@ -107,6 +107,46 @@ test('config set pnpm-specific key using the global option', async () => {
   })
 })
 
+test('config set hoisting settings using the global option', async () => {
+  const tmp = tempDir()
+  const configDir = path.join(tmp, 'global-config')
+  const initConfig = {
+    globalRc: undefined,
+    globalYaml: {
+      storeDir: '~/store',
+    },
+    localRc: undefined,
+    localYaml: undefined,
+  } satisfies ConfigFilesData
+  writeConfigFiles(configDir, tmp, initConfig)
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    authConfig: {},
+  }), ['set', 'shamefullyHoist', 'true'])
+
+  await config.handler(createConfigCommandOpts({
+    dir: process.cwd(),
+    cliOptions: {},
+    configDir,
+    global: true,
+    json: true,
+    authConfig: {},
+  }), ['set', 'publicHoistPattern', JSON.stringify(['*foo*'])])
+
+  expect(readConfigFiles(configDir, tmp)).toEqual({
+    ...initConfig,
+    globalYaml: {
+      ...initConfig.globalYaml,
+      shamefullyHoist: true,
+      publicHoistPattern: ['*foo*'],
+    },
+  })
+})
+
 test('config set registries and named registries using the global option', async () => {
   const tmp = tempDir()
   const configDir = path.join(tmp, 'global-config')

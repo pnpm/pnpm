@@ -1663,7 +1663,6 @@ impl WorkspaceSettings {
         self.only_built_dependencies = None;
         self.never_built_dependencies = None;
         self.ignored_built_dependencies = None;
-        self.hoist = None;
         self.embed_readme = None;
         self.ignore_workspace_root_check = None;
         self.pending = None;
@@ -1671,11 +1670,7 @@ impl WorkspaceSettings {
         self.reverse = None;
         self.skip_manifest_obfuscation = None;
         self.sort = None;
-        self.hoist_pattern = None;
-        self.public_hoist_pattern = None;
-        self.shamefully_hoist = None;
         self.modules_dir = None;
-        self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
         self.frozen_lockfile = None;
@@ -1690,7 +1685,6 @@ impl WorkspaceSettings {
         self.auto_install_peers = None;
         self.auto_install_peers_from_highest_match = None;
         self.exclude_links_from_lockfile = None;
-        self.hoist_workspace_packages = None;
         self.link_workspace_packages = None;
         self.save_workspace_protocol = None;
         self.inject_workspace_packages = None;
@@ -1703,7 +1697,6 @@ impl WorkspaceSettings {
         self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
-        self.hoisting_limits = None;
         self.external_dependencies = None;
         self.patched_dependencies = None;
         self.pnpmfile = None;
