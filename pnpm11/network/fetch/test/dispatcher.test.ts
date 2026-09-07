@@ -2,7 +2,7 @@
 import net from 'node:net'
 
 import { afterEach, describe, expect, jest, test } from '@jest/globals'
-import { clearDispatcherCache, DEFAULT_FETCH_TIMEOUT, destroyDispatchers, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
+import { clearDispatcherCache, destroyDispatchers, type DispatcherOptions, getDispatcher } from '@pnpm/network.fetch'
 import { Agent, getGlobalDispatcher, ProxyAgent } from 'undici'
 
 afterEach(() => {
@@ -36,11 +36,16 @@ describe('getDispatcher', () => {
     expect(dispatcher).toBeDefined()
   })
 
-  test('returns a dispatcher only when the timeout differs from the default', () => {
-    expect(getDispatcher('https://registry.npmjs.org/foo', { timeout: DEFAULT_FETCH_TIMEOUT })).toBeUndefined()
-    const dispatcher = getDispatcher('https://registry.npmjs.org/foo', { timeout: 5000 })
-    expect(dispatcher).toBeDefined()
-    expect(dispatcher).not.toBe(getDispatcher('https://registry.npmjs.org/foo', { timeout: 10000 }))
+  // A dispatcher of its own would escape whatever dispatcher the caller
+  // installed globally; `fetch` applies the timeout per request instead.
+  test('returns no dispatcher for a timeout alone', () => {
+    expect(getDispatcher('https://registry.npmjs.org/foo', { timeout: 5000 })).toBeUndefined()
+  })
+
+  test('different timeouts produce different dispatchers', () => {
+    const d1 = getDispatcher('https://registry.npmjs.org/foo', { strictSsl: false, timeout: 5000 })
+    const d2 = getDispatcher('https://registry.npmjs.org/foo', { strictSsl: false, timeout: 10000 })
+    expect(d1).not.toBe(d2)
   })
 
   test('caches dispatchers by configuration', () => {

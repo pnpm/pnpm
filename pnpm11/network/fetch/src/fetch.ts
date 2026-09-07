@@ -1,9 +1,7 @@
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import { redactUrlForDisplay } from '@pnpm/error'
 import { operation, type RetryTimeoutOptions } from '@zkochan/retry'
-import { type Dispatcher, fetch as undiciFetch } from 'undici'
-
-import { getDispatcher } from './dispatcher.js'
+import { type Dispatcher, fetch as undiciFetch, getGlobalDispatcher } from 'undici'
 
 export { type RetryTimeoutOptions }
 
@@ -28,8 +26,7 @@ export interface RequestInit extends globalThis.RequestInit {
   retry?: RetryTimeoutOptions
   /**
    * How long the request may make no progress before it fails, in
-   * milliseconds. Ignored when `dispatcher` is set: the timeout is enforced
-   * by the dispatcher, so a caller that brings its own configures it there.
+   * milliseconds. `0` disables it.
    */
   timeout?: number
   dispatcher?: Dispatcher
@@ -57,11 +54,7 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
           // requiring the double cast. This is a known TypeScript/undici compatibility issue.
           const res = await undiciFetch(urlString, {
             ...fetchOpts,
-            // The dispatcher enforces the timeout, restarting it on every chunk
-            // received. Aborting the request `timeout` after it started instead
-            // would kill downloads that are still making progress
-            // (https://github.com/pnpm/pnpm/issues/14604).
-            dispatcher: dispatcher ?? getDispatcher(urlString, { timeout }),
+            dispatcher: withInactivityTimeout(dispatcher, timeout),
           } as Parameters<typeof undiciFetch>[1]) as unknown as Response
           // A retry on 409 sometimes helps when making requests to the Bit registry.
           if ((res.status >= 500 && res.status < 600) || [408, 409, 420, 429].includes(res.status)) {
@@ -120,6 +113,19 @@ export async function fetch (url: RequestInfo, opts: RequestInit = {}): Promise<
     }
     throw err
   }
+}
+
+/**
+ * Hands the timeout to whichever dispatcher serves the request as undici's
+ * `headersTimeout` and `bodyTimeout`, which restart on every chunk received.
+ * Aborting the request `timeout` after it started instead would kill downloads
+ * that are still making progress (https://github.com/pnpm/pnpm/issues/14604).
+ */
+function withInactivityTimeout (dispatcher: Dispatcher | undefined, timeout: number | undefined): Dispatcher | undefined {
+  if (timeout == null) return dispatcher
+  return (dispatcher ?? getGlobalDispatcher()).compose((dispatch) => (dispatchOpts, handler) =>
+    dispatch({ ...dispatchOpts, headersTimeout: timeout, bodyTimeout: timeout }, handler)
+  )
 }
 
 export class ResponseError extends Error {

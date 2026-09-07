@@ -184,10 +184,7 @@ function needsCustomDispatcher (opts: DispatcherOptions): boolean {
     opts.localAddress ||
     opts.strictSsl === false ||
     hasClientCertificates(opts.clientCertificates) ||
-    opts.maxSockets ||
-    // The global dispatcher carries the default timeouts, so only a request
-    // that wants different ones needs an agent of its own.
-    (opts.timeout != null && opts.timeout !== DEFAULT_FETCH_TIMEOUT)
+    opts.maxSockets
   )
 }
 
