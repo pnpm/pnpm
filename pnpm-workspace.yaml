@@ -234,7 +234,6 @@ catalog:
   dint: ^5.1.0
   dir-is-case-sensitive: ^3.0.0
   empathic: ^2.0.1
-  encode-registry: ^3.0.1
   esbuild: ^0.28.2
   escape-string-regexp: ^5.0.0
   eslint: ^10.9.1

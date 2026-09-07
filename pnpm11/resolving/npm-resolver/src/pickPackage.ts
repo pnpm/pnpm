@@ -1,7 +1,6 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { encodeRegistry } from '@pnpm/config.normalize-registries'
 import { ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR } from '@pnpm/constants'
 import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
@@ -15,6 +14,7 @@ import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
+import { encodeRegistry } from './encodeRegistry.js'
 import {
   type FetchMetadataNotModifiedResult,
   type FetchMetadataResult,

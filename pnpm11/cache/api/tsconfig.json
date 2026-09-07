@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "../../config/normalize-registries"
-    },
-    {
       "path": "../../config/reader"
     },
     {

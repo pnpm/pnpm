@@ -1902,9 +1902,6 @@ importers:
 
   pnpm11/cache/api:
     dependencies:
-      '@pnpm/config.normalize-registries':
-        specifier: workspace:*
-        version: link:../../config/normalize-registries
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -2364,9 +2361,6 @@ importers:
       '@pnpm/constants':
         specifier: workspace:*
         version: link:../../core/constants
-      '@pnpm/error':
-        specifier: workspace:*
-        version: link:../../core/error
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types

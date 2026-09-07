@@ -32,7 +32,6 @@
   },
   "dependencies": {
     "@pnpm/constants": "workspace:*",
-    "@pnpm/error": "workspace:*",
     "@pnpm/types": "workspace:*",
     "normalize-registry-url": "catalog:",
     "ramda": "catalog:"

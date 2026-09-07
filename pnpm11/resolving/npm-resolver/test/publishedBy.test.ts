@@ -66,9 +66,9 @@ test('request metadata when the one in cache does not have a version satisfying 
     versions: {},
     time: {},
   }
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(
-    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/bad-dates.jsonl`),
+    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org/bad-dates.jsonl`),
     `${JSON.stringify({})}\n${JSON.stringify(cachedMeta)}`,
     'utf8'
   )
@@ -111,9 +111,9 @@ test('reports an immature pick via policyViolation even when loaded from cache a
       '1.0.0': '2016-08-17T19:26:00.508Z',
     },
   }
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
+  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org`), { recursive: true })
   fs.writeFileSync(
-    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/foo.jsonl`),
+    path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org/foo.jsonl`),
     `${JSON.stringify({})}\n${JSON.stringify(fooMeta)}`,
     'utf8'
   )
@@ -147,8 +147,8 @@ test('should skip time field validation for excluded packages', async () => {
   const cacheDir = temporaryDirectory()
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
-  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`), { recursive: true })
-  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org/is-positive.jsonl`), JSON.stringify(metaWithoutTime), 'utf8')
+  fs.mkdirSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org`), { recursive: true })
+  fs.writeFileSync(path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org/is-positive.jsonl`), JSON.stringify(metaWithoutTime), 'utf8')
 
   getMockAgent().get(registriesByScope.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
@@ -474,7 +474,7 @@ test('ignoreMissingTimeField=true skips maturity check from disk-cached metadata
   const { time: _time, ...metaWithoutTime } = isPositiveMeta
 
   const cacheDir = temporaryDirectory()
-  const cacheDir2 = path.join(cacheDir, `${FULL_FILTERED_META_DIR}/registry.npmjs.org`)
+  const cacheDir2 = path.join(cacheDir, `${FULL_FILTERED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
   fs.writeFileSync(cachePath, `${JSON.stringify({})}\n${JSON.stringify(metaWithoutTime)}`, 'utf8')
@@ -513,7 +513,7 @@ test('falls through to the registry fetch when cached abbreviated meta lacks tim
   // form lacks `time`. The catch falls through to the registry fetch, which
   // returns full metadata with time, and resolution succeeds.
   const cacheDir = temporaryDirectory()
-  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
   // Strip `time` from the cached abbreviated metadata to simulate the
@@ -560,7 +560,7 @@ test('falls through to the registry fetch even with default ignoreMissingTimeFie
   // meta should never escape the catch — resolution falls through to the
   // registry fetch and succeeds with full (time-bearing) metadata.
   const cacheDir = temporaryDirectory()
-  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
   const { time: _time, ...abbreviatedWithoutTime } = isPositiveAbbreviatedMeta
@@ -606,7 +606,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
   // package was recently modified, re-fetch with `fullMetadata: true` to
   // get per-version times and run the check properly.
   const cacheDir = temporaryDirectory()
-  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
 
@@ -657,7 +657,7 @@ test('upgrades cached abbreviated metadata to full when 304 Not Modified and pub
 test('use cached metadata based on file mtime when publishedBy is set', async () => {
   const cacheDir = temporaryDirectory()
   // Write abbreviated metadata to the abbreviated cache dir
-  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const cacheDir2 = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(cacheDir2, { recursive: true })
   const cachePath = path.join(cacheDir2, 'is-positive.jsonl')
   const headers = JSON.stringify({ etag: '"mtime-shortcut-test"', modified: isPositiveAbbreviatedMeta.modified })
@@ -682,7 +682,7 @@ test('use cached metadata based on file mtime when publishedBy is set', async ()
 
 test('excluded packages bypass the mtime cache shortcut and refresh stale metadata', async () => {
   const cacheDir = temporaryDirectory()
-  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org`)
+  const abbrevCacheDir = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org`)
   fs.mkdirSync(abbrevCacheDir, { recursive: true })
   const cachePath = path.join(abbrevCacheDir, 'is-positive.jsonl')
 

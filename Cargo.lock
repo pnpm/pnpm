@@ -5793,6 +5793,7 @@ dependencies = [
  "miette 7.6.0",
  "mockito",
  "node-semver",
+ "percent-encoding",
  "pipe-trait",
  "pnpm-config",
  "pnpm-deps-path",

@@ -212,6 +212,7 @@
     "maxsockets",
     "maxtimeout",
     "mdast",
+    "metacharacter",
     "metafile",
     "millis",
     "minioadmin",
