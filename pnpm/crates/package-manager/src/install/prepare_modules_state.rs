@@ -166,7 +166,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                                 }
                                 Err(err) => {
                                     return Err(InstallError::RemoveModulesDir {
-                                        path: target.clone(),
+                                        path: target,
                                         error: err,
                                     });
                                 }
