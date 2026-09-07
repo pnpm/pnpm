@@ -128,6 +128,20 @@ test('big-endian POWER resolves nothing, since only the little-endian build ship
   assert.deepEqual(candidates(), ['@pnpm/exe.linux-ppc64/pnpm'])
 })
 
+test('android resolves its own package rather than a linux one', async (t) => {
+  for (const [arch, specifier] of [
+    ['arm64', '@pnpm/exe.android-arm64/pnpm'],
+    ['x64', '@pnpm/exe.android-x64/pnpm'],
+  ]) {
+    fakeHost(t, 'android', arch)
+    const { getBinCandidates: candidates } = await import(`../native-binary.mjs?android-${arch}`)
+
+    // Android is bionic, so the libc ordering the linux entries go through
+    // never applies to it.
+    assert.deepEqual(candidates(), [specifier])
+  }
+})
+
 test('freebsd x64 resolves the native package', async (t) => {
   fakeHost(t, 'freebsd', 'x64')
   const { getBinCandidates: candidates } = await import('../native-binary.mjs?freebsd')

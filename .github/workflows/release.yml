@@ -611,6 +611,14 @@ jobs:
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -742,6 +750,14 @@ jobs:
           - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
 
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
