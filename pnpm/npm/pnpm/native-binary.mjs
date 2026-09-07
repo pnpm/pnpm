@@ -29,9 +29,17 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
-    // Only a glibc build is released for riscv64.
+    // Only a glibc build is released for these three.
     riscv64: {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
+    },
+    // Node reports both POWER endiannesses as `ppc64`, and the released build
+    // is the little-endian one.
+    ppc64: {
+      glibc: '@pnpm/exe.linux-ppc64/pnpm',
+    },
+    s390x: {
+      glibc: '@pnpm/exe.linux-s390x/pnpm',
     },
   },
   freebsd: {

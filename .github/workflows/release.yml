@@ -600,6 +600,14 @@ jobs:
             code-target: linux-riscv64
 
           - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-freebsd
             code-target: freebsd-x64
 
@@ -722,6 +730,14 @@ jobs:
           - os: blacksmith-8vcpu-ubuntu-2404
             target: riscv64gc-unknown-linux-gnu
             code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
 
           - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-freebsd
