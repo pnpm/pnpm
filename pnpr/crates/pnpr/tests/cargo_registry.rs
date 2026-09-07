@@ -803,11 +803,11 @@ async fn cached_crates_follow_current_index_checksums_and_removals() {
 
 #[tokio::test]
 async fn cargo_advertises_auth_for_package_specific_private_access() {
-    use pnpr::{AccessList, PackagePattern, PackageRule};
+    use pnpr::{AccessList, Ecosystem, PackagePattern, PackageRule};
     let tmp = TempDir::new().unwrap();
     let mut config = cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$all");
     config.hosted.get_mut("crates").unwrap().rules.push_rule(PackageRule {
-        pattern: PackagePattern::parse("demo").unwrap(),
+        pattern: PackagePattern::parse("demo", Ecosystem::Npm).unwrap(),
         access: Some(AccessList::from_tokens(["$authenticated"])),
         publish: None,
         unpublish: None,

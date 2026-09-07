@@ -46,6 +46,7 @@ pnpr/
     auth/          -> package "pnpr-auth"          (user and token stores)
     config/        -> package "pnpr-config"        (the YAML config: parsing and validation)
     error/         -> package "pnpr-error"         (the error type every layer returns)
+    oci/           -> package "pnpr-oci"           (the OCI distribution protocol)
     osv/           -> package "pnpr-osv"           (the OSV advisory index)
     package-name/  -> package "pnpr-package-name"  (a validated package name)
     registry/      -> package "pnpr-registry"      (the registry routing table)

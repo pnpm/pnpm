@@ -21,8 +21,8 @@ use super::{
     documents::{read_hosted_document, stage_hosted_artifact, store_hosted_artifact},
     ecosystem::{
         UpstreamDocument, addressed_registry, caller_scoped, hosted_sources,
-        is_fetchable_artifact_url, load_upstream_document, registry_endpoint, serve_hosted_blob,
-        serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
+        is_fetchable_artifact_url, load_upstream_document, mount_bases, registry_endpoint,
+        serve_hosted_blob, serve_upstream_artifact, sha256_hex, sha256_integrity, upstream_for,
     },
     hosted_gate, not_found, private_no_cache,
     publishing::{PublishTarget, StagedPublish, resolve_publish_target_for},
@@ -57,8 +57,7 @@ const PAGE_LIMIT: usize = 64 * 1024 * 1024;
 
 pub(super) fn routes(prefixed: bool) -> Router<AppState> {
     let mut router = Router::new();
-    let bases = if prefixed { ["/pypi", "/pypi/~{registry}"] } else { ["", "/~{registry}"] };
-    for base in bases {
+    for base in mount_bases(ECOSYSTEM, prefixed) {
         router = router
             .route(&format!("{base}/{SIMPLE_PATH}"), get(get_project_list))
             .route(&format!("{base}/{SIMPLE_PATH}/"), get(get_project_list))

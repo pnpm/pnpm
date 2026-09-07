@@ -195,6 +195,12 @@ fn is_write_request_flags_only_mutating_requests() {
     assert!(!is_write_request(&Method::POST, "/legacy/"));
     assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
     assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
+    // Starting an image blob upload is the other mutating POST.
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
+    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
+    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+    assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
 }
 
 #[test]
@@ -204,11 +210,15 @@ fn token_credentials_accepts_every_client_token_shape() {
     // cargo sends the registry token with no scheme at all.
     assert_eq!(token_credentials("abc"), Some("abc".to_string()));
     assert_eq!(token_credentials("  "), None);
-    // twine and pip pair a PyPI-style API token with the `__token__` user.
+    // `Basic` carries the token as the password. twine and pip pair it with
+    // pypi.org's `__token__` user, docker and podman with the name the user
+    // typed at login, so the username is not what is checked.
     let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
     assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
     assert_eq!(token_credentials(&basic("__token__:")), None);
-    assert_eq!(token_credentials(&basic("alice:secret")), None);
+    assert_eq!(token_credentials(&basic("alice:")), None);
     assert_eq!(token_credentials("Basic not-base64!"), None);
     assert_eq!(token_credentials("Digest abc"), None);
 }
@@ -327,10 +337,10 @@ async fn team_tokens_reach_package_authorization() {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     use pnpr_policy::{AccessToken, Identity};
-    use pnpr_registry::PackagePattern;
+    use pnpr_registry::{Ecosystem, PackagePattern};
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@team/*").unwrap(),
+            pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
                 name: "platform".to_string(),
                 members: ["alice".to_string()].into(),

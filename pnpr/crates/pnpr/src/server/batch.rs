@@ -240,6 +240,12 @@ async fn validate_entry(
             upload.content = decode_base64(&entry.content, "content")?;
             Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
         }
+        // An image release is pushed as many requests — every blob, then the
+        // manifest that references them — so there is no single entry this
+        // endpoint could carry. The manifest PUT is already its atomic point.
+        Ecosystem::Oci => Err(RegistryError::BadRequest {
+            reason: "images are published through the /v2/ endpoints, not this batch".to_string(),
+        }),
     }
 }
 

@@ -112,10 +112,10 @@ fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
 /// whose `access` is `access`, so a test can rotate who may read a hosted
 /// package.
 fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
-    use pnpr_registry::PackagePattern;
+    use pnpr_registry::{Ecosystem, PackagePattern};
     let rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+            pattern: PackagePattern::parse(pattern, Ecosystem::Npm).expect("test pattern parses"),
             access: Some(AccessList::from_tokens([access])),
             publish: Some(AccessList::from_tokens(["$authenticated"])),
             unpublish: None,
@@ -560,7 +560,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 #[test]
 fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     use pnpr_policy::{PackageRule, PackageRules};
-    use pnpr_registry::PackagePattern;
+    use pnpr_registry::{Ecosystem, PackagePattern};
 
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
@@ -586,7 +586,8 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
     upstream.rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            pattern: PackagePattern::parse("@corp/secret", Ecosystem::Npm)
+                .expect("test pattern parses"),
             access: Some(AccessList::from_tokens(["alice"])),
             publish: None,
             unpublish: None,

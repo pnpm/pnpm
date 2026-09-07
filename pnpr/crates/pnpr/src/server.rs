@@ -4,6 +4,7 @@ mod cargo;
 mod compiler_cache;
 mod documents;
 mod ecosystem;
+mod oci;
 mod package_mutation;
 mod publishing;
 mod pypi;
@@ -257,6 +258,35 @@ pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> 
     pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
 }
 
+/// Reclaim blob uploads abandoned before an unclean shutdown, and any left
+/// by a client that never came back. Only image pushes create these, so this
+/// is a no-op for a registry serving no image ecosystem.
+async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
+    if !config.registries.has_ecosystem(Ecosystem::Oci) {
+        return Ok(());
+    }
+    let storage =
+        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
+    // Uploads are namespaced with the hosted store they will land in, so each
+    // organization keeps its own; the object-store backend stages them all in
+    // one scratch root, where sweeping it once covers every organization.
+    let mut namespaces: Vec<&str> =
+        config.hosted.values().map(|hosted| hosted.org.as_str()).collect();
+    namespaces.push("");
+    namespaces.sort_unstable();
+    namespaces.dedup();
+    for namespace in namespaces {
+        let swept = storage
+            .for_hosted(namespace)
+            .sweep_blob_uploads(pnpr_storage::upload::UPLOAD_MAX_AGE)
+            .await?;
+        if swept > 0 {
+            tracing::info!(swept, namespace, "reclaimed abandoned blob uploads");
+        }
+    }
+    Ok(())
+}
+
 /// Run startup side effects and load the auth backends. The registry
 /// needs publish-journal recovery; auth loads on every tier because the
 /// account endpoints (which mint and manage tokens) are always served,
@@ -264,6 +294,7 @@ pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> 
 async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
     if config.registry.enabled {
         recover_publish_journal(config).await?;
+        sweep_abandoned_uploads(config).await?;
     }
     AuthState::load(&config.auth, &config.backend).await
 }
@@ -3153,8 +3184,11 @@ async fn serve_pnpr_handshake(State(state): State<AppState>) -> Response {
     let resolver_enabled = state.inner.config.resolver.enabled;
     let versions = resolver_enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let fix_lockfile = versions.clone();
-    let resolved = if resolver_enabled { crate::resolver::RESOLVED_ECOSYSTEMS } else { &[] };
-    let ecosystems = resolved.iter().map(|ecosystem| ecosystem.as_str()).collect::<Vec<_>>();
+    let ecosystems: Vec<&str> = if resolver_enabled {
+        crate::resolver::resolved_ecosystems().map(Ecosystem::as_str).collect()
+    } else {
+        Vec::new()
+    };
     let artifacts =
         state.inner.config.artifacts.enabled.then_some(0).into_iter().collect::<Vec<_>>();
     let publish = state.inner.config.registry.enabled.then_some(0).into_iter().collect::<Vec<_>>();

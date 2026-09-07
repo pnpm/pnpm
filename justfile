@@ -70,14 +70,14 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
+  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
   # Every `pnpr-*` crate, selected together so cargo's feature unification
   # gives them the same backend features `pnpr` itself defaults to — selecting
   # one alone would build it bare and silently skip its backend tests.
-  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-package-name -p pnpr-policy -p pnpr-registry -p pnpr-route -p pnpr-osv -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
+  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
 
 # List expected-failing test ports
 [unix]

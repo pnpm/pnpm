@@ -431,12 +431,31 @@ fn intern_config(
     Some(config)
 }
 
-/// The ecosystems `/-/pnpr/v0/resolve` resolves, which the handshake
-/// advertises. It has to agree with [`handle_resolve`]'s dispatch below:
-/// an ecosystem named here that the dispatch refuses would send a client to
-/// an endpoint that turns it away.
-pub(crate) const RESOLVED_ECOSYSTEMS: &[Ecosystem] =
-    &[Ecosystem::Npm, Ecosystem::Cargo, Ecosystem::Pypi];
+/// Whether `/-/pnpr/v0/resolve` resolves this ecosystem.
+///
+/// The handshake advertises what this admits and [`handle_resolve`] dispatches
+/// on it, so the two cannot drift: a list kept beside the dispatch could
+/// advertise an ecosystem the dispatch turns away, and both are exhaustive
+/// matches, so a new ecosystem stops here for a decision.
+pub(crate) const fn resolves(ecosystem: Ecosystem) -> bool {
+    match ecosystem {
+        Ecosystem::Npm | Ecosystem::Cargo | Ecosystem::Pypi => true,
+        // An image has no dependency graph to resolve.
+        Ecosystem::Oci => false,
+    }
+}
+
+fn refuse_unresolvable(ecosystem: Ecosystem) -> Response {
+    json_error(
+        StatusCode::BAD_REQUEST,
+        &format!("{ecosystem} projects have no dependency graph for this endpoint to resolve"),
+    )
+}
+
+/// The ecosystems the handshake advertises, in the enum's own order.
+pub(crate) fn resolved_ecosystems() -> impl Iterator<Item = Ecosystem> {
+    Ecosystem::all().filter(|ecosystem| resolves(*ecosystem))
+}
 
 /// Handle `POST /-/pnpr/v0/resolve`. One address serves every ecosystem;
 /// the body's `ecosystem` field selects which resolver reads it, and a
@@ -450,12 +469,19 @@ pub(crate) async fn handle_resolve(
         Ok(probe) => probe,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
+    if !resolves(probe.ecosystem) {
+        return refuse_unresolvable(probe.ecosystem);
+    }
     match probe.ecosystem {
         Ecosystem::Npm => handle_npm_resolve(runtime, identity, &body).await,
         Ecosystem::Cargo => cargo::handle_resolve(runtime, identity, &body).await,
         // Listed rather than caught, so an ecosystem added to the shared
         // enum stops here for a decision instead of being refused silently.
         Ecosystem::Pypi => pypi::handle_resolve(runtime, identity, &body).await,
+        // An arm rather than a catch-all so an ecosystem added to the shared
+        // enum has to decide here too, even though `resolves` turns this one
+        // away before the dispatch runs.
+        Ecosystem::Oci => refuse_unresolvable(probe.ecosystem),
     }
 }
 

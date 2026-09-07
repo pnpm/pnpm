@@ -3,7 +3,7 @@ use super::{
 };
 
 fn pattern(raw: &str) -> PackagePattern {
-    PackagePattern::parse(raw).expect("pattern parses")
+    PackagePattern::parse(raw, Ecosystem::Npm).expect("pattern parses")
 }
 
 fn patterns(raws: &[&str]) -> Vec<PackagePattern> {
@@ -42,7 +42,10 @@ fn parses_recognized_shapes() {
 fn rejects_unsupported_wildcards() {
     for raw in ["", "foo*", "@acme/*/extra", "@*/foo", "*", "@acme/ba*r", "a*b"] {
         assert!(
-            matches!(PackagePattern::parse(raw), Err(RegistryConfigError::InvalidPattern { .. })),
+            matches!(
+                PackagePattern::parse(raw, Ecosystem::Npm),
+                Err(RegistryConfigError::InvalidPattern { .. })
+            ),
             "expected {raw:?} to be rejected",
         );
     }
@@ -57,7 +60,7 @@ fn rejects_exact_pattern_that_is_not_a_package_name() {
     for raw in ["@acme", "@acme/", "@/foo", ".hidden", "a/b/c", "@scope/../up"] {
         assert!(
             matches!(
-                PackagePattern::parse(raw),
+                PackagePattern::parse(raw, Ecosystem::Npm),
                 Err(RegistryConfigError::ExactPatternNotAName { .. }),
             ),
             "expected {raw:?} to be rejected as not a package name",
@@ -75,7 +78,7 @@ fn rejects_scope_pattern_whose_scope_is_not_a_valid_scope() {
     for raw in ["@.acme/*", "@../*", "@/*", "@a/b/*", "@a:b/*"] {
         assert!(
             matches!(
-                PackagePattern::parse(raw),
+                PackagePattern::parse(raw, Ecosystem::Npm),
                 Err(RegistryConfigError::ScopePatternNotAScope { .. }),
             ),
             "expected {raw:?} to be rejected as an invalid scope",
@@ -637,4 +640,153 @@ fn an_ecosystem_needs_a_concrete_registry() {
         set.validate(),
         Err(RegistryConfigError::EcosystemOnNonConcreteRegistry { .. }),
     ));
+}
+
+// --- image repository patterns ---------------------------------------------
+
+fn image_pattern(raw: &str) -> PackagePattern {
+    PackagePattern::parse(raw, Ecosystem::Oci).expect("image pattern parses")
+}
+
+#[test]
+fn parses_image_shapes() {
+    assert_eq!(image_pattern("**"), PackagePattern::All);
+    assert_eq!(image_pattern("acme/*"), PackagePattern::Namespace("acme".to_string()));
+    assert_eq!(image_pattern("acme/app"), PackagePattern::Exact("acme/app".to_string()));
+    assert_eq!(image_pattern("alpine"), PackagePattern::Exact("alpine".to_string()));
+}
+
+#[test]
+fn canonicalizes_image_patterns() {
+    assert_eq!(image_pattern("ACME/*"), PackagePattern::Namespace("acme".to_string()));
+    assert_eq!(image_pattern("ACME/App"), PackagePattern::Exact("acme/app".to_string()));
+}
+
+#[test]
+fn rejects_unusable_image_patterns() {
+    // A namespace is one path component, so two namespace patterns are either
+    // equal or disjoint and the specificity chain stays strict.
+    for raw in ["", "acme/team/*", "ac*me/*", "acme/*/extra", "@acme/*", "@acme/foo", "acme//app"] {
+        assert!(
+            PackagePattern::parse(raw, Ecosystem::Oci).is_err(),
+            "expected {raw:?} to be rejected",
+        );
+    }
+}
+
+#[test]
+fn image_namespace_matches_any_depth_below_it() {
+    let namespace = image_pattern("acme/*");
+    assert!(namespace.matches("acme/app"));
+    assert!(namespace.matches("acme/team/app"));
+    assert!(!namespace.matches("acme"));
+    assert!(!namespace.matches("other/app"));
+    // An npm scope is a different keyspace, never claimed by a namespace.
+    assert!(!namespace.matches("@acme/app"));
+}
+
+#[test]
+fn image_namespace_coverage_is_decidable() {
+    let namespace = image_pattern("acme/*");
+    assert!(namespace.covers(&image_pattern("acme/app")));
+    assert!(namespace.covers(&image_pattern("acme/*")));
+    assert!(!namespace.covers(&image_pattern("other/app")));
+    assert!(!namespace.covers(&image_pattern("alpine")));
+    assert!(PackagePattern::All.covers(&namespace));
+    assert!(!namespace.covers(&PackagePattern::All));
+    // A scope pattern and a namespace pattern claim disjoint keyspaces.
+    assert!(!pattern("@acme/*").covers(&namespace));
+    assert!(!namespace.covers(&pattern("@acme/*")));
+    assert!(!PackagePattern::AnyScoped.covers(&namespace));
+}
+
+#[test]
+fn image_patterns_round_trip_through_display() {
+    for raw in ["**", "acme/*", "acme/app", "alpine"] {
+        assert_eq!(image_pattern(raw).to_string(), raw);
+    }
+}
+
+#[test]
+fn flat_ecosystems_have_no_wildcard_below_everything() {
+    // A crate or project name is one flat token, so a scoped or namespaced
+    // claim there could never match a name and would silently let it fall to
+    // a later router source.
+    for ecosystem in [Ecosystem::Cargo, Ecosystem::Pypi] {
+        for raw in ["@scope/*", "@*/*", "acme/*"] {
+            assert!(
+                PackagePattern::parse(raw, ecosystem).is_err(),
+                "{ecosystem} should reject {raw:?}",
+            );
+        }
+        assert_eq!(PackagePattern::parse("**", ecosystem).unwrap(), PackagePattern::All);
+    }
+}
+
+#[test]
+fn image_registries_have_no_npm_scope_shapes() {
+    for raw in ["@*/*", "@acme/*"] {
+        assert!(
+            PackagePattern::parse(raw, Ecosystem::Oci).is_err(),
+            "an image registry should reject {raw:?}",
+        );
+    }
+}
+
+// --- the ecosystem list ------------------------------------------------------
+
+#[test]
+fn only_ecosystem_compares_against_every_ecosystem() {
+    // Derived from the enum rather than listed, so an ecosystem added without
+    // touching this still counts: a hand-written list would have reported an
+    // image-only server as npm-only, mounting two surfaces at the root.
+    let hosted = |ecosystem: Ecosystem| {
+        let mut registries = Registries::new(
+            std::iter::once(("only".to_string(), Registry::Hosted { patterns: patterns(&["**"]) }))
+                .collect(),
+            Some("only".to_string()),
+        );
+        registries = registries.with_ecosystem("only", ecosystem);
+        registries
+    };
+    for ecosystem in Ecosystem::all() {
+        let registries = hosted(ecosystem);
+        assert!(registries.is_only_ecosystem(ecosystem), "{ecosystem} serves alone");
+        for other in Ecosystem::all().filter(|other| *other != ecosystem) {
+            assert!(
+                !registries.is_only_ecosystem(other),
+                "{other} does not serve on an {ecosystem}-only server",
+            );
+        }
+    }
+}
+
+#[test]
+fn the_base_path_is_empty_only_where_the_ecosystem_serves_alone() {
+    let mut registries = Registries::new(
+        std::iter::once(("npm".to_string(), Registry::Hosted { patterns: patterns(&["**"]) }))
+            .collect(),
+        Some("npm".to_string()),
+    );
+    assert_eq!(registries.base_path(Ecosystem::Npm), "");
+
+    registries = registries.with_ecosystem("npm", Ecosystem::Cargo);
+    assert_eq!(registries.base_path(Ecosystem::Cargo), "");
+    assert_eq!(registries.base_path(Ecosystem::Npm), "/npm");
+    assert_eq!(registries.base_path(Ecosystem::Oci), "/oci");
+}
+
+#[test]
+fn a_refused_pattern_names_the_shapes_its_own_ecosystem_takes() {
+    // An operator sent to `@scope/*` on an image registry is sent to a shape
+    // that registry always refuses.
+    let image = PackagePattern::parse("ac*me/*", Ecosystem::Oci).unwrap_err().to_string();
+    assert!(image.contains("`<namespace>/*`"), "{image}");
+    assert!(!image.contains("@scope"), "{image}");
+
+    let npm = PackagePattern::parse("foo*", Ecosystem::Npm).unwrap_err().to_string();
+    assert!(npm.contains("`@scope/*`"), "{npm}");
+
+    let crates = PackagePattern::parse("foo*", Ecosystem::Cargo).unwrap_err().to_string();
+    assert!(crates.contains("nothing narrower"), "{crates}");
 }

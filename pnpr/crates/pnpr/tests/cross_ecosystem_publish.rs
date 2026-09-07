@@ -46,11 +46,13 @@ fn tri_ecosystem_config(storage: PathBuf) -> Config {
         .collect();
     graph.insert(
         "crates".to_string(),
-        Registry::Hosted { patterns: vec![PackagePattern::parse("demo").unwrap()] },
+        Registry::Hosted { patterns: vec![PackagePattern::parse("demo", Ecosystem::Npm).unwrap()] },
     );
     graph.insert(
         "python".to_string(),
-        Registry::Hosted { patterns: vec![PackagePattern::parse("demo-pkg").unwrap()] },
+        Registry::Hosted {
+            patterns: vec![PackagePattern::parse("demo-pkg", Ecosystem::Npm).unwrap()],
+        },
     );
     graph.insert(
         "main".to_string(),

@@ -16,6 +16,7 @@ use super::{
 };
 use pnpr_cargo::{CrateDocument, crate_filename};
 use pnpr_error::RegistryError;
+use pnpr_oci::ImageDocument;
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_pypi::ProjectDocument;
@@ -113,6 +114,26 @@ impl HostedDocument for ProjectDocument {
     }
 }
 
+impl HostedDocument for ImageDocument {
+    const ECOSYSTEM: Ecosystem = Ecosystem::Oci;
+
+    fn empty(name: &str) -> Self {
+        ImageDocument::new(name)
+    }
+
+    fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        ImageDocument::parse(bytes)
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
+        ImageDocument::to_bytes(self)
+    }
+
+    fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+        ImageDocument::merge(self, addition, lost_blobs)
+    }
+}
+
 /// Every hosted document format pnpr serves, as the publish journal sees
 /// them. The journal carries documents as opaque bytes; this resolves the
 /// ecosystem it recorded back to the merge rule for that format, both when a
@@ -125,6 +146,7 @@ impl HostedDocuments for RegistryDocuments {
             Ecosystem::Npm => merge_journaled_packument(&merge),
             Ecosystem::Cargo => merge_into_stored::<CrateDocument>(&merge),
             Ecosystem::Pypi => merge_into_stored::<ProjectDocument>(&merge),
+            Ecosystem::Oci => merge_into_stored::<ImageDocument>(&merge),
         }
     }
 }

@@ -29,6 +29,7 @@ pnpr-auth                     = { workspace = true }
 pnpr-cargo                    = { workspace = true }
 pnpr-config                   = { workspace = true }
 pnpr-error                    = { workspace = true }
+pnpr-oci                      = { workspace = true }
 pnpr-osv                      = { workspace = true }
 pnpr-package-name             = { workspace = true }
 pnpr-policy                   = { workspace = true }

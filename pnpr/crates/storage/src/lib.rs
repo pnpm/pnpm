@@ -3,6 +3,7 @@ pub mod journal;
 pub mod publish;
 mod s3;
 pub mod streaming;
+pub mod upload;
 
 use crate::s3::S3Store;
 use async_trait::async_trait;
@@ -31,6 +32,14 @@ pub(crate) use self::backend::HostedBackend;
 pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
 const DOCUMENT_FILE: &str = "package.json";
+/// How deep the hosted walk looks for a package document.
+///
+/// A name is at most 255 bytes and every component past the first costs at
+/// least two of them, so this is the deepest a name can be rather than a
+/// policy of its own: the object-store backend applies no depth limit, and a
+/// walk that stopped shallower would hide a repository from one backend that
+/// the other lists.
+const MAX_NAME_COMPONENTS: usize = 128;
 pub(crate) const HOSTED_REVISION_REFS_DIR: &str = ".revisions/sha512";
 pub(crate) const HOSTED_REVISION_REF_INDEX_FILE: &str = "index.json";
 /// Bounds both the persisted candidate set and work triggered by one digest request.
@@ -462,6 +471,10 @@ impl HostedBackend for Store {
         Arc::new(Store::namespaced(self, segment))
     }
 
+    fn namespace(&self) -> String {
+        self.root.to_string_lossy().into_owned()
+    }
+
     fn local_scratch_root(&self) -> &Path {
         &self.root
     }
@@ -786,6 +799,14 @@ impl Storage {
         self.hosted.finalize_blob(&slot.tmp_path, &slot.name, &slot.filename).await
     }
 
+    /// Where the hosted backend stages locally: the store root on the fs
+    /// backend, the cache scratch on the S3 backend. The publish journal and
+    /// in-progress blob uploads both live here.
+    #[must_use]
+    pub fn hosted_scratch_root(&self) -> &Path {
+        self.hosted.local_scratch_root()
+    }
+
     /// The commit journal for this storage's publish flow. It lives in
     /// the same local root as the staged tmp files: the hosted store
     /// root on the fs backend, the cache scratch on the S3 backend
@@ -1071,29 +1092,55 @@ impl Store {
     /// propagates.
     async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
-        let mut top = match fs::read_dir(&self.root).await {
-            Ok(rd) => rd,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(names),
-            Err(err) => return Err(err.into()),
-        };
-        while let Some(entry) = top.next_entry().await? {
-            let entry_path = entry.path();
-            let entry_name = entry.file_name();
-            let name_str = entry_name.to_string_lossy();
-            if name_str.starts_with('.') {
-                continue;
-            }
-            if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                names.push(name_str.into_owned());
-                continue;
-            }
-            if name_str.starts_with('@')
-                && let Ok(mut inner) = fs::read_dir(&entry_path).await
-            {
-                while let Some(child) = inner.next_entry().await? {
-                    if fs::try_exists(child.path().join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                        names.push(format!("{name_str}/{}", child.file_name().to_string_lossy()));
+        let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
+        while let Some((dir, prefix, depth)) = pending.pop() {
+            let mut entries = match fs::read_dir(&dir).await {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err.into()),
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                let entry_name = entry.file_name();
+                let name_str = entry_name.to_string_lossy();
+                if name_str.starts_with('.') {
+                    continue;
+                }
+                if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
+                    // A namespace holds only directories, so a file means
+                    // this is a package that has not written its document
+                    // yet — an ordinary state between an image's blobs and
+                    // its manifest. Reading the rest would enumerate every
+                    // blob it holds, on a path an anonymous listing reaches.
+                    // The root is the exception: it is one directory, and
+                    // abandoning it would truncate the whole listing.
+                    //
+                    // A package nested under this one is missed as a result,
+                    // and which entry comes first is up to the filesystem.
+                    // That is the same gap a package nested under a
+                    // *manifested* one already has, and closing it by reading
+                    // to the end is what makes a listing cost the blob
+                    // population rather than the package count. It wants an
+                    // index, not a wider walk — pnpm/pnpm#14630.
+                    if depth > 1 {
+                        break;
                     }
+                    continue;
+                }
+                let entry_path = entry.path();
+                let name = if prefix.is_empty() {
+                    name_str.into_owned()
+                } else {
+                    format!("{prefix}/{name_str}")
+                };
+                if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
+                    // Stopping here is what keeps a listing proportional to
+                    // the number of packages: descending would enumerate
+                    // every blob a package holds, on a path an anonymous
+                    // search reaches. A package nested under another is
+                    // therefore not listed — pnpm/pnpm#14630.
+                    names.push(name);
+                } else if depth < MAX_NAME_COMPONENTS {
+                    pending.push((entry_path, name, depth + 1));
                 }
             }
         }

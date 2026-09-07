@@ -147,11 +147,13 @@ search term when a query reaches that limit.
 
 ## Cargo and Python registries
 
-pnpr serves npm, Cargo, and Python registries from one instance. When more
-than one ecosystem is configured, `/<ecosystem>/~<name>/` addresses a
-registry and `/<ecosystem>/` the default registry, with `npm`, `cargo`, and
-`pypi` as the codes. When only one ecosystem is configured, its prefix is
-omitted and clients use the host root or `/~<name>/`.
+pnpr serves npm, Cargo, Python, and image registries from one instance. When
+more than one ecosystem is configured, `/<ecosystem>/~<name>/` addresses a
+registry and `/<ecosystem>/` the default registry, with `npm`, `cargo`,
+`pypi`, and `oci` as the codes. When only one ecosystem is configured, its
+prefix is omitted and clients use the host root or `/~<name>/`. Image
+registries are the exception described under "Image registries" below: their
+`/v2/` endpoints answer at the host root whichever else is configured.
 
 The endpoints that belong to no single ecosystem stay at the root: `/-/ping`,
 the `/-/pnpr/v0/` protocols (resolve, verify-lockfile, shared artifacts, and
@@ -286,6 +288,67 @@ routes:
 
 Configured headers are sent only over HTTPS or loopback HTTP. Redirects rebuild headers for each destination, so configured credentials stay
 on the upstream origin.
+
+## Image registries
+
+An image registry serves the OCI distribution API at `/v2/`, and unlike every
+other ecosystem it cannot be moved under a prefix. A client derives the API
+root from the image reference's host, so `pnpr.example.com/acme/app:1.0`
+always requests `/v2/acme/app/manifests/1.0`. `/v2/` therefore answers at the
+host root whatever else pnpr serves, and the repository name alone selects the
+registry through the same declared-provenance rules the other surfaces use.
+There is no reserved path segment, so the image name you push is the image
+name. `/oci/v2/` and `/oci/~<name>/v2/` answer as well, for `podman` and
+`containerd`, whose `registries.conf` `location` and `hosts.toml` `server`
+both accept a path.
+
+```yaml
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    org: images
+    packages:
+      'acme/*': {}
+defaultRegistry: images
+```
+
+A `packages:` key is either one repository name or `<namespace>/*`, which
+claims every repository under one leading path component. The namespace is a
+single component, so two namespace claims are either the same or disjoint.
+Repository names follow the distribution spec's grammar and are folded to
+lowercase, so `ACME/App` and `acme/app` are one repository rather than two
+directories on a case-insensitive filesystem.
+
+Use a pnpr token as the password; the username is not checked, as on every
+registry that takes a personal access token:
+
+```sh
+printf '%s' "$PNPR_TOKEN" | docker login pnpr.example.com -u alice --password-stdin
+docker push pnpr.example.com/acme/app:1.0
+docker pull pnpr.example.com/acme/app:1.0
+skopeo copy docker://pnpr.example.com/acme/app:1.0 oci:./app:1.0
+```
+
+`GET /v2/` answers `401` with a `Basic` challenge to an anonymous caller even
+where reads are open. A client settles its authentication scheme on that one
+response, so a `200` would leave it with no way to authenticate a later push.
+A client with no credentials carries on regardless, and a repository that
+admits anonymous reads still answers its later requests.
+
+Blobs are uploaded in one request or in chunks, streamed to disk rather than
+held in memory, and verified against the digest the client promised before
+anything is stored. A layer may be up to 10 GiB and a manifest up to 4 MiB.
+The manifest write is the point a release becomes visible: it goes through the
+same publish journal as every other ecosystem, so it either lands whole or
+leaves nothing behind. A blob no manifest references is invisible rather than
+half-published, which also means unreferenced blobs accumulate until they are
+collected.
+
+Not yet served: proxying an upstream image registry, the referrers API,
+cross-repository blob mounts, and ranged blob downloads. Deleting a manifest
+or a blob needs a registry whose `unpublish` rule admits the caller, which the
+per-registry default does not.
 
 ## License
 

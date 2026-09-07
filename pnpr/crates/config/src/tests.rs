@@ -2687,3 +2687,73 @@ fn rejects_package_keys_that_normalize_to_the_same_name() {
         assert!(err.to_string().contains("duplicates normalized key"), "{err}");
     }
 }
+
+#[test]
+fn an_image_registry_claims_a_namespace_and_exact_repositories() {
+    let yaml = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    org: images
+    packages:
+      'acme/*': {}
+      'library/nginx': {}
+defaultRegistry: images
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    for repository in ["acme/app", "acme/team/tool", "library/nginx"] {
+        assert!(
+            matches!(
+                config.registries.resolve_default(Ecosystem::Oci, repository),
+                pnpr_registry::Resolved::Concrete { registry: "images", .. }
+            ),
+            "{repository} should resolve to the image registry",
+        );
+    }
+    assert_eq!(
+        config.registries.resolve_default(Ecosystem::Oci, "other/app"),
+        pnpr_registry::Resolved::Unclaimed,
+    );
+}
+
+#[test]
+fn image_registry_keys_are_normalized_and_validated() {
+    let case_folded = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'ACME/*': {}
+defaultRegistry: images
+";
+    let config = Config::from_yaml_str(case_folded, Path::new("/x"), listen(), None).unwrap();
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Oci, "acme/app"),
+        pnpr_registry::Resolved::Concrete { registry: "images", .. }
+    ));
+
+    let duplicate = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'ACME/*': {}
+      'acme/*': {}
+";
+    let err = Config::from_yaml_str(duplicate, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("duplicates normalized key"), "{err}");
+
+    let bad_key = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'acme/app/*': {}
+";
+    let err = Config::from_yaml_str(bad_key, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains(r#"oci registry "images" `packages:` key"#), "{err}");
+}
