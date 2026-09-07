@@ -428,8 +428,9 @@ manifest removes its referrer entry; removing a tag keeps it.
 `Link` header when another page is available. `last` is an exclusive lexical
 cursor. `n=0` returns an empty list without a continuation link.
 
-The filesystem catalog uses a separate package index to find repositories nested
-under published repositories and repositories containing only uploaded blobs.
+The filesystem catalog uses a separate package index to find published repositories
+nested beneath either published or blob-only parent paths. The blob-only parents
+themselves remain absent until an operation creates their repository document.
 Startup indexes legacy stores once. This initial scan visits existing files;
 subsequent requests enumerate package names without walking layer files.
 
@@ -478,8 +479,8 @@ known CDN hosts. Configured credentials never travel to a layer CDN. Custom
 origins may use a token endpoint and downloads on their own origin.
 
 Manifest bodies are verified before caching. Blob bodies are verified while
-streaming and are cached only after a successful digest check. Clients still
-verify the streamed bytes. Tags refresh according to the configured upstream cache lifetime;
+streaming and are cached only after a successful digest check. A mismatch aborts
+the response stream. Clients still verify the streamed bytes. Tags refresh according to the configured upstream cache lifetime;
 digest-addressed content is immutable. `cache: false` disables this cache.
 Upstream writes, catalog enumeration, tag listing, and referrer discovery are
 not proxied. Hosted manifest and blob deletion require `unpublish` permission,

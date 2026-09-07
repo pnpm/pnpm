@@ -102,3 +102,19 @@ fn a_content_range_is_read_whole_or_not_at_all() {
     assert_eq!(parse_content_range("4"), None);
     assert_eq!(parse_content_range(""), None);
 }
+
+#[test]
+fn refusals_preserve_registry_errors_for_batch_responses() {
+    let err = pnpr_error::RegistryError::Forbidden {
+        user: "alice".to_string(),
+        action: "unpublish",
+        resource: "acme/app".to_string(),
+    };
+    let expected = err.public_message();
+    let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
+    assert_eq!(restored.public_message(), expected);
+    assert_eq!(restored.status_code(), axum::http::StatusCode::FORBIDDEN);
+    let err = pnpr_error::RegistryError::Internal { reason: "test".to_string() };
+    let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
+    assert_eq!(restored.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+}

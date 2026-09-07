@@ -46,6 +46,9 @@ impl Request {
                         package: key.as_str().to_string(),
                     });
                 }
+                if storage.open_hosted_blob(&key, &digest.blob_filename()).await?.is_none() {
+                    return Ok(error(ErrorCode::BlobUnknown, "no such blob"));
+                }
                 if referenced_document_blobs(
                     &storage,
                     &key,
@@ -58,9 +61,6 @@ impl Request {
                     return Err(RegistryError::BadRequest {
                         reason: format!("{digest} is referenced by a retained manifest"),
                     });
-                }
-                if storage.open_hosted_blob(&key, &digest.blob_filename()).await?.is_none() {
-                    return Ok(error(ErrorCode::BlobUnknown, "no such blob"));
                 }
                 document.generation =
                     document.generation.checked_add(1).ok_or_else(|| RegistryError::Internal {

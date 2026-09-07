@@ -55,14 +55,10 @@ pub enum BlobStreamError {
 /// wait for the whole download to land and verify first — and the cache entry
 /// is promoted only once the declared SRI matches the full body.
 ///
-/// SRI can only be checked after the last byte, by which point the body has
-/// already been streamed, so a mismatch can't be turned into an error
-/// response. The guarantees that remain are the ones that matter: a
-/// mismatched (or truncated, or oversize) body is never promoted to the cache,
-/// so it can't poison a future client, and every install client re-verifies
-/// what it received against its own expected integrity and rejects bad bytes.
-/// On any such failure — or a dropped client connection — the temp file is
-/// abandoned (and [`BlobWrite`]'s `Drop` removes it as a backstop).
+/// Integrity failures terminate the body with a stream error and abandon the
+/// temporary cache file. Headers and earlier chunks may already have reached
+/// the client, so clients must still verify the received bytes. Dropping the
+/// connection also abandons the temporary file through [`BlobWrite`]'s `Drop`.
 pub fn stream_verified_to_cache(
     response: ThrottledResponse,
     write: BlobWrite,
@@ -133,6 +129,7 @@ pub fn stream_verified_to_cache(
                     Err(err) => {
                         tracing::warn!(url = %state.url, ?err, "proxied blob failed integrity; not caching it");
                         abandon(state.write.take()).await;
+                        return Some((Err(io::Error::other(err)), None));
                     }
                 }
                 None

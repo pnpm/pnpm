@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeMap, fmt::Write as _};
 
-const TOKEN_PREFIX: &str = "pnpr_oci_";
+pub(super) const TOKEN_PREFIX: &str = "pnpr_oci_";
 const TTL: u64 = 300;
 
 #[derive(Serialize, Deserialize)]
@@ -81,6 +81,7 @@ impl Claims {
             return matches!(*method, Method::GET | Method::HEAD);
         }
         let Some(endpoint) = parse_endpoint(tail) else { return false };
+        // Upload cancellation requires push scope, just like the rest of the upload session.
         let upload = matches!(endpoint, Endpoint::StartUpload { .. } | Endpoint::Upload { .. });
         let name = match endpoint {
             Endpoint::Catalog => return false,
@@ -163,21 +164,29 @@ async fn issue_token(
             continue;
         }
         for scope in value.split_whitespace() {
-            if scopes.len() >= 32 {
-                return Err(RegistryError::BadRequest {
-                    reason: "too many OCI token scopes".to_string(),
-                });
-            }
-            let parts: Vec<_> = scope.split(':').collect();
-            let ["repository", name, actions] = parts.as_slice() else {
+            let Some((resource, remainder)) = scope.split_once(':') else {
                 return Err(RegistryError::BadRequest {
                     reason: "invalid OCI token scope".to_string(),
                 });
             };
-            let name = pnpr_package_name::CanonicalPackageName::parse(
-                name,
-                pnpr_registry::Ecosystem::Oci,
-            )?;
+            let Some((name, actions)) = remainder.rsplit_once(':') else {
+                return Err(RegistryError::BadRequest {
+                    reason: "invalid OCI token scope".to_string(),
+                });
+            };
+            if resource != "repository" && resource != "repository(plugin)" {
+                continue;
+            }
+            let Ok(name) =
+                pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Oci)
+            else {
+                continue;
+            };
+            if scopes.len() >= 32 && !scopes.contains_key(name.as_str()) {
+                return Err(RegistryError::BadRequest {
+                    reason: "too many OCI token scopes".to_string(),
+                });
+            }
             let source = resolve_ecosystem_source(
                 state,
                 &target,

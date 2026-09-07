@@ -417,7 +417,7 @@ async fn an_upstream_without_the_json_api_is_a_gateway_error_and_a_bad_hash_is_n
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     let response = app.oneshot(get(&format!("/pypi/files/lying/{filename}"), None)).await.unwrap();
-    let _ = body_bytes(response.into_body()).await;
+    assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
     assert!(find_file(&tmp.path().join(".pnpr-cache"), filename).is_none());
 }
 

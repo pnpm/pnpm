@@ -210,6 +210,10 @@ impl ImageDocument {
     /// bytes and is left alone. Tags reach the same result whichever order
     /// the two documents arrive in, which is what lets a journaled write be
     /// replayed after the one that superseded it.
+    ///
+    /// A generation mismatch or pending blob deletion refuses the addition
+    /// and returns `false`, just like an unchanged document. Older generations
+    /// cannot be replayed after deletion advances the stored generation.
     pub fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
         if self.generation != addition.generation || self.deleting_blob.is_some() {
             return false;

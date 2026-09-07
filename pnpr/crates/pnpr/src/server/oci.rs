@@ -116,7 +116,7 @@ async fn get_version_check(
             .get(header::AUTHORIZATION)
             .and_then(|value| value.to_str().ok())
             .and_then(super::authentication::token_credentials)
-            .is_some_and(|token| token.starts_with("pnpr_oci_"))
+            .is_some_and(|token| token.starts_with(tokens::TOKEN_PREFIX))
     {
         return tokens::challenge(
             &state,
@@ -1127,15 +1127,17 @@ pub(super) struct Refusal {
     status: StatusCode,
     code: ErrorCode,
     message: String,
+    original: Option<Box<RegistryError>>,
 }
 
 impl Refusal {
     fn new(code: ErrorCode, message: impl Into<String>) -> Self {
-        Self { status: status_for(code), code, message: message.into() }
+        Self { status: status_for(code), code, message: message.into(), original: None }
     }
 
     pub(super) fn respond(self) -> Response {
-        respond(self.status, self.code, self.message)
+        let status = self.original.map_or(self.status, |err| err.into_response().status());
+        respond(status, self.code, self.message)
     }
 }
 
@@ -1145,7 +1147,7 @@ impl From<RegistryError> for Refusal {
     fn from(err: RegistryError) -> Self {
         let upload_conflict = matches!(err, RegistryError::BlobUploadConflict { .. });
         let message = err.public_message();
-        let status = err.into_response().status();
+        let status = err.status_code();
         let code = match status {
             StatusCode::CONFLICT if upload_conflict => ErrorCode::BlobUploadInvalid,
             StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
@@ -1156,12 +1158,15 @@ impl From<RegistryError> for Refusal {
             // what a client acts on.
             _ => ErrorCode::Unsupported,
         };
-        Self { status, code, message }
+        Self { status, code, message, original: Some(Box::new(err)) }
     }
 }
 
 impl From<Refusal> for RegistryError {
     fn from(refusal: Refusal) -> Self {
+        if let Some(original) = refusal.original {
+            return *original;
+        }
         match refusal.status {
             StatusCode::UNAUTHORIZED => Self::Unauthenticated { resource: refusal.message },
             StatusCode::FORBIDDEN => Self::Forbidden {
