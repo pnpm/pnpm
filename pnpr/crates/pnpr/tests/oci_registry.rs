@@ -14,6 +14,10 @@ mod common;
 #[path = "common/pausing_store.rs"]
 mod pausing_store;
 
+#[path = "../src/server/striped_locks.rs"]
+#[allow(dead_code, reason = "the collision fixture uses the production stripe mapping")]
+mod striped_locks;
+
 use axum::{
     Router,
     body::Body,
@@ -1596,18 +1600,12 @@ fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
 }
 
 fn repository_with_colliding_lock_keys() -> String {
-    use std::{
-        collections::hash_map::DefaultHasher,
-        hash::{Hash, Hasher},
-    };
-    let stripe = |key: &str| {
-        let mut hasher = DefaultHasher::new();
-        key.hash(&mut hasher);
-        hasher.finish() % 64
-    };
+    let locks = striped_locks::StripedLocks::new();
     (0..4096)
         .map(|index| format!("acme/lock-collision-{index}"))
-        .find(|name| stripe(name) == stripe(&format!("oci-referrers:{name}")))
+        .find(|name| {
+            locks.stripe_index(name) == locks.stripe_index(&format!("oci-referrers:{name}"))
+        })
         .expect("a repository whose lock keys collide")
 }
 
