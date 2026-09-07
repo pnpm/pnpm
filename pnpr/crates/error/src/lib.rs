@@ -188,6 +188,13 @@ pub enum RegistryError {
         packages: String,
     },
 
+    #[display("Upload {id:?} changed; query its offset before retrying")]
+    #[from(skip)]
+    BlobUploadConflict {
+        #[error(not(source))]
+        id: String,
+    },
+
     #[display("Hosted document for package {package:?} changed while writing")]
     #[from(skip)]
     DocumentWriteConflict {
@@ -340,6 +347,7 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
+            RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
@@ -434,6 +442,7 @@ impl RegistryError {
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
             | RegistryError::PublishNotRecorded { .. }
+            | RegistryError::BlobUploadConflict { .. }
             | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,

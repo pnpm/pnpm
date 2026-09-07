@@ -166,3 +166,24 @@ fn startup_error_report_redacts_dsn_credentials() {
     assert!(!report.contains("admin"));
     assert!(!report.contains("secret"));
 }
+
+#[test]
+fn oci_gc_requires_a_registry_and_parses_maintenance_options() {
+    let _env = scrubbed_env();
+    assert!(Args::try_parse_from(["pnpr", "oci-gc"]).is_err());
+    let args = Args::try_parse_from([
+        "pnpr",
+        "-c",
+        "registry.yaml",
+        "oci-gc",
+        "--registry",
+        "images",
+        "--dry-run",
+        "--min-age-secs",
+        "0",
+    ])
+    .unwrap();
+    assert!(
+        matches!(args.command, Some(super::Command::OciGc { registry, dry_run: true, min_age_secs: 0 }) if registry == "images"),
+    );
+}

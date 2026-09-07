@@ -83,7 +83,17 @@ pub(crate) struct S3DocumentForUpdate {
 const STAGING_SUBDIR: &str = "pnpr-hosted-staging";
 
 /// Send `tmp_path` as parts and complete the upload.
-async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
+pub(crate) async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
+    let result = stream_parts(tmp_path, upload).await;
+    if result.is_err()
+        && let Err(error) = upload.abort().await
+    {
+        tracing::warn!(%error, "failed to abort multipart upload");
+    }
+    result
+}
+
+async fn stream_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result<()> {
     let mut file = fs::File::open(tmp_path).await?;
     let mut part = vec![0u8; MULTIPART_PART_BYTES];
     loop {
@@ -283,17 +293,8 @@ impl S3Store {
         key: &ObjectPath,
     ) -> Result<BlobFinalize> {
         let mut upload = self.store.put_multipart(key).await?;
-        match send_parts(tmp_path, upload.as_mut()).await {
-            Ok(()) => Ok(BlobFinalize::Written),
-            Err(err) => {
-                // The parts already sent are stored, and billed, until the
-                // upload they belong to ends. Nothing else knows this one
-                // exists, so a push failing partway would leave them for the
-                // provider's own expiry rule to find.
-                let _ = upload.abort().await;
-                Err(err)
-            }
-        }
+        send_parts(tmp_path, upload.as_mut()).await?;
+        Ok(BlobFinalize::Written)
     }
 
     pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
@@ -567,6 +568,14 @@ mod tests;
 /// by upload rather than rename.
 #[async_trait]
 impl HostedBackend for S3Store {
+    fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
+        Some(crate::upload::RemoteUploadStore::new(
+            Arc::clone(&self.store),
+            &self.prefix,
+            self.cache_root.join(crate::upload::UPLOADS_DIR),
+        ))
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         S3Store::read_document(self, name).await
     }
@@ -638,6 +647,30 @@ impl HostedBackend for S3Store {
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         S3Store::remove_package(self, name).await
+    }
+
+    fn list_blob_files(
+        &self,
+    ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
+        let prefix = ObjectPath::from(self.prefix.trim_end_matches('/'));
+        self.store
+            .list(Some(&prefix))
+            .filter_map(move |result| async move {
+                let meta = match result {
+                    Ok(meta) => meta,
+                    Err(error) => return Some(Err(error.into())),
+                };
+                let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
+                if path.split('/').any(|part| part.starts_with('.')) {
+                    return None;
+                }
+                Some(Ok(crate::HostedBlobFile {
+                    path: path.to_string(),
+                    modified: meta.last_modified.into(),
+                    size: meta.size,
+                }))
+            })
+            .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {

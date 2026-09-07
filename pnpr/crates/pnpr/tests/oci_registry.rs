@@ -924,3 +924,76 @@ async fn a_chunk_that_ends_early_leaves_the_prefix_to_resume_from() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::CREATED);
 }
+
+#[tokio::test]
+async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix() {
+    let first_disk = TempDir::new().unwrap();
+    let second_disk = TempDir::new().unwrap();
+    let objects: std::sync::Arc<dyn object_store::ObjectStore> =
+        std::sync::Arc::new(object_store::memory::InMemory::new());
+    let auth_state = AuthState::in_memory();
+    let replica = |disk: &TempDir| {
+        let mut config = oci_config(disk.path().to_path_buf(), "$all");
+        config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+            store: std::sync::Arc::clone(&objects),
+            prefix: "shared/".into(),
+        };
+        router_with_auth(config, auth_state.clone())
+    };
+    let first = replica(&first_disk);
+    let second = replica(&second_disk);
+    let auth = basic(&token(&first).await);
+    let response = first
+        .clone()
+        .oneshot(
+            Request::post("/v2/acme/app/blobs/uploads/")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("hello "))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let torn = futures_util::stream::iter([
+        Ok(axum::body::Bytes::from_static(b"wor")),
+        Err(std::io::Error::other("disconnected")),
+    ]);
+    let response = second
+        .clone()
+        .oneshot(
+            Request::patch(&location)
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from_stream(torn))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = first
+        .clone()
+        .oneshot(
+            Request::get(&location)
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.headers()[header::RANGE], "0-8");
+    let digest = digest_of(b"hello world");
+    let response = first
+        .clone()
+        .oneshot(
+            Request::put(format!("{location}?digest={digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("ld"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let response = get(&second, &format!("/v2/acme/app/blobs/{digest}")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, b"hello world");
+}

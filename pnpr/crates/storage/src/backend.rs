@@ -22,6 +22,10 @@ use std::{
 /// rename or by upload, and how a namespace maps onto paths or key prefixes.
 #[async_trait]
 pub(crate) trait HostedBackend: Debug + Send + Sync {
+    fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
+        None
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>>;
 
     /// Read a document together with the token [`Self::write_document_if_current`]
@@ -69,6 +73,9 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool>;
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool>;
+
+    fn list_blob_files(&self)
+    -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>>;
 
     async fn list_package_names(&self) -> Result<Vec<String>>;
 

@@ -267,9 +267,8 @@ async fn sweep_abandoned_uploads(config: &Config) -> pnpr_error::Result<()> {
     }
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
-    // Uploads are namespaced with the hosted store they will land in, so each
-    // organization keeps its own; the object-store backend stages them all in
-    // one scratch root, where sweeping it once covers every organization.
+    // Shared sessions live in their hosted namespace. Local scratch can be
+    // shared by those namespaces and is safe to sweep more than once.
     let mut namespaces: Vec<&str> =
         config.hosted.values().map(|hosted| hosted.org.as_str()).collect();
     namespaces.push("");

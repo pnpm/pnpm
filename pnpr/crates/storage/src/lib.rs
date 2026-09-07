@@ -8,6 +8,10 @@ pub mod upload;
 use crate::s3::S3Store;
 use async_trait::async_trait;
 use axum::body::Body;
+use futures_util::{
+    StreamExt,
+    stream::{self, BoxStream},
+};
 use pnpm_crypto_hash::integrity_addressed_tarball_integrity;
 use pnpr_config::{HostedStoreConfig, build_s3_store, normalize_key_prefix};
 use pnpr_error::{RegistryError, Result};
@@ -360,6 +364,14 @@ pub struct Storage {
     cached: Store,
 }
 
+/// A file in the hosted namespace, for offline maintenance.
+#[derive(Debug)]
+pub struct HostedBlobFile {
+    pub path: String,
+    pub modified: SystemTime,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocumentWrite {
     Written,
@@ -439,6 +451,51 @@ impl HostedBackend for Store {
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         Store::remove_package(self, name).await
+    }
+
+    fn list_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
+        let root = &self.root;
+        stream::try_unfold(
+            (true, Vec::<fs::ReadDir>::new()),
+            move |(first, mut directories)| async move {
+                if first {
+                    match fs::read_dir(root).await {
+                        Ok(entries) => directories.push(entries),
+                        Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+                        Err(error) => return Err(RegistryError::Io(error)),
+                    }
+                }
+                while let Some(entries) = directories.last_mut() {
+                    let Some(entry) = entries.next_entry().await? else {
+                        directories.pop();
+                        continue;
+                    };
+                    if entry.file_name().to_string_lossy().starts_with('.') {
+                        continue;
+                    }
+                    let kind = entry.file_type().await?;
+                    if kind.is_dir() {
+                        directories.push(fs::read_dir(entry.path()).await?);
+                    } else if kind.is_file() {
+                        let metadata = entry.metadata().await?;
+                        let path = entry
+                            .path()
+                            .strip_prefix(root)
+                            .expect("entry is below the store root")
+                            .to_string_lossy()
+                            .replace('\\', "/");
+                        let file = HostedBlobFile {
+                            path,
+                            modified: metadata.modified()?,
+                            size: metadata.len(),
+                        };
+                        return Ok(Some((file, (false, directories))));
+                    }
+                }
+                Ok(None)
+            },
+        )
+        .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
@@ -522,6 +579,13 @@ impl Storage {
             )),
         };
         Ok(Self { hosted, cached })
+    }
+
+    /// Inventory all regular files, including repositories with no document
+    /// and repositories nested below another. Only for offline maintenance.
+    #[must_use]
+    pub fn hosted_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
+        self.hosted.list_blob_files()
     }
 
     /// The hosted package names, used by the local search scan (which
@@ -674,13 +738,22 @@ impl Storage {
         Ok(BlobSlot { tmp_path, name: name.clone(), filename: filename.to_string() })
     }
 
+    /// Remove a hosted blob without changing any proxy-cache namespace.
+    pub async fn remove_hosted_blob(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<bool> {
+        self.hosted.remove_blob(name, filename).await
+    }
+
     /// Remove a single blob from both stores. The
     /// partial-unpublish flow calls this after PUT'ing the modified
     /// document back; clearing the proxied mirror too stops
     /// the proxy cache from serving a stale copy of the just-removed
     /// version.
     pub async fn remove_blob(&self, name: &CanonicalPackageName, filename: &str) -> Result<bool> {
-        let hosted = self.hosted.remove_blob(name, filename).await?;
+        let hosted = self.remove_hosted_blob(name, filename).await?;
         let cached = self.cached.remove_blob(name, filename).await?;
         Ok(hosted || cached)
     }

@@ -330,6 +330,49 @@ docker pull pnpr.example.com/acme/app:1.0
 skopeo copy docker://pnpr.example.com/acme/app:1.0 oci:./app:1.0
 ```
 
+With S3 storage, upload sessions and their accepted chunks live in the bucket.
+A client can continue an upload on another replica with the same storage prefix
+and registry configuration. Each request stores only its new chunk. Completion
+streams the accepted chunks to local scratch for digest verification, then
+streams large blobs back to S3 in 8 MiB parts. Allow scratch space for concurrent
+requests and completed layers. Concurrent changes to one session are rejected;
+clients can query its current offset and retry. A session accepts up to 10,000
+nonempty chunks. Completion freezes the chunk list and digest before promotion.
+If promotion fails, retry completion with that digest and an empty request body.
+Frozen sessions reject further chunks and cancellation, and expire after 24 hours
+of inactivity.
+
+Startup removes upload sessions idle for more than 24 hours, including their
+accepted chunks. Run a rolling restart periodically if abandoned uploads need
+reclaiming on a long-running deployment. Configure the bucket's lifecycle policy
+to abort incomplete multipart uploads as well, since a process killed during a
+multipart request cannot send its abort request. Filesystem storage keeps upload
+sessions local and requires requests for a session to reach the same instance.
+
+To reclaim old blobs that no retained manifest references, stop **every writer**
+sharing the store and run:
+
+```sh
+pnpr -c config.yaml oci-gc --registry images --dry-run
+pnpr -c config.yaml oci-gc --registry images
+```
+
+Use the concrete hosted OCI registry's config name for `--registry`. The command
+recovers the local publish journal before scanning. Recover journals on every
+replica's scratch volume before collecting shared storage. Keep writers stopped
+for the entire scan and deletion. `--dry-run` reports candidates without deleting
+them. `--min-age-secs` defaults to 86400, preserving recent uploads for interrupted
+pushes to resume. Set it to zero to collect all unreferenced blobs.
+
+Collection keeps untagged manifests, the children of retained indexes, and their
+config and layer blobs. Removing a tag alone does not make its image collectible.
+Missing or corrupt retained manifests stop collection before any blobs are
+deleted. The inventory includes unpublished repositories and nested repository
+names. Collection streams the inventory into a temporary SQLite database, so
+local temporary storage must have room for the inventory metadata. Online `DELETE` of individual blobs remains unsupported because a manifest
+publish could race the reference check; use offline collection to delete safely.
+
+
 `GET /v2/` answers `401` with a `Basic` challenge to an anonymous caller even
 where reads are open. A client settles its authentication scheme on that one
 response, so a `200` would leave it with no way to authenticate a later push.

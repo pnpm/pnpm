@@ -6,6 +6,9 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Command>,
+
     /// Path to a verdaccio-shaped YAML config (storage, upstreams,
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
@@ -71,6 +74,22 @@ struct Args {
     disable_artifacts: bool,
 }
 
+#[derive(Debug, clap::Subcommand)]
+enum Command {
+    /// Collect old, unreferenced image blobs. Stop all registry writers first.
+    OciGc {
+        /// Concrete hosted OCI registry from the config.
+        #[arg(long)]
+        registry: String,
+        /// Report reclaimable blobs without deleting them.
+        #[arg(long)]
+        dry_run: bool,
+        /// Minimum blob age to reclaim, in seconds.
+        #[arg(long, default_value_t = 86400)]
+        min_age_secs: u64,
+    },
+}
+
 impl Args {
     fn feature_overrides(&self) -> pnpr::FeatureOverrides {
         pnpr::FeatureOverrides {
@@ -132,6 +151,19 @@ async fn main() -> miette::Result<()> {
     // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
+    if let Some(Command::OciGc { registry, dry_run, min_age_secs }) = args.command {
+        pnpr::recover_publish_journal(&config).await.map_err(|err| redacted_report(&err))?;
+        let (blobs, bytes) = pnpr::oci_maintenance::collect_oci_blobs(
+            &config,
+            &registry,
+            Duration::from_secs(min_age_secs),
+            dry_run,
+        )
+        .await
+        .map_err(|err| redacted_report(&err))?;
+        tracing::info!(blobs, bytes, dry_run, "OCI collection completed");
+        return Ok(());
+    }
     serve(config).await.map_err(|err| redacted_report(&err))
 }
 
