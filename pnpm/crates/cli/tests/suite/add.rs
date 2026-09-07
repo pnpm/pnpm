@@ -1967,9 +1967,6 @@ mod workspace_flag {
         drop(root);
     }
 
-    /// A recursive add saves the rewritten selectors into every selected
-    /// project, whether the workspace shares one lockfile or each project
-    /// keeps its own.
     #[test]
     fn links_the_workspace_package_into_every_recursively_selected_project() {
         for shared_workspace_lockfile in [true, false] {
@@ -2033,11 +2030,13 @@ mod workspace_flag {
             &["--workspace", "--config", LIB, "--allow-build", "esbuild"],
             "cannot be combined with --workspace",
         );
-        assert_add_fails(
-            &app_dir,
-            &["--workspace", "crate:serde", "--allow-build", "esbuild"],
-            "--workspace cannot be combined with crate: or pypi: dependencies",
-        );
+        for ecosystem_selector in ["crate:serde", "pypi:requests"] {
+            assert_add_fails(
+                &app_dir,
+                &["--workspace", ecosystem_selector, "--allow-build", "esbuild"],
+                "--workspace cannot be combined with crate: or pypi: dependencies",
+            );
+        }
 
         assert_eq!(
             std::fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),

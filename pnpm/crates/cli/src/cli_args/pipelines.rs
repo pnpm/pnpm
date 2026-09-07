@@ -619,7 +619,7 @@ impl AddPipeline {
                     Box::pin(args.clone().run_with_link_targets::<Reporter>(
                         state,
                         None,
-                        workspace_packages.clone(),
+                        workspace_packages.as_ref(),
                     ))
                 })
                 .await

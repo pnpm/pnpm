@@ -334,7 +334,12 @@ impl AddArgs {
         config_dependencies: Option<BTreeMap<String, String>>,
     ) -> miette::Result<()> {
         let workspace_packages = self.workspace_link_targets(state.config)?;
-        self.run_with_link_targets::<Reporter>(state, config_dependencies, workspace_packages).await
+        self.run_with_link_targets::<Reporter>(
+            state,
+            config_dependencies,
+            workspace_packages.as_ref(),
+        )
+        .await
     }
 
     /// [`Self::run`] with the `--workspace` link targets already indexed
@@ -344,7 +349,7 @@ impl AddArgs {
         self,
         state: State,
         config_dependencies: Option<BTreeMap<String, String>>,
-        workspace_packages: Option<WorkspacePackages>,
+        workspace_packages: Option<&WorkspacePackages>,
     ) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path
         // instead of the regular `package.json` add: resolve + install
@@ -391,7 +396,7 @@ impl AddArgs {
             pins.report::<Reporter>();
             return Ok(());
         }
-        let package_names = match &workspace_packages {
+        let package_names = match workspace_packages {
             Some(workspace_packages) => workspace_selectors(&pins.remaining, workspace_packages)?,
             None => pins.remaining.clone(),
         };
