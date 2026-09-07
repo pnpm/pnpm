@@ -256,15 +256,24 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("one"));
 }
 
+/// A document whose collections are both in the wrong order, with the
+/// disorder asserted rather than assumed: which of two digests sorts first is
+/// a fact about their hashes, so a fixture that relies on it silently stops
+/// exercising the sort the day the labels change.
+fn stored_out_of_order() -> serde_json::Value {
+    assert!(digest_of("one").hex() > digest_of("two").hex(), "manifests must be unsorted");
+    serde_json::json!({
+        "name": "acme/app",
+        "manifests": [entry("one"), entry("two")],
+        "tags": [tag("zeta", "one", 1), tag("alpha", "two", 1)],
+    })
+}
+
 #[test]
 fn a_document_stored_out_of_order_still_finds_its_entries() {
     // Every lookup is a binary search, so a document that reached storage in
     // another order would make entries it holds unreachable.
-    let stored = serde_json::json!({
-        "name": "acme/app",
-        "manifests": [entry("two"), entry("one")],
-        "tags": [tag("zeta", "one", 1), tag("alpha", "two", 1)],
-    });
+    let stored = stored_out_of_order();
     let document = ImageDocument::parse(&serde_json::to_vec(&stored).unwrap()).unwrap();
 
     assert!(document.manifest(&digest_of("one")).is_some());
@@ -278,12 +287,7 @@ fn a_document_stored_out_of_order_still_finds_its_entries() {
 fn deserializing_directly_sorts_as_parsing_does() {
     // The type derives `Deserialize`, so a caller can build one without going
     // through `parse`. The ordering the lookups need has to hold for them too.
-    let stored = serde_json::json!({
-        "name": "acme/app",
-        "manifests": [entry("two"), entry("one")],
-        "tags": [tag("zeta", "one", 1), tag("alpha", "two", 1)],
-    });
-    let document: ImageDocument = serde_json::from_value(stored).unwrap();
+    let document: ImageDocument = serde_json::from_value(stored_out_of_order()).unwrap();
 
     assert!(document.manifest(&digest_of("one")).is_some());
     assert_eq!(document.tag_names(), ["alpha", "zeta"]);
