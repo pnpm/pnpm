@@ -1470,7 +1470,7 @@ export const hooks = {{
     return pkg
   }},
 }}
-"
+",
         ),
     )
     .unwrap();
