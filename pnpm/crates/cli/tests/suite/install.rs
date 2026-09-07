@@ -275,6 +275,44 @@ fn filtered_fix_lockfile_preserves_unselected_snapshot_metadata() {
     drop((root, mock_instance));
 }
 
+/// A build host that appends `--prod=false` to its install command is
+/// asking for devDependencies, the way nopt reads an explicit boolean
+/// value (pnpm/pnpm#14553).
+#[test]
+fn prod_takes_an_explicit_boolean_value() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": { "@pnpm.e2e/foo": "100.0.0" },
+            "devDependencies": { "@pnpm.e2e/bar": "100.0.0" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_args(["install", "--prod=false"]).assert().success();
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/bar/package.json").exists(),
+        "--prod=false must install devDependencies",
+    );
+
+    pacquet_in(&workspace).with_args(["install", "--prod=true"]).assert().success();
+    assert!(
+        !workspace.join("node_modules/@pnpm.e2e/bar").exists(),
+        "--prod=true must drop the dev dependency",
+    );
+    assert!(
+        workspace.join("node_modules/@pnpm.e2e/foo/package.json").exists(),
+        "the prod dependency must stay installed",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn no_optional_excludes_transitive_optional_dependencies() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

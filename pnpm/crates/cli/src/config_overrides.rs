@@ -1082,7 +1082,7 @@ fn setting_value<Value: serde::Serialize>(value: Value) -> serde_json::Value {
     serde_json::to_value(value).unwrap_or(serde_json::Value::Null)
 }
 
-fn parse_bool(value: &str) -> Option<bool> {
+pub(crate) fn parse_bool(value: &str) -> Option<bool> {
     match value.to_ascii_lowercase().as_str() {
         "true" | "1" => Some(true),
         "false" | "0" => Some(false),
