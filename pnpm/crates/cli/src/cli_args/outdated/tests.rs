@@ -304,7 +304,6 @@ fn recursive_table_wraps_the_dependents_column() {
     assert!(rejoined.contains(long_name), "wrapping must not drop {long_name}");
 }
 
-/// Text of each row's rightmost cell, top to bottom, with padding trimmed.
 fn last_column_cells(table: &str) -> Vec<&str> {
     table.lines().filter_map(|line| line.rsplit('│').nth(1)).map(str::trim).collect()
 }
