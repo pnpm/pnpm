@@ -1917,6 +1917,8 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(response.headers()[header::CONTENT_LENGTH], manifest.len().to_string());
+    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_MANIFEST);
+    assert_eq!(response.headers()["docker-content-digest"], digest_of(&manifest));
     assert!(body_bytes(response.into_body()).await.is_empty());
     manifest_mock.assert_async().await;
     blob_mock.assert_async().await;
@@ -2180,4 +2182,31 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let response = get(&app, &format!("/v2/token?{query}&scope=repository:other/extra:pull")).await;
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn manifest_head_requires_the_requested_digest_in_upstream_headers() {
+    let digest = digest_of(b"manifest");
+    let wrong = digest_of(b"different manifest");
+    for (declared, expected) in [
+        (Some(digest.as_str()), StatusCode::OK),
+        (Some(wrong.as_str()), StatusCode::BAD_REQUEST),
+        (Some("invalid"), StatusCode::BAD_REQUEST),
+        (None, StatusCode::BAD_REQUEST),
+    ] {
+        let mut upstream = mockito::Server::new_async().await;
+        let path = format!("/v2/other/app/manifests/{digest}");
+        let mut head = upstream.mock("HEAD", path.as_str()).expect(1);
+        if let Some(declared) = declared {
+            head = head.with_header("docker-content-digest", declared);
+        }
+        let head = head.create_async().await;
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+        let app = router_with_auth(config, AuthState::in_memory());
+        let response = app.oneshot(Request::head(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), expected, "declared digest: {declared:?}");
+        head.assert_async().await;
+    }
 }
