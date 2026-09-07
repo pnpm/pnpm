@@ -617,6 +617,39 @@ impl HostedBackend for S3Store {
         S3Store::open_blob(self, name, filename).await
     }
 
+    async fn open_blob_range(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        requested: &object_store::GetRange,
+    ) -> Result<Option<crate::RangedBlob>> {
+        let key = self.blob_key(name, filename);
+        let meta = match self.store.head(&key).await {
+            Ok(meta) => meta,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+        let size = meta.size;
+        let Ok(range) = requested.as_range(size) else {
+            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
+        };
+        if range.is_empty() {
+            return Ok(Some(crate::RangedBlob::Unsatisfiable { size }));
+        }
+        let options = object_store::GetOptions {
+            range: Some(object_store::GetRange::Bounded(range.clone())),
+            if_match: meta.e_tag,
+            ..Default::default()
+        };
+        let result = match self.store.get_opts(&key, options).await {
+            Ok(result) => result,
+            Err(object_store::Error::NotFound { .. }) => return Ok(None),
+            Err(err) => return Err(err.into()),
+        };
+        let body = Body::from_stream(result.into_stream());
+        Ok(Some(crate::RangedBlob::Read { body, range, size }))
+    }
+
     async fn reserve_blob_tmp(
         &self,
         name: &CanonicalPackageName,

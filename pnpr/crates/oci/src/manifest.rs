@@ -1,6 +1,7 @@
 use crate::{Digest, media_type};
 use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// The schema every manifest pnpr accepts declares. Docker's schema 1 is a
 /// different document with signatures instead of a config, and is long
@@ -44,6 +45,12 @@ pub struct Manifest {
     layers: Vec<Descriptor>,
     #[serde(default)]
     manifests: Vec<Descriptor>,
+    #[serde(default)]
+    subject: Option<Descriptor>,
+    #[serde(default)]
+    artifact_type: Option<String>,
+    #[serde(default)]
+    annotations: BTreeMap<String, String>,
 }
 
 impl Manifest {
@@ -77,6 +84,25 @@ impl Manifest {
     #[must_use]
     pub fn media_type(&self) -> &str {
         self.media_type.as_deref().unwrap_or(media_type::DEFAULT_MANIFEST)
+    }
+
+    #[must_use]
+    pub fn referrer_metadata(&self) -> crate::ReferrerMetadata {
+        let artifact_type = self
+            .artifact_type
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                (!media_type::is_index(self.media_type()))
+                    .then(|| self.config.as_ref().and_then(|config| config.media_type.as_deref()))
+                    .flatten()
+            })
+            .map(ToString::to_string);
+        crate::ReferrerMetadata {
+            subject: self.subject.as_ref().map(|subject| subject.digest.clone()),
+            artifact_type,
+            annotations: self.annotations.clone(),
+        }
     }
 
     /// Every digest that must already be in the store for this manifest to

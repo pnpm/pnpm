@@ -7,6 +7,7 @@ fn digest_of(body: &str) -> Digest {
 
 fn entry(body: &str) -> ManifestEntry {
     ManifestEntry {
+        referrer: None,
         digest: digest_of(body),
         media_type: media_type::OCI_IMAGE_MANIFEST.to_string(),
         size: body.len() as u64,

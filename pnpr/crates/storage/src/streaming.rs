@@ -234,7 +234,7 @@ async fn download_verified(
 
 /// Stream a cached file as a response body. Caller is responsible for
 /// setting `Content-Length` (from the file metadata it already read).
-pub fn stream_file(file: File) -> Body {
+pub fn stream_file(file: impl tokio::io::AsyncRead + Unpin + Send + 'static) -> Body {
     // Carry the `File` through the unfold *state* (not as a closure
     // capture) so each step owns it, reads, and hands it back. An
     // `FnMut` closure can't move the file across iterations on its

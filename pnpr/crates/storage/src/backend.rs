@@ -51,6 +51,13 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>>;
 
+    async fn open_blob_range(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        range: &object_store::GetRange,
+    ) -> Result<Option<crate::RangedBlob>>;
+
     /// Reserve the local staging path the publish flow decodes into. Always
     /// local: the bytes are verified on the way in, before the backend sees
     /// them.
