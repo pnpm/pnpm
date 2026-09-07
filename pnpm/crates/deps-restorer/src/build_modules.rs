@@ -27,8 +27,10 @@ use pnpm_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
 use pnpm_lockfile::{PackageKey, ProjectSnapshot, SnapshotEntry};
-use pnpm_package_manifest::pkg_requires_build;
-use pnpm_patching::{PatchApplyError, apply_patch_to_dir};
+use pnpm_package_manifest::{
+    file_path_requires_build, manifest_requires_build, parse_manifest, pkg_requires_build,
+};
+use pnpm_patching::{ExtendedPatchInfo, PatchApplyError, apply_patch_to_dir, preview_patch};
 use pnpm_reporter::{
     LogEvent, LogLevel, Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage,
     SkippedOptionalReason,
@@ -398,10 +400,11 @@ impl BuildModules<'_> {
 
         let Some(snapshots) = snapshots else { return Ok(BuildModulesOutput::default()) };
 
-        // Compute `requiresBuild` per snapshot. Warm store-index rows
-        // already carry a precomputed answer, so only misses need to
-        // inspect the materialized package directory.
-        let requires_build_map: HashMap<PackageKey, bool> = snapshots
+        // Compute `requiresBuild` per snapshot from what the package
+        // published. Warm store-index rows already carry a precomputed
+        // answer, so only misses need to inspect the materialized package
+        // directory.
+        let published_requires_build: HashMap<PackageKey, bool> = snapshots
             .keys()
             // Skip snapshots that never landed on disk. `pkg_requires_build`
             // would just return `false` for a missing dir, but the
@@ -420,6 +423,26 @@ impl BuildModules<'_> {
                     (Some(pkg_root), None) => pkg_requires_build(pkg_root),
                 };
                 (key.clone(), requires)
+            })
+            .collect();
+
+        let patch_added_build = patch_added_build_by_package(
+            patches,
+            &published_requires_build,
+            layout,
+            pkg_roots_by_key,
+        );
+
+        let requires_build_map: HashMap<PackageKey, bool> = published_requires_build
+            .into_iter()
+            .map(|(key, requires)| {
+                // `pkg_root_for_key` is asked second: a snapshot the walker
+                // dropped has nothing to build, and this way the lookup only
+                // runs for the few snapshots whose patch adds build work.
+                let requires = requires
+                    || (patch_added_build.get(&key.without_peer()).copied().unwrap_or(false)
+                        && pkg_root_for_key(layout, pkg_roots_by_key, &key).is_some());
+                (key, requires)
             })
             .collect();
 
@@ -578,6 +601,58 @@ impl BuildModules<'_> {
             mutated_slots: slot_mutations.into_inner(),
         })
     }
+}
+
+/// Whether each configured patch adds build work its package's published
+/// manifest does not declare, keyed by the peer-stripped package key.
+///
+/// Everything keyed off `requiresBuild` — the allow-build gate, the build
+/// graph, the side-effects cache key — is decided before the build phase
+/// applies the patch, so build work a patch introduces would otherwise
+/// stay invisible until after the decisions that need it. Previewing the
+/// patch keeps all three describing the package that ends up on disk.
+///
+/// Answered once per patch rather than once per snapshot, and only for a
+/// package `published_requires_build` does not already answer `true` for:
+/// peer variants share both the extracted manifest and the patch, and each
+/// preview reads and parses two files.
+///
+/// A patch that fails to preview is left to the build phase, which
+/// applies it for real and surfaces the failure.
+fn patch_added_build_by_package(
+    patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
+    published_requires_build: &HashMap<PackageKey, bool>,
+    layout: &crate::VirtualStoreLayout,
+    pkg_roots_by_key: Option<&HashMap<PackageKey, Vec<PathBuf>>>,
+) -> HashMap<PackageKey, bool> {
+    let Some(patches) = patches else { return HashMap::new() };
+    let mut answers = HashMap::with_capacity(patches.len());
+    for (key, published) in published_requires_build {
+        // A package already bound for the build gate needs no preview: the
+        // patch cannot subtract the build its manifest declares.
+        if *published {
+            continue;
+        }
+        // Peer-stripped, because patches are configured at the (name,
+        // version) granularity rather than per peer-resolution variant.
+        let metadata_key = key.without_peer();
+        if answers.contains_key(&metadata_key) {
+            continue;
+        }
+        let Some(patch) = patches.get(&metadata_key) else { continue };
+        let Some(patch_file_path) = patch.patch_file_path.as_deref() else { continue };
+        let Some(pkg_root) = pkg_root_for_key(layout, pkg_roots_by_key, key) else { continue };
+        let Ok(preview) = preview_patch(&pkg_root, patch_file_path) else { continue };
+        // The same two triggers `pkg_requires_build` reads off an
+        // extracted package: the manifest's install scripts, and the
+        // presence of `binding.gyp` / `.hooks/`. A patch can add either.
+        let adds_build = preview.written_paths.iter().any(|path| file_path_requires_build(path))
+            || preview.manifest.is_some_and(|manifest| {
+                parse_manifest(&manifest).is_ok_and(|manifest| manifest_requires_build(&manifest))
+            });
+        answers.insert(metadata_key, adds_build);
+    }
+    answers
 }
 
 /// The snapshots `--ignore-scripts` kept from building, sorted for a

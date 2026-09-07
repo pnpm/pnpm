@@ -1806,6 +1806,9 @@ importers:
       '@pnpm/bins.linker':
         specifier: workspace:*
         version: link:../../bins/linker
+      '@pnpm/building.pkg-requires-build':
+        specifier: workspace:*
+        version: link:../pkg-requires-build
       '@pnpm/config.reader':
         specifier: workspace:*
         version: link:../../config/reader
@@ -1876,6 +1879,9 @@ importers:
 
   pnpm11/building/pkg-requires-build:
     dependencies:
+      '@pnpm/pkg-manifest.reader':
+        specifier: workspace:*
+        version: link:../../pkg-manifest/reader
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types

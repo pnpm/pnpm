@@ -62,6 +62,9 @@
     },
     {
       "path": "../../workspace/task-scheduler"
+    },
+    {
+      "path": "../pkg-requires-build"
     }
   ]
 }
