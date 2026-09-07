@@ -15,9 +15,8 @@
 //! endpoint rather than masking.
 //!
 //! Records live in the hosted store, which every replica of a deployment
-//! shares, so an approval claims the record it is about to replay with a
-//! conditional write. A stage is therefore approved once no matter which
-//! replica each request reaches.
+//! shares, so an approval claims the record it is about to replay: a stage is
+//! approved once no matter which replica each request reaches.
 
 use axum::{
     body::Body,
@@ -67,7 +66,6 @@ struct StagedRecord {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     registry: Option<String>,
     /// When the approval holding this record started, if one holds it.
-    /// Written by the conditional claim that makes an approval exclusive.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     approving_since: Option<String>,
 }
@@ -415,9 +413,7 @@ async fn serve_staged_approve(
 }
 
 /// Take the staged record for this approval, refusing one another approval
-/// holds. The claim is the record rewritten with the time it started, under a
-/// conditional write on the bytes that were read: a record another request
-/// claimed, or a rejection removed, is no longer those bytes.
+/// holds.
 async fn claim_for_approval(
     state: &AppState,
     stage_id: &str,
