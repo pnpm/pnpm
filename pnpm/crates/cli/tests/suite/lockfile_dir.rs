@@ -5,11 +5,16 @@
 //! and the importer ids, which become the paths from the pin down to each
 //! project. Every project keeps its own `node_modules` of symlinks.
 
-use crate::_utils::{append_workspace_yaml_key, pacquet_in};
+use crate::_utils::{
+    ManifestDeps, append_workspace_yaml_key, pacquet_in, read_manifest, write_project_manifest,
+};
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::minimal_tarball,
+};
 use serde_json::json;
 use std::{fs, path::Path, process::Command};
 
@@ -270,4 +275,53 @@ fn a_pin_overrides_dedicated_per_project_lockfiles() {
     );
 
     drop(mock_instance);
+}
+
+#[test]
+fn frozen_replay_resolves_local_overrides_from_the_custom_lockfile_dir() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let lockfile_dir = root.path();
+    fs::write(lockfile_dir.join("vendored.tgz"), minimal_tarball("vendored", "1.0.0"))
+        .expect("write tarball at the lockfile root");
+    write_project_manifest(&lockfile_dir.join("linked"), "linked", ManifestDeps::default());
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "packages: ['packages/*']\n\
+         lockfileDir: ..\n\
+         storeDir: ../pacquet-store\n\
+         cacheDir: ../pacquet-cache\n\
+         enableGlobalVirtualStore: false\n\
+         offline: true\n\
+         overrides:\n  vendored: file:./vendored.tgz\n  linked: link:./linked\n",
+    )
+    .expect("write workspace settings");
+    for (project, name) in [(".", "root"), ("packages/a", "a")] {
+        write_project_manifest(
+            &workspace.join(project),
+            name,
+            ManifestDeps {
+                prod: &[("vendored", "^1.0.0"), ("linked", "^1.0.0")],
+                ..ManifestDeps::default()
+            },
+        );
+    }
+
+    pacquet.with_args(["install", "--lockfile-only"]).assert().success();
+    let lockfile_path = lockfile_dir.join("pnpm-lock.yaml");
+    let lockfile =
+        fs::read(&lockfile_path).expect("read generated lockfile at the custom location");
+
+    pacquet_in(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    assert_eq!(fs::read(&lockfile_path).unwrap(), lockfile);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "frozen replay must keep the lockfile at the custom location",
+    );
+    for project in [".", "packages/a"] {
+        for name in ["vendored", "linked"] {
+            let installed = read_manifest(&workspace.join(project).join("node_modules").join(name));
+            assert_eq!(installed["name"], name);
+            assert_eq!(installed["version"], "1.0.0");
+        }
+    }
 }

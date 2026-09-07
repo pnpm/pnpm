@@ -105,9 +105,13 @@ pub enum Decision {
 
 /// Inputs to [`check_optimistic_repeat_install`].
 pub struct OptimisticRepeatInstallCheck<'a> {
-    /// The directory containing `pnpm-workspace.yaml` (or the project
-    /// root when no workspace manifest exists — same fallback as
-    /// [`Install::run`](crate::Install::run)).
+    /// The root the install recorded its lockfile and workspace state
+    /// against, which importer ids and relative local `pnpm.overrides`
+    /// targets are named from too. The directory containing
+    /// `pnpm-workspace.yaml` (or the project root when no workspace
+    /// manifest exists — same fallback as
+    /// [`Install::run`](crate::Install::run)), unless the configuration
+    /// pins the lockfile somewhere else.
     pub workspace_root: &'a Path,
     pub config: &'a Config,
     pub node_linker: NodeLinker,
