@@ -1,3 +1,8 @@
+//! Local `pnpm.overrides` targets (`file:` / `link:`) name a path from
+//! the lockfile directory, so a freshness check has to reconstruct the
+//! very specifiers the writer recorded no matter which importer it runs
+//! from or where the lockfile is pinned.
+
 use crate::_utils::{
     ManifestDeps, append_workspace_yaml_key, pacquet_in, read_manifest, write_project_manifest,
 };
@@ -64,18 +69,13 @@ fn exec_content_check_accepts_a_link_override_from_a_custom_lockfile_dir() {
 
 fn assert_exec_content_check_accepts_link_override(custom_lockfile_dir: bool) {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let (lockfile_dir, root_spec, nested_spec) = if custom_lockfile_dir {
-        (root.path(), "link:../linked", "link:../../../../linked")
-    } else {
-        (workspace.as_path(), "link:linked", "link:../../../linked")
-    };
+    let lockfile_dir = if custom_lockfile_dir { root.path() } else { workspace.as_path() };
     write_project_manifest(&lockfile_dir.join("linked"), "linked", ManifestDeps::default());
-    for (project, name, spec) in [(".", "root", root_spec), ("packages/nested/a", "a", nested_spec)]
-    {
+    for (project, name) in [(".", "root"), ("packages/nested/a", "a")] {
         write_project_manifest(
             &workspace.join(project),
             name,
-            ManifestDeps { prod: &[("linked", spec)], ..ManifestDeps::default() },
+            ManifestDeps { prod: &[("linked", "^1.0.0")], ..ManifestDeps::default() },
         );
     }
     fs::write(
