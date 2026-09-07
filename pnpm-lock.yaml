@@ -9629,6 +9629,12 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../index
+      '@pnpm/types':
+        specifier: workspace:*
+        version: link:../../core/types
+      detect-libc:
+        specifier: 'catalog:'
+        version: 2.1.2
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'

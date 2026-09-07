@@ -20,6 +20,17 @@ exports[`pnpm licenses: filter outputs: show-packages 1`] = `
 "
 `;
 
+exports[`pnpm licenses: reports a runtime downloaded through devEngines: show-packages 1`] = `
+"┌─────────────┬───────────────────────────────────────────┐
+│ Package     │ License                                   │
+├─────────────┼───────────────────────────────────────────┤
+│ is-positive │ MIT                                       │
+├─────────────┼───────────────────────────────────────────┤
+│ node (dev)  │ MIT OR BSD OR bsd OR GPLv3 OR ISC OR zlib │
+└─────────────┴───────────────────────────────────────────┘
+"
+`;
+
 exports[`pnpm licenses: should correctly read LICENSE file with executable file mode: show-packages-details 1`] = `
 "┌──────────────────────────────┬─────────┬───────────────────────────────────────────────────────┐
 │ Package                      │ License │ Details                                               │

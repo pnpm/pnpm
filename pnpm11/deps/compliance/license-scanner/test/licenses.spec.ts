@@ -412,7 +412,7 @@ describe('licences', () => {
     expect(new Set(licensePackages.map((pkg) => pkg.name))).toStrictEqual(new Set(['foo']))
   })
 
-  test('findDependencyLicenses skips runtimes downloaded through devEngines (pnpm/pnpm#14172)', async () => {
+  test('findDependencyLicenses reports runtimes downloaded through devEngines (pnpm/pnpm#14172)', async () => {
     const lockfile: LockfileObject = {
       importers: {
         ['.' as ProjectId]: {
@@ -455,50 +455,6 @@ describe('licences', () => {
       virtualStoreDirMaxLength: 120,
     })
 
-    expect(licensePackages.map((pkg) => pkg.name)).toStrictEqual(['foo'])
-  })
-
-  test('findDependencyLicenses keeps runtime-shaped packages without a managed runtime resolution', async () => {
-    const lockfile: LockfileObject = {
-      importers: {
-        ['.' as ProjectId]: {
-          dependencies: {
-            node: 'runtime:1.0.0',
-          },
-          specifiers: {
-            node: '1.0.0',
-          },
-        },
-      },
-      lockfileVersion: LOCKFILE_VERSION,
-      packages: {
-        ['child@1.0.0' as DepPath]: {
-          resolution: {
-            integrity: 'child-integrity',
-          },
-        },
-        ['node@runtime:1.0.0' as DepPath]: {
-          dependencies: {
-            child: '1.0.0',
-          },
-          resolution: {
-            integrity: 'node-integrity',
-          },
-          version: '1.0.0',
-        },
-      },
-    }
-
-    const licensePackages = await findDependencyLicenses({
-      lockfileDir: '/opt/pnpm',
-      manifest: {} as ProjectManifest,
-      virtualStoreDir: '/.pnpm',
-      registriesByScope: {} as RegistriesByScope,
-      wantedLockfile: lockfile,
-      storeDir: tmpStoreDir,
-      virtualStoreDirMaxLength: 120,
-    })
-
-    expect(licensePackages.map((pkg) => pkg.name)).toStrictEqual(['child', 'node'])
+    expect(licensePackages.map((pkg) => pkg.name)).toStrictEqual(['foo', 'node'])
   })
 })
