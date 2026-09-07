@@ -11,6 +11,7 @@ use std::{fs, path::Path};
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
+const HELLO: &str = "@pnpm.e2e/hello-world-js-bin";
 
 /// Assert the project at `project` resolved exactly one `DEP`, at
 /// `version`. `PARENT` declares `^100.0.0`, which the registry serves
@@ -271,6 +272,26 @@ fn update_keeps_the_entry_overrides() {
 
     assert_resolved_dep(&pinned, "100.0.0");
     assert_resolved_dep(&other, "100.1.0");
+}
+
+/// `remove` re-resolves what is left, so the entry has to hold through
+/// it too.
+#[test]
+fn remove_keeps_the_entry_overrides() {
+    let fixture = dedicated_lockfile_workspace(&format!(
+        "packageConfigs:\n  pinned:\n    overrides:\n      \"{DEP}\": 100.0.0\n",
+    ));
+    let pinned = fixture.project(
+        "pinned",
+        "pinned",
+        ManifestDeps { prod: &[(PARENT, "100.0.0"), (HELLO, "1.0.0")], ..Default::default() },
+    );
+
+    fixture.run_at(&pinned, ["install"]);
+    fixture.run_at(&pinned, ["remove", HELLO]);
+
+    assert_resolved_dep(&pinned, "100.0.0");
+    assert!(dependency_spec(&pinned, "dependencies", HELLO).is_none());
 }
 
 #[test]
