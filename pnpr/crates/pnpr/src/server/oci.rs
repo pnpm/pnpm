@@ -773,9 +773,11 @@ impl Refusal {
 /// the error chose.
 impl From<RegistryError> for Refusal {
     fn from(err: RegistryError) -> Self {
+        let upload_conflict = matches!(err, RegistryError::BlobUploadConflict { .. });
         let message = err.public_message();
         let status = err.into_response().status();
         let code = match status {
+            StatusCode::CONFLICT if upload_conflict => ErrorCode::BlobUploadInvalid,
             StatusCode::UNAUTHORIZED => ErrorCode::Unauthorized,
             StatusCode::FORBIDDEN => ErrorCode::Denied,
             StatusCode::NOT_FOUND => ErrorCode::NameUnknown,
@@ -948,8 +950,10 @@ async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Resu
     let mut writer = upload.append().await?;
     let mut stream = body.into_data_stream();
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|_| Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"))?;
+        let Ok(chunk) = chunk else {
+            writer.finish().await?;
+            return Err(Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"));
+        };
         let Some(next) = advance_within_ceiling(written, chunk.len()) else {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return Err(Refusal::new(
@@ -987,6 +991,7 @@ fn upload_lock_key(id: &str) -> String {
 
 /// Hash a finished upload without holding it in memory.
 async fn hash_upload(upload: &BlobUpload) -> Result<Digest, RegistryError> {
+    upload.materialize().await?;
     let mut file = tokio::fs::File::open(upload.path()).await.map_err(RegistryError::Io)?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0u8; HASH_CHUNK];

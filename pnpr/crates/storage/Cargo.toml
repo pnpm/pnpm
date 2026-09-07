@@ -28,6 +28,7 @@ serde             = { workspace = true }
 serde_json        = { workspace = true }
 ssri              = { workspace = true }
 tokio             = { workspace = true }
+tempfile          = { workspace = true }
 tracing           = { workspace = true }
 
 [dev-dependencies]

@@ -367,3 +367,79 @@ fn prefix_normalizes() {
     assert_eq!(normalized(Some("packages")), "packages/");
     assert_eq!(normalized(Some("/packages/")), "packages/");
 }
+
+#[derive(Debug, Default)]
+struct RecordedMultipart {
+    sizes: Vec<usize>,
+    fail_part: bool,
+    completed: bool,
+    aborted: bool,
+}
+
+#[async_trait::async_trait]
+impl object_store::MultipartUpload for RecordedMultipart {
+    fn put_part(&mut self, data: PutPayload) -> object_store::UploadPart {
+        self.sizes.push(data.content_length());
+        let fail = self.fail_part;
+        Box::pin(async move {
+            if fail {
+                return Err(object_store::Error::Generic {
+                    store: "test",
+                    source: std::io::Error::other("part failed").into(),
+                });
+            }
+            Ok(())
+        })
+    }
+
+    async fn complete(&mut self) -> object_store::Result<object_store::PutResult> {
+        self.completed = true;
+        Ok(object_store::PutResult {
+            e_tag: None,
+            version: None,
+            extensions: axum::http::Extensions::default(),
+        })
+    }
+
+    async fn abort(&mut self) -> object_store::Result<()> {
+        self.aborted = true;
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn multipart_streams_large_files_in_bounded_parts_and_aborts_failures() {
+    let temp = tempfile::NamedTempFile::new().unwrap();
+    let size = super::MAX_SINGLE_PUT_BYTES + 1;
+    temp.as_file().set_len(size).unwrap();
+    let mut upload = RecordedMultipart::default();
+    super::send_parts(temp.path(), &mut upload).await.unwrap();
+    assert!(upload.completed);
+    assert!(!upload.aborted);
+    assert_eq!(upload.sizes.iter().sum::<usize>() as u64, size);
+    assert_eq!(upload.sizes.last(), Some(&1));
+    assert!(
+        upload.sizes[..upload.sizes.len() - 1]
+            .iter()
+            .all(|size| *size == super::MULTIPART_PART_BYTES),
+    );
+    let mut failed = RecordedMultipart { fail_part: true, ..Default::default() };
+    assert!(super::send_parts(temp.path(), &mut failed).await.is_err());
+    assert!(failed.aborted);
+    assert!(!failed.completed);
+}
+
+#[tokio::test]
+async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
+    let (store, _staging) = store_with_prefix("images");
+    let parent =
+        CanonicalPackageName::parse("acme/app", pnpr_package_name::Ecosystem::Oci).unwrap();
+    let child =
+        CanonicalPackageName::parse("acme/app/tool", pnpr_package_name::Ecosystem::Oci).unwrap();
+    upload(&store, &parent, "sha256-parent", b"parent").await;
+    upload(&store, &child, "sha256-child", b"child").await;
+    write_document(&store, &parent, b"{}").await;
+    let files = crate::HostedBackend::list_blob_files(&store).await.unwrap();
+    assert_eq!(files.len(), 3);
+    assert!(files.iter().any(|file| file.path == "acme/app/tool/sha256-child"));
+}

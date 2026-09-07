@@ -7,6 +7,8 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
+pub mod oci_maintenance;
+
 mod resolver;
 mod server;
 

@@ -1,18 +1,18 @@
 //! Resumable blob uploads.
 //!
-//! A blob whose bytes arrive across several requests cannot be held in
-//! memory between them, so an upload is a local file the client appends to
-//! and an id that names it. Only when the client finishes and the bytes hash
-//! to what it promised does the file become a hosted blob.
-//!
-//! The file lives beside the publish journal in the backend's local scratch
-//! root, so an S3-backed registry stages here too and the eventual promotion
-//! is one rename or one upload rather than a second copy through memory.
+//! Filesystem uploads append to a local file. Object-store uploads commit
+//! immutable chunks through a conditional session record, so any replica can
+//! resume at the accepted offset. Completion materializes the bytes locally
+//! for digest verification before promotion to a hosted blob.
+
+mod remote;
+
+pub(crate) use remote::RemoteUploadStore;
 
 use crate::{BlobSlot, Storage};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
-use std::{fmt::Write as _, path::PathBuf, time::Duration};
+use std::{fmt::Write as _, path::PathBuf, sync::Arc, time::Duration};
 use tokio::{
     fs,
     io::{AsyncWriteExt, ErrorKind},
@@ -40,6 +40,8 @@ pub const UPLOAD_MAX_AGE: Duration = Duration::from_hours(24);
 pub struct BlobUpload {
     id: String,
     path: PathBuf,
+    remote: Option<Arc<remote::RemoteUpload>>,
+    _temp: Option<Arc<tempfile::TempPath>>,
 }
 
 impl BlobUpload {
@@ -52,6 +54,9 @@ impl BlobUpload {
     /// How many bytes have been accepted so far, which is where the next
     /// chunk must start.
     pub async fn offset(&self) -> Result<u64> {
+        if let Some(remote) = &self.remote {
+            return Ok(remote.offset().await);
+        }
         match fs::metadata(&self.path).await {
             Ok(metadata) => Ok(metadata.len()),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(0),
@@ -59,11 +64,19 @@ impl BlobUpload {
         }
     }
 
-    /// Where the accumulated bytes are, for a caller that needs to read them
-    /// back without holding them in memory.
+    /// Local path for digest verification. Call [`Self::materialize`] before
+    /// reading an object-store upload.
     #[must_use]
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    /// Materialize accepted chunks for digest verification and promotion.
+    pub async fn materialize(&self) -> Result<()> {
+        if let Some(remote) = &self.remote {
+            remote.materialize(&self.path).await?;
+        }
+        Ok(())
     }
 
     /// The filename of this upload's repository record.
@@ -74,19 +87,23 @@ impl BlobUpload {
     /// Open the upload for appending. Held for one request, so a chunk is
     /// written with one open rather than one per buffer.
     pub async fn append(&self) -> Result<BlobUploadWriter> {
+        if let Some(remote) = &self.remote {
+            return remote.append().await;
+        }
         let file = fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.path)
             .await
             .map_err(RegistryError::Io)?;
-        Ok(BlobUploadWriter { file })
+        Ok(BlobUploadWriter { file, remote: None })
     }
 }
 
 /// The append handle for one request's worth of an upload.
 pub struct BlobUploadWriter {
     file: fs::File,
+    remote: Option<remote::RemoteChunk>,
 }
 
 impl BlobUploadWriter {
@@ -97,13 +114,21 @@ impl BlobUploadWriter {
     /// Flush to disk and report the upload's new length.
     pub async fn finish(self) -> Result<u64> {
         self.file.sync_all().await.map_err(RegistryError::Io)?;
-        self.file.metadata().await.map(|metadata| metadata.len()).map_err(RegistryError::Io)
+        let size = self.file.metadata().await.map_err(RegistryError::Io)?.len();
+        drop(self.file);
+        if let Some(chunk) = self.remote {
+            return chunk.commit(size).await;
+        }
+        Ok(size)
     }
 }
 
 impl Storage {
     /// Start an upload for `repository` and give it an unguessable id.
     pub async fn begin_blob_upload(&self, repository: &CanonicalPackageName) -> Result<BlobUpload> {
+        if let Some(remote) = self.hosted.upload_store() {
+            return remote.begin(repository).await;
+        }
         let root = self.uploads_root();
         fs::create_dir_all(&root).await.map_err(RegistryError::Io)?;
         let id = generate_upload_id();
@@ -119,7 +144,7 @@ impl Storage {
         fs::write(root.join(repository_record(&id)), self.upload_owner(repository))
             .await
             .map_err(RegistryError::Io)?;
-        Ok(BlobUpload { id, path })
+        Ok(BlobUpload { id, path, remote: None, _temp: None })
     }
 
     /// Reopen an upload of `repository` by id.
@@ -136,6 +161,9 @@ impl Storage {
         if !is_upload_id(id) {
             return Ok(None);
         }
+        if let Some(remote) = self.hosted.upload_store() {
+            return remote.open(repository, id).await;
+        }
         let root = self.uploads_root();
         let held = match fs::read_to_string(root.join(repository_record(id))).await {
             Ok(held) => held,
@@ -147,7 +175,7 @@ impl Storage {
         }
         let path = root.join(id);
         match fs::metadata(&path).await {
-            Ok(_) => Ok(Some(BlobUpload { id: id.to_string(), path })),
+            Ok(_) => Ok(Some(BlobUpload { id: id.to_string(), path, remote: None, _temp: None })),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
             Err(error) => Err(RegistryError::Io(error)),
         }
@@ -157,6 +185,9 @@ impl Storage {
     pub async fn abort_blob_upload(&self, id: &str) -> Result<bool> {
         if !is_upload_id(id) {
             return Ok(false);
+        }
+        if let Some(remote) = self.hosted.upload_store() {
+            return remote.abort(id).await;
         }
         let root = self.uploads_root();
         let _ = fs::remove_file(root.join(repository_record(id))).await;
@@ -170,18 +201,21 @@ impl Storage {
     /// Move a finished upload into a hosted blob slot, ready for
     /// [`Storage::finalize_blob_slot`].
     ///
-    /// The upload is consumed on success, where its bytes become the slot's.
-    /// It is left where it was on failure, so a caller can retry or abort it
-    /// rather than lose bytes a client already sent.
+    /// Consumes the upload on success. Object-store sessions must still match
+    /// the version that was verified; concurrent appends refuse promotion.
     pub async fn stage_uploaded_blob(
         &self,
         upload: BlobUpload,
         name: &CanonicalPackageName,
         filename: &str,
     ) -> Result<BlobSlot> {
+        upload.materialize().await?;
         let slot = self.reserve_hosted_blob(name, filename).await?;
         if let Some(parent) = slot.tmp_path.parent() {
             fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
+        }
+        if let Some(remote) = &upload.remote {
+            remote.close().await?;
         }
         // Both paths are under the backend's local scratch root, so this is a
         // rename rather than a copy through memory. A cross-device staging
@@ -200,13 +234,17 @@ impl Storage {
     /// left behind. An upload still being written has just been appended to,
     /// so its age is its idle time rather than its lifetime.
     pub async fn sweep_blob_uploads(&self, max_age: Duration) -> Result<usize> {
+        let remote_swept = match self.hosted.upload_store() {
+            Some(remote) => remote.sweep(max_age).await?,
+            None => 0,
+        };
         let root = self.uploads_root();
         let mut entries = match fs::read_dir(&root).await {
             Ok(entries) => entries,
-            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(0),
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(remote_swept),
             Err(error) => return Err(RegistryError::Io(error)),
         };
-        let mut swept = 0;
+        let mut swept = remote_swept;
         while let Some(entry) = entries.next_entry().await.map_err(RegistryError::Io)? {
             let name = entry.file_name();
             let name = name.to_string_lossy();

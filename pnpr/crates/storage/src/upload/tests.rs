@@ -271,3 +271,87 @@ fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
         .map(|entry| entry.unwrap().file_name())
         .collect()
 }
+
+fn replicas() -> (Storage, Storage, TempDir, TempDir) {
+    let first = TempDir::new().unwrap();
+    let second = TempDir::new().unwrap();
+    let objects: std::sync::Arc<dyn object_store::ObjectStore> =
+        std::sync::Arc::new(object_store::memory::InMemory::new());
+    let storage = |temp: &TempDir| Storage {
+        hosted: std::sync::Arc::new(crate::s3::S3Store::new(
+            std::sync::Arc::clone(&objects),
+            "images/".into(),
+            temp.path().join("scratch"),
+        )),
+        cached: crate::Store::new(temp.path().join("cache")),
+    };
+    (storage(&first), storage(&second), first, second)
+}
+
+#[tokio::test]
+async fn s3_upload_resumes_on_another_replica_and_survives_loss_of_scratch() {
+    let (first, second, first_disk, _second_disk) = replicas();
+    let repository = image("acme/app");
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    let id = upload.id().to_string();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"hello ").await.unwrap();
+    writer.finish().await.unwrap();
+    drop(upload);
+    drop(first_disk);
+    let resumed = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    assert_eq!(resumed.offset().await.unwrap(), 6);
+    let mut writer = resumed.append().await.unwrap();
+    writer.write_all(b"world").await.unwrap();
+    assert_eq!(writer.finish().await.unwrap(), 11);
+    resumed.materialize().await.unwrap();
+    assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"hello world");
+    let slot = second.stage_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    second.finalize_blob_slot(slot).await.unwrap();
+    assert_eq!(
+        second.open_hosted_blob(&repository, "sha256-test").await.unwrap().unwrap().1,
+        Some(11),
+    );
+    assert!(second.open_blob_upload(&repository, &id).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn s3_concurrent_append_and_stale_completion_cannot_overwrite_accepted_bytes() {
+    let (first, second, _first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let original = first.begin_blob_upload(&repository).await.unwrap();
+    let stale = second.open_blob_upload(&repository, original.id()).await.unwrap().unwrap();
+    let mut winner = original.append().await.unwrap();
+    let mut loser = stale.append().await.unwrap();
+    winner.write_all(b"winner").await.unwrap();
+    loser.write_all(b"loser").await.unwrap();
+    winner.finish().await.unwrap();
+    assert!(loser.finish().await.is_err());
+    assert!(second.stage_uploaded_blob(stale, &repository, "sha256-stale").await.is_err());
+    let resumed = second.open_blob_upload(&repository, original.id()).await.unwrap().unwrap();
+    resumed.materialize().await.unwrap();
+    assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"winner");
+}
+
+#[tokio::test]
+async fn s3_sessions_are_repository_and_namespace_bound_and_expire() {
+    let (first, second, _first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    assert!(second.open_blob_upload(&image("other"), upload.id()).await.unwrap().is_none());
+    assert!(
+        second
+            .for_hosted("other")
+            .open_blob_upload(&repository, upload.id())
+            .await
+            .unwrap()
+            .is_none(),
+    );
+    assert_eq!(second.sweep_blob_uploads(Duration::from_hours(24)).await.unwrap(), 0);
+    assert_eq!(second.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 1);
+    assert!(first.open_blob_upload(&repository, upload.id()).await.unwrap().is_none());
+    let mut stale = upload.append().await.unwrap();
+    stale.write_all(b"too late").await.unwrap();
+    assert!(stale.finish().await.is_err());
+    assert_eq!(second.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 0);
+}

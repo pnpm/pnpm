@@ -360,6 +360,14 @@ pub struct Storage {
     cached: Store,
 }
 
+/// A file in the hosted namespace, for offline maintenance.
+#[derive(Debug)]
+pub struct HostedBlobFile {
+    pub path: String,
+    pub modified: SystemTime,
+    pub size: u64,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocumentWrite {
     Written,
@@ -439,6 +447,41 @@ impl HostedBackend for Store {
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
         Store::remove_package(self, name).await
+    }
+
+    async fn list_blob_files(&self) -> Result<Vec<HostedBlobFile>> {
+        let mut pending = vec![self.root.clone()];
+        let mut files = Vec::new();
+        while let Some(directory) = pending.pop() {
+            let mut entries = match fs::read_dir(&directory).await {
+                Ok(entries) => entries,
+                Err(error) if error.kind() == ErrorKind::NotFound => continue,
+                Err(error) => return Err(error.into()),
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                if entry.file_name().to_string_lossy().starts_with('.') {
+                    continue;
+                }
+                let kind = entry.file_type().await?;
+                if kind.is_dir() {
+                    pending.push(entry.path());
+                } else if kind.is_file() {
+                    let metadata = entry.metadata().await?;
+                    let path = entry
+                        .path()
+                        .strip_prefix(&self.root)
+                        .expect("entry is below the store root")
+                        .to_string_lossy()
+                        .replace('\\', "/");
+                    files.push(HostedBlobFile {
+                        path,
+                        modified: metadata.modified()?,
+                        size: metadata.len(),
+                    });
+                }
+            }
+        }
+        Ok(files)
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
@@ -522,6 +565,12 @@ impl Storage {
             )),
         };
         Ok(Self { hosted, cached })
+    }
+
+    /// Inventory all regular files, including repositories with no document
+    /// and repositories nested below another. Only for offline maintenance.
+    pub async fn hosted_blob_files(&self) -> Result<Vec<HostedBlobFile>> {
+        self.hosted.list_blob_files().await
     }
 
     /// The hosted package names, used by the local search scan (which
