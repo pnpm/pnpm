@@ -1,4 +1,4 @@
-use crate::apply::{PatchApplyError, apply_patch_to_dir};
+use crate::apply::{PatchApplyError, apply_patch_to_dir, preview_patch};
 use pretty_assertions::assert_eq;
 use std::fs;
 use tempfile::tempdir;
@@ -290,6 +290,346 @@ fn applies_a_zero_context_insertion_without_a_newline_to_an_empty_file() {
         r"\ No newline at end of file"
     };
     assert_eq!(applied_hunk("", hunk), "added");
+}
+
+/// A manifest with no install scripts, and a patch that adds one.
+const MANIFEST: &str = text_block_fnl! {
+    "{"
+    r#"  "name": "is-positive","#
+    r#"  "scripts": {"#
+    r#"    "test": "node test.js""#
+    "  }"
+    "}"
+};
+
+const MANIFEST_PATCH: &str = text_block_fnl! {
+    "diff --git a/package.json b/package.json"
+    "--- a/package.json"
+    "+++ b/package.json"
+    "@@ -2,5 +2,6 @@"
+    r#"   "name": "is-positive","#
+    r#"   "scripts": {"#
+    r#"-    "test": "node test.js""#
+    r#"+    "test": "node test.js","#
+    r#"+    "postinstall": "node postinstall.js""#
+    "   }"
+    " }"
+};
+
+const BINDING_GYP_PATCH: &str = text_block_fnl! {
+    "diff --git a/binding.gyp b/binding.gyp"
+    "new file mode 100644"
+    "--- /dev/null"
+    "+++ b/binding.gyp"
+    "@@ -0,0 +1 @@"
+    "+{}"
+};
+
+/// [`MANIFEST_PATCH`] with a `.` segment in its headers, which
+/// `apply_patch_to_dir` resolves away.
+const MANIFEST_PATCH_WITH_DOT_SEGMENT: &str = text_block_fnl! {
+    "diff --git a/./package.json b/./package.json"
+    "--- a/./package.json"
+    "+++ b/./package.json"
+    "@@ -2,5 +2,6 @@"
+    r#"   "name": "is-positive","#
+    r#"   "scripts": {"#
+    r#"-    "test": "node test.js""#
+    r#"+    "test": "node test.js","#
+    r#"+    "postinstall": "node postinstall.js""#
+    "   }"
+    " }"
+};
+
+/// Removes the manifest [`MANIFEST`] holds, so a later record can write a
+/// fresh one.
+const MANIFEST_DELETE_PATCH: &str = text_block_fnl! {
+    "diff --git a/package.json b/package.json"
+    "deleted file mode 100644"
+    "--- a/package.json"
+    "+++ /dev/null"
+    "@@ -1,6 +0,0 @@"
+    "-{"
+    r#"-  "name": "is-positive","#
+    r#"-  "scripts": {"#
+    r#"-    "test": "node test.js""#
+    "-  }"
+    "-}"
+};
+
+/// Writes a manifest that declares an install script.
+const MANIFEST_CREATE_PATCH: &str = text_block_fnl! {
+    "diff --git a/package.json b/package.json"
+    "new file mode 100644"
+    "--- /dev/null"
+    "+++ b/package.json"
+    "@@ -0,0 +1,6 @@"
+    "+{"
+    r#"+  "name": "is-positive","#
+    r#"+  "scripts": {"#
+    r#"+    "postinstall": "node postinstall.js""#
+    "+  }"
+    "+}"
+};
+
+/// [`MANIFEST_PATCH`] with a differently cased header, which reaches the
+/// same file wherever names are not case-sensitive.
+const MANIFEST_PATCH_MIXED_CASE: &str = text_block_fnl! {
+    "diff --git a/Package.json b/Package.json"
+    "--- a/Package.json"
+    "+++ b/Package.json"
+    "@@ -2,5 +2,6 @@"
+    r#"   "name": "is-positive","#
+    r#"   "scripts": {"#
+    r#"-    "test": "node test.js""#
+    r#"+    "test": "node test.js","#
+    r#"+    "postinstall": "node postinstall.js""#
+    "   }"
+    " }"
+};
+
+/// A second `package.json` record, applying on top of [`MANIFEST_PATCH`]'s
+/// output.
+const MANIFEST_SECOND_PATCH: &str = text_block_fnl! {
+    "diff --git a/package.json b/package.json"
+    "--- a/package.json"
+    "+++ b/package.json"
+    "@@ -3,5 +3,6 @@"
+    r#"   "scripts": {"#
+    r#"     "test": "node test.js","#
+    r#"-    "postinstall": "node postinstall.js""#
+    r#"+    "postinstall": "node postinstall.js","#
+    r#"+    "preinstall": "node preinstall.js""#
+    "   }"
+    " }"
+};
+
+/// Removes the `binding.gyp` [`BINDING_GYP_PATCH`] creates.
+const BINDING_GYP_DELETE_PATCH: &str = text_block_fnl! {
+    "diff --git a/binding.gyp b/binding.gyp"
+    "deleted file mode 100644"
+    "--- a/binding.gyp"
+    "+++ /dev/null"
+    "@@ -1 +0,0 @@"
+    "-{}"
+};
+
+/// The preview must read what the real apply writes, or the build gate
+/// and the build disagree about the same package.
+#[test]
+fn previews_the_manifest_a_patch_would_write() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    let applied = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.as_deref(), Some(applied.as_str()));
+    assert_eq!(preview.written_paths, ["package.json"]);
+}
+
+/// A patch may carry several records for one file, and the real apply
+/// feeds each the previous one's output.
+#[test]
+fn previews_repeated_manifest_records_in_order() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"));
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    let applied = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.as_deref(), Some(applied.as_str()));
+    assert!(applied.contains("preinstall"), "applied: {applied}");
+}
+
+/// The preview has to name a file the way the apply resolves it, or a
+/// patch spelled with a `.` segment would edit the manifest unseen.
+#[test]
+fn previews_a_manifest_named_through_a_dot_segment() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH_WITH_DOT_SEGMENT);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    let applied = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.as_deref(), Some(applied.as_str()));
+    assert_eq!(preview.written_paths, ["package.json"]);
+}
+
+/// A patch may replace the manifest outright rather than editing it, and
+/// the script the replacement declares is build work like any other.
+#[test]
+fn previews_a_manifest_the_patch_deletes_and_writes_again() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch =
+        write_patch(patch_dir.path(), &format!("{MANIFEST_DELETE_PATCH}{MANIFEST_CREATE_PATCH}"));
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    let applied = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.as_deref(), Some(applied.as_str()));
+    assert!(applied.contains("postinstall"), "applied: {applied}");
+    assert_eq!(preview.written_paths, ["package.json"]);
+}
+
+/// A file rewritten twice is one file, and a delete costs a lookup rather
+/// than a scan of everything written before it.
+#[test]
+fn previews_each_written_path_once() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), &format!("{MANIFEST_PATCH}{MANIFEST_SECOND_PATCH}"));
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert_eq!(preview.written_paths, ["package.json"]);
+}
+
+/// Where two spellings name one file, the applier writes the real manifest,
+/// so the preview has to read it as the manifest too.
+#[cfg(unix)]
+#[test]
+fn previews_a_manifest_reached_through_another_spelling_of_its_name() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let other_spelling = patched.path().join("Package.json");
+    // A case-insensitive volume already resolves both spellings to the one
+    // manifest, which is the condition under test. Where names are
+    // case-sensitive, a symlink is what makes two names one file.
+    if !other_spelling.exists() {
+        std::os::unix::fs::symlink("package.json", &other_spelling).unwrap();
+    }
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH_MIXED_CASE);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    let manifest = preview.manifest.expect("the patch reaches the manifest");
+    assert!(manifest.contains("postinstall"), "manifest: {manifest:?}");
+}
+
+/// Where the two spellings are two files, the applier edits the other one,
+/// and calling it the manifest would gate a build the package never gains.
+#[test]
+fn previews_no_manifest_for_a_differently_cased_file_of_its_own() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    fs::write(patched.path().join("Package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH_MIXED_CASE);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    // On a case-insensitive volume the two writes above are one file, and
+    // the patch does reach the manifest.
+    let separate_files = fs::read_to_string(patched.path().join("Package.json")).unwrap()
+        == fs::read_to_string(patched.path().join("package.json")).unwrap()
+        && fs::canonicalize(patched.path().join("Package.json")).unwrap()
+            != fs::canonicalize(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.is_none(), separate_files);
+}
+
+/// The global virtual store keeps a slot across installs, so the preview
+/// can meet a directory an earlier install already patched.
+#[test]
+fn previews_an_already_patched_manifest() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH);
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    let applied = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(preview.manifest.as_deref(), Some(applied.as_str()));
+}
+
+/// A manifest a publisher wrote with a byte order mark still has to reach
+/// the caller intact, since the caller parses what it gets back.
+#[test]
+fn previews_a_manifest_that_starts_with_a_byte_order_mark() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), format!("\u{feff}{MANIFEST}")).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    let manifest = preview.manifest.expect("the patch modifies the manifest");
+    assert!(manifest.starts_with('\u{feff}'), "manifest: {manifest:?}");
+    assert!(manifest.contains("postinstall"), "manifest: {manifest:?}");
+}
+
+#[test]
+fn previews_nothing_when_the_patch_leaves_the_manifest_alone() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("index.js"), IS_POSITIVE_INDEX_JS).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), IS_POSITIVE_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert_eq!(preview.manifest, None);
+    assert_eq!(preview.written_paths, ["index.js"]);
+}
+
+/// A file a patch adds can be a build trigger of its own, so the caller
+/// needs the created paths as well as the manifest.
+#[test]
+fn previews_the_paths_a_patch_creates() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), BINDING_GYP_PATCH);
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    assert_eq!(preview.manifest, None);
+    assert_eq!(preview.written_paths, ["binding.gyp"]);
+}
+
+/// A build trigger a patch writes and then removes is not one the
+/// package ends up with, so it must not hold the install for approval.
+#[test]
+fn previews_no_path_for_a_file_the_patch_creates_and_then_deletes() {
+    let patched = tempdir().unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch =
+        write_patch(patch_dir.path(), &format!("{BINDING_GYP_PATCH}{BINDING_GYP_DELETE_PATCH}"));
+
+    let preview = preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    apply_patch_to_dir(patched.path(), &patch).expect("apply must succeed");
+    assert!(preview.written_paths.is_empty(), "written_paths: {:?}", preview.written_paths);
+    assert!(!patched.path().join("binding.gyp").exists(), "no binding.gyp remains");
+}
+
+/// The build phase owns the real apply. Applying twice to one slot is not
+/// something a read-only question should risk.
+#[test]
+fn previewing_leaves_the_directory_untouched() {
+    let patched = tempdir().unwrap();
+    fs::write(patched.path().join("package.json"), MANIFEST).unwrap();
+    let patch_dir = tempdir().unwrap();
+    let patch = write_patch(patch_dir.path(), MANIFEST_PATCH);
+
+    preview_patch(patched.path(), &patch).expect("preview must succeed");
+
+    let on_disk = fs::read_to_string(patched.path().join("package.json")).unwrap();
+    assert_eq!(on_disk, MANIFEST);
 }
 
 #[test]

@@ -36,7 +36,7 @@ mod resolve;
 mod types;
 mod verify;
 
-pub use apply::{PatchApplyError, apply_patch_to_dir};
+pub use apply::{PatchApplyError, PatchPreview, apply_patch_to_dir, preview_patch};
 pub use commit::*;
 pub use get_patch_info::{PatchKeyConflictError, get_patch_info};
 pub use group::{PatchInput, PatchNonSemverRangeError, group_patched_dependencies};

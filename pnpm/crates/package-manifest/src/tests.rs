@@ -8,8 +8,8 @@ use tempfile::{NamedTempFile, tempdir};
 use super::{
     BundleDependencies, InitAuthor, InitOptions, PackageManifest, PackageManifestError,
     apply_runtime_on_fail_override, convert_dependencies_to_engines_runtime,
-    convert_engines_runtime_to_dependencies, extract_license, node_version_from_engines_runtime,
-    parse_manifest_bytes, safe_read_package_json_from_dir,
+    convert_engines_runtime_to_dependencies, extract_license, manifest_requires_build,
+    node_version_from_engines_runtime, parse_manifest_bytes, safe_read_package_json_from_dir,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -1231,4 +1231,17 @@ fn a_bom_after_the_start_of_the_manifest_is_still_a_parse_error() {
 fn parse_manifest_bytes_accepts_undecoded_bom_prefixed_bytes() {
     let manifest = parse_manifest_bytes(b"\xEF\xBB\xBF{\"name\":\"fixture\"}").unwrap();
     assert_eq!(manifest.get("name").unwrap(), &json!("fixture"));
+}
+
+/// pnpm v11's `pkgRequiresBuild` reads the script's value, not the key, so
+/// a manifest that carries an empty one is build-free in both stacks.
+#[test]
+fn a_script_without_a_value_is_not_build_work() {
+    assert!(manifest_requires_build(&json!({ "scripts": { "postinstall": "node x.js" } })));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "postinstall": "" } })));
+    assert!(!manifest_requires_build(
+        &json!({ "scripts": { "install": serde_json::Value::Null } })
+    ));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "preinstall": false } })));
+    assert!(!manifest_requires_build(&json!({ "scripts": { "test": "node x.js" } })));
 }
