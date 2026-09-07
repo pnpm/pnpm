@@ -301,9 +301,8 @@ fn recursive_table_wraps_the_dependents_column() {
     }
 }
 
-/// Content width of the table's rightmost column: the span between the two
-/// rightmost boundaries of the top border, less the boundary itself and the
-/// column's one-space padding on each side.
+/// Content width of the table's rightmost column, excluding its border and
+/// padding.
 fn last_column_width(table: &str) -> usize {
     const PADDING: usize = 2;
     let borders = border_columns(table.lines().next().expect("top border"));
