@@ -10950,6 +10950,11 @@ fn remove_modules_dir_names_the_entry_and_carries_the_diagnostic_code() {
         miette::Diagnostic::code(&error).map(|code| code.to_string()).as_deref(),
         Some("ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR"),
     );
+
+    let source = std::error::Error::source(&error).expect("the io error stays in the source chain");
+    let io_error =
+        source.downcast_ref::<std::io::Error>().expect("the source is the original io::Error");
+    assert_eq!(io_error.kind(), std::io::ErrorKind::PermissionDenied);
 }
 
 /// Entries reach this variant from a canonicalized modules directory, so
