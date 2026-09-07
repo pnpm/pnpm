@@ -34,7 +34,9 @@
     "@pnpm/fetching.directory-fetcher": "workspace:*",
     "@pnpm/resolving.resolver-base": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
-    "@pnpm/store.index": "workspace:*"
+    "@pnpm/store.index": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
