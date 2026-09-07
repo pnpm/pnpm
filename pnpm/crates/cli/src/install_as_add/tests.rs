@@ -2,11 +2,13 @@ use super::rewrite;
 use crate::{
     boolean_negations::with_boolean_negations,
     cli_args::{CliArgs, cli_command::CliCommand},
+    config_overrides::ConfigOverrides,
     flag_relocation::relocate_pre_subcommand_flags,
 };
 use clap::{CommandFactory, FromArgMatches};
+use pnpm_config::Config;
 use pretty_assertions::assert_eq;
-use std::ffi::OsString;
+use std::{ffi::OsString, path::Path};
 
 fn rewritten(tokens: &[&str]) -> Vec<String> {
     let cmd = with_boolean_negations(CliArgs::command());
@@ -18,8 +20,12 @@ fn rewritten(tokens: &[&str]) -> Vec<String> {
 }
 
 fn parse(tokens: &[&str]) -> CliArgs {
+    parse_argv(tokens.iter().map(OsString::from).collect())
+}
+
+fn parse_argv(argv: Vec<OsString>) -> CliArgs {
     let cmd = with_boolean_negations(CliArgs::command());
-    let argv = relocate_pre_subcommand_flags(&cmd, tokens.iter().map(OsString::from).collect());
+    let argv = relocate_pre_subcommand_flags(&cmd, argv);
     let argv = rewrite(&cmd, argv);
     cmd.try_get_matches_from(argv)
         .and_then(|matches| CliArgs::from_arg_matches(&matches))
@@ -97,14 +103,22 @@ fn the_separator_spelling_parses_as_add() {
     assert_eq!(add.package_names, ["valibot"]);
 }
 
+/// `--offline` is `install`'s own option and not `add`'s, so on a command
+/// line that names a package it must come off argv as the setting before
+/// the rewrite hands the rest to `add`'s grammar.
 #[test]
 fn install_with_offline_after_the_package_parses_as_add() {
-    let args = parse(&["pnpm", "install", "valibot", "--offline", "--ignore-scripts"]);
+    let (overrides, argv) = ConfigOverrides::extract(
+        ["pnpm", "install", "valibot", "--offline", "--ignore-scripts"].map(OsString::from),
+    );
+    let args = parse_argv(argv);
 
     let CliCommand::Add(add) = args.command else {
         panic!("expected add");
     };
     assert_eq!(add.package_names, ["valibot"]);
-    assert!(add.offline);
     assert!(add.ignore_scripts);
+    let mut config = Config::default();
+    overrides.apply(&mut config, Path::new("/workspace"));
+    assert!(config.offline);
 }

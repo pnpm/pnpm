@@ -829,8 +829,10 @@ fn unsafe_perm_is_a_bare_flag_on_every_command() {
     }
 }
 
+/// The boolean settings pnpm's `nopt` types make spellable on every
+/// command that lists them, which clap rejected as unexpected arguments.
 #[test]
-fn boolean_settings_are_extracted_unless_the_command_declares_them() {
+fn the_boolean_settings_are_bare_flags_where_no_command_declares_them() {
     let (overrides, remaining) = ConfigOverrides::extract(argv([
         "pacquet",
         "add",
@@ -848,7 +850,7 @@ fn boolean_settings_are_extracted_unless_the_command_declares_them() {
         "--no-verify-store-integrity",
         "--force-legacy-deploy",
     ]));
-    assert_eq!(remaining, argv(["pacquet", "add", "foo", "--offline", "--prefer-offline"]));
+    assert_eq!(remaining, argv(["pacquet", "add", "foo"]));
 
     let mut config = Config::default();
     overrides.apply(&mut config, Path::new("/workspace"));
@@ -858,12 +860,13 @@ fn boolean_settings_are_extracted_unless_the_command_declares_them() {
     assert!(config.lockfile_include_tarball_url);
     assert!(config.merge_git_branch_lockfiles);
     assert!(config.node_experimental_package_map);
-    assert!(!config.offline);
+    assert!(config.offline);
     assert!(config.prefer_frozen_lockfile);
-    assert!(!config.prefer_offline);
+    assert!(config.prefer_offline);
     assert!(!config.shared_workspace_lockfile);
     assert!(!config.verify_store_integrity);
     assert!(config.force_legacy_deploy);
+    assert_eq!(config.explicit_settings.get("offline"), Some(&serde_json::Value::Bool(true)));
     assert_eq!(
         config.explicit_settings.get("sharedWorkspaceLockfile"),
         Some(&serde_json::Value::Bool(false)),
@@ -1283,6 +1286,45 @@ fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
     overrides.apply(&mut config, Path::new("/workspace"));
     assert!(!config.strict_peer_dependencies);
     assert_eq!(config.registry, "https://example.test/");
+}
+
+/// `pnpm install <pkg>` is pnpm's spelling of `pnpm add <pkg>`, so the
+/// options it claims are `add`'s: `--offline` is `install`'s own option
+/// but a setting to `add`.
+#[test]
+fn install_with_a_package_claims_the_options_of_add() {
+    for command_line in [
+        &["pacquet", "install", "valibot", "--offline", "--no-prefer-offline"][..],
+        &["pacquet", "--offline", "--no-prefer-offline", "install", "valibot"],
+        &["pacquet", "install", "--offline", "--no-prefer-offline", "--", "valibot"],
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(command_line.iter().copied()));
+        let expected = command_line.iter().copied().filter(|token| !token.ends_with("offline"));
+        assert_eq!(remaining, argv(expected), "{command_line:?}");
+
+        let mut config = Config { prefer_offline: true, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(config.offline, "{command_line:?}");
+        assert!(!config.prefer_offline, "{command_line:?}");
+        assert_eq!(
+            config.explicit_settings.get("offline"),
+            Some(&serde_json::Value::Bool(true)),
+            "{command_line:?}",
+        );
+    }
+
+    for command_line in [
+        argv(["pacquet", "install", "--offline"]),
+        argv(["pacquet", "install", "--offline", "--"]),
+        argv(["pacquet", "install", "--reporter", "silent", "--offline"]),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line);
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(!config.offline, "{command_line:?}");
+    }
 }
 
 /// `lockfile` is both a setting and `clean`'s own option, so the boundary
