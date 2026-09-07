@@ -4,6 +4,7 @@ use super::{
     prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, safe_package_file_path,
     temporary_filtered_dir,
 };
+use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -348,6 +349,47 @@ index 000..123
     eprintln!("normalized:\n{normalized}");
     eprintln!("expected:\n{expected}");
     assert_eq!(normalized, expected);
+}
+
+/// `apply` reads a patch through `PatchSet` with the same options, so a header that
+/// `patch-commit` writes but the parser rejects fails the next install.
+#[test]
+fn patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::write(before.path().join("readme.md"), "package documentation\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches.next().expect("deleted file patch").expect("parse generated patch");
+    let FileOperation::Delete(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file deletion, diff: {diff}");
+    };
+    assert_eq!(path.as_ref(), "readme.md");
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
+}
+
+/// See [`patch_commit_diff_dirs_writes_a_parseable_deleted_file_patch`]. The `+++` marker lets
+/// the parser recover the target of an added file even from a malformed `diff --git` header, so
+/// the header is asserted here as well.
+#[test]
+fn patch_commit_diff_dirs_writes_a_parseable_nested_added_file_patch() {
+    let before = tempdir().expect("before dir");
+    let after = tempdir().expect("after dir");
+    fs::create_dir(after.path().join("docs")).unwrap();
+    fs::write(after.path().join("docs").join("readme.md"), "package documentation\n").unwrap();
+
+    let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
+
+    assert_eq!(diff.lines().next(), Some("diff --git a/docs/readme.md b/docs/readme.md"));
+    let mut patches = PatchSet::parse(&diff, ParseOptions::gitdiff());
+    let patch = patches.next().expect("added file patch").expect("parse generated patch");
+    let FileOperation::Create(path) = patch.operation().strip_prefix(1) else {
+        panic!("expected a file creation, diff: {diff}");
+    };
+    assert_eq!(path.as_ref(), "docs/readme.md");
+    assert!(patches.next().is_none(), "expected one file patch, diff: {diff}");
 }
 
 #[test]
