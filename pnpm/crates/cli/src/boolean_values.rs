@@ -10,10 +10,10 @@
 //! teaching clap a value form, which would hang a `[<VALUE>]` placeholder
 //! off every boolean in the help output. A false value resolves to the
 //! `--no-` negation [`crate::boolean_negations`] pairs with every boolean
-//! flag, so the only command lines this pass rewrites are ones that abort
-//! the parse today. A standalone negation such as `--no-runtime` has no
-//! positive spelling to resolve to, which leaves a false value on one for
-//! clap to report.
+//! flag. Only a token clap rejects is ever rewritten, so the pass cannot
+//! change what a command line that already parses means. A standalone
+//! negation such as `--no-runtime` has no positive spelling to resolve
+//! to, which leaves a false value on one for clap to report.
 //!
 //! Two of nopt's spellings stay with clap as well. A value written as its
 //! own token (`--prod false`) would have to be claimed in
