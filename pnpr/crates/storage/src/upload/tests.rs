@@ -137,7 +137,6 @@ async fn the_sweep_reclaims_only_uploads_that_have_gone_quiet() {
     let fresh = storage.begin_blob_upload().await.unwrap();
     let stale = storage.begin_blob_upload().await.unwrap();
 
-    // Nothing is old enough yet.
     assert_eq!(storage.sweep_blob_uploads(Duration::from_hours(1)).await.unwrap(), 0);
     assert!(storage.open_blob_upload(stale.id()).await.unwrap().is_some());
 
@@ -146,7 +145,6 @@ async fn the_sweep_reclaims_only_uploads_that_have_gone_quiet() {
     assert!(storage.open_blob_upload(fresh.id()).await.unwrap().is_none());
     assert!(storage.open_blob_upload(stale.id()).await.unwrap().is_none());
 
-    // A sweep with nothing to reclaim is not an error.
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 0);
 }
 

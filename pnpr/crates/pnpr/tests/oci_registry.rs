@@ -184,7 +184,6 @@ async fn an_image_pushed_in_one_request_each_pulls_back() {
     );
     assert_eq!(body_bytes(response.into_body()).await, image_manifest("config", &["layer"]));
 
-    // The same manifest is reachable by digest.
     let response = get(&app, &format!("/v2/acme/app/manifests/{manifest_digest}")).await;
     assert_eq!(response.status(), StatusCode::OK);
 
@@ -236,7 +235,6 @@ async fn a_chunked_upload_resumes_from_where_it_left_off() {
     assert_eq!(response.status(), StatusCode::ACCEPTED);
     assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-4");
 
-    // A chunk that does not continue where the last one ended is refused.
     let request = Request::patch(&location)
         .header(header::AUTHORIZATION, &auth)
         .header(header::CONTENT_RANGE, "99-103")
@@ -339,7 +337,6 @@ async fn tags_list_in_lexical_order_and_a_moved_tag_repoints() {
     assert_eq!(payload["name"], "acme/app");
     assert_eq!(payload["tags"], json!(["1.0", "latest"]));
 
-    // A second image, and `latest` moved onto it.
     push_blob(&app, &auth, "acme/app", b"config2").await;
     let moved = image_manifest("config2", &[]);
     let request = Request::put("/v2/acme/app/manifests/latest")
@@ -808,4 +805,30 @@ async fn a_range_that_contradicts_itself_or_the_body_is_refused() {
         Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+}
+
+#[tokio::test]
+async fn a_range_spanning_more_than_a_blob_can_hold_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+
+    // One past the largest range a client can spell does not fit the number
+    // that holds the span, and no chunk may be larger than a whole blob.
+    for range in ["0-18446744073709551615", "0-999999999999"] {
+        let request = Request::patch(&location)
+            .header(header::AUTHORIZATION, &auth)
+            .header(header::CONTENT_RANGE, range)
+            .body(Body::from("hello"))
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_ne!(response.status(), StatusCode::ACCEPTED, "{range}");
+    }
 }

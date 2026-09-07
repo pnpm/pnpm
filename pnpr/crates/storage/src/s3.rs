@@ -91,8 +91,6 @@ async fn send_parts(tmp_path: &Path, upload: &mut dyn MultipartUpload) -> Result
         if filled == 0 {
             break;
         }
-        // Every part but the last has to be the same size for S3, so the
-        // buffer is filled before it is sent rather than shipped per read.
         upload.put_part(PutPayload::from(part[..filled].to_vec())).await?;
     }
     upload.complete().await?;

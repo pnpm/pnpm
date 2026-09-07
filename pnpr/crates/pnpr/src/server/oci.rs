@@ -618,8 +618,21 @@ impl Request {
         // the upload somewhere neither side named. Checked against the
         // declared length before anything is written, rather than against
         // where the upload ended up afterwards.
+        //
+        // The span is computed with a ceiling rather than plain arithmetic:
+        // `0-18446744073709551615` is a range a client can send, and one more
+        // than it does not fit the number that holds it.
+        let Some(span) = end.checked_sub(start).and_then(|span| span.checked_add(1)) else {
+            return Err(error(ErrorCode::BlobUploadInvalid, "Content-Range is not a real span"));
+        };
+        if span > MAX_BLOB_BYTES as u64 {
+            return Err(error(
+                ErrorCode::SizeInvalid,
+                format!("a blob may not exceed {MAX_BLOB_BYTES} bytes"),
+            ));
+        }
         if let Some(declared) = self.content_length()
-            && declared != end - start + 1
+            && declared != span
         {
             return Err(error(
                 ErrorCode::BlobUploadInvalid,
@@ -740,8 +753,8 @@ struct TagList<'listing> {
 /// `Result`'s error slot as the response itself is not.
 ///
 /// The status is carried rather than re-derived from the code, because a
-/// `RegistryError` already decided one: deriving it back from the spec code
-/// turned every error without a code of its own into `405`.
+/// `RegistryError` has already chosen one, and deriving it back from the spec
+/// code would answer `405` for every error that has no code of its own.
 struct Refusal {
     status: StatusCode,
     code: ErrorCode,
