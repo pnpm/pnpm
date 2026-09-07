@@ -1,32 +1,28 @@
 //! Explicit values for boolean flags.
 //!
-//! nopt gives every option typed as `Boolean` a value form: it splices
-//! `--prod=false` into `--prod` `false` and reads the value back as the
-//! flag's. That is how a build host that appends `--prod=false` to its
-//! install command asks for devDependencies (pnpm/pnpm#14553). pacquet's
-//! clap flags take no value at all, so the token aborts the parse with
-//! "unexpected value".
+//! nopt splices `--prod=false` into `--prod` `false` and reads the value
+//! back as the flag's, so pnpm 11 takes an explicit value on every option
+//! typed as `Boolean`. A build host that appends `--prod=false` to its
+//! install command relies on that (pnpm/pnpm#14553), and pacquet's clap
+//! flags take no value at all, so the token aborts the parse.
 //!
-//! Rather than teach clap a value form — which would put a `[<VALUE>]`
-//! placeholder next to every boolean in the help output —
-//! [`resolve_boolean_values`] collapses the token over argv: a true value
-//! leaves the bare flag, a false one becomes the `--no-` negation that
-//! [`crate::boolean_negations`] pairs with every boolean flag. The
-//! grammar clap parses therefore stays exactly as it is written, and the
-//! only command lines this pass rewrites are ones that abort the parse
-//! today.
+//! [`resolve_boolean_values`] collapses the token over argv rather than
+//! teaching clap a value form, which would hang a `[<VALUE>]` placeholder
+//! off every boolean in the help output. A false value resolves to the
+//! `--no-` negation [`crate::boolean_negations`] pairs with every boolean
+//! flag, so the only command lines this pass rewrites are ones that abort
+//! the parse today. A standalone negation such as `--no-runtime` has no
+//! positive spelling to resolve to, which leaves a false value on one for
+//! clap to report.
 //!
-//! A value written as its own token (`--prod false`, which nopt reads the
-//! same way) is deliberately left alone. Claiming it belongs in
+//! Two of nopt's spellings stay with clap as well. A value written as its
+//! own token (`--prod false`) would have to be claimed in
 //! [`option_width`], the width rule every pre-clap scan shares, and a
 //! foreign command line names its program with a positional: `pnpm -r
-//! exec --report-summary true` runs `true`, which a flag claiming the
-//! token after it would swallow.
-//!
-//! Only long spellings take a value. A short is clap's own spelling:
-//! nopt reaches one through its shorthand table, which splices `-P` into
-//! `--prod` before the value rule applies, and the two part ways on a
-//! cluster such as `-PD=false`.
+//! exec --report-summary true` runs `true`. A value on a short
+//! (`-P=false`) reaches nopt through its shorthand table, which splices
+//! `-P` into `--prod` before the value rule applies, where clap parses a
+//! cluster on its own terms.
 
 use crate::{
     boolean_negations::negation_of,
@@ -78,36 +74,35 @@ pub fn resolve_boolean_values(mut argv: Vec<OsString>) -> Vec<OsString> {
 }
 
 /// Every boolean flag spelling in the grammar, paired with the spelling
-/// that means its opposite.
+/// that means its opposite, or `None` for a flag the grammar gives no
+/// opposite.
 struct BooleanFlags {
-    opposites: HashMap<String, String>,
+    opposites: HashMap<String, Option<String>>,
 }
 
 impl BooleanFlags {
-    /// The spelling `--<name>=<value>` collapses to, or `None` when
-    /// `name` is no boolean flag, or `value` no boolean — which leaves
-    /// the token for clap to report.
+    /// The spelling `--<name>=<value>` collapses to. `None` when `name`
+    /// is no boolean flag, `value` no boolean, or the flag has no
+    /// spelling for that value, all of which leave the token for clap to
+    /// report.
     fn spelling_for(&self, name: &str, value: &str) -> Option<OsString> {
         let opposite = self.opposites.get(name)?;
-        let long = if parse_bool(value)? { name } else { opposite.as_str() };
+        let long = if parse_bool(value)? { name } else { opposite.as_deref()? };
         Some(OsString::from(format!("--{long}")))
     }
 
-    /// The grammar's boolean flags, reaching the same depth as the arity
-    /// table the pre-clap scans share, so a flag is never rewritten in a
-    /// token the scan did not recognize as an option.
     fn collect(command: &Command) -> Self {
         let mut flags = Self { opposites: HashMap::new() };
         let mut value_taking = HashSet::new();
         flags.absorb(command, &mut value_taking);
-        for subcommand in command.get_subcommands() {
-            flags.absorb(subcommand, &mut value_taking);
-        }
-        // A name another command spells as a value-taking option is left
+        // A name some command spells as a value-taking option is left
         // alone: `--foo=false` may well be asking for the value `false`
-        // there.
-        for name in value_taking {
-            flags.opposites.remove(&name);
+        // there, and a flag whose opposite is one has no false spelling.
+        flags.opposites.retain(|name, _| !value_taking.contains(name));
+        for opposite in flags.opposites.values_mut() {
+            if opposite.as_ref().is_some_and(|name| value_taking.contains(name)) {
+                *opposite = None;
+            }
         }
         flags
     }
@@ -125,20 +120,23 @@ impl BooleanFlags {
             let Some(long) = arg.get_long() else {
                 continue;
             };
-            let Some(opposite) = (match long.strip_prefix("no-") {
-                // A hand-written negation pairs with the flag it negates,
-                // when the command declares one.
+            let opposite = match long.strip_prefix("no-") {
+                // A negation pairs with the flag it negates, when the
+                // command declares one.
                 Some(positive) => longs.contains(positive).then(|| positive.to_string()),
                 // Every other boolean flag is paired by
                 // [`crate::boolean_negations`].
                 None => Some(negation_of(long)),
-            }) else {
-                continue;
             };
             for spelling in spellings(arg) {
                 self.opposites.entry(spelling.to_string()).or_insert_with(|| opposite.clone());
             }
-            self.opposites.entry(opposite).or_insert_with(|| long.to_string());
+            if let Some(opposite) = opposite {
+                self.opposites.entry(opposite).or_insert_with(|| Some(long.to_string()));
+            }
+        }
+        for subcommand in command.get_subcommands() {
+            self.absorb(subcommand, value_taking);
         }
     }
 }

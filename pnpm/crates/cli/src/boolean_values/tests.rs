@@ -72,6 +72,18 @@ fn a_negation_spelling_takes_a_value_too() {
     );
 }
 
+/// `--no-runtime` is pnpm 12's only spelling of that flag: it has no
+/// `--runtime` for a false value to resolve to.
+#[test]
+fn a_standalone_negation_takes_a_true_value_only() {
+    assert_eq!(
+        resolve(&["pnpm", "install", "--no-runtime=true"]),
+        ["pnpm", "install", "--no-runtime"],
+    );
+    let unresolvable = ["pnpm", "install", "--no-runtime=false"];
+    assert_eq!(resolve(&unresolvable), unresolvable);
+}
+
 #[test]
 fn a_global_flag_takes_a_value_before_its_command() {
     assert_eq!(
@@ -142,6 +154,8 @@ fn every_opposite_names_a_real_flag() {
     };
     for (name, opposite) in &boolean_flags().opposites {
         assert!(known(name), "--{name} is no flag");
-        assert!(known(opposite), "--{opposite}, the opposite of --{name}, is no flag");
+        if let Some(opposite) = opposite {
+            assert!(known(opposite), "--{opposite}, the opposite of --{name}, is no flag");
+        }
     }
 }
