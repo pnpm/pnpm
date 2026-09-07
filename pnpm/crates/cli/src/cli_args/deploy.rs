@@ -434,7 +434,7 @@ impl DeployArgs {
 /// The pnpmfile the deploy install runs, resolved the way an install of
 /// the selected project resolves its own.
 ///
-/// Never discovered from the deploy directory. `copy_project` copies the
+/// Never discovered from the deploy directory. [`copy_project`] copies the
 /// project's files there, a `.pnpmfile.*` among them, and the pnpmfile
 /// that shapes a deployed dependency graph is the source workspace's,
 /// whose effects are already part of the snapshots the deploy writes.
