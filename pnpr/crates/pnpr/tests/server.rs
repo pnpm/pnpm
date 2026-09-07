@@ -1647,7 +1647,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 }
 
 #[tokio::test]
-async fn tampered_upstream_tarball_is_served_but_never_cached() {
+async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-tarball-bytes";
     let poison_bytes = b"poisoned-cache-bytes";

@@ -78,34 +78,32 @@ impl Request {
                     &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
                 )
                 .await?;
-            return match fetched {
-                FetchOutcome::NotFound => Ok(None),
-                FetchOutcome::Ok(upstream_response) => {
-                    if let Ok(expected) = Digest::parse(reference) {
-                        let declared = upstream_response
-                            .headers()
-                            .get(DOCKER_CONTENT_DIGEST)
-                            .and_then(|value| value.to_str().ok())
-                            .and_then(|value| Digest::parse(value).ok());
-                        if declared.as_ref() != Some(&expected) {
-                            return Err(RegistryError::BadRequest {
-                                reason: "upstream manifest digest mismatch".to_string(),
-                            });
-                        }
-                    }
-                    let mut response = Response::new(Body::empty());
-                    for name in [
-                        header::CONTENT_TYPE,
-                        header::CONTENT_LENGTH,
-                        header::HeaderName::from_static(DOCKER_CONTENT_DIGEST),
-                    ] {
-                        if let Some(value) = upstream_response.headers().get(&name) {
-                            response.headers_mut().insert(name, value.clone());
-                        }
-                    }
-                    Ok(Some(response))
-                }
+            let upstream_response = match fetched {
+                FetchOutcome::NotFound => return Ok(None),
+                FetchOutcome::Ok(response) => response,
             };
+            if let Some(declared) = upstream_response.headers().get(DOCKER_CONTENT_DIGEST) {
+                if let Ok(expected) = Digest::parse(reference) {
+                    let declared =
+                        declared.to_str().ok().and_then(|value| Digest::parse(value).ok());
+                    if declared.as_ref() != Some(&expected) {
+                        return Err(RegistryError::BadRequest {
+                            reason: "upstream manifest digest mismatch".to_string(),
+                        });
+                    }
+                }
+                let mut response = Response::new(Body::empty());
+                for name in [
+                    header::CONTENT_TYPE,
+                    header::CONTENT_LENGTH,
+                    header::HeaderName::from_static(DOCKER_CONTENT_DIGEST),
+                ] {
+                    if let Some(value) = upstream_response.headers().get(&name) {
+                        response.headers_mut().insert(name, value.clone());
+                    }
+                }
+                return Ok(Some(response));
+            }
         }
         let fetched = upstream
             .fetch_oci(
@@ -148,7 +146,7 @@ impl Request {
         if upstream.caches() {
             storage.write_upstream_document(&namespace, key, &bytes).await?;
         }
-        manifest_response(bytes, false).map(Some)
+        manifest_response(bytes, self.method == Method::HEAD).map(Some)
     }
 
     pub(super) async fn proxy_blob(

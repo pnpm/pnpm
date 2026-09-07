@@ -24,6 +24,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
+use futures_util::StreamExt as _;
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, PackagePattern, PackageRule, PackageRules,
     router_with_auth,
@@ -2006,7 +2007,17 @@ async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head()
             StatusCode::BAD_REQUEST,
         );
         let response = get(&app, &path).await;
-        assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
+        let mut stream = response.into_body().into_data_stream();
+        let mut bytes = Vec::new();
+        loop {
+            match stream.next().await {
+                Some(Ok(chunk)) => bytes.extend_from_slice(&chunk),
+                Some(Err(_)) => break,
+                None => panic!("corrupt content must terminate with an integrity error"),
+            }
+        }
+        assert_eq!(bytes, b"poison");
+        assert!(stream.next().await.is_none());
     }
     head.assert_async().await;
     corrupt_manifest.assert_async().await;
@@ -2185,14 +2196,16 @@ async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories()
 }
 
 #[tokio::test]
-async fn manifest_head_requires_the_requested_digest_in_upstream_headers() {
-    let digest = digest_of(b"manifest");
+async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_header() {
+    let manifest = image_manifest("config", &[]);
+    let digest = digest_of(&manifest);
     let wrong = digest_of(b"different manifest");
-    for (declared, expected) in [
-        (Some(digest.as_str()), StatusCode::OK),
-        (Some(wrong.as_str()), StatusCode::BAD_REQUEST),
-        (Some("invalid"), StatusCode::BAD_REQUEST),
-        (None, StatusCode::BAD_REQUEST),
+    for (declared, valid_body, expected) in [
+        (Some(digest.as_str()), true, StatusCode::OK),
+        (Some(wrong.as_str()), true, StatusCode::BAD_REQUEST),
+        (Some("invalid"), true, StatusCode::BAD_REQUEST),
+        (None, true, StatusCode::OK),
+        (None, false, StatusCode::BAD_REQUEST),
     ] {
         let mut upstream = mockito::Server::new_async().await;
         let path = format!("/v2/other/app/manifests/{digest}");
@@ -2201,12 +2214,23 @@ async fn manifest_head_requires_the_requested_digest_in_upstream_headers() {
             head = head.with_header("docker-content-digest", declared);
         }
         let head = head.create_async().await;
+        let get = upstream
+            .mock("GET", path.as_str())
+            .with_body(if valid_body { manifest.as_slice() } else { b"corrupt" })
+            .expect(usize::from(declared.is_none()))
+            .create_async()
+            .await;
         let tmp = TempDir::new().unwrap();
         let mut config = oci_config(tmp.path().to_path_buf(), "$all");
         config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
         let app = router_with_auth(config, AuthState::in_memory());
         let response = app.oneshot(Request::head(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), expected, "declared digest: {declared:?}");
+        if expected == StatusCode::OK {
+            assert_eq!(response.headers()["docker-content-digest"], digest);
+            assert!(body_bytes(response.into_body()).await.is_empty());
+        }
         head.assert_async().await;
+        get.assert_async().await;
     }
 }
