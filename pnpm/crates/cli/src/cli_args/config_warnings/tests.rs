@@ -164,3 +164,18 @@ fn warns_about_every_setting_a_shared_lockfile_ignores() {
         r#"The following "packageConfigs" settings were ignored: "a.overrides", "a.saveExact". They apply only when each project has its own lockfile ("sharedWorkspaceLockfile: false")."#,
     );
 }
+
+/// Project names reach the warning from `pnpm-workspace.yaml`, so a name
+/// carrying terminal control characters must not reach the terminal.
+#[test]
+fn sanitizes_the_project_name() {
+    let mut config = Config::new();
+    config.shared_workspace_lockfile = true;
+    config.package_configs = Some(IndexMap::from([(
+        "a\u{1b}[2Kb".to_string(),
+        ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
+    )]));
+    let received = unapplied_package_configs_warning(&config).expect("a warning");
+    println!("{received}");
+    assert!(!received.contains('\u{1b}'), "{received}");
+}

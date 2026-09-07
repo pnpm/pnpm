@@ -18,13 +18,19 @@ use std::{fmt, path::Path};
 /// The settings one `packageConfigs` entry may set.
 ///
 /// Every field names a setting `pnpm-workspace.yaml` also carries at
-/// its top level; the entry replaces the top-level value for the
-/// project it applies to.
+/// its top level; the entry replaces the value the project would
+/// otherwise get, whichever layer supplied it. A per-project entry
+/// outranking an environment variable or a command-line flag is what
+/// pnpm 11 does, and the setting has no other way to say "this project
+/// is the exception".
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default, deny_unknown_fields)]
 pub struct ProjectConfig {
     /// `hoist`. `false` also clears [`Config::hoist_pattern`], the way
-    /// a top-level `hoist: false` does.
+    /// a top-level `hoist: false` does. `true` sets only the flag: the
+    /// pattern a workspace-wide `hoist: false` already cleared is gone,
+    /// so a project cannot opt back into hoisting a workspace turned
+    /// off — as in pnpm 11.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hoist: Option<bool>,
     /// `modulesDir`, resolved against the project's own directory.

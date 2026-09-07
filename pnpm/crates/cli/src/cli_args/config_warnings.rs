@@ -116,7 +116,7 @@ fn unapplied_package_configs_warning(config: &Config) -> Option<String> {
             ]
             .into_iter()
             .flatten()
-            .map(move |setting| format!(r#""{project}.{setting}""#))
+            .map(move |setting| format!(r#""{}.{setting}""#, redact_and_sanitize(project)))
         })
         .collect::<Vec<_>>();
     if ignored.is_empty() {

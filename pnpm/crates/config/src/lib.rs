@@ -3032,18 +3032,21 @@ impl Config {
     }
 
     /// [`Self::anchor_lockfile_paths`] plus the `packageConfigs` entry
-    /// of the project at `project_dir`, for the per-project installs of
-    /// a workspace whose projects keep their own lockfiles.
+    /// declared for `project_name`, for the per-project installs of a
+    /// workspace whose projects keep their own lockfiles.
     ///
-    /// A project the setting does not name, and a directory whose
-    /// `package.json` cannot be read, keep the workspace-wide settings:
-    /// the manifest is read again by the install this anchors, which is
-    /// where an unreadable one is reported.
-    pub fn anchor_dedicated_project(&mut self, project_dir: &Path) {
+    /// A nameless project, and one the setting does not name, keep the
+    /// workspace-wide settings. Callers pass the name rather than the
+    /// config reading it, so a workspace-scale run spends no manifest
+    /// read here: the plans that install several projects already hold
+    /// every manifest they discovered.
+    pub fn anchor_dedicated_project(&mut self, project_dir: &Path, project_name: Option<&str>) {
         self.anchor_lockfile_paths(project_dir);
-        let Some(package_configs) = self.package_configs.as_ref() else { return };
-        let Some(name) = project_manifest_name(project_dir) else { return };
-        let Some(project_config) = package_configs.get(&name).cloned() else { return };
+        let Some(project_config) =
+            project_name.and_then(|name| self.package_configs.as_ref()?.get(name)).cloned()
+        else {
+            return;
+        };
         project_config.apply_to(self, project_dir);
     }
 
@@ -3974,18 +3977,6 @@ fn note_declared_registries(
             declared.scopes.insert(scope);
         }
     }
-}
-
-/// The `name` of the manifest at `project_dir`, which is the key
-/// `packageConfigs` addresses a project by. `None` when the directory
-/// has no readable manifest, or one that declares no name.
-fn project_manifest_name(project_dir: &Path) -> Option<String> {
-    pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json"))
-        .ok()?
-        .value()
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .map(ToOwned::to_owned)
 }
 
 fn collect_explicit_settings(

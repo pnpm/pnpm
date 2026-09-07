@@ -7,7 +7,7 @@ pub use _utils::*;
 use indexmap::IndexMap;
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};
 use pretty_assertions::assert_eq;
-use std::path::Path;
+use std::{fs, path::Path};
 
 const DEP: &str = "@pnpm.e2e/dep-of-pkg-with-1-dep";
 const PARENT: &str = "@pnpm.e2e/pkg-with-1-dep";
@@ -62,7 +62,6 @@ fn overrides_apply_to_the_named_project_only() {
     assert_eq!(lockfile_overrides(&unpinned), None);
 }
 
-/// The list form maps one settings block onto several projects.
 #[test]
 fn the_list_form_overrides_every_matched_project() {
     let fixture = dedicated_lockfile_workspace(&format!(
@@ -91,9 +90,9 @@ fn the_list_form_overrides_every_matched_project() {
     assert_resolved_dep(&third, "100.1.0");
 }
 
-/// A project the setting names keeps its own overrides when the
-/// install is narrowed to it, because the workspace manifest is read
-/// wherever the command runs.
+/// The workspace manifest is read wherever the command runs, so
+/// narrowing the install to one project does not narrow the settings it
+/// sees.
 #[test]
 fn overrides_apply_to_a_filtered_install_of_the_project() {
     let fixture = dedicated_lockfile_workspace(&format!(
@@ -164,18 +163,42 @@ fn modules_dir_moves_only_the_named_project() {
 }
 
 #[test]
-fn save_exact_applies_to_the_named_project_only() {
-    let fixture = dedicated_lockfile_workspace("packageConfigs:\n  exact:\n    saveExact: true\n");
+fn save_exact_and_save_prefix_apply_to_the_named_projects_only() {
+    let fixture = dedicated_lockfile_workspace(
+        "packageConfigs:\n  exact:\n    saveExact: true\n  tilde:\n    savePrefix: \"~\"\n",
+    );
     let exact = fixture.project("exact", "exact", ManifestDeps::default());
+    let tilde = fixture.project("tilde", "tilde", ManifestDeps::default());
     let ranged = fixture.project("ranged", "ranged", ManifestDeps::default());
 
-    fixture.run_at(&exact, ["add", PARENT]);
-    fixture.run_at(&ranged, ["add", PARENT]);
+    for project in [&exact, &tilde, &ranged] {
+        fixture.run_at(project, ["add", PARENT]);
+    }
 
     let exact_spec = dependency_spec(&exact, "dependencies", PARENT).expect("exact saved a spec");
-    let ranged_spec =
-        dependency_spec(&ranged, "dependencies", PARENT).expect("ranged saved a spec");
-    assert_eq!(ranged_spec, format!("^{exact_spec}"));
+    assert_eq!(dependency_spec(&tilde, "dependencies", PARENT), Some(format!("~{exact_spec}")));
+    assert_eq!(dependency_spec(&ranged, "dependencies", PARENT), Some(format!("^{exact_spec}")));
+}
+
+/// Workspace discovery accepts a `package.yaml` project, so the name the
+/// settings are addressed by has to come from whichever manifest the
+/// project actually has.
+#[test]
+fn a_package_yaml_project_gets_its_settings() {
+    let fixture = dedicated_lockfile_workspace(&format!(
+        "packageConfigs:\n  pinned:\n    overrides:\n      \"{DEP}\": 100.0.0\n",
+    ));
+    let pinned = fixture.workspace.join("packages/pinned");
+    fs::create_dir_all(&pinned).unwrap();
+    fs::write(
+        pinned.join("package.yaml"),
+        format!("name: pinned\nversion: 1.0.0\ndependencies:\n  \"{PARENT}\": 100.0.0\n"),
+    )
+    .unwrap();
+
+    fixture.run(["install"]);
+
+    assert_resolved_dep(&pinned, "100.0.0");
 }
 
 #[test]
@@ -203,9 +226,8 @@ fn an_unsupported_setting_is_rejected() {
     assert!(stderr.contains("saveExactly"), "{stderr}");
 }
 
-/// A workspace whose projects share one lockfile resolves them
-/// together, so a per-project setting has no install of its own to
-/// reach. The entries are inert there, and the install says so.
+/// A workspace sharing one lockfile resolves every project together, so
+/// a per-project setting has no install of its own to reach.
 #[test]
 fn a_shared_lockfile_reports_the_ignored_settings() {
     let fixture = WorkspaceFixture::new();
@@ -228,8 +250,6 @@ fn a_shared_lockfile_reports_the_ignored_settings() {
     assert!(has_snapshot(&fixture.wanted(), DEP, "100.1.0"));
 }
 
-/// The projects of a dedicated-lockfile workspace each run their own
-/// install, so nothing is ignored and nothing is reported.
 #[test]
 fn dedicated_lockfiles_report_no_ignored_settings() {
     let fixture = dedicated_lockfile_workspace(&format!(

@@ -11,7 +11,7 @@
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
-use super::{ExecArgs, ExecDirs, ExecError, prepare_command, read_package_name, spawn_in_dir};
+use super::{ExecArgs, ExecDirs, ExecError, prepare_command, spawn_in_dir};
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
@@ -319,7 +319,7 @@ pub async fn exec_recursive(
 
 fn project_dep_path(root: &Path, dir: &Path, show_prefix: bool) -> Option<String> {
     show_prefix.then(|| {
-        read_package_name(root).unwrap_or_else(|| {
+        pnpm_workspace::read_project_name(root).unwrap_or_else(|| {
             pathdiff::diff_paths(root, dir)
                 .unwrap_or_else(|| root.to_path_buf())
                 .to_string_lossy()

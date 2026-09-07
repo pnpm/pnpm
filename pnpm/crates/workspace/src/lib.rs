@@ -28,7 +28,8 @@ pub use manifest::{
 };
 pub use project_manifest::{
     ReadProjectManifestError, ReadProjectManifestOnlyError, read_exact_project_manifest,
-    read_project_manifest_only, safe_read_project_manifest_only, try_read_project_manifest,
+    read_project_manifest_only, read_project_name, safe_read_project_manifest_only,
+    try_read_project_manifest,
 };
 pub use projects::{
     FindWorkspaceProjectsError, FindWorkspaceProjectsOpts, Project, find_workspace_projects,

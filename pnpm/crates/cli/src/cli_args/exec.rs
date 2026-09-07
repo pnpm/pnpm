@@ -12,7 +12,7 @@ use pnpm_package_manager::{
     make_node_package_map_option, make_node_require_option, package_map_path_for_execution,
     pnp_path_for_execution,
 };
-use pnpm_workspace::safe_read_project_manifest_only;
+use pnpm_workspace::read_project_name;
 use std::{
     path::Path,
     process::{Command, ExitStatus, Stdio},
@@ -264,7 +264,7 @@ fn command_in_dir(
     cmd.env("npm_config_user_agent", &config.user_agent);
     // Same recursion-guard stamp as the lifecycle env builder.
     cmd.env(pnpm_executor::VERIFY_DEPS_BEFORE_RUN_ENV, "false");
-    if let Some(name) = read_package_name(project) {
+    if let Some(name) = read_project_name(project) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
     let mut node_options = configured_node_options(config);
@@ -297,14 +297,6 @@ fn configured_node_options(config: &Config) -> Option<String> {
         }
         None => config.extra_env.get("NODE_OPTIONS").cloned(),
     }
-}
-
-/// Read the `name` field of the project's package manifest, if any.
-///
-/// Used only to stamp `PNPM_PACKAGE_NAME`; a missing or nameless manifest
-/// is not an error for `exec` (it can run a command in any directory).
-pub(super) fn read_package_name(dir: &Path) -> Option<String> {
-    safe_read_project_manifest_only(dir).ok()??.value().get("name")?.as_str().map(str::to_string)
 }
 
 #[cfg(test)]
