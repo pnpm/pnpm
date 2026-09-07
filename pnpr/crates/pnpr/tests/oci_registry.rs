@@ -288,7 +288,6 @@ async fn a_manifest_naming_a_blob_the_repository_lacks_is_refused() {
     let auth = basic(&token(&app).await);
     push_blob(&app, &auth, "acme/app", b"config").await;
 
-    // The layer was never uploaded.
     let request = Request::put("/v2/acme/app/manifests/1.0")
         .header(header::AUTHORIZATION, &auth)
         .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
