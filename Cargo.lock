@@ -6454,6 +6454,8 @@ dependencies = [
 name = "pnpr-pipeline-runs"
 version = "0.0.1"
 dependencies = [
+ "object_store",
+ "pnpr-config",
  "pnpr-error",
  "pnpr-storage",
  "serde",

@@ -4,19 +4,15 @@
 //! more: it schedules nothing and executes nothing.
 //!
 //! Records are testimony about something that happened once, not
-//! regenerable derived data, so they live under the authoritative
-//! `storage` root rather than the disposable cache root. This
-//! proof-of-concept tier is filesystem-only; an S3-hosted deployment
-//! keeps its run records on the replica's local storage path.
+//! regenerable derived data, so they live in the hosted store — the
+//! authoritative one every replica of a deployment shares — rather than on
+//! the replica that happened to receive the submission.
 
 use pnpr_error::{RegistryError, Result};
-use pnpr_storage::write_atomic_new;
+use pnpr_storage::Storage;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{
-    collections::BTreeSet,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeSet;
 
 /// Bounds a submission the same way the artifact endpoints bound theirs:
 /// a malformed or hostile client must not be able to grow a record
@@ -26,7 +22,8 @@ pub const MAX_NAME_LEN: usize = 100;
 pub const MAX_RUN_EVENTS: usize = 10_000;
 pub const MAX_LIST_RUNS: usize = 200;
 
-const RUNS_DIR: &str = "pipeline-runs/v0";
+/// What a run's key ends in, so a later record kind can share the namespace.
+const RECORD_SUFFIX: &str = ".json";
 
 /// One submitted run: the machine-readable account `pnpm pipeline`
 /// produced, verbatim. The server stores the summary and events as
@@ -55,14 +52,13 @@ pub struct PipelineRunEntry {
 }
 
 pub struct PipelineRunStore {
-    root: PathBuf,
+    storage: Storage,
 }
 
 impl PipelineRunStore {
-    pub fn new(storage_root: &Path) -> Result<Self> {
-        let root = storage_root.join(RUNS_DIR);
-        std::fs::create_dir_all(&root)?;
-        Ok(Self { root })
+    #[must_use]
+    pub fn new(storage: Storage) -> Self {
+        Self { storage }
     }
 
     /// Record one run. Append-only: a run id that already exists for the
@@ -79,61 +75,44 @@ impl PipelineRunStore {
                 ),
             });
         }
-        let path = self.run_path(&run.workspace, &run.run_id);
-        std::fs::create_dir_all(path.parent().expect("run path has a workspace parent"))?;
         let document = serde_json::to_vec(&run)?;
-        match write_atomic_new(&path, &document).await {
-            Err(RegistryError::Io(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                Err(RegistryError::BadRequest {
-                    reason: format!(
-                        "run {} is already recorded for workspace {} (runs are append-only)",
-                        run.run_id, run.workspace,
-                    ),
-                })
-            }
-            result => result,
+        let key = format!("{}{RECORD_SUFFIX}", run.run_id);
+        if self.storage.create_pipeline_run(&run.workspace, &key, &document).await? {
+            return Ok(());
         }
+        Err(RegistryError::BadRequest {
+            reason: format!(
+                "run {} is already recorded for workspace {} (runs are append-only)",
+                run.run_id, run.workspace,
+            ),
+        })
     }
 
     /// The most recent runs, newest first — run ids sort by their leading
     /// timestamp. `workspace` narrows the listing to one workspace.
-    pub fn list(&self, workspace: Option<&str>, limit: usize) -> Result<Vec<PipelineRunEntry>> {
+    pub async fn list(
+        &self,
+        workspace: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<PipelineRunEntry>> {
         let limit = limit.clamp(1, MAX_LIST_RUNS);
-        let workspaces: Vec<String> = if let Some(workspace) = workspace {
+        if let Some(workspace) = workspace {
             validate_name(workspace, "workspace")?;
-            vec![workspace.to_string()]
-        } else {
-            let mut workspaces = Vec::new();
-            for entry in read_dir_or_empty(&self.root)? {
-                let entry = entry?;
-                if entry.file_type()?.is_dir()
-                    && let Some(name) = entry.file_name().to_str()
-                {
-                    workspaces.push(name.to_string());
-                }
-            }
-            workspaces
-        };
+        }
         let mut newest = BTreeSet::new();
-        for workspace in workspaces {
-            for entry in read_dir_or_empty(&self.root.join(&workspace))? {
-                let entry = entry?;
-                let file_name = entry.file_name();
-                let Some(run_id) = file_name.to_str().and_then(|name| name.strip_suffix(".json"))
-                else {
-                    continue;
-                };
-                if entry.file_type()?.is_file() {
-                    newest.insert((run_id.to_string(), workspace.clone()));
-                    if newest.len() > limit {
-                        newest.pop_first();
-                    }
-                }
+        for (recorded_workspace, run_id) in self.storage.list_pipeline_runs().await? {
+            if workspace.is_some_and(|wanted| wanted != recorded_workspace) {
+                continue;
+            }
+            let Some(run_id) = run_id.strip_suffix(RECORD_SUFFIX) else { continue };
+            newest.insert((run_id.to_string(), recorded_workspace));
+            if newest.len() > limit {
+                newest.pop_first();
             }
         }
         let mut entries = Vec::with_capacity(newest.len());
         for (run_id, workspace) in newest.into_iter().rev() {
-            if let Some(record) = self.get(&workspace, &run_id)? {
+            if let Some(record) = self.get(&workspace, &run_id).await? {
                 entries.push(PipelineRunEntry { workspace, run_id, summary: record.summary });
             }
         }
@@ -142,35 +121,15 @@ impl PipelineRunStore {
 
     /// One run's full record — summary and event stream — or `None` when
     /// nothing was recorded under that identity.
-    pub fn get(&self, workspace: &str, run_id: &str) -> Result<Option<PublishPipelineRun>> {
+    pub async fn get(&self, workspace: &str, run_id: &str) -> Result<Option<PublishPipelineRun>> {
         validate_name(workspace, "workspace")?;
         validate_name(run_id, "runId")?;
-        read_run(&self.run_path(workspace, run_id))
+        let key = format!("{run_id}{RECORD_SUFFIX}");
+        let Some(bytes) = self.storage.read_pipeline_run(workspace, &key).await? else {
+            return Ok(None);
+        };
+        Ok(Some(serde_json::from_slice(&bytes)?))
     }
-
-    fn run_path(&self, workspace: &str, run_id: &str) -> PathBuf {
-        self.root.join(workspace).join(format!("{run_id}.json"))
-    }
-}
-
-fn read_run(path: &Path) -> Result<Option<PublishPipelineRun>> {
-    let text = match std::fs::read(path) {
-        Ok(text) => text,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.into()),
-    };
-    Ok(Some(serde_json::from_slice(&text)?))
-}
-
-fn read_dir_or_empty(
-    path: &Path,
-) -> Result<impl Iterator<Item = std::io::Result<std::fs::DirEntry>>> {
-    let entries = match std::fs::read_dir(path) {
-        Ok(entries) => Some(entries),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error.into()),
-    };
-    Ok(entries.into_iter().flatten())
 }
 
 /// The identifiers key filesystem paths, so their alphabet is closed:
