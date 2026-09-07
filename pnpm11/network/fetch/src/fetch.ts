@@ -26,7 +26,9 @@ export interface RequestInit extends globalThis.RequestInit {
   retry?: RetryTimeoutOptions
   /**
    * How long the request may make no progress before it fails, in
-   * milliseconds. `0` disables it.
+   * milliseconds. `0` disables it. Bounds the wait for the response head and
+   * for each chunk of the body; the connect phase is bounded by the
+   * dispatcher's own connect timeout, which cannot be set per request.
    */
   timeout?: number
   dispatcher?: Dispatcher

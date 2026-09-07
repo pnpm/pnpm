@@ -514,7 +514,8 @@ test('installation fails with a timeout error', async () => {
   try {
     await expect(
       execPnpm(['add', 'typescript@2.4.2', `--registry=${registry.url}`, '--fetch-timeout=500', '--fetch-retries=0'])
-    ).rejects.toThrow()
+    ).rejects.toThrow('ERR_PNPM_META_FETCH_FAIL')
+    expect(registry.requestCount()).toBeGreaterThan(0)
   } finally {
     registry.close()
   }
@@ -522,6 +523,7 @@ test('installation fails with a timeout error', async () => {
 
 interface StalledRegistry {
   url: string
+  requestCount: () => number
   close: () => void
 }
 
@@ -531,7 +533,10 @@ interface StalledRegistry {
  */
 async function startStalledRegistry (): Promise<StalledRegistry> {
   const sockets = new Set<Socket>()
-  const server = http.createServer(() => {})
+  let requests = 0
+  const server = http.createServer(() => {
+    requests++
+  })
   server.on('connection', (socket) => {
     sockets.add(socket)
     socket.on('close', () => {
@@ -543,6 +548,7 @@ async function startStalledRegistry (): Promise<StalledRegistry> {
   })
   return {
     url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`,
+    requestCount: () => requests,
     close: () => {
       for (const socket of sockets) socket.destroy()
       server.close()
