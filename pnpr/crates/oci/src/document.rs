@@ -44,14 +44,19 @@ pub struct TagEntry {
 /// Layer and config blobs are absent on purpose: they are content-addressed,
 /// immutable, and uploaded before anything points at them. The manifest is
 /// what publishes a release, so it is what the document records.
+///
+/// Both collections are kept sorted, by digest and by tag, because every
+/// lookup here is a binary search. They are private so that the ordering
+/// holds however the document was built: [`Self::parse`] sorts what it reads
+/// rather than trusting the order it was stored in.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageDocument {
     pub name: String,
     #[serde(default)]
-    pub manifests: Vec<ManifestEntry>,
+    manifests: Vec<ManifestEntry>,
     #[serde(default)]
-    pub tags: Vec<TagEntry>,
+    tags: Vec<TagEntry>,
 }
 
 impl ImageDocument {
@@ -61,7 +66,25 @@ impl ImageDocument {
     }
 
     pub fn parse(bytes: &[u8]) -> Result<Self, serde_json::Error> {
-        serde_json::from_slice(bytes)
+        let mut document: Self = serde_json::from_slice(bytes)?;
+        // Sorted on the way in rather than assumed: a document that reached
+        // storage in another order, or through another version, would make
+        // every binary search below miss entries it holds.
+        document.manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
+        document.tags.sort_by(|left, right| left.tag.cmp(&right.tag));
+        Ok(document)
+    }
+
+    /// The manifests this repository holds, ordered by digest.
+    #[must_use]
+    pub fn manifests(&self) -> &[ManifestEntry] {
+        &self.manifests
+    }
+
+    /// The tags this repository holds, ordered by name.
+    #[must_use]
+    pub fn tags(&self) -> &[TagEntry] {
+        &self.tags
     }
 
     #[must_use]

@@ -116,8 +116,8 @@ fn merge_skips_entries_whose_blob_was_lost() {
 
     let lost = HashSet::from([digest_of("one").blob_filename()]);
     assert!(!stored.merge(addition, &lost));
-    assert!(stored.manifests.is_empty());
-    assert!(stored.tags.is_empty());
+    assert!(stored.manifests().is_empty());
+    assert!(stored.tags().is_empty());
 }
 
 #[test]
@@ -127,7 +127,7 @@ fn merge_refuses_a_tag_with_no_manifest_behind_it() {
     addition.set_tag(tag("latest", "absent", 1));
 
     assert!(!stored.merge(addition, &HashSet::new()));
-    assert!(stored.tags.is_empty());
+    assert!(stored.tags().is_empty());
 }
 
 #[test]
@@ -254,4 +254,22 @@ fn a_stale_journaled_tag_cannot_move_a_re_pushed_tag_backward() {
     stored.merge(journaled, &HashSet::new());
 
     assert_eq!(stored.tag("latest").unwrap().digest, digest_of("one"));
+}
+
+#[test]
+fn a_document_stored_out_of_order_still_finds_its_entries() {
+    // Every lookup is a binary search, so a document that reached storage in
+    // another order would make entries it holds unreachable.
+    let stored = serde_json::json!({
+        "name": "acme/app",
+        "manifests": [entry("two"), entry("one")],
+        "tags": [tag("zeta", "one", 1), tag("alpha", "two", 1)],
+    });
+    let document = ImageDocument::parse(&serde_json::to_vec(&stored).unwrap()).unwrap();
+
+    assert!(document.manifest(&digest_of("one")).is_some());
+    assert!(document.manifest(&digest_of("two")).is_some());
+    assert_eq!(document.resolve("alpha").unwrap().digest, digest_of("two"));
+    assert_eq!(document.resolve("zeta").unwrap().digest, digest_of("one"));
+    assert_eq!(document.tag_names(), ["alpha", "zeta"]);
 }
