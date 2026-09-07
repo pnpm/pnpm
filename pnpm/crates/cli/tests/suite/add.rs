@@ -1624,8 +1624,6 @@ fn the_env_var_drives_the_saved_workspace_range() {
     }
 }
 
-/// The `pnpm-workspace.yaml` settings for a linking workspace:
-/// `linkWorkspacePackages: true` plus the given `saveWorkspaceProtocol`.
 fn linking_settings(save_workspace_protocol: Option<&str>) -> String {
     let protocol_line = save_workspace_protocol
         .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
