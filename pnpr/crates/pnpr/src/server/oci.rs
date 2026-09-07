@@ -611,14 +611,32 @@ impl Request {
         upload: &BlobUpload,
     ) -> Result<(), Response> {
         let Some(range) = self.headers.get(header::CONTENT_RANGE) else { return Ok(()) };
-        let offset = upload.offset().await.map_err(registry_error)?;
-        match range.to_str().ok().and_then(parse_range_start) {
-            Some(start) if start == offset => Ok(()),
-            // The refusal carries where the upload actually stands, so the
-            // client can resume rather than start over.
-            Some(_) => Err(range_not_satisfiable(&self.base, key.as_str(), upload.id(), offset)),
-            None => Err(error(ErrorCode::BlobUploadInvalid, "malformed Content-Range")),
+        let Some((start, end)) = range.to_str().ok().and_then(parse_content_range) else {
+            return Err(error(ErrorCode::BlobUploadInvalid, "malformed Content-Range"));
+        };
+        // A body of a different length than the range declares would leave
+        // the upload somewhere neither side named. Checked against the
+        // declared length before anything is written, rather than against
+        // where the upload ended up afterwards.
+        if let Some(declared) = self.content_length()
+            && declared != end - start + 1
+        {
+            return Err(error(
+                ErrorCode::BlobUploadInvalid,
+                "Content-Length disagrees with Content-Range",
+            ));
         }
+        let offset = upload.offset().await.map_err(registry_error)?;
+        if start == offset {
+            return Ok(());
+        }
+        // The refusal carries where the upload actually stands, so the client
+        // can resume rather than start over.
+        Err(range_not_satisfiable(&self.base, key.as_str(), upload.id(), offset))
+    }
+
+    fn content_length(&self) -> Option<u64> {
+        self.headers.get(header::CONTENT_LENGTH)?.to_str().ok()?.trim().parse().ok()
     }
 
     async fn upload_progress(&self, key: &CanonicalPackageName, upload: &BlobUpload) -> Response {
@@ -881,17 +899,17 @@ fn query_param(query: Option<&str>, key: &str) -> Option<String> {
     })
 }
 
-/// The first byte a `Content-Range: <start>-<end>` names.
+/// The inclusive bounds a `Content-Range: <start>-<end>` names.
 ///
-/// Both halves are parsed, not just the first: reading only the text before
-/// the hyphen would accept `0-garbage` whenever its leading number happened
-/// to match the offset, letting a client advance an upload with a range that
-/// means nothing.
-fn parse_range_start(range: &str) -> Option<u64> {
+/// Both are parsed and kept: reading only the text before the hyphen would
+/// accept `0-garbage` whenever its leading number happened to match the
+/// offset, and discarding the end would accept `5-2`. Either lets a client
+/// advance an upload under a range that means nothing.
+fn parse_content_range(range: &str) -> Option<(u64, u64)> {
     let (start, end) = range.trim().split_once('-')?;
-    let start = start.trim().parse().ok()?;
-    end.trim().parse::<u64>().ok()?;
-    Some(start)
+    let start: u64 = start.trim().parse().ok()?;
+    let end: u64 = end.trim().parse().ok()?;
+    (start <= end).then_some((start, end))
 }
 
 async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {

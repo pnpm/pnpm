@@ -776,3 +776,36 @@ async fn a_malformed_content_range_does_not_advance_an_upload() {
     let response = app.clone().oneshot(request).await.unwrap();
     assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
 }
+
+#[tokio::test]
+async fn a_range_that_contradicts_itself_or_the_body_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+
+    // An end before the start, and a body that is not the length the range
+    // declares. Both would otherwise leave the upload somewhere neither side
+    // named.
+    for (range, body) in [("5-2", "hello"), ("0-99", "hello")] {
+        let request = Request::patch(&location)
+            .header(header::AUTHORIZATION, &auth)
+            .header(header::CONTENT_RANGE, range)
+            .header(header::CONTENT_LENGTH, body.len())
+            .body(Body::from(body))
+            .unwrap();
+        let response = app.clone().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{range}");
+    }
+
+    let request =
+        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+}

@@ -88,14 +88,17 @@ fn the_blob_ceiling_bounds_the_whole_upload_not_one_chunk() {
 
 #[test]
 fn a_content_range_is_read_whole_or_not_at_all() {
-    use super::parse_range_start;
+    use super::parse_content_range;
 
-    assert_eq!(parse_range_start("0-4"), Some(0));
-    assert_eq!(parse_range_start(" 5 - 10 "), Some(5));
+    assert_eq!(parse_content_range("0-4"), Some((0, 4)));
+    assert_eq!(parse_content_range(" 5 - 10 "), Some((5, 10)));
+    assert_eq!(parse_content_range("7-7"), Some((7, 7)));
     // Reading only the text before the hyphen would take this for byte 0 and
     // let the chunk through whenever the upload happened to be there.
-    assert_eq!(parse_range_start("0-garbage"), None);
-    assert_eq!(parse_range_start("garbage-4"), None);
-    assert_eq!(parse_range_start("4"), None);
-    assert_eq!(parse_range_start(""), None);
+    assert_eq!(parse_content_range("0-garbage"), None);
+    assert_eq!(parse_content_range("garbage-4"), None);
+    // Discarding the end would take this for byte 5 and accept it.
+    assert_eq!(parse_content_range("5-2"), None);
+    assert_eq!(parse_content_range("4"), None);
+    assert_eq!(parse_content_range(""), None);
 }
