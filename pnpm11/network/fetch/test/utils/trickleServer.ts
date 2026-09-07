@@ -5,10 +5,6 @@ export interface TestServer extends AsyncDisposable {
   url: string
 }
 
-/**
- * Starts a server that hands each response to `respond`, which controls when
- * the body is written and whether it ever ends.
- */
 export async function startServer (respond: (res: ServerResponse) => void): Promise<TestServer> {
   const server = createServer((_req, res) => {
     res.writeHead(200, { 'content-type': 'application/octet-stream' })
