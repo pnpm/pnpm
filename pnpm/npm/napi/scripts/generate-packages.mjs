@@ -41,6 +41,7 @@ const TARGETS = [
   { platform: 'darwin', arch: 'arm64', codeTarget: 'darwin-arm64', packageTarget: 'darwin-arm64' },
   { platform: 'linux', arch: 'x64', libc: 'glibc', codeTarget: 'linux-x64', packageTarget: 'linux-x64' },
   { platform: 'linux', arch: 'arm64', libc: 'glibc', codeTarget: 'linux-arm64', packageTarget: 'linux-arm64' },
+  { platform: 'linux', arch: 'riscv64', libc: 'glibc', codeTarget: 'linux-riscv64', packageTarget: 'linux-riscv64' },
   { platform: 'linux', arch: 'x64', libc: 'musl', codeTarget: 'linux-x64-musl', packageTarget: 'linux-x64-musl' },
   { platform: 'linux', arch: 'arm64', libc: 'musl', codeTarget: 'linux-arm64-musl', packageTarget: 'linux-arm64-musl' },
 ]
