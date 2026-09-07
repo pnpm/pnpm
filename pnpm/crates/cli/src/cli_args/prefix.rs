@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use super::global::GlobalError;
 
-/// Print the current package prefix — the nearest directory holding a
-/// project, as [`find_local_prefix`] resolves it.
+/// Print the current package prefix — the nearest ancestor directory
+/// that holds a project.
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
     /// Print the global prefix

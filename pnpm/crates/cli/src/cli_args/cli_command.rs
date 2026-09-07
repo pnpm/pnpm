@@ -133,10 +133,10 @@ pub struct CliArgs {
 
     /// Whether `--dir` came from the command line rather than from its
     /// default. pnpm keeps that distinction: a `--dir` it was given is
-    /// taken as is, while the default resolves to the local prefix
-    /// ([`Self::apply_local_prefix`]) and `init` scaffolds in the process
-    /// cwd. `clap` cannot report it through a derived field, so the entry
-    /// point fills it in from the parsed matches.
+    /// taken as is, while the default resolves to the local prefix and
+    /// `init` scaffolds in the process cwd. `clap` cannot report it
+    /// through a derived field, so the entry point fills it in from the
+    /// parsed matches.
     #[clap(skip)]
     pub dir_from_command_line: bool,
 
