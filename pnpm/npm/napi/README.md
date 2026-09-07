@@ -107,7 +107,8 @@ The addon ships as prebuilt per-platform packages, the same model as the
   `optionalDependencies`.
 
 Supported targets: `win32-x64`, `win32-arm64`, `darwin-x64`, `darwin-arm64`,
-`linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl`.
+`linux-x64`, `linux-arm64`, `linux-riscv64`, `linux-x64-musl`,
+`linux-arm64-musl`.
 
 ## Local development
 

@@ -23,6 +23,7 @@ import path from 'node:path'
 import process from 'node:process'
 import {
   getBinCandidates,
+  hostTarget,
   readWrapperManifest,
   resolveInstalledBinary,
   splitBinSpecifier,
@@ -47,7 +48,7 @@ function setup () {
 
   const candidates = getBinCandidates()
   if (candidates.length === 0) {
-    fail(`pnpm does not ship a prebuilt binary for ${process.platform}-${process.arch}.`)
+    fail(`pnpm does not ship a prebuilt binary for ${hostTarget()}.`)
   }
 
   const nativeBinary = resolveInstalledBinary()

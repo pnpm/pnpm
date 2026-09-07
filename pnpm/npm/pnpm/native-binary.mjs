@@ -29,9 +29,7 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
-    // No musl build is released for this architecture. The pair is therefore
-    // glibc-only, and a musl host resolves no candidate at all rather than a
-    // binary it cannot run.
+    // Only a glibc build is released for riscv64.
     riscv64: {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
     },
@@ -39,9 +37,10 @@ const PLATFORMS = {
 }
 
 /**
- * Native binary specifiers to try, most-preferred first; empty when the host is
- * unsupported. The linux glibc/musl pair is ordered by detected libc, which
- * only decides the winner when both are installed (e.g. `npm install --force`).
+ * Native binary specifiers to try, most-preferred first; empty when no released
+ * binary runs on the host. The linux glibc/musl pair is ordered by detected
+ * libc, which only decides the winner when both are installed (e.g.
+ * `npm install --force`).
  *
  * @returns {string[]}
  */
@@ -55,17 +54,26 @@ export function getBinCandidates () {
     return [platformEntry]
   }
 
-  // `detectLinuxLibc` returns null when `process.report` is unavailable; that
-  // falls back to glibc, which is what the ordering defaulted to before.
+  // An unprobeable libc (`detectLinuxLibc` returns null) counts as glibc.
   const detected = detectLinuxLibc() === 'musl' ? 'musl' : 'glibc'
   const preferred = platformEntry[detected]
-  // An architecture released for only one libc has no entry for the other, and
+  // An architecture released for one libc only has no entry for the other, and
   // the binary it does ship cannot run there, so it offers no candidate.
   if (preferred == null) {
     return []
   }
   const alternate = platformEntry[detected === 'musl' ? 'glibc' : 'musl']
   return alternate == null ? [preferred] : [preferred, alternate]
+}
+
+/**
+ * How the host names itself in messages, spelled like the targets pnpm releases
+ * binaries for: `linux-x64-musl`, `darwin-arm64`.
+ *
+ * @returns {string}
+ */
+export function hostTarget () {
+  return `${platform}-${arch}${detectLinuxLibc() === 'musl' ? '-musl' : ''}`
 }
 
 /**
