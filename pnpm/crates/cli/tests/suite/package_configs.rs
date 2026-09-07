@@ -201,6 +201,80 @@ fn a_package_yaml_project_gets_its_settings() {
     assert_resolved_dep(&pinned, "100.0.0");
 }
 
+/// A `--filter`ed run installs the selected projects one by one through
+/// the plan that carries the whole selection, rather than the walk that
+/// installs a workspace's projects in order.
+#[test]
+fn a_filtered_recursive_install_applies_the_entry() {
+    let fixture = dedicated_lockfile_workspace(&format!(
+        "packageConfigs:\n  pinned:\n    overrides:\n      \"{DEP}\": 100.0.0\n",
+    ));
+    let pinned = fixture.project(
+        "pinned",
+        "pinned",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let other = fixture.project(
+        "other",
+        "other",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["--filter", "pinned", "install"]);
+
+    assert_resolved_dep(&pinned, "100.0.0");
+    assert!(!other.join("pnpm-lock.yaml").exists(), "an unselected project is not installed");
+}
+
+/// The workspace root installs alongside the projects it declares but is
+/// not one of them, so its own name reaches the lookup separately.
+#[test]
+fn the_workspace_root_gets_its_own_entry() {
+    let fixture = dedicated_lockfile_workspace(&format!(
+        "packageConfigs:\n  root:\n    overrides:\n      \"{DEP}\": 100.0.0\n",
+    ));
+    fixture.write_root_manifest(
+        "root",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+    let child = fixture.project(
+        "child",
+        "child",
+        ManifestDeps { prod: &[(PARENT, "100.0.0")], ..Default::default() },
+    );
+
+    fixture.run(["install"]);
+
+    assert_resolved_dep(&fixture.workspace, "100.0.0");
+    assert_resolved_dep(&child, "100.1.0");
+}
+
+/// `update` re-resolves, so a project entry's `overrides` has to hold
+/// through it the way it holds through `install`.
+#[test]
+fn update_keeps_the_entry_overrides() {
+    let fixture = dedicated_lockfile_workspace(&format!(
+        "packageConfigs:\n  pinned:\n    overrides:\n      \"{DEP}\": 100.0.0\n",
+    ));
+    let pinned = fixture.project(
+        "pinned",
+        "pinned",
+        ManifestDeps { prod: &[(PARENT, "^100.0.0")], ..Default::default() },
+    );
+    let other = fixture.project(
+        "other",
+        "other",
+        ManifestDeps { prod: &[(PARENT, "^100.0.0")], ..Default::default() },
+    );
+
+    for project in [&pinned, &other] {
+        fixture.run_at(project, ["update", "--latest"]);
+    }
+
+    assert_resolved_dep(&pinned, "100.0.0");
+    assert_resolved_dep(&other, "100.1.0");
+}
+
 #[test]
 fn config_get_reports_the_setting() {
     let fixture = WorkspaceFixture::new();
