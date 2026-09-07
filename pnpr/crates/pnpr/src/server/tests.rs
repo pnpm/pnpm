@@ -617,3 +617,26 @@ fn tilde_registry_names_a_registry_only_for_a_leading_tilde_and_a_name() {
     assert_eq!(tilde_registry("pkg~name"), None, "a tilde inside a name is part of it");
     assert_eq!(tilde_registry("@scope/pkg"), None);
 }
+
+#[tokio::test]
+async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve("127.0.0.1:0".parse().unwrap(), tmp.path().to_path_buf());
+    config.auth.oidc = serde_json::from_value(serde_json::json!([{
+        "name": "github", "issuer": "https://token.actions.githubusercontent.com", "audience": "pnpr",
+        "workloads": [{"identity": {"subject": "repo:org/repo:ref:refs/heads/main", "username": "ci"},
+            "registry": "local", "packages": ["foo"]}]
+    }])).unwrap();
+    let token = "header.payload.signature";
+    let app = app_with_config_and_token(config, token, record(true, &[]));
+    assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
+    assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn workload_namespace_does_not_consult_the_token_backend() {
+    let tmp = TempDir::new().unwrap();
+    let raw = "pnpr_workload_not-a-jwt";
+    let app = app_with_token(&tmp, raw, record(false, &[]));
+    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
+}

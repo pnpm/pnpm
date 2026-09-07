@@ -131,7 +131,10 @@ pub(super) async fn authenticate(
 }
 
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
-/// backend exactly once. A pnpr token — however the client carried it, see
+/// backend at most once. Browser sessions and prefixed workload credentials
+/// skip the persistent backend. Invalid OIDC
+/// credentials are rejected even on public routes.
+/// A pnpr token — however the client carried it, see
 /// [`token_credentials`] — is looked up as a full record so its read-only /
 /// CIDR restrictions can be enforced here (a violation is a `Forbidden`
 /// error); an unknown token, any other credential shape, and a missing
@@ -146,11 +149,20 @@ async fn resolve_caller(
     peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
     if let Some(raw_token) = header.and_then(token_credentials) {
-        let Some(record) = state.inner.auth.tokens.lookup_record(&raw_token).await? else {
-            return Ok(Identity::Anonymous);
-        };
-        check_token_restrictions(&record, method, path, peer)?;
-        return Ok(Identity::user(record.username));
+        if let Some(username) = state.inner.oidc.session(&raw_token)? {
+            return Ok(Identity::user(username));
+        }
+        if let Some(jwt) = raw_token.strip_prefix("pnpr_workload_") {
+            let workload = state.inner.oidc.workload(jwt).await?.ok_or_else(|| {
+                RegistryError::Unauthenticated { resource: "OIDC workload credentials".to_string() }
+            })?;
+            super::oidc::check_workload_request(&state.inner.config, &workload, method, path)?;
+            return Ok(Identity::user(workload.identity.username));
+        }
+        if let Some(record) = state.inner.auth.tokens.lookup_record(&raw_token).await? {
+            check_token_restrictions(&record, method, path, peer)?;
+            return Ok(Identity::user(record.username));
+        }
     }
     // Anything that is not a pnpr token — a user:password Basic pair, another
     // scheme, or no credentials — carries no request identity. Going through

@@ -1,3 +1,5 @@
+pub mod oidc;
+
 mod upstream;
 
 pub use self::upstream::{RedactedHeaders, UpstreamConfig};
@@ -552,6 +554,7 @@ impl SqlBackendSettings {
 /// `auth:` block plus runtime defaults.
 #[derive(Debug, Default, Clone)]
 pub struct AuthConfig {
+    pub oidc: Vec<oidc::OidcProvider>,
     pub htpasswd: HtpasswdConfig,
     pub tokens: TokensConfig,
 }
@@ -1165,6 +1168,8 @@ fn default_log_type() -> String {
 
 #[derive(Debug, Default, Deserialize)]
 struct AuthFile {
+    #[serde(default)]
+    oidc: Vec<oidc::OidcProvider>,
     #[serde(default)]
     htpasswd: HtpasswdFile,
     #[serde(default)]
@@ -1912,6 +1917,7 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
         .map(|raw| resolve_relative(raw, base_dir))
         .or_else(|| htpasswd_file.as_deref().map(default_tokens_path_sibling_of));
     AuthConfig {
+        oidc: file.oidc.clone(),
         htpasswd: HtpasswdConfig {
             file: htpasswd_file,
             max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),

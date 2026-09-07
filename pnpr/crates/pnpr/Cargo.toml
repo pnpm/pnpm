@@ -61,7 +61,7 @@ pnpm-store-dir                = { workspace = true }
 pnpm-shared-artifact-protocol = { workspace = true }
 pnpm-tarball                  = { workspace = true }
 async-trait                   = { workspace = true }
-axum                          = { workspace = true }
+axum                          = { workspace = true, features = ["query"] }
 base64                        = { workspace = true }
 bcrypt                        = { workspace = true }
 chrono                        = { workspace = true }

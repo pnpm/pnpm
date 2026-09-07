@@ -120,6 +120,7 @@ pnpr-upstream         = { path = "pnpr/crates/upstream" }
 pnpr-fixtures         = { path = "pnpr/crates/pnpr-fixtures" }
 
 # Dependencies
+openidconnect = { version = "4.0.1", default-features = false }
 async-recursion = { version = "1.1.1" }
 async-trait = { version = "0.1.83" }
 axum = { version = "0.8.7", default-features = false, features = [
