@@ -670,6 +670,10 @@ impl HostedBackend for S3Store {
         Arc::new(S3Store::namespaced(self, segment))
     }
 
+    fn namespace(&self) -> String {
+        self.prefix.clone()
+    }
+
     fn local_scratch_root(&self) -> &Path {
         &self.cache_root
     }

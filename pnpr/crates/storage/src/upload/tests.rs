@@ -207,9 +207,67 @@ async fn a_swept_upload_takes_its_repository_record_with_it() {
     storage.begin_blob_upload(&image("acme/app")).await.unwrap();
 
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 1);
-    let left: Vec<_> = std::fs::read_dir(tmp.path().join("storage").join(".pnpr-uploads"))
+    assert!(uploads_left(&tmp).is_empty(), "the sweep left {:?}", uploads_left(&tmp));
+}
+
+#[tokio::test]
+async fn staging_an_upload_leaves_nothing_behind_it() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = image("acme/app");
+
+    let upload = storage.begin_blob_upload(&name).await.unwrap();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"layer bytes").await.unwrap();
+    writer.finish().await.unwrap();
+    storage.stage_uploaded_blob(upload, &name, "sha256-abc").await.unwrap();
+
+    // Every successful push would otherwise leave one small file here
+    // forever, and the sweep has no age to judge a record by.
+    assert!(uploads_left(&tmp).is_empty(), "staging left {:?}", uploads_left(&tmp));
+}
+
+#[tokio::test]
+async fn a_record_left_without_its_upload_is_reclaimed() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    let upload = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
+    // What a push interrupted between the two removals leaves behind.
+    std::fs::remove_file(upload.path()).unwrap();
+
+    assert_eq!(storage.sweep_blob_uploads(Duration::from_hours(1)).await.unwrap(), 0);
+    assert!(uploads_left(&tmp).is_empty(), "the sweep left {:?}", uploads_left(&tmp));
+}
+
+/// Two organizations of one object-store backend, which share a scratch root
+/// and so are the pair a repository name alone cannot tell apart.
+fn two_orgs_of_one_bucket(tmp: &TempDir) -> (Storage, Storage) {
+    let hosted = HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::new(object_store::memory::InMemory::new()),
+        prefix: String::new(),
+    };
+    let root = Storage::new(&hosted, tmp.path().join("storage"), tmp.path().join("cache")).unwrap();
+    (root.for_hosted("first"), root.for_hosted("second"))
+}
+
+#[tokio::test]
+async fn an_upload_does_not_cross_between_organizations() {
+    let tmp = TempDir::new().unwrap();
+    let (first, second) = two_orgs_of_one_bucket(&tmp);
+
+    let upload = first.begin_blob_upload(&image("acme/app")).await.unwrap();
+    let id = upload.id().to_string();
+
+    // Both host `acme/app`, and both stage through the same directory. The
+    // second must still not reach the first's bytes.
+    assert!(second.open_blob_upload(&image("acme/app"), &id).await.unwrap().is_none());
+    assert!(first.open_blob_upload(&image("acme/app"), &id).await.unwrap().is_some());
+}
+
+fn uploads_left(tmp: &TempDir) -> Vec<std::ffi::OsString> {
+    std::fs::read_dir(tmp.path().join("storage").join(".pnpr-uploads"))
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
-        .collect();
-    assert!(left.is_empty(), "the sweep left {left:?}");
+        .collect()
 }

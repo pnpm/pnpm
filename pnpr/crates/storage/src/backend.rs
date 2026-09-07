@@ -90,6 +90,15 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// namespace so two orgs hosting the same `name@version` never collide.
     fn namespaced(&self, segment: &str) -> Arc<dyn HostedBackend>;
 
+    /// What separates this backend's objects from another organization's.
+    ///
+    /// Two views with the same namespace address the same objects, and two
+    /// with different ones never do. It names an organization where the local
+    /// scratch root cannot: on the object-store backend every organization
+    /// stages through one directory, so a scratch path alone says nothing
+    /// about who owns what is in it.
+    fn namespace(&self) -> String;
+
     /// The local directory this backend stages blobs in, and with them the
     /// commit journal that rolls a staged publish forward after a crash. Local
     /// even when the final home is a bucket: the decode/verify step writes

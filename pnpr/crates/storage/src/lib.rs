@@ -471,6 +471,10 @@ impl HostedBackend for Store {
         Arc::new(Store::namespaced(self, segment))
     }
 
+    fn namespace(&self) -> String {
+        self.root.to_string_lossy().into_owned()
+    }
+
     fn local_scratch_root(&self) -> &Path {
         &self.root
     }

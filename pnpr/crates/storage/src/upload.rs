@@ -23,8 +23,8 @@ use tokio::{
 pub(crate) const UPLOADS_DIR: &str = ".pnpr-uploads";
 
 /// Where an upload records the repository it was started for. The id alone
-/// would let a caller who learns one finish it into a different repository of
-/// the same organization, with bytes they never sent.
+/// would let a caller who learns one finish it into a different repository,
+/// with bytes they never sent.
 const REPOSITORY_SUFFIX: &str = ".repository";
 
 /// How long an untouched upload is kept before it is reclaimed.
@@ -64,6 +64,11 @@ impl BlobUpload {
     #[must_use]
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    /// The filename of this upload's repository record.
+    fn repository_record(&self) -> String {
+        repository_record(&self.id)
     }
 
     /// Open the upload for appending. Held for one request, so a chunk is
@@ -111,7 +116,7 @@ impl Storage {
             .open(&path)
             .await
             .map_err(RegistryError::Io)?;
-        fs::write(root.join(format!("{id}{REPOSITORY_SUFFIX}")), repository.as_str())
+        fs::write(root.join(repository_record(&id)), self.upload_owner(repository))
             .await
             .map_err(RegistryError::Io)?;
         Ok(BlobUpload { id, path })
@@ -120,8 +125,9 @@ impl Storage {
     /// Reopen an upload of `repository` by id.
     ///
     /// `None` when no such upload is held, and equally when one is held for
-    /// another repository: an id is a capability over the bytes its own
-    /// client sent, not over the organization's scratch space.
+    /// another repository or another organization: an id is a capability over
+    /// the bytes its own client sent, not over the scratch space they passed
+    /// through.
     pub async fn open_blob_upload(
         &self,
         repository: &CanonicalPackageName,
@@ -131,12 +137,12 @@ impl Storage {
             return Ok(None);
         }
         let root = self.uploads_root();
-        let held = match fs::read_to_string(root.join(format!("{id}{REPOSITORY_SUFFIX}"))).await {
+        let held = match fs::read_to_string(root.join(repository_record(id))).await {
             Ok(held) => held,
             Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(RegistryError::Io(error)),
         };
-        if held != repository.as_str() {
+        if held != self.upload_owner(repository) {
             return Ok(None);
         }
         let path = root.join(id);
@@ -153,7 +159,7 @@ impl Storage {
             return Ok(false);
         }
         let root = self.uploads_root();
-        let _ = fs::remove_file(root.join(format!("{id}{REPOSITORY_SUFFIX}"))).await;
+        let _ = fs::remove_file(root.join(repository_record(id))).await;
         match fs::remove_file(root.join(id)).await {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
@@ -184,6 +190,7 @@ impl Storage {
             fs::copy(&upload.path, &slot.tmp_path).await.map_err(RegistryError::Io)?;
             let _ = fs::remove_file(&upload.path).await;
         }
+        let _ = fs::remove_file(self.uploads_root().join(upload.repository_record())).await;
         Ok(slot)
     }
 
@@ -203,9 +210,14 @@ impl Storage {
         while let Some(entry) = entries.next_entry().await.map_err(RegistryError::Io)? {
             let name = entry.file_name();
             let name = name.to_string_lossy();
-            // The record of which repository an upload belongs to goes when
-            // that upload does, rather than on an age of its own.
-            if name.ends_with(REPOSITORY_SUFFIX) {
+            // A record has no age of its own: it goes when its upload does.
+            // One still here with no upload beside it belongs to a push that
+            // stopped between the two removals, and nothing else would ever
+            // reclaim it.
+            if let Some(id) = name.strip_suffix(REPOSITORY_SUFFIX) {
+                if !fs::try_exists(root.join(id)).await.unwrap_or(true) {
+                    let _ = fs::remove_file(entry.path()).await;
+                }
                 continue;
             }
             let Ok(metadata) = entry.metadata().await else { continue };
@@ -213,11 +225,22 @@ impl Storage {
             if idle.is_some_and(|idle| idle > max_age)
                 && fs::remove_file(entry.path()).await.is_ok()
             {
-                let _ = fs::remove_file(root.join(format!("{name}{REPOSITORY_SUFFIX}"))).await;
+                let _ = fs::remove_file(root.join(repository_record(&name))).await;
                 swept += 1;
             }
         }
         Ok(swept)
+    }
+
+    /// Who an upload started here belongs to.
+    ///
+    /// The repository alone is not enough. Every organization of an
+    /// object-store backend shares one uploads directory, so two of them
+    /// hosting the same repository name would otherwise reach each other's
+    /// uploads. The newline cannot appear in either half, so one owner has
+    /// exactly one spelling.
+    fn upload_owner(&self, repository: &CanonicalPackageName) -> String {
+        format!("{}\n{}", self.hosted.namespace(), repository.as_str())
     }
 
     fn uploads_root(&self) -> PathBuf {
@@ -229,6 +252,11 @@ impl Storage {
 /// a safe single path segment. Anything else never reaches the filesystem.
 fn is_upload_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// The filename holding the repository an upload was started for.
+fn repository_record(id: &str) -> String {
+    format!("{id}{REPOSITORY_SUFFIX}")
 }
 
 fn generate_upload_id() -> String {
