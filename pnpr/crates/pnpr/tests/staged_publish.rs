@@ -448,12 +448,68 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
 /// it for approval `age` ago. The record lives in the hosted store, which is
 /// the one thing replicas of a stateless deployment share.
 fn claim_stage_on_disk(storage: &std::path::Path, stage_id: &str, age: chrono::Duration) {
+    let since = chrono::Utc::now() - age;
+    write_claim_on_disk(
+        storage,
+        stage_id,
+        &since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+    );
+}
+
+/// Stamp `approvingSince` verbatim, for the values a well-behaved replica
+/// does not write.
+fn write_claim_on_disk(storage: &std::path::Path, stage_id: &str, since: &str) {
     let path = storage.join(".staged").join(format!("{stage_id}.json"));
     let mut record: Value =
         serde_json::from_slice(&std::fs::read(&path).expect("staged record on disk")).unwrap();
-    let since = chrono::Utc::now() - age;
-    record["approvingSince"] = json!(since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+    record["approvingSince"] = json!(since);
     std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+}
+
+/// Replicas time their claims by their own clocks. A claim from a replica
+/// running ahead of this one must hold: reading it as expired would hand the
+/// stage to a second approval while the first is still publishing it.
+#[tokio::test]
+async fn a_claim_from_a_replica_whose_clock_runs_ahead_holds() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    claim_stage_on_disk(tmp.path(), &stage_id, -chrono::Duration::minutes(2));
+
+    let approve = app
+        .oneshot(request(
+            "POST",
+            &format!("/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CONFLICT);
+}
+
+/// A claim pnpr cannot read must not be able to hold a stage forever.
+#[tokio::test]
+async fn a_claim_pnpr_cannot_read_does_not_hold_the_stage() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    write_claim_on_disk(tmp.path(), &stage_id, "whenever");
+
+    let approve = app
+        .oneshot(request(
+            "POST",
+            &format!("/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CREATED);
 }
 
 /// A stage is approved once. While another replica's approval holds the
