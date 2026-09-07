@@ -83,14 +83,16 @@ impl Request {
                 FetchOutcome::Ok(response) => response,
             };
             if let Some(declared) = upstream_response.headers().get(DOCKER_CONTENT_DIGEST) {
-                if let Ok(expected) = Digest::parse(reference) {
-                    let declared =
-                        declared.to_str().ok().and_then(|value| Digest::parse(value).ok());
-                    if declared.as_ref() != Some(&expected) {
-                        return Err(RegistryError::BadRequest {
-                            reason: "upstream manifest digest mismatch".to_string(),
-                        });
-                    }
+                let declared =
+                    declared.to_str().ok().and_then(|value| Digest::parse(value).ok()).ok_or_else(
+                        || RegistryError::BadRequest {
+                            reason: "invalid upstream manifest digest".to_string(),
+                        },
+                    )?;
+                if Digest::parse(reference).is_ok_and(|expected| expected != declared) {
+                    return Err(RegistryError::BadRequest {
+                        reason: "upstream manifest digest mismatch".to_string(),
+                    });
                 }
                 let mut response = Response::new(Body::empty());
                 for name in [

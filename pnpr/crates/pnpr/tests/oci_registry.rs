@@ -2200,15 +2200,17 @@ async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_he
     let manifest = image_manifest("config", &[]);
     let digest = digest_of(&manifest);
     let wrong = digest_of(b"different manifest");
-    for (declared, valid_body, expected) in [
-        (Some(digest.as_str()), true, StatusCode::OK),
-        (Some(wrong.as_str()), true, StatusCode::BAD_REQUEST),
-        (Some("invalid"), true, StatusCode::BAD_REQUEST),
-        (None, true, StatusCode::OK),
-        (None, false, StatusCode::BAD_REQUEST),
+    for (reference, declared, valid_body, expected) in [
+        (digest.as_str(), Some(digest.as_str()), true, StatusCode::OK),
+        (digest.as_str(), Some(wrong.as_str()), true, StatusCode::BAD_REQUEST),
+        (digest.as_str(), Some("invalid"), true, StatusCode::BAD_REQUEST),
+        (digest.as_str(), None, true, StatusCode::OK),
+        (digest.as_str(), None, false, StatusCode::BAD_REQUEST),
+        ("latest", Some(digest.as_str()), true, StatusCode::OK),
+        ("latest", Some("invalid"), true, StatusCode::BAD_REQUEST),
     ] {
         let mut upstream = mockito::Server::new_async().await;
-        let path = format!("/v2/other/app/manifests/{digest}");
+        let path = format!("/v2/other/app/manifests/{reference}");
         let mut head = upstream.mock("HEAD", path.as_str()).expect(1);
         if let Some(declared) = declared {
             head = head.with_header("docker-content-digest", declared);
