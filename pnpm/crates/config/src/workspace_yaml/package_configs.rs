@@ -33,7 +33,8 @@ pub struct ProjectConfig {
     /// off — as in pnpm 11.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hoist: Option<bool>,
-    /// `modulesDir`, resolved against the project's own directory.
+    /// `modulesDir`, resolved against the project's own directory the
+    /// way the workspace-wide setting resolves against the workspace.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modules_dir: Option<String>,
     /// `overrides`. Replaces the workspace-wide map rather than
@@ -64,7 +65,10 @@ impl ProjectConfig {
             }
         }
         if let Some(modules_dir) = self.modules_dir {
-            config.modules_dir = project_dir.join(modules_dir);
+            // The same resolution the top-level `modulesDir` gets, so a
+            // project entry and the workspace-wide setting read a value
+            // the same way.
+            config.modules_dir = super::resolve(project_dir, &modules_dir);
             // The same derivation `anchor_lockfile_paths` runs: the
             // virtual store follows the modules dir unless the
             // workspace pinned it, and a global virtual store is
