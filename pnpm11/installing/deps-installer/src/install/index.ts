@@ -164,6 +164,28 @@ class LockfileConfigMismatchError extends PnpmError {
   }
 }
 
+class InconsistentPatchHashError extends PnpmError {
+  constructor () {
+    super('INCONSISTENT_PATCH_HASH',
+      'Cannot proceed with the frozen installation. The lockfile records dependency paths whose ' +
+      'patch hashes disagree with its own "patchedDependencies"', {
+        hint: 'The lockfile disagrees with itself, which usually means it was hand-edited or a merge conflict was incorrectly resolved. ' +
+          'Repair your lockfile using "pnpm install --no-frozen-lockfile"',
+      })
+  }
+}
+
+class UncheckablePatchHashError extends PnpmError {
+  constructor () {
+    super('UNCHECKABLE_PATCH_HASH',
+      'Cannot proceed with the frozen installation. The lockfile\'s patch hashes cannot be checked ' +
+      'against its own "patchedDependencies"', {
+        hint: 'The lockfile is missing a package version or a usable "patchedDependencies" entry that checking needs. ' +
+          'Repair your lockfile using "pnpm install --no-frozen-lockfile"',
+      })
+  }
+}
+
 const BROKEN_LOCKFILE_INTEGRITY_ERRORS = new Set([
   'ERR_PNPM_UNEXPECTED_PKG_CONTENT_IN_STORE',
   'ERR_PNPM_TARBALL_INTEGRITY',
@@ -597,7 +619,8 @@ export async function mutateModules (
     (
       // Frozen materialization: pacquet reads the existing lockfile and
       // re-applies the resolver-policy gate as it walks it.
-      (ctx.existsNonEmptyWantedLockfile &&
+      (ctx.patchedDepPathsStatus === 'up-to-date' &&
+        ctx.existsNonEmptyWantedLockfile &&
         (opts.frozenLockfile === true || opts.frozenLockfileIfExists === true)) ||
       // Resolving install: pacquet (>= 0.11.7) re-resolves from the
       // manifests itself — applying the policy during fresh resolution —
@@ -985,6 +1008,10 @@ export async function mutateModules (
       !opts.hooks.afterAllResolved?.length &&
       opts.hooks.customResolvers == null &&
       !ctx.lockfileHadConflicts &&
+      // A lockfile that disagrees with its own `patchedDependencies`, or that could
+      // not be checked, needs the resolver to rewrite its dependency paths;
+      // composing onto it would carry the stale hashes forward.
+      ctx.patchedDepPathsStatus === 'up-to-date' &&
       ctx.wantedLockfile.lockfileVersion === LOCKFILE_VERSION &&
       !isEmptyLockfile(ctx.wantedLockfile) &&
       // `time` records publish dates for the importers' direct dependencies
@@ -1085,7 +1112,15 @@ export async function mutateModules (
       }
     }
     const outdatedLockfileSettings = outdatedLockfileSettingName != null
+    // A frozen install cannot re-resolve to settle either case, and each names only what it
+    // established: a suffix shown to disagree, or one that could not be judged at all. A lockfile
+    // whose conflicts were autofixed falls through to resolution instead.
+    if (frozenLockfile && !ctx.lockfileHadConflicts) {
+      if (ctx.patchedDepPathsStatus === 'stale') throw new InconsistentPatchHashError()
+      if (ctx.patchedDepPathsStatus === 'indeterminate') throw new UncheckablePatchHashError()
+    }
     let needsFullResolution = outdatedLockfileSettings ||
+      ctx.patchedDepPathsStatus !== 'up-to-date' ||
       opts.fixLockfile ||
       opts.updateChecksums ||
       !upToDateLockfileMajorVersion ||

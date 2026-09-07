@@ -11,6 +11,7 @@ import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import { PnpmError } from '@pnpm/error'
 import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
+  checkPatchedDepPaths,
   getGitBranchLockfileNamesSync,
   getLockfileImporterId,
   getWantedLockfileName,
@@ -735,6 +736,19 @@ async function assertWantedLockfileUpToDate (
     throw new PnpmError('RUN_CHECK_DEPS_OUTDATED_LOCKFILE', `Setting ${outdatedLockfileSettingName} of lockfile in ${wantedLockfileDir} is outdated`, {
       hint: 'Run `pnpm install` to update the lockfile',
     })
+  }
+
+  switch (checkPatchedDepPaths(wantedLockfile)) {
+    case 'stale':
+      throw new PnpmError('RUN_CHECK_DEPS_STALE_PATCH_HASHES', `The lockfile in ${wantedLockfileDir} has patch hashes that disagree with its own "patchedDependencies"`, {
+        hint: 'Run `pnpm install` to update the lockfile',
+      })
+    case 'indeterminate':
+      throw new PnpmError('RUN_CHECK_DEPS_UNCHECKABLE_PATCH_HASHES', `The lockfile in ${wantedLockfileDir} cannot be checked for stale patch hashes`, {
+        hint: 'Run `pnpm install` to update the lockfile',
+      })
+    case 'up-to-date':
+      break
   }
 
   if (!satisfiesPackageManifest(

@@ -1,12 +1,25 @@
 use super::{
     AddMockedRegistry, BINDING_GYP_DELETION_HUNK, CommandTempCwd, GYPFILE_FALSE_REMOVAL_PATCH,
     GitRepoFixture, IS_POSITIVE_BINDING_GYP_PATCH, IS_POSITIVE_HOOKS_FILE_PATCH,
-    IS_POSITIVE_POSTINSTALL_PATCH, MANIFEST_DELETION_PATCH, MARKER_PATCH, Value,
+    IS_POSITIVE_POSTINSTALL_PATCH, MANIFEST_DELETION_PATCH, MARKER_PATCH, Path, Value,
     append_workspace_yaml_key, assert_patch_apply_failure, assert_patch_install_scenario, fs,
     is_positive_store_row, pacquet, patch_file_hash, read_installed_index, read_wanted_lockfile,
     remove_dir_if_exists, setup_configured_patch, setup_configured_patch_with_yaml, snapshot_keys,
 };
 use assert_cmd::assert::OutputAssertExt;
+
+/// The map records the hash bare, so replacing the parenthesized form reaches
+/// only the segments and leaves `patchedDependencies` alone.
+fn staleify_patch_hash_suffixes(workspace: &Path, patch_hash: &str) {
+    let lockfile_path = workspace.join("pnpm-lock.yaml");
+    let text = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
+    let staled = text.replace(
+        &format!("(patch_hash={patch_hash})"),
+        "(patch_hash=0000000000000000000000000000000000000000000000000000000000000000)",
+    );
+    assert_ne!(staled, text, "the lockfile must carry a patch hash to make stale");
+    fs::write(&lockfile_path, staled).expect("write pnpm-lock.yaml");
+}
 
 /// TS: `patch package with exact version` (`patch.ts:24`).
 #[test]
@@ -523,4 +536,52 @@ fn install_level_patch_that_drops_gypfile_false_and_its_binding_gyp_needs_no_app
         !output.contains("ERR_PNPM_IGNORED_BUILDS"),
         "a deleted binding.gyp must not hold the install for approval; got:\n{output}",
     );
+
+/// TS: `stale patch_hash depPaths are repaired when the patchedDependencies
+/// header is already up to date` (`deps-installer/test/install/patch.ts`).
+#[test]
+fn an_install_repairs_stale_patch_hash_dep_paths() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    staleify_patch_hash_suffixes(&workspace, &patch_hash);
+
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let snapshots = snapshot_keys(&read_wanted_lockfile(&workspace));
+    assert!(
+        snapshots.contains(&format!("is-positive@1.0.0(patch_hash={patch_hash})")),
+        "the install must rewrite the stale segments: {snapshots:?}",
+    );
+    let installed = read_installed_index(&workspace);
+    assert!(installed.contains("// patched"), "installed: {installed}");
+
+    drop((root, npmrc_info)); // cleanup
+}
+
+/// TS: `a lockfile whose patch_hash depPaths disagree with the
+/// patchedDependencies header is rejected with frozenLockfile`
+/// (`deps-installer/test/install/patch.ts`).
+#[test]
+fn a_frozen_install_rejects_stale_patch_hash_dep_paths() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+
+    let patch_hash = patch_file_hash(&workspace, "is-positive@1.0.0.patch");
+    staleify_patch_hash_suffixes(&workspace, &patch_hash);
+
+    let output = pacquet(&workspace, ["install", "--frozen-lockfile", "--reporter=silent"])
+        .output()
+        .expect("run the frozen install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "the frozen install should fail: {stderr}");
+    assert!(
+        stderr.contains("ERR_PNPM_INCONSISTENT_PATCH_HASH"),
+        "the frozen install should name the inconsistency: {stderr}",
+    );
+
+    drop((root, npmrc_info)); // cleanup
 }

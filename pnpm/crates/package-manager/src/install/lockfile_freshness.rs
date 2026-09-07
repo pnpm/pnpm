@@ -1,5 +1,7 @@
 pub(super) mod directory_deps;
+pub(super) mod error;
 pub(super) mod manifest;
+pub(crate) use error::FreshnessCheckError;
 pub(super) use manifest::manifest_has_effective_dependencies;
 pub(crate) use manifest::{
     ImporterSatisfactionCheck, OptionalDependencyExclusions, check_importer_satisfies,
@@ -8,9 +10,8 @@ pub(crate) use manifest::{
 use rayon::prelude::*;
 
 use super::{
-    Arc, Catalogs, Config, Diagnostic, Display, Error, InstallError, InstallWithFreshLockfileError,
-    Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck, StalenessReason,
-    build_project_manifests_list, configured_or_discovered_workspace_dir,
+    Arc, Catalogs, Config, Lockfile, PackageManifest, Path, PathBuf, PnpmfileChecksumCheck,
+    StalenessReason, build_project_manifests_list, configured_or_discovered_workspace_dir,
 };
 
 /// Inputs for [`wanted_lockfile_satisfies_workspace`].
@@ -284,10 +285,10 @@ pub(super) fn check_importer_manifests_exist(
 /// Shared between dispatch states 1 and 2 so the explicit
 /// `--frozen-lockfile` flag and the implicit `preferFrozenLockfile:
 /// true` fast path agree on what "lockfile is up to date" means.
-/// Callers in state 1 surface any `Err` as [`InstallError`]; callers
+/// Callers in state 1 surface any `Err` as [`crate::InstallError`]; callers
 /// in state 2 treat a stale-lockfile `Err` as fall-through to the
 /// fresh-resolve path (and surface the rest as fatal — see the
-/// `From<FreshnessCheckError> for InstallError` impl below).
+/// `From<FreshnessCheckError> for InstallError` impl in [`error`]).
 ///
 /// `ignore_manifest_check` skips the per-importer specifier gate.
 /// The pnpm CLI passes it when delegating materialization through
@@ -504,52 +505,6 @@ pub(crate) fn check_lockfile_settings_drift(
         },
     )
     .map_err(FreshnessCheckError::Stale)
-}
-
-/// Outcome of [`check_lockfile_freshness`]. Splits "user
-/// configuration is malformed" (always fatal) from "lockfile is stale"
-/// (fatal for `--frozen-lockfile`, fall-through to the fresh-resolve
-/// path under `preferFrozenLockfile: true`).
-#[derive(Debug, Display, Error, Diagnostic)]
-pub(crate) enum FreshnessCheckError {
-    /// The lockfile has no entry for the root importer.
-    #[display(
-        r#"Cannot install with "frozen-lockfile" because pnpm-lock.yaml has no `importers["{importer_id}"]` entry. Regenerate the lockfile with `pnpm install --lockfile-only`."#
-    )]
-    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_NO_IMPORTER))]
-    NoImporter { importer_id: String },
-
-    /// A value in `pnpm.overrides` couldn't be parsed.
-    #[diagnostic(transparent)]
-    InvalidOverrides(#[error(source)] pnpm_config_parse_overrides::ParseOverridesError),
-
-    /// A configured `patchedDependencies` patch file couldn't be read
-    /// or hashed while computing the map to compare against the
-    /// lockfile.
-    #[diagnostic(transparent)]
-    CalcPatchHashes(#[error(source)] pnpm_patching::CalcPatchHashError),
-
-    /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
-    /// current settings.
-    Stale(#[error(not(source))] StalenessReason),
-}
-
-impl From<FreshnessCheckError> for InstallError {
-    fn from(error: FreshnessCheckError) -> InstallError {
-        match error {
-            FreshnessCheckError::NoImporter { importer_id } => {
-                InstallError::NoImporter { importer_id }
-            }
-            FreshnessCheckError::InvalidOverrides(inner) => InstallError::InvalidOverrides(inner),
-            FreshnessCheckError::CalcPatchHashes(inner) => InstallError::WithFreshLockfile(
-                InstallWithFreshLockfileError::CalcPatchHashes(inner),
-            ),
-            FreshnessCheckError::Stale(reason) => match reason.setting_name() {
-                Some(setting) => InstallError::LockfileConfigMismatch { setting },
-                None => InstallError::OutdatedLockfile { reason },
-            },
-        }
-    }
 }
 
 #[cfg(test)]

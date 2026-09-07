@@ -267,6 +267,38 @@ pub enum InstallError {
     )]
     LockfileConfigMismatch { setting: &'static str },
 
+    /// The lockfile's `(patch_hash=...)` depPath suffixes disagree with
+    /// its own `patchedDependencies` map. Distinct from
+    /// [`InstallError::LockfileConfigMismatch`], which is the lockfile
+    /// disagreeing with the *configuration*: no configuration change
+    /// repairs this one, so the fix quoted is a re-resolve rather than a
+    /// setting to look at.
+    #[display(
+        r#"Cannot proceed with the frozen installation. The lockfile records dependency paths whose patch hashes disagree with its own "patchedDependencies""#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_INCONSISTENT_PATCH_HASH),
+        help(
+            r#"The lockfile disagrees with itself, which usually means it was hand-edited or a merge conflict was incorrectly resolved. Repair your lockfile using "pnpm install --no-frozen-lockfile""#
+        )
+    )]
+    InconsistentPatchHash,
+
+    /// The lockfile's `(patch_hash=...)` depPath suffixes could not be checked
+    /// against its own `patchedDependencies`. A frozen install cannot
+    /// re-resolve to settle the question, and installing from a lockfile whose
+    /// patches are unverified is what this check exists to prevent.
+    #[display(
+        r#"Cannot proceed with the frozen installation. The lockfile's patch hashes cannot be checked against its own "patchedDependencies""#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_UNCHECKABLE_PATCH_HASH),
+        help(
+            r#"The lockfile is missing a package version or a usable "patchedDependencies" entry that checking needs. Repair your lockfile using "pnpm install --no-frozen-lockfile""#
+        )
+    )]
+    UncheckablePatchHash,
+
     /// `--frozen-lockfile` was requested against a lockfile whose
     /// `importers` map has no entry for the root project. Distinct
     /// from `NoLockfile` (file missing) — here the file exists but

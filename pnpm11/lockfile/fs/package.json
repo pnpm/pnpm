@@ -43,6 +43,8 @@
     "@pnpm/lockfile.utils": "workspace:*",
     "@pnpm/network.git-utils": "workspace:*",
     "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/patching.config": "workspace:*",
+    "@pnpm/patching.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@zkochan/rimraf": "catalog:",
     "comver-to-semver": "catalog:",

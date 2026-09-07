@@ -39,8 +39,6 @@ use crate::{
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
     prune_merged_branch_lockfile::prune_merged_branch_lockfile, report_merged_lockfile_conflicts,
 };
-use derive_more::{Display, Error};
-use miette::Diagnostic;
 use pnpm_catalogs_config::get_catalogs_from_workspace_manifest;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};

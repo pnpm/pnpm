@@ -15,6 +15,7 @@
 
 pub(crate) use manifest::auto_installed_peer_deps;
 pub use manifest::satisfies_package_manifest;
+pub use spec_diff::SpecDiff;
 
 use crate::{Lockfile, ProjectSnapshot, ResolvedDependencyMap, ResolvedDependencySpec};
 use derive_more::{Display, Error};
@@ -204,6 +205,28 @@ pub enum StalenessReason {
         config: BTreeMap<String, String>,
     },
 
+    /// The lockfile's `(patch_hash=...)` depPath suffixes disagree with its
+    /// own `patchedDependencies` map. Unlike every other reason here this
+    /// one is not drift against the config — it is the lockfile
+    /// contradicting itself, which only a hand edit or an incorrectly
+    /// resolved merge conflict produces. See
+    /// [`check_patched_dep_paths`](crate::check_patched_dep_paths).
+    #[display(
+        "`patchedDependencies` in the lockfile doesn't match its own `(patch_hash=...)` dependency paths"
+    )]
+    InconsistentPatchHashes,
+
+    /// The lockfile's `(patch_hash=...)` segments could not be checked against
+    /// its `patchedDependencies` at all, because the version or the patch set
+    /// one of them needs is missing. Distinct from
+    /// [`StalenessReason::InconsistentPatchHashes`]: nothing was shown to
+    /// disagree, but nothing was shown to agree either, so the lockfile cannot
+    /// be installed from unverified.
+    #[display(
+        "`patchedDependencies` in the lockfile cannot be checked against its own `(patch_hash=...)` dependency paths"
+    )]
+    UncheckablePatchHashes,
+
     /// The lockfile's `settings.autoInstallPeers` differs from the
     /// current install's `Config::auto_install_peers`. Only checked when
     /// the lockfile records a `settings` block, which is the only place
@@ -285,7 +308,12 @@ impl StalenessReason {
             StalenessReason::InjectWorkspacePackagesChanged { .. } => {
                 Some("settings.injectWorkspacePackages")
             }
-            StalenessReason::NoImporter { .. }
+            // Not a setting: the lockfile disagrees with itself rather than
+            // with any configured value, so it gets its own error rather
+            // than the config-mismatch one.
+            StalenessReason::InconsistentPatchHashes
+            | StalenessReason::UncheckablePatchHashes
+            | StalenessReason::NoImporter { .. }
             | StalenessReason::RemovedImporter { .. }
             | StalenessReason::SpecifiersDiffer(_)
             | StalenessReason::PublishDirectoryMismatch { .. }
@@ -295,85 +323,6 @@ impl StalenessReason {
             | StalenessReason::ResolutionDoesNotSatisfy { .. }
             | StalenessReason::LocalDependencyOutdated { .. } => None,
         }
-    }
-}
-
-/// Per-bucket diff against the manifest's flat union of deps.
-/// Identical entries are omitted. Empty buckets render as nothing in
-/// the `Display` impl so the resulting message lists only what the
-/// user needs to fix.
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct SpecDiff {
-    pub added: BTreeMap<String, String>,
-    pub removed: BTreeMap<String, String>,
-    pub modified: BTreeMap<String, (String, String)>,
-    /// The lockfile importer the diff belongs to, when the caller
-    /// checked a specific importer. Rendered into the message so a
-    /// workspace-wide freshness failure names the project whose
-    /// manifest drifted instead of only the dependency.
-    pub importer_id: Option<String>,
-}
-
-impl std::fmt::Display for SpecDiff {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if let Some(importer_id) = &self.importer_id {
-            write!(f, "\n* in importers[{importer_id:?}]:")?;
-        }
-        write_spec_bucket(f, "added", &self.added)?;
-        write_spec_bucket(f, "removed", &self.removed)?;
-        if !self.modified.is_empty() {
-            let (dep, verb) = match self.modified.len() {
-                1 => ("dependency", "is"),
-                _ => ("dependencies", "are"),
-            };
-            write!(f, "\n* {} {dep} {verb} mismatched:", self.modified.len())?;
-            for (key, (left, right)) in &self.modified {
-                write!(f, "\n  - {key} (lockfile: {left}, manifest: {right})")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// One `added` / `removed` bucket of [`SpecDiff`]'s `Display` impl.
-///
-/// Singular/plural matters here: the diff is rendered into
-/// `ERR_PNPM_OUTDATED_LOCKFILE` CI output, which users see and may quote in
-/// issues. "1 dependencies were added" reads wrong; the wording is pinned
-/// per count.
-fn write_spec_bucket(
-    f: &mut std::fmt::Formatter<'_>,
-    what: &str,
-    specs: &BTreeMap<String, String>,
-) -> std::fmt::Result {
-    if specs.is_empty() {
-        return Ok(());
-    }
-    let (dep, verb) = noun_verb_for(specs.len());
-    write!(f, "\n* {} {dep} {verb} {what}: ", specs.len())?;
-    let rendered: Vec<String> = specs
-        .iter()
-        .map(|(key, value)| format!("{key}@{value}"))
-        .collect();
-    write!(f, "{}", rendered.join(", "))
-}
-
-/// Singular/plural noun + past-tense verb for the `added` and
-/// `removed` buckets in [`SpecDiff`]'s `Display` impl. Pulled out so
-/// the arms stay readable.
-fn noun_verb_for(n: usize) -> (&'static str, &'static str) {
-    match n {
-        1 => ("dependency", "was"),
-        _ => ("dependencies", "were"),
-    }
-}
-
-/// `true` when the flat-record diff is empty in all three buckets —
-/// the manifest and the lockfile agree on the set of specifiers.
-impl SpecDiff {
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.added.is_empty() && self.removed.is_empty() && self.modified.is_empty()
     }
 }
 
@@ -397,7 +346,17 @@ pub fn check_lockfile_settings(
     check: LockfileSettingsCheck<'_>,
 ) -> Result<(), StalenessReason> {
     check_recorded_config(lockfile, &check)?;
-    check_recorded_settings(lockfile, &check.resolution)
+    check_recorded_settings(lockfile, &check.resolution)?;
+    // Last, because every gate above reports a cause this one cannot: each
+    // compares the lockfile against a configured value the user can act on,
+    // while this compares the lockfile against itself. A lockfile that drifted
+    // from the config is re-resolved either way, so running this first would
+    // only risk naming the wrong reason.
+    match crate::check_patched_dep_paths(lockfile) {
+        crate::PatchedDepPathsStatus::Stale => Err(StalenessReason::InconsistentPatchHashes),
+        crate::PatchedDepPathsStatus::Indeterminate => Err(StalenessReason::UncheckablePatchHashes),
+        crate::PatchedDepPathsStatus::UpToDate => Ok(()),
+    }
 }
 
 /// The config inputs the lockfile records verbatim: catalogs, overrides,
@@ -620,5 +579,6 @@ fn all_catalogs_are_up_to_date(
 mod tests;
 
 mod manifest;
+mod spec_diff;
 
 use manifest::dependency_specifiers_equal;

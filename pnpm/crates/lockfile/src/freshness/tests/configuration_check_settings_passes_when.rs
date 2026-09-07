@@ -767,3 +767,65 @@ fn check_settings_skips_the_pnpmfile_checksum_on_request() {
         .is_ok(),
     );
 }
+
+// ---------------------------------------------------------------------------
+// `(patch_hash=...)` segments against the lockfile's own `patchedDependencies`
+// ---------------------------------------------------------------------------
+
+/// The config agrees with the map, so only the segments can disagree — which
+/// the gates above this one never compare.
+#[test]
+fn check_settings_reports_a_segment_that_disagrees_with_the_lockfile_s_own_map() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  is-positive@1.0.0: abc123"
+        "importers:"
+        "  .: {}"
+        "snapshots:"
+        "  is-positive@1.0.0(patch_hash=stalehash): {}"
+    })
+    .expect("parse lockfile");
+    let config =
+        std::collections::BTreeMap::from([("is-positive@1.0.0".to_string(), "abc123".to_string())]);
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            patched_dependencies: Some(&config),
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("a segment disagreeing with the map must surface drift");
+    assert_eq!(err, StalenessReason::InconsistentPatchHashes);
+}
+
+/// A versioned patch key cannot be matched against a dependency whose version
+/// the lockfile never records. A frozen install must not accept what it could
+/// not check, but the reason says so rather than claiming a disagreement.
+#[test]
+fn check_settings_reports_a_segment_it_cannot_check() {
+    let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
+        "lockfileVersion: '9.0'"
+        "patchedDependencies:"
+        "  foo@1.0.0: abc123"
+        "importers:"
+        "  .: {}"
+        "packages:"
+        "  foo@git+file:///repo#0123456789012345678901234567890123456789:"
+        "    resolution: {type: git, repo: file:///repo, commit: '0123456789012345678901234567890123456789'}"
+        "snapshots:"
+        "  foo@git+file:///repo#0123456789012345678901234567890123456789(patch_hash=abc123): {}"
+    })
+    .expect("parse lockfile");
+    let config =
+        std::collections::BTreeMap::from([("foo@1.0.0".to_string(), "abc123".to_string())]);
+    let err = check_lockfile_settings(
+        &lockfile,
+        LockfileSettingsCheck {
+            patched_dependencies: Some(&config),
+            ..settings_check(&Catalogs::new())
+        },
+    )
+    .expect_err("a segment that cannot be checked must surface drift");
+    assert_eq!(err, StalenessReason::UncheckablePatchHashes);
+}

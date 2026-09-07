@@ -1,8 +1,8 @@
 use crate::fast_update_compose::Drift;
 use pnpm_deps_path::{index_of_dep_path_suffix, remove_suffix};
 use pnpm_lockfile::{
-    ImporterDepVersion, Lockfile, PackageKey, ProjectSnapshot, ResolvedDependencyMap,
-    SnapshotDepRef,
+    ImporterDepVersion, Lockfile, PackageKey, PatchedDepPathsStatus, ProjectSnapshot,
+    ResolvedDependencyMap, SnapshotDepRef, check_patched_dep_paths, name_version_from_package_key,
 };
 use pnpm_patching::{
     PatchGroupRecord, PatchInput, all_patch_keys, get_patch_info, group_patched_dependencies,
@@ -39,7 +39,15 @@ pub(crate) fn detect_patched_drift(
     let recorded = lockfile.patched_dependencies.as_ref().unwrap_or(&empty);
     let current = hashes.unwrap_or(&empty);
     if recorded == current {
-        return Drift::Clean;
+        // An agreeing map is not on its own enough: the suffixes the
+        // depPaths carry are what the install reads, and a lockfile whose
+        // suffixes contradict the map needs the rekey below even though
+        // nothing drifted against the config.
+        return if check_patched_dep_paths(lockfile) == PatchedDepPathsStatus::UpToDate {
+            Drift::Clean
+        } else {
+            Drift::Resolve
+        };
     }
     match groups_from_hashes(current) {
         Some(groups) => Drift::Absorb(PatchedPlan { current: current.clone(), groups }),
@@ -361,8 +369,7 @@ fn applied_patch_keys<'a>(
     };
     let mut applied = BTreeSet::new();
     for key in snapshots.keys() {
-        let (name, version) =
-            pnpm_deps_restorer::name_version_from_package_key(key, lockfile.packages.as_ref());
+        let (name, version) = name_version_from_package_key(key, lockfile.packages.as_ref());
         if let Some(info) = get_patch_info(Some(patch_groups), &name, &version).ok()? {
             applied.insert(info.key.as_str());
         }

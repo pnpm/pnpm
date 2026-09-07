@@ -5404,6 +5404,7 @@ dependencies = [
  "pnpm-diagnostics",
  "pnpm-fs",
  "pnpm-package-manifest",
+ "pnpm-patching",
  "pnpm-resolving-parse-wanted-dependency",
  "pretty_assertions",
  "rayon",

@@ -10,6 +10,7 @@ use super::{
     relocation::{prove_move, rekeyed_validation_now, relocated_state},
     update_workspace_state,
 };
+use pnpm_lockfile::{PatchedDepPathsStatus, check_patched_dep_paths};
 
 /// Outcome of [`check_deps_status_before_run`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -136,6 +137,9 @@ fn first_lockfile_or_setting_drift(
     if let Some(reason) = lockfile_conflict_drift(check, state.last_validated_timestamp) {
         return Some(reason);
     }
+    if let Some(reason) = lockfile_patch_hash_drift(check) {
+        return Some(reason);
+    }
     if let Some(setting) = first_setting_drift(
         state,
         config,
@@ -153,6 +157,28 @@ fn first_lockfile_or_setting_drift(
         return Some("Catalogs cache outdated".to_string());
     }
     None
+}
+
+/// A lockfile that disagrees with its own `patchedDependencies` links
+/// whatever the last install happened to leave in the virtual store, so
+/// the scripts about to run would see the wrong patched code. Reading it
+/// here is free: the checks below load it anyway.
+fn lockfile_patch_hash_drift(check: &OptimisticRepeatInstallCheck<'_>) -> Option<String> {
+    let lockfile_dir = check.workspace_root.display();
+    match check.lockfile
+        .get()
+        .ok()
+        .flatten()
+        .map(check_patched_dep_paths)
+    {
+        Some(PatchedDepPathsStatus::Stale) => Some(format!(
+            r#"The lockfile in {lockfile_dir} has patch hashes that disagree with its own "patchedDependencies""#,
+        )),
+        Some(PatchedDepPathsStatus::Indeterminate) => Some(format!(
+            "The lockfile in {lockfile_dir} cannot be checked for stale patch hashes",
+        )),
+        Some(PatchedDepPathsStatus::UpToDate) | None => None,
+    }
 }
 
 /// A `moved` tree leaves its patches to the content proof, as the install
