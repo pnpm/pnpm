@@ -103,7 +103,7 @@ additional claims you intend to trust. See
 [GitHub's OIDC reference](https://docs.github.com/en/actions/reference/security/oidc).
 
 The publishing job needs `id-token: write`. Request an ID token with pnpr's
-configured audience and pass it directly as the registry token. No pnpr
+configured audience and prefix it with `pnpr_workload_` as the registry token. No pnpr
 password, persistent API key, or token exchange is needed:
 
 ```yaml
@@ -120,7 +120,7 @@ steps:
         "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Fregistry.example")
       token=$(jq -er '.value' <<< "$response")
       echo "::add-mask::$token"
-      export NODE_AUTH_TOKEN="$token"
+      export NODE_AUTH_TOKEN="pnpr_workload_${token}"
       npm publish --registry=https://registry.example/~private/
 ```
 
@@ -145,10 +145,16 @@ Browser login also verifies a browser-bound state, nonce, and S256 PKCE.
 Unmapped or ambiguous identities are rejected. User subjects must be unique
 within a provider, including its workload bindings.
 
+The `pnpr_oidc_` and `pnpr_workload_` credential prefixes are reserved for OIDC.
+Workload credentials bypass the persistent token backend.
+
 Discovery and JWKS use HTTPS with redirects disabled and bounded response
-sizes and deadlines. Metadata is cached for five minutes. A verification
+sizes and deadlines. Literal and DNS-resolved destinations must be public IP
+addresses. OIDC requests do not use environment-configured HTTP proxies.
+Metadata is cached for five minutes. A verification
 failure can trigger a refresh at most once every 30 seconds per provider.
 An unavailable provider cannot turn an invalid credential into anonymous
-access. Login state lasts five minutes; pending logins and browser sessions
-are each capped at 1,024 per process. pnpr omits OIDC callback query strings
+access. Login state lives in a signed HttpOnly browser cookie for five minutes.
+Anonymous login starts reserve no server-side entries. Successful login replay
+records and browser sessions are each capped at 1,024 per process. pnpr omits OIDC callback query strings
 from its request logs. Configure reverse proxies to omit those queries too.

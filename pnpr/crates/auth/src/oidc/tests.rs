@@ -132,6 +132,9 @@ struct MockProvider {
     challenge: Mutex<Option<String>>,
     key_requests: Mutex<usize>,
     auth_method: Mutex<String>,
+    delay_discovery: std::sync::atomic::AtomicBool,
+    discovery_started: tokio::sync::Notify,
+    release_discovery: tokio::sync::Notify,
 }
 
 async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
@@ -143,9 +146,16 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         challenge: Mutex::new(None),
         key_requests: Mutex::new(0),
         auth_method: Mutex::new("client_secret_basic".to_string()),
+        delay_discovery: std::sync::atomic::AtomicBool::new(false),
+        discovery_started: tokio::sync::Notify::new(),
+        release_discovery: tokio::sync::Notify::new(),
     });
     let router = Router::new()
         .route("/.well-known/openid-configuration", get(async |State(state): State<Arc<MockProvider>>| {
+                if state.delay_discovery.load(std::sync::atomic::Ordering::Relaxed) {
+                    state.discovery_started.notify_one();
+                    state.release_discovery.notified().await;
+                }
                 let mut document = metadata(&state.issuer);
                 document["token_endpoint_auth_methods_supported"] = json!([*state.auth_method.lock().unwrap()]);
                 Json(document)
@@ -217,7 +227,10 @@ async fn browser_login_uses_pkce_nonce_cookie_binding_and_single_use_state() {
     assert!(state.session(&session.token).is_err());
     let start = state.start("example").await.unwrap();
     assert!(state.finish("example", &start.state, "other-browser", "code").await.is_err());
-    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
+    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
+    *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
+    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
     task.abort();
 }
 
@@ -289,10 +302,10 @@ async fn rejects_expired_state_and_wrong_nonce() {
     assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
     assert!(state.sessions.lock().unwrap().is_empty());
     let start = state.start("example").await.unwrap();
-    state.pending.lock().unwrap().values_mut().for_each(|login| {
-        login.created = Instant::now().checked_sub(Duration::from_mins(6)).unwrap();
-    });
-    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
+    let mut login = state.open_login(&start.browser_secret).unwrap();
+    login.expires = Utc::now().timestamp() - 1;
+    let expired_cookie = state.seal_login(&login).unwrap();
+    assert!(state.finish("example", &start.state, &expired_cookie, "code").await.is_err());
     task.abort();
 }
 
@@ -311,5 +324,52 @@ async fn selects_client_secret_post_from_discovery() {
     *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
     *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
     state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    task.abort();
+}
+
+#[tokio::test]
+async fn anonymous_login_starts_cannot_exhaust_or_evict_active_flows() {
+    let (provider, task) = mock_provider().await;
+    let mut config = config(&provider.issuer);
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    let state = OidcState::new(&[config], "https://registry.example").unwrap();
+    let start = state.start("example").await.unwrap();
+    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
+    *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
+    for _ in 0..super::MAX_ENTRIES + 32 {
+        state.start("example").await.unwrap();
+    }
+    assert!(state.consumed.lock().unwrap().is_empty());
+    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    assert!(state.finish("example", &start.state, &start.browser_secret, "code").await.is_err());
+    task.abort();
+}
+
+#[tokio::test]
+async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
+    let (provider, task) = mock_provider().await;
+    let state =
+        Arc::new(OidcState::new(&[config(&provider.issuer)], "https://registry.example").unwrap());
+    let token = sign(&payload(&provider.issuer), &provider.key);
+    state.workload(&token).await.unwrap();
+    state.providers["example"].metadata.lock().await.attempted_at =
+        Instant::now().checked_sub(Duration::from_secs(31));
+    provider.delay_discovery.store(true, std::sync::atomic::Ordering::Relaxed);
+    let refreshing = Arc::clone(&state);
+    let refresh =
+        tokio::spawn(
+            async move { refreshing.metadata(&refreshing.providers["example"], true).await },
+        );
+    tokio::time::timeout(Duration::from_secs(2), provider.discovery_started.notified())
+        .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_millis(100), state.workload(&token))
+        .await
+        .unwrap()
+        .unwrap();
+    provider.release_discovery.notify_one();
+    refresh.await.unwrap().unwrap();
     task.abort();
 }

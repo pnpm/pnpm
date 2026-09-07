@@ -96,7 +96,7 @@ async fn invalid_oidc_credentials_fail_closed_on_public_endpoints() {
     let storage = tempfile::TempDir::new().unwrap();
     config.storage = storage.path().to_path_buf();
     let app = crate::try_router(config).unwrap();
-    for token in ["pnpr_oidc_unknown", "e30.e30.invalid"] {
+    for token in ["pnpr_oidc_unknown", "pnpr_workload_e30.e30.invalid"] {
         let response = app
             .clone()
             .oneshot(

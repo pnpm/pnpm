@@ -632,3 +632,11 @@ async fn stored_tokens_with_jwt_shape_keep_their_backend_restrictions() {
     assert_eq!(status(app.clone(), signed(Method::GET, "/-/whoami", token)).await, StatusCode::OK);
     assert_eq!(status(app, signed(Method::PUT, "/foo", token)).await, StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn workload_namespace_does_not_consult_the_token_backend() {
+    let tmp = TempDir::new().unwrap();
+    let raw = "pnpr_workload_not-a-jwt";
+    let app = app_with_token(&tmp, raw, record(false, &[]));
+    assert_eq!(status(app, signed(Method::GET, "/-/whoami", raw)).await, StatusCode::UNAUTHORIZED);
+}

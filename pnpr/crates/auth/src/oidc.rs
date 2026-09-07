@@ -1,3 +1,5 @@
+mod network;
+
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD as BASE64_URL_SAFE_NO_PAD};
 use chrono::Utc;
 use openidconnect::{
@@ -9,8 +11,13 @@ use openidconnect::{
         CoreJwsSigningAlgorithm, CoreProviderMetadata,
     },
 };
+use p256::ecdsa::{
+    Signature, SigningKey,
+    signature::{Signer as _, Verifier as _},
+};
 use pnpr_config::oidc::{OidcBinding, OidcProvider, OidcWorkload};
 use pnpr_error::{RegistryError, Result};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -39,13 +46,15 @@ pub struct OidcState {
     providers: HashMap<String, Provider>,
     http: reqwest::Client,
     public_url: String,
-    pending: Mutex<HashMap<String, PendingLogin>>,
+    state_key: SigningKey,
+    consumed: Mutex<HashMap<String, i64>>,
     sessions: Mutex<HashMap<String, Session>>,
 }
 
 struct Provider {
     config: OidcProvider,
     metadata: AsyncMutex<MetadataCache>,
+    refresh: AsyncMutex<()>,
 }
 
 #[derive(Default)]
@@ -54,12 +63,13 @@ struct MetadataCache {
     attempted_at: Option<Instant>,
 }
 
+#[derive(Serialize, Deserialize)]
 struct PendingLogin {
     provider: String,
-    nonce: Nonce,
-    verifier: PkceCodeVerifier,
-    browser_hash: String,
-    created: Instant,
+    nonce: String,
+    verifier: String,
+    state_hash: String,
+    expires: i64,
 }
 
 struct Session {
@@ -89,6 +99,7 @@ impl OidcState {
                     Provider {
                         config: config.clone(),
                         metadata: AsyncMutex::new(MetadataCache::default()),
+                        refresh: AsyncMutex::new(()),
                     },
                 )
                 .is_some()
@@ -106,8 +117,14 @@ impl OidcState {
                 }
             }
         }
+        let state_key =
+            SigningKey::from_bytes((&super::fresh_secret()).into()).map_err(|_| unavailable())?;
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .dns_resolver(std::sync::Arc::new(network::PublicResolver(
+                pnpm_network::native_dns_resolver(),
+            )))
             .timeout(Duration::from_secs(10))
             .connect_timeout(Duration::from_secs(5))
             .build()
@@ -116,7 +133,8 @@ impl OidcState {
             providers,
             http,
             public_url: public_url.trim_end_matches('/').to_string(),
-            pending: Mutex::new(HashMap::new()),
+            state_key,
+            consumed: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
         })
     }
@@ -137,20 +155,14 @@ impl OidcState {
             )
             .set_pkce_challenge(challenge)
             .url();
-        let browser_secret = random_secret()?;
         let pending = PendingLogin {
             provider: provider_name.to_string(),
-            nonce,
-            verifier,
-            browser_hash: super::sha256_hex(browser_secret.as_bytes()),
-            created: Instant::now(),
+            nonce: nonce.secret().clone(),
+            verifier: verifier.secret().clone(),
+            state_hash: super::sha256_hex(state.secret().as_bytes()),
+            expires: Utc::now().timestamp() + LOGIN_TTL.as_secs() as i64,
         };
-        let mut logins = self.pending.lock().expect("OIDC pending mutex poisoned");
-        logins.retain(|_, login| login.created.elapsed() < LOGIN_TTL);
-        if logins.len() >= MAX_ENTRIES {
-            return Err(unavailable());
-        }
-        logins.insert(super::sha256_hex(state.secret().as_bytes()), pending);
+        let browser_secret = self.seal_login(&pending)?;
         Ok(LoginStart { url: url.to_string(), state: state.secret().clone(), browser_secret })
     }
 
@@ -161,36 +173,41 @@ impl OidcState {
         browser_secret: &str,
         code: &str,
     ) -> Result<LoginSession> {
-        let login = self
-            .pending
-            .lock()
-            .expect("OIDC pending mutex poisoned")
-            .remove(&super::sha256_hex(state.as_bytes()))
-            .ok_or_else(rejected)?;
+        let login = self.open_login(browser_secret)?;
+        let now = Utc::now().timestamp();
         if login.provider != provider_name
-            || login.created.elapsed() >= LOGIN_TTL
-            || login.browser_hash != super::sha256_hex(browser_secret.as_bytes())
+            || login.expires <= now
+            || login.state_hash != super::sha256_hex(state.as_bytes())
             || code.is_empty()
             || code.len() > 8192
         {
             return Err(rejected());
         }
+        if self
+            .consumed
+            .lock()
+            .expect("OIDC consumed mutex poisoned")
+            .contains_key(&login.state_hash)
+        {
+            return Err(rejected());
+        }
+        let nonce = Nonce::new(login.nonce);
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
         let metadata = self.metadata(provider, false).await?;
         let client = self.login_client(provider, metadata.clone())?;
         let response = client
             .exchange_code(AuthorizationCode::new(code.to_string()))
             .map_err(|_| rejected())?
-            .set_pkce_verifier(login.verifier)
+            .set_pkce_verifier(PkceCodeVerifier::new(login.verifier))
             .request_async(self)
             .await
             .map_err(|_| rejected())?;
         let token = response.id_token().ok_or_else(rejected)?;
         let mut verifier = token_verifier(&provider.config, &metadata)?;
-        if token.claims(&verifier, &login.nonce).is_err() {
+        if token.claims(&verifier, &nonce).is_err() {
             verifier = token_verifier(&provider.config, &self.metadata(provider, true).await?)?;
         }
-        let claims = token.claims(&verifier, &login.nonce).map_err(|_| rejected())?;
+        let claims = token.claims(&verifier, &nonce).map_err(|_| rejected())?;
         if let Some(expected) = claims.access_token_hash() {
             let actual = AccessTokenHash::from_token(
                 response.access_token(),
@@ -206,7 +223,40 @@ impl OidcState {
         validate_claims(&provider.config, &payload)?;
         let users = &provider.config.login.as_ref().ok_or_else(rejected)?.users;
         let binding = unique_binding(users.iter(), &payload)?;
-        self.issue_session(&binding.username, claims.expiration().timestamp())
+        let now = Utc::now().timestamp();
+        if login.expires <= now {
+            return Err(rejected());
+        }
+        let mut consumed = self.consumed.lock().expect("OIDC consumed mutex poisoned");
+        consumed.retain(|_, expires| *expires > now);
+        if consumed.contains_key(&login.state_hash) || consumed.len() >= MAX_ENTRIES {
+            return Err(rejected());
+        }
+        let session = self.issue_session(&binding.username, claims.expiration().timestamp())?;
+        consumed.insert(login.state_hash, login.expires);
+        Ok(session)
+    }
+
+    fn seal_login(&self, login: &PendingLogin) -> Result<String> {
+        let bytes = serde_json::to_vec(login).map_err(|_| unavailable())?;
+        let signature: Signature = self.state_key.sign(&bytes);
+        Ok(format!(
+            "{}.{}",
+            BASE64_URL_SAFE_NO_PAD.encode(bytes),
+            BASE64_URL_SAFE_NO_PAD.encode(signature.to_bytes()),
+        ))
+    }
+
+    fn open_login(&self, cookie: &str) -> Result<PendingLogin> {
+        if cookie.len() > 4096 {
+            return Err(rejected());
+        }
+        let (payload, signature) = cookie.split_once('.').ok_or_else(rejected)?;
+        let payload = BASE64_URL_SAFE_NO_PAD.decode(payload).map_err(|_| rejected())?;
+        let signature = BASE64_URL_SAFE_NO_PAD.decode(signature).map_err(|_| rejected())?;
+        let signature = Signature::from_slice(&signature).map_err(|_| rejected())?;
+        self.state_key.verifying_key().verify(&payload, &signature).map_err(|_| rejected())?;
+        serde_json::from_slice(&payload).map_err(|_| rejected())
     }
 
     /// Resolves only pnpr-issued browser sessions. Unknown or expired session tokens fail closed.
@@ -324,19 +374,21 @@ impl OidcState {
     }
 
     async fn metadata(&self, provider: &Provider, refresh: bool) -> Result<CoreProviderMetadata> {
-        let mut cache = provider.metadata.lock().await;
-        let recently_attempted =
-            cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL);
-        if let Some((fetched, metadata)) = &cache.value
-            && fetched.elapsed() < METADATA_TTL
-            && (!refresh || recently_attempted)
+        let cached = cached_metadata(&*provider.metadata.lock().await, refresh);
+        if let Some(metadata) = cached {
+            return Ok(metadata);
+        }
+        let _refresh = provider.refresh.lock().await;
         {
-            return Ok(metadata.clone());
+            let mut cache = provider.metadata.lock().await;
+            if let Some(metadata) = cached_metadata(&cache, refresh) {
+                return Ok(metadata);
+            }
+            if cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL) {
+                return Err(unavailable());
+            }
+            cache.attempted_at = Some(Instant::now());
         }
-        if recently_attempted {
-            return Err(unavailable());
-        }
-        cache.attempted_at = Some(Instant::now());
         let issuer = IssuerUrl::new(provider.config.issuer.clone()).map_err(|_| rejected())?;
         let metadata =
             CoreProviderMetadata::discover_async(issuer, self).await.map_err(|_| unavailable())?;
@@ -344,12 +396,13 @@ impl OidcState {
         if let Some(endpoint) = metadata.token_endpoint() {
             secure_url(endpoint.as_str())?;
         }
-        cache.value = Some((Instant::now(), metadata.clone()));
+        provider.metadata.lock().await.value = Some((Instant::now(), metadata.clone()));
         Ok(metadata)
     }
 
     async fn http_request(&self, request: HttpRequest) -> Result<HttpResponse> {
         secure_url(&request.uri().to_string())?;
+        network::validate_destination(&request.uri().to_string())?;
         let (parts, body) = request.into_parts();
         let mut response = self
             .http
@@ -372,6 +425,15 @@ impl OidcState {
         }
         builder.body(body).map_err(|_| unavailable())
     }
+}
+
+fn cached_metadata(cache: &MetadataCache, refresh: bool) -> Option<CoreProviderMetadata> {
+    let recently_attempted = cache.attempted_at.is_some_and(|at| at.elapsed() < REFRESH_INTERVAL);
+    cache
+        .value
+        .as_ref()
+        .filter(|(fetched, _)| fetched.elapsed() < METADATA_TTL && (!refresh || recently_attempted))
+        .map(|(_, metadata)| metadata.clone())
 }
 
 impl<'client> openidconnect::AsyncHttpClient<'client> for OidcState {

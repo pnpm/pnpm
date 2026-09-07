@@ -2,4 +2,4 @@
 "@pnpm/pnpr": minor
 ---
 
-Added OIDC browser sign-in and keyless npm publishing from GitHub Actions. Administrators can map provider subjects to registry users and restrict workload publishing to specific packages.
+Added OIDC browser sign-in. Administrators can map provider subjects to registry users. GitHub Actions can publish npm packages without a persistent registry token. Workload publishing is restricted to configured packages.

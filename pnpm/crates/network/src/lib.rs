@@ -989,15 +989,17 @@ where
 /// (pnpm/pnpm#14469). `getaddrinfo` also consults `nsswitch.conf`
 /// sources such as `nss-resolve` and `nss-mdns` that Hickory bypasses.
 fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
-    // One cap per process, like the libuv thread pool it mirrors: the
-    // redirect pair, every per-registry override, and the bundled-roots
-    // retry all draw on the same four permits.
-    static RESOLVER: LazyLock<CappedDnsResolver<NativeDnsResolver>> = LazyLock::new(|| {
-        const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
-        CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY)
-    });
+    builder.dns_resolver(native_dns_resolver())
+}
 
-    builder.dns_resolver(RESOLVER.clone())
+/// Returns the shared, concurrency-limited system resolver used by network clients.
+#[must_use]
+pub fn native_dns_resolver() -> Arc<dyn Resolve> {
+    static RESOLVER: LazyLock<Arc<CappedDnsResolver<NativeDnsResolver>>> = LazyLock::new(|| {
+        const DNS_CONCURRENCY: NonZeroUsize = NonZeroUsize::new(4).expect("four is non-zero");
+        Arc::new(CappedDnsResolver::new(NativeDnsResolver, DNS_CONCURRENCY))
+    });
+    Arc::clone(&RESOLVER) as Arc<dyn Resolve>
 }
 
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
