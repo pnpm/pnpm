@@ -213,6 +213,33 @@ fn the_builtin_jsr_route_is_always_allowlisted_and_public() {
     assert!(context.allows_registry("https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz"));
 }
 
+/// Every redirect hop is re-checked against this allowlist, so admitting
+/// cleartext on a built-in host would admit a downgrade to it.
+#[test]
+fn the_builtin_routes_admit_https_only() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    let context = RouteContext::from_config(&config);
+
+    assert!(!context.allows_registry("http://registry.npmjs.org/lodash"));
+    assert!(!context.allows_registry("http://npm.jsr.io/@jsr%2fstd__csv"));
+}
+
+/// An operator declares the scheme their own route is reached over, which on
+/// an internal network is legitimately plain HTTP.
+#[test]
+fn an_operator_declared_http_route_is_allowlisted() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("http://npm.internal.example/".to_string()),
+        package: None,
+    });
+    let context = RouteContext::from_config(&config);
+
+    assert!(context.allows_registry("http://npm.internal.example/lodash"));
+}
+
 #[test]
 fn custom_registry_is_off_allowlist_until_declared_public() {
     let mut config = base_config();

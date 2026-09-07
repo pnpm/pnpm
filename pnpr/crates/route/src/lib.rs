@@ -250,6 +250,10 @@ struct RouteMatcher {
     /// any registry.
     origin: Option<String>,
     package: Option<Glob<'static>>,
+    /// Whether the route allowlists `https` fetches only. Set on the built-in
+    /// routes, whose hosts are public and serve TLS — see
+    /// [`RouteContext::allows_registry`].
+    https_only: bool,
 }
 
 #[derive(Clone)]
@@ -492,12 +496,18 @@ impl RouteContext {
     }
 
     /// Whether pnpr is permitted to fetch from `url`'s registry at all. The
-    /// allowlist is the union of every configured route: the built-in npm
-    /// host, operator-declared public routes, configured upstream origins, and
+    /// allowlist is the union of every configured route: the built-in public
+    /// hosts, operator-declared public routes, configured upstream origins, and
     /// pnpr's own origin (which serves its hosted packages and `/~<name>/`
     /// endpoints). A client `registry`/`namedRegistries` matching none of
     /// these is rejected before any server-side fetch — the resolver's SSRF
     /// boundary — so there is no "unknown registry" to resolve anonymously.
+    ///
+    /// Every hop of a redirect is re-checked here too, so a route that admits
+    /// cleartext admits a downgrade to it. The built-in hosts therefore
+    /// allowlist `https` alone; an operator's own routes and upstreams keep
+    /// whatever scheme they are declared with, which on an internal network is
+    /// legitimately plain HTTP.
     #[must_use]
     pub fn allows_registry(&self, url: &str) -> bool {
         let fetch = nerf_dart(url);
@@ -514,11 +524,7 @@ impl RouteContext {
         if self.hosted_origin.as_deref().is_some_and(|hosted| fetch.starts_with(hosted)) {
             return true;
         }
-        if self
-            .public_routes
-            .iter()
-            .any(|route| route.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin)))
-        {
+        if self.public_routes.iter().any(|route| route.allowlists(&fetch, scheme_of(url))) {
             return true;
         }
         self.upstream_origins.iter().any(|origin| fetch.starts_with(origin))
@@ -661,7 +667,7 @@ impl RouteMatcher {
     /// [`RouteContext::from_config`], so it is allowlisted and public without
     /// any config, and ahead of any upstream credential for the same origin.
     fn npmjs() -> Self {
-        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None }
+        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None, https_only: true }
     }
 
     /// The other built-in public route: JSR, which every pnpm client routes
@@ -669,7 +675,7 @@ impl RouteMatcher {
     /// JSR dependency resolves through a default server. It hosts no private
     /// content, so the reasoning in [`Self::npmjs`] applies unchanged.
     fn jsr() -> Self {
-        Self { origin: Some(JSR_ORIGIN.to_string()), package: None }
+        Self { origin: Some(JSR_ORIGIN.to_string()), package: None, https_only: true }
     }
 
     /// Build a matcher from an operator-declared public route, failing
@@ -695,7 +701,16 @@ impl RouteMatcher {
                 None
             })?),
         };
-        Some(Self { origin, package })
+        Some(Self { origin, package, https_only: false })
+    }
+
+    /// Whether this route puts `fetch` (nerf-darted, so scheme-less) on the
+    /// allowlist when reached over `scheme`. A package-scoped route with no
+    /// registry allowlists nothing: it narrows an origin another rule already
+    /// admits.
+    fn allowlists(&self, fetch: &str, scheme: Option<&str>) -> bool {
+        self.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin))
+            && (!self.https_only || scheme == Some("https"))
     }
 
     fn matches(&self, fetch: &str, package: Option<&str>) -> bool {
