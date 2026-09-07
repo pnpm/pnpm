@@ -289,3 +289,28 @@ fn deserializing_directly_sorts_as_parsing_does() {
     assert!(document.manifest(&digest_of("one")).is_some());
     assert_eq!(document.tag_names(), ["alpha", "zeta"]);
 }
+
+#[test]
+fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
+    for artifact_type in [None, Some("")] {
+        for config_media_type in [None, Some("")] {
+            let mut manifest = serde_json::json!({
+                "schemaVersion": 2,
+                "mediaType": media_type::OCI_IMAGE_MANIFEST,
+                "config": { "digest": digest_of("config"), "size": 6 },
+                "subject": { "digest": digest_of("subject"), "size": 7 },
+            });
+            if let Some(artifact_type) = artifact_type {
+                manifest["artifactType"] = artifact_type.into();
+            }
+            if let Some(config_media_type) = config_media_type {
+                manifest["config"]["mediaType"] = config_media_type.into();
+            }
+            let result = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None);
+            assert!(matches!(result, Err(crate::ManifestError::MissingArtifactType)));
+            manifest["artifactType"] = "application/example.signature".into();
+            let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
+            assert_eq!(parsed.artifact_type(), Some("application/example.signature"));
+        }
+    }
+}

@@ -401,8 +401,10 @@ scratch for digest verification; they do not require the client to resend the la
 `GET /v2/<name>/referrers/<digest>` returns an OCI image index of manifests and
 indexes attached to that subject. It supports the `artifactType` filter and
 includes annotations. A push acknowledges its subject with `OCI-Subject`.
-Existing manifests are indexed when their repository's referrers are first
-queried. Removing a manifest removes its referrer entry; removing a tag keeps it.
+Follow the `Link` header to collect all pages, even when a filtered page is empty.
+Each page reads at most 32 manifests and 8 MiB of manifest content. Existing
+manifests are indexed incrementally as those pages are queried. Removing a
+manifest removes its referrer entry; removing a tag keeps it.
 
 `tags/list` and `_catalog` accept `n` and `last` for pagination and return a
 `Link` header when another page is available. `last` is an exclusive lexical

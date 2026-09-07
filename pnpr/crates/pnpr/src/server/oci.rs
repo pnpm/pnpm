@@ -72,6 +72,9 @@ const MAX_MANIFEST_REFERENCES: usize = 4096;
 /// How much of a blob is hashed per read when verifying a finished upload.
 const HASH_CHUNK: usize = 64 * 1024;
 
+const MAX_REFERRER_READS: usize = 32;
+const MAX_REFERRER_READ_BYTES: u64 = 8 * 1024 * 1024;
+
 const DOCKER_CONTENT_DIGEST: &str = "docker-content-digest";
 const DOCKER_UPLOAD_UUID: &str = "docker-upload-uuid";
 const API_VERSION_HEADER: &str = "docker-distribution-api-version";
@@ -215,12 +218,8 @@ struct Request {
 }
 
 impl Request {
-    fn paginate<Item: AsRef<str>>(
-        &self,
-        items: &mut Vec<Item>,
-        endpoint: &str,
-    ) -> Result<Option<String>, Refusal> {
-        let count = query_param(Some(&self.query), "n")
+    fn page_size(&self) -> Result<Option<usize>, Refusal> {
+        query_param(Some(&self.query), "n")
             .map(|value| {
                 if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
                     return Err(Refusal::new(
@@ -232,7 +231,15 @@ impl Request {
                     .parse::<usize>()
                     .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "n is too large"))
             })
-            .transpose()?;
+            .transpose()
+    }
+
+    fn paginate<Item: AsRef<str>>(
+        &self,
+        items: &mut Vec<Item>,
+        endpoint: &str,
+    ) -> Result<Option<String>, Refusal> {
+        let count = self.page_size()?;
         if let Some(last) = query_param(Some(&self.query), "last") {
             items.retain(|item| item.as_ref() > last.as_str());
         }
@@ -294,6 +301,11 @@ impl Request {
         let Ok(digest) = Digest::parse(digest) else {
             return error(ErrorCode::DigestInvalid, "not a supported digest");
         };
+        let Ok(last) =
+            query_param(Some(&self.query), "last").map(|value| Digest::parse(&value)).transpose()
+        else {
+            return error(ErrorCode::DigestInvalid, "last must be a supported digest");
+        };
         let (key, source) = match self.hosted_source(name) {
             Ok(found) => found,
             Err(refusal) => return refusal.respond(),
@@ -303,6 +315,8 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
+        let _guard =
+            self.state.inner.package_locks.lock(&format!("oci-referrers:{}", key.as_str())).await;
         let document =
             match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
                 .await
@@ -310,31 +324,85 @@ impl Request {
                 Ok(document) => document.unwrap_or_else(|| ImageDocument::new(key.as_str())),
                 Err(err) => return registry_error(err),
             };
-        let document = match self.backfill_referrers(&storage, &key, document).await {
-            Ok(document) => document,
-            Err(err) => return registry_error(err),
-        };
         let artifact_type = query_param(Some(&self.query), "artifactType");
-        let manifests: Vec<_> = document
-            .manifests()
-            .iter()
-            .filter_map(|entry| {
-                let metadata = entry.referrer.as_ref()?;
-                if metadata.subject.as_ref() != Some(&digest)
-                    || artifact_type
+        let artifact_type_digest = artifact_type.as_ref().map(|value| Digest::of(value.as_bytes()));
+        let start = document.manifests().partition_point(|entry| {
+            last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
+        });
+        let mut entries = document.manifests()[start..].iter().peekable();
+        let mut additions = Vec::new();
+        let mut referrers = Vec::new();
+        let mut inspected = 0;
+        let mut read_bytes = 0;
+        let mut response_bytes = 128;
+        let mut cursor = None;
+        while let Some(&entry) = entries.peek() {
+            let needs_read = entry.referrer.as_ref().is_none_or(|metadata| {
+                metadata.subject.as_ref() == Some(&digest)
+                    && artifact_type_digest
                         .as_ref()
-                        .is_some_and(|filter| metadata.artifact_type.as_ref() != Some(filter))
+                        .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
+            });
+            if needs_read {
+                if inspected >= MAX_REFERRER_READS
+                    || (inspected > 0 && read_bytes + entry.size > MAX_REFERRER_READ_BYTES)
                 {
-                    return None;
+                    break;
                 }
-                Some(ReferrerDescriptor {
-                    media_type: &entry.media_type,
-                    digest: &entry.digest,
-                    size: entry.size,
-                    artifact_type: metadata.artifact_type.as_deref(),
-                    annotations: &metadata.annotations,
-                })
-            })
+                let bytes = match read_manifest_bytes(&storage, &key, &entry.digest.blob_filename())
+                    .await
+                {
+                    Ok(Some(bytes)) => bytes,
+                    Ok(None) => {
+                        return error(
+                            ErrorCode::ManifestUnknown,
+                            "a referenced manifest is missing",
+                        );
+                    }
+                    Err(err) => return registry_error(err),
+                };
+                inspected += 1;
+                read_bytes += bytes.len() as u64;
+                let manifest = match Manifest::parse(&bytes, Some(&entry.media_type)) {
+                    Ok(manifest) => manifest,
+                    Err(err) => {
+                        return registry_error(RegistryError::Internal { reason: err.to_string() });
+                    }
+                };
+                let metadata = manifest.referrer_metadata();
+                let matches = metadata.subject.as_ref() == Some(&digest)
+                    && artifact_type
+                        .as_deref()
+                        .is_none_or(|filter| manifest.artifact_type() == Some(filter));
+                if entry.referrer.is_none() {
+                    let mut addition = entry.clone();
+                    addition.referrer = Some(metadata);
+                    additions.push(addition);
+                }
+                if matches {
+                    let descriptor_bytes =
+                        match serde_json::to_vec(&ReferrerDescriptor::new(entry, &manifest)) {
+                            Ok(bytes) => bytes.len() + 1,
+                            Err(err) => return registry_error(err.into()),
+                        };
+                    if !referrers.is_empty()
+                        && response_bytes + descriptor_bytes > MAX_MANIFEST_BYTES
+                    {
+                        break;
+                    }
+                    response_bytes += descriptor_bytes;
+                    referrers.push((entry, manifest));
+                }
+            }
+            cursor = Some(&entry.digest);
+            entries.next();
+        }
+        if let Err(err) = self.persist_referrer_metadata(&storage, &key, &additions).await {
+            return registry_error(err);
+        }
+        let manifests = referrers
+            .iter()
+            .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
             .collect();
         let mut response = json(
             StatusCode::OK,
@@ -344,30 +412,36 @@ impl Request {
         if artifact_type.is_some() {
             insert_header(&mut response, "oci-filters-applied", "artifactType");
         }
+        if entries.peek().is_some()
+            && let Some(cursor) = cursor
+        {
+            let mut query = url::form_urlencoded::Serializer::new(String::new());
+            query.append_pair("last", &cursor.to_string());
+            if let Some(artifact_type) = artifact_type {
+                query.append_pair("artifactType", &artifact_type);
+            }
+            insert_header(
+                &mut response,
+                "link",
+                &format!(
+                    r#"<{}/{}/referrers/{digest}?{}>; rel="next""#,
+                    self.base,
+                    key.as_str(),
+                    query.finish(),
+                ),
+            );
+        }
         self.caller_scoped(Some(key.as_str()), response)
     }
 
-    async fn backfill_referrers(
+    async fn persist_referrer_metadata(
         &self,
         storage: &Storage,
         key: &CanonicalPackageName,
-        mut document: ImageDocument,
-    ) -> Result<ImageDocument, RegistryError> {
-        let mut additions = Vec::new();
-        for entry in document.manifests().iter().filter(|entry| entry.referrer.is_none()) {
-            let bytes = read_manifest_bytes(storage, key, &entry.digest.blob_filename())
-                .await?
-                .ok_or_else(|| RegistryError::Internal {
-                    reason: format!("missing OCI manifest {} in {}", entry.digest, key.as_str()),
-                })?;
-            let manifest = Manifest::parse(&bytes, Some(&entry.media_type))
-                .map_err(|err| RegistryError::Internal { reason: err.to_string() })?;
-            let mut entry = entry.clone();
-            entry.referrer = Some(manifest.referrer_metadata());
-            additions.push(entry);
-        }
+        additions: &[ManifestEntry],
+    ) -> Result<(), RegistryError> {
         if additions.is_empty() {
-            return Ok(document);
+            return Ok(());
         }
         let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
         storage
@@ -375,7 +449,7 @@ impl Request {
                 let Some(bytes) = existing else { return Ok(None) };
                 let mut current = ImageDocument::parse(bytes)?;
                 let mut changed = false;
-                for entry in &additions {
+                for entry in additions {
                     if current.manifest(&entry.digest).is_some_and(|held| held.referrer.is_none()) {
                         current.insert_manifest(entry.clone());
                         changed = true;
@@ -384,10 +458,7 @@ impl Request {
                 Ok(changed.then(|| current.to_bytes()))
             })
             .await?;
-        for entry in additions {
-            document.insert_manifest(entry);
-        }
-        Ok(document)
+        Ok(())
     }
 
     /// `GET /v2/_catalog` — the repository names this caller may read.
@@ -398,6 +469,17 @@ impl Request {
         let Some(target) = addressed_registry(&self.state, self.registry.as_deref()) else {
             return error(ErrorCode::NameUnknown, "no registry is addressed here");
         };
+        match self.page_size() {
+            Ok(Some(0)) => {
+                return private_no_cache(json(
+                    StatusCode::OK,
+                    &Catalog { repositories: Vec::new() },
+                ));
+            }
+            Ok(_) => {}
+            Err(refusal) => return refusal.respond(),
+        }
+        let last = query_param(Some(&self.query), "last");
         let mut repositories = Vec::new();
         for source in hosted_sources(&self.state, &target, ECOSYSTEM) {
             let Some(hosted) = self.state.inner.config.hosted.get(&source) else { continue };
@@ -408,14 +490,15 @@ impl Request {
             };
             // A listing may only name what this caller could have fetched.
             repositories.extend(names.into_iter().filter(|name| {
-                authorize(
-                    &self.state,
-                    &self.identity,
-                    &RegistrySource::Hosted(source.clone()),
-                    name,
-                    Action::Access,
-                )
-                .is_ok()
+                last.as_ref().is_none_or(|last| name > last)
+                    && authorize(
+                        &self.state,
+                        &self.identity,
+                        &RegistrySource::Hosted(source.clone()),
+                        name,
+                        Action::Access,
+                    )
+                    .is_ok()
             }));
         }
         repositories.sort();
@@ -1012,6 +1095,18 @@ struct ReferrerDescriptor<'listing> {
     artifact_type: Option<&'listing str>,
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     annotations: &'listing std::collections::BTreeMap<String, String>,
+}
+
+impl<'listing> ReferrerDescriptor<'listing> {
+    fn new(entry: &'listing ManifestEntry, manifest: &'listing Manifest) -> Self {
+        Self {
+            media_type: &entry.media_type,
+            digest: &entry.digest,
+            size: entry.size,
+            artifact_type: manifest.artifact_type(),
+            annotations: manifest.annotations(),
+        }
+    }
 }
 
 fn insert_header(response: &mut Response, name: &'static str, value: &str) {

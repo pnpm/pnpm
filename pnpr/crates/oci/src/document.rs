@@ -1,9 +1,6 @@
 use crate::Digest;
 use serde::{Deserialize, Serialize};
-use std::{
-    cmp::Ordering,
-    collections::{BTreeMap, HashSet},
-};
+use std::{cmp::Ordering, collections::HashSet};
 
 /// One manifest the repository holds, keyed by the digest of its bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -12,7 +9,7 @@ pub struct ManifestEntry {
     pub digest: Digest,
     pub media_type: String,
     pub size: u64,
-    /// Absent on documents written before referrer metadata was indexed.
+    /// Missing metadata is populated from the manifest during referrer discovery.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub referrer: Option<ReferrerMetadata>,
 }
@@ -24,9 +21,7 @@ pub struct ReferrerMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub subject: Option<Digest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub artifact_type: Option<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub annotations: BTreeMap<String, String>,
+    pub artifact_type_digest: Option<Digest>,
 }
 
 /// One tag and the manifest it currently names.

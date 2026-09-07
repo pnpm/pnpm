@@ -18,6 +18,8 @@ pub enum ManifestError {
     UnsupportedMediaType { media_type: String },
     #[display("an image manifest must carry a config descriptor")]
     MissingConfig,
+    #[display("an image referrer must carry artifactType or a config mediaType")]
+    MissingArtifactType,
 }
 
 /// One reference from a manifest to bytes the registry must already hold.
@@ -76,6 +78,12 @@ impl Manifest {
         if !media_type::is_index(media_type) && manifest.config.is_none() {
             return Err(ManifestError::MissingConfig);
         }
+        if manifest.subject.is_some()
+            && !media_type::is_index(manifest.media_type())
+            && manifest.artifact_type().is_none()
+        {
+            return Err(ManifestError::MissingArtifactType);
+        }
         Ok(manifest)
     }
 
@@ -88,21 +96,32 @@ impl Manifest {
 
     #[must_use]
     pub fn referrer_metadata(&self) -> crate::ReferrerMetadata {
-        let artifact_type = self
-            .artifact_type
-            .as_deref()
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                (!media_type::is_index(self.media_type()))
-                    .then(|| self.config.as_ref().and_then(|config| config.media_type.as_deref()))
-                    .flatten()
-            })
-            .map(ToString::to_string);
-        crate::ReferrerMetadata {
-            subject: self.subject.as_ref().map(|subject| subject.digest.clone()),
-            artifact_type,
-            annotations: self.annotations.clone(),
-        }
+        let subject = self.subject.as_ref().map(|subject| subject.digest.clone());
+        let artifact_type_digest = subject
+            .as_ref()
+            .and_then(|_| self.artifact_type())
+            .map(|value| Digest::of(value.as_bytes()));
+        crate::ReferrerMetadata { subject, artifact_type_digest }
+    }
+
+    /// An image without an artifact type uses its config media type. An index
+    /// has no fallback artifact type.
+    #[must_use]
+    pub fn artifact_type(&self) -> Option<&str> {
+        self.artifact_type.as_deref().filter(|value| !value.is_empty()).or_else(|| {
+            if media_type::is_index(self.media_type()) {
+                return None;
+            }
+            self.config
+                .as_ref()
+                .and_then(|config| config.media_type.as_deref())
+                .filter(|value| !value.is_empty())
+        })
+    }
+
+    #[must_use]
+    pub fn annotations(&self) -> &BTreeMap<String, String> {
+        &self.annotations
     }
 
     /// Every digest that must already be in the store for this manifest to
