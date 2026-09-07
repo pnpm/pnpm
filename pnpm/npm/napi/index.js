@@ -13,6 +13,7 @@
 
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
 
 // `'glibc' | 'musl' | null` — `null` when the host isn't Linux or the libc
 // can't be probed (`process.report` may be unavailable/disabled). glibc builds
@@ -37,6 +38,14 @@ function platformTriples() {
     return order.map((suffix) => `linux-${arch}${suffix}`)
   }
   return [`${platform}-${arch}`]
+}
+
+// Node reports both POWER endiannesses as `ppc64` and npm's `cpu` field cannot
+// tell them apart, so a big-endian host can install the little-endian addon.
+// Only the little-endian build is released, so no platform package can serve
+// such a host and one built locally is all that is left.
+function hasReleasedPlatformPackage() {
+  return process.arch !== 'ppc64' || os.endianness() === 'LE'
 }
 
 function tryLoad(candidate, loadErrors) {
@@ -73,11 +82,12 @@ function isMissingCandidate(err, candidate) {
 }
 
 function loadFailure(triple, loadErrors) {
-  const error = new Error(
-    `Failed to load the pnpm Rust engine for ${triple}. ` +
-      'Install the matching @pnpm/napi platform package, or point ' +
+  const remedy = hasReleasedPlatformPackage()
+    ? 'Install the matching @pnpm/napi platform package, or point ' +
       'PNPM_NAPI_BINARY at a locally built .node file.'
-  )
+    : 'No addon is published for this host, so point PNPM_NAPI_BINARY at a ' +
+      'locally built .node file.'
+  const error = new Error(`Failed to load the pnpm Rust engine for ${triple}. ${remedy}`)
   if (loadErrors.length > 0) {
     error.cause = loadErrors[0]
   }
@@ -104,9 +114,10 @@ function loadBinding() {
   // Platform packages / local artifacts. On Linux both libc variants are tried,
   // so a wrong-ABI first candidate (an `ERR_DLOPEN_FAILED`) falls through to the
   // other rather than aborting.
+  const platformPackages = hasReleasedPlatformPackage()
   const candidates = [
     ...triples.flatMap((triple) => [
-      `@pnpm/napi.${triple}`,
+      ...(platformPackages ? [`@pnpm/napi.${triple}`] : []),
       path.join(__dirname, `pnpm-napi.${triple}.node`),
     ]),
     path.join(__dirname, 'pnpm-napi.node'),

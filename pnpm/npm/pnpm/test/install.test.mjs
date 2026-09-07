@@ -9,6 +9,14 @@ import { fileURLToPath } from 'node:url'
 
 import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 
+// Captured once, before any test fakes them. Restoring from these rather than
+// from whatever was current at the call means repeated fakes cannot restore
+// each other's state: `node:test` runs `after` hooks in registration order, so
+// a later fake's hook is the last to run.
+const REAL_HOST = ['platform', 'arch', 'report']
+  .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
+const REAL_ENDIANNESS = Object.getOwnPropertyDescriptor(os, 'endianness')
+
 const wrapperDir = path.resolve(fileURLToPath(import.meta.url), '../..')
 const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
 const HAS_A_SHELL = process.platform === 'win32' && 'Windows has no sh'
@@ -74,7 +82,7 @@ test('pnpm links a symlink that runs the placeholder when executables are symlin
 })
 
 test('linux riscv64 resolves the glibc package, and nothing under musl', async (t) => {
-  const { setLibc } = fakeHost(t, 'riscv64')
+  const { setLibc } = fakeHost(t, 'linux', 'riscv64')
 
   // `native-binary.mjs` reads process.platform and process.arch at module
   // scope, so it has to be imported again once they are faked. The libc is
@@ -90,8 +98,47 @@ test('linux riscv64 resolves the glibc package, and nothing under musl', async (
   assert.deepEqual(candidates(), [])
 })
 
+test('linux ppc64 and s390x resolve their glibc packages', async (t) => {
+  // The musl half of the contract is pinned by the riscv64 case above; these
+  // two share that code path and only need their table entries checked.
+  for (const [arch, specifier] of [
+    ['ppc64', '@pnpm/exe.linux-ppc64/pnpm'],
+    ['s390x', '@pnpm/exe.linux-s390x/pnpm'],
+  ]) {
+    const { setLibc, setEndianness } = fakeHost(t, 'linux', arch)
+    const { getBinCandidates: candidates } = await import(`../native-binary.mjs?${arch}`)
+
+    setLibc('glibc')
+    setEndianness('LE')
+    assert.deepEqual(candidates(), [specifier])
+  }
+})
+
+test('big-endian POWER resolves nothing, since only the little-endian build ships', async (t) => {
+  const { setLibc, setEndianness } = fakeHost(t, 'linux', 'ppc64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?ppc64-be')
+
+  setLibc('glibc')
+  // Node labels both byte orders `ppc64` and npm's `cpu` field cannot separate
+  // them, so npm will happily install the little-endian package here.
+  setEndianness('BE')
+  assert.deepEqual(candidates(), [])
+
+  setEndianness('LE')
+  assert.deepEqual(candidates(), ['@pnpm/exe.linux-ppc64/pnpm'])
+})
+
+test('freebsd x64 resolves the native package', async (t) => {
+  fakeHost(t, 'freebsd', 'x64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?freebsd')
+
+  // FreeBSD has no glibc/musl split, so its entry is a bare specifier and the
+  // libc ordering never applies to it.
+  assert.deepEqual(candidates(), ['@pnpm/exe.freebsd-x64/pnpm'])
+})
+
 test('an architecture released for both libcs still offers the other as a fallback', async (t) => {
-  const { setLibc } = fakeHost(t, 'x64')
+  const { setLibc } = fakeHost(t, 'linux', 'x64')
   const { getBinCandidates: candidates } = await import('../native-binary.mjs?x64')
 
   setLibc('glibc')
@@ -232,24 +279,25 @@ function runNpm (args, cwd) {
 }
 
 /**
- * Present the running process as a Linux host of `arch`, restoring the real
+ * Present the running process as a `platform`/`arch` host, restoring the real
  * descriptors when the test ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @param {string} platform The `process.platform` to present.
  * @param {string} arch The `process.arch` to present.
- * @returns {{ setLibc: (libc: 'glibc' | 'musl') => void }} `setLibc` fakes the
- *   `process.report` that `detectLinuxLibc` reads, so a case does not depend on
- *   the host's own libc.
+ * @returns {{ setLibc: (libc: 'glibc' | 'musl') => void, setEndianness: (order: 'LE' | 'BE') => void }}
+ *   `setLibc` fakes the `process.report` that `detectLinuxLibc` reads and
+ *   `setEndianness` fakes `os.endianness()`, so a case does not depend on the
+ *   host's own libc or byte order.
  */
-function fakeHost (t, arch) {
-  const saved = ['platform', 'arch', 'report']
-    .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
+function fakeHost (t, platform, arch) {
   t.after(() => {
-    for (const [key, descriptor] of saved) {
+    for (const [key, descriptor] of REAL_HOST) {
       if (descriptor) Object.defineProperty(process, key, descriptor)
     }
+    if (REAL_ENDIANNESS) Object.defineProperty(os, 'endianness', REAL_ENDIANNESS)
   })
-  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
   Object.defineProperty(process, 'arch', { value: arch, configurable: true })
   return {
     setLibc (libc) {
@@ -258,6 +306,9 @@ function fakeHost (t, arch) {
         value: { getReport: () => ({ header }) },
         configurable: true,
       })
+    },
+    setEndianness (order) {
+      Object.defineProperty(os, 'endianness', { value: () => order, configurable: true })
     },
   }
 }
