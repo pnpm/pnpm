@@ -1,6 +1,5 @@
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
-import { detectDepTypes } from '@pnpm/lockfile.detect-dep-types'
 import type { EnvLockfile, LockfileObject } from '@pnpm/lockfile.types'
 import { type DispatcherOptions, fetchWithDispatcher, type RetryTimeoutOptions } from '@pnpm/network.fetch'
 import type { DependenciesField } from '@pnpm/types'
@@ -11,6 +10,8 @@ import {
   type AuditPathIndex,
   buildAuditPathIndex,
   collectOptionalOnlyDepPaths,
+  collectReachableDepPaths,
+  detectAuditDepTypes,
   lockfileToAuditRequest,
   type PathInfo,
 } from './lockfileToAuditIndex.js'
@@ -47,9 +48,10 @@ export async function audit (
     timeout?: number
   }
 ): Promise<AuditReport> {
-  const depTypes = detectDepTypes(lockfile)
-  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts.include)
-  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly })
+  const depTypes = detectAuditDepTypes(lockfile)
+  const reachable = collectReachableDepPaths(lockfile, opts.include)
+  const optionalOnly = collectOptionalOnlyDepPaths(lockfile, opts.include, reachable)
+  const auditRequest = lockfileToAuditRequest(lockfile, { envLockfile: opts.envLockfile, include: opts.include, depTypes, optionalOnly, reachable })
   const registry = opts.registry.endsWith('/') ? opts.registry : `${opts.registry}/`
   const auditUrl = `${registry}-/npm/v1/security/advisories/bulk`
   const authHeaderValue = getAuthHeader(registry)
