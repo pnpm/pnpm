@@ -608,13 +608,20 @@ impl AddPipeline {
             InstallFamilyPlan::PerProject(project_dependencies) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
+                let workspace_packages = args.workspace_link_targets(cfg)?;
                 DedicatedProjectRuns {
                     config: cfg,
                     project_dependencies,
                     require_lockfile: false,
                     http_client: None,
                 }
-                .run(|state| Box::pin(args.clone().run::<Reporter>(state, None)))
+                .run(|state| {
+                    Box::pin(args.clone().run_with_link_targets::<Reporter>(
+                        state,
+                        None,
+                        workspace_packages.clone(),
+                    ))
+                })
                 .await
             }
             InstallFamilyPlan::Shared(selection) => {

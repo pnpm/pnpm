@@ -333,6 +333,19 @@ impl AddArgs {
         state: State,
         config_dependencies: Option<BTreeMap<String, String>>,
     ) -> miette::Result<()> {
+        let workspace_packages = self.workspace_link_targets(state.config)?;
+        self.run_with_link_targets::<Reporter>(state, config_dependencies, workspace_packages).await
+    }
+
+    /// [`Self::run`] with the `--workspace` link targets already indexed
+    /// (see [`Self::workspace_link_targets`]), so a plan that runs the add
+    /// once per project walks the workspace once.
+    pub(crate) async fn run_with_link_targets<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        config_dependencies: Option<BTreeMap<String, String>>,
+        workspace_packages: Option<WorkspacePackages>,
+    ) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path
         // instead of the regular `package.json` add: resolve + install
         // into `.pnpm-config`, then record the clean specifiers in
@@ -371,7 +384,6 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
-        let workspace_packages = self.workspace_link_targets(state.config)?;
         let mut state = state;
         let pins = record_package_manager_pins(&mut state, &self.package_names).await?;
         if pins.remaining.is_empty() {
@@ -531,7 +543,10 @@ impl AddArgs {
     /// The workspace packages `--workspace` links the added dependencies
     /// to, indexed by name and version. `Ok(None)` means the flag was not
     /// passed.
-    fn workspace_link_targets(&self, config: &Config) -> miette::Result<Option<WorkspacePackages>> {
+    pub(crate) fn workspace_link_targets(
+        &self,
+        config: &Config,
+    ) -> miette::Result<Option<WorkspacePackages>> {
         workspace_link_root(self.workspace, config.workspace_dir.as_deref())?
             .map(|workspace_root| {
                 recursive::discover_workspace_projects(workspace_root, config).map(

@@ -1967,29 +1967,42 @@ mod workspace_flag {
         drop(root);
     }
 
-    /// A recursive add rewrites the selectors once and saves them into
-    /// every selected project.
+    /// A recursive add saves the rewritten selectors into every selected
+    /// project, whether the workspace shares one lockfile or each project
+    /// keeps its own.
     #[test]
     fn links_the_workspace_package_into_every_recursively_selected_project() {
-        let (root, app_dir) = workspace("");
-        let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
-        let second_app_dir = workspace_dir.join("packages/app2");
-        std::fs::create_dir_all(&second_app_dir).expect("create second app dir");
-        write_json(
-            &second_app_dir.join("package.json"),
-            &serde_json::json!({ "name": "ws-app-2", "version": "1.0.0" }),
-        );
+        for shared_workspace_lockfile in [true, false] {
+            let (root, app_dir) =
+                workspace(&format!("sharedWorkspaceLockfile: {shared_workspace_lockfile}\n"));
+            let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+            let second_app_dir = workspace_dir.join("packages/app2");
+            std::fs::create_dir_all(&second_app_dir).expect("create second app dir");
+            write_json(
+                &second_app_dir.join("package.json"),
+                &serde_json::json!({ "name": "ws-app-2", "version": "1.0.0" }),
+            );
 
-        Command::cargo_bin("pnpm")
-            .expect("find the pnpm binary")
-            .with_current_dir(workspace_dir)
-            .with_args(["-r", "--filter", "ws-app*", "add", "--workspace", LIB, "--lockfile-only"])
-            .assert()
-            .success();
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(workspace_dir)
+                .with_args([
+                    "-r",
+                    "--filter",
+                    "ws-app*",
+                    "add",
+                    "--workspace",
+                    LIB,
+                    "--lockfile-only",
+                ])
+                .assert()
+                .success();
 
-        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
-        assert_eq!(saved_spec(&second_app_dir, LIB).as_deref(), Some("workspace:*"));
-        drop(root);
+            eprintln!("sharedWorkspaceLockfile={shared_workspace_lockfile}");
+            assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
+            assert_eq!(saved_spec(&second_app_dir, LIB).as_deref(), Some("workspace:*"));
+            drop(root);
+        }
     }
 
     #[test]
