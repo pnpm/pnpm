@@ -24,6 +24,13 @@ const KEEP_ALIVE_MAX_TIMEOUT = 600_000 // 10 minutes
  */
 export const DEFAULT_FETCH_TIMEOUT = 60_000
 
+/**
+ * Longest delay Node's timers accept. The socks library has no way to turn its
+ * handshake timeout off, so a disabled timeout (`0`) is expressed as a delay
+ * that no request outlives.
+ */
+const MAX_TIMER_DELAY = 2_147_483_647
+
 // Set an optimized global dispatcher so that requests without custom options
 // (no proxy, no custom certs) still benefit from better keep-alive and Happy Eyeballs.
 //
@@ -329,7 +336,7 @@ function createSocksDispatcher (
             host: connectOpts.hostname!,
             port: parseInt(String(connectOpts.port!), 10),
           },
-          timeout: timeout || undefined,
+          timeout: timeout === 0 ? MAX_TIMER_DELAY : timeout,
         })
 
         if (isHttps) {

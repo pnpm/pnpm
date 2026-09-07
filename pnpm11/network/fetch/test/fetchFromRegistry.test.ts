@@ -4,9 +4,11 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry, DEFAULT_FETCH_TIMEOUT } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+import { startServer } from './utils/trickleServer.js'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null
@@ -431,4 +433,23 @@ test('sec-fetch-* headers are stripped from requests', async () => {
   })
   const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
   expect(secFetchHeaders).toEqual([])
+})
+
+test('the timeout a registry fetcher is created with reaches the response body', async () => {
+  await using server = await startServer((res) => {
+    res.write('chunk')
+  })
+  const fetchFromRegistry = createFetchFromRegistry({ timeout: 300 })
+  try {
+    const response = await fetchFromRegistry(server.url, { retry: { retries: 0 } })
+    const startedAt = Date.now()
+
+    await expect(response.text()).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: 'UND_ERR_BODY_TIMEOUT' }),
+    })
+    // Falling back to the default timeout would also fail here, just much later.
+    expect(Date.now() - startedAt).toBeLessThan(DEFAULT_FETCH_TIMEOUT)
+  } finally {
+    clearDispatcherCache()
+  }
 })

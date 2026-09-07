@@ -110,7 +110,7 @@ export function createFetchFromRegistry (defaultOpts: CreateFetchFromRegistryOpt
         method: opts?.method,
         redirect: 'manual',
         retry: opts?.retry,
-        timeout: opts?.timeout ?? DEFAULT_FETCH_TIMEOUT,
+        timeout: opts?.timeout ?? defaultOpts.timeout ?? DEFAULT_FETCH_TIMEOUT,
       })
       if (
         opts?.redirect === 'manual' ||
