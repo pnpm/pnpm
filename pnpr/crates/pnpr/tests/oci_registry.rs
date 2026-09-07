@@ -1910,6 +1910,14 @@ async fn proxy_verifies_and_caches_manifest_and_blob_content() {
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(body_bytes(response.into_body()).await, b"config");
     }
+    let response = app
+        .clone()
+        .oneshot(Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], manifest.len().to_string());
+    assert!(body_bytes(response.into_body()).await.is_empty());
     manifest_mock.assert_async().await;
     blob_mock.assert_async().await;
 }
@@ -2080,4 +2088,44 @@ async fn scoped_mount_without_source_pull_permission_falls_back_to_upload() {
         get(&app, &format!("/v2/acme/dest/blobs/{digest}")).await.status(),
         StatusCode::NOT_FOUND,
     );
+}
+
+#[tokio::test]
+async fn cold_manifest_head_forwards_headers_without_getting_or_caching_a_body() {
+    for cache in [true, false] {
+        let mut upstream = mockito::Server::new_async().await;
+        let digest = digest_of(b"manifest");
+        let head = upstream
+            .mock("HEAD", "/v2/other/app/manifests/latest")
+            .with_header("content-length", "123")
+            .with_header("content-type", pnpr_oci::media_type::OCI_IMAGE_MANIFEST)
+            .with_header("docker-content-digest", &digest)
+            .expect(2)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        let source = config.upstreams.get_mut("dockerhub").unwrap();
+        source.url = format!("{}/", upstream.url());
+        source.cache = cache;
+        let app = router_with_auth(config, AuthState::in_memory());
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CONTENT_LENGTH], "123");
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
+            );
+            assert_eq!(response.headers()["docker-content-digest"], digest);
+            assert!(body_bytes(response.into_body()).await.is_empty());
+        }
+        head.assert_async().await;
+    }
 }

@@ -24,19 +24,14 @@ impl Upstream {
         self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::GET).await
     }
 
-    /// Read blob headers without transferring a layer body.
-    pub async fn head_oci_blob(
+    /// Read OCI object headers without transferring the body.
+    pub async fn head_oci(
         &self,
         repository: &str,
-        digest: &str,
+        endpoint: &str,
+        accept: &str,
     ) -> Result<FetchOutcome<ThrottledResponse>> {
-        self.fetch_oci_request(
-            repository,
-            &format!("blobs/{digest}"),
-            "application/octet-stream",
-            reqwest::Method::HEAD,
-        )
-        .await
+        self.fetch_oci_request(repository, endpoint, accept, reqwest::Method::HEAD).await
     }
 
     async fn fetch_oci_request(

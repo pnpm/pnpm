@@ -436,9 +436,16 @@ impl HostedBackend for Store {
         bytes: &[u8],
         _version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
-        write_atomic(&self.root.join(".package-index").join(name.as_str()).join(".present"), b"")
-            .await?;
-        Store::write_document(self, name, bytes).await?;
+        let marker = self.root.join(".package-index").join(name.as_str()).join(".present");
+        let indexed = fs::try_exists(&marker).await?;
+        write_atomic(&marker, b"").await?;
+        if let Err(err) = Store::write_document(self, name, bytes).await {
+            if !indexed {
+                fs::remove_file(&marker).await?;
+                self.prune_package_index(name).await?;
+            }
+            return Err(err);
+        }
         Ok(DocumentWrite::Written)
     }
 
@@ -495,7 +502,14 @@ impl HostedBackend for Store {
     }
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool> {
-        Store::remove_package(self, name).await
+        let removed = Store::remove_package(self, name).await?;
+        match fs::remove_dir_all(self.root.join(".package-index").join(name.as_str())).await {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => return Err(err.into()),
+        }
+        self.prune_package_index(name).await?;
+        Ok(removed)
     }
 
     fn list_blob_files(&self) -> BoxStream<'_, Result<HostedBlobFile>> {
@@ -1210,6 +1224,21 @@ impl Store {
         }
     }
 
+    async fn prune_package_index(&self, name: &CanonicalPackageName) -> Result<()> {
+        let root = self.root.join(".package-index");
+        let mut directory = root.join(name.as_str());
+        while directory != root {
+            match fs::remove_dir(&directory).await {
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) if err.kind() == ErrorKind::DirectoryNotEmpty => break,
+                Err(err) => return Err(err.into()),
+            }
+            directory.pop();
+        }
+        Ok(())
+    }
+
     async fn indexed_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut pending = vec![(self.root.join(".package-index"), String::new())];
@@ -1238,6 +1267,10 @@ impl Store {
 
     async fn list_package_names(&self) -> Result<Vec<String>> {
         let mut names = self.indexed_package_names().await?;
+        if fs::try_exists(self.root.join(".package-index/.complete")).await? {
+            names.sort();
+            return Ok(names);
+        }
         let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
         while let Some((dir, prefix, depth)) = pending.pop() {
             let mut entries = match fs::read_dir(&dir).await {

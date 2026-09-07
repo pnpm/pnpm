@@ -39,24 +39,7 @@ impl Request {
     ) -> Response {
         let result = self.load_proxy_manifest(key, source, reference).await;
         let response = match result {
-            Ok(Some(bytes)) => {
-                let manifest = match Manifest::parse(&bytes, None) {
-                    Ok(manifest) => manifest,
-                    Err(err) => return error(ErrorCode::ManifestInvalid, err.to_string()),
-                };
-                let digest = Digest::of(&bytes);
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header(header::CONTENT_TYPE, manifest.media_type())
-                    .header(header::CONTENT_LENGTH, bytes.len())
-                    .header(DOCKER_CONTENT_DIGEST, digest.to_string())
-                    .body(if self.method == Method::HEAD {
-                        Body::empty()
-                    } else {
-                        Body::from(bytes)
-                    })
-                    .unwrap_or_else(|_| server_error())
-            }
+            Ok(Some(response)) => response,
             Ok(None) => error(ErrorCode::ManifestUnknown, "upstream manifest does not exist"),
             Err(err) => registry_error(err),
         };
@@ -68,7 +51,7 @@ impl Request {
         key: &CanonicalPackageName,
         source: &RegistrySource,
         reference: &str,
-    ) -> Result<Option<Vec<u8>>, RegistryError> {
+    ) -> Result<Option<Response>, RegistryError> {
         if Digest::parse(reference).is_err() && !pnpr_oci::is_valid_tag(reference) {
             return Err(RegistryError::BadRequest {
                 reason: "invalid manifest reference".to_string(),
@@ -85,7 +68,32 @@ impl Request {
         if upstream.caches()
             && let Some(bytes) = storage.read_upstream_document(&namespace, key, ttl).await?
         {
-            return Ok(Some(bytes));
+            return manifest_response(bytes, self.method == Method::HEAD).map(Some);
+        }
+        if self.method == Method::HEAD {
+            let fetched = upstream
+                .head_oci(
+                    key.as_str(),
+                    &format!("manifests/{reference}"),
+                    &pnpr_oci::MANIFEST_MEDIA_TYPES.join(", "),
+                )
+                .await?;
+            return match fetched {
+                FetchOutcome::NotFound => Ok(None),
+                FetchOutcome::Ok(upstream_response) => {
+                    let mut response = Response::new(Body::empty());
+                    for name in [
+                        header::CONTENT_TYPE,
+                        header::CONTENT_LENGTH,
+                        header::HeaderName::from_static(DOCKER_CONTENT_DIGEST),
+                    ] {
+                        if let Some(value) = upstream_response.headers().get(&name) {
+                            response.headers_mut().insert(name, value.clone());
+                        }
+                    }
+                    Ok(Some(response))
+                }
+            };
         }
         let fetched = upstream
             .fetch_oci(
@@ -128,7 +136,7 @@ impl Request {
         if upstream.caches() {
             storage.write_upstream_document(&namespace, key, &bytes).await?;
         }
-        Ok(Some(bytes))
+        manifest_response(bytes, false).map(Some)
     }
 
     pub(super) async fn proxy_blob(
@@ -159,7 +167,9 @@ impl Request {
                 ));
             }
             if self.method == Method::HEAD {
-                let fetched = upstream.head_oci_blob(key.as_str(), &digest.to_string()).await?;
+                let fetched = upstream
+                    .head_oci(key.as_str(), &format!("blobs/{digest}"), "application/octet-stream")
+                    .await?;
                 return Ok(match fetched {
                     FetchOutcome::NotFound => {
                         error(ErrorCode::BlobUnknown, "upstream blob does not exist")
@@ -207,4 +217,16 @@ impl Request {
         }
         self.caller_scoped(Some(key.as_str()), api_version(response))
     }
+}
+
+fn manifest_response(bytes: Vec<u8>, head: bool) -> Result<Response, RegistryError> {
+    let manifest = Manifest::parse(&bytes, None)
+        .map_err(|err| RegistryError::BadRequest { reason: err.to_string() })?;
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, manifest.media_type())
+        .header(header::CONTENT_LENGTH, bytes.len())
+        .header(DOCKER_CONTENT_DIGEST, Digest::of(&bytes).to_string())
+        .body(if head { Body::empty() } else { Body::from(bytes) })
+        .unwrap_or_else(|_| server_error()))
 }
