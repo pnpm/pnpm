@@ -192,6 +192,27 @@ fn the_builtin_npmjs_route_is_always_allowlisted_and_public() {
     );
 }
 
+/// pnpm resolves the `@jsr` scope through npm.jsr.io with no configuration at
+/// all, so a graph holding a JSR dependency has to resolve through a default
+/// server too. See <https://github.com/pnpm/pnpm/issues/14649>.
+#[test]
+fn the_builtin_jsr_route_is_always_allowlisted_and_public() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    let context = RouteContext::from_config(&config);
+
+    assert!(context.allows_registry("https://npm.jsr.io/@jsr%2fstd__csv"));
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://npm.jsr.io/@jsr%2fstd__csv",
+            Some("@jsr/std__csv"),
+        ),
+        RouteClass::Public,
+    );
+    assert!(context.allows_registry("https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz"));
+}
+
 #[test]
 fn custom_registry_is_off_allowlist_until_declared_public() {
     let mut config = base_config();

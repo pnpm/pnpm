@@ -296,10 +296,12 @@ impl RouteContext {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let hosted_origin = nerf_prefix(&config.public_url);
-        // The official npm registry is a built-in public route, so it is both
-        // allowlisted and classified public without any operator config (and
-        // ahead of any upstream credential for the same origin — public wins).
-        let public_routes = std::iter::once(RouteMatcher::npmjs())
+        // The registries pnpm itself routes to without configuration are
+        // built-in public routes, so they are both allowlisted and classified
+        // public without any operator config (and ahead of any upstream
+        // credential for the same origin — public wins).
+        let public_routes = [RouteMatcher::npmjs(), RouteMatcher::jsr()]
+            .into_iter()
             .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
         // Proxied-route credentials come from `upstreams:` entries that declare
@@ -643,8 +645,12 @@ fn hosted_policy_id(registry: &str, package: &str) -> String {
     format!("{registry}\0{package}")
 }
 
-/// Nerf-darted origin of the official npm registry, the built-in public route.
+/// Nerf-darted origin of the official npm registry, a built-in public route.
 const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
+
+/// Nerf-darted origin of the JSR registry's npm compatibility layer, the
+/// registry pnpm's built-in `@jsr` scope route points at.
+const JSR_ORIGIN: &str = "//npm.jsr.io/";
 
 impl RouteMatcher {
     /// The built-in public route: the official npm registry, host-level (no
@@ -656,6 +662,14 @@ impl RouteMatcher {
     /// any config, and ahead of any upstream credential for the same origin.
     fn npmjs() -> Self {
         Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None }
+    }
+
+    /// The other built-in public route: JSR, which every pnpm client routes
+    /// the `@jsr` scope to without configuring anything, so a graph holding a
+    /// JSR dependency resolves through a default server. It hosts no private
+    /// content, so the reasoning in [`Self::npmjs`] applies unchanged.
+    fn jsr() -> Self {
+        Self { origin: Some(JSR_ORIGIN.to_string()), package: None }
     }
 
     /// Build a matcher from an operator-declared public route, failing
