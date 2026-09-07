@@ -194,26 +194,29 @@ describe('readPackageFileMap', () => {
 
   it('should resolve a variations package by the variant that matches supportedArchitectures', async () => {
     const pkgId = 'node@runtime:24.19.1'
-    const requestedVariant = createBinaryResolution('sha512-requestedVariant', 'win-x64')
+    // The requested OS must differ from the host's, otherwise the host variant
+    // matches the request too and wins by coming first.
+    const requestedOs = process.platform === 'win32' ? 'linux' : 'win32'
+    const requestedVariant = createBinaryResolution('sha512-requestedVariant', `${requestedOs}-x64`)
     storeIndex.set(storeIndexKey(requestedVariant.integrity, pkgId), createFilesIndex())
 
     const resolution: VariationsResolution = {
       type: 'variations',
       variants: [
         {
-          resolution: createBinaryResolution('sha512-hostVariant2', 'linux-x64'),
+          resolution: createBinaryResolution('sha512-hostVariant2', 'host'),
           targets: [{ os: process.platform, cpu: process.arch }],
         },
         {
           resolution: requestedVariant,
-          targets: [{ os: 'win32', cpu: 'x64' }],
+          targets: [{ os: requestedOs, cpu: 'x64' }],
         },
       ],
     }
 
     const result = await readPackageFileMap(resolution, pkgId, {
       ...defaultOpts(),
-      supportedArchitectures: { os: ['win32'], cpu: ['x64'] },
+      supportedArchitectures: { os: [requestedOs], cpu: ['x64'] },
     })
 
     expect(result).toBeDefined()
