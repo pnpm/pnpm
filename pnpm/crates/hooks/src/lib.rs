@@ -342,3 +342,82 @@ impl PnpmfileHooks for NoopHooks {
         true
     }
 }
+
+/// Hooks that run but contribute no `pnpmfileChecksum`, pnpm's
+/// `calculatePnpmfileChecksum: undefined`.
+///
+/// For an install against a lockfile that was written elsewhere and
+/// deliberately records no checksum, such as the one `pnpm deploy`
+/// generates for the deploy directory: the hooks' effects are already
+/// part of the recorded snapshots, so a checksum could only fail the
+/// frozen-lockfile gate.
+#[derive(derive_more::From)]
+pub struct ChecksumFreeHooks(Arc<dyn PnpmfileHooks>);
+
+#[async_trait]
+impl PnpmfileHooks for ChecksumFreeHooks {
+    async fn read_package(
+        &self,
+        pkg: Value,
+        ctx: HookContext,
+    ) -> Result<ReadPackageResult, HookError> {
+        self.0.read_package(pkg, ctx).await
+    }
+
+    async fn after_all_resolved(
+        &self,
+        lockfile: Value,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.0.after_all_resolved(lockfile, ctx).await
+    }
+
+    async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
+        self.0.update_config(config, ctx).await
+    }
+
+    async fn before_packing(
+        &self,
+        manifest: Value,
+        dir: &std::path::Path,
+        ctx: HookContext,
+    ) -> Result<Value, HookError> {
+        self.0.before_packing(manifest, dir, ctx).await
+    }
+
+    async fn pre_resolution(&self, ctx: PreResolutionHookContext, logger: PreResolutionHookLogger) {
+        self.0.pre_resolution(ctx, logger).await;
+    }
+
+    async fn filter_log(&self, log: Value, ctx: HookContext) -> bool {
+        self.0.filter_log(log, ctx).await
+    }
+
+    async fn has_filter_log(&self) -> bool {
+        self.0.has_filter_log().await
+    }
+
+    async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
+        None
+    }
+
+    fn source_path(&self) -> Option<&std::path::Path> {
+        self.0.source_path()
+    }
+
+    async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
+        self.0.get_custom_resolvers().await
+    }
+
+    async fn get_custom_fetchers(&self) -> Result<Vec<Arc<dyn CustomFetcher>>, HookError> {
+        self.0.get_custom_fetchers().await
+    }
+
+    async fn get_finder_names(&self) -> Result<Vec<String>, HookError> {
+        self.0.get_finder_names().await
+    }
+
+    async fn run_finder(&self, finder_name: &str, ctx: Value) -> Result<Value, HookError> {
+        self.0.run_finder(finder_name, ctx).await
+    }
+}
