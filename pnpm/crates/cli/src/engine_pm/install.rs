@@ -366,9 +366,9 @@ fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBu
         format!("resolve the temporary install directory at {}", install_dir.display())
     })?;
     if real.starts_with(&install_real) {
+        let real_display = real.display();
         return Err(miette::miette!(
-            "the installed {package_name} at {} did not materialize in the global virtual store",
-            real.display()
+            "the installed {package_name} at {real_display} did not materialize in the global virtual store"
         ));
     }
     slot_from_package_dir(&real, package_name).ok_or_else(|| {
