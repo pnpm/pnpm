@@ -1,8 +1,10 @@
 use crate::{
     State,
+    cargo_manifest::CargoDependencyKind,
     cli_args::{
         install::resolve_bool_override, lockfile_dir::LockfileDirArg,
-        pipelines::InstallFamilySelection, supported_architectures::SupportedArchitecturesArgs,
+        pipelines::InstallFamilySelection, recursive,
+        supported_architectures::SupportedArchitecturesArgs, workspace_option::workspace_link_root,
     },
     config_deps,
     engine_pm::{
@@ -17,11 +19,12 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
-use pnpm_package_manager::Add;
+use pnpm_package_manager::{Add, build_workspace_packages_map, parse_allow_build_selector};
 use pnpm_package_manifest::DependencyGroup;
 use pnpm_registry::RangeSpecStyle;
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_resolving_parse_wanted_dependency::parse_wanted_dependency;
+use pnpm_resolving_resolver_base::WorkspacePackages;
 use pnpm_workspace_manifest_writer::set_allow_builds;
 use std::{
     collections::BTreeMap,
@@ -39,6 +42,9 @@ pub struct AddDependencyOptions {
     /// Install the specified packages as optionalDependencies.
     #[clap(short = 'O', long)]
     save_optional: bool,
+    /// Install crate: packages as Cargo build dependencies.
+    #[clap(long = "save-build")]
+    save_build: bool,
     /// Using --save-peer will add one or more packages to peerDependencies and install them as dev dependencies
     #[clap(long, overrides_with = "no_save_peer")]
     save_peer: bool,
@@ -49,6 +55,24 @@ pub struct AddDependencyOptions {
 }
 
 impl AddDependencyOptions {
+    pub(crate) fn python_development(&self) -> miette::Result<bool> {
+        if self.save_build || self.save_optional || self.save_peer {
+            return Err(miette::miette!(
+                "pypi: dependencies do not support --save-build, --save-optional or --save-peer"
+            ));
+        }
+        if self.save_prod && self.save_dev {
+            return Err(miette::miette!(
+                "pypi: dependencies do not support combining --save-prod and --save-dev"
+            ));
+        }
+        Ok(self.save_dev)
+    }
+
+    pub(crate) fn save_build(&self) -> bool {
+        self.save_build
+    }
+
     /// `--save-peer` / `--no-save-peer` layered over the `savePeer` setting.
     fn with_save_peer_setting(self, save_peer: bool) -> Self {
         Self {
@@ -63,10 +87,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_prod || (!save_dev && !save_optional && !save_peer)
+        save_prod || (!save_dev && !save_optional && !save_build && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
@@ -75,10 +100,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        save_dev || (!save_prod && !save_optional && save_peer)
+        save_dev || (!save_prod && !save_optional && !save_build && save_peer)
     }
 
     /// Whether to add entry to `"optionalDependencies"`.
@@ -89,6 +115,38 @@ impl AddDependencyOptions {
     /// Whether to add entry to `"peerDependencies"`.
     fn save_peer(&self) -> bool {
         self.save_peer
+    }
+
+    pub(crate) fn cargo_dependency_kind(
+        &self,
+        has_node_packages: bool,
+    ) -> miette::Result<CargoDependencyKind> {
+        if self.save_optional || self.save_peer {
+            return Err(miette::miette!(
+                "crate: dependencies do not support --save-optional or --save-peer"
+            ));
+        }
+        if self.save_build && has_node_packages {
+            return Err(miette::miette!(
+                "--save-build cannot be applied to Node.js packages in a mixed add"
+            ));
+        }
+        let selected = [self.save_prod, self.save_dev, self.save_build]
+            .into_iter()
+            .filter(|selected| *selected)
+            .count();
+        if selected > 1 {
+            return Err(miette::miette!(
+                "crate: dependencies can be added to only one dependency table at a time"
+            ));
+        }
+        Ok(if self.save_dev {
+            CargoDependencyKind::Development
+        } else if self.save_build {
+            CargoDependencyKind::Build
+        } else {
+            CargoDependencyKind::Normal
+        })
     }
 
     /// Convert the `--save-*` flags to an iterator of [`DependencyGroup`]
@@ -110,10 +168,11 @@ impl AddDependencyOptions {
             save_prod,
             save_dev,
             save_optional,
+            save_build,
             save_peer,
             no_save_peer: _,
         } = self;
-        (save_prod || save_dev || save_optional || save_peer)
+        (save_prod || save_dev || save_optional || save_build || save_peer)
             .then(|| self.dependency_groups().collect())
     }
 }
@@ -145,8 +204,14 @@ pub struct AddArgs {
     /// Add the package as a configuration dependency.
     #[clap(long = "config")]
     pub config: bool,
+    /// Only add the dependency if a workspace project provides it. The
+    /// dependency is saved under the `workspace:` protocol and linked to
+    /// that project.
+    #[clap(long)]
+    pub workspace: bool,
     /// Package names allowed to run lifecycle (build) scripts during this
-    /// install, appended to `allowBuilds`. May be repeated.
+    /// install, appended to `allowBuilds`. Prefix a name with `!` to deny
+    /// its scripts instead. May be repeated.
     #[clap(long = "allow-build")]
     pub allow_build: Vec<String>,
     /// Dependencies are not downloaded. Only `pnpm-lock.yaml` is updated.
@@ -268,6 +333,24 @@ impl AddArgs {
         state: State,
         config_dependencies: Option<BTreeMap<String, String>>,
     ) -> miette::Result<()> {
+        let workspace_packages = self.workspace_link_targets(state.config)?;
+        self.run_with_link_targets::<Reporter>(
+            state,
+            config_dependencies,
+            workspace_packages.as_ref(),
+        )
+        .await
+    }
+
+    /// [`Self::run`] with the `--workspace` link targets already indexed
+    /// (see [`Self::workspace_link_targets`]), so a plan that runs the add
+    /// once per project walks the workspace once.
+    pub(crate) async fn run_with_link_targets<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        config_dependencies: Option<BTreeMap<String, String>>,
+        workspace_packages: Option<&WorkspacePackages>,
+    ) -> miette::Result<()> {
         // `--config` routes to the configurational-dependency path
         // instead of the regular `package.json` add: resolve + install
         // into `.pnpm-config`, then record the clean specifiers in
@@ -313,7 +396,10 @@ impl AddArgs {
             pins.report::<Reporter>();
             return Ok(());
         }
-        let package_names = pins.remaining.clone();
+        let package_names = match workspace_packages {
+            Some(workspace_packages) => workspace_selectors(&pins.remaining, workspace_packages)?,
+            None => pins.remaining.clone(),
+        };
 
         let range_spec_style = self.range_spec_style(state.config);
         let dependency_options =
@@ -351,6 +437,14 @@ impl AddArgs {
         {
             return Err(AddError::PackageManagerInSelection { request: request.clone() }.into());
         }
+        let package_names =
+            match workspace_link_root(self.workspace, state.config.workspace_dir.as_deref())? {
+                Some(_) => workspace_selectors(
+                    &self.package_names,
+                    &build_workspace_packages_map(Some(&selection.projects)).unwrap_or_default(),
+                )?,
+                None => self.package_names.clone(),
+            };
         let supported_architectures =
             self.supported_architectures.apply_to(state.config.supported_architectures.clone());
         let save_catalog_name = self
@@ -366,6 +460,7 @@ impl AddArgs {
             .save_target();
         let InstallFamilySelection {
             workspace_root: _,
+            workspace_cycles: _,
             mut projects,
             project_dependencies,
             ordered_dirs,
@@ -388,7 +483,7 @@ impl AddArgs {
             lockfile,
             lockfile_path: Some(&lockfile_path),
             dependency_groups,
-            package_names: &self.package_names,
+            package_names: &package_names,
             range_spec_style,
             save_catalog_name,
             resolved_packages,
@@ -425,6 +520,7 @@ impl AddArgs {
                 "`pnpm add --lockfile-only` cannot be combined with --global."
             ));
         }
+        workspace_link_root(self.workspace, None)?;
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let range_spec_style = self.range_spec_style(config);
@@ -448,6 +544,54 @@ impl AddArgs {
             self.save_prefix.as_deref().or(config.save_prefix.as_deref()),
         )
     }
+
+    /// The workspace packages `--workspace` links the added dependencies
+    /// to, indexed by name and version. `Ok(None)` means the flag was not
+    /// passed.
+    pub(crate) fn workspace_link_targets(
+        &self,
+        config: &Config,
+    ) -> miette::Result<Option<WorkspacePackages>> {
+        workspace_link_root(self.workspace, config.workspace_dir.as_deref())?
+            .map(|workspace_root| {
+                recursive::discover_workspace_projects(workspace_root, config).map(
+                    |(projects, _)| {
+                        build_workspace_packages_map(Some(&projects)).unwrap_or_default()
+                    },
+                )
+            })
+            .transpose()
+    }
+}
+
+/// The `workspace:` requests `--workspace` resolves in place of the
+/// selectors the user typed: `foo` becomes `foo@workspace:*`, `foo@^1`
+/// becomes `foo@workspace:^1`, and an explicit `workspace:` range is kept.
+///
+/// `--workspace` asks to link packages the workspace has, so a selector
+/// naming one it does not have is an error rather than a registry
+/// fallback.
+fn workspace_selectors(
+    selectors: &[String],
+    workspace_packages: &WorkspacePackages,
+) -> Result<Vec<String>, AddError> {
+    selectors
+        .iter()
+        .map(|selector| {
+            let parsed = parse_wanted_dependency(selector);
+            let Some(name) = parsed.alias else {
+                return Err(AddError::NoPkgNameInSpec { selector: selector.clone() });
+            };
+            if !workspace_packages.contains_key(&name) {
+                return Err(AddError::WorkspacePackageNotFound { name });
+            }
+            Ok(match parsed.bare_specifier {
+                None => format!("{name}@workspace:*"),
+                Some(range) if range.starts_with("workspace:") => selector.clone(),
+                Some(range) => format!("{name}@workspace:{range}"),
+            })
+        })
+        .collect()
 }
 
 /// Honor `--allow-build`: reject any package the root project explicitly
@@ -464,10 +608,21 @@ pub(crate) fn apply_allow_build(
     if allow_build.is_empty() {
         return Ok(());
     }
-    let overlap: Vec<&str> = allow_build
-        .iter()
-        .filter(|pkg| config.allow_builds.get(pkg.as_str()) == Some(&false))
-        .map(String::as_str)
+    let mut allow_build_map: Vec<(&str, bool)> = Vec::with_capacity(allow_build.len());
+    let mut allowed_only: Vec<&str> = Vec::new();
+    for pkg in allow_build {
+        let (name, allowed) = parse_allow_build_selector(pkg);
+        if name.is_empty() {
+            return Err(AllowBuildError::MissingPackage.into());
+        }
+        allow_build_map.push((name, allowed));
+        if allowed {
+            allowed_only.push(name);
+        }
+    }
+    let overlap: Vec<&str> = allowed_only
+        .into_iter()
+        .filter(|pkg| config.allow_builds.get(*pkg) == Some(&false))
         .collect();
     if !overlap.is_empty() {
         return Err(AllowBuildError::OverridingIgnoredBuiltDependencies {
@@ -475,10 +630,9 @@ pub(crate) fn apply_allow_build(
         }
         .into());
     }
-    set_allow_builds(settings_dir, allow_build.iter().map(|pkg| (pkg.as_str(), true)))
-        .into_diagnostic()?;
-    for pkg in allow_build {
-        config.allow_builds.insert(pkg.clone(), true);
+    set_allow_builds(settings_dir, allow_build_map.iter().copied()).into_diagnostic()?;
+    for (name, is_allow) in allow_build_map {
+        config.allow_builds.insert(name.to_string(), is_allow);
     }
     Ok(())
 }
@@ -505,6 +659,24 @@ pub enum AddError {
         #[error(not(source))]
         request: String,
     },
+
+    /// A `--workspace` selector named a package that no workspace project
+    /// publishes.
+    #[display(r#""{name}" not found in the workspace"#)]
+    #[diagnostic(code(ERR_PNPM_WORKSPACE_PACKAGE_NOT_FOUND))]
+    WorkspacePackageNotFound {
+        #[error(not(source))]
+        name: String,
+    },
+
+    /// A `--workspace` selector carried no package name to look up in the
+    /// workspace, such as a bare path or URL.
+    #[display(r#"Cannot update/install from workspace through "{selector}""#)]
+    #[diagnostic(code(ERR_PNPM_NO_PKG_NAME_IN_SPEC))]
+    NoPkgNameInSpec {
+        #[error(not(source))]
+        selector: String,
+    },
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -520,6 +692,12 @@ pub enum AllowBuildError {
         )
     )]
     OverridingIgnoredBuiltDependencies { dependencies: String },
+
+    #[display(
+        "The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts."
+    )]
+    #[diagnostic(code(ERR_PNPM_ALLOW_BUILD_MISSING_PACKAGE))]
+    MissingPackage,
 }
 
 /// Add a single package to `state`'s manifest and install it.

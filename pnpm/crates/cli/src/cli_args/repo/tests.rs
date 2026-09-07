@@ -1,15 +1,95 @@
-use super::{get_repo_url_from_current_project, pick_repo_url, redact_url, repository_to_web_url};
+use std::{collections::HashMap, io, sync::Mutex};
 
-#[test]
-fn test_opens_repository_url_from_local_manifest() {
+use pnpm_config::Config;
+use pnpm_network::{RetryOpts, ThrottledClient};
+use pnpm_network_web_auth::OpenUrlAndWait;
+use pnpm_reporter::SilentReporter;
+
+use super::{
+    RepoArgs, get_repo_url_from_current_project, get_repo_url_from_registry, pick_repo_url,
+    redact_url, repository_to_web_url,
+};
+
+#[tokio::test]
+async fn test_registry_package_name_defaults_to_latest() {
+    let mut server = mockito::Server::new_async().await;
+    let body = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry.example/acme-1.0.0.tgz" },
+                "repository": "https://github.com/acme/repo.git"
+            },
+            "2.0.0": {
+                "name": "acme",
+                "version": "2.0.0",
+                "dist": { "tarball": "https://registry.example/acme-2.0.0.tgz" },
+                "repository": "https://github.com/acme/next.git"
+            }
+        }
+    })
+    .to_string();
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+    let config = Config { registry: format!("{}/", server.url()), ..Config::default() };
+    let http_client = ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("create HTTP client");
+    let registries = config.resolved_registries().into_iter().collect::<HashMap<_, _>>();
+
+    let url = get_repo_url_from_registry(
+        &config,
+        "acme",
+        &http_client,
+        &registries,
+        &RetryOpts::default(),
+    )
+    .await
+    .expect("resolve repository URL");
+
+    assert_eq!(url, "https://github.com/acme/repo");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn test_opens_repository_url_from_local_manifest() {
+    static OPENED_URLS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+    OPENED_URLS.lock().unwrap().clear();
+
+    struct RecordingBrowser;
+
+    impl OpenUrlAndWait for RecordingBrowser {
+        fn open_url_and_wait(url: &str) -> io::Result<()> {
+            OPENED_URLS.lock().unwrap().push(url.to_owned());
+            Ok(())
+        }
+    }
+
     let dir = tempfile::tempdir().expect("tempdir");
     std::fs::write(
         dir.path().join("package.json"),
         r#"{"name": "test-pkg", "repository": "https://github.com/test/pkg"}"#,
     )
     .unwrap();
-    let url = get_repo_url_from_current_project(dir.path());
-    assert_eq!(url.unwrap(), "https://github.com/test/pkg");
+    RepoArgs { packages: Vec::new() }
+        .run::<RecordingBrowser, SilentReporter>(&Config::default(), dir.path())
+        .await
+        .expect("open repository URL");
+
+    assert_eq!(OPENED_URLS.lock().unwrap().as_slice(), ["https://github.com/test/pkg"]);
 }
 
 #[test]

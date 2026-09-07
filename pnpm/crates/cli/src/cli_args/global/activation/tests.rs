@@ -11,7 +11,6 @@ use miette::IntoDiagnostic;
 use pnpm_cmd_shim::{
     FsCreateDirAll, FsEnsureExecutableBits, FsReadHead, FsReadToString, FsSetExecutable,
     FsWalkFiles, FsWrite, Host, PackageBinSource, link_bins_of_packages_with_excludes,
-    link_virtual_shims,
 };
 use pnpm_config::GlobalShims;
 use pnpm_fs::{force_symlink_dir, read_symlink_dir, remove_symlink_dir};
@@ -28,7 +27,10 @@ use std::{
 };
 use tempfile::TempDir;
 
-use crate::cli_args::shim::{record_virtual_shim_state, virtual_shim_owner};
+use crate::{
+    cli_args::shim::{record_virtual_shim_state, virtual_shim_owner},
+    shim_dispatch::{ShimTarget, install_native_shim},
+};
 
 fn activate_global_install<Sys>(
     install_dir: &Path,
@@ -441,8 +443,12 @@ fn failed_batch_bin_replacement_restores_earlier_slots() {
     let bin_names = HashSet::from(["first".to_string(), "second".to_string()]);
 
     let error = replace_global_bin_slots::<Host>(&fixture.global_bin_dir, &bin_names, || {
-        link_virtual_shims::<Host>("first-package", &["first"], &fixture.global_bin_dir)
-            .into_diagnostic()?;
+        install_native_shim(
+            &fixture.global_bin_dir,
+            "first",
+            &ShimTarget::Virtual("first-package".to_string()),
+        )
+        .into_diagnostic()?;
         Err(miette::miette!("injected later replacement failure"))
     })
     .expect_err("the injected replacement must fail");

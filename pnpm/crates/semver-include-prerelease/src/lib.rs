@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use node_semver::{MAX_SAFE_INTEGER, Range, Version};
+use node_semver::{Range, Version};
 
 /// A semver range evaluated the way npm's `semver` does with
 /// `includePrerelease: true`.
@@ -148,36 +148,27 @@ fn omits_a_component(token: &str) -> bool {
     })
 }
 
-/// npm reads an upper bound whose version omits a component as an
-/// exclusive bound at the first version the comparator leaves out:
-/// `<=18` is `<19.0.0-0` and `<18.1` is `<18.1.0-0`. `node_semver` reads
-/// them as `<=18.0.0-0` and `<18.1.0`, both off by the omitted
-/// component, so those two operators are rewritten before it sees them.
-/// Returns `None` for every other token, including a fully spelled-out
-/// bound, which it already agrees on, and a component past the largest
-/// one `node_semver` accepts, whose rewrite it would only reject again.
+/// npm reads a `<` bound whose version omits a component as excluding
+/// every prerelease of the version it stops at: `<18` is `<18.0.0-0`.
+/// `node_semver` reads it as `<18.0.0`, which admits `18.0.0-rc.1` once
+/// the eligibility rule is dropped, so `<` is rewritten before it sees
+/// it. Returns `None` for every other token, `<=` included: its X-Range
+/// expansion is one `node_semver` already agrees on.
 fn npm_upper_bound(token: &str) -> Option<String> {
-    let (inclusive, version) = match token.strip_prefix("<=") {
-        Some(version) => (true, version),
-        None => (false, token.strip_prefix('<')?),
-    };
-    let version = version.trim_start_matches('v');
-    if version.contains(['-', '+']) {
+    let version = token.strip_prefix('<')?;
+    if version.starts_with('=') || version.contains(['-', '+']) {
         return None;
     }
+    let version = version.trim_start_matches('v');
     let mut components = version.split('.');
     let major: u64 = components.next()?.parse().ok()?;
     let minor: Option<u64> = components.next().and_then(|minor| minor.parse().ok());
     let patch_is_named =
         components.next().is_some_and(|patch| patch.parse::<u64>().is_ok()) && minor.is_some();
-    let past_the_end = |component: u64| {
-        let bound = component.checked_add(u64::from(inclusive))?;
-        (bound <= MAX_SAFE_INTEGER).then_some(bound)
-    };
     match (minor, patch_is_named) {
         (_, true) => None,
-        (None, _) => Some(format!("<{}.0.0-0", past_the_end(major)?)),
-        (Some(minor), _) => Some(format!("<{major}.{}.0-0", past_the_end(minor)?)),
+        (None, _) => Some(format!("<{major}.0.0-0")),
+        (Some(minor), _) => Some(format!("<{major}.{minor}.0-0")),
     }
 }
 

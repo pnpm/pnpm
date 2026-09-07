@@ -1,0 +1,60 @@
+name: Cancel Unapproved Workflows
+
+# Approval-held workflows never start a job, so job-level timeout-minutes does
+# not apply to them. Sweep from the trusted default branch instead.
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+
+concurrency:
+  group: cancel-unapproved-workflows
+  cancel-in-progress: false
+
+jobs:
+  cancel:
+    name: Cancel workflows awaiting approval for over 30 minutes
+    if: github.repository == 'pnpm/pnpm'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 5
+    steps:
+      - name: Cancel expired approval requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d '30 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
+          gh api --method GET --paginate "repos/$REPO/actions/runs" \
+            -f status=action_required \
+            -f "created=<=$cutoff" \
+            -f per_page=100 \
+            --jq '.workflow_runs[] | select(.conclusion == "action_required") | .id' |
+          while IFS= read -r run_id; do
+            conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
+            if [ "$conclusion" != action_required ]; then
+              echo "Workflow run $run_id no longer needs approval; skipping"
+              continue
+            fi
+
+            echo "Canceling workflow run $run_id after its 30-minute approval window expired"
+            if cancel_error=$(gh api --silent --method POST \
+              "repos/$REPO/actions/runs/$run_id/cancel" 2>&1); then
+              continue
+            fi
+
+            # Approval can arrive between the re-check and the cancellation.
+            # That expected race returns a conflict and must not fail the sweep.
+            conclusion=$(gh api "repos/$REPO/actions/runs/$run_id" --jq '.conclusion')
+            if [ "$conclusion" != action_required ]; then
+              echo "Workflow run $run_id was approved before cancellation; skipping"
+              continue
+            fi
+
+            printf '%s\n' "$cancel_error" >&2
+            exit 1
+          done

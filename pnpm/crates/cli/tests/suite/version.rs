@@ -83,6 +83,32 @@ fn version_flag_switches_to_project_package_manager_version() {
     drop((root, mock_instance));
 }
 
+/// The engine is installed into the shared global virtual store and the
+/// directory the install runs from is thrown away. A project that selects
+/// the hoisted linker must not drag the engine into that directory
+/// (pnpm/pnpm#14595).
+#[test]
+fn version_flag_switches_to_the_pinned_version_under_the_hoisted_node_linker() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(workspace.join("package.json"), r#"{"packageManager":"pnpm@9.3.0"}"#)
+        .expect("write package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "nodeLinker: hoisted\n")
+        .expect("write pnpm-workspace.yaml");
+
+    let output = test_command(pacquet, root.path())
+        .env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .args(["--version"])
+        .output()
+        .expect("run pacquet --version");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet --version should succeed");
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "9.3.0\n");
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn child_pnpm_selects_the_version_for_its_own_directory() {
     let CommandTempCwd { pacquet, root, npmrc_info, .. } =

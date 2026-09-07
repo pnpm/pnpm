@@ -210,9 +210,6 @@ pub struct LockedResolution {
     /// TODO: the resolver does not compute this yet; only
     /// `resolve_peers` consumes it.
     pub dependency_names_whose_current_provider_must_win: Option<HashSet<String>>,
-    /// Peer names recorded on this direct dependency's wanted-lockfile
-    /// suffix. `None` for transitive or freshly resolved occurrences.
-    pub locked_peer_names: Option<Arc<HashSet<String>>>,
 }
 
 /// One per-occurrence node in the dependencies tree.
@@ -233,8 +230,8 @@ pub struct DependenciesTreeNode {
     pub installable: bool,
     /// Wanted-lockfile carry-over for this occurrence, boxed because it
     /// is `None` for every fresh resolution — which is every node the
-    /// resolver produces today. Inline, its four rarely-set fields cost
-    /// ~88 bytes on each of the millions of nodes the peer walk realizes.
+    /// resolver produces today. Inline, its three rarely-set fields cost
+    /// ~80 bytes on each of the millions of nodes the peer walk realizes.
     pub locked: Option<Box<LockedResolution>>,
 }
 
@@ -268,19 +265,11 @@ impl DependenciesTreeNode {
         self.locked.as_ref()?.dependency_names_whose_current_provider_must_win.as_ref()
     }
 
-    /// Peer names from this direct dependency's wanted-lockfile suffix.
+    /// `true` when no locked peer context is recorded — the fast-cache
+    /// precondition.
     #[must_use]
-    pub fn locked_peer_names(&self) -> Option<&Arc<HashSet<String>>> {
-        self.locked.as_ref()?.locked_peer_names.as_ref()
-    }
-
-    /// `true` when neither locked peer names nor a locked peer context is
-    /// recorded — the fast-cache precondition.
-    #[must_use]
-    pub fn has_no_locked_peers(&self) -> bool {
-        self.locked.as_ref().is_none_or(|locked| {
-            locked.locked_peer_names.is_none() && locked.locked_peer_context.is_none()
-        })
+    pub fn has_no_locked_peer_context(&self) -> bool {
+        self.locked.as_ref().is_none_or(|locked| locked.locked_peer_context.is_none())
     }
 
     /// The carry-over slot, allocated on first write.

@@ -240,3 +240,30 @@ async fn static_mode_returns_404_for_unknown_tarball() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn serves_a_single_npm_ecosystem_at_the_root() {
+    let storage = common::build_storage();
+    let app = router(static_config(storage.path().to_path_buf()));
+
+    for path in ["/@foo/no-deps", "/~main/@foo/no-deps", "/~local/@foo/no-deps"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{path}");
+        let doc: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(doc["name"], "@foo/no-deps", "{path}");
+    }
+    let response = app
+        .clone()
+        .oneshot(Request::get("/@foo/no-deps/-/no-deps-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        body_bytes(response.into_body()).await,
+        std::fs::read(storage.path().join("@foo/no-deps/no-deps-1.0.0.tgz")).unwrap(),
+    );
+    let response =
+        app.oneshot(Request::get("/~main/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}

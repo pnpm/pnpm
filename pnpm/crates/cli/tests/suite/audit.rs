@@ -41,6 +41,7 @@ fn audit_json_posts_bulk_request_and_exits_on_vulnerability() {
 
     assert_eq!(output.status.code(), Some(1), "vulnerability should produce exit code 1");
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.ends_with('\n'), "JSON report should end with a newline:\n{stdout}");
     let report: serde_json::Value = serde_json::from_str(&stdout).expect("audit JSON output");
     assert_eq!(report["advisories"]["123"]["title"], "test vulnerability");
     assert_eq!(report["advisories"]["123"]["module_name"], "vulnerable");
@@ -116,7 +117,7 @@ fn audit_exits_zero_when_every_vulnerability_is_below_audit_level() {
         pacquet.arg("audit").arg("--audit-level").arg("high").output().expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 moderate");
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 moderate\n");
     mock.assert();
 }
 
@@ -352,8 +353,55 @@ fn audit_ignores_configured_ghsas_in_text_report() {
 
     assert_success(&output);
     let stdout = stdout(&output);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert_eq!(
+        stdout,
+        "All found vulnerabilities were already reviewed and decided to be ignored\n\
+         1 ignored: 1 high\n",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_keeps_reporting_advisories_that_are_not_ignored() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &format!(
+            "{{\n{},\n{}\n}}",
+            advisory_entry(
+                "vulnerable",
+                301,
+                "high",
+                "<2.0.0",
+                "ignored vulnerability",
+                "GHSA-ignr-1111-2222",
+            ),
+            advisory_entry(
+                "moderate-pkg",
+                302,
+                "moderate",
+                "<2.0.0",
+                "visible vulnerability",
+                "GHSA-visi-1111-2222",
+            ),
+        ),
+    )
+    .create();
+    write_audit_workspace(
+        &workspace,
+        &registry.url(),
+        "auditConfig:\n  ignoreGhsas:\n    - GHSA-ignr-1111-2222\n",
+    );
+
+    let output = pacquet.arg("audit").output().expect("run pacquet audit");
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = stdout(&output);
+    eprintln!("STDOUT:\n{stdout}\n");
     assert!(!stdout.contains("ignored vulnerability"));
-    assert!(stdout.contains("1 high (1 ignored)"));
+    assert!(stdout.ends_with("1 vulnerabilities found\nSeverity: 1 moderate\n1 ignored: 1 high\n"));
     mock.assert();
 }
 
@@ -500,7 +548,7 @@ fn audit_defaults_to_low_and_ignores_info_for_exit_code() {
     let output = pacquet.arg("audit").output().expect("run pacquet audit");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 info");
+    assert_eq!(stdout(&output), "1 vulnerabilities found\nSeverity: 1 info\n");
     mock.assert();
 }
 
@@ -554,8 +602,9 @@ fn audit_signatures_json_reports_counts() {
         .expect("run audit signatures");
 
     assert_success(&output);
-    let report: serde_json::Value =
-        serde_json::from_str(&stdout(&output)).expect("signatures JSON");
+    let out = stdout(&output);
+    assert!(out.ends_with('\n'), "signatures JSON should end with a newline:\n{out}");
+    let report: serde_json::Value = serde_json::from_str(&out).expect("signatures JSON");
     assert_eq!(report["audited"], 1);
     assert_eq!(report["verified"], 1);
     assert_eq!(report["invalid"].as_array().expect("invalid array").len(), 0);
@@ -746,12 +795,37 @@ fn audit_fix_override_writes_overrides_to_workspace_manifest() {
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
     assert_success(&output);
-    assert!(stdout(&output).contains("overrides were added to pnpm-workspace.yaml"));
+    let out = stdout(&output);
+    assert!(out.contains("overrides were added to pnpm-workspace.yaml"), "{out}");
+    assert!(out.ends_with('\n'), "fix output should end with a newline:\n{out}");
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
         manifest.contains("overrides:") && manifest.contains("vulnerable@<2.0.0: ^2.0.0"),
         "manifest should hold the override:\n{manifest}",
+    );
+    mock.assert();
+}
+
+#[test]
+fn audit_fix_override_writes_overrides_in_the_configured_save_style() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = audit_mock(
+        &mut registry,
+        &advisory_response("vulnerable", 123, "high", "<2.0.0", "test", "GHSA-test-1111-2222"),
+    )
+    .create();
+    write_audit_workspace(&workspace, &registry.url(), "savePrefix: '~'\n");
+
+    let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
+
+    assert_success(&output);
+    let manifest =
+        fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
+    assert!(
+        manifest.contains("vulnerable@<2.0.0: ~2.0.0"),
+        "manifest should hold the tilde override:\n{manifest}",
     );
     mock.assert();
 }
@@ -947,7 +1021,7 @@ fn audit_fix_override_with_no_fixable_vulnerabilities_makes_no_changes() {
     let output = pacquet.arg("audit").arg("--fix").output().expect("run pacquet audit --fix");
 
     assert_success(&output);
-    assert_eq!(stdout(&output), "No fixes were made");
+    assert_eq!(stdout(&output), "No fixes were made\n");
     mock.assert();
 }
 
@@ -1239,8 +1313,7 @@ fn audit_ignore_writes_ghsa_to_audit_config() {
         .expect("run pacquet audit --ignore");
 
     assert_success(&output);
-    assert!(stdout(&output).contains("1 new vulnerabilities were ignored"));
-    assert!(stdout(&output).contains("GHSA-test-1111-2222"));
+    assert_eq!(stdout(&output), "1 new vulnerabilities were ignored:\nGHSA-test-1111-2222\n");
     let manifest =
         fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read workspace manifest");
     assert!(
@@ -1372,6 +1445,89 @@ fn audit_fix_update_moves_to_a_non_vulnerable_version() {
     drop((root, npmrc_info));
 }
 
+/// A package whose every in-range version is vulnerable has no update that
+/// fixes it. The run must still fix what it can elsewhere and report the rest
+/// as remaining, rather than failing resolution outright.
+#[test]
+fn audit_fix_update_keeps_going_when_no_version_in_range_is_safe() {
+    const STUCK_PKG: &str = "@pnpm.e2e/audit-multi-version";
+    const FIXABLE_PKG: &str = "@pnpm.e2e/multi-version-b";
+    let CommandTempCwd { workspace, root, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let pnpr_url = npmrc_info.mock_instance.url();
+
+    // `^2.0.0` admits only vulnerable 2.x versions of the first package, while
+    // `>=1.0.0` leaves the second one a safe 2.0.0 to fall back to.
+    fs::write(
+        workspace.join("package.json"),
+        format!(
+            r#"{{"name":"audit-fix-update","version":"1.0.0","dependencies":{{"{STUCK_PKG}":"^2.0.0","{FIXABLE_PKG}":">=1.0.0"}}}}"#,
+        ),
+    )
+    .expect("write package.json");
+    pacquet_cmd(&workspace, ["install"]).assert().success();
+    assert!(
+        workspace.join("node_modules/.pnpm").join("@pnpm.e2e+multi-version-b@3.1.0").exists(),
+        "install should pick the highest in-range version",
+    );
+
+    let mut audit_registry = mockito::Server::new();
+    let body = format!(
+        "{{\n{},\n{}\n}}",
+        advisory_entry(STUCK_PKG, 9001, "high", ">=2.0.0", "vulnerable 2.x", "GHSA-mult-1111-2222",),
+        advisory_entry(
+            FIXABLE_PKG,
+            9002,
+            "high",
+            ">=3.0.0",
+            "vulnerable 3.x",
+            "GHSA-mult-3333-4444",
+        ),
+    );
+    let mock = audit_registry
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .create();
+    fs::write(
+        workspace.join(".npmrc"),
+        format!(
+            "registry={audit}\n@pnpm.e2e:registry={pnpr}\nstore-dir=../pacquet-store\ncache-dir=../pacquet-cache\nfetchRetries=0\n",
+            audit = audit_registry.url(),
+            pnpr = pnpr_url,
+        ),
+    )
+    .expect("rewrite .npmrc");
+
+    let output = pacquet_cmd(&workspace, ["audit", "--fix", "update"])
+        .output()
+        .expect("run audit --fix update");
+
+    // Remaining vulnerabilities still exit 1; what must not happen is the
+    // resolver aborting the run.
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(1), "stderr:\n{stderr}");
+    assert!(stderr.is_empty(), "the run should report no error:\n{stderr}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("1 vulnerability was fixed, 1 vulnerability remains."),
+        "stdout should report one fix and one remaining:\n{stdout}",
+    );
+
+    let lockfile = fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read lockfile");
+    assert!(
+        lockfile.contains("audit-multi-version@2.0.1"),
+        "the vulnerable pick with no safe alternative should stay:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("multi-version-b@2.0.0"),
+        "the package with a safe version in range should still be updated:\n{lockfile}",
+    );
+    mock.assert();
+    drop((root, npmrc_info));
+}
+
 /// `--fix update` with `minimumReleaseAge`: the inferred patched version
 /// (3.0.0) has no entry in the packument's `time` map because it was never
 /// published, so no exclusion entry is written for it.
@@ -1457,9 +1613,22 @@ fn advisory_response(
     title: &str,
     ghsa: &str,
 ) -> String {
+    let entry = advisory_entry(package, id, severity, vulnerable_versions, title, ghsa);
+    format!("{{\n{entry}\n}}")
+}
+
+/// One `"<package>": [ … ]` member of a bulk-advisory response body, so a
+/// test can serve advisories for several packages at once.
+fn advisory_entry(
+    package: &str,
+    id: u64,
+    severity: &str,
+    vulnerable_versions: &str,
+    title: &str,
+    ghsa: &str,
+) -> String {
     format!(
-        r#"{{
-  "{package}": [
+        r#"  "{package}": [
     {{
       "id": {id},
       "url": "https://github.com/advisories/{ghsa}",
@@ -1468,8 +1637,7 @@ fn advisory_response(
       "vulnerable_versions": "{vulnerable_versions}",
       "cwe": []
     }}
-  ]
-}}"#,
+  ]"#,
     )
 }
 

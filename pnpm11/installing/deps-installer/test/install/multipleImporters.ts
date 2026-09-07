@@ -1763,7 +1763,7 @@ test('do not update dependency that has the same name as a dependency in the wor
   ])
 })
 
-test('symlink local package from the location described in its publishConfig.directory when linkDirectory is true', async () => {
+test('relink local package when publishConfig.linkDirectory changes', async () => {
   preparePackages([
     {
       location: 'project-1',
@@ -1827,6 +1827,7 @@ test('symlink local package from the location described in its publishConfig.dir
   const project = assertProject(process.cwd())
   const lockfile = project.readLockfile()
   expect(lockfile.importers['project-1'].publishDirectory).toBe('dist')
+  expect(lockfile.importers['project-1'].linkDirectory).toBeUndefined()
 
   rimrafSync('node_modules')
   await mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
@@ -1835,6 +1836,22 @@ test('symlink local package from the location described in its publishConfig.dir
     const linkedManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/package.json')
     expect(linkedManifest.name).toBe('project-1-dist')
   }
+
+  project1Manifest.publishConfig.linkDirectory = false
+  await expect(
+    mutateModules(importers, testDefaults({ allProjects, frozenLockfile: true }))
+  ).rejects.toMatchObject({ code: 'ERR_PNPM_OUTDATED_LOCKFILE' })
+
+  await mutateModules(importers, testDefaults({ allProjects }))
+
+  {
+    const linkedManifest = loadJsonFileSync<{ name: string }>('project-2/node_modules/project-1/package.json')
+    expect(linkedManifest.name).toBe('project-1')
+  }
+
+  const updatedLockfile = project.readLockfile()
+  expect(updatedLockfile.importers['project-1'].linkDirectory).toBe(false)
+  expect(updatedLockfile.importers['project-2'].dependencies?.['project-1'].version).toBe('link:../project-1')
 })
 
 test('do not symlink local package from the location described in its publishConfig.directory', async () => {

@@ -36,6 +36,11 @@ pub enum YarnResolverError {
 /// nothing here goes through a registry.
 pub struct YarnResolver {
     pub http_client: Arc<ThrottledClient>,
+    /// Whether the release fetch may carry a GitHub token. Turned off when
+    /// the project relaxed certificate verification: `strict-ssl` is aimed at
+    /// the registry it installs from, and spending it on a credential for
+    /// GitHub would take the setting somewhere it was never pointed.
+    pub authenticate: bool,
     /// The release list, fetched at most once per resolver. One command
     /// can resolve Yarn more than once — a resolve and a latest probe, or
     /// several importers pinning it — and the list is one unconditional
@@ -45,14 +50,14 @@ pub struct YarnResolver {
 }
 
 impl YarnResolver {
-    pub fn new(http_client: Arc<ThrottledClient>) -> Self {
-        Self { http_client, releases: tokio::sync::OnceCell::new() }
+    pub fn new(http_client: Arc<ThrottledClient>, authenticate: bool) -> Self {
+        Self { http_client, authenticate, releases: tokio::sync::OnceCell::new() }
     }
 
     async fn releases(&self) -> Result<&[YarnRelease], ReadYarnReleasesError> {
         self.releases
             .get_or_try_init(|| async {
-                fetch_yarn_releases(&self.http_client).await.map(Arc::new)
+                fetch_yarn_releases(&self.http_client, self.authenticate).await.map(Arc::new)
             })
             .await
             .map(|releases| releases.as_slice())
@@ -150,9 +155,11 @@ impl YarnResolver {
 pub async fn resolve_yarn_version(
     http_client: &ThrottledClient,
     version_spec: &str,
+    authenticate: bool,
 ) -> Result<String, YarnResolverError> {
-    let releases =
-        fetch_yarn_releases(http_client).await.map_err(YarnResolverError::ReadReleases)?;
+    let releases = fetch_yarn_releases(http_client, authenticate)
+        .await
+        .map_err(YarnResolverError::ReadReleases)?;
     pick_release(&releases, version_spec).map(|release| release.version.clone()).ok_or_else(|| {
         YarnResolverError::ResolutionFailure { spec: redact_and_sanitize(version_spec) }
     })

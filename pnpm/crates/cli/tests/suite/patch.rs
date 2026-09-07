@@ -18,6 +18,23 @@ const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
 );
 
+/// Adds a `postinstall` script the published package does not declare,
+/// plus the script it runs.
+const IS_POSITIVE_POSTINSTALL_PATCH: &str = include_str!(
+    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-postinstall.patch"
+);
+
+/// Creates a `binding.gyp`, which the lifecycle runner turns into an
+/// implicit `node-gyp rebuild`.
+const IS_POSITIVE_BINDING_GYP_PATCH: &str = include_str!(
+    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-binding-gyp.patch"
+);
+
+/// Creates a plain file named `.hooks`, which is not a hook directory.
+const IS_POSITIVE_HOOKS_FILE_PATCH: &str = include_str!(
+    "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0-hooks-file.patch"
+);
+
 /// Adds a marker file, so a package's patched state can be read off the
 /// filesystem without depending on the package's own sources.
 const MARKER_PATCH: &str = concat!(
@@ -218,12 +235,9 @@ fn snapshot_keys(lockfile: &pnpm_lockfile::Lockfile) -> Vec<String> {
     keys
 }
 
-/// Assert the store kept the patched `index.js` as a side-effects overlay
-/// rather than overwriting the pristine one it shares with every other
-/// project. The overlay's cache key ends in `;patch=<hash>` — pacquet
-/// composes it in `pnpm_graph_hasher::calc_dep_state`, and the row it
-/// hangs off is keyed by the peer- and patch-free `is-positive@1.0.0`.
-fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
+/// The store index row `is-positive@1.0.0` hangs off, keyed by the peer-
+/// and patch-free package id.
+fn is_positive_store_row(store_dir: &Path) -> pnpm_store_dir::PackageFilesIndex {
     let store = StoreDir::new(store_dir);
     let index = StoreIndex::open_readonly_in(&store).expect("open the store index");
     let row_key = index
@@ -232,7 +246,16 @@ fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
         .into_iter()
         .find(|key| key.ends_with("\tis-positive@1.0.0"))
         .expect("a store index row for is-positive@1.0.0");
-    let row = index.get(&row_key).expect("read the store index row").expect("the row is present");
+    index.get(&row_key).expect("read the store index row").expect("the row is present")
+}
+
+/// Assert the store kept the patched `index.js` as a side-effects overlay
+/// rather than overwriting the pristine one it shares with every other
+/// project. The overlay's cache key ends in `;patch=<hash>` — pacquet
+/// composes it in `pnpm_graph_hasher::calc_dep_state`, and the row it
+/// hangs off is keyed by the peer- and patch-free `is-positive@1.0.0`.
+fn assert_patched_side_effects_cached(store_dir: &Path, patch_hash: &str) {
+    let row = is_positive_store_row(store_dir);
 
     let side_effects =
         row.side_effects.as_ref().expect("a patched package populates `sideEffects`");
@@ -439,6 +462,150 @@ fn install_level_patch_applies_when_the_package_is_not_in_allow_builds() {
         "is-positive@1.0.0.patch",
         "allowBuilds: {}\n",
     );
+}
+
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14648>.
+#[test]
+fn install_level_patch_that_adds_install_scripts_asks_for_approval() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("patches").join("is-positive@1.0.0.patch"),
+        IS_POSITIVE_POSTINSTALL_PATCH,
+    )
+    .expect("write the postinstall patch");
+    let marker = workspace.join("node_modules/is-positive/postinstall-ran.txt");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("unapproved install:\n{combined}");
+    assert!(!output.status.success(), "an unapproved build must fail under strictDepBuilds");
+    // The package name is not matched here: the diagnostic wraps it
+    // across lines. The `allowBuilds` entry asserted below names it.
+    assert!(
+        combined.contains("ERR_PNPM_IGNORED_BUILDS") && combined.contains("Ignored build scripts"),
+        "expected the patched package to be reported as an ignored build; got:\n{combined}",
+    );
+    assert!(!marker.exists(), "the postinstall must not run before it is approved");
+
+    // The failed install left an `allowBuilds` entry for the user to
+    // decide on; answering it is what `pnpm approve-builds` writes.
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    assert!(
+        yaml.contains("is-positive: set this to true or false"),
+        "expected an undecided allowBuilds entry; got:\n{yaml}",
+    );
+    fs::write(&yaml_path, yaml.replace("set this to true or false", "true"))
+        .expect("write pnpm-workspace.yaml");
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert!(marker.exists(), "the approved postinstall must run");
+
+    drop((root, mock_instance));
+}
+
+/// A patched package with no build to run caches its overlay under a
+/// dep-graph-free key, which `--ignore-scripts` is the cheapest way to
+/// produce. Deciding `requiresBuild` any later than that key is composed
+/// reads the key back and skips the build the approval just allowed.
+#[test]
+fn install_level_patch_that_adds_install_scripts_outlives_a_pre_fix_cache_entry() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
+        "is-positive@1.0.0",
+        "is-positive@1.0.0.patch",
+        "allowBuilds:\n  is-positive: true\n",
+    );
+    let AddMockedRegistry { mock_instance, store_dir, .. } = npmrc_info;
+    fs::write(
+        workspace.join("patches").join("is-positive@1.0.0.patch"),
+        IS_POSITIVE_POSTINSTALL_PATCH,
+    )
+    .expect("write the postinstall patch");
+    let marker = workspace.join("node_modules/is-positive/postinstall-ran.txt");
+
+    pacquet(&workspace, ["install", "--ignore-scripts", "--reporter=silent"]).assert().success();
+    assert!(!marker.exists(), "--ignore-scripts must not run the postinstall");
+    let cache_keys: Vec<String> = is_positive_store_row(&store_dir)
+        .side_effects
+        .expect("a patched package populates `sideEffects`")
+        .into_keys()
+        .collect();
+    assert!(
+        cache_keys.iter().any(|key| !key.contains(";deps=")),
+        "the store must hold the dep-graph-free key a pre-fix pnpm 12 wrote; got {cache_keys:?}",
+    );
+
+    remove_dir_if_exists(&workspace.join("node_modules"));
+    pacquet(&workspace, ["install", "--reporter=silent"]).assert().success();
+    assert!(marker.exists(), "the pre-fix cache entry must not suppress the build");
+
+    drop((root, mock_instance));
+}
+
+/// A patch can introduce build work without touching `scripts`: the
+/// lifecycle runner reads a `binding.gyp` as `node-gyp rebuild`.
+#[test]
+fn install_level_patch_that_adds_a_binding_gyp_asks_for_approval() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("patches").join("is-positive@1.0.0.patch"),
+        IS_POSITIVE_BINDING_GYP_PATCH,
+    )
+    .expect("write the binding.gyp patch");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("unapproved install:\n{combined}");
+    assert!(!output.status.success(), "an unapproved native build must fail the install");
+    assert!(
+        combined.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "expected the patched package to be reported as an ignored build; got:\n{combined}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Only entries below a `.hooks` directory are hooks, so a plain file by
+/// that name must not hold the install for an approval it does not need.
+#[test]
+fn install_level_patch_that_adds_a_hooks_file_does_not_ask_for_approval() {
+    let (root, workspace, npmrc_info) =
+        setup_configured_patch("is-positive@1.0.0", "is-positive@1.0.0.patch");
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    fs::write(
+        workspace.join("patches").join("is-positive@1.0.0.patch"),
+        IS_POSITIVE_HOOKS_FILE_PATCH,
+    )
+    .expect("write the .hooks file patch");
+
+    let output = pacquet(&workspace, ["install"]).output().expect("run install");
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
+    eprintln!("install:\n{combined}");
+    assert!(output.status.success(), "a plain `.hooks` file must not fail the install");
+    assert!(
+        !combined.contains("ERR_PNPM_IGNORED_BUILDS"),
+        "the package must not be reported as an ignored build; got:\n{combined}",
+    );
+    let hooks = workspace.join("node_modules/is-positive/.hooks");
+    assert!(hooks.is_file(), "the patch writes a plain file");
+
+    drop((root, mock_instance));
 }
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/14273>.
@@ -768,6 +935,41 @@ fn patch_commit_exact_version_writes_patch_and_reinstalls() {
     let installed =
         fs::read_to_string(workspace.join("node_modules/is-positive/index.js")).unwrap();
     assert!(installed.contains("patched exact"), "installed: {installed}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn patch_commit_writes_an_applicable_patch_for_a_deleted_file() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    fs::remove_file(edit_dir.join("readme.md")).expect("delete readme.md");
+
+    pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .assert()
+    .success();
+
+    let patch =
+        fs::read_to_string(workspace.join("patches/is-positive@1.0.0.patch")).expect("patch file");
+    eprintln!("PATCH:\n{patch}");
+    assert!(patch.contains("diff --git a/readme.md b/readme.md\n"), "patch: {patch}");
+    assert!(
+        !workspace.join("node_modules/is-positive/readme.md").exists(),
+        "the reinstall should have dropped readme.md",
+    );
+
+    // Re-running `patch` applies the committed patch to a fresh copy of the package, so it fails
+    // when the generated patch cannot be parsed or applied.
+    fs::remove_dir_all(&edit_dir).expect("remove edit dir");
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+
+    assert!(!edit_dir.join("readme.md").exists(), "readme.md should stay deleted");
 
     drop((root, mock_instance));
 }
@@ -1653,6 +1855,43 @@ fn unused_patch_warns_when_allow_unused_patches_is_set() {
         stdout = String::from_utf8_lossy(&output.stdout),
         stderr = String::from_utf8_lossy(&output.stderr),
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn legacy_deploy_honors_allow_unused_patches_overrides() {
+    let (root, workspace, npmrc_info) = setup_configured_patch_with_yaml(
+        "is-positive@1.0.0",
+        "is-positive@1.0.0.patch",
+        "packages:\n  - 'packages/*'\n",
+    );
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let app = workspace.join("packages/app");
+    fs::create_dir_all(&app).expect("create app directory");
+    fs::write(
+        app.join("package.json"),
+        serde_json::json!({ "name": "app", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write app manifest");
+
+    pacquet(&workspace, ["install"]).assert().success();
+    pacquet(
+        &workspace,
+        [
+            "--config.allow-unused-patches=true",
+            "--filter=app",
+            "deploy",
+            "--legacy",
+            "config-deploy",
+        ],
+    )
+    .assert()
+    .success();
+    pacquet(&workspace, ["--filter=app", "deploy", "--legacy", "env-deploy"])
+        .env("PNPM_CONFIG_ALLOW_UNUSED_PATCHES", "true")
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

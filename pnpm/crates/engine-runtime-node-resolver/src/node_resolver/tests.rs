@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use pnpm_network::ThrottledClient;
+use pnpm_network::{AuthHeaders, ThrottledClient};
 use pnpm_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pretty_assertions::assert_eq;
 
@@ -194,6 +194,7 @@ async fn release_asset_reader_requires_signature_when_requested() {
         .await;
     let err = read_node_assets_from_mirror(
         &ThrottledClient::new_for_installs(),
+        &AuthHeaders::default(),
         &format!("{}/download/release/", server.url()),
         "22.11.0",
         false,
@@ -217,6 +218,7 @@ async fn prerelease_asset_reader_does_not_require_signature() {
         .await;
     let assets = read_node_assets_from_mirror(
         &ThrottledClient::new_for_installs(),
+        &AuthHeaders::default(),
         &format!("{}/download/rc/", server.url()),
         "22.11.0",
         false,
@@ -346,6 +348,7 @@ async fn asset_reader_serves_repeat_reads_from_the_cache() {
 
     let fetched = read_node_assets_from_mirror(
         &client,
+        &AuthHeaders::default(),
         &mirror,
         "22.11.0",
         false,
@@ -356,6 +359,7 @@ async fn asset_reader_serves_repeat_reads_from_the_cache() {
     .expect("fetch the asset list");
     let cached = read_node_assets_from_mirror(
         &client,
+        &AuthHeaders::default(),
         &mirror,
         "22.11.0",
         false,

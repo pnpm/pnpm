@@ -131,6 +131,23 @@ fn ignore_pnpmfile_flag_applies_to_config() {
 }
 
 #[test]
+fn ignore_scripts_flags_apply_to_config() {
+    let mut config = Config::default();
+    assert!(!config.ignore_scripts);
+
+    config.ignore_scripts = true;
+    update_args(&[]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "flags absent -> config unchanged");
+
+    config.ignore_scripts = false;
+    update_args(&["--ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(config.ignore_scripts, "--ignore-scripts enables the setting");
+
+    update_args(&["--no-ignore-scripts"]).apply_cli_config(&mut config);
+    assert!(!config.ignore_scripts, "--no-ignore-scripts disables the setting");
+}
+
+#[test]
 fn pnpr_server_flag_applies_to_config() {
     let mut config = Config::default();
 

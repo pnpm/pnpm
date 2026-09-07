@@ -119,7 +119,12 @@ function getBareSpecifierToSave (
   return resolvedDep.normalizedBareSpecifier ?? wantedDep.bareSpecifier
 }
 
-function isWorkspaceLocalPathSpecifier (bareSpecifier: string): boolean {
+/**
+ * Whether a `workspace:` specifier points at a directory rather than a range
+ * (`workspace:../pkg`, not `workspace:^`). Such a path is resolved against the
+ * project that declares it.
+ */
+export function isWorkspaceLocalPathSpecifier (bareSpecifier: string): boolean {
   if (!bareSpecifier.startsWith('workspace:')) return false
   const pref = bareSpecifier.slice('workspace:'.length)
   return pref.startsWith('.') || pref.startsWith('/') || pref.startsWith('~/') || /^[A-Z]:/i.test(pref)

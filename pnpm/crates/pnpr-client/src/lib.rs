@@ -401,6 +401,18 @@ struct HandshakeResponse {
     pnpr: HandshakeCapability,
 }
 
+/// One `pnpm pipeline` run as `PUT /-/pnpr/v0/pipeline/runs` carries it:
+/// the workspace and run identifiers plus the run's summary document and
+/// event stream, verbatim.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublishPipelineRunRequest {
+    pub workspace: String,
+    pub run_id: String,
+    pub summary: serde_json::Value,
+    pub events: Vec<serde_json::Value>,
+}
+
 #[derive(Default, Deserialize)]
 struct HandshakeCapability {
     #[serde(default)]
@@ -409,6 +421,39 @@ struct HandshakeCapability {
     artifacts: Vec<u32>,
     #[serde(default, rename = "fixLockfile")]
     fix_lockfile: Vec<u32>,
+    /// The package ecosystems `/-/pnpr/v0/resolve` reads in its request
+    /// body. An empty list is a server that resolves npm alone.
+    #[serde(default)]
+    ecosystems: Vec<String>,
+}
+
+/// Inputs for a Python resolution. Send them only to a server that
+/// advertises the Python ecosystem ([`PnprClient::supports_ecosystem`]).
+#[derive(Clone)]
+pub struct PypiResolveOptions {
+    /// PEP 508 requirement strings, as the project's manifest spells them.
+    pub requirements: Vec<String>,
+    /// The interpreter the environment being resolved is for.
+    pub target: pnpm_python_resolver::Target,
+    /// The Simple API base URL to resolve against.
+    pub index: String,
+    /// The project's own `requires-python`.
+    pub requires_python: Option<String>,
+    /// `Authorization` header identifying this caller to pnpr.
+    pub authorization: Option<String>,
+}
+
+/// Inputs for a Cargo resolution. Send them only to a server that
+/// advertises the Cargo ecosystem ([`PnprClient::supports_ecosystem`]).
+#[derive(Clone)]
+pub struct CargoResolveOptions {
+    /// `cargo metadata --no-deps --format-version 1` output for the
+    /// workspace being resolved.
+    pub metadata: String,
+    /// The sparse index to resolve against.
+    pub registry: String,
+    /// `Authorization` header identifying this caller to pnpr.
+    pub authorization: Option<String>,
 }
 
 impl PnprClient {
@@ -506,6 +551,38 @@ impl PnprClient {
             let body = response_body_bounded(response, 64 * 1024).await?;
             return Err(PnprClientError::Server(format!(
                 "/-/pnpr/v0/artifacts returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        Ok(())
+    }
+
+    /// Record one `pnpm pipeline` run on the server. The document is
+    /// stored verbatim; a server without the pipeline surface answers 404.
+    pub async fn publish_pipeline_run(
+        &self,
+        request: &PublishPipelineRunRequest,
+        authorization: Option<&str>,
+    ) -> Result<(), PnprClientError> {
+        if authorization.is_some() && !pnpm_network::is_url_secure_for_credentials(&self.base_url) {
+            return Err(PnprClientError::Protocol(
+                "pipeline report credentials require HTTPS or a loopback server".to_string(),
+            ));
+        }
+        let http = Client::builder().redirect(reqwest::redirect::Policy::none()).build()?;
+        let mut put = http
+            .put(format!("{}-/pnpr/v0/pipeline/runs", self.base_url))
+            .timeout(self.artifact_request_timeout)
+            .json(request);
+        if let Some(authorization) = authorization {
+            put = put.header("authorization", authorization);
+        }
+        let response = put.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, 64 * 1024).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/pipeline/runs returned {status}: {}",
                 String::from_utf8_lossy(&body),
             )));
         }
@@ -697,6 +774,29 @@ impl PnprClient {
 
     /// Resolve a single project against the server and return the
     /// resolved lockfile, ignoring the streamed per-package frames.
+    /// Resolve a Python project against the server and return the
+    /// `pylock.toml` document it produced. The client still downloads the
+    /// wheels the document names and re-solves the project against their
+    /// own metadata, so this answer is a proposal the install verifies,
+    /// not something it takes on trust.
+    pub async fn resolve_pypi(
+        &self,
+        opts: PypiResolveOptions,
+    ) -> Result<pnpm_python_resolver::Lockfile, PnprClientError> {
+        let request = serde_json::json!({
+            "ecosystem": PYPI_ECOSYSTEM,
+            "requirements": opts.requirements,
+            "target": opts.target,
+            "index": opts.index,
+            "requiresPython": opts.requires_python,
+        });
+        let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
+        match parse_pypi_frame(&frame)? {
+            PypiFrame::Done { lockfile } => Ok(*lockfile),
+            PypiFrame::Error { message } => Err(PnprClientError::Server(message)),
+        }
+    }
+
     /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
         self.resolve_projects(opts.into()).await
@@ -709,6 +809,77 @@ impl PnprClient {
         opts: ResolveProjectsOptions,
     ) -> Result<ResolveOutcome, PnprClientError> {
         self.resolve_projects_streaming(opts, |_| {}).await
+    }
+
+    /// Whether the server resolves `ecosystem` through
+    /// `/-/pnpr/v0/resolve`. A server advertising no ecosystems resolves
+    /// npm alone.
+    pub async fn supports_ecosystem(&self, ecosystem: &str) -> Result<bool, PnprClientError> {
+        let capability = self.fetch_handshake(None).await?;
+        Self::require_resolver_protocol(&capability)?;
+        Ok(capability.ecosystems.iter().any(|supported| supported == ecosystem))
+    }
+
+    /// Resolve a Cargo workspace against the server and return the
+    /// rendered `Cargo.lock`. The server walks the sparse index and runs
+    /// the same resolver the client would have run locally, so the
+    /// lockfile is written verbatim.
+    pub async fn resolve_cargo(
+        &self,
+        opts: CargoResolveOptions,
+    ) -> Result<String, PnprClientError> {
+        let request = serde_json::json!({
+            "ecosystem": CARGO_ECOSYSTEM,
+            "metadata": opts.metadata,
+            "registry": opts.registry,
+        });
+        let frame = self.terminal_frame(&request, opts.authorization.as_deref()).await?;
+        match parse_cargo_frame(&frame)? {
+            CargoFrame::Done { lockfile } => Ok(lockfile),
+            CargoFrame::Error { message } => Err(PnprClientError::Server(message)),
+        }
+    }
+
+    /// Post a resolve request whose answer is one terminal frame, and read
+    /// that frame.
+    ///
+    /// A Cargo or Python resolve yields nothing before it yields
+    /// everything, so there is no stream to consume as it arrives. The
+    /// read is bounded, which keeps a compromised server from growing the
+    /// install's memory without limit, and a second frame is refused: a
+    /// lockfile from a response that also reports a failure is not one to
+    /// write.
+    async fn terminal_frame(
+        &self,
+        request: &serde_json::Value,
+        authorization: Option<&str>,
+    ) -> Result<Vec<u8>, PnprClientError> {
+        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(request);
+        if let Some(authorization) = authorization {
+            post = post.header("authorization", authorization);
+        }
+        let response = post.send().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response_body_bounded(response, MAX_ERROR_BODY_SIZE).await?;
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/resolve returned {status}: {}",
+                String::from_utf8_lossy(&body),
+            )));
+        }
+        let body = response_body_bounded(response, MAX_TERMINAL_RESPONSE_SIZE).await?;
+        let mut frames = body.split(|&byte| byte == b'\n').filter(|line| !line.is_empty());
+        let Some(frame) = frames.next() else {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned no terminal frame".to_string(),
+            ));
+        };
+        if frames.next().is_some() {
+            return Err(PnprClientError::Protocol(
+                "/-/pnpr/v0/resolve returned more than one terminal frame".to_string(),
+            ));
+        }
+        Ok(frame.to_vec())
     }
 
     /// Ask the server to verify a lockfile under the client's registry
@@ -988,6 +1159,14 @@ fn artifact_matches_candidate(payload: &ArtifactPayload, candidate: &ArtifactCan
     payload.input_key == *input_key && payload.subject == *subject && payload.owner == *owner
 }
 
+fn parse_pypi_frame(line: &[u8]) -> Result<PypiFrame, PnprClientError> {
+    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
+fn parse_cargo_frame(line: &[u8]) -> Result<CargoFrame, PnprClientError> {
+    serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
+}
+
 fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
@@ -1046,6 +1225,46 @@ enum Frame {
     },
     Violations {
         violations: Vec<WireViolation>,
+    },
+}
+
+/// The Cargo ecosystem's name in a resolve request body and in the
+/// handshake's `ecosystems` list.
+pub const CARGO_ECOSYSTEM: &str = "cargo";
+
+/// The Python ecosystem's name in a resolve request body and in the
+/// handshake's `ecosystems` list.
+pub const PYPI_ECOSYSTEM: &str = "pypi";
+
+/// Cap on a resolve response that is one terminal frame: a `Cargo.lock`
+/// or a `pylock.toml`, each a few megabytes for the largest projects.
+const MAX_TERMINAL_RESPONSE_SIZE: usize = 32 * 1024 * 1024;
+
+/// Cap on the body read back from a failed request, which is quoted into
+/// the error message.
+const MAX_ERROR_BODY_SIZE: usize = 64 * 1024;
+
+/// One NDJSON frame from a Cargo `/-/pnpr/v0/resolve`. Cargo resolution
+/// yields nothing before it yields everything, so the response is a
+/// single terminal frame: the rendered `Cargo.lock`, or the failure.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum CargoFrame {
+    Done { lockfile: String },
+    Error { message: String },
+}
+
+/// One NDJSON frame from a Python `/-/pnpr/v0/resolve`: the `pylock.toml`
+/// the project resolved to, or the failure.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum PypiFrame {
+    /// Boxed: the lockfile dwarfs the other variant.
+    Done {
+        lockfile: Box<pnpm_python_resolver::Lockfile>,
+    },
+    Error {
+        message: String,
     },
 }
 

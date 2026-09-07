@@ -59,8 +59,8 @@ use crate::defaults::{
     default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
 };
 pub use workspace_yaml::{
-    AllowBuild, AuditSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting,
+    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
@@ -914,6 +914,14 @@ pub enum PackageImportMethod {
     CloneOrCopy,
 }
 
+/// The two hoist patterns as one value, for
+/// [`Config::hoist_patterns_before_virtual_store_only`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HoistPatterns {
+    pub hoist_pattern: Option<Vec<String>>,
+    pub public_hoist_pattern: Option<Vec<String>>,
+}
+
 /// Resolved runtime config built from defaults, the auth subset of
 /// `.npmrc`, and `pnpm-workspace.yaml` (see [`Config::current`]).
 ///
@@ -1060,6 +1068,14 @@ pub struct Config {
     /// ([pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750)).
     #[default(_code = "Some(default_public_hoist_pattern())")]
     pub public_hoist_pattern: Option<Vec<String>>,
+
+    /// The patterns [`apply_virtual_store_only_derivation`] emptied, so
+    /// a command-line `--no-virtual-store-only` that outranks a lower
+    /// layer's `virtualStoreOnly: true` can bring them back exactly.
+    /// `None` until that derivation empties them.
+    ///
+    /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
+    pub hoist_patterns_before_virtual_store_only: Option<HoistPatterns>,
 
     /// `extendNodePath`: when `true` (the default) and the isolated
     /// `nodeLinker` runs with a hoist pattern, command shims set
@@ -1783,10 +1799,10 @@ pub struct Config {
     /// `scheme://host[:port]` at `n` in-flight sockets, queueing the rest.
     pub max_sockets: Option<usize>,
 
-    /// Per-request network timeout in milliseconds. The `fetchTimeout`
-    /// setting (default `60000` — 60 s, see
-    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
-    /// the response and connect deadline of the reqwest client.
+    /// How long a request may make no progress, in milliseconds. The
+    /// `fetchTimeout` setting (default `60000` — 60 s, see
+    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both the
+    /// read and connect deadline of the reqwest client.
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
 
@@ -1818,6 +1834,10 @@ pub struct Config {
     /// compute runs remotely, the result is materialized locally).
     /// `None` runs the normal local resolution flow.
     pub pnpr_server: Option<String>,
+
+    /// Cargo dependency management declared by the workspace.
+    pub cargo: CargoSettings,
+    pub python: PythonSettings,
 
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
 
@@ -1982,10 +2002,9 @@ pub struct Config {
     /// default. Not a `pnpm-workspace.yaml` key — the only way to
     /// populate it is an `updateConfig` pnpmfile hook that returns an
     /// `extraEnv` object, wired up in `pnpm_cli`'s
-    /// `run_update_config_hooks`. That hook runs only for the
-    /// install-family commands (install, deploy, dedupe, prune), so this
-    /// is non-empty only under those; other commands' spawn sites read it
-    /// too, but see an empty map until the hook broadens.
+    /// `run_update_config_hooks`. That hook runs for the install family
+    /// and commands that pack packages, making the returned environment
+    /// available to their lifecycle scripts.
     pub extra_env: HashMap<String, String>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. When `false`,
@@ -2373,9 +2392,9 @@ pub struct Config {
     /// Catalogs injected by an `updateConfig` pnpmfile hook, seeded from
     /// `pnpm-workspace.yaml`'s `catalog:`/`catalogs:` and returned
     /// (possibly modified) by the hook. `None` when no hook changed
-    /// them, in which case the install reads catalogs straight from the
+    /// them, in which case consumers read catalogs straight from the
     /// workspace manifest. `Some` carries the complete catalog set the
-    /// hook produced (existing + injected), so the install uses it as-is
+    /// hook produced (existing + injected), so consumers use it as-is
     /// — the counterpart to pnpm's `config.catalogs` after the
     /// `updateConfig` pass.
     pub catalogs: Option<pnpm_catalogs_types::Catalogs>,
@@ -2438,6 +2457,16 @@ pub struct Config {
     /// [`workspace_yaml::TaskSettings`]. Empty when the workspace declares
     /// none.
     pub tasks: IndexMap<String, workspace_yaml::TaskSettings>,
+
+    /// `pipelines` from `pnpm-workspace.yaml`: named sets of task requests
+    /// for `pnpm pipeline`, keyed by pipeline name. Empty when the
+    /// workspace declares none.
+    pub pipelines: IndexMap<String, Vec<String>>,
+
+    /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
+    /// `pnpm pipeline` resolves its affected-selection merge base against.
+    /// `None` falls back to the command's default.
+    pub pipeline_base: Option<String>,
 
     /// `peerDependencyRules` from `pnpm-workspace.yaml`: customizations
     /// applied when reporting peer-dependency issues. See
@@ -2519,7 +2548,11 @@ pub struct PackageManagerBootstrap {
 
 impl PackageManagerBootstrap {
     /// Registry map in pnpm's `Registries` shape: `default` plus the
-    /// configured scoped routes. Mirrors [`Config::resolved_registries`].
+    /// configured scoped routes.
+    ///
+    /// The built-in `@jsr` route [`Config::resolved_registries`] carries is
+    /// left out: this map resolves the package manager alone, which is never
+    /// a JSR package.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
         let mut registries = self.registries.clone();
@@ -2532,6 +2565,17 @@ impl Config {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// The resolved retry policy for metadata and artifact requests.
+    #[must_use]
+    pub fn retry_opts(&self) -> pnpm_network::RetryOpts {
+        pnpm_network::RetryOpts {
+            retries: self.fetch_retries,
+            factor: self.fetch_retry_factor,
+            min_timeout: std::time::Duration::from_millis(self.fetch_retry_mintimeout),
+            max_timeout: std::time::Duration::from_millis(self.fetch_retry_maxtimeout),
+        }
     }
 
     /// The resolved settings used to construct an install HTTP client.
@@ -2649,21 +2693,23 @@ impl Config {
         }
     }
 
-    /// Effective value of [`Self::minimum_release_age_strict`].
-    /// Returns the user-supplied value when set, else `false`.
+    /// Effective value of [`Self::minimum_release_age_strict`]: the
+    /// user-supplied value when set, otherwise `true` if `minimumReleaseAge`
+    /// was explicitly configured.
     ///
-    /// pnpm flips this to `true` when the user *explicitly* set
-    /// `minimumReleaseAge`, but the "explicitly set vs default" check
-    /// relies on an `explicitlySetKeys` tracker that pacquet's config
-    /// layer doesn't have yet. Without that, distinguishing the built-in
-    /// 1440-minute default from a user-typed `minimumReleaseAge: 1440`
-    /// isn't possible, so this resolver stays conservative: explicit
-    /// `true` / `false` from yaml wins, otherwise `false`. The verifier
-    /// itself doesn't gate on this flag — it's resolver-only — so
-    /// the conservative default is dormant until pacquet grows the
-    /// resolver and the `explicitlySetKeys` mechanism alongside it.
+    /// Without that default a user-set cutoff would silently fall back to an
+    /// immature version whenever no mature one satisfies the range, making the
+    /// setting look like it had no effect. The built-in 1440-minute default
+    /// stays non-strict for backward compatibility, so the two are told apart
+    /// through [`Self::explicit_settings`] rather than through the value
+    /// itself. A repository's cutoff never reaches `self-update`, which
+    /// [`WorkspaceSettings::clear_self_update_policy`] drops before the
+    /// workspace yaml is recorded there.
+    ///
+    /// [`WorkspaceSettings::clear_self_update_policy`]: crate::WorkspaceSettings::clear_self_update_policy
     pub fn resolved_minimum_release_age_strict(&self) -> bool {
-        self.minimum_release_age_strict.unwrap_or(false)
+        self.minimum_release_age_strict
+            .unwrap_or_else(|| self.explicit_settings.contains_key("minimumReleaseAge"))
     }
 
     /// Effective [`Self::minimum_release_age`], with `Some(0)` treated
@@ -2765,11 +2811,34 @@ impl Config {
 
     /// Registry map in pnpm's `Registries` shape: `default` plus the
     /// configured scoped routes keyed by `@scope`.
+    ///
+    /// The built-in `@jsr` route is one of them, so every consumer that
+    /// routes a package by its scope — the resolver, the lockfile
+    /// verifier, `pnpm why`, `pnpm view` — reaches JSR packages at
+    /// npm.jsr.io instead of asking the default registry for an
+    /// `@jsr/*` packument it does not serve. A configured `@jsr:registry`
+    /// wins over it.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
         let mut registries = self.registries_by_scope.clone();
+        registries.entry("@jsr".to_string()).or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
         registries.insert("default".to_string(), self.registry.clone());
         registries
+    }
+
+    /// Apply a boolean `sideEffectsCache` declaration, which turns the
+    /// local read and write gates on or off together.
+    ///
+    /// [`Config::side_effects_cache_read`] and
+    /// [`Config::side_effects_cache_write`] prefer the object form's
+    /// fields, so a layer spelling the setting as a boolean has to clear
+    /// what an earlier layer's object left behind to beat it. The remote
+    /// tier is a separate declaration the boolean says nothing about, so
+    /// it survives untouched.
+    pub fn apply_side_effects_cache_shorthand(&mut self, enabled: bool) {
+        self.side_effects_cache = enabled;
+        self.side_effects_cache_read_setting = None;
+        self.side_effects_cache_write_setting = None;
     }
 
     /// Whether the install should consult the side-effects cache
@@ -2981,8 +3050,31 @@ impl Config {
         if !self.virtual_store_only {
             return;
         }
+        if self.hoist_patterns_before_virtual_store_only.is_none() {
+            self.hoist_patterns_before_virtual_store_only = Some(HoistPatterns {
+                hoist_pattern: self.hoist_pattern.take(),
+                public_hoist_pattern: self.public_hoist_pattern.take(),
+            });
+        }
         self.hoist_pattern = Some(Vec::new());
         self.public_hoist_pattern = Some(Vec::new());
+    }
+
+    /// Undo [`apply_virtual_store_only_derivation`] after a command-line
+    /// `--no-virtual-store-only` outranks a lower layer's
+    /// `virtualStoreOnly: true`, which emptied both patterns when the
+    /// config was built. pnpm merges the command line before it derives,
+    /// so it never empties them in the first place.
+    ///
+    /// [`apply_virtual_store_only_derivation`]: Self::apply_virtual_store_only_derivation
+    pub fn restore_hoist_patterns_after_virtual_store_only(&mut self) {
+        if self.virtual_store_only {
+            return;
+        }
+        if let Some(patterns) = self.hoist_patterns_before_virtual_store_only.take() {
+            self.hoist_pattern = patterns.hoist_pattern;
+            self.public_hoist_pattern = patterns.public_hoist_pattern;
+        }
     }
 
     /// The lockfile file name this install reads first and writes back:
@@ -3279,7 +3371,7 @@ impl Config {
         // `modulesDir`/`virtualStoreDir` defaults are resolved against
         // `pnpmConfig.dir`.
         self.modules_dir = start_dir.join("node_modules");
-        self.virtual_store_dir = start_dir.join("node_modules/.pnpm");
+        self.virtual_store_dir = start_dir.join("node_modules").join(".pnpm");
 
         // Read the project/workspace .npmrc plus trusted user-level sources
         // and apply only the auth/network subset. Everything else is
@@ -3485,7 +3577,10 @@ impl Config {
             global_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         }
 
-        npmrc_auth.apply_registry_and_warn(&mut self);
+        // Collected as each file is applied, since applying it is what makes
+        // a declared route indistinguishable by value from a resolved one.
+        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
+        npmrc_auth.apply_registry_and_warn(&mut self, &mut declared_registries);
         // Proxy cascade fires unconditionally — even when no `.npmrc`
         // is found — because the env-var fallback is a normalization step
         // on the resolved config, not a function of `.npmrc` presence.
@@ -3529,9 +3624,6 @@ impl Config {
         // resolution must fire only when the user has *not* pinned a
         // path. See [`crate::store_path::resolve_store_dir`].
         let mut store_dir_explicit = false;
-        // Collected as each file is applied, since applying it is what makes
-        // a declared route indistinguishable by value from a resolved one.
-        let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
         if let Some(mut global_settings) = global_settings {
             note_declared_registries(&mut declared_registries, &global_settings);
             virtual_store_dir_explicit |= global_settings.virtual_store_dir.is_some();
@@ -3540,6 +3632,7 @@ impl Config {
             collect_explicit_settings(&mut self.explicit_settings, &global_settings);
             let configured_state_dir = global_settings.state_dir.take();
             let saved_workspace_dir = self.workspace_dir.take();
+            global_settings.expand_global_dir_home_prefixes::<Sys>();
             global_settings.apply_to(&mut self, start_dir);
             self.workspace_dir = saved_workspace_dir;
             if let Some(configured_state_dir) =
@@ -3588,7 +3681,7 @@ impl Config {
             // been applied yet at this point in the cascade.
             self.modules_dir = base_dir.join("node_modules");
             if !virtual_store_dir_explicit {
-                self.virtual_store_dir = base_dir.join("node_modules/.pnpm");
+                self.virtual_store_dir = base_dir.join("node_modules").join(".pnpm");
             }
             // The workspace root is structural context (env-lockfile reads/
             // writes, pin persistence), not a "setting" — set it whenever a
@@ -3609,6 +3702,8 @@ impl Config {
                 settings.ci = None;
                 settings.state_dir = None;
                 settings.scope = None;
+                settings.global_dir = None;
+                settings.global_bin_dir = None;
                 // `|=` rather than `=` so an `enableGlobalVirtualStore` /
                 // `virtualStoreDir` set in the global `config.yaml` still
                 // counts as "explicitly set" when the workspace yaml
@@ -3623,6 +3718,7 @@ impl Config {
                 self.workspace_key_issues = settings.key_issues.clone();
                 note_declared_registries(&mut declared_registries, &settings);
                 collect_explicit_settings(&mut self.explicit_settings, &settings);
+                settings.resolve_script_shell(&base_dir);
                 settings.apply_to(&mut self, &base_dir);
                 // `overrides` reaches `Config` only from the workspace
                 // yaml (the global config.yaml is stripped of the key,
@@ -3669,6 +3765,7 @@ impl Config {
         let bootstrap = &mut self.package_manager_bootstrap;
         env_settings.apply_proxy_to(&mut bootstrap.proxy, &mut bootstrap.proxy_keys);
         let saved_workspace_dir = self.workspace_dir.clone();
+        env_settings.expand_global_dir_home_prefixes::<Sys>();
         env_settings.apply_to(&mut self, start_dir);
         self.workspace_dir = saved_workspace_dir;
         self.apply_remote_side_effects_cache_env::<Sys>();
@@ -3739,13 +3836,6 @@ impl Config {
         // Resolve the global install directories:
         // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
         // `bin = globalBinDir ?? <pnpm-home>/bin`.
-        if self.global_dir.is_none() {
-            self.global_dir = read_pnpm_env::<Sys>("global_dir", "GLOBAL_DIR").map(PathBuf::from);
-        }
-        if self.global_bin_dir.is_none() {
-            self.global_bin_dir =
-                read_pnpm_env::<Sys>("global_bin_dir", "GLOBAL_BIN_DIR").map(PathBuf::from);
-        }
         let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
         let global_dir_root = self
             .global_dir
@@ -3905,10 +3995,12 @@ fn build_package_manager_bootstrap<Sys: EnvVar>(
     // drop the duplicates this second pass would log.
     trusted_auth.warnings.clear();
     let mut config = Config::default();
-    trusted_auth.apply_registry_and_warn(&mut config);
-    // No config file reaches the bootstrap cascade, so none declares here.
-    trusted_auth
-        .apply_json_env_registries(&mut config, &crate::npmrc_auth::DeclaredRegistries::default());
+    // The trusted `.npmrc` files are the only config files that reach the
+    // bootstrap cascade, so only what they declare holds the `_auth` file's
+    // routes back here.
+    let mut declared_registries = crate::npmrc_auth::DeclaredRegistries::default();
+    trusted_auth.apply_registry_and_warn(&mut config, &mut declared_registries);
+    trusted_auth.apply_json_env_registries(&mut config, &declared_registries);
     trusted_auth.apply_proxy_cascade::<Sys>(&mut config);
     trusted_auth.apply_tls_and_local_address(&mut config);
     trusted_auth.build_auth_headers(&mut config)?;

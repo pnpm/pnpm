@@ -588,7 +588,7 @@ where
     // A reused node's children come from the snapshot rather than from
     // a manifest, so no `dependencies` entry of its synthesized
     // manifest can be peer-shadowed.
-    let peer_dependencies = extract_peer_dependencies(&result, &HashSet::default());
+    let peer_dependencies = extract_peer_dependencies(&result, &HashSet::default(), None)?;
     let child_refs = snapshot_child_refs(snapshot, &peer_dependencies);
     let is_leaf = child_refs.is_empty() && peer_dependencies.is_empty();
     let node_id = if is_leaf { NodeId::leaf(&id) } else { NodeId::next() };

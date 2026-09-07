@@ -64,6 +64,42 @@ pub struct PathProtocolNotSupportedError {
     pub protocol: String,
 }
 
+/// Whether a bare specifier's shape can only mean a local file or
+/// directory: the `link:` / `file:` protocols, a path-prefixed spec
+/// (`./`, `../`, `~/`, absolute POSIX paths, and Windows drive paths —
+/// including drive-relative ones like `C:dir`), or a bare tarball file
+/// name.
+///
+/// Narrower than what `parse_local_path` claims, which also takes any
+/// spec containing a path separator. That shape is statically
+/// indistinguishable from a hosted-git shorthand (`user/repo`) or a
+/// named-registry alias (`gh:@scope/pkg`), and the resolver chain only
+/// gets away with claiming it by running the local resolver last.
+/// Callers that dispatch on specifier shape without that ordering ask
+/// this instead.
+#[must_use]
+pub fn is_local_filesystem_specifier(bare: &str) -> bool {
+    if bare.starts_with("link:") || bare.starts_with("file:") {
+        return true;
+    }
+    if is_filespec(bare) {
+        return true;
+    }
+    // Any other protocol — a `git+ssh:` / `https:` URL, an `npm:` alias, a
+    // named-registry prefix — belongs to its own resolver, tarball-shaped
+    // path or not.
+    if bare.contains(':') {
+        return false;
+    }
+    // A `#` here marks a hosted-git shorthand's committish
+    // (`user/repo#release.tgz`), not a local tarball: the protocol and
+    // path-prefixed forms already returned above.
+    if bare.contains('#') {
+        return false;
+    }
+    is_tarball_filename(bare)
+}
+
 /// Parse a wanted dep with an explicit local-scheme prefix
 /// (`link:` / `workspace:` / `file:`). Returns `Ok(None)` when the
 /// specifier doesn't carry one of those prefixes; returns
@@ -311,9 +347,33 @@ fn strip_tilde_prefix(spec: &str) -> Option<&str> {
     spec.strip_prefix("~/")
 }
 
-fn is_tarball_filename(bare: &str) -> bool {
+/// Whether a local specifier names a package tarball rather than a
+/// directory. A `file:` specifier resolves to one or the other, and only
+/// the directory form becomes a `link:` entry in the lockfile.
+#[must_use]
+pub fn is_tarball_filename(bare: &str) -> bool {
     let lower = bare.to_ascii_lowercase();
     lower.ends_with(".tgz") || lower.ends_with(".tar.gz") || lower.ends_with(".tar")
+}
+
+/// Resolve an unambiguous local tarball specifier to the regular file
+/// inspected by the local resolver. Returns `None` for directories,
+/// ambiguous bare specifiers, and non-local tarball URLs.
+#[must_use]
+pub fn local_tarball_path(bare: &str, project_dir: &Path) -> Option<PathBuf> {
+    if !(bare.starts_with("file:") || is_filespec(bare)) || !is_tarball_filename(bare) {
+        return None;
+    }
+    let wanted = WantedLocalDependency { bare_specifier: bare.to_string(), injected: false };
+    let spec = if bare.starts_with("file:") {
+        parse_local_scheme(&wanted, project_dir, project_dir, ParseOptions::default())
+            .ok()
+            .flatten()
+    } else {
+        parse_local_path(&wanted, project_dir, project_dir, ParseOptions::default())
+    }?;
+    (matches!(spec.kind, LocalSpecKind::File) && spec.fetch_spec.is_file())
+        .then_some(spec.fetch_spec)
 }
 
 fn contains_path_sep(bare: &str) -> bool {

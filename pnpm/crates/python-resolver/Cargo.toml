@@ -1,0 +1,24 @@
+[package]
+name                 = "pnpm-python-resolver"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+description          = "Python dependency resolution for pnpm"
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+miette     = { workspace = true }
+pep440_rs  = { workspace = true }
+pep508_rs  = { workspace = true }
+pubgrub    = { workspace = true }
+serde      = { workspace = true }
+serde_json = { workspace = true }
+ssri       = { workspace = true }
+url        = { workspace = true }
+
+[lints]
+workspace = true

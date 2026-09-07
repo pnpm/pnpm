@@ -24,6 +24,8 @@
 //!   before the cache existed), and the musl list's download URLs are
 //!   derived from the hardcoded unofficial-builds base, never from the
 //!   cached body.
+//! - Authenticated responses bypass this cache because the URL does not
+//!   identify the credential context that produced the body.
 //!
 //! The `<trust>` path segment keeps the two classes in disjoint
 //! subtrees so their read policies cannot be confused.

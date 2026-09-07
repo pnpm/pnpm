@@ -5,7 +5,10 @@ use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
     collections::BTreeMap,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -19,7 +22,10 @@ use pnpm_resolving_resolver_base::{
 use pretty_assertions::assert_eq;
 
 use super::{WorkspaceImporter, WorkspaceResolveOptions, resolve_workspace};
-use crate::resolve_importer::ResolveImporterOptions;
+use crate::{
+    resolve_importer::ResolveImporterOptions,
+    tests::{RecordedReadPackageCalls, RecordingHooks},
+};
 
 /// The `(pick_lowest_version, published_by)` pair recorded per alias.
 type RecordedOpts = (bool, Option<DateTime<Utc>>);
@@ -64,6 +70,25 @@ impl Resolver for RecordingResolver {
 
 struct ProjectRelativeWorkspaceResolver {
     target_dir: std::path::PathBuf,
+    /// The `shared` specifier this resolver claims. Only a named
+    /// `workspace:` selector is eligible for the cross-importer cache, so the
+    /// tests vary it to cover both sides of that gate.
+    shared_specifier: &'static str,
+    workspace_resolutions: AtomicUsize,
+}
+
+impl ProjectRelativeWorkspaceResolver {
+    fn new(target_dir: std::path::PathBuf) -> Self {
+        Self::claiming("workspace:^", target_dir)
+    }
+
+    fn claiming(shared_specifier: &'static str, target_dir: std::path::PathBuf) -> Self {
+        Self { target_dir, shared_specifier, workspace_resolutions: AtomicUsize::new(0) }
+    }
+
+    fn workspace_resolution_count(&self) -> usize {
+        self.workspace_resolutions.load(Ordering::Relaxed)
+    }
 }
 
 impl Resolver for ProjectRelativeWorkspaceResolver {
@@ -76,6 +101,7 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
         let range = wanted.bare_specifier.clone().unwrap_or_default();
         let target_dir = self.target_dir.clone();
         let project_dir = opts.project_dir.clone();
+        let shared_specifier = self.shared_specifier;
         Box::pin(async move {
             if alias == "wrapper" && range == "1.0.0" {
                 return Ok(Some(fake_result(
@@ -85,13 +111,14 @@ impl Resolver for ProjectRelativeWorkspaceResolver {
                     serde_json::json!({
                         "name": "wrapper",
                         "version": "1.0.0",
-                        "dependencies": { "shared": "^1.0.0" },
+                        "dependencies": { "shared": shared_specifier },
                     }),
                 )));
             }
-            if alias != "shared" || range != "^1.0.0" {
+            if alias != "shared" || range != shared_specifier {
                 return Ok(None);
             }
+            self.workspace_resolutions.fetch_add(1, Ordering::Relaxed);
             let rel = pathdiff::diff_paths(&target_dir, &project_dir)
                 .expect("target can be relativized")
                 .display()
@@ -205,11 +232,13 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         exclude_links_from_lockfile: false,
         lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
         peers_suffix_max_length: 1000,
+        share_workspace_resolutions: true,
         manifest_hook: None,
         overrides_hook: None,
         pnpmfile_hook: None,
         read_package_log: None,
         skipped_optional_log: None,
+        finalized_package: None,
         allowed_deprecated_versions: BTreeMap::new(),
         deprecation_log: None,
         pick_lowest_direct,
@@ -467,17 +496,87 @@ async fn importer_scoped_update_route_owns_shared_parent_children_in_either_orde
 }
 
 #[tokio::test]
-async fn workspace_link_results_are_cached_per_importer_project_dir() {
+async fn workspace_resolution_is_shared_and_rendered_per_importer() {
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "workspace:^" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "workspace:^" }));
+    let (_c_tmp, c_manifest) = fake_manifest(serde_json::json!({ "shared": "workspace:^" }));
+    let resolver =
+        ProjectRelativeWorkspaceResolver::new(std::path::PathBuf::from("/repo/packages/shared"));
+    let importers = vec![
+        WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "apps/b".to_string(), manifest: &b_manifest },
+        WorkspaceImporter { id: "packages/c".to_string(), manifest: &c_manifest },
+    ];
+    let lockfile_dir = std::path::PathBuf::from("/repo");
+    let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
+    let hook_calls: RecordedReadPackageCalls = Arc::new(Mutex::new(Vec::new()));
+    let mut opts = workspace_opts(false, false);
+    opts.lockfile_dir.clone_from(&lockfile_dir);
+    opts.pnpmfile_hook = Some(Arc::new(RecordingHooks { calls: Arc::clone(&hook_calls) }));
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let project_dir = match importer.id.as_str() {
+                "packages/a" => std::path::PathBuf::from("/repo/packages/a"),
+                "apps/b" => std::path::PathBuf::from("/repo/apps/b"),
+                "packages/c" => std::path::PathBuf::from("/repo/packages/c"),
+                _ => unreachable!("unexpected importer"),
+            };
+            let mut opts = importer_opts(project_dir, None);
+            opts.lockfile_dir = Some(lockfile_dir.clone());
+            opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
+            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
+            opts
+        })
+        .await
+        .expect("resolve workspace");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/a"]["shared"].as_str(),
+        "link:../shared",
+    );
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
+        "link:../../packages/shared",
+    );
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/c"]["shared"].as_str(),
+        "link:../shared",
+    );
+    assert_eq!(resolver.workspace_resolution_count(), 1);
+    let mut shared_hook_dirs = hook_calls
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(name, _)| name == "shared")
+        .map(|(_, dir)| dir.clone())
+        .collect::<Vec<_>>();
+    shared_hook_dirs.sort();
+    assert_eq!(
+        shared_hook_dirs,
+        [Some("../../packages/shared".to_string()), Some("../shared".to_string())],
+    );
+}
+
+#[tokio::test]
+async fn semver_workspace_matches_stay_scoped_to_each_importer() {
+    // `always_try_workspace_packages` lets a plain semver range land on a
+    // workspace package too, but only a named `workspace:` selector is
+    // guaranteed to depend on the importer solely through the rendered link.
+    // A range keeps its per-importer resolution.
     let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
     let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
-    let resolver = ProjectRelativeWorkspaceResolver {
-        target_dir: std::path::PathBuf::from("/repo/packages/shared"),
-    };
+    let resolver = ProjectRelativeWorkspaceResolver::claiming(
+        "^1.0.0",
+        std::path::PathBuf::from("/repo/packages/shared"),
+    );
     let importers = vec![
         WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
         WorkspaceImporter { id: "apps/b".to_string(), manifest: &b_manifest },
     ];
     let lockfile_dir = std::path::PathBuf::from("/repo");
+    let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
     let mut opts = workspace_opts(false, false);
     opts.lockfile_dir.clone_from(&lockfile_dir);
 
@@ -492,8 +591,7 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages =
-                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
+            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
         .await
@@ -507,21 +605,22 @@ async fn workspace_link_results_are_cached_per_importer_project_dir() {
         result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
         "link:../../packages/shared",
     );
+    assert_eq!(resolver.workspace_resolution_count(), 2);
 }
 
 #[tokio::test]
 async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() {
     let (_nested_tmp, nested_manifest) = fake_manifest(serde_json::json!({
-        "shared": "^1.0.0",
+        "shared": "workspace:^",
         "wrapper": "1.0.0",
     }));
     let (_shallow_tmp, shallow_manifest) = fake_manifest(serde_json::json!({
-        "shared": "^1.0.0",
+        "shared": "workspace:^",
         "wrapper": "1.0.0",
     }));
     let lockfile_dir = std::path::PathBuf::from("/repo");
-    let resolver =
-        ProjectRelativeWorkspaceResolver { target_dir: lockfile_dir.join("packages/shared") };
+    let workspace_packages = std::sync::Arc::new(std::collections::BTreeMap::default());
+    let resolver = ProjectRelativeWorkspaceResolver::new(lockfile_dir.join("packages/shared"));
     let importers = vec![
         WorkspaceImporter { id: "apps/nested/app".to_string(), manifest: &nested_manifest },
         WorkspaceImporter { id: "packages/consumer".to_string(), manifest: &shallow_manifest },
@@ -540,8 +639,7 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
             opts.lockfile_dir = Some(lockfile_dir.clone());
             opts.base_opts.lockfile_dir.clone_from(&lockfile_dir);
             opts.base_opts.always_try_workspace_packages = true;
-            opts.base_opts.workspace_packages =
-                Some(std::sync::Arc::new(std::collections::BTreeMap::default()));
+            opts.base_opts.workspace_packages = Some(std::sync::Arc::clone(&workspace_packages));
             opts
         })
         .await
@@ -560,6 +658,7 @@ async fn canonical_snapshot_link_keeps_direct_links_relative_to_each_importer() 
     assert_eq!(wrapper.children.get("shared"), Some(&crate::DepPath::from("link:packages/shared")));
     assert!(result.merged_tree.packages.contains_key("link:packages/shared"));
     assert!(!result.merged_tree.packages.contains_key("link:../../../packages/shared"));
+    assert_eq!(resolver.workspace_resolution_count(), 1);
 }
 
 #[tokio::test]
@@ -3460,5 +3559,307 @@ async fn importer_waves_do_not_overlap() {
         overlaps.is_empty(),
         "importers resolved concurrently: {:?}",
         overlaps.first().expect("checked non-empty"),
+    );
+}
+
+/// Package ids announced as finalized, each with its child ids.
+type Announcements = Vec<(String, Vec<String>)>;
+
+/// Resolve `manifest_deps` through `table` and return every package the
+/// walk announced as finalized, in announcement order, with the child
+/// ids each announcement carried.
+async fn announced_finalized_packages(
+    manifest_deps: serde_json::Value,
+    table: HashMap<(String, String), ResolveResult>,
+) -> Announcements {
+    let (_tmp, manifest) = fake_manifest(manifest_deps);
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::default()) };
+    let importers = vec![WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    let announced: Arc<Mutex<Announcements>> = Arc::new(Mutex::new(Vec::new()));
+    let mut opts = workspace_opts(false, false);
+    let sink = Arc::clone(&announced);
+    opts.finalized_package = Some(Arc::new(move |package| {
+        let children =
+            package.children.iter().map(|child| child.pkg_id.to_string()).collect::<Vec<_>>();
+        sink.lock().unwrap().push((package.pkg_id.to_string(), children));
+    }));
+    resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+        importer_opts(std::path::PathBuf::from("/repo"), None)
+    })
+    .await
+    .expect("resolve");
+    let announced = announced.lock().unwrap();
+    announced.clone()
+}
+
+fn table_entry(name: &str, manifest: serde_json::Value) -> ((String, String), ResolveResult) {
+    ((name.to_string(), "^1.0.0".to_string()), fake_result(name, "1.0.0", None, manifest))
+}
+
+#[tokio::test]
+async fn finalized_packages_are_announced_once_their_peer_free_subtree_settles() {
+    let announced = announced_finalized_packages(
+        serde_json::json!({ "pure": "^1.0.0", "peered": "^1.0.0" }),
+        HashMap::from_iter([
+            table_entry("pure", serde_json::json!({ "dependencies": { "leaf": "^1.0.0" } })),
+            table_entry("leaf", serde_json::json!({})),
+            table_entry(
+                "peered",
+                serde_json::json!({
+                    "dependencies": { "leaf": "^1.0.0" },
+                    "peerDependencies": { "react": "*" },
+                    "peerDependenciesMeta": { "react": { "optional": true } },
+                }),
+            ),
+        ]),
+    )
+    .await;
+    // `peered` declares a peer, so neither it nor its dep path is final;
+    // `pure` and `leaf` are, and `pure` is announced with its edge.
+    assert_eq!(
+        announced,
+        vec![
+            ("leaf@1.0.0".to_string(), vec![]),
+            ("pure@1.0.0".to_string(), vec!["leaf@1.0.0".to_string()]),
+        ],
+    );
+}
+
+#[tokio::test]
+async fn finalized_packages_include_peer_free_cycles() {
+    let announced = announced_finalized_packages(
+        serde_json::json!({ "ping": "^1.0.0" }),
+        HashMap::from_iter([
+            table_entry("ping", serde_json::json!({ "dependencies": { "pong": "^1.0.0" } })),
+            table_entry("pong", serde_json::json!({ "dependencies": { "ping": "^1.0.0" } })),
+        ]),
+    )
+    .await;
+    let ids = announced.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>();
+    assert_eq!(ids, ["ping@1.0.0", "pong@1.0.0"]);
+}
+
+/// Resolver fed from an `(alias, range)` table that records every call
+/// in order and can hold one alias back until another has been asked
+/// for, which is how a test observes work the walk does before a level
+/// barrier lifts.
+struct WarmupProbeResolver {
+    table: HashMap<(String, String), ResolveResult>,
+    calls: Mutex<Vec<(String, String)>>,
+    /// `(held, release)`: resolving `held` completes only once `release`
+    /// has been requested.
+    gate: Option<(String, String)>,
+    released: std::sync::atomic::AtomicBool,
+}
+
+impl WarmupProbeResolver {
+    fn new(table: HashMap<(String, String), ResolveResult>) -> Self {
+        WarmupProbeResolver {
+            table,
+            calls: Mutex::new(Vec::new()),
+            gate: None,
+            released: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    fn calls_for(&self, alias: &str, range: &str) -> usize {
+        self.calls.lock().unwrap().iter().filter(|(a, r)| a == alias && r == range).count()
+    }
+}
+
+impl Resolver for WarmupProbeResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let alias = wanted.alias.clone().unwrap_or_default();
+        let range = wanted.bare_specifier.clone().unwrap_or_default();
+        self.calls.lock().unwrap().push((alias.clone(), range.clone()));
+        let result = self.table.get(&(alias.clone(), range)).cloned();
+        let (held, release) = self
+            .gate
+            .as_ref()
+            .map_or((false, false), |(held, release)| (*held == alias, *release == alias));
+        if release {
+            self.released.store(true, std::sync::atomic::Ordering::Release);
+        }
+        Box::pin(async move {
+            while held && !self.released.load(std::sync::atomic::Ordering::Acquire) {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            Ok::<_, ResolveError>(result)
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+fn caret_entry(name: &str, manifest: serde_json::Value) -> ((String, String), ResolveResult) {
+    ((name.to_string(), "^1.0.0".to_string()), fake_result(name, "1.0.0", None, manifest))
+}
+
+fn deps(entries: &[(&str, &str)]) -> serde_json::Value {
+    let map: serde_json::Map<String, serde_json::Value> = entries
+        .iter()
+        .map(|(name, range)| ((*name).to_string(), serde_json::Value::from(*range)))
+        .collect();
+    serde_json::json!({ "dependencies": map })
+}
+
+async fn resolve_single_importer(
+    resolver: &WarmupProbeResolver,
+    manifest_deps: serde_json::Value,
+    opts: WorkspaceResolveOptions,
+    patched: Option<Arc<pnpm_patching::PatchGroupRecord>>,
+) -> Result<super::ResolveWorkspaceResult, tokio::time::error::Elapsed> {
+    let (_tmp, manifest) = fake_manifest(manifest_deps);
+    let importers = vec![WorkspaceImporter { id: ".".to_string(), manifest: &manifest }];
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        resolve_workspace(resolver, &importers, &[DependencyGroup::Prod], opts, |_| {
+            let mut opts = importer_opts(std::path::PathBuf::from("/repo"), None);
+            opts.patched_dependencies = patched.clone();
+            opts
+        }),
+    )
+    .await
+    .map(|result| result.expect("resolve"))
+}
+
+#[tokio::test]
+async fn warm_up_requests_descendants_beyond_one_level_before_the_level_barrier_lifts() {
+    // `slow` is a direct dep that resolves only once the grandchild `c`
+    // has been requested. The level barrier waits for `slow`, so only a
+    // warm-up that recurses past `a`'s children can ever ask for `c`.
+    let mut resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("slow", serde_json::json!({})),
+        caret_entry("a", deps(&[("b", "^1.0.0")])),
+        caret_entry("b", deps(&[("c", "^1.0.0")])),
+        caret_entry("c", serde_json::json!({})),
+    ]));
+    resolver.gate = Some(("slow".to_string(), "c".to_string()));
+    let result = resolve_single_importer(
+        &resolver,
+        serde_json::json!({ "slow": "^1.0.0", "a": "^1.0.0" }),
+        workspace_opts(false, false),
+        None,
+    )
+    .await
+    .expect("the grandchild is warmed while the first level is still resolving");
+    assert_eq!(graph_versions_of(&result, "c"), ["1.0.0"]);
+}
+
+#[tokio::test]
+async fn warm_up_resolves_each_edge_once_across_a_diamond() {
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("x", deps(&[("z", "^1.0.0")])),
+        caret_entry("y", deps(&[("z", ">=1.0.0")])),
+        caret_entry("z", deps(&[("w", "^1.0.0")])),
+        (
+            ("z".to_string(), ">=1.0.0".to_string()),
+            fake_result("z", "1.0.0", None, deps(&[("w", "^1.0.0")])),
+        ),
+        caret_entry("w", serde_json::json!({})),
+    ]));
+    let result = resolve_single_importer(
+        &resolver,
+        serde_json::json!({ "x": "^1.0.0", "y": "^1.0.0" }),
+        workspace_opts(false, false),
+        None,
+    )
+    .await
+    .expect("resolve");
+    assert_eq!(graph_versions_of(&result, "z"), ["1.0.0"]);
+    // Two ranges reach `z`, so it is asked for once per range; its own
+    // child is asked for once however many branches reach `z`.
+    assert_eq!(resolver.calls_for("z", "^1.0.0"), 1);
+    assert_eq!(resolver.calls_for("z", ">=1.0.0"), 1);
+    assert_eq!(resolver.calls_for("w", "^1.0.0"), 1);
+}
+
+#[tokio::test]
+async fn warm_up_skips_dependencies_a_package_declares_as_its_own_peers() {
+    // `p` lists `q` both as a dependency and as a peer. Under
+    // autoInstallPeers the walk drops the dependency edge and resolves
+    // the peer at the importer, so the dependency range must never be
+    // asked for, not even speculatively two levels down.
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("a", deps(&[("p", "^1.0.0")])),
+        caret_entry(
+            "p",
+            serde_json::json!({
+                "dependencies": { "q": "^2.0.0" },
+                "peerDependencies": { "q": "^1.0.0" },
+            }),
+        ),
+        caret_entry("q", serde_json::json!({})),
+        (
+            ("q".to_string(), "^2.0.0".to_string()),
+            fake_result("q", "2.0.0", None, serde_json::json!({})),
+        ),
+    ]));
+    let mut opts = workspace_opts(false, false);
+    opts.auto_install_peers = true;
+    let result =
+        resolve_single_importer(&resolver, serde_json::json!({ "a": "^1.0.0" }), opts, None)
+            .await
+            .expect("resolve");
+    assert_eq!(graph_versions_of(&result, "q"), ["1.0.0"]);
+    assert_eq!(resolver.calls_for("q", "^2.0.0"), 0);
+}
+
+#[tokio::test]
+async fn warm_up_of_a_speculative_only_edge_leaves_patch_bookkeeping_alone() {
+    // Without autoInstallPeers a dependency shadowed by a peer is dropped
+    // only when the parent scope supplies the peer; the warm-up does not
+    // know that scope and asks for `q@^2.0.0` speculatively. The real
+    // walk never accepts that edge, so its patch must not count as
+    // applied.
+    let resolver = WarmupProbeResolver::new(HashMap::from_iter([
+        caret_entry("a", deps(&[("p", "^1.0.0")])),
+        caret_entry(
+            "p",
+            serde_json::json!({
+                "dependencies": { "q": "^2.0.0" },
+                "peerDependencies": { "q": "^1.0.0" },
+            }),
+        ),
+        caret_entry("q", serde_json::json!({})),
+        (
+            ("q".to_string(), "^2.0.0".to_string()),
+            fake_result("q", "2.0.0", None, serde_json::json!({})),
+        ),
+    ]));
+    let mut groups = pnpm_patching::PatchGroupRecord::new();
+    let mut group = pnpm_patching::PatchGroup::default();
+    group.exact.insert(
+        "2.0.0".to_string(),
+        pnpm_patching::ExtendedPatchInfo {
+            hash: "abc123".to_string(),
+            patch_file_path: None,
+            key: "q@2.0.0".to_string(),
+        },
+    );
+    groups.insert("q".to_string(), group);
+    let result = resolve_single_importer(
+        &resolver,
+        serde_json::json!({ "a": "^1.0.0", "q": "^1.0.0" }),
+        workspace_opts(false, false),
+        Some(Arc::new(groups)),
+    )
+    .await
+    .expect("resolve");
+    assert_eq!(resolver.calls_for("q", "^2.0.0"), 1, "the edge was warmed speculatively");
+    assert_eq!(graph_versions_of(&result, "q"), ["1.0.0"], "and never entered the graph");
+    assert!(
+        !result.merged_tree.applied_patches.contains("q@2.0.0"),
+        "a patch the real walk never applied must not count as applied",
     );
 }

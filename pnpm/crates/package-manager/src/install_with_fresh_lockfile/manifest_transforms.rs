@@ -76,23 +76,31 @@ pub(super) fn build_manifest_transforms(
         || versions_overrider.as_ref().is_some_and(|overrider| !overrider.is_empty())
         || deploy_manifest_hook
     {
-        for (id, manifest) in importer_manifests {
-            let mut cloned = (*manifest).clone();
-            if let Some(extender) = compat_package_extender {
-                extender.apply(cloned.value_mut());
-            }
-            if let Some(extender) = package_extender.as_ref() {
-                extender.apply(cloned.value_mut());
-            }
-            if deploy_manifest_hook {
-                apply_deploy_manifest_hook(cloned.value_mut());
-            }
-            if let Some(overrider) = versions_overrider.as_ref() {
-                let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
-                overrider.apply(&mut cloned, manifest_dir.as_deref());
-            }
-            effective_importer_manifests.insert(id.clone(), cloned);
-        }
+        // Every importer's transform is independent — a clone of its own
+        // manifest plus in-place rewrites — so a workspace-scale set fans
+        // out across rayon. The rebuilt `BTreeMap` restores the ordering
+        // regardless of completion order.
+        use rayon::prelude::*;
+        effective_importer_manifests = importer_manifests
+            .par_iter()
+            .map(|(id, manifest)| {
+                let mut cloned = (*manifest).clone();
+                if let Some(extender) = compat_package_extender {
+                    extender.apply(cloned.value_mut());
+                }
+                if let Some(extender) = package_extender.as_ref() {
+                    extender.apply(cloned.value_mut());
+                }
+                if deploy_manifest_hook {
+                    apply_deploy_manifest_hook(cloned.value_mut());
+                }
+                if let Some(overrider) = versions_overrider.as_ref() {
+                    let manifest_dir = cloned.path().parent().map(Path::to_path_buf);
+                    overrider.apply(&mut cloned, manifest_dir.as_deref());
+                }
+                (id.clone(), cloned)
+            })
+            .collect();
     }
 
     let compat_package_extensions_hook: Option<ManifestHook> = compat_package_extender

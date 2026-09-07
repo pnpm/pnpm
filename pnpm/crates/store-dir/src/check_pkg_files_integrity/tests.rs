@@ -100,7 +100,7 @@ fn careful_path_fails_on_missing_cafs_file() {
 /// `checked_at = 0` makes the mtime-slack delta "definitely > 100 ms",
 /// forcing a re-hash.
 #[test]
-fn careful_path_removes_file_whose_content_hash_mismatches() {
+fn careful_path_fails_but_keeps_file_whose_content_hash_mismatches() {
     let _guard = TALLY.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
@@ -115,13 +115,17 @@ fn careful_path_removes_file_whose_content_hash_mismatches() {
     dbg!(&result);
     assert!(!result.passed, "bad hash → fail");
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "mismatched file is removed so the next call re-fetches");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 /// `checked_at = 0` puts us firmly in the "modified" branch (mtime now
 /// > 100 ms past 0), so the size check runs.
 #[test]
-fn careful_path_removes_file_whose_size_mismatches_after_touch() {
+fn careful_path_fails_but_keeps_file_whose_size_mismatches_after_touch() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
     let content = b"actual content";
@@ -132,7 +136,11 @@ fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "size mismatch removes the file so a re-fetch starts clean");
+    assert!(
+        path.exists(),
+        "the mismatched file stays: the re-fetch replaces it atomically, and a concurrent \
+         install sharing the store may be importing from this path right now",
+    );
 }
 
 #[test]
@@ -239,7 +247,61 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     dbg!(&result);
     assert!(!result.passed);
     eprintln!("path={path:?} exists={}", path.exists());
-    assert!(!path.exists(), "unknown algo → treated as corrupt → removed");
+    assert!(
+        path.exists(),
+        "an unverifiable file is no evidence of corruption; it stays for the re-fetch to replace",
+    );
+}
+
+/// A symlink at a blob path fails verification (its target's bytes are
+/// not the store's), but only a *directory* may be scrubbed — the
+/// symlink itself must survive, like every other non-directory dirent.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_symlink_at_cafs_path() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"claimed content";
+    let digest = sha512_hex(content);
+    let target = tmp.path().join("elsewhere");
+    fs::write(&target, b"other bytes!!!!").unwrap();
+    let link = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
+    fs::create_dir_all(link.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    dbg!(&result);
+    assert!(!result.passed);
+    assert!(
+        fs::symlink_metadata(&link).is_ok(),
+        "a symlink at the blob path is not a directory and must not be scrubbed",
+    );
+}
+
+/// A blob the verifier cannot open reports a miss like a mismatch
+/// would, and the failure may be transient — so the file must survive
+/// for the concurrent installs that may be importing from it.
+#[test]
+#[cfg(unix)]
+fn careful_path_fails_but_keeps_unreadable_file() {
+    use std::os::unix::fs::PermissionsExt;
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let content = b"guarded content";
+    let digest = sha512_hex(content);
+    let path = plant_cafs_file(&store_dir, &digest, 0o644, content);
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o000)).unwrap();
+    let entry =
+        index_with("sha512", vec![("x", info(&digest, content.len() as u64, 0o644, Some(0)))]);
+    let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+    dbg!(&result);
+    assert!(!result.passed, "an unreadable blob is a verification miss");
+    assert!(
+        path.exists(),
+        "a read failure is no evidence of corruption; the blob must survive for concurrent readers",
+    );
 }
 
 /// The tally is process-wide, so a test measuring a delta across it has
@@ -316,8 +378,9 @@ fn the_tally_covers_hashing_only() {
 }
 
 /// Plants a directory where a CAFS blob belongs (store corruption —
-/// stray `mkdir -p` or interrupted write) to exercise the dirent-type
-/// fallback in `remove_stale_cafs_entry`.
+/// stray `mkdir -p` or interrupted write) to exercise
+/// `scrub_directory_at_cafs_path`: a directory is the one dirent the
+/// re-fetch's rename cannot replace, so the verifier removes it.
 #[test]
 fn careful_path_removes_directory_at_cafs_path() {
     let tmp = tempdir().unwrap();

@@ -136,9 +136,13 @@ async fn resolve_yarn_binary_version(
     )
     .into_diagnostic()
     .wrap_err("build the network client to resolve the Yarn release")?;
-    pnpm_engine_pm_yarn_resolver::resolve_yarn_version(&client, version_spec)
-        .await
-        .map_err(miette::Report::new)
+    pnpm_engine_pm_yarn_resolver::resolve_yarn_version(
+        &client,
+        version_spec,
+        bootstrap.tls.strict_ssl.unwrap_or(true),
+    )
+    .await
+    .map_err(miette::Report::new)
 }
 
 /// How the recorded pin reads back, for the line `pnpm add` prints.

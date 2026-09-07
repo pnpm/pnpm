@@ -1,4 +1,5 @@
 use crate::{
+    dependencies_graph_to_lockfile::manifest_publish_config,
     fast_update_compose::Drift,
     fast_update_lockfile::GraphEdits,
     fast_update_settings::{is_directory_dependency, workspace_package_names},
@@ -9,6 +10,8 @@ use pnpm_lockfile::{
     ResolvedDependencySpec,
 };
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
+use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
@@ -21,7 +24,7 @@ type LockedPackages = HashMap<PackageKey, pnpm_lockfile::PackageMetadata>;
 /// Each manifest alias with its specifier and the group it is
 /// effectively declared under. Keyed by [`PkgName`] so membership tests
 /// against importer records need no per-dependency conversions.
-type ManifestDependencies<'manifest> = HashMap<PkgName, (&'manifest str, DependencyGroup)>;
+type ManifestDependencies<'manifest> = FxHashMap<PkgName, (&'manifest str, DependencyGroup)>;
 
 /// The prepared inputs [`apply_importers_update`] replays: each
 /// importer's manifest map, built once so detection and application share
@@ -38,8 +41,11 @@ pub(crate) struct ImportersPlan<'a, 'manifest> {
 }
 
 /// Whether the importers' records diverge from the manifests, without
-/// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed,
-/// which the resolver reports.
+/// cloning anything. [`Drift::Resolve`] when an alias cannot be parsed
+/// (which the resolver reports) or when a changed specifier is one
+/// [`apply_importers_update`] is certain to refuse — bailing here keeps
+/// the compose from cloning a workspace-scale lockfile it would then
+/// throw away.
 pub(crate) fn detect_importers_drift<'a, 'manifest>(
     lockfile: &Lockfile,
     manifests: &'a [(String, &'manifest PackageManifest)],
@@ -47,38 +53,63 @@ pub(crate) fn detect_importers_drift<'a, 'manifest>(
     prune_stale_importers: bool,
     resolution_picks_lowest: bool,
 ) -> Drift<ImportersPlan<'a, 'manifest>> {
-    let mut manifest_dependencies: Vec<(&String, &PackageManifest, ManifestDependencies<'_>)> =
-        Vec::new();
-    for (importer_id, manifest) in manifests {
-        // Later groups overwrite, so each alias ends at the group
-        // `satisfies_package_manifest` expects it recorded under when it
-        // appears in several: optional wins over prod, prod over dev.
-        let mut dependencies = HashMap::new();
-        for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
-            for (name, specifier) in manifest.dependencies([group]) {
-                let Ok(name) = PkgName::parse(name) else {
-                    return Drift::Resolve;
-                };
-                dependencies.insert(name, (specifier, group));
+    // Each importer's map builds from its own manifest alone; an
+    // unparsable alias anywhere still sends the compose to the resolver.
+    let manifest_dependencies: Result<
+        Vec<(&String, &PackageManifest, ManifestDependencies<'_>)>,
+        (),
+    > = manifests
+        .par_iter()
+        .map(|(importer_id, manifest)| {
+            // Later groups overwrite, so each alias ends at the group
+            // `satisfies_package_manifest` expects it recorded under when it
+            // appears in several: optional wins over prod, prod over dev.
+            let mut dependencies = ManifestDependencies::default();
+            for group in [DependencyGroup::Dev, DependencyGroup::Prod, DependencyGroup::Optional] {
+                for (name, specifier) in manifest.dependencies([group]) {
+                    let Ok(name) = PkgName::parse(name) else {
+                        return Err(());
+                    };
+                    dependencies.insert(name, (specifier, group));
+                }
             }
-        }
-        manifest_dependencies.push((importer_id, *manifest, dependencies));
-    }
+            Ok((importer_id, *manifest, dependencies))
+        })
+        .collect();
+    let Ok(manifest_dependencies) = manifest_dependencies else {
+        return Drift::Resolve;
+    };
     let stale: Vec<String> = if prune_stale_importers {
+        let manifest_ids: HashSet<&str> =
+            manifests.iter().map(|(importer_id, _)| importer_id.as_str()).collect();
         lockfile
             .importers
             .keys()
-            .filter(|importer_id| !manifests.iter().any(|(id, _)| id == *importer_id))
+            .filter(|importer_id| !manifest_ids.contains(importer_id.as_str()))
             .cloned()
             .collect()
     } else {
         Vec::new()
     };
-    if !stale.is_empty()
-        || manifest_dependencies.iter().any(|(importer_id, _, dependencies)| {
-            importer_diverges(lockfile, importer_id, dependencies)
+    // `Resolve` must win over `Absorbable` regardless of which importer
+    // reports it, which the fold preserves.
+    let mut any_diverged = false;
+    for divergence in manifest_dependencies
+        .par_iter()
+        .map(|(importer_id, _, dependencies)| {
+            importer_divergence(lockfile, importer_id, dependencies)
         })
+        .collect::<Vec<_>>()
     {
+        match divergence {
+            ImporterDivergence::Clean => {}
+            ImporterDivergence::Absorbable => any_diverged = true,
+            // Bail before the compose clones the whole lockfile: the
+            // apply would fail on this importer regardless.
+            ImporterDivergence::NeedsResolve => return Drift::Resolve,
+        }
+    }
+    if !stale.is_empty() || any_diverged {
         Drift::Absorb(ImportersPlan {
             manifest_dependencies,
             stale,
@@ -255,12 +286,7 @@ fn importer_from_locked_versions(
     }
     importer.specifiers = Some(specifiers);
     importer.dependencies_meta = manifest.value().get("dependenciesMeta").cloned();
-    importer.publish_directory = manifest
-        .value()
-        .get("publishConfig")
-        .and_then(|publish_config| publish_config.get("directory"))
-        .and_then(serde_json::Value::as_str)
-        .map(ToString::to_string);
+    (importer.publish_directory, importer.link_directory) = manifest_publish_config(manifest);
     Some(importer)
 }
 
@@ -425,13 +451,25 @@ pub(crate) fn locked_version_resolution_would_pick(
 /// under another group, a dependency the manifest no longer declares, or
 /// a manifest entry the importer does not record (which the loop turns
 /// into a fallback).
-fn importer_diverges(
+enum ImporterDivergence {
+    Clean,
+    Absorbable,
+    /// A change [`apply_importers_update`] is certain to refuse, so the
+    /// compose can go to the resolver without cloning the lockfile.
+    NeedsResolve,
+}
+
+fn importer_divergence(
     lockfile: &Lockfile,
     importer_id: &str,
     manifest_dependencies: &ManifestDependencies<'_>,
-) -> bool {
+) -> ImporterDivergence {
     let Some(importer) = lockfile.importers.get(importer_id) else {
-        return !manifest_dependencies.is_empty();
+        return if manifest_dependencies.is_empty() {
+            ImporterDivergence::Clean
+        } else {
+            ImporterDivergence::Absorbable
+        };
     };
     let recorded_but_undeclared = [
         importer.dependencies.as_ref(),
@@ -442,13 +480,33 @@ fn importer_diverges(
     .flatten()
     .flat_map(HashMap::keys)
     .any(|alias| !manifest_dependencies.contains_key(alias));
-    recorded_but_undeclared
-        || manifest_dependencies.iter().any(|(alias, (specifier, target))| {
-            let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
-                return true;
-            };
-            dependency.specifier != *specifier || recorded_in != *target
-        })
+    let mut diverged = recorded_but_undeclared;
+    for (alias, (specifier, target)) in manifest_dependencies {
+        let Some((recorded_in, dependency)) = importer_dependency(importer, alias) else {
+            diverged = true;
+            continue;
+        };
+        if dependency.specifier != *specifier {
+            // The same conditions [`apply_importers_update`] holds a
+            // changed specifier to before it consults the locked
+            // versions; a specifier they reject (a `workspace:` range
+            // above all) can only resolve.
+            if Range::parse(specifier).is_err()
+                || dependency
+                    .version
+                    .ver_peer()
+                    .and_then(|ver_peer| ver_peer.version_semver())
+                    .is_none()
+            {
+                return ImporterDivergence::NeedsResolve;
+            }
+            diverged = true;
+        }
+        if recorded_in != *target {
+            diverged = true;
+        }
+    }
+    if diverged { ImporterDivergence::Absorbable } else { ImporterDivergence::Clean }
 }
 
 fn importer_dependency<'a>(

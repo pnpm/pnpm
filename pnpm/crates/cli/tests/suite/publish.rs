@@ -116,8 +116,17 @@ fn dry_run_uploads_nothing() {
     write_project(
         dir.path(),
         &registry,
-        &json!({ "name": "test-publish-dry", "version": "1.0.0" }),
+        &json!({
+            "name": "test-publish-dry",
+            "version": "1.0.0",
+            "devDependencies": { "is-odd": "catalog:" },
+        }),
     );
+    fs::write(
+        dir.path().join(".pnpmfile.cjs"),
+        "module.exports = { hooks: { updateConfig: config => ({ ...config, catalogs: { default: { 'is-odd': '3.0.1' } } }) } }",
+    )
+    .expect("write .pnpmfile.cjs");
 
     // Any PUT during a dry run is a failure: the mock expects zero hits.
     let mock = server.mock("PUT", Matcher::Any).expect(0).create();

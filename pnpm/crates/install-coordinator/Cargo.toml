@@ -1,0 +1,30 @@
+[package]
+name                  = "pnpm-install-coordinator"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pnpm-crypto-hash = { workspace = true }
+pnpm-fs          = { workspace = true }
+futures-util     = { workspace = true }
+miette           = { workspace = true }
+tokio            = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

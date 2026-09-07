@@ -1,6 +1,6 @@
 use crate::{
-    DirectoryResolution, ImporterDepVersion, LazyLockfile, Lockfile, LockfileResolution,
-    PackageKey, PkgName, SnapshotDepRef, WantedLockfileSelection,
+    DirectoryResolution, ImporterDepVersion, LazyLockfile, LoadLockfileError, Lockfile,
+    LockfileResolution, PackageKey, PkgName, SnapshotDepRef, WantedLockfileSelection,
 };
 use pnpm_diagnostics::miette::Diagnostic;
 use pretty_assertions::assert_eq;
@@ -66,6 +66,22 @@ fn write_lockfile(content: &str) -> tempfile::TempDir {
     std::fs::write(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), content)
         .expect("write lock.yaml");
     tmp
+}
+
+#[test]
+fn an_unreadable_lockfile_is_an_error_for_both_the_strict_and_the_repair_loader() {
+    let tmp = tempdir().expect("create tempdir");
+    let path = tmp.path().join(Lockfile::FILE_NAME);
+    std::fs::create_dir(&path).expect("put a directory where the lockfile belongs");
+
+    let strict = Lockfile::load_from_path(&path).expect_err("a directory is not readable text");
+    eprintln!("STRICT:\n{strict}\n");
+    assert!(matches!(strict, LoadLockfileError::ReadFile(_)));
+
+    let lazy = LazyLockfile::deferred(tmp.path().to_path_buf(), WantedLockfileSelection::default());
+    let repair = lazy.get_for_fix().expect_err("the repair loader reads the same file");
+    eprintln!("REPAIR:\n{repair}\n");
+    assert!(matches!(repair, LoadLockfileError::ReadFile(_)));
 }
 
 #[test]

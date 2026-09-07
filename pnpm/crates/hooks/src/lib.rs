@@ -52,9 +52,11 @@ pub enum HookError {
 #[derive(Clone)]
 pub struct HookContext {
     pub log: Arc<dyn Fn(String) + Send + Sync>,
-    /// Lockfile-root-relative directory of the resolution, set when the
-    /// manifest being transformed was resolved from a local directory (an
-    /// injected workspace project or a `file:` dependency). A host-supplied
+    /// Directory recorded by the resolution, set when the manifest being
+    /// transformed was resolved from a local directory. An injected workspace
+    /// project or a `file:` dependency records it relative to the lockfile
+    /// root; a linked workspace project records it relative to the consuming
+    /// importer. A host-supplied
     /// `readPackage` callback uses it to recognize a workspace project's
     /// dependency instance and substitute the project's raw manifest.
     /// Only the node-API bridge forwards it to JS; the `.pnpmfile.cjs`

@@ -273,11 +273,10 @@ pub fn run_recursive(
     } else {
         usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
     };
+    let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
     // pnpm pipes unless the output cannot interleave: `--stream` off, and
-    // either one task at a time or a graph that forces the scripts to run
-    // one after another.
-    let inherit_output =
-        !config.stream && (concurrency == 1 || is_serial_task_graph(&task_graph, &sequenced_tasks));
+    // the graph cannot put two scripts in flight at once.
+    let inherit_output = !config.stream && !runs_concurrently;
 
     let result: Mutex<IndexMap<String, ExecutionStatus>> = Mutex::new(
         task_graph
@@ -288,7 +287,9 @@ pub fn run_recursive(
     let has_command = AtomicUsize::new(0);
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
-    let process_tracker = bail.then(ProcessTracker::default);
+    let process_tracker = bail.then(|| {
+        if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() }
+    });
 
     let init_cwd = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
 

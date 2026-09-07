@@ -106,7 +106,7 @@ async function writeLockfileDoc (lockfilePath: string, lockfileName: string, mai
  * `rename` never resolves the final path component, so a symlink swapped in
  * after {@link ensureLockfileIsNotSymlink} cannot redirect the write.
  */
-async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
+export async function writeWantedLockfileAtomic (lockfilePath: string, content: string): Promise<void> {
   await ensureLockfileIsNotSymlink(lockfilePath)
   const targetStat = await fs.lstat(lockfilePath).catch((error: NodeJS.ErrnoException) => {
     if (error.code === 'ENOENT') return undefined

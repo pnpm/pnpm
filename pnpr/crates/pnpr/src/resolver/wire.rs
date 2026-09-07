@@ -15,7 +15,7 @@ use pnpm_resolving_npm_resolver::ObservedDistStats;
 use pnpm_resolving_resolver_base::PackageVersionGuard;
 
 use pnpr_osv::{OsvIndex, format_advisory_ids};
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
 use pnpr_route::{RouteClass, RouteContext, sanitize_registry_tarball_url, strip_url_credentials};
 use pnpr_upstream::tarball_basename;
@@ -59,11 +59,13 @@ impl TarballRouter {
             RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -137,11 +139,13 @@ impl TarballRouter {
             RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
             RouteClass::Proxied { alias, .. } => upstream_endpoint_tarball_url(
                 &self.public_url,
+                &self.context.base_path(pnpr_registry::Ecosystem::Npm),
                 &alias,
                 package,
                 &tarball_filename(package, version, tarball_url),
@@ -149,13 +153,14 @@ impl TarballRouter {
         }
     }
 
-    /// Reverse a `/~<name>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// Reverse a named endpoint tarball URL back to its
     /// upstream URL so an input lockfile carrying endpoint URLs can be verified
     /// against the real registry. Returns `None` for any other URL, and for an
     /// endpoint the caller is not authorized for (so verification cannot be
     /// used as an oracle for an upstream the caller cannot reach).
     fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
+        let base_path = self.context.base_path(pnpr_registry::Ecosystem::Npm);
+        let prefix = format!("{}{base_path}/~", self.public_url.trim_end_matches('/'));
         let route = tarball_url.strip_prefix(&prefix)?;
         let (upstream, rest) = route.split_once('/')?;
         let registry = self.context.upstream_registry(&self.identity, upstream)?;
@@ -166,7 +171,7 @@ impl TarballRouter {
 fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
     tarball_basename(tarball_url).map_or_else(
         || {
-            PackageName::parse(package).map_or_else(
+            CanonicalPackageName::parse(package, pnpr_package_name::Ecosystem::Npm).map_or_else(
                 |_| format!("{package}-{version}.tgz"),
                 |name| name.tarball_name_for_version(version),
             )
@@ -175,21 +180,19 @@ fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
     )
 }
 
-fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
-    format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+fn pnpr_tarball_url(public_url: &str, base_path: &str, package: &str, filename: &str) -> String {
+    format!("{}{base_path}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
-/// The `/~<name>/<package>/-/<filename>` registry-endpoint URL a proxied
-/// route's tarball is served through. Canonical for a client whose scope is
-/// configured at `https://<pnpr>/~<name>/`, so the lockfile entry collapses
-/// to integrity-only; the upstream URL and credential stay server-side.
+/// The registry-endpoint URL a proxied route's tarball is served through.
 fn upstream_endpoint_tarball_url(
     public_url: &str,
+    base_path: &str,
     upstream: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    format!("{}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+    format!("{}{base_path}/~{upstream}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
@@ -351,6 +354,29 @@ pub(super) fn done_frame(lockfile: &Lockfile) -> Vec<u8> {
         "lockfile": serde_json::to_value(lockfile).unwrap_or(serde_json::Value::Null),
         "stats": { "totalPackages": total_packages },
     });
+    ndjson_line(&frame).unwrap_or_else(|_| {
+        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+    })
+}
+
+/// Terminal `done` frame of a Cargo resolve: the rendered `Cargo.lock`
+/// the client writes verbatim. Cargo's lockfile is a TOML document rather
+/// than a structure the server rewrites, so it rides the frame as text.
+pub(super) fn cargo_done_frame(lockfile: &str) -> Vec<u8> {
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
+    ndjson_line(&frame).unwrap_or_else(|_| {
+        br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
+    })
+}
+
+/// Terminal `done` frame of a Python resolve: the `pylock.toml` document
+/// the client writes. It rides the frame as JSON, which is the shape the
+/// client's own lockfile type reads.
+pub(super) fn pypi_done_frame(lockfile: &pnpm_python_resolver::Lockfile) -> Vec<u8> {
+    let Ok(lockfile) = serde_json::to_value(lockfile) else {
+        return br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec();
+    };
+    let frame = serde_json::json!({ "type": "done", "lockfile": lockfile });
     ndjson_line(&frame).unwrap_or_else(|_| {
         br#"{"type":"error","message":"failed to serialize lockfile"}"#.to_vec()
     })

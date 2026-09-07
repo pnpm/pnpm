@@ -2,7 +2,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::CommandTempCwd;
 use serde_json::json;
-use std::fs;
+use std::{fs, time::Duration};
 
 #[cfg(unix)]
 fn write_executable(path: &std::path::Path, body: &str) {
@@ -40,6 +40,32 @@ fn run_executes_declared_script() {
 
     pacquet.with_arg("run").with_arg("touch-marker").assert().success();
     assert!(marker_path.exists(), "script should have created the marker file");
+
+    drop(root);
+}
+
+/// The same local-prefix resolution as
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622), which
+/// `pnpm bin` reported.
+#[cfg(unix)]
+#[test]
+fn run_from_a_plain_subdir_runs_the_projects_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // A relative marker, so where the file lands pins the working
+    // directory the script ran in.
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "touch-marker": "touch marker.txt" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let subdir = workspace.join("src/utils");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet.with_current_dir(&subdir).with_args(["run", "touch-marker"]).assert().success();
+    assert!(workspace.join("marker.txt").exists(), "the script should have run in the project");
+    assert!(!subdir.join("marker.txt").exists(), "the script should not have run in the subdir");
 
     drop(root);
 }
@@ -889,6 +915,92 @@ fn run_executes_every_script_matching_a_regexp_selector() {
     }
 }
 
+#[test]
+fn regexp_selected_scripts_run_concurrently_by_default() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("track-concurrency.js"),
+        r"const fs = require('fs')
+const [self, other] = process.argv.slice(2)
+const marker = `active-${self}`
+fs.writeFileSync(marker, '')
+const started = Date.now()
+const check = setInterval(() => {
+  if (fs.existsSync(`active-${other}`)) {
+    fs.writeFileSync('saw-parallel', '')
+    finish()
+  } else if (Date.now() - started > 1000) {
+    finish()
+  }
+}, 10)
+function finish () {
+  clearInterval(check)
+  fs.rmSync(marker, { force: true })
+  console.log(self)
+}
+",
+    )
+    .expect("write concurrency probe");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "dev:one": "node track-concurrency.js one two",
+                "dev:two": "node track-concurrency.js two one",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    let output = pacquet
+        .with_args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+
+    assert!(workspace.join("saw-parallel").exists(), "the selected scripts should overlap");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("STDOUT:\n{stdout}\n");
+    assert!(stdout.contains("dev:one: one"));
+    assert!(stdout.contains("dev:two: two"));
+
+    drop(root);
+}
+
+#[test]
+fn regexp_selected_scripts_cancel_siblings_after_failure() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "test",
+            "version": "0.0.0",
+            "scripts": {
+                "dev:slow": r#"node -e "const fs = require('fs'); fs.writeFileSync('slow-started', ''); setTimeout(() => fs.writeFileSync('slow-finished', ''), 30000)""#,
+                "dev:fail": r#"node -e "const fs = require('fs'); const wait = () => fs.existsSync('slow-started') ? process.exit(17) : setTimeout(wait, 10); wait()""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    assert_cmd::Command::from_std(pacquet)
+        .args(["--workspace-concurrency=2", "run", "/^dev:/"])
+        .timeout(Duration::from_mins(1))
+        .assert()
+        .code(17);
+    assert!(
+        !workspace.join("slow-finished").exists(),
+        "the slow script must be cancelled before its watchdog completes",
+    );
+
+    drop(root);
+}
+
 /// Flags on a selector say nothing about which scripts to pick, so pnpm
 /// rejects them instead of honouring a subset.
 #[cfg(unix)]
@@ -1021,6 +1133,46 @@ mod shell_emulator {
         assert_eq!(marker.trim(), "emulated");
 
         drop(root);
+    }
+
+    #[test]
+    fn preserves_literal_arguments() {
+        let args = [
+            r"C:\Program Files\tool\",
+            "",
+            "'it''s'",
+            r#"a"b"#,
+            "$PNPM_QUOTING_TEST",
+            "$(echo expanded)",
+            "a;b",
+            "*",
+            "line\nbreak",
+            "中文",
+        ];
+
+        for streamed in [false, true] {
+            let CommandTempCwd { mut pacquet, root, workspace, .. } = CommandTempCwd::init();
+            write_project(&workspace, &json!({ "record": "node record-args.cjs" }), true);
+            fs::write(
+                workspace.join("record-args.cjs"),
+                "require('node:fs').writeFileSync('args.json', JSON.stringify(process.argv.slice(2)))",
+            )
+            .expect("write argument recorder");
+
+            if streamed {
+                pacquet.args(["--recursive", "--include-workspace-root", "--stream"]);
+            }
+            pacquet.args(["run", "record"]).args(args).env("PNPM_QUOTING_TEST", "expanded");
+            pacquet.assert().success();
+
+            let recorded: Vec<String> = serde_json::from_slice(
+                &fs::read(workspace.join("args.json")).expect("read recorded arguments"),
+            )
+            .expect("parse recorded arguments");
+            assert_eq!(recorded, args, "streamed: {streamed}");
+
+            drop(root);
+        }
     }
 
     #[test]

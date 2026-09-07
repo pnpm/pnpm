@@ -128,6 +128,30 @@ fn installing_with_hoisted_node_linker() {
     drop((root, mock_instance));
 }
 
+/// The `added` counter on the progress line is fed by
+/// `pnpm:progress imported`, which under `nodeLinker: hoisted` only
+/// the hoisted linker emits — an install that materializes packages
+/// must move it off zero (pnpm/pnpm#14348).
+#[test]
+fn the_progress_line_counts_the_packages_the_hoisted_linker_added() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest(&workspace, serde_json::json!({ "@pnpm.e2e/pkg-with-1-dep": "100.0.0" }));
+    write_workspace_yaml(&workspace, "nodeLinker: hoisted\n");
+
+    let output = pacquet_at(&workspace).with_args(["install"]).output().expect("run pnpm install");
+    assert!(output.status.success(), "install failed: {output:?}");
+    let stdout = String::from_utf8(output.stdout).expect("stdout is UTF-8");
+    assert!(
+        stdout.contains("Progress: resolved 2, reused 0, downloaded 2, added 2, done"),
+        "stdout:\n{stdout}",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// With `lockfile: false` the hoisted install still materializes a
 /// real directory and writes no `pnpm-lock.yaml`.
 #[test]
@@ -323,6 +347,59 @@ fn peer_dependencies_installed_with_auto_install_peers() {
         workspace.join("node_modules/react").exists(),
         "react peer should be installed under the hoisted root",
     );
+
+    drop((root, mock_instance));
+}
+
+/// A cached occurrence of an npm-aliased package in a peer cycle must
+/// reuse the fully walked occurrence's final depPath. Otherwise the
+/// lockfile points at a peer-suffixed snapshot that was never emitted,
+/// and the following frozen install cannot replay it.
+#[test]
+fn frozen_install_replays_a_cached_cyclic_alias_peer_snapshot() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "cached-cyclic-alias-peer",
+            "version": "1.0.0",
+            "devDependencies": {
+                "devtools": "npm:@pnpm.e2e/peer-a@1.0.0",
+                "vite": "npm:@pnpm.e2e/foo@1.0.0",
+                "vite-plus": "npm:@pnpm.e2e/pkg-with-1-dep@100.0.0"
+            }
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    write_workspace_yaml(
+        &workspace,
+        concat!(
+            "nodeLinker: hoisted\n",
+            "packageExtensions:\n",
+            "  '@pnpm.e2e/foo@1.0.0':\n",
+            "    peerDependencies:\n",
+            "      devtools: '*'\n",
+            "    peerDependenciesMeta:\n",
+            "      devtools:\n",
+            "        optional: true\n",
+            "  '@pnpm.e2e/peer-a@1.0.0':\n",
+            "    peerDependencies:\n",
+            "      vite: '*'\n",
+            "  '@pnpm.e2e/pkg-with-1-dep@100.0.0':\n",
+            "    dependencies:\n",
+            "      '@pnpm.e2e/foo': 1.0.0\n",
+        ),
+    );
+
+    pacquet.with_args(["install", "--lockfile-only", "--ignore-scripts"]).assert().success();
+    pacquet_at(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--ignore-scripts"])
+        .assert()
+        .success();
 
     drop((root, mock_instance));
 }

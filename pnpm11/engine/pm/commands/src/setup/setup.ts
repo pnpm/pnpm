@@ -126,12 +126,14 @@ export function standaloneManifest (execName: string): {
   version: string
   type: string
   bin: Record<string, string>
+  files: string[]
 } {
   return {
     name: '@pnpm/exe',
     version: packageManager.version,
     type: 'module',
     bin: { pnpm: execName, pn: execName },
+    files: [execName, 'dist/'],
   }
 }
 

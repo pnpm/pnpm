@@ -82,6 +82,21 @@ fn completion_server_lists_top_level_commands() {
 }
 
 #[test]
+fn completion_server_answers_the_pn_alias_like_pnpm() {
+    let reply = |binary: &str| {
+        let output = pacquet()
+            .args(["completion-server", "--", binary, ""])
+            .output()
+            .expect("run pnpm completion-server");
+        stdout(output)
+    };
+
+    let pn = reply("pn");
+    assert_eq!(pn, reply("pnpm"));
+    assert!(pn.lines().any(|line| line == "install"), "{pn}");
+}
+
+#[test]
 fn completion_server_lists_options_for_current_command() {
     let output = pacquet()
         .args(["completion-server", "--", "pnpm", "install", "--"])

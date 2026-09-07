@@ -656,3 +656,67 @@ fn foreign_top_level_keys_survive_a_round_trip() {
     let foreign_at = saved.find("bit:").expect("the foreign block survives the round trip");
     assert!(importers_at < foreign_at, "the foreign block belongs after pnpm's own keys:\n{saved}");
 }
+
+/// The parallel map lowering `serialize_yaml::to_string` uses for
+/// workspace-scale maps must render byte-identically to the plain
+/// serial lowering (which still runs when no stash is active, as in
+/// the direct `serde_json::to_value` below).
+#[test]
+fn parallel_map_lowering_matches_serial_lowering() {
+    use std::fmt::Write as _;
+    let mut yaml = String::from("lockfileVersion: '9.0'\nimporters:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  packages/pkg-{index:03}:\n    dependencies:\n      '@scope/dep-{index:03}':\n        specifier: workspace:*\n        version: link:../dep-{index:03}",
+        )
+        .expect("write to a string");
+    }
+    yaml.push_str("snapshots:\n");
+    for index in 0..200 {
+        writeln!(yaml, "  'pkg-{index:03}@1.0.{index}': {{}}").expect("write to a string");
+    }
+    yaml.push_str("packages:\n");
+    for index in 0..200 {
+        writeln!(
+            yaml,
+            "  'pkg-{index:03}@1.0.{index}':\n    resolution: {{integrity: sha512-{index:A>88}}}",
+        )
+        .expect("write to a string");
+    }
+    // A marker-shaped decoy planted as ordinary lockfile data: it must
+    // come out exactly as it went in, and be the only marker-prefixed
+    // string in the output.
+    let decoy = "\u{f8ff}pacquet-lowered-map:12345:0";
+    writeln!(
+        yaml,
+        "  'decoy@1.0.0':\n    resolution: {{integrity: sha512-{:A>88}}}\n    version: '{decoy}'",
+        0,
+    )
+    .expect("write to a string");
+    let lockfile = Lockfile::parse(&yaml, Path::new("pnpm-lock.yaml"))
+        .expect("parse the synthetic lockfile")
+        .expect("non-empty lockfile");
+
+    let lowered_before =
+        crate::serialize_yaml::PARALLEL_LOWERINGS.load(std::sync::atomic::Ordering::Relaxed);
+    let via_to_string = lockfile.to_yaml_string().expect("serialize via to_string");
+    let lowered = crate::serialize_yaml::PARALLEL_LOWERINGS
+        .load(std::sync::atomic::Ordering::Relaxed)
+        - lowered_before;
+    let mut plain = serde_json::to_value(&lockfile).expect("serialize serially");
+    crate::prune_time(&mut plain);
+    let via_serial = crate::yaml_emit::to_string(plain);
+
+    assert_eq!(via_to_string, via_serial);
+    assert!(
+        lowered >= 3,
+        "importers, packages, and snapshots must all take the parallel lowering, got {lowered}",
+    );
+    assert_eq!(
+        via_to_string.matches('\u{f8ff}').count(),
+        via_to_string.matches(decoy).count(),
+        "every marker-prefixed character must belong to a planted decoy",
+    );
+    assert!(via_to_string.contains(decoy), "marker-shaped data must round-trip untouched");
+}

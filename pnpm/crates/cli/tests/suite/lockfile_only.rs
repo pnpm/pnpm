@@ -6,6 +6,8 @@
 //! `--frozen-lockfile --lockfile-only` combination still validates the
 //! on-disk lockfile against the manifest and fails when it is stale.
 
+mod local_overrides;
+
 use crate::_utils;
 pub use _utils::append_workspace_yaml_key;
 

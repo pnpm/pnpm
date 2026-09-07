@@ -1,6 +1,10 @@
+mod archive_request;
+mod archive_retry;
 mod download;
 mod error;
 mod extract;
+mod extraction_task;
+mod ingestion;
 mod local_tarball;
 mod prefetch;
 mod zip_archive;
@@ -48,6 +52,18 @@ use tokio::sync::{Notify, RwLock, Semaphore};
 /// grow their buffer on demand, so an archive larger than the ceiling
 /// still decodes in full.
 const MAX_UNTRUSTED_PREALLOC_BYTES: usize = 64 * 1024 * 1024;
+
+fn auth_header_for_package_download(
+    auth_headers: &AuthHeaders,
+    package_url: &str,
+    package_id: &str,
+) -> Option<String> {
+    if package_id.starts_with("node@runtime:") {
+        auth_headers.for_secure_url_with_package(package_url, Some(package_id))
+    } else {
+        auth_headers.for_url_with_package(package_url, Some(package_id))
+    }
+}
 
 /// Cap on concurrent post-download tarball work (SHA-512 of the whole
 /// tarball + gzip inflate + per-file SHA-512 + CAFS writes). The body is
@@ -151,8 +167,9 @@ pub enum CacheValue {
 
 /// Internal in-memory cache of tarballs.
 ///
-/// The key is the tarball URL, prefixed for revision-addressed fetches so
-/// redirect and retry policies never share a result.
+/// Ordinary package entries retain their tarball URL key. Revision-addressed
+/// fetches and projections that produce different file sets add a discriminator
+/// so incompatible network policies or archive views never share a result.
 pub type MemCache = DashMap<String, Arc<RwLock<CacheValue>>>;
 
 /// Install-scoped set of store-index cache keys
@@ -181,20 +198,20 @@ pub struct FetchedTarball {
     pub requires_build: bool,
 }
 
-impl<'a> DownloadTarballToStore<'a> {
+impl<'a> IngestTarballToStore<'a> {
     /// Execute the subroutine with an in-memory cache.
     ///
     /// # Caller invariant: stable filter per URL
     ///
-    /// The cache is keyed on `package_url` and whether the request uses the
-    /// revision-addressed network policy. Within either policy, a second
-    /// caller fetching the same URL with a different [`ignore_file_pattern`]
-    /// silently receives the map the first caller's filter produced. Every
-    /// fetch of a URL must use the same filter. Nothing enforces this; today
-    /// it holds because URLs encode `(name, version, integrity)` and filters
-    /// are keyed by package name.
+    /// The cache is keyed on `package_url`, the archive projection, and
+    /// whether the request uses the revision-addressed network policy. Within
+    /// one key, a second caller fetching the same URL with a different
+    /// [`ignore_file_pattern`] silently receives the map the first caller's
+    /// filter produced. Every fetch of a URL must use the same filter. Nothing
+    /// enforces this; today it holds because URLs encode
+    /// `(name, version, integrity)` and filters are keyed by package name.
     ///
-    /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
+    /// [`ignore_file_pattern`]: IngestTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
         self,
         mem_cache: &'a MemCache,
@@ -216,26 +233,23 @@ impl<'a> DownloadTarballToStore<'a> {
         mem_cache: &'a MemCache,
         revision_addressed: bool,
     ) -> Result<Arc<HashMap<String, PathBuf>>, TarballError> {
-        let &DownloadTarballToStore {
+        let &IngestTarballToStore {
             package_url,
             package_id,
             package_integrity,
             prefetched_cas_paths,
             requester,
+            store_projection,
             ..
         } = &self;
-        let mem_cache_key = if revision_addressed {
-            format!("revision-addressed:{package_url}")
-        } else {
-            package_url.to_string()
-        };
-        let cache_key = store_index_cache_key(package_integrity, package_id);
+        let mem_cache_key = store_projection.mem_cache_key(package_url, revision_addressed);
+        let cache_key = store_index_cache_key(package_integrity, package_id, store_projection);
         let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
 
         // Hands the `Arc` on without deep-cloning the per-file map:
         // on a warm install every snapshot takes this path, and by 1k+
         // snapshots that clone dominates the memory traffic. The `Arc`
-        // is also stashed in `mem_cache` by URL so peer-resolved
+        // is also stashed under a projection-aware URL key so peer-resolved
         // variants of one package share it.
         if let Some(prefetched) = prefetched_cas_paths
             && let Some(cache_key) = cache_key.as_deref()
@@ -406,202 +420,42 @@ impl<'a> DownloadTarballToStore<'a> {
         &self,
         revision_addressed: bool,
     ) -> Result<HashMap<String, PathBuf>, TarballError> {
-        let &DownloadTarballToStore {
-            store_dir,
-            package_integrity,
-            package_url,
-            package_id,
-            requester,
-            verify_store_integrity,
-            strict_store_pkg_content_check,
-            prefetched_cas_paths,
-            ..
-        } = self;
-
-        // Before hitting the network, check the SQLite store index: if the
-        // tarball is already in the CAFS we can reuse its per-file paths
-        // and skip the download entirely. This is the payoff of the v11
-        // store migration (<https://github.com/pnpm/pacquet/issues/244>) — pnpm and pacquet share `index.db`, so a
-        // previous install of the same (integrity, pkg_id) pair leaves an
-        // entry we can read back here.
-        //
-        // The lookup is best-effort. A missing `index.db`, a missing row,
-        // an undecodable entry, or any CAFS file that has gone missing
-        // from disk all fall through to the download path below.
-        let cache_key = store_index_cache_key(package_integrity, package_id);
-        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
-        // Deep-clones the inner map, unlike the `Arc`-preserving path
-        // in `run_with_mem_cache`: this signature returns an owned
-        // `HashMap`, and widening it would reach into
-        // `DownloadTarballToStore`'s return type. Affordable because
-        // only cache-miss snapshots reach here, where the clone is
-        // dwarfed by the download it avoids.
-        if let Some(prefetched) = prefetched_cas_paths
-            && let Some(cache_key) = cache_key.as_deref()
-            && let Some(cas_paths) = prefetched.get(cache_key)
-        {
-            tracing::info!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "Reusing prefetched CAFS entry — skipping download",
-            );
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-            return Ok((**cas_paths).clone());
-        }
-        if let Some(cache_key) = cache_key.clone() {
-            let cached = load_cached_cas_paths::<Reporter>(
-                self.store_index.clone(),
-                store_dir,
-                cache_key,
-                verify_store_integrity,
-                strict_store_pkg_content_check,
-                Arc::clone(&self.verified_files_cache),
-            )
-            .await?;
-            if let Some(cas_paths) = cached {
-                tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-                emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
-                return Ok(cas_paths);
-            }
-        }
-        self.fetch_and_extract_inner::<Reporter>(false, revision_addressed)
-            .await
-            .map(|result| result.files_map)
+        self.ingestion(revision_addressed).run::<Reporter>().await
     }
 
-    /// Fetch the requested archive, verify any expected integrity, and return its CAFS files.
-    /// Unlike [`Self::run_without_mem_cache`], this does not reuse cached content.
-    /// Archives without an expected integrity are indexed by their computed SHA-512.
+    /// Fetch without cache reuse, indexing unpinned archives by computed integrity.
     pub async fn fetch_and_extract<Reporter: self::Reporter>(
         &self,
     ) -> Result<FetchedTarball, TarballError> {
-        self.fetch_and_extract_inner::<Reporter>(true, false).await
+        self.ingestion(false).fetch::<Reporter>(true).await
     }
 
-    async fn fetch_and_extract_inner<Reporter: self::Reporter>(
-        &self,
-        record_computed_integrity: bool,
-        revision_addressed: bool,
-    ) -> Result<FetchedTarball, TarballError> {
-        let &DownloadTarballToStore {
-            http_client,
-            store_dir,
-            package_integrity,
-            package_unpacked_size,
-            package_file_count,
-            package_url,
-            package_id,
-            requester,
-            retry_opts,
-            auth_headers,
-            append_manifest,
-            ..
-        } = self;
-        let cache_key = store_index_cache_key(package_integrity, package_id);
-        let progress_key = self.progress_reported.as_ref().zip(cache_key.as_deref());
-        let store_index_writer = self.store_index_writer.clone();
-        // `Option<Arc<IgnoreEntryFilter>>` isn't `Copy`, so it can't
-        // ride along in the deref-destructure above. `.clone()`
-        // here bumps the Arc refcount — cheap, and the trait
-        // object is shared with the install dispatcher that
-        // owns the original.
-        let ignore_file_pattern = self.ignore_file_pattern.clone();
-
-        // Offline-mode gate: nothing past this point is served from a
-        // cache. pnpm gates only its metadata path on `--offline`;
-        // pacquet has no metadata path on the frozen-install flow, so
-        // the gate lands here. Error rather than fall through to the
-        // network — same shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`,
-        // scoped to tarballs because that's what pacquet's frozen
-        // install needs network for.
-        if self.offline && local_file_tarball_path(package_url).is_none() {
-            tracing::warn!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "offline mode: tarball missing from local store; refusing network fetch",
-            );
-            return Err(TarballError::NoOfflineTarball {
-                package_id: package_id.to_string(),
-                url: package_url.to_string(),
-            });
-        }
-
-        tracing::info!(target: "pacquet::download", ?package_url, "New cache");
-
-        // Run the full fetch + integrity + extract pipeline under
-        // pnpm's retry policy: a single retried closure wraps both the
-        // network side and the integrity-check + extract side, so a
-        // flaky transfer that survives TCP framing but fails the
-        // SHA-512 hash or trips gzip / tar parsing recovers via
-        // re-fetch instead of aborting the install
-        // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
-        // [`is_transient_error`].
-        let (computed_integrity, mut cas_paths, mut pkg_files_idx) =
-            fetch_and_extract_with_retry::<Reporter>(
-                http_client,
-                package_url,
-                package_integrity,
-                package_unpacked_size,
-                download_priority(package_unpacked_size, package_file_count),
-                package_id,
-                requester,
-                store_dir,
-                retry_opts,
-                auth_headers,
-                ignore_file_pattern,
-                progress_key,
+    fn ingestion(&self, revision_addressed: bool) -> ingestion::ArchiveIngestion<'_> {
+        ingestion::ArchiveIngestion {
+            http_client: self.http_client,
+            store_dir: self.store_dir,
+            store_index: &self.store_index,
+            store_index_writer: &self.store_index_writer,
+            verify_store_integrity: self.verify_store_integrity,
+            strict_store_pkg_content_check: self.strict_store_pkg_content_check,
+            verified_files_cache: &self.verified_files_cache,
+            package_integrity: self.package_integrity,
+            package_url: self.package_url,
+            package_id: self.package_id,
+            requester: self.requester,
+            prefetched_cas_paths: self.prefetched_cas_paths,
+            retry_opts: self.retry_opts,
+            auth_headers: self.auth_headers,
+            ignore_file_pattern: &self.ignore_file_pattern,
+            offline: self.offline,
+            progress_reported: &self.progress_reported,
+            store_projection: self.store_projection,
+            format: ingestion::ArchiveFormat::TarGz {
+                unpacked_size: self.package_unpacked_size,
+                file_count: self.package_file_count,
                 revision_addressed,
-            )
-            .await?;
-
-        // Fold the synthesized runtime `package.json` into the row before
-        // it is persisted, so warm reinstalls (which read the row) get it.
-        if let Some(manifest_bytes) = append_manifest {
-            apply_append_manifest(store_dir, manifest_bytes, &mut cas_paths, &mut pkg_files_idx)?;
+            },
         }
-        apply_placeholder_manifest(store_dir, &mut cas_paths, &mut pkg_files_idx)?;
-
-        let manifest = pkg_files_idx.manifest.clone();
-        // Only legacy cache rows omit this; fresh extraction always records it.
-        let requires_build =
-            pkg_files_idx.requires_build.expect("fresh extraction records build requirement");
-
-        // Hand the per-tarball files index off to the shared writer task
-        // from <https://github.com/pnpm/pacquet/pull/265> *after* the retry loop returns, so transient failures
-        // don't queue a half-built row that a successful retry would
-        // duplicate. `queue` is a non-blocking `UnboundedSender::send`;
-        // the writer task owns one connection and batches whatever it
-        // drains in one `BEGIN IMMEDIATE; ... ; COMMIT`. `None` means the
-        // writer failed to open or the caller handed us none — the row
-        // is dropped with a `warn!` and the next install misses on this
-        // cache key, matching the read path's stance.
-        let cache_key = cache_key.or_else(|| {
-            record_computed_integrity
-                .then(|| store_index_key(&computed_integrity.to_string(), package_id))
-        });
-        match (cache_key, store_index_writer) {
-            (Some(index_key), Some(writer)) => writer.queue(index_key, pkg_files_idx),
-            (Some(index_key), None) => tracing::warn!(
-                target: "pacquet::download",
-                ?index_key,
-                "no shared store-index writer; skipping index row for this tarball",
-            ),
-            (None, _) => tracing::debug!(
-                target: "pacquet::download",
-                ?package_url,
-                ?package_id,
-                "resolution carries no integrity; skipping index row for this tarball",
-            ),
-        }
-
-        Ok(FetchedTarball {
-            integrity: computed_integrity,
-            files_map: cas_paths,
-            manifest,
-            requires_build,
-        })
     }
 }
 
@@ -626,7 +480,7 @@ pub struct ResolvedTarball {
 /// fetch here to fill `manifest` + `integrity` into its
 /// `ResolveResult`. Passing a `mem_cache` warms it (keyed by URL) so
 /// the install pass's
-/// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
+/// [`IngestTarballToStore::run_with_mem_cache`] reuses the extraction
 /// without a second download.
 pub struct FetchTarballForResolution<'a> {
     pub http_client: &'a ThrottledClient,

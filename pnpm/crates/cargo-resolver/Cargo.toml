@@ -1,0 +1,23 @@
+[package]
+name                 = "pnpm-cargo-resolver"
+version              = "0.0.1"
+publish              = false
+authors.workspace    = true
+description          = "Cargo-compatible dependency resolution for pnpm"
+edition.workspace    = true
+homepage.workspace   = true
+keywords.workspace   = true
+license.workspace    = true
+repository.workspace = true
+
+[dependencies]
+cargo-lock.workspace         = true
+cargo-util-schemas.workspace = true
+miette.workspace             = true
+pubgrub.workspace            = true
+semver.workspace             = true
+serde.workspace              = true
+serde_json.workspace         = true
+
+[lints]
+workspace = true

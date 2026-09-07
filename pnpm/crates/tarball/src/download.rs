@@ -4,44 +4,131 @@
 //! events the reporter renders during a fetch.
 
 use super::{
-    Arc, Duration, GZIP_MAGIC, HashMap, HttpStatusError, IgnoreEntryFilter, Instant, NetworkError,
-    PathBuf, PrefetchedCasPaths, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
+    Arc, Duration, GZIP_MAGIC, HashMap, IgnoreEntryFilter, Instant, NetworkError, PathBuf,
+    PrefetchedCasPaths, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, SharedReportedProgressKeys, TarballError,
     VerifyChecksumError, allocate_tarball_buffer, body_chunk_channel, extract_gzipped_tarball,
     local_file_tarball_path, non_gzip_body_error, open_local_tarball, post_download_semaphore,
     read_local_tarball_buffer, stream_extract_gzipped_channel, streaming_extract_semaphore,
 };
+use crate::extraction_task::spawn_extraction;
 use futures_util::{Stream, StreamExt};
 use pnpm_network::{
     AuthHeaders, MAX_THROUGHPUT_PRIORITY, RetryOpts, ThrottledClient, redact_url_for_display,
 };
 use pnpm_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
-    Reporter, RequestRetryError, RequestRetryLog,
+    Reporter, RequestRetryError,
 };
 use pnpm_store_dir::{
     PackageFilesIndex, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir,
     StoreIndexWriter, store_index_key,
 };
 use ssri::{Algorithm, Integrity, IntegrityChecker, IntegrityOpts};
+use tokio::sync::SemaphorePermit;
 
-/// This subroutine downloads and extracts a tarball to the store directory.
+/// Controls how archive files are projected into pnpm's content-addressable store.
 ///
-/// It returns a CAS map of files in the tarball.
-///
+/// Package archives get pnpm's `package.json` completion marker and may receive a
+/// synthesized manifest. Raw archives preserve their regular-file contents exactly;
+/// their ecosystem adapter owns any additional metadata and install layout.
+#[derive(Debug, Clone, Copy)]
+pub enum ArchiveStoreProjection<'a> {
+    /// Project the archive as an npm-compatible package. The archive receives
+    /// pnpm's completion marker when it has no `package.json`; runtime archives
+    /// may additionally supply the manifest that should be synthesized.
+    Package { append_manifest: Option<&'a [u8]> },
+    /// Preserve the archive's regular files without adding npm package files.
+    /// The ecosystem adapter owns all post-ingestion metadata and layout.
+    RawArchive,
+}
+
+impl<'a> ArchiveStoreProjection<'a> {
+    /// Ordinary package keys stay byte-for-byte compatible with pnpm's existing
+    /// store. Projections that change the archive's file set use separate
+    /// namespaces so they cannot reuse an incompatible row.
+    #[must_use]
+    pub fn store_index_key(self, integrity: &str, package_id: &str) -> String {
+        let base_key = store_index_key(integrity, package_id);
+        match self {
+            Self::Package { append_manifest: None } => base_key,
+            Self::Package { append_manifest: Some(manifest) } => {
+                format!("package-manifest\t{}\t{base_key}", manifest_integrity(manifest))
+            }
+            Self::RawArchive => format!("raw-archive\t{base_key}"),
+        }
+    }
+
+    /// Ordinary package keys stay byte-for-byte compatible with the URL keys
+    /// inserted by resolve-time fetches. Only projections that can produce a
+    /// different file set receive a discriminator; synthesized manifests are
+    /// content-addressed so equal projections still share work.
+    pub(crate) fn mem_cache_key(self, package_url: &str, revision_addressed: bool) -> String {
+        match (self, revision_addressed) {
+            (Self::Package { append_manifest: None }, false) => package_url.to_string(),
+            (Self::Package { append_manifest: None }, true) => {
+                format!("revision-addressed:{package_url}")
+            }
+            (Self::RawArchive, false) => format!("raw-archive:{package_url}"),
+            (Self::RawArchive, true) => format!("revision-addressed:raw-archive:{package_url}"),
+            (Self::Package { append_manifest: Some(manifest) }, revision_addressed) => {
+                let revision_prefix = if revision_addressed { "revision-addressed:" } else { "" };
+                format!(
+                    "{revision_prefix}package-manifest:{}:{package_url}",
+                    manifest_integrity(manifest),
+                )
+            }
+        }
+    }
+
+    pub(crate) fn package_content_check(self, strict: bool) -> PackageContentCheck {
+        match self {
+            Self::Package { .. } if strict => PackageContentCheck::Strict,
+            Self::Package { .. } => PackageContentCheck::Warn,
+            Self::RawArchive => PackageContentCheck::Skip,
+        }
+    }
+
+    pub(crate) fn legacy_synthesized_store_row(
+        self,
+        integrity: &str,
+        package_id: &str,
+    ) -> Option<(String, &'a [u8])> {
+        match self {
+            Self::Package { append_manifest: Some(manifest) } => {
+                Some((store_index_key(integrity, package_id), manifest))
+            }
+            Self::Package { append_manifest: None } | Self::RawArchive => None,
+        }
+    }
+}
+
+fn manifest_integrity(manifest: &[u8]) -> Integrity {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha256);
+    opts.input(manifest);
+    opts.result()
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PackageContentCheck {
+    Strict,
+    Warn,
+    Skip,
+}
+
 /// `Clone` is cheap — every field is a reference, a `Copy` scalar, or an
 /// `Arc` — so a caller can keep a copy to retry through a different entry
 /// point (e.g. fall back to [`Self::run_without_mem_cache`] after a
 /// best-effort [`Self::run_with_mem_cache`] reports a sibling failure).
 #[derive(Clone)]
 #[must_use]
-pub struct DownloadTarballToStore<'a> {
+pub struct IngestTarballToStore<'a> {
     pub http_client: &'a ThrottledClient,
     pub store_dir: &'static StoreDir,
     /// Shared read-only handle to the `SQLite` store index. `None` when the
     /// store does not (yet) have an `index.db`, in which case every cache
     /// lookup short-circuits to a network fetch. Callers open this once per
-    /// install and pass the same handle to every [`DownloadTarballToStore`]
+    /// install and pass the same handle to every [`IngestTarballToStore`]
     /// so we don't reopen the DB per package.
     pub store_index: Option<SharedReadonlyStoreIndex>,
     /// Handle to the batched store-index writer. Each successful tarball
@@ -85,7 +172,7 @@ pub struct DownloadTarballToStore<'a> {
     /// per-file stat in `check_pkg_files_integrity` once per
     /// (snapshot × file) instead of once per (file). Allocate one
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
-    /// handle to every [`DownloadTarballToStore`].
+    /// handle to every [`IngestTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
     /// Expected hash of the tarball bytes. `None` for a lockfile entry
     /// recording no `integrity`, the shape pnpm wrote for git-host
@@ -169,18 +256,9 @@ pub struct DownloadTarballToStore<'a> {
     /// threads this set through, because resolve-time prefetches can
     /// otherwise report the same package again in the warm batch.
     pub progress_reported: Option<SharedReportedProgressKeys>,
-    /// Synthesized `package.json` to fold into the freshly extracted
-    /// archive, mirroring pnpm's `appendManifest`. Runtime archives
-    /// (Node.js / Bun / Deno) ship no manifest of their own, so without
-    /// this the store-index row records no `package.json`: every later
-    /// *warm* materialization then lands a manifest-less slot, and the
-    /// warm-batch bin linker (which reads `PackageFilesIndex.manifest`)
-    /// links no bin. When `Some`, the bytes are written to the CAFS and
-    /// recorded in the row's `files` map and bundled `manifest` before
-    /// the row is queued, so warm and cold installs see the same slot.
-    /// `None` (ordinary registry/tarball packages) is a no-op — they
-    /// carry their own `package.json`. See `apply_append_manifest`.
-    pub append_manifest: Option<&'a [u8]>,
+    /// Ecosystem-owned projection policy applied after verified extraction and
+    /// before the store-index row is queued.
+    pub store_projection: ArchiveStoreProjection<'a>,
 }
 
 /// Project [`TarballError`] onto pnpm's `requestRetryLogger`'s
@@ -294,7 +372,7 @@ pub(crate) async fn extract_tarball_buffer(
     store_dir: &'static StoreDir,
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let _post_download_permit = post_download_semaphore()
+    let post_download_permit = post_download_semaphore()
         .acquire()
         .await
         .expect("post-download semaphore shouldn't be closed this soon");
@@ -303,7 +381,8 @@ pub(crate) async fn extract_tarball_buffer(
 
     let expected_integrity = expected_integrity.cloned();
     let package_url_owned = package_url.to_string();
-    let result = tokio::task::spawn_blocking(
+    let result = spawn_extraction(
+        post_download_permit,
         move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
             let integrity = verify_tarball_integrity(
                 &buffer,
@@ -419,6 +498,7 @@ async fn extract_body_while_downloading<Reporter, Body, Guard>(
     mut hasher: BodyHasher,
     progress: &mut BodyProgress<'_>,
     network_permit: Guard,
+    streaming_permit: SemaphorePermit<'static>,
     http_client: &ThrottledClient,
     package_url: &str,
     store_dir: &'static StoreDir,
@@ -428,12 +508,11 @@ where
     Reporter: self::Reporter,
     Body: Stream<Item = reqwest::Result<bytes::Bytes>> + Unpin,
 {
-    let network_error =
-        |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
 
     let (chunk_tx, chunk_rx) = body_chunk_channel();
     let extractor_ignore = ignore_file_pattern.clone();
-    let extract_task = tokio::task::spawn_blocking(move || {
+    let extract_task = spawn_extraction(streaming_permit, move || {
         stream_extract_gzipped_channel(chunk_rx, store_dir, extractor_ignore.as_deref())
     });
     // The body is hashed to its end no matter what the extractor does
@@ -498,7 +577,7 @@ where
 /// `Content-Length` there is no denominator, and for a typical
 /// sub-megabyte package the gauge would reach 100% before any UI tick
 /// could show it.
-struct BodyProgress<'a> {
+pub(crate) struct BodyProgress<'a> {
     emit: bool,
     started_at: Instant,
     last_emit: Option<Instant>,
@@ -511,7 +590,7 @@ impl<'a> BodyProgress<'a> {
     const BIG_TARBALL_SIZE: u64 = 5 * 1024 * 1024;
     const IN_PROGRESS_THROTTLE: Duration = Duration::from_millis(500);
 
-    fn new(expected_size: Option<u64>, package_id: &'a str) -> Self {
+    pub(crate) fn new(expected_size: Option<u64>, package_id: &'a str) -> Self {
         Self {
             emit: expected_size.is_some_and(|size| size >= Self::BIG_TARBALL_SIZE),
             started_at: Instant::now(),
@@ -522,7 +601,7 @@ impl<'a> BodyProgress<'a> {
         }
     }
 
-    fn on_chunk<Reporter: self::Reporter>(&mut self, len: usize) {
+    pub(crate) fn on_chunk<Reporter: self::Reporter>(&mut self, len: usize) {
         self.downloaded = self.downloaded.saturating_add(len as u64);
         let throttle_ready =
             self.last_emit.is_none_or(|instant| instant.elapsed() >= Self::IN_PROGRESS_THROTTLE);
@@ -539,7 +618,7 @@ impl<'a> BodyProgress<'a> {
         }
     }
 
-    fn finish<Reporter: self::Reporter>(&mut self) {
+    pub(crate) fn finish<Reporter: self::Reporter>(&mut self) {
         // Match the trailing edge of `lodash.throttle` so consumers
         // observe the final byte count when the last window is partial.
         if self.emit && self.downloaded != self.last_emitted_downloaded {
@@ -618,8 +697,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
     revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let network_error =
-        |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+    let network_error = |error| TarballError::FetchTarball(NetworkError::new(package_url, error));
 
     if let Some(path) = local_file_tarball_path(package_url) {
         let (file, size) = open_local_tarball(&path).await?;
@@ -643,91 +721,16 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
         .await;
     }
 
-    // Acquire the network permit *before* `connect + send` and hold it
-    // through body streaming. Releasing earlier would let the next
-    // batch of futures `connect()` while previous bodies are still
-    // draining, breaking the bound on concurrent open sockets.
-    //
-    // `acquire_for_url_with_priority` routes the request through the
-    // per-registry TLS-configured client when one is set for
-    // `package_url`'s nerf-darted prefix, falling back to the default
-    // client otherwise. Tarball hosts that differ from the metadata
-    // host still pick up the right per-registry client because the
-    // 5-step `pickSettingByUrl` lookup also matches on the tarball
-    // URL. When the pool is saturated, the package with the most
-    // estimated pipeline work claims the next freed slot, so the
-    // longest download+extract jobs never start last.
-    // The route policy decides whether this origin may be reached at all,
-    // at the fetch rather than when the request that named it was read.
-    if !auth_headers.allows_fetch(package_url) {
-        return Err(TarballError::OffAllowlist {
-            url: pnpm_network::redact_url_credentials(package_url),
-        });
-    }
-    let client = if revision_addressed {
-        http_client
-            .acquire_for_url_without_redirects_with_priority(package_url, download_priority)
-            .await
-    } else {
-        http_client.acquire_for_url_with_priority(package_url, download_priority).await
-    };
-    let mut request = client.get(package_url);
-    // Resolve the per-URL auth header and attach it. Tarball hosts that
-    // differ from the metadata host still pick up the header keyed at
-    // the registry's nerf-darted URI.
-    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
-        request = request.header("authorization", value);
-    }
-
-    // `pnpm:fetching-progress started` fires exactly once per HTTP
-    // attempt — including attempts that fail before the response head
-    // arrives (DNS / connect / timeout) so retried attempts stay
-    // visible in the reporter.
-    // `size` is the response's `Content-Length` when we have a
-    // response head, and JSON `null` (i.e. `None`) when we don't:
-    // either because the response is chunked / unknown-length, or
-    // because the request errored out before headers. pnpm's
-    // reporter checks `size != null` before rendering a percent
-    // gauge, so this admits "we don't know yet" only when we truly
-    // don't know.
-    //
-    // `attempt` is one-indexed (the in-flight attempt) to match the
-    // reporter's wire shape, which expects a 1-indexed counter.
-    // Pacquet's loop counter is zero-indexed, so emit `attempt + 1`.
-    // The default reporter filters big-tarball progress on
-    // `attempt == 1` (so retries don't reset the progress line), so a
-    // zero would silence every "Downloading ..." line.
-    let send_result = request.send().await;
-    let size = send_result.as_ref().ok().and_then(reqwest::Response::content_length);
-    Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
-        level: LogLevel::Debug,
-        message: FetchingProgressMessage::Started {
-            attempt: attempt + 1,
-            package_id: package_id.to_owned(),
-            size,
-        },
-    }));
-    let response_head = send_result.map_err(network_error)?;
-
-    let status = response_head.status();
-    if !status.is_success() {
-        // Drain small error bodies so reqwest/hyper can return the
-        // connection to the keep-alive pool — dropping an unconsumed
-        // `Response` closes the underlying connection, which we'd then
-        // pay to reopen on retry. Skip the drain when the body is
-        // unknown-length or larger than the cap, since hyper only
-        // returns the connection to the pool once the body is fully
-        // consumed; a partial drain wouldn't help and would just buffer
-        // a pathological response.
-        const DRAIN_CAP: u64 = 64 * 1024;
-        if response_head.content_length().is_some_and(|len| len <= DRAIN_CAP) {
-            let _ = response_head.bytes().await;
-        }
-        return Err(TarballError::HttpStatus(HttpStatusError {
-            url: package_url.to_string(),
-            status: status.as_u16(),
-        }));
-    }
+    let (client, response_head) = crate::archive_request::request_archive::<Reporter>(
+        http_client,
+        package_url,
+        package_id,
+        auth_headers,
+        download_priority,
+        attempt,
+        revision_addressed,
+    )
+    .await?;
 
     let expected_size = response_head.content_length();
 
@@ -754,7 +757,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
     if is_gzip
         && attempt == 0
         && expected_size.is_some_and(|size| size >= STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD)
-        && let Ok(_streaming_permit) = streaming_extract_semaphore().try_acquire()
+        && let Ok(streaming_permit) = streaming_extract_semaphore().try_acquire()
     {
         for chunk in &prefix {
             progress.on_chunk::<Reporter>(chunk.len());
@@ -765,6 +768,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
             BodyHasher::new(expected_integrity),
             &mut progress,
             client,
+            streaming_permit,
             http_client,
             package_url,
             store_dir,
@@ -806,7 +810,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                 // The buffer's capacity has doubled past what arrived;
                 // hand the extractor the bytes, not the headroom.
                 buf.shrink_to_fit();
-                let _streaming_permit = streaming_extract_semaphore()
+                let streaming_permit = streaming_extract_semaphore()
                     .acquire()
                     .await
                     .expect("streaming-extract semaphore shouldn't be closed this soon");
@@ -816,6 +820,7 @@ pub(crate) async fn fetch_and_extract_once<Reporter: self::Reporter>(
                     BodyHasher::new(expected_integrity),
                     &mut progress,
                     client,
+                    streaming_permit,
                     http_client,
                     package_url,
                     store_dir,
@@ -980,83 +985,43 @@ pub(crate) async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
     revision_addressed: bool,
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-    let max_retries = if revision_addressed { 0 } else { retry_opts.retries };
-    let mut attempt: u32 = 0;
-    loop {
-        let result = fetch_and_extract_once::<Reporter>(
-            http_client,
-            package_url,
-            expected_integrity,
-            package_unpacked_size,
-            download_priority,
-            package_id,
-            attempt,
-            store_dir,
-            auth_headers,
-            ignore_file_pattern.clone(),
-            revision_addressed,
-        )
-        .await;
-        match result {
-            Ok(value) => {
-                // `pnpm:progress fetched`: one event per (resolved)
-                // package once the tarball has been pulled from the
-                // network and extracted.
-                emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
-                return Ok(value);
-            }
-            Err(err) if !is_transient_error(&err) => return Err(err),
-            Err(err) if attempt >= max_retries => {
-                tracing::warn!(
-                    target: "pacquet::download",
-                    ?package_url,
-                    attempts = attempt + 1,
-                    ?err,
-                    "Tarball fetch retry budget exhausted",
-                );
-                return Err(err);
-            }
-            Err(err) => {
-                let delay = retry_opts.delay_for(attempt);
-                tracing::warn!(
-                    target: "pacquet::download",
-                    ?package_url,
-                    attempt = attempt + 1,
-                    max_attempts = max_retries + 1,
-                    ?delay,
-                    ?err,
-                    "Tarball fetch failed; retrying after backoff",
-                );
-                // `pnpm:request-retry`: one event per
-                // failed-and-being-retried HTTP attempt, before the
-                // backoff sleep, so the JS reporter renders "Will retry
-                // in <ms>. <N> retries left." while pacquet is still
-                // waiting. `attempt` is one-indexed (the failed
-                // attempt) to match the reporter's wire shape;
-                // pacquet's loop counter is zero-indexed.
-                Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
-                    level: LogLevel::Debug,
-                    attempt: attempt + 1,
-                    error: tarball_error_to_request_retry(&err),
-                    max_retries,
-                    method: "GET".to_string(),
-                    timeout: u64::try_from(delay.as_millis()).unwrap_or(u64::MAX),
-                    url: package_url.to_string(),
-                }));
-                tokio::time::sleep(delay).await;
-                attempt += 1;
-            }
-        }
-    }
+    crate::archive_retry::retry_archive::<Reporter, _, _>(
+        package_url,
+        package_id,
+        requester,
+        progress_key,
+        RetryOpts {
+            retries: if revision_addressed { 0 } else { retry_opts.retries },
+            ..retry_opts
+        },
+        |attempt| {
+            fetch_and_extract_once::<Reporter>(
+                http_client,
+                package_url,
+                expected_integrity,
+                package_unpacked_size,
+                download_priority,
+                package_id,
+                attempt,
+                store_dir,
+                auth_headers,
+                ignore_file_pattern.clone(),
+                revision_addressed,
+            )
+        },
+    )
+    .await
 }
 
 /// Store-index key a tarball fetch reads and writes its
 /// [`PackageFilesIndex`] row at, or `None` when the resolution carries
 /// no integrity to address the row by. See
-/// [`DownloadTarballToStore::package_integrity`].
+/// [`IngestTarballToStore::package_integrity`].
 pub(crate) fn store_index_cache_key(
     package_integrity: Option<&Integrity>,
     package_id: &str,
+    store_projection: ArchiveStoreProjection<'_>,
 ) -> Option<String> {
-    package_integrity.map(|integrity| store_index_key(&integrity.to_string(), package_id))
+    package_integrity
+        .map(|integrity| store_projection.store_index_key(&integrity.to_string(), package_id))
 }

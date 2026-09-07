@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { describe, expect, test } from '@jest/globals'
 import { prepare, prepareEmpty } from '@pnpm/prepare'
 import { writeYamlFileSync } from 'write-yaml-file'
@@ -91,6 +94,50 @@ test('some commands should not fail if the required package manager is not pnpm'
   expect(status).toBe(0)
 })
 
+test('config set can bootstrap auth for a global custom registry before switching pnpm versions', () => {
+  prepare({
+    packageManager: 'pnpm@0.0.0',
+  })
+
+  const configHome = path.resolve('.config')
+  const configDir = path.join(configHome, 'pnpm')
+  fs.mkdirSync(configDir, { recursive: true })
+  fs.writeFileSync(path.join(configDir, 'auth.ini'), 'registry=http://127.0.0.1:1/\n')
+
+  const { status } = execPnpmSync([
+    'config',
+    'set',
+    '//127.0.0.1:1/:_auth',
+    'secret',
+  ], {
+    env: {
+      XDG_CONFIG_HOME: configHome,
+      pnpm_config_fetch_retries: '0',
+    },
+    omitEnvDefaults: ['pnpm_config_registry'],
+  })
+
+  expect(status).toBe(0)
+  expect(fs.readFileSync(path.join(configDir, 'auth.ini'), 'utf8')).toContain('//127.0.0.1:1/:_auth=secret')
+})
+
+test('config set checks the package manager when writing project configuration', () => {
+  prepare({
+    packageManager: 'yarn@4.0.0',
+  })
+
+  const { status, stderr } = execPnpmSync([
+    'config',
+    'set',
+    '--location=project',
+    'node-linker',
+    'hoisted',
+  ])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project is configured to use yarn')
+})
+
 test('devEngines.packageManager with onFail=error should fail on version mismatch', async () => {
   prepare({
     devEngines: {
@@ -155,6 +202,24 @@ test('devEngines.runtime with onFail=error should fail on Node.js version mismat
   })
 
   const { status, stderr } = execPnpmSync(['--config.verify-deps-before-run=false', 'exec', 'node', '--version'])
+
+  expect(status).toBe(1)
+  expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')
+})
+
+test('devEngines.runtime is still checked when --lockfile-dir moves the root project directory', async () => {
+  prepare({
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '99999.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { status, stderr } = execPnpmSync(['install', '--lockfile-dir=lf', '--lockfile-only'])
 
   expect(status).toBe(1)
   expect(stderr.toString()).toContain('This project requires Node.js 99999.0.0')

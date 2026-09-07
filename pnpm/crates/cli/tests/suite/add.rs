@@ -35,6 +35,270 @@ where
     (root, workspace, npmrc_info)
 }
 
+fn cache_foo_index(cache_dir: &Path) {
+    let index_dir = cache_dir.join("v11/cargo-index/crates-io/3/f");
+    std::fs::create_dir_all(&index_dir).expect("create sparse-index cache");
+    std::fs::write(
+        index_dir.join("foo"),
+        r#"{"name":"foo","vers":"1.0.0","deps":[],"cksum":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","features":{},"yanked":false}"#,
+    )
+    .expect("cache sparse-index entry");
+}
+
+fn cargo_add_project() -> (TempDir, PathBuf) {
+    let root = TempDir::new().expect("create Cargo add project");
+    let cache_dir = root.path().join("cache");
+    cache_foo_index(&cache_dir);
+    std::fs::create_dir(root.path().join("src")).expect("create Cargo source directory");
+    std::fs::write(root.path().join("src/lib.rs"), "").expect("write Cargo source");
+    std::fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo manifest");
+    std::fs::write(
+        root.path().join("Cargo.lock"),
+        "# stale lockfile that pnpm add must refresh\nversion = 4\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n",
+    )
+    .expect("write stale Cargo lockfile");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo dependency management");
+    (root, cache_dir)
+}
+
+#[test]
+fn add_crate_updates_cargo_without_creating_a_node_manifest() {
+    let (root, cache_dir) = cargo_add_project();
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest = std::fs::read_to_string(root.path().join("Cargo.toml"))
+        .expect("read updated Cargo manifest");
+    assert!(
+        manifest.contains(
+            r#"[dependencies]
+foo = "1.0.0""#,
+        ),
+        "{manifest}",
+    );
+    let lockfile = std::fs::read_to_string(root.path().join("Cargo.lock"))
+        .expect("read updated Cargo lockfile");
+    assert!(lockfile.contains(r#"name = "foo""#), "{lockfile}");
+    assert!(!root.path().join("package.json").exists());
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+}
+
+#[test]
+fn add_crate_can_target_build_dependencies() {
+    let (root, cache_dir) = cargo_add_project();
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo@1", "--save-build", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let manifest = std::fs::read_to_string(root.path().join("Cargo.toml"))
+        .expect("read updated Cargo manifest");
+    assert!(manifest.contains("[build-dependencies]\nfoo = \"1\""), "{manifest}");
+}
+
+#[test]
+fn mixed_add_updates_node_and_cargo_projects_together() {
+    let (root, cache_dir) = cargo_add_project();
+    let local_package = root.path().join("local-package");
+    std::fs::create_dir(&local_package).expect("create local npm package");
+    std::fs::write(
+        local_package.join("package.json"),
+        r#"{"name":"local-package","version":"1.0.0"}"#,
+    )
+    .expect("write local npm manifest");
+    std::fs::write(root.path().join("package.json"), r#"{"name":"app","version":"1.0.0"}"#)
+        .expect("write root npm manifest");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args([
+            "add",
+            "local-package@file:./local-package",
+            "crate:foo@1",
+            "--offline",
+            "--lockfile-only",
+        ])
+        .assert()
+        .success();
+
+    assert_eq!(prod_spec(root.path(), "local-package"), "file:./local-package");
+    let cargo_manifest =
+        std::fs::read_to_string(root.path().join("Cargo.toml")).expect("read Cargo manifest");
+    assert!(cargo_manifest.contains(r#"foo = "1""#), "{cargo_manifest}");
+    assert!(root.path().join("pnpm-lock.yaml").is_file());
+    assert!(root.path().join("Cargo.lock").is_file());
+}
+
+#[test]
+fn mixed_add_restores_metadata_when_an_ecosystem_fails() {
+    let (root, cache_dir) = cargo_add_project();
+    let local_package = root.path().join("local-package");
+    std::fs::create_dir(&local_package).expect("create local npm package");
+    std::fs::write(
+        local_package.join("package.json"),
+        r#"{"name":"local-package","version":"1.0.0"}"#,
+    )
+    .expect("write local npm manifest");
+    let node_manifest_path = root.path().join("package.json");
+    let cargo_manifest_path = root.path().join("Cargo.toml");
+    let cargo_lock_path = root.path().join("Cargo.lock");
+    let node_manifest = r#"{"name":"app","version":"1.0.0"}"#;
+    std::fs::write(&node_manifest_path, node_manifest).expect("write root npm manifest");
+    let cargo_manifest = std::fs::read(&cargo_manifest_path).expect("snapshot Cargo manifest");
+    let cargo_lock = std::fs::read(&cargo_lock_path).expect("snapshot Cargo lockfile");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "local-package@file:./local-package", "crate:foo@1", "--offline"])
+        .assert()
+        .failure();
+
+    assert_eq!(std::fs::read_to_string(node_manifest_path).unwrap(), node_manifest);
+    assert_eq!(std::fs::read(cargo_manifest_path).unwrap(), cargo_manifest);
+    assert_eq!(std::fs::read(cargo_lock_path).unwrap(), cargo_lock);
+    eprintln!("wanted lockfile after rollback: {}", root.path().join("pnpm-lock.yaml").display());
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+    eprintln!(
+        "current lockfile after rollback: {}",
+        root.path().join("node_modules/.pnpm/lock.yaml").display(),
+    );
+    assert!(!root.path().join("node_modules/.pnpm/lock.yaml").exists());
+    eprintln!(
+        "modules manifest after rollback: {}",
+        root.path().join("node_modules/.modules.yaml").display(),
+    );
+    assert!(!root.path().join("node_modules/.modules.yaml").exists());
+}
+
+#[test]
+fn add_crate_in_a_cargo_workspace_member_updates_the_workspace_lockfile() {
+    let root = TempDir::new().expect("create Cargo workspace");
+    let cache_dir = root.path().join("cache");
+    cache_foo_index(&cache_dir);
+    std::fs::write(
+        root.path().join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n",
+    )
+    .expect("write Cargo workspace manifest");
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - member\ncargo:\n  enabled: true\n",
+    )
+    .expect("enable Cargo dependency management");
+    let member = root.path().join("member");
+    std::fs::create_dir_all(member.join("src")).expect("create member source directory");
+    std::fs::write(member.join("src/lib.rs"), "").expect("write member source");
+    std::fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write member Cargo manifest");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&member)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo@1", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    let member_manifest =
+        std::fs::read_to_string(member.join("Cargo.toml")).expect("read member Cargo manifest");
+    assert!(member_manifest.contains(r#"foo = "1""#), "{member_manifest}");
+    assert!(root.path().join("Cargo.lock").is_file());
+    assert!(!member.join("Cargo.lock").exists());
+    assert!(!member.join("package.json").exists());
+}
+
+#[test]
+fn add_crate_uses_a_nested_cargo_workspace_root() {
+    let root = TempDir::new().expect("create pnpm workspace");
+    let cache_dir = root.path().join("cache");
+    cache_foo_index(&cache_dir);
+    std::fs::write(root.path().join("package.json"), r#"{"name":"repository"}"#)
+        .expect("write pnpm root manifest");
+    std::fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        "packages:\n  - rust/member\ncargo:\n  enabled: true\n",
+    )
+    .expect("enable Cargo dependency management");
+    let cargo_root = root.path().join("rust");
+    let member = cargo_root.join("member");
+    std::fs::create_dir_all(member.join("src")).expect("create member source directory");
+    std::fs::write(
+        cargo_root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"member\"]\nresolver = \"2\"\n",
+    )
+    .expect("write nested Cargo workspace manifest");
+    std::fs::write(member.join("src/lib.rs"), "").expect("write member source");
+    std::fs::write(
+        member.join("Cargo.toml"),
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write member Cargo manifest");
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(&member)
+        .with_env("PNPM_CONFIG_CACHE_DIR", &cache_dir)
+        .with_args(["add", "crate:foo@1", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert!(cargo_root.join("Cargo.lock").is_file());
+    assert!(!root.path().join("Cargo.lock").exists());
+    assert!(!member.join("Cargo.lock").exists());
+}
+
+#[test]
+fn install_discovers_multiple_nested_cargo_workspaces() {
+    let root = TempDir::new().expect("create pnpm workspace");
+    std::fs::write(root.path().join("package.json"), r#"{"name":"repository"}"#)
+        .expect("write pnpm root manifest");
+    std::fs::write(root.path().join("pnpm-workspace.yaml"), "cargo:\n  enabled: true\n")
+        .expect("enable Cargo dependency management");
+    for project_name in ["rust-a", "rust-b"] {
+        let project = root.path().join(project_name);
+        std::fs::create_dir_all(project.join("src")).expect("create Cargo source directory");
+        std::fs::write(project.join("src/lib.rs"), "").expect("write Cargo source");
+        std::fs::write(
+            project.join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"{project_name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+        )
+        .expect("write Cargo manifest");
+    }
+
+    Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_args(["install", "--offline", "--lockfile-only"])
+        .assert()
+        .success();
+
+    assert!(root.path().join("rust-a/Cargo.lock").is_file());
+    assert!(root.path().join("rust-b/Cargo.lock").is_file());
+    assert!(!root.path().join("Cargo.lock").exists());
+}
+
 #[test]
 fn add_to_multi_pattern_workspace_root_requires_workspace_root_flag() {
     let root = TempDir::new().unwrap();
@@ -101,6 +365,44 @@ fn add_accepts_dir_allow_build_and_registry_after_the_subcommand() {
     assert!(
         yaml.contains("@pnpm.e2e/pre-and-postinstall-scripts-example"),
         "allowBuilds entry should be persisted, got:\n{yaml}",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// `--allow-build=!<pkg>` denies the package's build: `allowBuilds` records
+/// `<pkg>: false` and the install script does not run.
+#[test]
+fn add_denies_a_build_with_the_negation_prefix() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let registry = mock_instance.url();
+
+    pacquet
+        .with_args([
+            "add",
+            "@pnpm.e2e/pre-and-postinstall-scripts-example@1.0.0",
+            "--allow-build=!@pnpm.e2e/pre-and-postinstall-scripts-example",
+        ])
+        .with_arg(format!("--registry={registry}"))
+        .assert()
+        .success();
+
+    let pkg_dir = workspace.join(
+        "node_modules/.pnpm/@pnpm.e2e+pre-and-postinstall-scripts-example@1.0.0\
+         /node_modules/@pnpm.e2e/pre-and-postinstall-scripts-example",
+    );
+    assert!(
+        !pkg_dir.join("generated-by-postinstall.js").exists(),
+        "a denied package must not run its postinstall",
+    );
+
+    let yaml = std::fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+        .expect("pnpm-workspace.yaml present");
+    assert!(
+        yaml.contains("'@pnpm.e2e/pre-and-postinstall-scripts-example': false"),
+        "the denial should be persisted, got:\n{yaml}",
     );
 
     drop((root, mock_instance));
@@ -233,6 +535,31 @@ fn add_accepts_multiple_local_package_selectors() {
             "{package_name} is installed",
         );
     }
+
+    drop(root); // cleanup
+}
+
+/// Covers pnpm/pnpm#14618: `pnpm setup` re-runs from the globally
+/// installed `@pnpm/exe`, whose directory is the symlink pnpm's own
+/// `node_modules` layout puts there.
+#[test]
+fn add_installs_a_local_package_reached_through_a_symlinked_directory() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let real_dir = workspace.join("fixtures/real-local");
+    std::fs::create_dir_all(&real_dir).expect("create local package directory");
+    std::fs::write(
+        real_dir.join("package.json"),
+        serde_json::json!({ "name": "local", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write local package manifest");
+    std::fs::write(real_dir.join("index.js"), "module.exports = 1\n").expect("write index.js");
+    pnpm_fs::symlink_dir(&real_dir, &workspace.join("fixtures/linked-local"))
+        .expect("link the local package directory");
+
+    pacquet.with_args(["add", "file:./fixtures/linked-local"]).assert().success();
+
+    assert_eq!(prod_spec(&workspace, "local"), "file:fixtures/linked-local");
+    assert!(workspace.join("node_modules/local/index.js").is_file());
 
     drop(root); // cleanup
 }
@@ -1238,8 +1565,11 @@ fn a_bare_workspace_add_uses_the_local_package_and_saved_protocol_setting() {
     for (setting, expected) in
         [(None, "workspace:^"), (Some("true"), "workspace:^1.2.3"), (Some("false"), "^1.2.3")]
     {
-        let (root, app_dir) =
-            workspace_with_lib(setting, &[(LIB, "1.2.3")], "packages/app/package.json");
+        let (root, app_dir) = workspace_with_lib(
+            &linking_settings(setting),
+            &[(LIB, "1.2.3")],
+            "packages/app/package.json",
+        );
         add_in(&app_dir, LIB);
 
         assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some(expected));
@@ -1260,8 +1590,11 @@ fn an_aliased_workspace_add_keeps_naming_its_target() {
         (None, "workspace:@pnpm.e2e/ws-target@^"),
         (Some("true"), "workspace:@pnpm.e2e/ws-target@^1.2.3"),
     ] {
-        let (root, app_dir) =
-            workspace_with_lib(setting, &[(TARGET, "1.2.3")], "packages/app/package.json");
+        let (root, app_dir) = workspace_with_lib(
+            &linking_settings(setting),
+            &[(TARGET, "1.2.3")],
+            "packages/app/package.json",
+        );
         add_in(&app_dir, &format!("myalias@workspace:{TARGET}@^1.0.0"));
 
         assert_eq!(saved_spec(&app_dir, "myalias").as_deref(), Some(expected));
@@ -1278,7 +1611,7 @@ fn an_aliased_workspace_add_keeps_naming_its_target() {
 fn the_pinned_form_picks_the_highest_workspace_version_by_semver() {
     const LIB: &str = "@pnpm.e2e/ws-multi";
     let (root, app_dir) = workspace_with_lib(
-        Some("true"),
+        &linking_settings(Some("true")),
         &[(LIB, "9.0.0"), (LIB, "10.0.0")],
         "packages/app/package.json",
     );
@@ -1297,8 +1630,11 @@ fn the_env_var_drives_the_saved_workspace_range() {
     for (value, expected) in
         [("true", "workspace:^1.2.3"), ("rolling", "workspace:^"), ("false", "workspace:^1.2.3")]
     {
-        let (root, app_dir) =
-            workspace_with_lib(None, &[(LIB, "1.2.3")], "packages/app/package.json");
+        let (root, app_dir) = workspace_with_lib(
+            &linking_settings(None),
+            &[(LIB, "1.2.3")],
+            "packages/app/package.json",
+        );
         Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
             .with_current_dir(&app_dir)
@@ -1313,21 +1649,26 @@ fn the_env_var_drives_the_saved_workspace_range() {
     }
 }
 
+fn linking_settings(save_workspace_protocol: Option<&str>) -> String {
+    let protocol_line = save_workspace_protocol
+        .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
+        .unwrap_or_default();
+    format!("linkWorkspacePackages: true\n{protocol_line}")
+}
+
 /// Scaffold a workspace whose `packages/*` hold `libs` (one directory
 /// per entry, so the same name may appear at several versions) plus an
-/// `app` member. Returns the temp root and the app's directory.
+/// `app` member, with `settings` appended to its `pnpm-workspace.yaml`.
+/// Returns the temp root and the app's directory.
 fn workspace_with_lib(
-    save_workspace_protocol: Option<&str>,
+    settings: &str,
     libs: &[(&str, &str)],
     app_manifest_path: &str,
 ) -> (TempDir, PathBuf) {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
-    let protocol_line = save_workspace_protocol
-        .map(|setting| format!("saveWorkspaceProtocol: {setting}\n"))
-        .unwrap_or_default();
     std::fs::write(
         workspace.join("pnpm-workspace.yaml"),
-        format!("{HERMETIC_STORE_YAML}packages:\n  - packages/*\nlinkWorkspacePackages: true\n{protocol_line}"),
+        format!("{HERMETIC_STORE_YAML}packages:\n  - packages/*\n{settings}"),
     )
     .expect("write workspace yaml");
     write_json(&workspace.join("package.json"), &serde_json::json!({ "name": "root" }));
@@ -1378,4 +1719,377 @@ const HERMETIC_STORE_YAML: &str =
 
 fn write_json(path: &Path, value: &serde_json::Value) {
     std::fs::write(path, value.to_string()).expect("write manifest");
+}
+
+/// An alias-less selector — the whole argument is the specifier, with no
+/// `<name>@` in front — names a package whose name lives only in its own
+/// manifest, so `add` reads it from the directory, the archive, or the
+/// checkout rather than from the selector.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/14437>.
+mod aliasless_selectors {
+    use super::{Path, prod_spec, write_json};
+    use crate::_utils::append_workspace_yaml_key;
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::{
+        bin::{AddMockedRegistry, CommandTempCwd},
+        fixtures::tarball_with_manifest,
+    };
+    use pretty_assertions::assert_eq;
+    use std::fs;
+
+    /// Write `<workspace>/localpkg/package.json`, the package the
+    /// directory-shaped selectors below point at.
+    fn write_local_package(workspace: &Path) {
+        let package_dir = workspace.join("localpkg");
+        fs::create_dir_all(&package_dir).expect("create local package dir");
+        write_json(
+            &package_dir.join("package.json"),
+            &serde_json::json!({ "name": "localpkg", "version": "1.0.0" }),
+        );
+    }
+
+    /// A bare relative path is a directory dependency, so it saves as
+    /// `link:` — the protocol the local resolver normalizes an
+    /// un-injected directory to.
+    #[test]
+    fn a_relative_directory_path_saves_as_a_link() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_local_package(&workspace);
+
+        pacquet.with_args(["add", "./localpkg"]).assert().success();
+
+        assert_eq!(prod_spec(&workspace, "localpkg"), "link:localpkg");
+        assert!(
+            workspace.join("node_modules/localpkg/package.json").exists(),
+            "the local package must be installed",
+        );
+
+        drop((root, npmrc_info));
+    }
+
+    /// The `file:` protocol asks for copy semantics, so it is kept.
+    #[test]
+    fn the_file_protocol_on_a_directory_is_kept() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_local_package(&workspace);
+
+        pacquet.with_args(["add", "file:./localpkg"]).assert().success();
+
+        assert_eq!(prod_spec(&workspace, "localpkg"), "file:localpkg");
+
+        drop((root, npmrc_info));
+    }
+
+    /// A local tarball's name lives in the `package.json` it bundles, so
+    /// the archive has to be read before the manifest entry can be
+    /// written.
+    #[test]
+    fn a_local_tarball_path_saves_as_a_file_spec() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        fs::write(
+            workspace.join("pkg-from-tarball-1.0.0.tgz"),
+            tarball_with_manifest(
+                &serde_json::json!({ "name": "pkg-from-tarball", "version": "1.0.0" }),
+            ),
+        )
+        .expect("write tarball");
+
+        pacquet.with_args(["add", "./pkg-from-tarball-1.0.0.tgz"]).assert().success();
+
+        assert_eq!(prod_spec(&workspace, "pkg-from-tarball"), "file:pkg-from-tarball-1.0.0.tgz");
+        assert!(
+            workspace.join("node_modules/pkg-from-tarball/package.json").exists(),
+            "the tarball package must be installed",
+        );
+
+        drop((root, npmrc_info));
+    }
+
+    /// A remote tarball is the same shape one step further out: the name
+    /// is inside the archive, so the resolver downloads it.
+    ///
+    /// The URL points at the mocked registry through `localhost` while it
+    /// is configured as `127.0.0.1`, so the prefix doesn't match and the
+    /// tarball resolver — not the npm resolver — claims it (see
+    /// `tarball_url_dependency.rs`).
+    #[test]
+    fn a_remote_tarball_url_is_saved_verbatim() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+        let tarball = format!(
+            "{}is-positive/-/is-positive-1.0.0.tgz",
+            mock_instance.url().replace("127.0.0.1", "localhost"),
+        );
+
+        pacquet.with_args(["add", &tarball]).assert().success();
+
+        assert_eq!(prod_spec(&workspace, "is-positive"), tarball);
+        assert!(
+            workspace.join("node_modules/is-positive/package.json").exists(),
+            "the remote tarball package must be installed",
+        );
+
+        drop((root, mock_instance));
+    }
+
+    /// A catalog entry is read by every project referencing it, so it
+    /// cannot hold a path that resolves against the project declaring it.
+    /// `catalogMode` has to leave such a specifier direct — cataloging it
+    /// writes an entry the next install refuses with
+    /// `ERR_PNPM_CATALOG_ENTRY_INVALID_SPEC`.
+    #[test]
+    fn a_local_directory_is_not_auto_cataloged() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        write_local_package(&workspace);
+        append_workspace_yaml_key(&workspace, "catalogMode", "prefer");
+
+        pacquet.with_args(["add", "./localpkg"]).assert().success();
+
+        assert_eq!(prod_spec(&workspace, "localpkg"), "link:localpkg");
+        let workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml"))
+            .expect("read pnpm-workspace.yaml");
+        assert!(
+            !workspace_yaml.contains("localpkg"),
+            "the local dependency must not reach the catalog:\n{workspace_yaml}",
+        );
+
+        drop((root, npmrc_info));
+    }
+
+    /// The name keys the manifest entry and names the `node_modules`
+    /// directory the package is linked into, so a directory that declares
+    /// none is refused instead of guessed at — and the project is left
+    /// untouched.
+    #[test]
+    fn a_directory_declaring_no_name_is_refused() {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let package_dir = workspace.join("nameless");
+        fs::create_dir_all(&package_dir).expect("create local package dir");
+        write_json(&package_dir.join("package.json"), &serde_json::json!({ "version": "1.0.0" }));
+        write_json(
+            &workspace.join("package.json"),
+            &serde_json::json!({ "name": "project", "version": "1.0.0" }),
+        );
+        let manifest_before =
+            fs::read_to_string(workspace.join("package.json")).expect("read manifest");
+
+        let output = pacquet.with_args(["add", "./nameless"]).output().expect("run pnpm add");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(!output.status.success());
+        assert!(stderr.contains("ERR_PNPM_MISSING_PACKAGE_NAME"), "stderr:\n{stderr}");
+        assert_eq!(
+            fs::read_to_string(workspace.join("package.json")).expect("reread manifest"),
+            manifest_before,
+        );
+
+        drop((root, npmrc_info));
+    }
+}
+
+/// Covers <https://github.com/pnpm/pnpm/issues/14602>.
+mod workspace_flag {
+    use super::{Path, PathBuf, TempDir, saved_spec, workspace_with_lib, write_json};
+    use assert_cmd::prelude::*;
+    use command_extra::CommandExtra;
+    use pnpm_testing_utils::bin::CommandTempCwd;
+    use pretty_assertions::assert_eq;
+    use std::process::Command;
+
+    const LIB: &str = "@pnpm.e2e/ws-flag-lib";
+
+    fn workspace(settings: &str) -> (TempDir, PathBuf) {
+        workspace_with_lib(settings, &[(LIB, "2.0.0")], "packages/app/package.json")
+    }
+
+    fn pnpm_add(dir: &Path, args: &[&str]) -> Command {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(dir)
+            .with_arg("add")
+            .with_args(args)
+    }
+
+    fn assert_add_fails(dir: &Path, args: &[&str], needle: &str) {
+        let output = pnpm_add(dir, args).output().expect("run pnpm add");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}");
+        assert!(!output.status.success(), "`pnpm add {}` should fail", args.join(" "));
+        assert!(stderr.contains(needle), "stderr did not mention {needle:?}");
+    }
+
+    /// The default settings never link a bare name to the workspace, so
+    /// without the flag this add would go to the registry.
+    #[test]
+    fn links_the_workspace_package_under_the_rolling_protocol() {
+        let (root, app_dir) = workspace("");
+
+        pnpm_add(&app_dir, &["--workspace", LIB]).assert().success();
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
+        let linked = app_dir.join("node_modules").join(LIB).join("package.json");
+        assert!(linked.exists(), "{} should be linked into the app", linked.display());
+        drop(root);
+    }
+
+    #[test]
+    fn writes_the_version_when_linking_and_the_protocol_are_off() {
+        let (root, app_dir) =
+            workspace("linkWorkspacePackages: false\nsaveWorkspaceProtocol: false\n");
+
+        pnpm_add(&app_dir, &["--workspace", LIB, "--lockfile-only"]).assert().success();
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:^2.0.0"));
+        drop(root);
+    }
+
+    #[test]
+    fn writes_the_version_when_linking_is_on_and_the_protocol_is_off() {
+        let (root, app_dir) =
+            workspace("linkWorkspacePackages: true\nsaveWorkspaceProtocol: false\n");
+
+        pnpm_add(&app_dir, &["--workspace", LIB, "--lockfile-only"]).assert().success();
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:^2.0.0"));
+        drop(root);
+    }
+
+    #[test]
+    fn keeps_the_typed_range_operator() {
+        let (root, app_dir) = workspace("");
+
+        pnpm_add(&app_dir, &["--workspace", &format!("{LIB}@~2.0.0"), "--lockfile-only"])
+            .assert()
+            .success();
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:~"));
+        drop(root);
+    }
+
+    /// A filtered add resolves the selectors against the selected
+    /// workspace's projects rather than the project the command runs in.
+    #[test]
+    fn links_the_workspace_package_into_a_filtered_project() {
+        let (root, app_dir) = workspace("");
+        let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(workspace_dir)
+            .with_args(["--filter", "ws-app", "add", "--workspace", LIB, "--lockfile-only"])
+            .assert()
+            .success();
+
+        assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
+        drop(root);
+    }
+
+    #[test]
+    fn links_the_workspace_package_into_every_recursively_selected_project() {
+        for shared_workspace_lockfile in [true, false] {
+            let (root, app_dir) =
+                workspace(&format!("sharedWorkspaceLockfile: {shared_workspace_lockfile}\n"));
+            let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+            let second_app_dir = workspace_dir.join("packages/app2");
+            std::fs::create_dir_all(&second_app_dir).expect("create second app dir");
+            write_json(
+                &second_app_dir.join("package.json"),
+                &serde_json::json!({ "name": "ws-app-2", "version": "1.0.0" }),
+            );
+
+            Command::cargo_bin("pnpm")
+                .expect("find the pnpm binary")
+                .with_current_dir(workspace_dir)
+                .with_args([
+                    "-r",
+                    "--filter",
+                    "ws-app*",
+                    "add",
+                    "--workspace",
+                    LIB,
+                    "--lockfile-only",
+                ])
+                .assert()
+                .success();
+
+            eprintln!("sharedWorkspaceLockfile={shared_workspace_lockfile}");
+            assert_eq!(saved_spec(&app_dir, LIB).as_deref(), Some("workspace:*"));
+            assert_eq!(saved_spec(&second_app_dir, LIB).as_deref(), Some("workspace:*"));
+            drop(root);
+        }
+    }
+
+    #[test]
+    fn rejects_a_package_no_workspace_project_provides() {
+        let (root, app_dir) = workspace("");
+
+        assert_add_fails(
+            &app_dir,
+            &["--workspace", "@pnpm.e2e/not-in-workspace"],
+            r#""@pnpm.e2e/not-in-workspace" not found in the workspace"#,
+        );
+
+        assert_eq!(saved_spec(&app_dir, "@pnpm.e2e/not-in-workspace"), None);
+        drop(root);
+    }
+
+    /// Rejected before the add touches anything, so `--allow-build`
+    /// is not persisted to `pnpm-workspace.yaml` by a run that fails.
+    #[test]
+    fn is_rejected_with_config_dependencies_and_ecosystem_selectors() {
+        let (root, app_dir) = workspace("");
+        let workspace_dir = app_dir.parent().and_then(Path::parent).expect("workspace root");
+        let yaml_path = workspace_dir.join("pnpm-workspace.yaml");
+        let yaml_before = std::fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+
+        assert_add_fails(
+            &app_dir,
+            &["--workspace", "--config", LIB, "--allow-build", "esbuild"],
+            "cannot be combined with --workspace",
+        );
+        for ecosystem_selector in ["crate:serde", "pypi:requests"] {
+            assert_add_fails(
+                &app_dir,
+                &["--workspace", ecosystem_selector, "--allow-build", "esbuild"],
+                "--workspace cannot be combined with crate: or pypi: dependencies",
+            );
+        }
+
+        assert_eq!(
+            std::fs::read_to_string(&yaml_path).expect("reread pnpm-workspace.yaml"),
+            yaml_before,
+        );
+        drop(root);
+    }
+
+    /// Rejected before `--allow-build` is persisted, like the other
+    /// `--workspace` invocations that cannot run.
+    #[test]
+    fn is_rejected_outside_a_workspace() {
+        let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+        write_json(
+            &workspace.join("package.json"),
+            &serde_json::json!({ "name": "standalone", "version": "1.0.0" }),
+        );
+
+        assert_add_fails(
+            &workspace,
+            &["--workspace", LIB, "--allow-build", "esbuild"],
+            "--workspace can only be used inside a workspace",
+        );
+
+        assert!(
+            !workspace.join("pnpm-workspace.yaml").exists(),
+            "a rejected add must not persist --allow-build",
+        );
+        drop(root);
+    }
 }

@@ -3,8 +3,7 @@ use crate::{
     cli_args::{
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields_in, lockfile_dir::LockfileDirArg,
         override_version_references::warn_deprecated_override_version_references,
-        package_manager::package_manager_needs_recording, pipelines::InstallFamilySelection,
-        recursive::discover_workspace_projects,
+        pipelines::InstallFamilySelection, recursive::discover_workspace_projects,
         supported_architectures::SupportedArchitecturesArgs,
     },
 };
@@ -63,11 +62,11 @@ impl NodeLinkerArg {
 #[derive(Debug, Clone, Args)]
 pub struct InstallDependencyOptions {
     /// Install only production dependencies. devDependencies are skipped,
-    /// and removed if already installed. Takes precedence over `NODE_ENV`.
+    /// and removed if already installed.
     #[arg(short = 'P', long, visible_alias = "production")]
     prod: bool,
     /// Install only devDependencies. Regular dependencies are skipped, and
-    /// removed if already installed, regardless of `NODE_ENV`.
+    /// removed if already installed.
     #[arg(short = 'D', long)]
     dev: bool,
     /// Include optionalDependencies even when the configured default excludes them.
@@ -357,8 +356,9 @@ impl InstallArgs {
     /// every input that would make [`Install::run`] skip its own
     /// short-circuit or do extra pre-install work: an explicit
     /// `--frozen-lockfile` / `--lockfile-only`, config
-    /// dependencies, and pnpmfile `updateConfig` hooks (both can
-    /// mutate the config the check compares against). A configured
+    /// dependencies, Cargo or Python dependency management, and pnpmfile
+    /// `updateConfig` hooks (these can mutate state the npm-only check does
+    /// not cover). A configured
     /// pnpr server deliberately does NOT bail: the check decides
     /// purely locally that nothing changed, and asking the server
     /// cannot change that answer
@@ -378,6 +378,8 @@ impl InstallArgs {
             || self.fix_lockfile
             || self.force
             || self.verify_deps_before_run_install
+            || config.cargo.enabled
+            || config.python.enabled
         {
             return false;
         }
@@ -414,14 +416,6 @@ impl InstallArgs {
         let Ok(manifest) = pnpm_package_manifest::PackageManifest::from_path(manifest_path) else {
             return false;
         };
-        // The pin reaches the lockfile from the install pipeline, which this
-        // short-circuit returns before. This manifest is the root one unless
-        // a workspace or `lockfileDir` put the root elsewhere, in which case
-        // the check reads that one.
-        let root_manifest = (config_root == dir).then(|| manifest.value());
-        if package_manager_needs_recording(&config_root, config.pm_on_fail, root_manifest) {
-            return false;
-        }
         let node_linker = self.node_linker.map_or(config.node_linker, NodeLinkerArg::into_config);
         let Some(up_to_date) = install_already_up_to_date(&UpToDateFastPathCheck {
             config,
@@ -707,6 +701,14 @@ impl InstallArgs {
         }
         .wrap_err("installing dependencies")?;
 
+        // The parsed wanted lockfile and the selection's project
+        // manifests are pure data nothing reads between here and exit.
+        // The resolution channel map stays out: dropping it closes its
+        // watch senders, a signal `background_drop`'s contract
+        // excludes, so it drops inline here with the rest.
+        let State { tarball_mem_cache: _, http_client: _, config: _, manifest, lockfile, .. } =
+            state;
+        pnpm_fs::background_drop((lockfile, manifest, selection));
         Ok(())
     }
 }
@@ -721,6 +723,14 @@ fn workspace_install_selection(
         selected_dirs: selection.selected_dirs.as_ref(),
         install_dirs: selection.install_dirs.as_ref(),
         active_manifest_is_standin: selection.active_manifest_is_standin,
+        workspace_cycles: selection.workspace_cycles.as_ref().map_or(
+            pnpm_package_manager::PrecomputedWorkspaceCycles::Unknown,
+            |cycles| {
+                pnpm_package_manager::PrecomputedWorkspaceCycles::Known(
+                    (!cycles.is_empty()).then_some(cycles.as_slice()),
+                )
+            },
+        ),
     }
 }
 
@@ -878,6 +888,10 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         return Err(FrozenStoreIncompatibleWithPnpr.into());
     }
 
+    let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
+        state.manifest.path().parent().expect("manifest path always has a parent dir")
+    });
+
     // Borrowed from the shared state, not cloned: the frozen branch
     // below never needs an owned lockfile, so the exchange-free paths
     // pay no deep copy. The server-exchange paths clone at the point a
@@ -885,11 +899,31 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
     let previous_wanted: Option<&Lockfile> = if link.use_state_lockfile {
         let loaded =
             if link.fix_lockfile { state.lockfile.get_for_fix() } else { state.lockfile.get() };
-        loaded.map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
+        match loaded {
+            Ok(lockfile) => lockfile,
+            Err(error) if !link.frozen_lockfile => {
+                <Reporter as pnpm_reporter::Reporter>::emit(&pnpm_reporter::LogEvent::Pnpm(
+                    pnpm_reporter::PnpmLog {
+                        level: pnpm_reporter::LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            lockfile_dir.display(),
+                        ),
+                        prefix: lockfile_dir.to_string_lossy().into_owned(),
+                    },
+                ));
+                None
+            }
+            Err(error) => {
+                return Err(miette::Report::new(error).wrap_err("load the lockfile"));
+            }
+        }
     } else {
         None
     };
-    let merge_wanted = if link.fix_lockfile && link.use_state_lockfile {
+    let merge_wanted = if previous_wanted.is_none() {
+        None
+    } else if link.fix_lockfile && link.use_state_lockfile {
         MaybeLazyLockfile::Repair(&state.lockfile).get_for_merge().map_err(|err| {
             miette::Report::new(err).wrap_err("load the lockfile for filtered merge")
         })?
@@ -974,9 +1008,6 @@ async fn install_via_pnpr_inner<Reporter: self::Reporter + 'static>(
         PnprBenchmarkRegistryOverride::resolve_registry,
     );
 
-    let lockfile_dir = link.lockfile_path.and_then(|path| path.parent()).unwrap_or_else(|| {
-        state.manifest.path().parent().expect("manifest path always has a parent dir")
-    });
     let pnpmfile_hook = if state.config.ignore_pnpmfile {
         None
     } else {

@@ -5,7 +5,7 @@ use pretty_assertions::assert_eq;
 
 use crate::{Config, workspace_yaml::LoadWorkspaceYamlError};
 
-use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
+use super::{DeclaredRegistries, EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling
@@ -253,6 +253,56 @@ fn env_replace_substitutes_token() {
     let ini = "//reg.com/:_authToken=${TOKEN}\n";
     let auth = NpmrcAuth::from_ini::<EnvWithToken>(ini, Path::new(""));
     assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("abc123")));
+}
+
+#[test]
+fn env_replace_substitutes_quoted_token_without_quotes() {
+    static_env!(EnvWithToken, &[("TOKEN", "abc123")]);
+
+    for quoted in [r#""${TOKEN}""#, "'${TOKEN}'", r#""\u0024{TOKEN}""#] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<EnvWithToken>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("abc123")));
+    }
+}
+
+#[test]
+fn parses_ini_quoted_values() {
+    for (quoted, expected) in [
+        (r#""literal-token""#, "literal-token"),
+        ("'literal-token'", "literal-token"),
+        (r#""token\nline""#, "token\nline"),
+        ("'", ""),
+        (r#""unterminated"#, r#""unterminated"#),
+        ("'unterminated", "'unterminated"),
+    ] {
+        let ini = format!("//reg.com/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
+        assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some(expected)));
+    }
+}
+
+#[test]
+fn project_ini_ignores_quoted_auth_env_placeholders() {
+    static_env!(EnvWithSecret, &[("SECRET", "leaked")]);
+
+    for quoted in [r#""${SECRET}""#, r#""\u0024{SECRET}""#] {
+        let ini = format!("//attacker.example/:_authToken={quoted}\n");
+        let auth = NpmrcAuth::from_project_ini::<EnvWithSecret>(&ini, Path::new(""));
+
+        assert!(
+            auth.creds_by_scope_by_uri.is_empty(),
+            "unexpected credentials: {:?}",
+            auth.creds_by_scope_by_uri,
+        );
+        assert!(
+            auth.warnings
+                .iter()
+                .any(|warning| warning.contains("Ignored project-level auth setting")),
+            "warnings: {:?}",
+            auth.warnings,
+        );
+    }
 }
 
 #[test]
@@ -602,7 +652,7 @@ fn apply_registry_and_warn_drains_warnings() {
     let mut auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.warnings.len(), 1);
     let mut config = Config::new();
-    auth.apply_registry_and_warn(&mut config);
+    auth.apply_registry_and_warn(&mut config, &mut DeclaredRegistries::default());
     assert!(auth.warnings.is_empty(), "warnings should be drained after flush");
 }
 
@@ -1116,9 +1166,9 @@ fn cafile_reads_and_splits_into_per_cert_pems() {
 
 #[test]
 fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
-    // Silently dropping the trailing chunk would mask a truncated cert
-    // bundle and leave the user wondering why their CA list is
-    // shorter than expected.
+    // The split matches pnpm's `readCAFileSync`, which keeps the
+    // trailing chunk of a truncated bundle. The network layer is what
+    // decides an entry carries no certificate.
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let bundle = format!("{TEST_CA_PEM}\ngarbage-not-a-cert");
@@ -1140,6 +1190,24 @@ fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
         "delimiter was not re-appended to garbage entry: {:?}",
         config.tls.ca[1],
     );
+}
+
+// Regression for <https://github.com/pnpm/pnpm/issues/14646>: a `ca=`
+// whose `${VAR}` never resolved reaches the client builder as an empty
+// entry, which the builder ignores.
+#[test]
+fn ca_with_an_unresolved_placeholder_still_builds_a_client() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>("ca=${CORP_CA}\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.tls.ca, vec![String::new()], "tls.ca={:?}", config.tls.ca);
+    pnpm_network::ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("an unresolved `ca` placeholder is ignored, not fatal");
 }
 
 #[test]

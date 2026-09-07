@@ -158,6 +158,12 @@ fn pinned_version_returns_none_when_no_match() {
 }
 
 #[test]
+fn pinned_version_returns_none_for_invalid_range() {
+    let pkg = package_with_versions("acme", &["1.0.0", "1.2.0"], "1.2.0");
+    assert!(pkg.pinned_version("not-a-range").is_none());
+}
+
+#[test]
 fn package_deserializes_full_provenance_packument() {
     let body = r#"{
         "name": "acme",
@@ -203,8 +209,9 @@ fn package_deserializes_full_provenance_packument() {
     let version = pkg.versions.get("1.0.0").expect("1.0.0 deserialized");
     let user = version.npm_user.as_ref().expect("_npmUser present");
     let publisher = user.trusted_publisher.as_ref().expect("trustedPublisher present");
-    assert_eq!(publisher.id, "github");
-    assert_eq!(publisher.oidc_config_id, "release-pipeline");
+    assert_eq!(publisher.id.as_deref(), Some("github"));
+    assert_eq!(publisher.oidc_config_id.as_deref(), Some("release-pipeline"));
+    assert_eq!(pkg.latest_decode_error(), None, "a healthy latest reports no decode error");
 
     let attestations = version.dist.attestations.as_ref().expect("attestations present");
     let provenance = attestations.provenance.as_ref().expect("provenance present");
@@ -494,4 +501,56 @@ fn drop_incomplete_publish_times_discards_an_empty_timestamp() {
     pkg.drop_incomplete_publish_times();
 
     assert_eq!(pkg.time, None);
+}
+
+/// A `latest` whose manifest can't be decoded must be distinguishable
+/// from a `latest` pointing at nothing: the version is listed, so the
+/// caller reports the parse failure instead of an empty dist-tag.
+#[test]
+fn latest_decode_error_names_the_version_and_the_parse_failure() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "2.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": { "tarball": "https://registry/acme-1.0.0.tgz" }
+            },
+            "2.0.0": {
+                "name": "acme",
+                "version": "2.0.0",
+                "dist": {
+                    "tarball": "https://registry/acme-2.0.0.tgz",
+                    "integrity": "not-an-integrity"
+                }
+            }
+        }
+    }"#;
+    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+
+    assert!(pkg.versions.contains_key("2.0.0"), "the packument lists the version");
+    assert!(pkg.latest().is_none(), "but it cannot be hydrated");
+
+    let (version, error) = pkg.latest_decode_error().expect("latest reports a decode error");
+    assert_eq!(version, "2.0.0");
+    assert!(error.contains("integrity"), "error names the offending field: {error}");
+
+    assert_eq!(pkg.versions.decode_error("1.0.0"), None, "a decodable version reports nothing");
+    assert_eq!(pkg.versions.decode_error("9.9.9"), None, "an absent version reports nothing");
+}
+
+/// A dangling tag is not a decode failure, so the caller keeps reporting
+/// it as an empty `latest`.
+#[test]
+fn latest_decode_error_stays_silent_for_a_dangling_tag() {
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "9.9.9" },
+        "versions": {}
+    }"#;
+    let pkg: Package = serde_json::from_str(body).expect("deserialize packument");
+
+    assert!(pkg.latest().is_none());
+    assert_eq!(pkg.latest_decode_error(), None);
 }

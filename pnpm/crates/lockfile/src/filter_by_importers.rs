@@ -110,7 +110,7 @@ impl Lockfile {
 }
 
 /// Empty the dependency groups `include` excludes. The other fields of the
-/// importer entry (`dependenciesMeta`, `publishDirectory`) are dropped the
+/// importer entry (`dependenciesMeta`, `publishDirectory`, `linkDirectory`) are dropped the
 /// same way the TypeScript `filterImporter` drops them: the filtered
 /// lockfile describes a dependency closure, not a publishable project.
 fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) -> ProjectSnapshot {
@@ -127,6 +127,7 @@ fn filter_importer(importer: &ProjectSnapshot, include: IncludedDependencies) ->
         )),
         dependencies_meta: None,
         publish_directory: None,
+        link_directory: None,
     }
 }
 

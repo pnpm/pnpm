@@ -3,7 +3,7 @@ use crate::{
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
     SaveWorkspaceProtocol, ScriptsPrependNodePath, TrustPolicy, VerifyDepsBeforeRun,
     VirtualStoreType,
-    api::EnvVar,
+    api::{EnvVar, GetHomeDir},
     config_types::is_config_file_key,
     known_settings::{SCHEMA_DIRECTIVE_KEY, annotate_unknown_setting, is_known_setting_key},
     naming_cases::{is_camel_case, to_camel_case, to_kebab_case},
@@ -189,6 +189,41 @@ pub struct RemoteSideEffectsCacheSettings {
     pub private_key: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct CargoSettings {
+    pub enabled: bool,
+    pub index_url: String,
+}
+
+impl Default for CargoSettings {
+    fn default() -> Self {
+        Self { enabled: false, index_url: "https://index.crates.io".to_string() }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default, deny_unknown_fields)]
+pub struct PythonSettings {
+    pub enabled: bool,
+    pub executable: String,
+    pub index_url: String,
+    pub extras: Vec<String>,
+    pub groups: Vec<String>,
+}
+
+impl Default for PythonSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            executable: if cfg!(windows) { "python" } else { "python3" }.to_string(),
+            index_url: "https://pypi.org/simple/".to_string(),
+            extras: Vec::new(),
+            groups: vec!["dev".to_string()],
+        }
+    }
+}
+
 /// `sideEffectsCache` as written: either a bare boolean, or the declaration
 /// carrying all three parts.
 #[derive(Debug, PartialEq, serde::Serialize, Deserialize)]
@@ -357,6 +392,18 @@ pub struct WorkspaceSettings {
     /// against the workspace dir like the other path-valued fields.
     /// When set, overrides the derived `<store_dir>/links` path.
     pub global_virtual_store_dir: Option<String>,
+    /// `globalDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
+    pub global_dir: Option<String>,
+    /// `globalBinDir` from the global `config.yaml` or the environment. A
+    /// relative value resolves against the directory pnpm runs in, which
+    /// is where pnpm itself resolves it. See [`Config::global_bin_dir`].
+    ///
+    /// No repo-committed file may set it — see [`crate::refused_keys`].
+    pub global_bin_dir: Option<String>,
     pub package_import_method: Option<PackageImportMethod>,
     pub modules_cache_max_age: Option<u64>,
     pub virtual_store_dir_max_length: Option<u64>,
@@ -387,6 +434,8 @@ pub struct WorkspaceSettings {
     /// older `<scope>: <url>` shape and is read as one.
     pub registries: Option<BTreeMap<String, RegistryEntry>>,
     pub pnpr_server: Option<String>,
+    pub cargo: Option<CargoSettings>,
+    pub python: Option<PythonSettings>,
     pub remote_side_effects_cache: Option<RemoteSideEffectsCacheSettings>,
     pub https_proxy: Option<String>,
     pub http_proxy: Option<String>,
@@ -928,6 +977,16 @@ pub struct WorkspaceSettings {
     /// declarations, keyed by task (script) name. See [`TaskSettings`].
     pub tasks: Option<IndexMap<String, TaskSettings>>,
 
+    /// `pipelines` from `pnpm-workspace.yaml`: named sets of task requests
+    /// for `pnpm pipeline`, keyed by pipeline name. A pipeline is a set,
+    /// not a sequence — ordering among its tasks is `tasks.dependsOn`'s
+    /// job.
+    pub pipelines: Option<IndexMap<String, Vec<String>>>,
+
+    /// `pipelineBase` from `pnpm-workspace.yaml`: the git ref
+    /// `pnpm pipeline` resolves its affected-selection merge base against.
+    pub pipeline_base: Option<String>,
+
     /// The problem keys [`Self::collect_key_issues`] found in the file this
     /// was parsed from. Not a setting: carried here so the CLI can report
     /// them at the point where it knows how severe they are (see the
@@ -1035,6 +1094,35 @@ pub struct TaskSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub depends_on: Option<Vec<String>>,
 
+    /// The globs, relative to the project directory, naming the files the
+    /// task produces. Declaring `outputs` (even as `[]`, the positive
+    /// assertion that the task produces no files) is what makes a task
+    /// cacheable by `pnpm pipeline`; a task without the key runs normally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outputs: Option<Vec<String>>,
+
+    /// The globs, relative to the project directory, narrowing the task's
+    /// cache-key inputs. Absent, the inputs are every tracked (and
+    /// untracked, unignored) file of the project; a `+`-prefixed entry adds
+    /// to that default instead of replacing it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inputs: Option<Vec<String>>,
+
+    /// Environment variable names whose values participate in the task's
+    /// cache key. Values are hashed into the key, never recorded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<Vec<String>>,
+
+    /// `false` opts a task with declared `outputs` out of the cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache: Option<bool>,
+
+    /// Opt into local Cargo state snapshots for this project-relative target
+    /// directory. Pipeline always executes the task and sets Cargo's target
+    /// and build directories to this path. Overrides output-cache restoration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cargo_target_dir: Option<String>,
+
     /// Fields this version of pnpm does not read, kept so validation can
     /// reject a typo instead of silently ignoring it.
     #[serde(flatten, skip_serializing_if = "IndexMap::is_empty")]
@@ -1046,6 +1134,11 @@ pub struct TaskSettings {
 struct RawTaskSettings {
     concurrency: Option<serde_json::Value>,
     depends_on: Option<Vec<String>>,
+    outputs: Option<Vec<String>>,
+    inputs: Option<Vec<String>>,
+    env: Option<Vec<String>>,
+    cache: Option<bool>,
+    cargo_target_dir: Option<String>,
     #[serde(flatten)]
     unknown: IndexMap<String, serde_json::Value>,
 }
@@ -1059,6 +1152,11 @@ impl<'de> Deserialize<'de> for TaskSettings {
             concurrency,
             invalid_concurrency,
             depends_on: raw.depends_on,
+            outputs: raw.outputs,
+            inputs: raw.inputs,
+            env: raw.env,
+            cache: raw.cache,
+            cargo_target_dir: raw.cargo_target_dir,
             unknown: raw.unknown,
         })
     }
@@ -1230,9 +1328,14 @@ pub enum LoadWorkspaceYamlError {
     #[display("The \"tasks['{task}'].{field}\" setting is not a known task setting")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_SETTING),
-        help(r#"A task declares "concurrency" and "dependsOn"."#)
+        help(
+            r#"A task declares "concurrency", "dependsOn", "outputs", "inputs", "env", "cache", or "cargoTargetDir"."#
+        )
     )]
     UnknownTaskSettingField { task: String, field: String },
+    #[display("The \"pipelines['{pipeline}']\" setting contains an entry with no task name")]
+    #[diagnostic(code(ERR_PNPM_INVALID_SETTING))]
+    EmptyPipelineTaskName { pipeline: String },
     #[display(
         "The \"tasks['{task}'].concurrency\" setting should be a positive integer, but got {concurrency}"
     )]
@@ -1342,6 +1445,7 @@ impl WorkspaceSettings {
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
+        settings.validate_pipelines()?;
         settings.clear_workspace_only_fields();
         settings.warn_about_dropped_keys(&text, &path);
         Ok(Some(settings))
@@ -1393,6 +1497,19 @@ impl WorkspaceSettings {
                         entry: entry.clone(),
                     });
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// The `pipelines` section feeds `pnpm pipeline`'s task requests, which
+    /// reads it without further checks.
+    fn validate_pipelines(&self) -> Result<(), LoadWorkspaceYamlError> {
+        for (pipeline, task_names) in self.pipelines.iter().flatten() {
+            if task_names.iter().any(String::is_empty) {
+                return Err(LoadWorkspaceYamlError::EmptyPipelineTaskName {
+                    pipeline: pipeline.clone(),
+                });
             }
         }
         Ok(())
@@ -1527,11 +1644,16 @@ impl WorkspaceSettings {
             }
         }
         self.versioning = None;
+        self.cargo = None;
+        self.python = None;
         self.packages = None;
         self.catalog = None;
         // Task declarations describe the workspace's own scripts; pnpm's
-        // config-file key filter drops them from the global file too.
+        // config-file key filter drops them from the global file too. The
+        // same holds for the pipelines built from them.
         self.tasks = None;
+        self.pipelines = None;
+        self.pipeline_base = None;
         // A pnpmfile belongs to the project that ships it, and pnpm reads
         // `ignorePnpmfile` from `pnpm-workspace.yaml` and the environment but
         // not from here. Honoring it globally would silently drop a
@@ -1618,6 +1740,7 @@ impl WorkspaceSettings {
             .map_err(|source| LoadWorkspaceYamlError::ParseYaml { path: path.clone(), source })?;
         settings.validate_registries()?;
         settings.validate_tasks()?;
+        settings.validate_pipelines()?;
         settings.reject_repo_controlled_trust_material(&path)?;
         settings.collect_key_issues(&text);
         Ok(Some(settings))
@@ -1828,6 +1951,30 @@ impl WorkspaceSettings {
         }
     }
 
+    /// Rewrite a leading `~/` in `globalDir` / `globalBinDir` into the home
+    /// directory, as pnpm's `transformGlobalDirKeys` does. A shell expands
+    /// the tilde before `pnpm config set` sees it, but a hand-written
+    /// `config.yaml` carries it verbatim.
+    ///
+    /// Call this before [`Self::apply_to`], which would otherwise take the
+    /// tilde for an ordinary relative path segment.
+    pub(crate) fn expand_global_dir_home_prefixes<Sys: GetHomeDir>(&mut self) {
+        for dir in [&mut self.global_dir, &mut self.global_bin_dir] {
+            let Some(relative) = dir
+                .as_deref()
+                .and_then(|dir| dir.strip_prefix("~/").or_else(|| dir.strip_prefix(r"~\")))
+            else {
+                continue;
+            };
+            if let Some(expanded) = Sys::home_dir()
+                .map(|home_dir| join_fragment(&home_dir, relative))
+                .and_then(|expanded| expanded.into_os_string().into_string().ok())
+            {
+                *dir = Some(expanded);
+            }
+        }
+    }
+
     fn substitute_env_scalars<Sys: EnvVar>(&mut self) {
         substitute_optional_string::<Sys>(&mut self.scope);
         substitute_optional_string::<Sys>(&mut self.store_dir);
@@ -1835,6 +1982,8 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.modules_dir);
         substitute_optional_string::<Sys>(&mut self.virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
+        substitute_optional_string::<Sys>(&mut self.global_dir);
+        substitute_optional_string::<Sys>(&mut self.global_bin_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
         substitute_optional_string::<Sys>(&mut self.lockfile_dir);
@@ -1844,10 +1993,31 @@ impl WorkspaceSettings {
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
     }
 
+    /// Resolve a path-like `scriptShell` against the workspace root, the
+    /// way pnpm does for the settings of `pnpm-workspace.yaml` and for no
+    /// other source: a relative shell path in the global config file, in
+    /// `PNPM_CONFIG_SCRIPT_SHELL`, or in an `updateConfig` hook's output
+    /// stays as written. A bare command name (`bash`) is left for `PATH`
+    /// lookup, and an absolute path is kept.
+    ///
+    /// Call this after environment substitution and before
+    /// [`Self::apply_to`], which copies the value verbatim.
+    pub fn resolve_script_shell(&mut self, workspace_dir: &Path) {
+        let Some(Some(script_shell)) = self.script_shell.as_mut() else { return };
+        // `has_root` rather than `is_absolute`: Node's win32 `isAbsolute`
+        // accepts a rooted path without a drive (`\tools\bash.exe`), which
+        // Rust's `is_absolute` rejects. On POSIX the two agree.
+        if Path::new(script_shell.as_str()).has_root() || !script_shell.contains(['/', '\\']) {
+            return;
+        }
+        *script_shell = join_fragment(workspace_dir, script_shell).to_string_lossy().into_owned();
+    }
+
     /// Apply every set field onto `config`, leaving unset ones untouched.
     ///
     /// Path-valued settings are resolved against `base_dir` if relative —
     /// anchored at the workspace root where the yaml was found, matching pnpm.
+    /// `scriptShell` is the exception; see [`Self::resolve_script_shell`].
     pub fn apply_to(self, config: &mut Config, base_dir: &Path) {
         self.apply_proxy_to(&mut config.proxy, &mut config.proxy_keys);
 
@@ -1943,7 +2113,11 @@ impl WorkspaceSettings {
             registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches, tasks,
+            allow_unused_patches, tasks, pipelines,
+        }
+
+        if let Some(pipeline_base) = self.pipeline_base {
+            config.pipeline_base = Some(pipeline_base);
         }
 
         if let Some(virtual_store_type) = virtual_store_type {
@@ -2027,6 +2201,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.global_virtual_store_dir {
             config.global_virtual_store_dir = resolve(base_dir, &v);
         }
+        if let Some(v) = self.global_dir {
+            config.global_dir = Some(resolve(base_dir, &v));
+        }
+        if let Some(v) = self.global_bin_dir {
+            config.global_bin_dir = Some(resolve(base_dir, &v));
+        }
         // Last of the path-valued settings: pinning the lockfile dir
         // re-resolves `modulesDir` / `virtualStoreDir` against it, so it
         // must see whatever this layer just set.
@@ -2056,6 +2236,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.pnpr_server {
             config.pnpr_server = Some(v);
         }
+        if let Some(v) = self.cargo {
+            config.cargo = v;
+        }
+        if let Some(v) = self.python {
+            config.python = v;
+        }
         if let Some(v) = self.remote_side_effects_cache {
             config.remote_side_effects_cache.get_or_insert_default().overlay(v);
         }
@@ -2065,12 +2251,7 @@ impl WorkspaceSettings {
         // supplies the signing key, and neither may drop the other's fields.
         match self.side_effects_cache {
             Some(SideEffectsCacheSetting::Enabled(enabled)) => {
-                config.side_effects_cache = enabled;
-                // A later layer saying `sideEffectsCache: false` has to beat an
-                // earlier layer's object, and the helpers prefer these when set,
-                // so the shorthand must clear what the object left behind.
-                config.side_effects_cache_read_setting = None;
-                config.side_effects_cache_write_setting = None;
+                config.apply_side_effects_cache_shorthand(enabled);
             }
             Some(SideEffectsCacheSetting::Settings(settings)) => {
                 config.side_effects_cache_read_setting = Some(settings.read.unwrap_or(true));
@@ -2367,6 +2548,18 @@ fn substitute_optional_inner_string<Sys: EnvVar>(value: &mut Option<Option<Strin
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// Join `fragment` onto `base` the way pnpm's `path.join` does: concatenate
+/// with the separator, then normalize. Node treats every argument after the
+/// first as a fragment, so [`Path::join`] is the wrong primitive here — it
+/// lets a fragment that parses as rooted (`//bin`) or drive-prefixed
+/// (`C:bin`, drive-relative on Windows) replace `base` outright.
+fn join_fragment(base: &Path, fragment: &str) -> PathBuf {
+    let mut joined = base.as_os_str().to_os_string();
+    joined.push(std::path::MAIN_SEPARATOR_STR);
+    joined.push(fragment);
+    pnpm_fs::lexical_normalize(Path::new(&joined))
 }
 
 fn resolve(base: &Path, value: &str) -> PathBuf {

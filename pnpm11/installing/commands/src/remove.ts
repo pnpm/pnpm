@@ -67,6 +67,11 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'shared-workspace-lockfile',
     'store-dir',
     'strict-peer-dependencies',
+    'trust-lockfile',
+    'trust-policy',
+    'trust-policy-exclude',
+    'trust-policy-ignore-after',
+    'unsafe-perm',
     'virtual-store-dir',
   ], allTypes)
 }

@@ -1,4 +1,4 @@
-use super::{link_cached_engine_bins, package_dir, package_manager_engine_config};
+use super::{link_cached_engine_bins, package_dir, package_manager_engine_config, resolve_slot};
 use pnpm_config::Config;
 use pnpm_graph_hasher::{host_arch, host_libc, host_platform};
 use pnpm_store_dir::StoreDir;
@@ -71,6 +71,37 @@ fn package_manager_engine_config_uses_global_store() {
         !engine_config.store_dir.root().starts_with(&project_store_root),
         "engine store must not use project store at {}",
         project_store_root.display(),
+    );
+}
+
+#[test]
+fn slot_resolution_follows_the_wrapper_symlink_into_the_store() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let install_dir = root.path().join("tmp-install");
+    let slot = root.path().join("links").join("@pnpm").join("exe").join("9.3.0").join("hash");
+    let installed_pkg_dir = package_dir(&slot, "@pnpm/exe");
+    fs::create_dir_all(&installed_pkg_dir).expect("create the store package dir");
+    let link = package_dir(&install_dir, "@pnpm/exe");
+    fs::create_dir_all(link.parent().expect("the wrapper scope dir")).expect("create scope dir");
+    pnpm_fs::force_symlink_dir(&installed_pkg_dir, &link).expect("link the wrapper");
+
+    let resolved = resolve_slot(&install_dir, "@pnpm/exe").expect("resolve the slot");
+
+    assert_eq!(resolved, fs::canonicalize(&slot).expect("canonicalize the slot"));
+}
+
+#[test]
+fn slot_resolution_rejects_an_engine_materialized_in_the_install_dir() {
+    let root = tempfile::TempDir::new().expect("tmp dir");
+    let install_dir = root.path().join("tmp-install");
+    fs::create_dir_all(package_dir(&install_dir, "@pnpm/exe")).expect("create the wrapper dir");
+
+    let error = resolve_slot(&install_dir, "@pnpm/exe").expect_err("an install-dir slot");
+
+    let message = format!("{error}");
+    assert!(
+        message.contains("did not materialize in the global virtual store"),
+        "unexpected error: {message}",
     );
 }
 

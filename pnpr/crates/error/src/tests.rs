@@ -30,6 +30,11 @@ async fn timeout_error_maps_to_gateway_timeout() {
 
     let registry_err = RegistryError::Upstream { url, source: err };
     assert_eq!(registry_err.status_code(), StatusCode::GATEWAY_TIMEOUT);
+    let RegistryError::Upstream { url, source } = registry_err else {
+        panic!("expected upstream error")
+    };
+    let body_err = RegistryError::UpstreamBody { url, source: std::io::Error::other(source) };
+    assert_eq!(body_err.status_code(), StatusCode::GATEWAY_TIMEOUT);
 }
 
 #[test]
@@ -195,4 +200,20 @@ async fn not_found_renders_as_a_bare_404() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     assert_eq!(body.as_ref(), b"Not Found");
+}
+
+#[test]
+fn upstream_body_errors_preserve_gateway_status_and_log_kind() {
+    for (kind, status) in [
+        (std::io::ErrorKind::TimedOut, StatusCode::GATEWAY_TIMEOUT),
+        (std::io::ErrorKind::UnexpectedEof, StatusCode::BAD_GATEWAY),
+    ] {
+        let error = RegistryError::UpstreamBody {
+            url: "https://registry.example/artifact".to_string(),
+            source: std::io::Error::new(kind, "body failed"),
+        };
+        assert_eq!(error.status_code(), status);
+        assert_eq!(error.log_kind(), "upstream");
+        assert!(error.is_transient_upstream_error());
+    }
 }

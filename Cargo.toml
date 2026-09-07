@@ -16,6 +16,7 @@ repository  = "https://github.com/pnpm/pacquet"
 pnpm-pnpr-client                       = { path = "pnpm/crates/pnpr-client" }
 pnpm-shared-artifact-protocol          = { path = "pnpm/crates/shared-artifact-protocol" }
 pnpm-auth-commands                     = { path = "pnpm/crates/auth-commands" }
+pnpm-cargo-resolver                    = { path = "pnpm/crates/cargo-resolver" }
 pnpm-catalogs-config                   = { path = "pnpm/crates/catalogs-config" }
 pnpm-catalogs-protocol-parser          = { path = "pnpm/crates/catalogs-protocol-parser" }
 pnpm-catalogs-resolver                 = { path = "pnpm/crates/catalogs-resolver" }
@@ -39,10 +40,12 @@ pnpm-testing-utils                     = { path = "pnpm/crates/testing-utils" }
 pnpm-text-sanitize                     = { path = "pnpm/crates/text-sanitize" }
 pnpm-pack                              = { path = "pnpm/crates/pack" }
 pnpm-publish                           = { path = "pnpm/crates/publish" }
+pnpm-python-resolver                   = { path = "pnpm/crates/python-resolver" }
 pnpm-package-manifest                  = { path = "pnpm/crates/package-manifest" }
 pnpm-package-manager                   = { path = "pnpm/crates/package-manager" }
 pnpm-package-is-installable            = { path = "pnpm/crates/package-is-installable" }
 pnpm-lockfile                          = { path = "pnpm/crates/lockfile" }
+pnpm-lockfile-import                   = { path = "pnpm/crates/lockfile-import" }
 pnpm-lockfile-preferred-versions       = { path = "pnpm/crates/lockfile-preferred-versions" }
 pnpm-lockfile-verification             = { path = "pnpm/crates/lockfile-verification" }
 pnpm-modules-yaml                      = { path = "pnpm/crates/modules-yaml" }
@@ -68,6 +71,7 @@ pnpm-diagnostics                       = { path = "pnpm/crates/diagnostics" }
 pnpm-graph-hasher                      = { path = "pnpm/crates/graph-hasher" }
 pnpm-hooks                             = { path = "pnpm/crates/hooks" }
 pnpm-injected-deps-syncer              = { path = "pnpm/crates/injected-deps-syncer" }
+pnpm-install-coordinator               = { path = "pnpm/crates/install-coordinator" }
 pnpm-store-dir                         = { path = "pnpm/crates/store-dir" }
 pnpm-reporter                          = { path = "pnpm/crates/reporter" }
 pnpm-patching                          = { path = "pnpm/crates/patching" }
@@ -98,14 +102,18 @@ pnpm-registry-mock = { path = "pnpm/tasks/registry-mock" }
 # Registry (sibling project — pnpm-compatible registry server)
 pnpr                  = { path = "pnpr/crates/pnpr" }
 pnpr-auth             = { path = "pnpr/crates/auth" }
+pnpr-cargo            = { path = "pnpr/crates/cargo" }
 pnpr-config           = { path = "pnpr/crates/config" }
 pnpr-error            = { path = "pnpr/crates/error" }
+pnpr-oci              = { path = "pnpr/crates/oci" }
 pnpr-osv              = { path = "pnpr/crates/osv" }
 pnpr-package-name     = { path = "pnpr/crates/package-name" }
 pnpr-policy           = { path = "pnpr/crates/policy" }
+pnpr-pypi             = { path = "pnpr/crates/pypi" }
 pnpr-registry         = { path = "pnpr/crates/registry" }
 pnpr-storage          = { path = "pnpr/crates/storage" }
 pnpr-route            = { path = "pnpr/crates/route" }
+pnpr-pipeline-runs    = { path = "pnpr/crates/pipeline-runs" }
 pnpr-search           = { path = "pnpr/crates/search" }
 pnpr-shared-artifacts = { path = "pnpr/crates/shared-artifacts" }
 pnpr-upstream         = { path = "pnpr/crates/upstream" }
@@ -126,6 +134,9 @@ command-extra = { version = "1.0.0" }
 base64 = { version = "0.23.1" }
 bcrypt = { version = "0.19.1" }
 bytes = { version = "1.11.0" }
+cap-primitives = { version = "4.0.3" }
+cargo-lock = { version = "11.1.0" }
+cargo-util-schemas = { version = "0.14.2" }
 chrono = { version = "0.4.44", default-features = false, features = ["clock"] }
 console = { version = "0.16.3" }
 crossterm = { version = "0.29.0" }
@@ -165,18 +176,14 @@ owo-colors = { version = "4", features = ["supports-colors"] }
 reflink-copy = { version = "0.1.29" }
 junction = { version = "2.0.0" }
 libc = { version = "0.2.186" }
-reqwest = { version = "0.13", default-features = false, features = [
-  "gzip",
-  "hickory-dns",
-  "json",
-  "rustls",
-  "socks",
-  "stream",
-] }
+reqwest = { version = "0.13", default-features = false, features = ["gzip", "json", "rustls", "socks", "stream"] }
 node-semver = { version = "2.2.0" }
 p256 = { version = "0.13.2", default-features = false, features = ["ecdsa", "pkcs8", "std"] }
 pathdiff = { version = "0.2.3" }
 pipe-trait = { version = "0.4.0" }
+pubgrub = { version = "0.4.0" }
+pep440_rs = { version = "0.7.3" }
+pep508_rs = { version = "0.9.2" }
 pgp = { version = "0.20.0", default-features = false }
 qrcode = { version = "0.14.1", default-features = false }
 rayon = { version = "1.12.0" }
@@ -186,6 +193,8 @@ rusqlite = { version = "0.39.0", features = ["bundled"] }
 same-file = { version = "1.0.6" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["preserve_order", "raw_value"] }
+semver = { version = "1.0.28" }
+shell-words = { version = "1.1.1" }
 rustc-hash = { version = "2.1.1" }
 rustls = { version = "0.23", default-features = false, features = ["std"] }
 serde-saphyr = { version = "0.0.29" }
@@ -202,10 +211,11 @@ tabled             = { version = "0.21", features = ["ansi"] }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.7.0", features = ["compression-gzip", "trace"] }
+tower-http         = { version = "0.7.0", features = ["compression-gzip", "cors", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
+toml               = { version = "1.1.5" }
 url                = { version = "2.5.8" }
 walkdir            = { version = "2.5.0" }
 webpki-root-certs  = { version = "1.0.7" }
@@ -225,6 +235,15 @@ pretty_assertions = { version = "1.4.1" }
 project-root      = { version = "0.2.2" }
 tempfile          = { version = "3.27.0" }
 mockito           = { version = "1.7.2" }
+
+# node-semver 2.2.0 parses a partial version after `<=` as an exact patch
+# bound, so `<=16` becomes `<=16.0.0-0` and rejects every 16.x. The fork
+# expands it as the X-Range npm's semver does, and fixes `Ord for Bound`
+# reporting both an inclusive and an exclusive bound on one version as the
+# lesser, which made `Range::intersect` depend on argument order. Upstream
+# has not released since 2.2.0 (February 2025); drop this once it does.
+[patch.crates-io]
+node-semver = { git = "https://github.com/pnpm/node-semver-rs", rev = "1ae976a0023b4dec80b1a5411ccee8343f91320e" }
 
 [workspace.metadata.workspaces]
 allow_branch = "main"

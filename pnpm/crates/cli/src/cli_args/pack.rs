@@ -25,12 +25,13 @@ use pnpm_pack::{
     Host, PackError, PackOptions, PackOutputLocks, PackResultJson, api, format_pack_output,
     pack_output_path, to_pack_result_json,
 };
-use pnpm_reporter::Reporter;
+use pnpm_reporter::{LifecycleMessage, LifecycleStdio, LogEvent, Reporter};
 use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, graph_sequencer, schedule_graph_async,
 };
 use std::{
     collections::HashMap,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -40,6 +41,36 @@ use std::{
 /// underlying pack diagnostic instead of this wrapper, so the two sites must
 /// share one definition.
 pub(crate) const PACK_ERROR_CONTEXT: &str = "pack the package";
+
+/// The reporter for `pack --json`. It stands in for the selected
+/// `--reporter` / `--loglevel` (which pnpm skips entirely under `--json`)
+/// and mirrors pnpm running the pack lifecycle scripts with inherited stdio:
+/// the `$ <script>` banner goes to stderr, each script line stays on the
+/// stream it was written to, and every other event is dropped so the JSON
+/// result (or JSON error) is the last thing on stdout.
+pub(super) struct PackJsonReporter;
+
+impl Reporter for PackJsonReporter {
+    fn emit(event: &LogEvent) {
+        let LogEvent::Lifecycle(log) = event else {
+            return;
+        };
+        match &log.message {
+            LifecycleMessage::Script { script, .. } => {
+                let _ = writeln!(io::stderr().lock(), "$ {script}");
+            }
+            LifecycleMessage::Stdio { line, stdio, .. } => match stdio {
+                LifecycleStdio::Stdout => {
+                    let _ = writeln!(io::stdout().lock(), "{line}");
+                }
+                LifecycleStdio::Stderr => {
+                    let _ = writeln!(io::stderr().lock(), "{line}");
+                }
+            },
+            LifecycleMessage::Exit { .. } => {}
+        }
+    }
+}
 
 /// Create a tarball from a package.
 #[derive(Debug, Args)]
@@ -87,20 +118,18 @@ impl PackArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<Reporter>(dir, config).await
+            self.run_recursive::<Reporter>(dir, config, before_packing_hooks).await
         } else {
-            let pnpmfile_root = config.workspace_dir.as_deref().unwrap_or(dir);
             let mut options = self.pack_options(
                 dir.to_path_buf(),
                 config,
                 configured_catalogs(config)?,
                 self.out.clone(),
                 self.pack_destination.clone(),
-                crate::config_deps::load_before_packing_hooks(config, pnpmfile_root).map_err(
-                    |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
-                )?,
+                before_packing_hooks,
             );
             set_injected_changelog(&mut options, config, dir).await?;
             let result = api::<Reporter, Host>(&options)
@@ -117,6 +146,7 @@ impl PackArgs {
         &self,
         dir: &Path,
         config: &Config,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<String> {
         // `--out` and `--pack-destination` are mutually exclusive. The
         // single-project path enforces this inside `api`; the recursive
@@ -146,13 +176,6 @@ impl PackArgs {
         // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
         let catalogs = configured_catalogs(config)?;
-        // Load the pnpmfiles once for the whole workspace (they live at the
-        // workspace root); cloning the Arcs into each project shares one
-        // worker per pnpmfile instead of re-spawning it per packed project.
-        let before_packing_hooks =
-            crate::config_deps::load_before_packing_hooks(config, workspace_root).map_err(
-                |error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"),
-            )?;
         let output_can_change_while_packing = !before_packing_hooks.is_empty()
             || (!config.ignore_scripts
                 && graph.values().any(|node| {
@@ -258,7 +281,13 @@ impl PackArgs {
                     api::<Reporter, Host>(&options)
                         .await
                         .map_err(miette::Report::new)
-                        .wrap_err_with(|| format!("pack {}", project.root_dir.display()))
+                        .wrap_err_with(|| {
+                            if self.json {
+                                PACK_ERROR_CONTEXT.to_string()
+                            } else {
+                                format!("pack {}", project.root_dir.display())
+                            }
+                        })
                 }
                 .await;
                 match result {

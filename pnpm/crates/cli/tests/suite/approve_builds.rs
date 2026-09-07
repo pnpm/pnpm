@@ -292,6 +292,44 @@ fn approve_builds_with_nothing_pending_reports_so() {
     drop(harness);
 }
 
+/// Pre-emptive denial: `!<pkg>` is recorded even when the package is not
+/// installed yet, with a warning that the package is not awaiting approval
+/// so a typo stays visible.
+#[test]
+fn approve_builds_denies_a_package_that_is_not_installed_yet() {
+    let harness = CommandTempCwd::init().add_mocked_registry();
+    let workspace = harness.workspace.clone();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let deny_install = format!("!{INSTALL}");
+    let output =
+        stdout_of(pacquet(&workspace).with_args(["approve-builds", &deny_install]).assert());
+    assert!(
+        output.contains(&format!("The following packages are not awaiting approval: {INSTALL}")),
+        "output: {output}",
+    );
+    assert_eq!(
+        allow_builds(&workspace),
+        std::collections::BTreeMap::from([(INSTALL.to_string(), false)]),
+    );
+
+    drop(harness);
+}
+
+#[test]
+fn approve_builds_rejects_an_argument_that_names_no_package() {
+    let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+
+    let assert = pacquet(&workspace).with_args(["approve-builds", "!"]).assert().failure();
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr).into_owned();
+    assert!(stderr.contains("ERR_PNPM_APPROVE_BUILDS_MISSING_PACKAGE"), "stderr: {stderr}");
+    assert!(!workspace.join("pnpm-workspace.yaml").exists(), "a rejected run persists nothing");
+
+    drop(root);
+}
+
 #[test]
 fn rebuild_reruns_an_approved_build() {
     let (harness, workspace) = install_with_ignored_build();

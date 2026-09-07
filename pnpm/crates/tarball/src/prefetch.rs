@@ -4,7 +4,10 @@
 //! the install fans out, so the warm batch can skip per-package
 //! store-index lookups entirely.
 
-use super::{Arc, HashMap, IntoParallelIterator, ParallelIterator, PathBuf, TarballError};
+use super::{
+    Arc, ArchiveStoreProjection, HashMap, IntoParallelIterator, PackageContentCheck,
+    ParallelIterator, PathBuf, TarballError,
+};
 use pnpm_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pnpm_reporter::{GlobalLog, LogEvent, LogLevel};
 use pnpm_store_dir::{
@@ -284,11 +287,11 @@ enum CachedRow {
 /// the timestamp. With it off, a missing or corrupt blob surfaces later,
 /// when the caller tries to import it.
 ///
-/// `strict_store_pkg_content_check` is pnpm's `strictStorePkgContentCheck`:
-/// a row whose bundled manifest names another package fails the install
-/// under it, and is used with a warning without it. Either way the row
-/// is never silently swapped for a download — that would hide a broken
-/// lockfile behind a slow install.
+/// `package_content_check` carries pnpm's `strictStorePkgContentCheck`
+/// policy for package projections. [`PackageContentCheck::Strict`]
+/// rejects an identity mismatch, [`PackageContentCheck::Warn`] reports
+/// and uses the row, and [`PackageContentCheck::Skip`] omits this
+/// npm-specific check for a raw archive projection.
 ///
 /// `index` is opened once per install and passed in repeatedly, so the
 /// `Connection::open` + PRAGMA cost is not paid per package.
@@ -297,7 +300,7 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
     store_dir: &'static StoreDir,
     cache_key: String,
     verify_store_integrity: bool,
-    strict_store_pkg_content_check: bool,
+    package_content_check: PackageContentCheck,
     verified_files_cache: SharedVerifiedFilesCache,
 ) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
     let Some(index) = index else { return Ok(None) };
@@ -326,8 +329,15 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
             }
         };
 
-        let mismatch = pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key);
-        if strict_store_pkg_content_check && let Some(mismatch) = mismatch {
+        let mismatch = match package_content_check {
+            PackageContentCheck::Strict | PackageContentCheck::Warn => {
+                pnpm_store_dir::pkg_content_mismatch(entry.manifest.as_ref(), &cache_key)
+            }
+            PackageContentCheck::Skip => None,
+        };
+        if package_content_check == PackageContentCheck::Strict
+            && let Some(mismatch) = mismatch
+        {
             return CachedRow::Rejected(mismatch);
         }
 
@@ -386,6 +396,53 @@ pub(crate) async fn load_cached_cas_paths<Reporter: crate::Reporter>(
             Ok(None)
         }
     }
+}
+
+/// Reuse a pre-projection-key runtime row only when its synthesized
+/// `package.json` is byte-for-byte the one requested by this projection.
+/// This keeps offline upgrades working without letting two runtime manifests
+/// share the legacy row.
+pub(crate) async fn load_legacy_synthesized_cas_paths<Reporter: crate::Reporter>(
+    index: Option<SharedReadonlyStoreIndex>,
+    store_dir: &'static StoreDir,
+    integrity: &str,
+    package_id: &str,
+    verify_store_integrity: bool,
+    verified_files_cache: SharedVerifiedFilesCache,
+    store_projection: ArchiveStoreProjection<'_>,
+) -> Result<Option<HashMap<String, PathBuf>>, TarballError> {
+    let Some((legacy_key, expected_manifest)) =
+        store_projection.legacy_synthesized_store_row(integrity, package_id)
+    else {
+        return Ok(None);
+    };
+    let Some(cas_paths) = load_cached_cas_paths::<Reporter>(
+        index,
+        store_dir,
+        legacy_key,
+        verify_store_integrity,
+        PackageContentCheck::Skip,
+        verified_files_cache,
+    )
+    .await?
+    else {
+        return Ok(None);
+    };
+    let Some(package_json_path) = cas_paths.get("package.json") else {
+        return Ok(None);
+    };
+    let Ok(cached_manifest) = tokio::fs::read(package_json_path).await else {
+        return Ok(None);
+    };
+    if cached_manifest != expected_manifest {
+        tracing::debug!(
+            target: "pacquet::download",
+            ?package_id,
+            "legacy store row has a different synthesized manifest; treating it as a miss",
+        );
+        return Ok(None);
+    }
+    Ok(Some(cas_paths))
 }
 
 /// Read every requested row's undecoded bytes, holding the store-index

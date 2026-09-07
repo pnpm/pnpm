@@ -158,7 +158,8 @@ async fn install_engine_from_env_with_config<Reporter: self::Reporter + 'static>
     let label = format!("{}@{version}", pm.name());
     let engine = EngineToVerify {
         label: &label,
-        packages: package.pinned,
+        package: package.wrapper,
+        version,
         platform_binaries: if package.links_native_binary {
             PlatformBinaries::PnpmExe
         } else {
@@ -352,11 +353,24 @@ fn compute_engine_slot(
 /// Derive the engine's GVS slot from the install's own wrapper symlink. This
 /// is the ground truth after an install, independent of any hash
 /// recomputation.
+///
+/// Errors when the wrapper is a real directory inside `install_dir` rather
+/// than a symlink into the store: `install_dir` is thrown away right after,
+/// so a slot naming it would be gone before the engine is linked.
 fn resolve_slot(install_dir: &Path, package_name: &str) -> miette::Result<PathBuf> {
     let link = package_dir(install_dir, package_name);
     let real = fs::canonicalize(&link)
         .into_diagnostic()
         .wrap_err_with(|| format!("resolve the installed {package_name} at {}", link.display()))?;
+    let install_real = fs::canonicalize(install_dir).into_diagnostic().wrap_err_with(|| {
+        format!("resolve the temporary install directory at {}", install_dir.display())
+    })?;
+    if real.starts_with(&install_real) {
+        let real_display = real.display();
+        return Err(miette::miette!(
+            "the installed {package_name} at {real_display} did not materialize in the global virtual store"
+        ));
+    }
     slot_from_package_dir(&real, package_name).ok_or_else(|| {
         miette::miette!("could not locate the {package_name} global-virtual-store slot")
     })

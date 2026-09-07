@@ -11,7 +11,7 @@
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
-use super::{ExecArgs, ExecError, prepare_command, read_package_name, spawn_in_dir};
+use super::{ExecArgs, ExecDirs, ExecError, prepare_command, read_package_name, spawn_in_dir};
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
@@ -28,7 +28,8 @@ use pnpm_executor::{ProcessTracker, ScriptOutput};
 use pnpm_reporter::LogEvent;
 use pnpm_workspace_task_scheduler::{
     ScheduleTasksOptions, SequenceTasksOptions, TaskCompletion, TaskGraph, TaskKey, TaskNode,
-    resume_task_graph_from, reverse_task_graph, schedule_tasks, sequence_tasks,
+    is_serial_task_graph, resume_task_graph_from, reverse_task_graph, schedule_tasks,
+    sequence_tasks,
 };
 use std::{
     collections::HashSet,
@@ -181,7 +182,7 @@ pub async fn exec_recursive(
     };
     // Also the cycle check: a cyclic graph cannot be scheduled, and
     // sequenced into an arbitrary order it would succeed or fail by luck.
-    sequence_tasks(
+    let sequenced_tasks = sequence_tasks(
         &mut task_graph,
         &SequenceTasksOptions {
             workspace_dir: workspace_root,
@@ -208,7 +209,10 @@ pub async fn exec_recursive(
     );
     let first_failure: Mutex<Option<String>> = Mutex::new(None);
     let abort: Mutex<Option<miette::Report>> = Mutex::new(None);
-    let process_tracker = bail.then(ProcessTracker::default);
+    let runs_concurrently = concurrency > 1 && !is_serial_task_graph(&task_graph, &sequenced_tasks);
+    let process_tracker = bail.then(|| {
+        if runs_concurrently { ProcessTracker::default() } else { ProcessTracker::foreground() }
+    });
 
     let run_task = |node: &TaskNode| -> TaskCompletion {
         let root = node.project.as_path();
@@ -217,8 +221,14 @@ pub async fn exec_recursive(
         let start = Instant::now();
         let dep_path = project_dep_path(root, dir, show_prefix);
         let output = project_output(dep_path.as_deref(), emit);
-        let outcome =
-            spawn_in_dir(&command, root, config, args.shell_mode, output, process_tracker.as_ref());
+        let outcome = spawn_in_dir(
+            &command,
+            ExecDirs::same(root),
+            config,
+            args.shell_mode,
+            output,
+            process_tracker.as_ref(),
+        );
         let execution = project_execution(start, outcome);
         let mut result = result.lock().expect("summary lock is not poisoned");
         let entry = &mut result[&prefix];

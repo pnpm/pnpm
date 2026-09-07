@@ -12,6 +12,7 @@
 
 mod api;
 mod importer_id;
+mod inventory;
 mod manifest;
 mod project_manifest;
 mod projects;
@@ -20,6 +21,7 @@ mod root_finder;
 
 pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
+pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
 pub use manifest::{
     InvalidWorkspaceManifestError, ReadWorkspaceManifestError, WORKSPACE_MANIFEST_FILENAME,
     WorkspaceManifest, read_workspace_manifest, workspace_package_patterns,

@@ -11,9 +11,11 @@ license-file         = "../../LICENSE.md"
 repository.workspace = true
 
 [dependencies]
+pnpm-network      = { workspace = true }
 pnpr-config       = { workspace = true }
 pnpr-error        = { workspace = true }
 pnpr-package-name = { workspace = true }
+pnpr-registry     = { workspace = true }
 pnpm-crypto-hash  = { workspace = true }
 async-trait       = { workspace = true }
 axum              = { workspace = true }
@@ -26,6 +28,7 @@ serde             = { workspace = true }
 serde_json        = { workspace = true }
 ssri              = { workspace = true }
 tokio             = { workspace = true }
+tempfile          = { workspace = true }
 tracing           = { workspace = true }
 
 [dev-dependencies]

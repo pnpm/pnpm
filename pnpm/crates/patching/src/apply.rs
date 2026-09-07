@@ -2,6 +2,7 @@ mod tolerant;
 
 use derive_more::{Display, Error};
 use diffy::patch_set::{FileOperation, ParseOptions, PatchSet};
+use indexmap::IndexSet;
 use miette::Diagnostic;
 use std::{
     fs::{self, OpenOptions, Permissions},
@@ -89,27 +90,7 @@ pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
-    // Read the patch file. ENOENT becomes `ERR_PNPM_PATCH_NOT_FOUND`.
-    // Every other IO error surfaces with the same diagnostic code but a
-    // different variant so the underlying `io::Error` chain is preserved.
-    let bytes = match fs::read(patch_file_path) {
-        Ok(b) => b,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => {
-            return Err(PatchApplyError::PatchNotFound { path: patch_file_path.to_path_buf() });
-        }
-        Err(source) => {
-            return Err(PatchApplyError::ReadPatchFile {
-                path: patch_file_path.to_path_buf(),
-                source,
-            });
-        }
-    };
-    // Lossy UTF-8 to match Node `fs.readFile(path, 'utf8')` (the
-    // same decoding [`create_hex_hash_from_file`] uses), so a patch
-    // file with stray bytes still parses.
-    //
-    // [`create_hex_hash_from_file`]: crate::create_hex_hash_from_file
-    let text = String::from_utf8_lossy(&bytes);
+    let text = read_patch_file(patch_file_path)?;
 
     let patches = PatchSet::parse(&text, ParseOptions::gitdiff());
     for file_patch_result in patches {
@@ -120,6 +101,180 @@ pub fn apply_patch_to_dir(
         apply_one_file(patched_dir, patch_file_path, &file_patch)?;
     }
     Ok(())
+}
+
+const MANIFEST_FILE_NAME: &str = "package.json";
+
+/// What a patch file would leave behind in a package directory, read
+/// without writing anything.
+///
+/// pnpm decides what a package's build needs well before the build phase
+/// applies the patch, and a patch can introduce build triggers of its
+/// own. [`preview_patch`] lets those decisions see the patched package.
+#[derive(Debug, Default)]
+pub struct PatchPreview {
+    /// The `package.json` the patch would leave, or `None` when it does
+    /// not touch the manifest.
+    pub manifest: Option<String>,
+    /// The paths the patch creates or rewrites, relative to the package
+    /// directory, `/`-separated and free of `.` segments. Deletions are
+    /// left out: a file a patch removes is not one the package has.
+    pub written_paths: Vec<String>,
+}
+
+/// Read what `patch_file_path` would leave in `patched_dir`.
+///
+/// A manifest that already carries the patch reports its content as it
+/// stands, for the same reason [`apply_patch_to_dir`] treats a re-apply
+/// as a no-op.
+pub fn preview_patch(
+    patched_dir: &Path,
+    patch_file_path: &Path,
+) -> Result<PatchPreview, PatchApplyError> {
+    let text = read_patch_file(patch_file_path)?;
+    let failed = |message: String| PatchApplyError::PatchFailed {
+        patch_file_path: patch_file_path.to_path_buf(),
+        patched_dir: patched_dir.to_path_buf(),
+        message,
+    };
+    let mut preview = PatchPreview::default();
+    // Written paths are tracked as a set so a delete record costs one lookup
+    // rather than a scan of everything written so far, and insertion order is
+    // kept because a patch that rewrites a file twice should not report it
+    // twice.
+    let mut written_paths: IndexSet<String> = IndexSet::new();
+    // A patch may delete the manifest and write a new one, so "no manifest
+    // record yet" and "the manifest is gone" are different states.
+    let mut manifest_removed = false;
+    for file_patch_result in PatchSet::parse(&text, ParseOptions::gitdiff()) {
+        let file_patch = file_patch_result.map_err(|source| PatchApplyError::InvalidPatch {
+            patch_file_path: patch_file_path.to_path_buf(),
+            message: source.to_string(),
+        })?;
+        let operation = file_patch.operation().strip_prefix(1);
+        let raw_path = match &operation {
+            FileOperation::Modify { modified, .. } | FileOperation::Create(modified) => {
+                modified.as_ref()
+            }
+            // A patch that writes a file and then removes it leaves the
+            // package without it, so an earlier record's path is dropped
+            // rather than merely skipped.
+            FileOperation::Delete(path) => {
+                let Some(removed) = normalized_patch_path(path.as_ref()) else { continue };
+                if names_manifest(patched_dir, &removed) {
+                    preview.manifest = None;
+                    manifest_removed = true;
+                }
+                written_paths.shift_remove(&removed);
+                continue;
+            }
+            _ => continue,
+        };
+        let Some(written) = normalized_patch_path(raw_path) else { continue };
+        let is_manifest = names_manifest(patched_dir, &written);
+        written_paths.insert(written);
+        if !is_manifest {
+            continue;
+        }
+        let creates = matches!(operation, FileOperation::Create(_));
+        // A package ships a manifest, so a `Create` naming one only makes
+        // sense once an earlier record removed it; `apply_patch_to_dir`
+        // reports every other spelling. A `Modify` of a removed manifest is
+        // left to it for the same reason.
+        if creates != manifest_removed {
+            continue;
+        }
+        let target = patched_dir.join(MANIFEST_FILE_NAME);
+        // A patch may carry more than one record for the same file, and
+        // `apply_patch_to_dir` feeds each the previous one's output. Chain
+        // them here too, or the preview would answer for the last record
+        // alone.
+        let original = if let Some(patched_so_far) = preview.manifest.take() {
+            patched_so_far
+        } else if manifest_removed {
+            String::new()
+        } else {
+            let bytes = fs::read(&target)
+                .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
+            String::from_utf8_lossy(&bytes).into_owned()
+        };
+        manifest_removed = false;
+        let text_patch = file_patch
+            .patch()
+            .as_text()
+            .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
+        preview.manifest = Some(match tolerant::apply(&original, text_patch) {
+            Ok(updated) => updated,
+            Err(_) if tolerant::apply(&original, &text_patch.reverse()).is_ok() => original,
+            Err(message) => {
+                return Err(failed(format!("apply to {}: {message}", target.display())));
+            }
+        });
+    }
+    preview.written_paths = written_paths.into_iter().collect();
+    Ok(preview)
+}
+
+/// Whether `written` names the package's manifest.
+///
+/// A patch header may spell it in another case, and on a case-insensitive
+/// volume the applier still reaches the real `package.json`. The filesystem
+/// is asked rather than the platform guessed: where names are
+/// case-sensitive, `Package.json` is a different file and must not be
+/// mistaken for the manifest. The check costs nothing for the spelling
+/// every patch actually uses.
+fn names_manifest(patched_dir: &Path, written: &str) -> bool {
+    if written == MANIFEST_FILE_NAME {
+        return true;
+    }
+    if !written.eq_ignore_ascii_case(MANIFEST_FILE_NAME) {
+        return false;
+    }
+    let (Ok(spelled), Ok(manifest)) = (
+        fs::canonicalize(patched_dir.join(written)),
+        fs::canonicalize(patched_dir.join(MANIFEST_FILE_NAME)),
+    ) else {
+        return false;
+    };
+    spelled == manifest
+}
+
+/// The path a patch header names, spelled the way [`apply_patch_to_dir`]
+/// resolves it: `.` segments dropped, separators normalized to `/`.
+///
+/// `None` for a path that call would refuse — one that is absolute or
+/// climbs out of the package — so the preview never reports as written a
+/// path the apply will reject.
+fn normalized_patch_path(rel: &str) -> Option<String> {
+    let mut segments = Vec::new();
+    for component in Path::new(rel).components() {
+        match component {
+            Component::CurDir => {}
+            Component::Normal(segment) => segments.push(segment.to_string_lossy().into_owned()),
+            _ => return None,
+        }
+    }
+    (!segments.is_empty()).then(|| segments.join("/"))
+}
+
+/// Read a patch file, mapping a missing file to
+/// `ERR_PNPM_PATCH_NOT_FOUND`.
+///
+/// Decoded lossily to match Node `fs.readFile(path, 'utf8')` (the same
+/// decoding [`create_hex_hash_from_file`] uses), so a patch file with
+/// stray bytes still parses.
+///
+/// [`create_hex_hash_from_file`]: crate::create_hex_hash_from_file
+fn read_patch_file(patch_file_path: &Path) -> Result<String, PatchApplyError> {
+    match fs::read(patch_file_path) {
+        Ok(bytes) => Ok(String::from_utf8_lossy(&bytes).into_owned()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            Err(PatchApplyError::PatchNotFound { path: patch_file_path.to_path_buf() })
+        }
+        Err(source) => {
+            Err(PatchApplyError::ReadPatchFile { path: patch_file_path.to_path_buf(), source })
+        }
+    }
 }
 
 fn apply_one_file(
@@ -247,11 +402,21 @@ fn apply_one_file(
         }
         FileOperation::Delete(path) => {
             let target = resolve_target(Path::new(path.as_ref()))?;
-            // Validate that the existing file matches the patch
-            // before unlinking — a stale or wrong-target patch
-            // would otherwise silently delete the wrong file.
-            // diffy::apply on a delete patch produces the empty
-            // string when every hunk matches.
+            let text_patch = file_patch
+                .patch()
+                .as_text()
+                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
+            // A delete block that carries hunks is validated against the
+            // file on disk before unlinking — a stale or wrong-target
+            // patch would otherwise silently delete the wrong file.
+            // diffy::apply on such a patch produces the empty string
+            // when every hunk matches.
+            //
+            // `git diff --irreversible-delete`, which `pnpm patch` and
+            // `pnpm patch-commit` run, writes the header of a deleted
+            // file without its preimage. There are no hunks to check
+            // then, so the file is unlinked on the header alone, as
+            // pnpm 11 does for every deletion.
             //
             // Lossy UTF-8 decoding for the same reason as the
             // `Modify` branch above: match the patch-file reader
@@ -260,29 +425,33 @@ fn apply_one_file(
             // Idempotency: a missing target means the file was
             // already removed by an earlier apply of the same
             // patch — treat as no-op.
-            let bytes = match fs::read(&target) {
-                Ok(b) => b,
-                Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-                Err(source) => {
-                    return Err(failed(format!("read {}: {source}", target.display())));
+            if !text_patch.hunks().is_empty() {
+                let bytes = match fs::read(&target) {
+                    Ok(b) => b,
+                    Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+                    Err(source) => {
+                        return Err(failed(format!("read {}: {source}", target.display())));
+                    }
+                };
+                let original = String::from_utf8_lossy(&bytes).into_owned();
+                let after = tolerant::apply(&original, text_patch).map_err(|message| {
+                    failed(format!("apply to {}: {message}", target.display()))
+                })?;
+                if !after.is_empty() {
+                    return Err(failed(format!(
+                        "delete patch left {} non-empty after apply ({} bytes remain)",
+                        target.display(),
+                        after.len(),
+                    )));
                 }
-            };
-            let original = String::from_utf8_lossy(&bytes).into_owned();
-            let text_patch = file_patch
-                .patch()
-                .as_text()
-                .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
-            let after = tolerant::apply(&original, text_patch)
-                .map_err(|message| failed(format!("apply to {}: {message}", target.display())))?;
-            if !after.is_empty() {
-                return Err(failed(format!(
-                    "delete patch left {} non-empty after apply ({} bytes remain)",
-                    target.display(),
-                    after.len(),
-                )));
             }
-            fs::remove_file(&target)
-                .map_err(|source| failed(format!("delete {}: {source}", target.display())))?;
+            match fs::remove_file(&target) {
+                Ok(()) => {}
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                Err(source) => {
+                    return Err(failed(format!("delete {}: {source}", target.display())));
+                }
+            }
         }
         FileOperation::Rename { .. } | FileOperation::Copy { .. } => {
             return Err(failed(

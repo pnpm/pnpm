@@ -188,3 +188,44 @@ function fileVariantLockfile (): LockfileObject {
     },
   } as unknown as LockfileObject
 }
+
+test('lockfileToHoistedDepGraph does not fetch anything for the previous graph', async () => {
+  const dir = tempDir(false)
+  const opts = hoistedOpts(dir)
+  const fetchedPkgIds: string[] = []
+  opts.skipped = new Set(['opt@1.0.0'])
+  opts.storeController = {
+    fetchPackage: ({ pkg }: { pkg: { id: string } }) => {
+      fetchedPkgIds.push(pkg.id)
+      return { filesIndexFile: '' }
+    },
+    getFilesIndexFilePath: () => ({ filesIndexFile: '' }),
+  } as unknown as typeof opts.storeController
+
+  const lockfile = skippedOptionalLockfile()
+  const { prevGraph } = await lockfileToHoistedDepGraph(lockfile, lockfile, opts)
+
+  expect(fetchedPkgIds).toStrictEqual(['a@1.0.0'])
+  const modulesDir = path.join(dir, 'node_modules')
+  expect(Object.keys(prevGraph!).sort()).toStrictEqual([
+    path.join(modulesDir, 'a'),
+    path.join(modulesDir, 'opt'),
+  ])
+})
+
+function skippedOptionalLockfile (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      '.': {
+        dependencies: { a: '1.0.0' },
+        optionalDependencies: { opt: '1.0.0' },
+        specifiers: { a: '1.0.0', opt: '1.0.0' },
+      },
+    },
+    packages: {
+      'a@1.0.0': { resolution: { integrity: 'sha512-deadbeef' } },
+      'opt@1.0.0': { resolution: { integrity: 'sha512-deadbeef' }, optional: true },
+    },
+  } as unknown as LockfileObject
+}

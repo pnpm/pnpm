@@ -17,7 +17,6 @@ use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_cmd_shim::{Host as CmdShimHost, LinkBinsOptions, link_bins_of_packages_with_excludes};
 use pnpm_config::{Config, PNPM_VERSION, standalone_install_command};
-use pnpm_env_installer::pnpm_engine_packages;
 use pnpm_fs::force_symlink_dir;
 use pnpm_global::{
     create_global_cache_key, find_global_package, get_hash_link, read_installed_packages,
@@ -86,6 +85,13 @@ pub(crate) enum SelfUpdateError {
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
     EngineIdentityMismatch { message: String },
+
+    #[display("Cannot run {label} on this host: it ships no native binary for {target}.")]
+    #[diagnostic(
+        code(ERR_PNPM_PNPM_ENGINE_NO_NATIVE_BINARY),
+        help("Set `pmOnFail` to `ignore` to skip the version switch.")
+    )]
+    EngineNoNativeBinary { label: String, target: String },
 
     #[display("Unable to find the global bin directory")]
     #[diagnostic(
@@ -304,10 +310,16 @@ async fn handler<Reporter: self::Reporter + 'static>(
             ),
         })?;
     let label = format!("pnpm@{target_version}");
+    let package = install_pnpm::pnpm_package_to_install(&target_version);
     let engine = verify_engine::EngineToVerify {
         label: &label,
-        packages: pnpm_engine_packages(&target_version),
-        platform_binaries: verify_engine::PlatformBinaries::PnpmExe,
+        package: package.name,
+        version: &target_version,
+        platform_binaries: if package.links_native_binary {
+            verify_engine::PlatformBinaries::PnpmExe
+        } else {
+            verify_engine::PlatformBinaries::None
+        },
     };
     if let Some(warning) =
         Box::pin(verify_engine::verify_engine_identity(&env, &engine, config)).await?
@@ -528,7 +540,7 @@ fn link_into_global_bin(
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let _global_bin_lock = super::global_bin_lock::acquire_global_bin_lock(&global_bin)?;
 
-    refresh_global_shim_dispatcher(&global_bin, installed, version)?;
+    refresh_global_shims(&global_bin, installed, version)?;
 
     let pkgs = read_installed_packages(&installed.install_dir);
     link_bins_of_packages_with_excludes::<CmdShimHost>(
@@ -549,19 +561,24 @@ fn link_into_global_bin(
     Ok(())
 }
 
-fn refresh_global_shim_dispatcher(
+fn refresh_global_shims(
     global_bin: &Path,
     installed: &install_pnpm::InstallPnpmResult,
     version: &str,
 ) -> miette::Result<()> {
-    if !node_semver::Version::parse(version).is_ok_and(|version| version.major >= 12) {
+    // Named native shims first shipped in pnpm 12.3. An older engine
+    // cannot interpret their sidecars, so leave the working shim engine
+    // in place when downgrading.
+    if !node_semver::Version::parse(version)
+        .is_ok_and(|version| (version.major, version.minor) >= (12, 3))
+    {
         return Ok(());
     }
     let executable =
         install_pnpm::pnpm_executable_path(&installed.install_dir, installed.package_name);
-    crate::shim_dispatch::refresh_existing_dispatcher(&executable, global_bin)
+    crate::shim_dispatch::refresh_native_shims(&executable, global_bin)
         .into_diagnostic()
-        .wrap_err("refresh the global shim dispatcher")
+        .wrap_err("refresh the global shims")
 }
 
 /// Build the registry map (`{ default, ...scoped }`) hashed into the

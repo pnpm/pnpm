@@ -11,6 +11,7 @@ use miette::Diagnostic;
 use pnpm_catalogs_config::{
     InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest,
 };
+use pnpm_catalogs_resolver::CatalogResolutionError;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_cmd_shim::LinkBinsError;
 use pnpm_config::{Config, NodeLinker, PNPM_VERSION};
@@ -247,6 +248,25 @@ pub struct WorkspaceInstallSelection<'a> {
     /// workspace root that pnpm treats as a full-install importer.
     pub install_dirs: &'a HashSet<PathBuf>,
     pub active_manifest_is_standin: bool,
+    pub workspace_cycles: PrecomputedWorkspaceCycles<'a>,
+}
+
+/// Whether the caller of a selected install already looked for
+/// dependency cycles among the selected projects.
+///
+/// A caller may pass [`Self::Known`] only when it ran
+/// [`fn@crate::workspace_cycles`] over the very graph the install would
+/// rebuild — the same projects, in the same order, with the same graph
+/// options — so the report (its cycle order included) stays what the
+/// install's own [`crate::install_scope_cycles`] would emit.
+#[derive(Debug, Default, Clone, Copy)]
+pub enum PrecomputedWorkspaceCycles<'a> {
+    /// It did not; the install runs its own cycle search.
+    #[default]
+    Unknown,
+    /// The cycle report for this selection; `None` — the projects are
+    /// orderable.
+    Known(Option<&'a [Vec<PathBuf>]>),
 }
 
 /// What this run does to the manifests of the projects it installs —
@@ -773,6 +793,9 @@ pub enum InstallError {
     /// `catalogs.default`).
     #[diagnostic(transparent)]
     InvalidCatalogsConfiguration(#[error(source)] InvalidCatalogsConfigurationError),
+
+    #[diagnostic(transparent)]
+    CatalogResolution(#[error(source)] CatalogResolutionError),
 
     #[diagnostic(transparent)]
     FindWorkspaceProjects(#[error(source)] pnpm_workspace::FindWorkspaceProjectsError),

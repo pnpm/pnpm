@@ -173,9 +173,8 @@ impl VirtualStoreLayout {
     /// `allow_build_policy` drives engine-agnostic gating. When
     /// `Some`, the constructor walks `snapshots` once to collect
     /// every key whose `(name, version)` passes
-    /// [`AllowBuildPolicy::check`] returning `Some(true)`, then
-    /// passes that set as `built_dep_paths` to
-    /// [`calc_graph_node_hash`]. Pure-JS subgraphs hash with
+    /// [`AllowBuildPolicy::check`] returning `Some(true)`, then expands
+    /// that set to every transitive parent. Pure-JS subgraphs hash with
     /// `engine = null` so their GVS directories survive Node.js
     /// upgrades. When `None`, every snapshot keeps the engine in
     /// its hash payload.
@@ -266,24 +265,20 @@ impl VirtualStoreLayout {
         // Build the engine-agnostic gating set once per install.
         // `None` here disables gating so every snapshot still hashes
         // with its engine string.
-        let built_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
-            snapshots
+        let build_required_dep_paths: Option<HashSet<String>> = allow_build_policy.map(|policy| {
+            let built_dep_paths = snapshots
                 .keys()
                 .filter(|key| policy.check(&key.without_peer().to_string()) == Some(true))
                 .map(ToString::to_string)
-                .collect()
+                .collect();
+            pnpm_graph_hasher::build_required_dep_paths(&graph, &built_dep_paths)
         });
         let mut cache: DepsStateCache<String> = HashMap::new();
-        // Install-scoped memoization for the `transitivelyRequiresBuild`
-        // walk; shared across every snapshot's hash computation so
-        // diamond-shaped subgraphs only get visited once. Untouched
-        // when `built_dep_paths` is `None`.
-        let mut build_required_cache: HashMap<String, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         // Lockfile key order, not `HashMap` order: `calc_graph_node_hash`
-        // memoizes into `cache` / `build_required_cache`, and for a
-        // snapshot inside a dependency cycle the digest that lands there
-        // depends on which snapshot the walk reached it from.
+        // memoizes into `cache`, and for a snapshot inside a dependency
+        // cycle the digest that lands there depends on which snapshot the
+        // walk reached it from.
         for (snapshot_key, snapshot) in crate::deps_graph::in_lockfile_order(snapshots) {
             // Per-snapshot engine resolution: a snapshot that declares
             // its own `engines.runtime` carries the desugared
@@ -307,8 +302,7 @@ impl VirtualStoreLayout {
                 &mut cache,
                 &graph_key,
                 snapshot_engine,
-                built_dep_paths.as_ref(),
-                &mut build_required_cache,
+                build_required_dep_paths.as_ref(),
                 project,
             );
             let name = metadata_key.name.to_string();
@@ -408,6 +402,33 @@ pub fn virtual_store_layout_for_lockfile(
         allow_build_policy,
         lockfile_dir,
     )
+}
+
+/// Return the GVS directory containing every graph-hash slot for one snapshot.
+/// This derives only the `<scope>/<name>/<version>` prefix and does not build or
+/// hash the dependency graph. Returns `None` when lockfile data cannot form the
+/// exact package-name and version components in that prefix.
+#[must_use]
+pub fn global_virtual_store_version_dir(
+    package_store_dir: &Path,
+    snapshot_key: &PackageKey,
+    metadata: Option<&PackageMetadata>,
+) -> Option<PathBuf> {
+    let name = snapshot_key.name.to_string();
+    let version = gvs_version_segment(metadata, &snapshot_key.suffix);
+    if !pnpm_resolving_deps_resolver::is_valid_dependency_alias(&name)
+        || !is_single_gvs_path_component(&version)
+    {
+        return None;
+    }
+    let candidate_slot = join_global_virtual_store_path(
+        package_store_dir,
+        &format_global_virtual_store_path(&name, &version, "candidate"),
+    );
+    if !pnpm_fs::is_subdir(package_store_dir, &candidate_slot) {
+        return None;
+    }
+    candidate_slot.parent().map(Path::to_path_buf)
 }
 
 /// Map each injected `file:` project to the virtual-store package
@@ -517,6 +538,13 @@ fn gvs_version_segment(metadata: Option<&PackageMetadata>, suffix: &PkgVerPeer) 
         Some(version) => version.to_string(),
         None => suffix.version().to_string(),
     }
+}
+
+fn is_single_gvs_path_component(value: &str) -> bool {
+    let mut components = Path::new(value).components();
+    !value.contains(['/', '\\'])
+        && matches!(components.next(), Some(std::path::Component::Normal(_)))
+        && components.next().is_none()
 }
 
 /// Stands in for the version of a snapshot resolved from a local

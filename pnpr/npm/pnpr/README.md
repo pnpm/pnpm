@@ -35,6 +35,32 @@ by default. Point a client at it with:
 pnpm config set registry http://127.0.0.1:7677/
 ```
 
+### Install accelerator
+
+pnpr also resolves dependencies on a client's behalf. Point pnpm at it
+with `pnprServer` and pnpm sends its manifests instead of resolving
+locally:
+
+```sh
+pnpm config set pnprServer http://127.0.0.1:7677/
+```
+
+npm, Cargo and Python dependencies all resolve this way.
+
+For Cargo, pnpr walks the crates.io sparse index and answers with the
+`Cargo.lock`, so a workspace resolves without the client fetching one
+index file per crate.
+
+For Python, pnpr reads the index and answers with the `pylock.toml`.
+Reading what a distribution requires means reading a wheel's `METADATA`,
+so a client resolving alone downloads whole wheels for versions it then
+rejects; pnpr reads the metadata file the index publishes beside each
+wheel instead. When an index publishes no such file, pnpr downloads the
+wheel itself and keeps the metadata it holds, so only the first client
+pays for that download.
+
+Everything pnpr reads is cached for every client that follows.
+
 ## CLI flags
 
 | Flag | Description |
@@ -45,6 +71,19 @@ pnpm config set registry http://127.0.0.1:7677/
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
 | `--packument-ttl-secs <n>` | Seconds before a cached packument is considered stale and refetched. |
+| `--osv` | Enable local OSV npm vulnerability checks. Requires a local OSV npm database at `--osv-db` or `<cache>/osv/npm/all.zip`. |
+| `--osv-db <path>` | Path to the local OSV npm database zip or extracted JSON directory. |
+| `--disable-registry` | Disable the npm-registry surface (packument and tarball reads, publish, unpublish, dist-tag, search). |
+| `--disable-resolver` | Disable the install-accelerator surface (`/-/pnpr/v0/resolve` for npm, Cargo and Python, `/-/pnpr/v0/verify-lockfile`). |
+| `--disable-artifacts` | Disable the signed shared-artifact surface. |
+
+Every flag can also be set through an environment variable named after
+it: `PNPR_` followed by the flag name in upper case with dashes replaced
+by underscores. `--public-url` becomes `PNPR_PUBLIC_URL` and
+`--packument-ttl-secs` becomes `PNPR_PACKUMENT_TTL_SECS`. A flag given on
+the command line wins over its environment variable. Boolean flags such
+as `--disable-registry` accept `true`, `1`, `yes`, `on`, `false`, `0`,
+`no`, and `off`.
 
 Log level is controlled via the standard `RUST_LOG` environment
 variable (e.g. `RUST_LOG=debug pnpr`).

@@ -132,7 +132,10 @@ fn first_off_allowlist_override(
     }
 }
 
-fn forbidden_off_allowlist(target: &str) -> Response {
+/// The `403` a request earns by naming a fetch target the operator's route
+/// policy does not cover. Shared by every ecosystem's request boundary so
+/// one refusal reads the same whatever was being resolved.
+pub(super) fn forbidden_off_allowlist(target: &str) -> Response {
     json_error(
         StatusCode::FORBIDDEN,
         &format!(

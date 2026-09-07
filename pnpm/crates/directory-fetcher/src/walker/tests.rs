@@ -210,15 +210,34 @@ fn walk_all_files_rejects_nested_junction_escape_when_confined() {
 
 #[cfg(any(unix, windows))]
 #[test]
-fn walk_all_files_rejects_linked_root_when_confined() {
+fn walk_all_files_confines_a_linked_root_to_its_real_path() {
     let dir = tempdir().unwrap();
+    let real_root = dir.path().join("real-root");
+    fs::create_dir_all(&real_root).unwrap();
+    touch(&real_root, "index.js");
+    let root_link = dir.path().join("root-link");
+    pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
+
+    let out = walk_all_files(&root_link, false, false).unwrap();
+    let real_root = fs::canonicalize(&real_root).unwrap();
+    let expected = BTreeMap::from([("index.js".to_string(), "index.js".to_string())]);
+    assert_eq!(collect_rels(&real_root, out), expected);
+}
+
+#[cfg(any(unix, windows))]
+#[test]
+fn walk_all_files_rejects_escape_from_a_linked_root_when_confined() {
+    let dir = tempdir().unwrap();
+    let real_root = dir.path().join("real-root");
+    fs::create_dir_all(&real_root).unwrap();
     let outside = dir.path().join("outside");
     fs::create_dir_all(&outside).unwrap();
     touch(&outside, "secret.txt");
+    pnpm_fs::symlink_dir(&outside, &real_root.join("outside")).unwrap();
     let root_link = dir.path().join("root-link");
-    pnpm_fs::symlink_dir(&outside, &root_link).unwrap();
+    pnpm_fs::symlink_dir(&real_root, &root_link).unwrap();
 
-    let err = walk_all_files(&root_link, false, false).expect_err("linked root should fail");
+    let err = walk_all_files(&root_link, false, false).expect_err("outside symlink should fail");
     assert!(
         err.to_string().contains("resolves outside source directory"),
         "unexpected error: {err}",

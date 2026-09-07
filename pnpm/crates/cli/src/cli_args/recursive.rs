@@ -23,6 +23,7 @@ use pnpm_workspace_projects_filter::{
 use pnpm_workspace_projects_graph::{
     BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
 };
+use rayon::prelude::*;
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -62,22 +63,29 @@ pub struct NoMatchingProjects {
 /// through the full workspace graph so a relationship between two selected
 /// projects via an unselected one becomes a direct edge. Keys keep the
 /// selection order.
-pub fn filtered_projects_dependencies<Pkg>(
+pub fn filtered_projects_dependencies<Pkg: Sync>(
     selected: &ProjectGraph<Pkg>,
     all: &ProjectGraph<Pkg>,
     prod_all: Option<&ProjectGraph<Pkg>>,
     prod_only_selected: &HashSet<PathBuf>,
 ) -> IndexMap<PathBuf, Vec<PathBuf>> {
     let sorted: HashSet<&Path> = selected.keys().map(PathBuf::as_path).collect();
+    // Each project's tunneling walk reads only shared references, so
+    // the projects fan out across the rayon pool; collecting the
+    // parallel iterator into a `Vec` keeps the selection order.
     selected
         .keys()
-        .map(|project_dir| {
+        .collect::<Vec<_>>()
+        .par_iter()
+        .map(|&project_dir| {
             let full_graph = match prod_all {
                 Some(prod_all) if prod_only_selected.contains(project_dir) => prod_all,
                 _ => all,
             };
             (project_dir.clone(), sorted_dependencies(selected, full_graph, project_dir, &sorted))
         })
+        .collect::<Vec<_>>()
+        .into_iter()
         .collect()
 }
 
@@ -131,17 +139,22 @@ fn sorted_dependencies<Pkg>(
     sorted: &HashSet<&Path>,
 ) -> Vec<PathBuf> {
     let mut dependencies: Vec<PathBuf> = Vec::new();
-    let mut visited: HashSet<PathBuf> = HashSet::new();
-    let mut stack: Vec<PathBuf> =
-        projects_graph.get(project_dir).map(|node| node.dependencies.clone()).unwrap_or_default();
+    // Borrowed paths and an FxHash set: this walk runs once per
+    // selected project, and cloning every visited `PathBuf` into a
+    // SipHash set dominated it on a workspace-scale graph.
+    let mut visited: rustc_hash::FxHashSet<&Path> = rustc_hash::FxHashSet::default();
+    let mut stack: Vec<&Path> = projects_graph
+        .get(project_dir)
+        .map(|node| node.dependencies.iter().map(PathBuf::as_path).collect())
+        .unwrap_or_default();
     while let Some(dependency_dir) = stack.pop() {
-        if dependency_dir.as_path() == project_dir || !visited.insert(dependency_dir.clone()) {
+        if dependency_dir == project_dir || !visited.insert(dependency_dir) {
             continue;
         }
-        if sorted.contains(dependency_dir.as_path()) {
-            dependencies.push(dependency_dir);
-        } else if let Some(node) = full_projects_graph.get(&dependency_dir) {
-            stack.extend(node.dependencies.iter().cloned());
+        if sorted.contains(dependency_dir) {
+            dependencies.push(dependency_dir.to_path_buf());
+        } else if let Some(node) = full_projects_graph.get(dependency_dir) {
+            stack.extend(node.dependencies.iter().map(PathBuf::as_path));
         }
     }
     dependencies

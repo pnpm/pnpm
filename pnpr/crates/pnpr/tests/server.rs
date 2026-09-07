@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MaxUsers, PackagePattern, PackageRule,
+    AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRule,
     PackageRules, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use serde_json::{Value, json};
@@ -55,7 +55,7 @@ fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
 /// One `packages:` entry carrying only an `access` rule.
 fn access_rule(pattern: &str, access: &str) -> PackageRule {
     PackageRule {
-        pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+        pattern: PackagePattern::parse(pattern, Ecosystem::Npm).expect("test pattern parses"),
         access: Some(AccessList::from_tokens([access])),
         publish: None,
         unpublish: None,
@@ -1647,7 +1647,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 }
 
 #[tokio::test]
-async fn tampered_upstream_tarball_is_served_but_never_cached() {
+async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-tarball-bytes";
     let poison_bytes = b"poisoned-cache-bytes";
@@ -1689,10 +1689,6 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     let storage = tmp.path().to_path_buf();
     let cache_path = public_cache_pkg(&storage, "poisoned").join("poisoned-1.0.0.tgz");
 
-    // Upstream serves bytes that don't match the version's `dist.integrity`.
-    // They are streamed to the client (which re-verifies and rejects them),
-    // but the SRI mismatch on the full body means they are never promoted to
-    // the cache — so they can't poison a later request.
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
@@ -1705,7 +1701,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     assert_eq!(tarball_response.status(), StatusCode::OK);
     // Draining the body runs the end-of-stream SRI check, which abandons the
     // cache temp on the mismatch.
-    assert_eq!(body_bytes(tarball_response.into_body()).await, poison_bytes);
+    assert!(to_bytes(tarball_response.into_body(), usize::MAX).await.is_err());
     assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
     packument_mock.assert_async().await;
@@ -2145,6 +2141,60 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     mock.assert_async().await;
 }
 
+/// npm spells a scoped package's name either as two literal path segments or
+/// as one percent-encoded segment, so the same package has several addresses.
+#[tokio::test]
+async fn every_address_of_one_scoped_package_reaches_it() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"scoped-address-bytes";
+    let _packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
+    let _tarball_mock = upstream
+        .mock("GET", "/@types/node/-/node-20.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let get = |path: &str| {
+        let app = app.clone();
+        let path = path.to_string();
+        async move {
+            app.oneshot(Request::get(path.as_str()).body(Body::empty()).unwrap()).await.unwrap()
+        }
+    };
+
+    for path in ["/@types/node", "/@types%2Fnode", "/~npmjs/@types/node", "/~npmjs/@types%2Fnode"] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_json(response.into_body()).await["name"], "@types/node", "GET {path}");
+    }
+
+    for path in [
+        "/@types/node/20.0.0",
+        "/@types%2Fnode/20.0.0",
+        "/~npmjs/@types/node/20.0.0",
+        "/~npmjs/@types%2Fnode/20.0.0",
+    ] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_json(response.into_body()).await["version"], "20.0.0", "GET {path}");
+    }
+
+    for path in [
+        "/@types/node/-/node-20.0.0.tgz",
+        "/@types%2Fnode/-/node-20.0.0.tgz",
+        "/~npmjs/@types/node/-/node-20.0.0.tgz",
+        "/~npmjs/@types%2Fnode/-/node-20.0.0.tgz",
+    ] {
+        let response = get(path).await;
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(body_bytes(response.into_body()).await, bytes, "GET {path}");
+    }
+}
+
 #[tokio::test]
 async fn packument_is_refetched_after_ttl_expires() {
     let mut upstream = mockito::Server::new_async().await;
@@ -2268,7 +2318,7 @@ async fn invalid_package_name_returns_bad_request() {
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
-    // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
+    // `.hidden` trips the dot-prefix rejection in `CanonicalPackageName::parse`.
     let response =
         app.oneshot(Request::get("/.hidden").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
@@ -2784,7 +2834,16 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [0], "artifacts": [], "fixLockfile": [0] } }),
+        json!({
+            "pnpr": {
+                "versions": [0],
+                "artifacts": [],
+                "pipeline": [],
+                "fixLockfile": [0],
+                "ecosystems": ["npm", "cargo", "pypi"],
+                "publish": [],
+            }
+        }),
     );
 
     let verify = app
@@ -2899,7 +2958,16 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
     assert_eq!(handshake.status(), StatusCode::OK);
     assert_eq!(
         body_json(handshake.into_body()).await,
-        json!({ "pnpr": { "versions": [], "artifacts": [0], "fixLockfile": [] } }),
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [0],
+                "pipeline": [],
+                "fixLockfile": [],
+                "ecosystems": [],
+                "publish": [],
+            }
+        }),
     );
 
     let artifact = app
@@ -2918,6 +2986,188 @@ async fn artifacts_only_advertises_and_mounts_only_the_artifact_protocol() {
         .await
         .unwrap();
     assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn pipeline_surface_records_lists_and_serves_runs_append_only() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.registry.enabled = false;
+    config.resolver.enabled = false;
+    config.pipeline.enabled = true;
+    for (workspace, reader, writer) in
+        [("demo-abc123", "alice", "alice"), ("hidden", "bob", "bob"), ("read-only", "alice", "bob")]
+    {
+        config.pipeline.workspaces.insert(
+            workspace.to_string(),
+            pnpr_config::StorageAccess {
+                access: pnpr_policy::AccessList::from_tokens([reader]),
+                publish: pnpr_policy::AccessList::from_tokens([writer]),
+            },
+        );
+    }
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({ "pnpr": { "versions": [], "artifacts": [], "pipeline": [0], "fixLockfile": [], "ecosystems": [], "publish": [] } }),
+    );
+
+    // Reads and writes both authenticate; the viewer page is static HTML
+    // with no data of its own and does not.
+    let anonymous = app
+        .clone()
+        .oneshot(Request::get("/-/pnpr/v0/pipeline/runs").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
+    let viewer = app
+        .clone()
+        .oneshot(Request::get("/-/pnpr/v0/pipeline").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(viewer.status(), StatusCode::OK);
+
+    let registration = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let logged_in = app
+        .clone()
+        .oneshot(
+            Request::put("/-/user/org.couchdb.user:alice")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+
+    let run = json!({
+        "workspace": "demo-abc123",
+        "runId": "100-default",
+        "summary": { "pipeline": "default", "tasks": {} },
+        "events": [{ "event": "taskStarted", "task": "packages/a#build" }],
+    });
+    let publish = |body: serde_json::Value| {
+        let app = app.clone();
+        let token = token.clone();
+        async move {
+            app.oneshot(
+                Request::put("/-/pnpr/v0/pipeline/runs")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+    assert_eq!(publish(run.clone()).await.status(), StatusCode::CREATED);
+
+    // Append-only: the same run identity is refused, not overwritten.
+    let replay = publish(run.clone()).await;
+    assert_eq!(replay.status(), StatusCode::BAD_REQUEST);
+    assert!(String::from_utf8_lossy(&body_bytes(replay.into_body()).await).contains("append-only"));
+
+    // A path-shaped workspace never reaches a path join.
+    let hostile = publish(json!({
+        "workspace": "../escape",
+        "runId": "100-default",
+        "summary": {},
+    }))
+    .await;
+    assert_eq!(hostile.status(), StatusCode::NOT_FOUND);
+
+    for (workspace, expected) in [
+        ("hidden", StatusCode::NOT_FOUND),
+        ("unknown", StatusCode::NOT_FOUND),
+        ("read-only", StatusCode::FORBIDDEN),
+    ] {
+        assert_eq!(
+            publish(json!({"workspace": workspace, "runId": "100-default", "summary": {}}))
+                .await
+                .status(),
+            expected,
+        );
+    }
+    for path in
+        ["/-/pnpr/v0/pipeline/runs?workspace=hidden", "/-/pnpr/v0/pipeline/runs/hidden/100-default"]
+    {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+    let unfiltered = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(body_json(unfiltered.into_body()).await["runs"].as_array().unwrap().len(), 1);
+
+    let listed = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs?workspace=demo-abc123")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(listed.status(), StatusCode::OK);
+    let listed = body_json(listed.into_body()).await;
+    assert_eq!(listed["runs"][0]["runId"], "100-default");
+    assert_eq!(listed["runs"][0]["summary"]["pipeline"], "default");
+    assert!(listed["runs"][0].get("events").is_none());
+
+    let fetched = app
+        .clone()
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/100-default")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(fetched.status(), StatusCode::OK);
+    let fetched = body_json(fetched.into_body()).await;
+    assert_eq!(fetched["events"][0]["event"], "taskStarted");
+
+    let missing = app
+        .oneshot(
+            Request::get("/-/pnpr/v0/pipeline/runs/demo-abc123/999-missing")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -2944,36 +3194,40 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument.status(), StatusCode::OK);
 
-    // The resolver surface is gone: the handshake and both resolver
-    // endpoints 404.
+    // The registry tier has a pnpr protocol of its own — the cross-ecosystem
+    // publish transaction — so the handshake answers, and reports no resolver.
     let handshake =
         app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(handshake.status(), StatusCode::NOT_FOUND);
+    assert_eq!(handshake.status(), StatusCode::OK);
+    assert_eq!(
+        body_json(handshake.into_body()).await,
+        json!({
+            "pnpr": {
+                "versions": [],
+                "artifacts": [],
+                "pipeline": [],
+                "fixLockfile": [],
+                "ecosystems": [],
+                "publish": [0],
+            }
+        }),
+    );
 
-    // `/-/pnpr` is the only stubbed resolver path, for every method, so
-    // capability detection cleanly concludes "no resolver here".
-    let handshake_post =
-        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
-
-    // `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile` are NOT stubbed:
-    // with the resolver disabled they fall through to the registry's
-    // four-segment catch-all (`GET|DELETE /{a}/{b}/{c}/{d}`), which has no
-    // POST handler, so a POST returns 405. Only `/-/pnpr` needs a stub for
-    // clean capability detection.
+    // With the resolver disabled its two endpoints are not mounted, and no
+    // other route claims them.
     let resolve = app
         .clone()
         .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(resolve.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(resolve.status(), StatusCode::NOT_FOUND);
 
     let verify = app
         .clone()
         .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
-    assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(verify.status(), StatusCode::NOT_FOUND);
 
     mock.assert_async().await;
 }
@@ -3024,7 +3278,9 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         (
             "main".to_string(),
@@ -3099,7 +3355,9 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let graph = vec![
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
@@ -3145,7 +3403,9 @@ async fn router_unavailable_source_errors_not_404() {
     let graph = vec![
         (
             "corp".to_string(),
-            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
@@ -3173,6 +3433,14 @@ fn seed_hosted(storage: &Path, pkg: &str) {
     });
     std::fs::create_dir_all(storage.join(pkg)).unwrap();
     std::fs::write(storage.join(pkg).join("package.json"), packument.to_string()).unwrap();
+}
+
+fn seed_hosted_with_maintainer(storage: &Path, pkg: &str, maintainer: &str) {
+    seed_hosted(storage, pkg);
+    let path = storage.join(pkg).join("package.json");
+    let mut packument: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    packument["maintainers"] = json!([{ "username": maintainer }]);
+    std::fs::write(path, serde_json::to_vec(&packument).unwrap()).unwrap();
 }
 
 #[tokio::test]
@@ -3325,7 +3593,9 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         (
             "main".to_string(),
@@ -3341,10 +3611,15 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let body = json!({
         "name": "@acme/widget",
         "dist-tags": { "latest": "1.0.0" },
-        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
-            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
-            "integrity": sha512_integrity(tarball),
-        } } },
+        "versions": { "1.0.0": {
+            "name": "@acme/widget",
+            "version": "1.0.0",
+            "_npmUser": { "name": "mallory" },
+            "dist": {
+                "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+                "integrity": sha512_integrity(tarball),
+            },
+        } },
         "_attachments": { "@acme/widget-1.0.0.tgz": {
             "content_type": "application/octet-stream",
             "data": BASE64.encode(tarball),
@@ -3390,6 +3665,26 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(read.status(), StatusCode::OK);
     let doc = body_json(read.into_body()).await;
     assert!(doc["versions"]["1.0.0"].is_object());
+    assert_eq!(
+        doc["versions"]["1.0.0"]["_npmUser"]["name"],
+        json!("alice"),
+        "the authenticated publisher must replace client-supplied attribution",
+    );
+
+    let search = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/-/v1/search?text=maintainer%3Aalice")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search.status(), StatusCode::OK);
+    let search = body_json(search.into_body()).await;
+    assert_eq!(search["total"], json!(1));
+    assert_eq!(search["objects"][0]["package"]["name"], json!("@acme/widget"));
 
     // ...and its tarball serves from the org namespace.
     let tar = app
@@ -3428,7 +3723,9 @@ async fn hosted_original_is_served_by_digest_after_restart_and_through_a_router(
     let graph = vec![
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
@@ -3624,7 +3921,9 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     let graph = vec![
         (
             "acme".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@acme/*", Ecosystem::Npm).unwrap()],
+            },
         ),
         ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
@@ -3709,7 +4008,9 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
     config.registries = Registries::new(
         vec![(
             "corp".to_string(),
-            Registry::Hosted { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Hosted {
+                patterns: vec![PackagePattern::parse("@corp/*", Ecosystem::Npm).unwrap()],
+            },
         )]
         .into_iter()
         .collect(),
@@ -3995,6 +4296,404 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
     assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
+}
+
+#[tokio::test]
+async fn search_paginates_visible_results_and_filters_by_maintainer() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted_with_maintainer(tmp.path(), "tool-a", "alice");
+    seed_hosted_with_maintainer(tmp.path(), "tool-b", "bob");
+    seed_hosted_with_maintainer(tmp.path(), "tool-c", "alice");
+    let app = router(Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    ));
+
+    let page = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=tool&from=1&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let page = body_json(page.into_body()).await;
+    assert_eq!(page["total"], json!(3));
+    assert_eq!(page["objects"][0]["package"]["name"], json!("tool-b"));
+
+    let maintained = app
+        .oneshot(
+            Request::get("/-/v1/search?text=maintainer%3Aalice&from=1&size=1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let maintained = body_json(maintained.into_body()).await;
+    assert_eq!(maintained["total"], json!(2));
+    assert_eq!(maintained["objects"][0]["package"]["name"], json!("tool-c"));
+}
+
+#[tokio::test]
+async fn organization_packages_are_available_on_both_registry_routes() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "@acme/alpha");
+    seed_hosted(tmp.path(), "@acme/beta");
+    seed_hosted(tmp.path(), "@other/ignored");
+    let app = router(Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    ));
+
+    for route in ["/-/org/acme/package", "/~main/-/org/acme/package"] {
+        let response =
+            app.clone().oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let packages = body_json(response.into_body()).await;
+        assert_eq!(packages["@acme/alpha"], json!("read"));
+        assert_eq!(packages["@acme/beta"], json!("read"));
+        assert!(packages.get("@other/ignored").is_none());
+    }
+}
+
+#[tokio::test]
+async fn cors_allows_only_configured_origins_and_handles_preflight() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = Config::static_serve(
+        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0)),
+        tmp.path().to_path_buf(),
+    );
+    config.cors = pnpr::CorsConfig::from_allowed_origins(["https://npmx.example"]).unwrap();
+    let app = router(config);
+
+    let allowed = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ping")
+                .header(header::ORIGIN, "https://npmx.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        allowed.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+    assert!(allowed.headers().get(header::VARY).is_some_and(|value| {
+        value.to_str().is_ok_and(|value| {
+            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("origin"))
+        })
+    }));
+
+    let missing = app
+        .clone()
+        .oneshot(
+            Request::get("/missing")
+                .header(header::ORIGIN, "https://npmx.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        missing.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+
+    let denied = app
+        .clone()
+        .oneshot(
+            Request::get("/-/ping")
+                .header(header::ORIGIN, "https://other.example")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(denied.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN).is_none());
+
+    let preflight = app
+        .oneshot(
+            Request::builder()
+                .method("OPTIONS")
+                .uri("/-/v1/search?text=tool")
+                .header(header::ORIGIN, "https://npmx.example")
+                .header(header::ACCESS_CONTROL_REQUEST_METHOD, "GET")
+                .header(header::ACCESS_CONTROL_REQUEST_HEADERS, "authorization")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preflight.status(), StatusCode::OK);
+    assert_eq!(
+        preflight.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&HeaderValue::from_static("https://npmx.example")),
+    );
+    assert!(preflight.headers().get(header::ACCESS_CONTROL_ALLOW_HEADERS).is_some_and(|value| {
+        value.to_str().is_ok_and(|value| {
+            value.split(',').any(|header| header.trim().eq_ignore_ascii_case("authorization"))
+        })
+    }),);
+}
+
+#[tokio::test]
+async fn opt_in_upstream_discovery_serves_search_and_organization_packages() {
+    let mut upstream = mockito::Server::new_async().await;
+    let search = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{
+                    "package": { "name": "remote-package", "version": "1.0.0" },
+                    "score": { "final": 1.0 },
+                    "searchScore": 1.0,
+                }],
+                "total": 1,
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    let org = upstream
+        .mock("GET", "/-/org/acme/package")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "@acme/remote": "write" }).to_string())
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/-/v1/search?text=remote&size=5")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let response = body_json(response.into_body()).await;
+    assert_eq!(response["total"], json!(1));
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-package"));
+
+    let response = app
+        .oneshot(
+            Request::get("/-/org/acme/package")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_json(response.into_body()).await["@acme/remote"], json!("read"));
+    search.assert_async().await;
+    org.assert_async().await;
+}
+
+#[tokio::test]
+async fn search_paginates_across_hosted_and_upstream_sources() {
+    let mut upstream = mockito::Server::new_async().await;
+    let shadowed = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
+            mockito::Matcher::UrlEncoded("from".into(), "0".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "ajv" } },
+                    { "package": { "name": "ajv-keywords" } },
+                ],
+                "total": 4,
+            })
+            .to_string(),
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let visible = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::AllOf(vec![
+            mockito::Matcher::UrlEncoded("text".into(), "ajv".into()),
+            mockito::Matcher::UrlEncoded("from".into(), "2".into()),
+            mockito::Matcher::UrlEncoded("size".into(), "250".into()),
+        ]))
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "ajv-remote-a" } },
+                    { "package": { "name": "ajv-remote-b" } },
+                ],
+                "total": 4,
+            })
+            .to_string(),
+        )
+        .expect(2)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "ajv");
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let first_page = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=ajv&size=2").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(first_page.status(), StatusCode::OK);
+    let first_page = body_json(first_page.into_body()).await;
+    assert_eq!(first_page["total"], json!(3));
+    assert_eq!(first_page["objects"][0]["package"]["name"], json!("ajv"));
+    assert_eq!(first_page["objects"][1]["package"]["name"], json!("ajv-remote-a"));
+
+    let second_page = app
+        .oneshot(Request::get("/-/v1/search?text=ajv&from=2&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(second_page.status(), StatusCode::OK);
+    let second_page = body_json(second_page.into_body()).await;
+    assert_eq!(second_page["total"], json!(3));
+    assert_eq!(second_page["objects"][0]["package"]["name"], json!("ajv-remote-b"));
+    shadowed.assert_async().await;
+    visible.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_exhausts_results_to_return_an_exact_total() {
+    let mut upstream = mockito::Server::new_async().await;
+    let first = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [
+                    { "package": { "name": "remote-a" } },
+                    { "package": { "name": "remote-b" } },
+                ],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let last = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=2&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "remote-c" } }],
+                "total": 3,
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote&size=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let response = body_json(response.into_body()).await;
+    assert_eq!(response["total"], json!(3));
+    assert_eq!(response["objects"][0]["package"]["name"], json!("remote-a"));
+    first.assert_async().await;
+    last.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_unbounded_offsets_and_result_sets() {
+    let mut upstream = mockito::Server::new_async().await;
+    let oversized = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query("text=remote&from=0&size=250")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(json!({ "objects": [], "total": 2_001 }).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let offset = app
+        .clone()
+        .oneshot(Request::get("/-/v1/search?text=remote&from=2001").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(offset.status(), StatusCode::BAD_REQUEST);
+
+    let result_set = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(result_set.status(), StatusCode::BAD_REQUEST);
+    oversized.assert_async().await;
+}
+
+#[tokio::test]
+async fn upstream_search_rejects_more_than_eight_short_pages() {
+    let mut upstream = mockito::Server::new_async().await;
+    let short_page = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "objects": [{ "package": { "name": "repeated" } }],
+                "total": 9,
+            })
+            .to_string(),
+        )
+        .expect(8)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/v1/search?text=remote").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    short_page.assert_async().await;
 }
 
 /// Every registry operation routes through the registry graph when addressed as
@@ -4441,19 +5140,83 @@ async fn identity_endpoints_are_served_under_any_registry_prefix() {
     }
 }
 
-/// Falling through to the path-less behaviour here would let *any* first
-/// segment reach the account and staging endpoints.
+/// The account and staging endpoints answer under a `/~<name>/` prefix only.
+/// Letting *any* first segment reach them would expose them at as many
+/// addresses as a client cares to invent.
 #[tokio::test]
-async fn a_first_segment_that_is_not_a_tilde_prefix_is_not_found() {
+async fn a_first_segment_that_is_not_a_tilde_prefix_does_not_reach_the_account_endpoints() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    for path in ["/corp/-/whoami", "/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
+    for path in ["/~/-/whoami", "/corp/-/npm/v1/tokens", "/~/-/npm/v1/user"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "GET {path}");
+    }
+
+    // `/corp/-/whoami` is a well-formed tarball address — package `corp`,
+    // file `whoami` — so it reads through the registry graph instead of
+    // answering as whoami. The configured upstream is unreachable, which is
+    // what a package read of it reports.
+    let tarball_shaped =
+        app.oneshot(Request::get("/corp/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(tarball_shaped.status(), StatusCode::SERVICE_UNAVAILABLE);
+}
+
+/// The scoped addresses spend two path segments on the package name, so their
+/// first segment has to be a scope. The configured upstream is unreachable, so
+/// a 404 rather than a 503 also shows the request was turned away before any
+/// registry lookup.
+#[tokio::test]
+async fn a_scoped_address_whose_first_segment_is_not_a_scope_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for (method, path) in [
+        ("GET", "/notascope/widget/1.0.0"),
+        ("GET", "/notascope/widget/-/widget-1.0.0.tgz"),
+        ("GET", "/~npmjs/notascope/widget/1.0.0"),
+        ("GET", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz"),
+        ("PUT", "/notascope/widget"),
+        ("PUT", "/~npmjs/notascope/widget"),
+        ("DELETE", "/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+        ("DELETE", "/~npmjs/notascope/widget/-/widget-1.0.0.tgz/-rev/1"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{method} {path}");
+    }
+}
+
+#[tokio::test]
+async fn a_method_the_address_does_not_serve_is_method_not_allowed() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    for (method, path) in [
+        // `/{name}` reads and publishes.
+        ("DELETE", "/widget"),
+        // `/{name}/-rev/{rev}` updates and unpublishes.
+        ("GET", "/widget/-rev/1"),
+        ("GET", "/~npmjs/widget/-rev/1"),
+        // Search is a read.
+        ("DELETE", "/-/v1/search"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(Request::builder().method(method).uri(path).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{method} {path}");
     }
 }
 
@@ -4470,4 +5233,79 @@ async fn a_prefix_that_is_not_valid_utf8_is_not_found() {
     let response =
         app.oneshot(Request::get("/%ff/-/whoami").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+/// A percent-encoded `#` or `?` is decoded before the handler sees it, so a
+/// name carrying one would be authorized and cached under itself while the
+/// upstream URL it is interpolated into addresses the bare name before the
+/// delimiter.
+#[tokio::test]
+async fn url_delimiters_in_a_package_name_are_rejected() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bare = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(r#"{"name":"foo","versions":{}}"#)
+        .expect(0)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let config = config_for(&upstream.url(), tmp.path().to_path_buf());
+
+    for path in ["/foo%23bar", "/foo%3Fbar", "/foo%25bar", "/foo%20bar"] {
+        let app = router(config.clone());
+        let response = app.oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{path}");
+    }
+    bare.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_single_npm_ecosystem_answers_at_the_root() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"npm-tarball-bytes";
+    let _packument = mock_packument_for_tarball(&mut upstream, "npm", "10.0.0", bytes).await;
+    let tarball = upstream
+        .mock("GET", "/npm/-/npm-10.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect_at_least(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    let doc = app.clone().oneshot(Request::get("/npm").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(doc.status(), StatusCode::OK);
+    let doc = body_json(doc.into_body()).await;
+    let advertised = doc["versions"]["10.0.0"]["dist"]["tarball"].as_str().unwrap().to_string();
+    assert_eq!(advertised, "http://example.test/npm/-/npm-10.0.0.tgz");
+
+    let fetched = app
+        .oneshot(
+            Request::get(advertised.trim_start_matches("http://example.test"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(fetched.status(), StatusCode::OK);
+    assert_eq!(body_bytes(fetched.into_body()).await, bytes);
+    tarball.assert_async().await;
+}
+
+#[test]
+fn pipeline_viewer_renders_publisher_data_as_text() {
+    let output = std::process::Command::new("node")
+        .args(["--test", concat!(env!("CARGO_MANIFEST_DIR"), "/tests/pipeline_ui.mjs")])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "viewer regression: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr),
+    );
 }

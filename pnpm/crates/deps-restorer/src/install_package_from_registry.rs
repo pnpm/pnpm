@@ -12,7 +12,7 @@ use pnpm_network::ThrottledClient;
 use pnpm_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
 use pnpm_resolving_resolver_base::ResolveResult;
 use pnpm_store_dir::{SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndexWriter};
-use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_tarball::{IngestTarballToStore, MemCache, TarballError};
 use serde_json::Value;
 use ssri::Integrity;
 use std::{
@@ -46,13 +46,13 @@ pub struct InstallPackageFromRegistry<'a> {
     pub store_index: Option<&'a SharedReadonlyStoreIndex>,
     pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
     /// Install-scoped `verifiedFilesCache` shared across every
-    /// per-package fetch. See `DownloadTarballToStore::verified_files_cache`
+    /// per-package fetch. See `IngestTarballToStore::verified_files_cache`
     /// for the rationale.
     pub verified_files_cache: &'a SharedVerifiedFilesCache,
     /// Warm-cache prefetch result built once per install via
     /// [`pnpm_tarball::prefetch_cas_paths`] — `cache_key →
     /// Arc<cas_paths>`. When `Some`, the
-    /// `DownloadTarballToStore::run_without_mem_cache` cache-lookup
+    /// `IngestTarballToStore::run_without_mem_cache` cache-lookup
     /// branch reads from here before falling back to the per-snapshot
     /// `SQLite` lookup, avoiding `Arc<Mutex<StoreIndex>>` contention on
     /// the resolve hot path.
@@ -87,7 +87,7 @@ pub struct InstallPackageFromRegistry<'a> {
 /// Error type of [`InstallPackageFromRegistry`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum InstallPackageFromRegistryError {
-    DownloadTarballToStore(#[error(source)] TarballError),
+    IngestTarballToStore(#[error(source)] TarballError),
     ImportIndexedDir(#[error(source)] ImportIndexedDirError),
     SymlinkPackage(#[error(source)] SymlinkPackageError),
 
@@ -174,7 +174,7 @@ impl InstallPackageFromRegistry<'_> {
             }));
 
             // TODO: skip when it already exists in store?
-            let download = DownloadTarballToStore {
+            let download = IngestTarballToStore {
                 http_client,
                 store_dir: &config.store_dir,
                 store_index: store_index.cloned(),
@@ -197,14 +197,16 @@ impl InstallPackageFromRegistry<'_> {
                 // progress directly; no resolve-time prefetch shares a
                 // dedupe set with it.
                 progress_reported: None,
-                append_manifest: None,
+                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                    append_manifest: None,
+                },
             };
             let cas_paths = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(tarball_mem_cache).await
             } else {
                 download.run_with_mem_cache::<Reporter>(tarball_mem_cache).await
             }
-            .map_err(InstallPackageFromRegistryError::DownloadTarballToStore)?;
+            .map_err(InstallPackageFromRegistryError::IngestTarballToStore)?;
 
             tracing::info!(target: "pacquet::import", ?save_path, ?symlink_path, "Import package");
 

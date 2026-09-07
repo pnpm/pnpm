@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { checkbox, confirm } from '@inquirer/prompts'
-import { allowBuildKeyFromIgnoredBuild } from '@pnpm/building.policy'
+import { allowBuildKeyFromIgnoredBuild, parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
 import { writeSettings } from '@pnpm/config.writer'
@@ -9,7 +9,7 @@ import { PnpmError } from '@pnpm/error'
 import { scanGlobalPackages } from '@pnpm/global.packages'
 import { install } from '@pnpm/installing.commands'
 import { type Modules, writeModulesManifest } from '@pnpm/installing.modules-yaml'
-import { globalInfo } from '@pnpm/logger'
+import { globalInfo, globalWarn } from '@pnpm/logger'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
 import { readWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-reader'
 import chalk from 'chalk'
@@ -83,9 +83,15 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
       'Cannot use --all with positional arguments'
     )
   }
+  if (params.some((param) => parseAllowBuildSelector(param).name === '')) {
+    throw new PnpmError(
+      'APPROVE_BUILDS_MISSING_PACKAGE',
+      'A package name is missing from the arguments. Please specify the package name(s) to approve (`<pkg>`) or deny (`!<pkg>`).'
+    )
+  }
   const targets = await getApprovalTargets(opts)
   const automaticallyIgnoredBuilds = sortUniqueStrings(targets.flatMap((target) => target.automaticallyIgnoredBuilds ?? []))
-  if (!automaticallyIgnoredBuilds.length) {
+  if (!automaticallyIgnoredBuilds.length && !params.length) {
     globalInfo('There are no packages awaiting approval')
     return
   }
@@ -93,20 +99,18 @@ export async function handler (opts: ApproveBuildsCommandOpts & RebuildCommandOp
   const approved: string[] = []
   const unknown: string[] = []
   for (const p of params) {
-    const name = p.startsWith('!') ? p.slice(1) : p
+    const { name, allowed } = parseAllowBuildSelector(p)
     if (!automaticallyIgnoredBuilds.includes(name)) {
       unknown.push(name)
-    } else if (p.startsWith('!')) {
-      denied.push(name)
-    } else {
+    }
+    if (allowed) {
       approved.push(name)
+    } else {
+      denied.push(name)
     }
   }
   if (unknown.length) {
-    throw new PnpmError(
-      'APPROVE_BUILDS_UNKNOWN_PACKAGES',
-      `The following packages are not awaiting approval: ${unknown.join(', ')}`
-    )
+    globalWarn(`The following packages are not awaiting approval: ${unknown.join(', ')}`)
   }
   const contradictions = approved.filter((p) => denied.includes(p))
   if (contradictions.length) {

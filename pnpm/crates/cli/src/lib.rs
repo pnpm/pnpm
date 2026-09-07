@@ -1,17 +1,24 @@
 mod boolean_negations;
+mod cargo_deps;
+mod cargo_manifest;
+mod checkbox_prompt;
 mod cli_args;
 mod config_deps;
 mod config_overrides;
+mod ecosystem_add;
+mod ecosystem_install;
 mod engine_pm;
 mod executable_link;
 mod flag_relocation;
 mod github_actions;
 mod install_as_add;
-mod job_control;
 mod leading_separator;
+mod package_specifier;
 mod parse_boundary;
 mod path_env;
 mod pm_prefix;
+mod pnpr_ecosystems;
+mod python;
 mod renamed_options;
 mod shim_dispatch;
 mod shorthands;
@@ -74,17 +81,19 @@ fn run_cli() -> miette::Result<()> {
     // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
-    let argv_with_alias = argv_with_alias_subcommand();
-    // Context-aware global shims invoke the versioned dispatcher with
-    // `--shim <name> <shim> <target> -- <args>` on every bare invocation,
-    // so this runs before any argv rewriting or clap machinery below.
-    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv_with_alias) {
+    let argv: Vec<OsString> = std::env::args_os().collect();
+    // A context-aware global shim is this executable launched under the
+    // shim's name, so dispatch runs on the raw argv before any rewriting
+    // or clap machinery below: a shim named like an alias must not have
+    // the alias subcommand injected into the arguments it forwards.
+    if let Some(exit_code) = shim_dispatch::try_dispatch(&argv) {
         #[expect(
             clippy::exit,
             reason = "the shim dispatcher propagates the dispatched command's exit status"
         )]
         std::process::exit(exit_code);
     }
+    let argv_with_alias = argv_with_alias_subcommand(argv);
     let child_argv = argv_with_alias.iter().skip(1).cloned().collect::<Vec<_>>();
     // `pnpm pm <cmd>` is stripped before every other pass, so they all see
     // the command line the prefix stands for; the child argv above keeps
@@ -123,10 +132,11 @@ fn run_cli() -> miette::Result<()> {
     // A command whose arguments begin at a `--` would otherwise lose it to
     // clap's escape handling. See `leading_separator`.
     let argv = leading_separator::preserve_leading_separator(argv);
-    let mut args = match command
-        .try_get_matches_from(argv.clone())
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-    {
+    let mut args = match command.try_get_matches_from(argv.clone()).and_then(|matches| {
+        let dir_from_command_line =
+            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
+    }) {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
@@ -149,6 +159,7 @@ fn run_cli() -> miette::Result<()> {
     }
     args.apply_parallel_run_options();
     args.promote_recursive_for_filter();
+    args.apply_local_prefix()?;
     args.apply_workspace_root()?;
     args.promote_recursive_by_default();
     args.configure_reporter();
@@ -169,10 +180,8 @@ fn run_cli() -> miette::Result<()> {
     if args.run_completion_if_requested()? {
         return Ok(());
     }
-    // Tie any child pacquet spawns (lifecycle scripts and their descendants)
-    // to this process so none are orphaned on Windows. Held until `main`
-    // returns; see `job_control`.
-    let _job_guard = job_control::setup();
+    // Arm Windows process-tree cleanup until the command succeeds.
+    let job_guard = pnpm_executor::arm_process_tree_cleanup();
     configure_rayon_pool();
     // `block_on` polls the command future on the calling thread, and the
     // install pipeline has a deep synchronous call chain whose stack frames
@@ -180,7 +189,14 @@ fn run_cli() -> miette::Result<()> {
     // default to 8 MiB, so the limit trips on Windows first). Run it on a
     // thread with a generous, platform-uniform stack instead of the OS
     // default main-thread stack.
-    block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced))
+    let result =
+        block_on_runtime("pacquet-main", args.run(&config_overrides, builtin_command_forced));
+    if result.is_ok()
+        && let Some(job_guard) = job_guard
+    {
+        job_guard.disarm();
+    }
+    result
 }
 
 /// Stack size for the thread the command runs on. Generous headroom over
@@ -239,11 +255,11 @@ where
 /// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
 /// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
 /// themselves — and there `current_exe` is the only signal of the launch name.
-fn argv_with_alias_subcommand() -> Vec<OsString> {
+fn argv_with_alias_subcommand(argv: Vec<OsString>) -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
     let exe_name =
         exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
-    inject_alias_subcommand(exe_name.as_deref(), std::env::args_os().collect())
+    inject_alias_subcommand(exe_name.as_deref(), argv)
 }
 
 /// Insert a leading `dlx` token after the program name when `exe_name` is a

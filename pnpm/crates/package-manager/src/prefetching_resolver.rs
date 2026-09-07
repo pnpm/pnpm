@@ -12,11 +12,11 @@
 //! resolver chain with [`PrefetchingResolver`]. After the inner
 //! resolver claims a wanted dep, the wrapper inspects the result and,
 //! for tarball-shaped resolutions, [`tokio::spawn`]s a
-//! [`DownloadTarballToStore`] in the background.
+//! [`IngestTarballToStore`] in the background.
 //!
 //! The download lands its result in the shared [`MemCache`]. Later, when
 //! [`crate::InstallPackageFromRegistry`] calls
-//! [`DownloadTarballToStore::run_with_mem_cache`] for the same URL, the
+//! [`IngestTarballToStore::run_with_mem_cache`] for the same URL, the
 //! `MemCache` either returns `CacheValue::Available` immediately (the
 //! prefetch is already done) or briefly blocks on the `Notify` (the
 //! prefetch is still in flight). Errors are surfaced to the install
@@ -49,7 +49,7 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
 use pnpm_tarball::{
-    DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
+    FetchTarballForResolution, IngestTarballToStore, MemCache, RetryOpts,
     SharedReportedProgressKeys,
 };
 use std::{marker::PhantomData, path::Path, sync::Arc};
@@ -130,7 +130,7 @@ struct OwnedFetchCtx {
 /// with the rest of the tree walk.
 ///
 /// Generic over `Reporter: self::Reporter` so
-/// [`DownloadTarballToStore`]'s `pnpm:progress` emits route through
+/// [`IngestTarballToStore`]'s `pnpm:progress` emits route through
 /// the same reporter the install pass uses. The wrapper itself
 /// doesn't hold a `Reporter` value (`Reporter` is a static trait);
 /// `PhantomData` carries the type through.
@@ -231,7 +231,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let resolution = cell
             .get_or_try_init(|| async {
                 if let Some(session) = self.ctx.custom_fetcher_session.as_ref() {
-                    let download = DownloadTarballToStore {
+                    let download = IngestTarballToStore {
                         http_client: &self.ctx.http_client,
                         store_dir: self.ctx.store_dir,
                         store_index: self.ctx.store_index.clone(),
@@ -251,7 +251,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                         ignore_file_pattern: None,
                         offline: self.ctx.offline,
                         progress_reported: Some(Arc::clone(&self.ctx.progress_reported)),
-                        append_manifest: None,
+                        store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                            append_manifest: None,
+                        },
                     };
                     let opts = serde_json::json!({
                         "pkg": result.name_ver.as_ref().map_or_else(
@@ -325,7 +327,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         // integrity. Mirrors the gate in
         // `install_package_from_registry::extract_tarball`; other
         // resolution shapes are not fetched through
-        // `DownloadTarballToStore` at all.
+        // `IngestTarballToStore` at all.
         let Ok((package_url, integrity)) = extract_tarball(&result.resolution) else {
             return;
         };
@@ -389,7 +391,7 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             //
             // Result is intentionally discarded — the `MemCache`
             // carries success / failure state to the install path.
-            let download = DownloadTarballToStore {
+            let download = IngestTarballToStore {
                 http_client: &http_client,
                 store_dir,
                 store_index,
@@ -409,7 +411,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
                 ignore_file_pattern: None,
                 offline,
                 progress_reported: Some(progress_reported),
-                append_manifest: None,
+                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                    append_manifest: None,
+                },
             };
             let _ = if revision_addressed {
                 download.run_revision_addressed_with_mem_cache::<Reporter>(&mem_cache).await

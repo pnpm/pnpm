@@ -1,5 +1,5 @@
 use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
-use pnpr_registry::PackagePattern;
+use pnpr_registry::{Ecosystem, PackagePattern};
 
 fn list(token: &str) -> AccessList {
     AccessList::from_tokens([token])
@@ -7,7 +7,7 @@ fn list(token: &str) -> AccessList {
 
 fn rule(pattern: &str, access: Option<&str>) -> PackageRule {
     PackageRule {
-        pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+        pattern: PackagePattern::parse(pattern, Ecosystem::Npm).expect("test pattern parses"),
         access: access.map(list),
         publish: access.map(list),
         unpublish: access.map(list),
@@ -182,13 +182,13 @@ fn omitted_rule_fields_fall_back_to_registry_default_not_broader_keys() {
     let rules = PackageRules::new(
         vec![
             PackageRule {
-                pattern: PackagePattern::parse("@acme/*").expect("parses"),
+                pattern: PackagePattern::parse("@acme/*", Ecosystem::Npm).expect("parses"),
                 access: Some(list("$authenticated")),
                 publish: None,
                 unpublish: None,
             },
             PackageRule {
-                pattern: PackagePattern::parse("@acme/open").expect("parses"),
+                pattern: PackagePattern::parse("@acme/open", Ecosystem::Npm).expect("parses"),
                 access: None,
                 publish: None,
                 unpublish: None,
@@ -209,6 +209,21 @@ fn unclaimed_name_still_answers_with_defaults() {
     // is the routing graph's job, not the rules'.
     let rules = PackageRules::new(vec![rule("@acme/*", Some("$authenticated"))], None);
     assert!(rules.for_package("unclaimed").access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn all_access_admit_requires_the_default_and_every_refinement() {
+    let public = PackageRules::default();
+    assert!(public.all_access_admit(&Identity::Anonymous));
+
+    let private_default = PackageRules::new(Vec::new(), Some(list("$authenticated")));
+    assert!(!private_default.all_access_admit(&Identity::Anonymous));
+    assert!(private_default.all_access_admit(&user("alice")));
+
+    let private_refinement =
+        PackageRules::new(vec![rule("@private/*", Some("$authenticated"))], None);
+    assert!(!private_refinement.all_access_admit(&Identity::Anonymous));
+    assert!(private_refinement.all_access_admit(&user("alice")));
 }
 
 #[test]

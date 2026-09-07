@@ -73,6 +73,59 @@ fn generated_scripts_call_completion_server() {
 }
 
 #[test]
+fn generated_scripts_register_pn_alias() {
+    let cases = [
+        (CompletionShell::Bash, &["complete -F _pnpm_completion pnpm pn"][..]),
+        (
+            CompletionShell::Fish,
+            &[
+                r#"complete -c pnpm -f -a "(__pnpm_completion)""#,
+                r#"complete -c pn -f -a "(__pnpm_completion)""#,
+            ],
+        ),
+        (
+            CompletionShell::Pwsh,
+            &["Register-ArgumentCompleter -Native -CommandName pnpm,pn -ScriptBlock"],
+        ),
+        (CompletionShell::Zsh, &["#compdef pnpm pn", "compdef _pnpm_completion pnpm pn"]),
+    ];
+
+    for (shell, snippets) in cases {
+        let mut output = Vec::new();
+        super::generate_completion(shell, &mut output).expect("generate completion");
+        let script = String::from_utf8(output).expect("script is utf8");
+        for snippet in snippets {
+            assert!(
+                script.contains(snippet),
+                "{shell:?} script should contain {snippet:?}: {script}",
+            );
+        }
+    }
+}
+
+#[test]
+fn pn_is_stripped_like_the_other_pnpm_binary_names() {
+    for binary in ["pnpm", "pn", "pacquet", "/usr/local/bin/pn", "pn.exe"] {
+        assert_eq!(
+            super::words_without_binary(&strings(&[binary, "add", ""])),
+            strings(&["add", ""]),
+            "{binary} should be dropped",
+        );
+    }
+
+    assert_eq!(super::words_without_binary(&strings(&["npm", ""])), strings(&["npm", ""]));
+}
+
+#[test]
+fn completion_server_treats_pn_as_the_pnpm_binary() {
+    let pnpm = super::complete_words(&strings(&["pnpm", ""]));
+    let pn = super::complete_words(&strings(&["pn", ""]));
+
+    assert_eq!(pnpm, pn);
+    assert!(pn.iter().any(|completion| completion == "install"), "{pn:?}");
+}
+
+#[test]
 fn completion_can_run_before_async_runtime_setup() {
     let args = CliArgs::parse_from(["pnpm", "completion-server", "--", "pnpm", "completion", ""]);
 

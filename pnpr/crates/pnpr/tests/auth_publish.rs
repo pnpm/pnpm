@@ -801,7 +801,7 @@ async fn published_package_survives_wiping_the_proxy_cache() {
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 }
 
-/// When the same tarball filename exists in both stores, `open_tarball`
+/// When the same tarball filename exists in both stores, `open_hosted_blob`
 /// serves the hosted copy — a stale proxied copy can't shadow it.
 #[tokio::test]
 async fn hosted_tarball_is_preferred_over_a_cached_copy() {
@@ -1201,7 +1201,7 @@ async fn publish_with_failed_attachment_cleans_up_earlier_tmp_files() {
 /// again. This regression test pins that down: if someone reintroduces
 /// a manual `urldecode` (which was previously here and was both
 /// redundant and buggy on literal `%` chars), the `@scope/pkg`
-/// `PackageName::parse` would still pass but a future bug-fix that
+/// `CanonicalPackageName::parse` would still pass but a future bug-fix that
 /// changes the decoder could break percent-encoded scoped paths.
 #[tokio::test]
 async fn dist_tag_set_works_with_url_encoded_scoped_path() {
@@ -1551,7 +1551,7 @@ async fn unpublish_partial_writes_modified_packument() {
 }
 
 /// Deleting a hosted tarball must also drop any proxied copy with the
-/// same filename, so `open_tarball`'s cache fallback can't keep serving
+/// same filename, so `open_hosted_blob`'s cache fallback can't keep serving
 /// the just-removed version.
 #[tokio::test]
 async fn unpublish_tarball_also_clears_the_proxied_copy() {

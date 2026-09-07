@@ -9,7 +9,7 @@ use axum::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use futures_util::StreamExt;
-use object_store::{ObjectStore, memory::InMemory, path::Path as ObjectPath};
+use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
@@ -72,6 +72,40 @@ async fn publishes_to_and_serves_from_the_object_store() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
+}
+
+/// Another writer in the bucket can own the tarball key a publish is about to
+/// write, and its bytes are immutable. The version is left out of the
+/// packument, and the publisher hears about it instead of a 201 for something
+/// the store does not serve.
+#[tokio::test]
+async fn a_publish_that_loses_the_tarball_key_is_refused() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    store
+        .put(
+            &ObjectPath::from("mypkg/mypkg-1.0.0.tgz"),
+            axum::body::Bytes::from_static(b"the winning tarball").into(),
+        )
+        .await
+        .unwrap();
+    let app = router(s3_config(storage, Arc::clone(&store)));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("mypkg", "1.0.0", b"the losing tarball");
+    let request = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CONFLICT);
+
+    let response = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(body_json(response.into_body()).await["versions"], json!({}));
+    let winner = store.get(&ObjectPath::from("mypkg/mypkg-1.0.0.tgz")).await.unwrap();
+    assert_eq!(winner.bytes().await.unwrap(), "the winning tarball");
 }
 
 /// A publish whose tarball fails the integrity check must not leave an

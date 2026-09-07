@@ -1,10 +1,11 @@
 use super::{
-    exec::ExecArgs,
+    exec::{ExecArgs, ExecDirs},
     reporter::{ReporterType, reporter_emit},
 };
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::Diagnostic;
+use indexmap::IndexMap;
+use miette::{Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
 use pnpm_executor::{
     ProcessTracker, RunScript, ScriptExit, ScriptOutput, ScriptsPrependNodePath, run_script,
@@ -16,6 +17,7 @@ use pnpm_package_manager::{
 };
 use pnpm_package_manifest::PackageManifest;
 use pnpm_workspace::{ReadProjectManifestOnlyError, read_project_manifest_only};
+use pnpm_workspace_task_scheduler::{ScheduleGraphOptions, TaskCompletion, schedule_graph};
 use regex::Regex;
 use serde_json::Value;
 use std::{
@@ -23,6 +25,7 @@ use std::{
     env,
     fmt::Write as _,
     path::{Path, PathBuf},
+    sync::Mutex,
 };
 
 mod recursive;
@@ -169,25 +172,28 @@ impl RunArgs {
     /// meaningful for the recursive path (see [`Self::run_recursive`])
     /// and are ignored here.
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
-        self.run_inner(dir, config, reporter, false)
+        self.run_inner(ExecDirs::same(dir), config, reporter, false)
     }
 
+    /// Like [`Self::run`], but a name that matches no script is handed to
+    /// `exec`, which runs it in `dirs.run`.
     pub fn run_fallback(
         self,
-        dir: &Path,
+        dirs: ExecDirs<'_>,
         config: &Config,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        self.run_inner(dir, config, reporter, true)
+        self.run_inner(dirs, config, reporter, true)
     }
 
     fn run_inner(
         self,
-        dir: &Path,
+        dirs: ExecDirs<'_>,
         config: &Config,
         reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        let dir = dirs.project;
         // Before the dependency verification: an unsupported flag must
         // fail before anything can trigger an install or a prompt.
         if self.dry_run {
@@ -198,6 +204,8 @@ impl RunArgs {
         // spawning a doomed install (see check_deps_status_before_run_at).
         super::verify_deps::verify_deps_before_run(dir, config, reporter)?;
         let silent = matches!(reporter, ReporterType::Silent);
+        let parallel = self.parallel;
+        let sequential = self.sequential;
         let RunArgs { script, if_present, .. } = self;
         let Some((script_name, args)) = script.split_first() else {
             let manifest = read_project_manifest_only(dir).map_err(RunError::Manifest)?;
@@ -209,7 +217,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dir, config, reporter);
+                return exec_fallback(script_name, args, dirs, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -228,7 +236,7 @@ impl RunArgs {
                 return Ok(());
             }
             if fallback_to_exec {
-                return exec_fallback(script_name, args, dir, config, reporter);
+                return exec_fallback(script_name, args, dirs, config, reporter);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
@@ -254,6 +262,16 @@ impl RunArgs {
         }
 
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
+        let concurrency = if parallel {
+            specified.len()
+        } else if sequential {
+            1
+        } else {
+            usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1)
+        };
+        let process_tracker =
+            (specified.len() > 1 && concurrency > 1).then(ProcessTracker::foreground);
+        let dep_path = dir.to_string_lossy().into_owned();
         let ctx = RunContext {
             manifest: &manifest,
             dir,
@@ -261,25 +279,84 @@ impl RunArgs {
             config,
             extra_env: &extra_env,
             silent,
-            output: ScriptOutput::Inherit,
-            process_tracker: None,
+            output: if specified.len() > 1 && concurrency > 1 {
+                ScriptOutput::Streamed { dep_path: &dep_path, emit: reporter_emit(reporter) }
+            } else {
+                ScriptOutput::Inherit
+            },
+            process_tracker: process_tracker.as_ref(),
         };
-        for name in &specified {
+        let tasks: IndexMap<String, Vec<String>> =
+            specified.into_iter().map(|name| (name, Vec::new())).collect();
+        let failure = Mutex::new(None);
+        let abort = Mutex::new(None);
+        let on_script_skipped = |_: &String| {};
+        let run_script = |name: String| {
             // Resolve the main body (with `start` → `node server.js`
             // fallback) and apply the args-aware `npx only-allow pnpm`
             // no-op skip. After both pass, [`run_stages`] is
             // guaranteed to actually run the main stage, so its return
             // is a plain [`ScriptExit`].
-            let Some(main) = resolve_main_script(&ctx, name)? else { continue };
+            let main = match resolve_main_script(&ctx, &name) {
+                Ok(Some(main)) => main,
+                Ok(None) => return TaskCompletion::Passed,
+                Err(error) => {
+                    let mut abort = abort.lock().expect("run abort lock is not poisoned");
+                    if abort.is_none() {
+                        *abort = Some(miette::Report::new(error));
+                    }
+                    if let Some(process_tracker) = &process_tracker {
+                        process_tracker.cancel();
+                    }
+                    return TaskCompletion::Aborted;
+                }
+            };
             if args.is_empty() && main == "npx only-allow pnpm" {
-                continue;
+                return TaskCompletion::Passed;
             }
-            let status = run_stages(&ctx, name, &main, args)?;
-            if !status.success() {
-                // A failing script sets the process exit code.
-                // `run_stage` already emitted the `[ELIFECYCLE]` line.
-                std::process::exit(status.code().unwrap_or(1));
+            match run_stages(&ctx, &name, &main, args) {
+                Ok(status) if status.success() => TaskCompletion::Passed,
+                Ok(status) => {
+                    let mut failure = failure.lock().expect("run failure lock is not poisoned");
+                    if failure.is_none() {
+                        *failure = Some(status.code().unwrap_or(1));
+                    }
+                    if let Some(process_tracker) = &process_tracker {
+                        process_tracker.cancel();
+                    }
+                    TaskCompletion::Failed
+                }
+                Err(error) => {
+                    let mut abort = abort.lock().expect("run abort lock is not poisoned");
+                    if abort.is_none() {
+                        *abort = Some(error);
+                    }
+                    if let Some(process_tracker) = &process_tracker {
+                        process_tracker.cancel();
+                    }
+                    TaskCompletion::Aborted
+                }
             }
+        };
+        if concurrency == 1 || tasks.len() == 1 {
+            for name in tasks.keys() {
+                if !matches!(run_script(name.clone()), TaskCompletion::Passed) {
+                    break;
+                }
+            }
+        } else {
+            schedule_graph(
+                &tasks,
+                &ScheduleGraphOptions::new(concurrency, true, &run_script, &on_script_skipped),
+            )
+            .into_diagnostic()?;
+        }
+        if let Some(error) = abort.into_inner().expect("run abort lock is not poisoned") {
+            return Err(error);
+        }
+        if let Some(code) = failure.into_inner().expect("run failure lock is not poisoned") {
+            // `run_stage` already emitted the `[ELIFECYCLE]` line.
+            std::process::exit(code);
         }
         Ok(())
     }
@@ -311,7 +388,7 @@ impl RunArgs {
 fn exec_fallback(
     script_name: &str,
     args: &[String],
-    dir: &Path,
+    dirs: ExecDirs<'_>,
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
@@ -325,7 +402,7 @@ fn exec_fallback(
         reverse: false,
         parallel: false,
     }
-    .run(dir, config, reporter)
+    .run(dirs, config, reporter)
 }
 
 /// Shared inputs for running a script, threaded through
@@ -510,7 +587,7 @@ pub(super) fn run_stage(
         args,
         pkg_root: ctx.dir,
         init_cwd: ctx.init_cwd,
-        extra_bin_paths: &ctx.config.extra_bin_paths,
+        extra_bin_paths: &crate::python::execution_paths(ctx.config, ctx.dir),
         script_shell: ctx.config.script_shell.as_deref().map(Path::new),
         shell_emulator: ctx.config.shell_emulator,
         scripts_prepend_node_path: exec_scripts_prepend_node_path(

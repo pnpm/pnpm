@@ -21,10 +21,10 @@ pnpm-resolving-parse-wanted-dependency = { workspace = true }
 
 derive_more      = { workspace = true }
 indexmap         = { workspace = true }
-libc             = { workspace = true }
 miette           = { workspace = true }
 node-semver      = { workspace = true }
 pipe-trait       = { workspace = true }
+rayon            = { workspace = true }
 serde            = { workspace = true }
 serde-saphyr     = { workspace = true }
 serde_json       = { workspace = true }

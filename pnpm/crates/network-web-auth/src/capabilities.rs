@@ -86,6 +86,12 @@ pub trait OpenUrl {
     fn open_url(url: &str) -> io::Result<()>;
 }
 
+/// Open `url` in the user's default browser and wait for the launcher to
+/// report success or failure.
+pub trait OpenUrlAndWait {
+    fn open_url_and_wait(url: &str) -> io::Result<()>;
+}
+
 /// Set up an interactive "press Enter" listener on stdin. Mirrors TS
 /// `createReadlineInterface` plus its `once('line', ...)` registration.
 ///
@@ -214,6 +220,12 @@ impl OpenUrl for Host {
         // Detached so the call returns as soon as the browser is launched
         // rather than blocking the async task until the launcher exits.
         open::that_detached(url)
+    }
+}
+
+impl OpenUrlAndWait for Host {
+    fn open_url_and_wait(url: &str) -> io::Result<()> {
+        open::that(url)
     }
 }
 

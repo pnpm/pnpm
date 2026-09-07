@@ -7,6 +7,9 @@ use std::{
     time::Duration,
 };
 
+const WAIT: Duration = Duration::from_mins(5);
+const ABANDONED_AFTER: Duration = Duration::from_mins(30);
+
 #[derive(Debug, Display, Error, Diagnostic)]
 enum GlobalBinLockError {
     #[display("Failed to lock the global bin directory at {}", path.display())]
@@ -27,15 +30,20 @@ enum GlobalBinLockError {
 /// check and any rollback, so a failed transaction cannot restore over a
 /// later pnpm process's successful replacement.
 pub(crate) fn acquire_global_bin_lock(global_bin_dir: &Path) -> miette::Result<DirLock> {
-    const WAIT: Duration = Duration::from_mins(5);
-    const ABANDONED_AFTER: Duration = Duration::from_mins(30);
-
     let path = global_bin_dir.join(".pnpm-global-bin.lock");
     match DirLock::acquire(path.clone(), WAIT, ABANDONED_AFTER) {
         Ok(Some(lock)) => Ok(lock),
         Ok(None) => Err(GlobalBinLockError::TimedOut { path }.into()),
         Err(source) => Err(GlobalBinLockError::Failed { path, source }.into()),
     }
+}
+
+pub(crate) fn try_acquire_global_bin_lock(
+    global_bin_dir: &Path,
+) -> miette::Result<Option<DirLock>> {
+    let path = global_bin_dir.join(".pnpm-global-bin.lock");
+    DirLock::acquire(path.clone(), Duration::ZERO, ABANDONED_AFTER)
+        .map_err(|source| GlobalBinLockError::Failed { path, source }.into())
 }
 
 #[cfg(test)]

@@ -1,5 +1,6 @@
 mod bundled_node_gyp;
 mod extend_path;
+mod job_control;
 mod lifecycle;
 mod make_env;
 mod process_tracker;
@@ -10,6 +11,7 @@ mod shell_emulator;
 
 pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
+pub use job_control::{JobGuard, arm_process_tree_cleanup};
 pub use lifecycle::{
     DEV_PREINSTALL_ALREADY_RAN_ENV, DEV_PREINSTALL_STAGE, LifecycleScriptError,
     PROJECT_LIFECYCLE_STAGES, RunPostinstallHooks, StreamedScript, push_script_arg,

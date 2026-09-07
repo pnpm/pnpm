@@ -111,6 +111,7 @@ where
             pnpmfile_hook_override,
             workspace_projects_override,
         } = self;
+        let effective_node_version = super::effective_node_version(config, manifest);
         http_client.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         http_client_arc.set_warning_handler(pnpm_reporter::emit_global_warning::<Reporter>);
         let can_prompt = prompt_eligibility_override
@@ -199,6 +200,9 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
+        let catalog_context_present = catalogs_override.is_some()
+            || config.catalogs.is_some()
+            || (!config.ignore_workspace && workspace_dir_opt.is_some());
         // Prefer a caller-supplied in-memory catalogs set
         // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
         // resolving a bumped `catalog:` entry that is not written to disk),
@@ -393,7 +397,12 @@ where
             // swallowed read error.
             let marker_safe = if gvs_build_markers_may_require_recovery(config) {
                 match lockfile.get() {
-                    Ok(Some(wanted)) => !gvs_build_marker_present(wanted, config, &workspace_root),
+                    Ok(Some(wanted)) => !gvs_build_marker_present(
+                        wanted,
+                        config,
+                        &workspace_root,
+                        effective_node_version.as_deref(),
+                    ),
                     Ok(None) => true,
                     Err(_) => false,
                 }
@@ -429,6 +438,14 @@ where
             }
         }
 
+        // Past the fast path every install flavor reads the wanted
+        // lockfile; start its read + parse on a background thread so it
+        // overlaps the cycle check below. The forced load further down
+        // joins it. (A run the pipeline knew would get here — frozen /
+        // forced — started this prefetch before project discovery, and
+        // this call is then a no-op.)
+        lockfile.prefetch();
+
         // Report the projects this install covers depending on each
         // other in a cycle — after the short-circuit above, because pnpm
         // returns from "Already up to date" before reaching its own
@@ -438,7 +455,19 @@ where
             && let Some(workspace_dir) = workspace_dir_opt.as_deref()
         {
             let scope = match selection.as_ref() {
-                Some(selection) => Some((selection.all_projects, Some(selection.selected_dirs))),
+                // A plan that already sequenced this very graph hands
+                // its cycle report over; the install then skips
+                // rebuilding the graph just to find them again.
+                Some(selection) => match selection.workspace_cycles {
+                    crate::PrecomputedWorkspaceCycles::Known(cycles) => {
+                        crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles)
+                            .map_err(InstallError::CyclicWorkspaceDependencies)?;
+                        None
+                    }
+                    crate::PrecomputedWorkspaceCycles::Unknown => {
+                        Some((selection.all_projects, Some(selection.selected_dirs)))
+                    }
+                },
                 // A single-project mutation (`add`, `update`, ...) has no
                 // set to cycle within; only a full install covers the
                 // whole workspace.
@@ -480,25 +509,29 @@ where
         // below: a load that failed leaves nothing cached, so asking later
         // would retry it and turn a lockfile this arm chose to ignore into
         // a fatal one.
-        let (lockfile, merge_wanted_lockfile, pre_merge_importers) = match lockfile_source.get() {
-            Ok(lockfile) => (
-                lockfile,
-                lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
-                lockfile_source.pre_merge_importers().map_err(InstallError::LoadWantedLockfile)?,
-            ),
-            Err(error) if !frozen_lockfile => {
-                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                    level: LogLevel::Warn,
-                    message: format!(
-                        "Ignoring broken lockfile at {}: {error}",
-                        workspace_root.display(),
-                    ),
-                    prefix: prefix.clone(),
-                }));
-                (None, None, None)
-            }
-            Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
-        };
+        let (lockfile, lockfile_shared, merge_wanted_lockfile, pre_merge_importers) =
+            match lockfile_source.get() {
+                Ok(lockfile) => (
+                    lockfile,
+                    lockfile_source.shared().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source.get_for_merge().map_err(InstallError::LoadWantedLockfile)?,
+                    lockfile_source
+                        .pre_merge_importers()
+                        .map_err(InstallError::LoadWantedLockfile)?,
+                ),
+                Err(error) if !frozen_lockfile => {
+                    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                        level: LogLevel::Warn,
+                        message: format!(
+                            "Ignoring broken lockfile at {}: {error}",
+                            workspace_root.display(),
+                        ),
+                        prefix: prefix.clone(),
+                    }));
+                    (None, None, None, None)
+                }
+                Err(error) => return Err(InstallError::LoadWantedLockfile(error)),
+            };
         tracing::info!(
             target: "pacquet::install::phase",
             phase = "load_wanted_lockfile",
@@ -727,6 +760,7 @@ where
             Some(current) if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile => {
                 check_lockfile_freshness(
                     current,
+                    &workspace_root,
                     &manifest_freshness_inputs,
                     config,
                     &catalogs,
@@ -771,6 +805,7 @@ where
         let fast_updated_lockfile = if can_fast_update_lockfile {
             try_fast_update_lockfile::<Reporter>(FastUpdateLockfileOptions {
                 lockfile,
+                lockfile_dir: &workspace_root,
                 manifests: &manifest_freshness_inputs,
                 project_manifests: &project_manifests,
                 config,
@@ -951,6 +986,7 @@ where
             // again inside the frozen branch below.
             check_lockfile_freshness(
                 lockfile,
+                &workspace_root,
                 &manifest_freshness_inputs,
                 config,
                 &catalogs,
@@ -981,6 +1017,7 @@ where
             if prefer_frozen_lockfile {
                 match check_lockfile_freshness(
                     lockfile,
+                    &workspace_root,
                     &manifest_freshness_inputs,
                     config,
                     &catalogs,
@@ -1092,6 +1129,7 @@ where
             save_lockfile,
             catalogs: &catalogs,
             project_manifests: &project_manifests,
+            effective_node_version: effective_node_version.as_deref(),
             prefix: &prefix,
         })
         .await?
@@ -1110,6 +1148,7 @@ where
             hoisted_dependencies,
             hoisted_locations,
             install_skipped,
+            peer_issue_importer_ids,
             fresh_lockfile,
             store_index_teardown,
         } = materialize::<Reporter>(MaterializationInputs {
@@ -1120,6 +1159,14 @@ where
             config,
             manifest,
             lockfile,
+            // The dispatch above may have swapped `lockfile` for a
+            // synthesized, branch-pruned, or fast-updated document; the
+            // loader's handle is forwarded only while it still *is* the
+            // lockfile, so a downstream consumer can never seed from a
+            // superseded document.
+            lockfile_shared: lockfile_shared.filter(|shared| {
+                lockfile.is_some_and(|lockfile| std::ptr::eq(lockfile, Arc::as_ptr(shared)))
+            }),
             merge_wanted_lockfile,
             take_frozen_path,
             lockfile_verification_override,
@@ -1173,6 +1220,7 @@ where
             dry_run,
             peer_issues_sink_is_none,
             existing_wanted_lockfile,
+            peer_issue_importer_ids,
             fresh_lockfile,
             prefix,
             lockfile,
@@ -1205,6 +1253,7 @@ where
             selection,
             supported_architectures,
             catalogs,
+            catalog_context_present,
             verified_file_integrity_baseline,
         })
         .await?;

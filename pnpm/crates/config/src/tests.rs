@@ -3,7 +3,7 @@ use super::{
     NodeLinker, NodePackageMapType, PackageImportMethod, TrustPolicy, WorkspaceSettings,
     default_ci, fs,
 };
-use crate::defaults::{default_state_dir, default_store_dir};
+use crate::defaults::{GLOBAL_LAYOUT_VERSION, default_state_dir, default_store_dir};
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
@@ -372,6 +372,91 @@ pub fn state_dir_uses_only_trusted_config_sources() {
 }
 
 #[test]
+pub fn global_dirs_use_only_trusted_config_sources() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "globalDir: from-global\nglobalBinDir: from-global-bin\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(
+        project.path().join("pnpm-workspace.yaml"),
+        "globalDir: from-project\nglobalBinDir: from-project-bin\n",
+    )
+    .expect("write workspace yaml");
+
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-global").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-global-bin")));
+    assert_eq!(config.workspace_key_issues.refused, ["globalDir", "globalBinDir"]);
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_GLOBAL_DIR", "from-env"),
+        ("PNPM_CONFIG_GLOBAL_BIN_DIR", "from-env-bin"),
+    ]);
+    let config = load_with_fake_env(project.path());
+    assert_eq!(
+        config.global_pkg_dir,
+        Some(project.path().join("from-env").join(GLOBAL_LAYOUT_VERSION)),
+    );
+    assert_eq!(config.global_bin, Some(project.path().join("from-env-bin")));
+    assert_eq!(
+        config.explicit_settings.get("globalBinDir"),
+        Some(&serde_json::Value::String("from-env-bin".to_string())),
+    );
+}
+
+#[test]
+pub fn global_dirs_expand_a_leading_tilde() {
+    let home = tempdir().expect("home tempdir");
+    static HOME_PATH: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    HOME_PATH.set(home.path().to_path_buf()).expect("set once");
+    let config_dir = home.path().join("xdg").join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "globalDir: ~/global\nglobalBinDir: ~/bin\n")
+        .expect("write global config.yaml");
+
+    struct HostWithHome;
+    impl EnvVar for HostWithHome {
+        fn var(name: &str) -> Option<String> {
+            if name == "XDG_CONFIG_HOME" {
+                let xdg = HOME_PATH.get().expect("home path").join("xdg");
+                return Some(xdg.to_str().expect("utf-8 home path").to_string());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithHome {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithHome {
+        fn home_dir() -> Option<PathBuf> {
+            HOME_PATH.get().cloned()
+        }
+    }
+    inert_link_probe!(HostWithHome);
+    host_current_dir!(HostWithHome);
+
+    let project = tempdir().expect("project tempdir");
+    let config =
+        Config::new().current::<HostWithHome>(project.path()).expect("global config.yaml loads");
+    assert_eq!(config.global_pkg_dir, Some(home.path().join("global").join(GLOBAL_LAYOUT_VERSION)));
+    assert_eq!(config.global_bin, Some(home.path().join("bin")));
+}
+
+#[test]
 pub fn fetch_retries_defaults_match_pnpm() {
     let value = Config::new();
     assert_eq!(value.fetch_retries, 2);
@@ -389,6 +474,22 @@ pub fn network_settings_defaults_match_pnpm() {
     assert_eq!(value.fetch_min_speed_ki_bps, 50);
     assert!(value.user_agent.starts_with("pnpm/"), "user-agent: {:?}", value.user_agent);
     assert_eq!(value.npmrc_auth_file, None);
+}
+
+#[test]
+fn retry_options_use_the_resolved_network_budget() {
+    let config = Config {
+        fetch_retries: 4,
+        fetch_retry_factor: 3,
+        fetch_retry_mintimeout: 17,
+        fetch_retry_maxtimeout: 91,
+        ..Config::default()
+    };
+    let policy = config.retry_opts();
+    assert_eq!(policy.retries, 4);
+    assert_eq!(policy.factor, 3);
+    assert_eq!(policy.min_timeout, std::time::Duration::from_millis(17));
+    assert_eq!(policy.max_timeout, std::time::Duration::from_millis(91));
 }
 
 #[test]
@@ -2772,6 +2873,75 @@ pub fn global_config_yaml_enables_gvs() {
     );
 }
 
+/// `scriptShell` is path-resolved only when it comes from the workspace
+/// manifest. Global config and `PNPM_CONFIG_*` are machine-level sources, so
+/// their path-like values stay raw just as pnpm's `manifestDir: undefined`
+/// path does. Exercise the complete `Config::current` cascade rather than the
+/// settings helper in isolation.
+#[test]
+pub fn script_shell_source_routing_matches_pnpm() {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), "scriptShell: ./global-shell.sh\n")
+        .expect("write global config.yaml");
+
+    let global_only = tempdir().expect("global-only project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(global_only.path());
+    assert_eq!(config.script_shell.as_deref(), Some("./global-shell.sh"));
+
+    let workspace = tempdir().expect("workspace tempdir");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: ./workspace-shell.sh\n")
+        .expect("write workspace yaml");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(workspace.path());
+    let expected_workspace_shell =
+        pnpm_fs::lexical_normalize(&workspace.path().join("workspace-shell.sh"))
+            .to_string_lossy()
+            .into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_workspace_shell.as_str()));
+
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_SCRIPT_SHELL", "./env-shell.sh"),
+    ]);
+    let config = load_with_fake_env(workspace.path());
+    assert_eq!(config.script_shell.as_deref(), Some("./env-shell.sh"));
+}
+
+#[test]
+pub fn workspace_script_shell_accepts_backslash_path_like_values() {
+    let workspace = tempdir().expect("workspace tempdir");
+    fs::write(workspace.path().join("pnpm-workspace.yaml"), "scriptShell: 'scripts\\shell.cmd'\n")
+        .expect("write workspace yaml");
+
+    let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
+    let expected = pnpm_fs::lexical_normalize(&workspace.path().join(r"scripts\shell.cmd"))
+        .to_string_lossy()
+        .into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+#[test]
+pub fn workspace_script_shell_preserves_windows_absolute_and_unc_paths() {
+    let workspace = tempdir().expect("workspace tempdir");
+    for script_shell in
+        [r"C:\tools\bash.exe", r"\\server\share\bash.exe", r"\tools\bash.exe", r"/tools/bash.exe"]
+    {
+        fs::write(
+            workspace.path().join("pnpm-workspace.yaml"),
+            format!("scriptShell: '{script_shell}'\n"),
+        )
+        .expect("write workspace yaml");
+
+        let config = Config::new().current::<HostNoHome>(workspace.path()).expect("config loads");
+        assert_eq!(config.script_shell.as_deref(), Some(script_shell));
+    }
+}
+
 #[test]
 pub fn pnpm_workspace_yaml_overrides_global_config_yaml() {
     let xdg = tempdir().unwrap();
@@ -3750,6 +3920,89 @@ fn resolved_minimum_release_age_treats_zero_as_disabled() {
     assert_eq!(config.resolved_minimum_release_age(), None);
 }
 
+/// Load a config from a workspace whose `pnpm-workspace.yaml` holds `yaml`.
+fn config_from_workspace_yaml(yaml: &str) -> Config {
+    let tmp = tempdir().expect("workspace tempdir");
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), yaml).expect("write to pnpm-workspace.yaml");
+    Config::new().current::<HostNoHome>(tmp.path()).expect("config loads")
+}
+
+#[test]
+fn the_built_in_release_age_default_leaves_strict_mode_off() {
+    let config = config_from_workspace_yaml("packages:\n  - '.'\n");
+
+    assert_eq!(config.resolved_minimum_release_age(), Some(1440));
+    assert!(!config.resolved_minimum_release_age_strict());
+}
+
+/// A cutoff the user typed turns on strict mode even when it repeats the
+/// built-in default, so the setting gates the install instead of only
+/// reporting it. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/14409>.
+#[test]
+fn an_explicit_release_age_turns_on_strict_mode() {
+    let config = config_from_workspace_yaml("minimumReleaseAge: 1440\n");
+
+    assert_eq!(config.minimum_release_age, Config::new().minimum_release_age);
+    assert!(config.resolved_minimum_release_age_strict());
+}
+
+#[test]
+fn an_explicit_strict_setting_wins_over_the_release_age_default() {
+    let config =
+        config_from_workspace_yaml("minimumReleaseAge: 4320\nminimumReleaseAgeStrict: false\n");
+    assert!(!config.resolved_minimum_release_age_strict());
+
+    let config = config_from_workspace_yaml("minimumReleaseAgeStrict: true\n");
+    assert!(config.resolved_minimum_release_age_strict(), "strict mode stands on its own");
+}
+
+#[test]
+fn a_release_age_env_var_turns_on_strict_mode() {
+    struct HostWithReleaseAgeEnv;
+    impl EnvVar for HostWithReleaseAgeEnv {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "PNPM_CONFIG_MINIMUM_RELEASE_AGE" => Some("1440".to_owned()),
+                _ => safe_host_var(name),
+            }
+        }
+    }
+    impl EnvVarOs for HostWithReleaseAgeEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithReleaseAgeEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithReleaseAgeEnv);
+    host_current_dir!(HostWithReleaseAgeEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithReleaseAgeEnv>(tmp.path()).expect("config loads");
+
+    assert!(config.resolved_minimum_release_age_strict());
+}
+
+/// A repository must not reach strict mode for `self-update`: turning it on
+/// would let the repo refuse an immature pnpm release and pin the machine to
+/// the installed version, which is what
+/// [`WorkspaceSettings::clear_self_update_policy`] exists to prevent.
+#[test]
+fn self_update_ignores_a_workspace_release_age_for_strict_mode() {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("pnpm-workspace.yaml"), "minimumReleaseAge: 4320\n")
+        .expect("write to pnpm-workspace.yaml");
+
+    let config =
+        Config::new().current_for_self_update::<HostNoHome>(tmp.path()).expect("config loads");
+
+    assert!(!config.resolved_minimum_release_age_strict());
+}
+
 const NPM_DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// A project `.npmrc` redirecting the default registry still drives normal
@@ -4104,8 +4357,7 @@ pub fn global_config_yaml_schema_directive_is_silent() {
 pub fn global_config_yaml_key_pnpm_honors_stays_silent() {
     let config_dir = tempdir().expect("config tempdir");
     let config_file = config_dir.path().join("config.yaml");
-    fs::write(&config_file, "globalBinDir: /usr/local/pnpm-bin\n")
-        .expect("write global config.yaml");
+    fs::write(&config_file, "globalPath: /usr/local/pnpm\n").expect("write global config.yaml");
 
     let warnings = capture_warnings(|| {
         WorkspaceSettings::load_global(config_dir.path())
@@ -4390,28 +4642,98 @@ pub fn a_registries_map_declaring_the_default_beats_the_global_auth_file() {
     assert_eq!(config.registry, "https://declared.example/");
 }
 
-/// An `.npmrc` route is what the cascade resolved, not what a config file
-/// declared, so the stored credential's route outranks it — as it does in
-/// pnpm's `config.reader`.
+fn load_with_auth_file_and_npmrc(auth_yaml: &str, npmrc: &str) -> Config {
+    fake_env!(load_with_fake_env);
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(config_dir.join("config.yaml"), auth_yaml).expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    fs::write(project.path().join(".npmrc"), npmrc).expect("write .npmrc");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+
+    load_with_fake_env(project.path())
+}
+
+/// A `registry=` in the project's `.npmrc` declares where packages come from
+/// as plainly as a yaml does, so a credential stored for another registry
+/// must not redirect the install to it (pnpm/pnpm#14614).
 #[test]
-pub fn the_global_auth_file_outranks_an_npmrc_scope_route() {
+pub fn an_npmrc_registry_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "registry=https://project-choice.example/\n");
+
+    assert_eq!(config.registry, "https://project-choice.example/");
+    // The credential still reaches the registry it was written for, and
+    // does not follow the install to the one the `.npmrc` chose.
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//private.example/").map(String::as_str),
+        Some("stored-token"),
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://private.example/is-positive").as_deref(),
+        Some("Bearer stored-token"),
+    );
+    assert_eq!(config.auth_headers.for_url("https://project-choice.example/is-positive"), None);
+}
+
+#[test]
+pub fn an_npmrc_scope_route_beats_the_global_auth_file() {
+    let config =
+        load_with_auth_file_and_npmrc(STORED_LOGIN, "@org:registry=https://from-npmrc.example/\n");
+
+    assert_eq!(
+        config.registries_by_scope.get("@org").map(String::as_str),
+        Some("https://from-npmrc.example/"),
+    );
+    // The default registry is not declared, so the stored credential still routes it.
+    assert_eq!(config.registry, "https://private.example/");
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://private.example/@org%2Fpkg", Some("@org/pkg"))
+            .as_deref(),
+        Some("Bearer stored-org-token"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://from-npmrc.example/@org%2Fpkg", Some("@org/pkg")),
+        None,
+    );
+}
+
+/// The trusted `.npmrc` an `npmrcAuthFile` names reaches the bootstrap
+/// cascade, so its declared registry holds the stored credential's route
+/// back there too.
+#[test]
+pub fn an_npmrc_registry_beats_the_global_auth_file_in_the_bootstrap() {
     fake_env!(load_with_fake_env);
     let xdg = tempdir().expect("xdg tempdir");
     let config_dir = xdg.path().join("pnpm");
     fs::create_dir_all(&config_dir).expect("create config dir");
     fs::write(config_dir.join("config.yaml"), STORED_LOGIN).expect("write global config.yaml");
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("custom-npmrc");
+    fs::write(&auth_file, "registry=https://user-choice.example/\n").expect("write auth file");
 
     let project = tempdir().expect("project tempdir");
-    fs::write(project.path().join(".npmrc"), "@org:registry=https://from-npmrc.example/\n")
-        .expect("write .npmrc");
-    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
+    ]);
 
     let config = load_with_fake_env(project.path());
 
+    assert_eq!(config.registry, "https://user-choice.example/");
+    assert_eq!(config.package_manager_bootstrap.registry, "https://user-choice.example/");
+    let bootstrap_headers = &config.package_manager_bootstrap.auth_headers;
     assert_eq!(
-        config.registries_by_scope.get("@org").map(String::as_str),
-        Some("https://private.example/"),
+        bootstrap_headers.for_url("https://private.example/@pnpm%2Fexe").as_deref(),
+        Some("Bearer stored-token"),
     );
+    assert_eq!(bootstrap_headers.for_url("https://user-choice.example/@pnpm%2Fexe"), None);
 }
 
 /// The older `registries: { default: … }` spelling names the default

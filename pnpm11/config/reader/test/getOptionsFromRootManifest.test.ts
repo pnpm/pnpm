@@ -1,3 +1,4 @@
+import path from 'node:path'
 import util from 'node:util'
 
 import { afterEach, expect, test } from '@jest/globals'
@@ -18,6 +19,35 @@ test('getOptionsFromPnpmSettings() replaces env variables in settings', () => {
     '${PNPM_TEST_KEY}': '${PNPM_TEST_VALUE}',
   } as any) as any // eslint-disable-line
   expect(options.foo).toBe('bar')
+})
+
+test.each([
+  ['./scripts/shell.sh', path.join('/workspace/root', 'scripts/shell.sh')],
+  ['../scripts/shell.sh', path.join('/workspace/root', '../scripts/shell.sh')],
+  ['scripts/shell.sh', path.join('/workspace/root', 'scripts/shell.sh')],
+  ['scripts\\shell.cmd', path.join('/workspace/root', 'scripts\\shell.cmd')],
+  ['bash', 'bash'],
+  ['/usr/bin/bash', '/usr/bin/bash'],
+])('getOptionsFromPnpmSettings() resolves path-like scriptShell %s against the workspace root', (scriptShell, expected) => {
+  const options = getOptionsFromPnpmSettings('/workspace/root', { scriptShell } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe(expected)
+})
+
+test('getOptionsFromPnpmSettings() leaves relative scriptShell unresolved without a workspace root', () => {
+  const options = getOptionsFromPnpmSettings(undefined, { scriptShell: './scripts/shell.sh' } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe('./scripts/shell.sh')
+})
+
+const testOnWindows = process.platform === 'win32' ? test : test.skip
+
+testOnWindows.each([
+  ['C:\\tools\\bash.exe'],
+  ['\\\\server\\share\\bash.exe'],
+  ['\\tools\\bash.exe'],
+  ['/tools/bash.exe'],
+])('getOptionsFromPnpmSettings() preserves Windows absolute scriptShell %s', (scriptShell) => {
+  const options = getOptionsFromPnpmSettings('C:\\workspace\\root', { scriptShell } as unknown as PnpmSettings)
+  expect(options.scriptShell).toBe(scriptShell)
 })
 
 test('getOptionsFromPnpmSettings() ignores env variables inside registries values', () => {

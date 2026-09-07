@@ -12,7 +12,7 @@ use super::{
     ci::CiArgs,
     clean::CleanArgs,
     completion::{CompletionArgs, CompletionServerArgs},
-    config::{ConfigArgs, ConfigGetArgs, ConfigSetArgs},
+    config::{ConfigArgs, ConfigGetAliasArgs, ConfigSetAliasArgs},
     create::CreateArgs,
     dedupe::DedupeArgs,
     deploy::DeployArgs,
@@ -46,6 +46,7 @@ use super::{
     patch_remove::PatchRemoveArgs,
     peers::PeersArgs,
     ping::PingArgs,
+    pipeline::PipelineArgs,
     pkg::PkgArgs,
     prefix::PrefixArgs,
     prune::PruneArgs,
@@ -129,6 +130,15 @@ pub struct CliArgs {
     /// before or after the subcommand, like every other rc-option.
     #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
+
+    /// Whether `--dir` came from the command line rather than from its
+    /// default. pnpm keeps that distinction: a `--dir` it was given is
+    /// taken as is, while the default resolves to the local prefix and
+    /// `init` scaffolds in the process cwd. `clap` cannot report it
+    /// through a derived field, so the entry point fills it in from the
+    /// parsed matches.
+    #[clap(skip)]
+    pub dir_from_command_line: bool,
 
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
@@ -410,6 +420,26 @@ impl CliArgs {
         }
     }
 
+    /// Resolve a `--dir` the command line did not give to pnpm's local
+    /// prefix: the nearest ancestor of the process cwd that holds a
+    /// manifest, a `node_modules`, or a `pnpm-workspace.yaml`. pnpm's
+    /// `config.dir` is that prefix, so a command run from a plain
+    /// subdirectory of a project acts on the project rather than on the
+    /// subdirectory. Call before anything reads `--dir`.
+    ///
+    /// A cwd that cannot be read leaves `--dir` at its default, which the
+    /// canonicalization in [`Self::run`] then reports on.
+    pub fn apply_local_prefix(&mut self) -> miette::Result<()> {
+        if self.dir_from_command_line {
+            return Ok(());
+        }
+        let Ok(cwd) = std::env::current_dir() else {
+            return Ok(());
+        };
+        self.dir = super::prefix::find_local_prefix(&cwd)?;
+        Ok(())
+    }
+
     /// Apply `--workspace-root` / `-w`: point `--dir` at the workspace
     /// root so the command runs on the root project. Call after
     /// [`Self::promote_recursive_for_filter`] and before anything reads
@@ -441,6 +471,9 @@ impl CliArgs {
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
         self.dir = workspace_dir;
+        // pnpm's parser writes the workspace root into `cliOptions.dir`, so
+        // `-w` also decides where `init` scaffolds.
+        self.dir_from_command_line = true;
         Ok(())
     }
 
@@ -645,6 +678,11 @@ pub enum CliCommand {
     Test(ScriptShortcutArgs),
     /// Runs a defined package script.
     Run(RunArgs),
+    /// Runs a named pipeline of workspace tasks the way a CI run would:
+    /// a frozen install, affected-since-base selection, the task graph in
+    /// dependency order without bailing, and cached task results restored
+    /// instead of re-run.
+    Pipeline(PipelineArgs),
     /// Run a shell command in the context of a project.
     Exec(ExecArgs),
     /// Run a package in a temporary environment.
@@ -696,10 +734,10 @@ pub enum CliCommand {
     Config(ConfigArgs),
     /// Print the config value for the provided key. Shorthand for
     /// `pnpm config get`.
-    Get(ConfigGetArgs),
+    Get(ConfigGetAliasArgs),
     /// Set the config key to the value provided. Shorthand for
     /// `pnpm config set`.
-    Set(ConfigSetArgs),
+    Set(ConfigSetAliasArgs),
     /// Manages your package.json.
     Pkg(PkgArgs),
     /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
@@ -800,6 +838,7 @@ impl CliCommand {
             self,
             CliCommand::Install(_)
                 | CliCommand::InstallTest(_)
+                | CliCommand::Import(_)
                 | CliCommand::List(_)
                 | CliCommand::Ll(_)
                 | CliCommand::Why(_)

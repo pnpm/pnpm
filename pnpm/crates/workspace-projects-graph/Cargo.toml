@@ -17,6 +17,7 @@ pnpm-workspace-spec           = { workspace = true }
 
 indexmap    = { workspace = true }
 node-semver = { workspace = true }
+rayon       = { workspace = true }
 
 [lints]
 workspace = true

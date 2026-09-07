@@ -57,3 +57,27 @@ export const DEFAULT_OPTS = {
   workspaceConcurrency: 4,
   virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
 }
+
+/**
+ * Pins both terminal streams to `isTTY`, so a test exercises the interactive
+ * or the non-interactive path whether or not the suite itself runs on a
+ * terminal. Returns the restore function.
+ */
+export function overrideTty (isTTY: boolean): () => void {
+  const originalStdin = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
+  const originalStdout = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
+  Object.defineProperty(process.stdin, 'isTTY', { value: isTTY, configurable: true })
+  Object.defineProperty(process.stdout, 'isTTY', { value: isTTY, configurable: true })
+  return () => {
+    if (originalStdin) {
+      Object.defineProperty(process.stdin, 'isTTY', originalStdin)
+    } else {
+      delete (process.stdin as { isTTY?: boolean }).isTTY
+    }
+    if (originalStdout) {
+      Object.defineProperty(process.stdout, 'isTTY', originalStdout)
+    } else {
+      delete (process.stdout as { isTTY?: boolean }).isTTY
+    }
+  }
+}

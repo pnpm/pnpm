@@ -1,7 +1,10 @@
+mod compiler_cache;
+
 use super::{
     HostedRevisionDist, HostedRevisionRecord, PeerAddr, RevisionField,
     authentication::{
-        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_method,
+        bearer_credentials, canonical_ip, cidr_contains, cidr_whitelist_allows, is_write_request,
+        token_credentials,
     },
     original_integrity, router_with_auth, tilde_registry, token_timestamp_millis,
 };
@@ -11,6 +14,7 @@ use axum::{
     extract::ConnectInfo,
     http::{Method, Request, StatusCode, header},
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use pnpr_auth::{AuthState, TokenBackend, TokenRecord, UserStore};
 use pnpr_config::Config;
 use pnpr_error::{RegistryError, Result};
@@ -176,14 +180,47 @@ fn cidr_whitelist_allows_requires_some_entry_to_match() {
 // ---------------------------------------------------------------
 
 #[test]
-fn is_write_method_flags_only_mutating_methods() {
-    assert!(is_write_method(&Method::PUT));
-    assert!(is_write_method(&Method::DELETE));
-    assert!(is_write_method(&Method::PATCH));
-    assert!(!is_write_method(&Method::GET));
-    assert!(!is_write_method(&Method::HEAD));
-    assert!(!is_write_method(&Method::OPTIONS));
-    assert!(!is_write_method(&Method::POST)); // resolver reads are POSTs
+fn is_write_request_flags_only_mutating_requests() {
+    assert!(is_write_request(&Method::PUT, "/foo"));
+    assert!(is_write_request(&Method::DELETE, "/foo/-rev/1"));
+    assert!(is_write_request(&Method::PATCH, "/foo"));
+    assert!(!is_write_request(&Method::GET, "/foo"));
+    assert!(!is_write_request(&Method::HEAD, "/foo"));
+    assert!(!is_write_request(&Method::OPTIONS, "/foo"));
+    assert!(!is_write_request(&Method::POST, "/-/pnpr/v0/resolve")); // resolver reads are POSTs
+    // The Python legacy upload API is the one mutating POST.
+    assert!(is_write_request(&Method::POST, "/pypi/legacy/"));
+    assert!(is_write_request(&Method::POST, "/pypi/legacy"));
+    assert!(is_write_request(&Method::POST, "/pypi/~internal/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/~pypi/legacy/"));
+    assert!(!is_write_request(&Method::POST, "/pypi/simple/legacy/"));
+    // Starting an image blob upload is the other mutating POST.
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads/"));
+    assert!(is_write_request(&Method::POST, "/v2/acme/app/blobs/uploads"));
+    assert!(is_write_request(&Method::POST, "/oci/~images/v2/acme/team/app/blobs/uploads/"));
+    assert!(!is_write_request(&Method::POST, "/v2/acme/app/blobs/sha256-abc"));
+    assert!(!is_write_request(&Method::POST, "/acme/app/blobs/uploads/"));
+}
+
+#[test]
+fn token_credentials_accepts_every_client_token_shape() {
+    assert_eq!(token_credentials("Bearer abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("bearer  abc "), Some("abc".to_string()));
+    // cargo sends the registry token with no scheme at all.
+    assert_eq!(token_credentials("abc"), Some("abc".to_string()));
+    assert_eq!(token_credentials("  "), None);
+    // `Basic` carries the token as the password. twine and pip pair it with
+    // pypi.org's `__token__` user, docker and podman with the name the user
+    // typed at login, so the username is not what is checked.
+    let basic = |pair: &str| format!("Basic {}", BASE64_STANDARD.encode(pair));
+    assert_eq!(token_credentials(&basic("__token__:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("alice:abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic(":abc")), Some("abc".to_string()));
+    assert_eq!(token_credentials(&basic("__token__:")), None);
+    assert_eq!(token_credentials(&basic("alice:")), None);
+    assert_eq!(token_credentials("Basic not-base64!"), None);
+    assert_eq!(token_credentials("Digest abc"), None);
 }
 
 #[test]
@@ -300,10 +337,10 @@ async fn team_tokens_reach_package_authorization() {
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
     use pnpr_policy::{AccessToken, Identity};
-    use pnpr_registry::PackagePattern;
+    use pnpr_registry::{Ecosystem, PackagePattern};
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
-            pattern: PackagePattern::parse("@team/*").unwrap(),
+            pattern: PackagePattern::parse("@team/*", Ecosystem::Npm).unwrap(),
             access: Some(AccessList::new(vec![AccessToken::Team {
                 name: "platform".to_string(),
                 members: ["alice".to_string()].into(),
@@ -421,7 +458,7 @@ fn access_log_uri_redacts_the_logout_token_segment() {
     );
     // Everything else is logged verbatim, query string included.
     assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
-    assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
+    assert_eq!(redact("/-/npm/v1/search?text=foo"), "/-/npm/v1/search?text=foo");
 }
 
 // --------------------------------------------------------------------

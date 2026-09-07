@@ -112,7 +112,11 @@ export function getHoistableOptionalPeers (
     // version body getPeerVersionRange extracts; one with no version body
     // yields `*` and leaves them unbounded.
     const rootBareSpecifier = findWorkspaceRootDep(workspaceRootDeps, missingOptionalPeerName)?.normalizedBareSpecifier
-    const rootRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
+    const rootSpecifierRange = rootBareSpecifier != null ? semver.validRange(getPeerVersionRange(rootBareSpecifier)) : null
+    // A disjoint specifier would bound them down to none, and the importer would then fall back to the root's own out-of-range version.
+    const rootRange = rootSpecifierRange != null && ranges.every(range => semver.validRange(range) != null && semver.intersects(rootSpecifierRange, range))
+      ? rootSpecifierRange
+      : null
 
     let maxSatisfyingVersion: string | undefined
     for (const [version, selector] of Object.entries(allPreferredVersions[missingOptionalPeerName])) {

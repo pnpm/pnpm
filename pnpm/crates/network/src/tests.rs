@@ -12,11 +12,11 @@
 //! absolute-form URI and a decoded `Proxy-Authorization` header.
 
 use super::{
-    CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher, NoProxySetting,
-    PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig, origin_of,
-    parse_proxy_url,
+    AuthHeaders, CappedDnsResolver, ForInstallsError, NetworkSettings, NoProxyMatcher,
+    NoProxySetting, PerRegistryTls, ProxyConfig, ProxyError, ThrottledClient, TlsConfig,
+    bundled_root_certs, nerf_dart, origin_of, parse_proxy_url, percent_decode_str,
 };
-use crate::proxy::{percent_decode_str, strip_userinfo};
+use crate::proxy::strip_userinfo;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use reqwest::{
     Url,
@@ -97,6 +97,41 @@ async fn capped_dns_resolver_limits_concurrency() {
     }
     assert_eq!(active.load(Ordering::SeqCst), 0);
     assert_eq!(maximum_active.load(Ordering::SeqCst), 4);
+}
+
+/// Fetches through a client built the way installs build theirs, so the
+/// request goes through the resolver `configure_dns` wires in. The
+/// server listens on a loopback IP but is addressed as `localhost`, a
+/// name the platform's `getaddrinfo` answers from the host's own tables
+/// on every OS.
+#[tokio::test]
+async fn install_client_resolves_hostnames_through_the_system_resolver() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/by-hostname")
+        .expect(1)
+        .with_status(200)
+        .with_body("resolved")
+        .create_async()
+        .await;
+    let port = server.socket_address().port();
+
+    let client = ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("default install client builds");
+    let guard = client.acquire().await;
+    let resp = guard
+        .get(format!("http://localhost:{port}/by-hostname"))
+        .send()
+        .await
+        .expect("localhost resolves and connects");
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text().await.expect("body"), "resolved");
+    mock.assert_async().await;
 }
 
 fn list(entries: &[&str]) -> NoProxySetting {
@@ -487,6 +522,58 @@ async fn authorization_is_retained_on_same_origin_redirect() {
 }
 
 #[tokio::test]
+async fn secure_auth_is_re_evaluated_for_each_redirect_target() {
+    let mut target = mockito::Server::new_async().await;
+    let target_mock = target
+        .mock("GET", "/final")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
+        .match_header("authorization", mockito::Matcher::Missing)
+        .with_status(200)
+        .with_body("ok")
+        .expect(1)
+        .create_async()
+        .await;
+    let mut registry = mockito::Server::new_async().await;
+    let start_mock = registry
+        .mock("GET", "/start")
+        .match_header("accept", "application/vnd.pypi.simple.v1+json")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(302)
+        .with_header("location", "/same-origin")
+        .expect(1)
+        .create_async()
+        .await;
+    let same_origin_mock = registry
+        .mock("GET", "/same-origin")
+        .match_header("authorization", "Bearer registry-token")
+        .with_status(302)
+        .with_header("location", &format!("{}/final", target.url()))
+        .expect(1)
+        .create_async()
+        .await;
+    let auth_headers = AuthHeaders::from_creds_map([(
+        nerf_dart(&registry.url()),
+        "Bearer registry-token".to_string(),
+    )]);
+
+    let response = ThrottledClient::default()
+        .get_bytes_with_secure_auth_and_accept(
+            &format!("{}/start", registry.url()),
+            &auth_headers,
+            Some("application/vnd.pypi.simple.v1+json"),
+        )
+        .await
+        .expect("follow redirects with per-target authentication");
+
+    assert_eq!(response.status, 200);
+    assert_eq!(response.body, b"ok");
+    assert_eq!(response.url, format!("{}/final", target.url()));
+    start_mock.assert_async().await;
+    same_origin_mock.assert_async().await;
+    target_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn no_redirect_client_returns_the_first_redirect_response() {
     let mut registry = mockito::Server::new_async().await;
     let start_mock = registry
@@ -531,11 +618,15 @@ async fn from_clients_uses_the_supplied_no_redirect_configuration() {
         .create_async()
         .await;
     let final_mock = registry.mock("GET", "/final").expect(0).create_async().await;
+    // Bundled roots only: a sibling test may have pointed `SSL_CERT_FILE` at
+    // an empty bundle, which makes a platform-verifier client unbuildable.
     let client = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("ordinary-client")
         .build()
         .expect("build ordinary client");
     let client_without_redirects = reqwest::Client::builder()
+        .tls_certs_only(bundled_root_certs().iter().cloned())
         .user_agent("strict-client")
         .redirect(reqwest::redirect::Policy::none())
         .build()
@@ -730,27 +821,28 @@ fn for_installs_with_multiple_ca_pems_builds() {
     .expect("multiple CA PEMs build");
 }
 
+// Regression for <https://github.com/pnpm/pnpm/issues/14646>: an
+// unreadable `ca` entry contributes no trust anchor and the client
+// still builds, the way Node ignores CA material it cannot parse.
 #[test]
-fn for_installs_with_invalid_ca_pem_errors_with_index() {
-    // First entry valid, second malformed — the index in the error
-    // must point at the broken one so users with a multi-cert
-    // `cafile` can find which entry failed.
-    let tls = TlsConfig {
-        ca: vec![TEST_CA_PEM.to_string(), "not a pem certificate".to_string()],
-        ..TlsConfig::default()
-    };
-    let err = ThrottledClient::for_installs(
+fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
+    let unreadable = ["", "${CORP_CA}", "not a pem certificate"];
+    for pem in unreadable {
+        assert!(super::parse_ca_bundle(pem.as_bytes()).is_empty(), "{pem:?} parsed as a cert");
+    }
+    let mut ca: Vec<String> = unreadable.iter().map(|pem| (*pem).to_string()).collect();
+    ca.push(TEST_CA_PEM.to_string());
+    // The valid entry must still reach the trust store — dropping it
+    // alongside its unreadable neighbours would break the install a
+    // different way.
+    assert_eq!(ca.iter().flat_map(|pem| super::parse_ca_bundle(pem.as_bytes())).count(), 1);
+    ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &tls,
+        &TlsConfig { ca, ..TlsConfig::default() },
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
-    .expect_err("invalid CA must error");
-    eprintln!("err={err:?}");
-    match err {
-        ForInstallsError::Tls(super::TlsError::InvalidCa { index, .. }) => assert_eq!(index, 1),
-        other => panic!("expected Tls(InvalidCa {{ index: 1 }}), got {other:?}"),
-    }
+    .expect("unreadable CA entries are dropped, not fatal");
 }
 
 #[test]
@@ -991,11 +1083,9 @@ fn for_installs_does_not_retain_per_registry_tls_material() {
 }
 
 #[test]
-fn for_installs_per_registry_invalid_ca_errors() {
-    // A malformed per-registry CA must surface as `InvalidCa` at
-    // build time, same as the top-level path. The `index` in the
-    // error indexes into the merged CA list — which is exactly the
-    // one-element vec carrying the scoped PEM, so `index == 0`.
+fn for_installs_ignores_a_per_registry_ca_that_carries_no_certificate() {
+    // Same tolerance as the top-level path: the override contributes
+    // no trust anchor and the client still builds.
     use crate::RegistryTls;
     use std::collections::HashMap;
     let mut map = HashMap::new();
@@ -1004,17 +1094,62 @@ fn for_installs_per_registry_invalid_ca_errors() {
         RegistryTls { ca: Some("not a pem".to_string()), ..RegistryTls::default() },
     );
     let per_registry = PerRegistryTls::from_map(map);
-    let err = ThrottledClient::for_installs(
+    ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &per_registry,
         &NetworkSettings::default(),
     )
-    .expect_err("must error");
-    eprintln!("err={err:?}");
-    let is_invalid_ca =
-        matches!(err, ForInstallsError::Tls(super::TlsError::InvalidCa { index: 0, .. }));
-    assert!(is_invalid_ca, "err={err:?}: expected Tls(InvalidCa {{ index: 0 }})");
+    .expect("unreadable per-registry CA is dropped, not fatal");
+}
+
+#[test]
+fn a_blank_scoped_cert_shadows_the_top_level_identity() {
+    // pnpm spreads the per-registry entry over the top-level one, so a
+    // blank `//reg/:cert=` overrides rather than falls back. Letting
+    // it fall back would pair the top-level certificate with the
+    // scoped key and send an identity the user never configured for
+    // that registry.
+    use crate::RegistryTls;
+    let top = TlsConfig {
+        cert: Some(TEST_CLIENT_PKCS1_CERT.to_string()),
+        key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
+        ..TlsConfig::default()
+    };
+    let scoped = RegistryTls { cert: Some(String::new()), ..RegistryTls::default() };
+    assert_eq!(super::merge_tls(&top, &scoped).cert.as_deref(), Some(""));
+}
+
+#[test]
+fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
+    // A per-registry `:ca` / `:cafile` arrives as one buffer, so a
+    // single corrupt block must not cost the registry every custom
+    // root in it.
+    const CORRUPT: &str = "-----BEGIN CERTIFICATE-----\nnot-base64!!!\n-----END CERTIFICATE-----";
+    let bundle = format!("{TEST_CA_PEM}\n{CORRUPT}\n{TEST_CA_PEM}\n");
+    assert_eq!(super::parse_ca_bundle(bundle.as_bytes()).len(), 2);
+    assert_eq!(super::parse_ca_bundle(CORRUPT.as_bytes()).len(), 0);
+    assert_eq!(super::parse_ca_bundle(TEST_CA_PEM.as_bytes()).len(), 1);
+}
+
+#[test]
+fn for_installs_ignores_a_blank_client_identity() {
+    // `cert=` / `key=` lines with nothing after them read as unset to
+    // pnpm, which checks them for truthiness before handing them to
+    // undici. Pairing a blank `cert` with a real `key` must not build
+    // an identity rustls then rejects.
+    let tls = TlsConfig {
+        cert: Some("   ".to_string()),
+        key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
+        ..TlsConfig::default()
+    };
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("a blank cert leaves the identity unset");
 }
 
 #[tokio::test]
@@ -1233,6 +1368,66 @@ fn for_installs_rejects_zero_network_concurrency() {
     assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.
+#[tokio::test]
+async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
+    const CHUNKS: usize = 6;
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/runtime.tar.gz")
+        .with_chunked_body(|writer| {
+            for _ in 0..CHUNKS {
+                std::thread::sleep(Duration::from_millis(60));
+                writer.write_all(b"chunk")?;
+            }
+            Ok(())
+        })
+        .create_async()
+        .await;
+    let client = client_with_fetch_timeout(Duration::from_millis(200));
+    let url = format!("{}/runtime.tar.gz", server.url());
+
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let body = response.bytes().await.expect("a body that keeps arriving must not time out");
+
+    assert_eq!(body.len(), CHUNKS * "chunk".len());
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_stalled_body_fails_after_the_fetch_timeout() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/runtime.tar.gz")
+        .with_chunked_body(|writer| {
+            writer.write_all(b"chunk")?;
+            std::thread::sleep(Duration::from_millis(600));
+            Ok(())
+        })
+        .create_async()
+        .await;
+    let client = client_with_fetch_timeout(Duration::from_millis(100));
+    let url = format!("{}/runtime.tar.gz", server.url());
+
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let error = response.bytes().await.expect_err("a stalled body must time out");
+
+    assert!(error.is_timeout(), "got {error:?}");
+}
+
+fn client_with_fetch_timeout(fetch_timeout: Duration) -> ThrottledClient {
+    let settings = NetworkSettings { fetch_timeout, ..NetworkSettings::default() };
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect("custom fetch timeout builds")
+}
+
 #[test]
 fn for_installs_falls_back_on_unencodable_user_agent() {
     // A user-agent containing a control character cannot be encoded as
@@ -1399,4 +1594,95 @@ async fn no_max_sockets_leaves_per_origin_uncapped() {
     )
     .await
     .expect("a second socket to the same origin should not block without maxSockets");
+}
+
+#[tokio::test]
+async fn streamed_responses_retain_both_permits_until_consumed_or_dropped() {
+    use futures_util::StreamExt;
+
+    let mut server = mockito::Server::new_async().await;
+    let mock =
+        server.mock("GET", "/artifact").with_body("artifact bytes").expect(3).create_async().await;
+    let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let initial_permits = client.semaphore.available_permits();
+    let url = format!("{}/artifact", server.url());
+    for mode in 0..3 {
+        let guard = client.acquire_for_url(&url).await;
+        let response = guard.get(&url).send().await.unwrap();
+        let response = guard.retain_for_body(response, Duration::from_secs(30));
+        assert_eq!(response.url().as_str(), url);
+        assert_eq!(response.content_length(), Some(14));
+        assert_eq!(client.semaphore.available_permits(), initial_permits - 1);
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
+                .await
+                .is_err(),
+        );
+        if mode == 0 {
+            assert_eq!(response.bytes().await.unwrap(), "artifact bytes");
+        } else {
+            let mut stream = Box::pin(response.bytes_stream());
+            assert_eq!(stream.next().await.unwrap().unwrap(), "artifact bytes");
+            if mode == 1 {
+                assert!(stream.next().await.is_none());
+                assert_eq!(client.semaphore.available_permits(), initial_permits);
+            }
+            drop(stream);
+        }
+        let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+            .await
+            .unwrap();
+        drop(guard);
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn stalled_consumers_release_permits_on_deadline_or_cancellation() {
+    use futures_util::StreamExt;
+
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/artifact")
+        .with_body(vec![0; 2 * 1024 * 1024])
+        .expect(2)
+        .create_async()
+        .await;
+    let url = format!("{}/artifact", server.url());
+    let client = ThrottledClient::new_for_installs().with_max_sockets_per_host(Some(1));
+    let initial_permits = client.semaphore.available_permits();
+    for cancel in [false, true] {
+        let guard = client.acquire_for_url(&url).await;
+        let response = guard.get(&url).send().await.unwrap();
+        let budget = if cancel { Duration::from_secs(30) } else { Duration::from_millis(100) };
+        let mut stream = Box::pin(guard.retain_for_body(response, budget).bytes_stream());
+        stream.next().await.unwrap().unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_millis(20), client.acquire_for_url(&url))
+                .await
+                .is_err(),
+        );
+        if cancel {
+            drop(stream);
+        } else {
+            let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+                .await
+                .expect("deadline releases a stalled stream's permits");
+            drop(guard);
+            loop {
+                if let Err(error) =
+                    stream.next().await.expect("deadline must surface as a body error")
+                {
+                    assert_eq!(error.kind(), std::io::ErrorKind::TimedOut);
+                    break;
+                }
+            }
+        }
+        let guard = tokio::time::timeout(Duration::from_secs(1), client.acquire_for_url(&url))
+            .await
+            .unwrap();
+        drop(guard);
+        assert_eq!(client.semaphore.available_permits(), initial_permits);
+    }
+    mock.assert_async().await;
 }

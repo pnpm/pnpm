@@ -4,7 +4,8 @@ use miette::Diagnostic;
 use pnpm_cmd_shim::{
     BinOrigin, FsCreateDirAll, FsEnsureExecutableBits, FsReadDir, FsReadFile, FsReadHead,
     FsReadToString, FsSetExecutable, FsWalkFiles, FsWrite, Host, LinkBinsError, LinkBinsOptions,
-    PackageBinSource, collect_packages_in_modules_dir, link_bins_of_packages,
+    PackageBinSource, ShimTargetCache, collect_packages_in_modules_dir, link_bins_of_packages,
+    link_bins_of_packages_cached,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, SnapshotEntry};
@@ -92,6 +93,134 @@ pub fn link_direct_dep_bins_resolved(
     let deps: Vec<(&str, Option<&Path>)> =
         deps.iter().map(|(name, target)| (name.as_str(), Some(target.as_path()))).collect();
     link_named_dep_bins(modules_dir, &deps, link_options)
+}
+
+/// One direct dep of [`link_direct_dep_bins_prefetched`]'s importer:
+/// the alias under `node_modules/`, the symlink's destination, and the
+/// resolved snapshot key (`None` for `link:` workspace siblings, which
+/// have no lockfile row).
+pub type PrefetchedDepBin = (String, PathBuf, Option<PackageKey>);
+
+/// The lockfile- and store-index-derived facts that let an importer's
+/// bin pass skip per-dep disk IO, shared across every importer of one
+/// symlink pass.
+pub struct PrefetchedBinLookup<'a> {
+    /// Lockfile `hasBin` gate, from [`build_has_bin_set`]: `Some(set)`
+    /// is authoritative (a dep whose metadata key is absent declares no
+    /// bin and is skipped without IO), `None` means the lockfile had no
+    /// `packages:` section and every dep must be probed.
+    has_bin: Option<HashSet<PackageKey>>,
+    /// Parsed manifests recovered from the store-index prefetch. A hit
+    /// replaces the per-importer `package.json` read; a miss falls back
+    /// to disk.
+    package_manifests: Option<&'a PackageManifests>,
+    /// Per-snapshot `requiresBuild` flags from the same prefetch. The
+    /// no-IO path is only sound for a snapshot known not to run build
+    /// scripts: a persisted global-virtual-store slot that was built may
+    /// carry a `package.json` its scripts rewrote, and only the disk
+    /// read sees those bins. A missing entry counts as "may build".
+    requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
+    /// Per-target shim probe memo, shared so each virtual-store bin
+    /// file's shebang read and executable-bit fix-up run once per pass
+    /// rather than once per importer.
+    shim_cache: ShimTargetCache,
+}
+
+impl<'a> PrefetchedBinLookup<'a> {
+    #[must_use]
+    pub fn new(
+        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+        package_manifests: Option<&'a PackageManifests>,
+        requires_build: Option<&'a crate::RequiresBuildBySnapshot>,
+    ) -> Self {
+        PrefetchedBinLookup {
+            has_bin: build_has_bin_set(packages),
+            package_manifests,
+            requires_build,
+            shim_cache: ShimTargetCache::default(),
+        }
+    }
+}
+
+/// [`link_direct_dep_bins_resolved`] with the per-dep `package.json`
+/// read replaced by lockfile metadata for snapshots the prefetch
+/// proved build-free: those whose lockfile row says `hasBin: false`
+/// are skipped without touching the filesystem, and those with bins
+/// take their manifest from the store-index prefetch. Deps outside the
+/// lookup's reach (`link:` siblings, snapshots that may run build
+/// scripts, prefetch misses, a lockfile without a `packages:` section)
+/// keep the `NotFound`-tolerant disk read.
+pub fn link_direct_dep_bins_prefetched(
+    modules_dir: &Path,
+    deps: &[PrefetchedDepBin],
+    lookup: &PrefetchedBinLookup<'_>,
+    link_options: &LinkBinsOptions,
+) -> Result<(), LinkBinsError> {
+    let bin_sources: Vec<PackageBinSource> = deps
+        .par_iter()
+        .filter_map(|(name, target, snapshot_key)| {
+            // The no-IO path only covers snapshots the prefetch proved
+            // build-free (see [`PrefetchedBinLookup::requires_build`]);
+            // anything else reads the on-disk manifest, which reflects
+            // whatever a build script did to it.
+            if let Some(snapshot_key) = snapshot_key
+                && lookup.requires_build.and_then(|flags| flags.get(snapshot_key)) == Some(&false)
+            {
+                let metadata_key = snapshot_key.without_peer();
+                if let Some(has_bin) = &lookup.has_bin
+                    && !has_bin.contains(&metadata_key)
+                {
+                    return None;
+                }
+                if let Some(manifest) =
+                    lookup.package_manifests.and_then(|manifests| manifests.get(&metadata_key))
+                {
+                    return Some(Ok(PackageBinSource::new(
+                        modules_dir.join(name),
+                        Arc::clone(manifest),
+                    )
+                    .with_resolved_location(target.clone())));
+                }
+            }
+            read_dep_bin_source(modules_dir, name, target)
+        })
+        .collect::<Result<_, _>>()?;
+    if bin_sources.is_empty() {
+        return Ok(());
+    }
+    link_bins_of_packages_cached::<Host>(
+        &bin_sources,
+        &modules_dir.join(".bin"),
+        link_options,
+        &lookup.shim_cache,
+    )
+}
+
+/// The disk-read arm of [`link_direct_dep_bins_prefetched`], with the
+/// same `NotFound`-tolerant / other-IO-fatal policy as
+/// [`link_direct_dep_bins`].
+fn read_dep_bin_source(
+    modules_dir: &Path,
+    name: &str,
+    target: &Path,
+) -> Option<Result<PackageBinSource, LinkBinsError>> {
+    let location = modules_dir.join(name);
+    let manifest_path = location.join("package.json");
+    let bytes = match fs::read(&manifest_path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            return Some(Err(LinkBinsError::ReadManifest { path: manifest_path, error }));
+        }
+    };
+    let manifest: serde_json::Value = match parse_manifest_bytes(&bytes) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            return Some(Err(LinkBinsError::ParseManifest { path: manifest_path, error }));
+        }
+    };
+    Some(Ok(PackageBinSource::new(location, Arc::new(manifest))
+        .with_resolved_location(target.to_path_buf())))
 }
 
 fn link_named_dep_bins(

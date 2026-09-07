@@ -53,7 +53,7 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
         get_drive_letter(home_dir).expect("home dir is an absolute path with drive letter");
 
     if current_drive == home_drive {
-        return home_dir.join("AppData/Local/pnpm/store");
+        return home_dir.join("AppData").join("Local").join("pnpm").join("store");
     }
 
     PathBuf::from(format!(r"{current_drive}:\.pnpm-store"))
@@ -242,7 +242,7 @@ where
 
 pub fn default_virtual_store_dir() -> PathBuf {
     // TODO: find directory with package.json
-    env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
+    env::current_dir().expect("current directory is unavailable").join("node_modules").join(".pnpm")
 }
 
 /// Default for `enableGlobalVirtualStore`: `false` — every project keeps
@@ -327,7 +327,7 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
 /// can't drift apart. `pnpm bump` keeps this constant in sync with the
 /// version of the npm wrapper package (`pnpm/npm/pnpm/package.json`);
 /// the release workflow verifies the two match before building.
-pub const PNPM_VERSION: &str = "12.1.0";
+pub const PNPM_VERSION: &str = "12.3.4";
 
 /// The command that installs pnpm with the standalone script, as documented
 /// at <https://pnpm.io/installation>: the PowerShell form on Windows, the

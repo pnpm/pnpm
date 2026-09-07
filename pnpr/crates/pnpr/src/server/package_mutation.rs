@@ -6,9 +6,9 @@ use axum::{
 use serde_json::{Value, json};
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_storage::{PACKUMENT_WRITE_RETRIES, PackumentUpdate, PackumentWrite, publish::now_iso};
+use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, DocumentWrite, publish::now_iso};
 
 use pnpr_upstream::tarball_basename;
 
@@ -33,7 +33,7 @@ pub(super) async fn update_packument(
     raw_name: &str,
     body: &[u8],
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -76,7 +76,7 @@ pub(super) async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    let hosted_packument = match storage.read_hosted_packument_for_update(&name).await {
+    let hosted_packument = match storage.read_hosted_document_for_update(&name).await {
         Ok(Some(packument)) => packument,
         Ok(None) => {
             return RegistryError::BadRequest {
@@ -101,12 +101,12 @@ pub(super) async fn update_packument(
         Err(err) => return RegistryError::Json(err).into_response(),
     };
     match storage
-        .write_hosted_packument_if_current(&name, &bytes, Some(&hosted_packument.version))
+        .write_hosted_document_if_current(&name, &bytes, Some(&hosted_packument.version))
         .await
     {
-        Ok(PackumentWrite::Written) => {}
-        Ok(PackumentWrite::Conflict) => {
-            return RegistryError::PackumentWriteConflict { package: name.as_str().to_string() }
+        Ok(DocumentWrite::Written) => {}
+        Ok(DocumentWrite::Conflict) => {
+            return RegistryError::DocumentWriteConflict { package: name.as_str().to_string() }
                 .into_response();
         }
         Err(err) => return err.into_response(),
@@ -140,7 +140,7 @@ pub(super) async fn update_packument(
 /// restores). Must hold the package lock so a concurrent publish can't race it.
 fn enforce_published_version_immutability(
     hosted: &Value,
-    name: &PackageName,
+    name: &CanonicalPackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
     // None (no versions to enforce) means "accept", not "error" here.
@@ -234,7 +234,7 @@ fn enforce_published_version_immutability(
 /// [`pnpr_upstream::rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
 /// one, otherwise the version-derived canonical name the rewrite falls back to.
 /// Returns `None` when the manifest carries no string `dist.tarball` to serve.
-fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {
+fn served_tarball_basename(manifest: &Value, pkg: &CanonicalPackageName) -> Option<String> {
     let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
     if let Some(basename) = tarball_basename(url) {
         return Some(basename.to_owned());
@@ -264,7 +264,7 @@ pub(super) async fn delete_package(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -309,7 +309,7 @@ pub(super) async fn delete_tarball(
     raw_name: &str,
     filename: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -334,7 +334,7 @@ pub(super) async fn delete_tarball(
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Err(err) = hosted_storage(state, Some(&org)).remove_tarball(&name, &canonical).await {
+    if let Err(err) = hosted_storage(state, Some(&org)).remove_blob(&name, &canonical).await {
         return err.into_response();
     }
     let body = json!({ "ok": true });
@@ -355,7 +355,7 @@ pub(super) async fn get_dist_tags(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -433,7 +433,7 @@ async fn update_dist_tag<Mutate>(
 where
     Mutate: FnMut(&mut serde_json::Map<String, Value>) -> Result<(), RegistryError>,
 {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -462,7 +462,7 @@ where
 
     let _ = tag; // the tag name is captured by the `mutate` closure.
     let outcome = storage
-        .update_hosted_packument_with_retry(&name, PACKUMENT_WRITE_RETRIES, |existing_bytes| {
+        .update_hosted_document_with_retry(&name, DOCUMENT_WRITE_RETRIES, |existing_bytes| {
             // A hosted org has no upstream, so a dist-tag change starts from the
             // org's own packument; a package it does not host can't be tagged.
             let Some(bytes) = existing_bytes else {
@@ -498,8 +498,8 @@ where
         })
         .await;
     match outcome {
-        Ok(PackumentUpdate::Written) => {}
-        Ok(PackumentUpdate::NotFound) => return not_found(),
+        Ok(DocumentUpdate::Written) => {}
+        Ok(DocumentUpdate::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     }
     let body = json!({ "ok": true });

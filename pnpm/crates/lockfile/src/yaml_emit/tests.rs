@@ -101,3 +101,35 @@ fn key_length_is_measured_in_utf16_code_units() {
     let yaml = to_string(json!({ &key: { "b": "c" } }));
     assert_eq!(yaml, format!("? {key}\n: b: c\n"));
 }
+
+/// A section past [`super::PARALLEL_ENTRY_THRESHOLD`] takes the
+/// chunked parallel render (and the parallel deep-sort), which must
+/// stitch to the same bytes the serial path produces: entries in key
+/// order, blank-line separated, inner keys sorted.
+#[test]
+fn a_large_section_renders_identically_through_the_parallel_path() {
+    let count = super::PARALLEL_ENTRY_THRESHOLD + 9;
+    let mut packages = serde_json::Map::new();
+    // Reverse insertion order, so unsorted input is visible if either
+    // parallel stage loses the ordering.
+    for index in (0..count).rev() {
+        packages
+            .insert(format!("pkg-{index:03}@1.0.0"), json!({ "version": "1.0.0", "dev": false }));
+    }
+    let yaml = to_string(serde_json::Value::Object(
+        [
+            ("lockfileVersion".to_string(), json!("9.0")),
+            ("packages".to_string(), serde_json::Value::Object(packages)),
+        ]
+        .into_iter()
+        .collect(),
+    ));
+
+    use std::fmt::Write;
+    let mut expected = String::from("lockfileVersion: '9.0'\n\npackages:\n");
+    for index in 0..count {
+        write!(expected, "\n  pkg-{index:03}@1.0.0:\n    version: 1.0.0\n    dev: false\n")
+            .expect("write to a String is infallible");
+    }
+    assert_eq!(yaml, expected);
+}

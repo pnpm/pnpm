@@ -275,6 +275,108 @@ fn error_action_follows_the_dependency_state() {
     drop(root);
 }
 
+/// Dedicated workspace lockfiles record one project in each workspace
+/// state file. The pre-run check must validate the project being run,
+/// rather than comparing that state to every workspace package.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_check_only_the_active_workspace_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let root_marker = workspace.join("root-marker.txt");
+    write_manifest(&workspace, &root_marker);
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let project_marker = project.join("project-marker.txt");
+    write_manifest(&project, &project_marker);
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_in(&workspace).with_args(["run", "hello"]).assert().success();
+    pacquet_in(&project).with_args(["run", "hello"]).assert().success();
+    assert!(root_marker.exists(), "the root script must run");
+    assert!(project_marker.exists(), "the workspace script must run");
+
+    // The check is scoped to the active project, not skipped: a
+    // dependency the project's own lockfile does not carry still fails.
+    write_manifest_with_dependency_groups(
+        &project,
+        &project_marker,
+        json!({ "dependencies": { "@pnpm.e2e/foo": "100.0.0" } }),
+    );
+    bump_mtime(&project.join("package.json"));
+    let output =
+        pacquet_in(&project).with_args(["run", "hello"]).output().expect("spawn pacquet run");
+    assert!(!output.status.success(), "an out-of-sync project must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error:\n{stderr}",
+    );
+
+    drop(root);
+}
+
+/// A workspace root needs no package manifest of its own. With dedicated
+/// lockfiles the gate reads the manifest of the nested project that owns
+/// the lockfile and the state.
+#[cfg(unix)]
+#[test]
+fn separate_lockfiles_allow_a_nested_project_without_a_root_manifest() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\nsharedWorkspaceLockfile: false\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+
+    let project = workspace.join("packages/project");
+    fs::create_dir_all(&project).expect("create workspace project");
+    let marker = project.join("project-marker.txt");
+    write_manifest(&project, &marker);
+
+    pacquet_in(&project).with_arg("install").assert().success();
+    pacquet_in(&project).with_args(["run", "hello"]).assert().success();
+    assert!(marker.exists(), "the nested workspace script must run");
+
+    drop(root);
+}
+
+/// One shared lockfile covers every project, so a command run from a
+/// directory that has no manifest of its own is still checked against
+/// the workspace root's state.
+#[cfg(unix)]
+#[test]
+fn a_shared_lockfile_is_checked_from_a_directory_without_a_manifest() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &workspace.join("marker.txt"));
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        "verifyDepsBeforeRun: error\npackages:\n  - packages/*\n",
+    )
+    .expect("write pnpm-workspace.yaml");
+    let tools = workspace.join("tools");
+    fs::create_dir_all(&tools).expect("create the directory without a manifest");
+
+    let output =
+        pacquet_in(&tools).with_args(["exec", "true"]).output().expect("spawn pacquet exec");
+    assert!(!output.status.success(), "exec before any install must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_VERIFY_DEPS_BEFORE_RUN"),
+        "expected the verify-deps error:\n{stderr}",
+    );
+
+    pacquet.with_arg("install").assert().success();
+    pacquet_in(&tools).with_args(["exec", "true"]).assert().success();
+
+    drop(root);
+}
+
 /// `warn` reports the drift but still runs the script.
 #[cfg(unix)]
 #[test]

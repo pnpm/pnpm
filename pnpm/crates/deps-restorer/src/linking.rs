@@ -102,6 +102,11 @@ pub struct LinkPhaseInputs<'a> {
     pub package_map_project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     pub dependency_groups: &'a [DependencyGroup],
     pub package_manifests: &'a PackageManifests,
+    /// Per-snapshot `requiresBuild` flags from the store-index prefetch,
+    /// gating the importer bin pass's use of `package_manifests` — see
+    /// [`crate::link_direct_dep_bins_prefetched`]. `None` when the
+    /// caller has no prefetch (the fresh-lockfile installer).
+    pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
     pub link_options: &'a LinkBinsOptions,
     /// Anchor for each importer's `node_modules`. The frozen path uses
@@ -211,6 +216,7 @@ pub fn run_link_phase<Reporter: self::Reporter>(
         package_map_project_manifests,
         dependency_groups,
         package_manifests,
+        requires_build_by_snapshot,
         cas_paths_by_pkg_id,
         link_options,
         workspace_root,
@@ -292,6 +298,8 @@ pub fn run_link_phase<Reporter: self::Reporter>(
             public_hoist_targets: public_hoist_targets.as_ref(),
             trusted_importer_ids: Some(trusted_importer_ids),
             link_options,
+            package_manifests: Some(package_manifests),
+            requires_build_by_snapshot,
         }
         .run::<Reporter>()
         .map_err(LinkPhaseError::SymlinkDirectDependencies)?;

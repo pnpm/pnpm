@@ -25,7 +25,7 @@ use std::{
     fmt::Write as _,
     fs,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
 };
 
 /// `<store_dir>/v11/links` — the root every GVS slot hangs off.
@@ -237,7 +237,22 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
     assert!(gvs_root(&store_dir).is_dir(), "the GVS must survive the node_modules wipe");
 
     eprintln!("Frozen reinstall — must reattach from the warm GVS...");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+    let output = pacquet(&workspace)
+        .with_args(["install", "--frozen-lockfile", "--reporter=ndjson"])
+        .output()
+        .expect("run the frozen reinstall");
+    assert_success(&output);
+    let added: Vec<u64> = ndjson_records(&output)
+        .iter()
+        .filter(|record| record["name"] == "pnpm:stats")
+        .filter_map(|record| record["added"].as_u64())
+        .collect();
+    assert_eq!(
+        added,
+        vec![0],
+        "a wiped node_modules loses the current lockfile, but the content-addressed \
+         GVS slots are still authoritative, so nothing may be re-materialized",
+    );
 
     assert_eq!(
         hash_dirs(&version_dir),
@@ -267,6 +282,89 @@ fn reinstall_from_warm_global_virtual_store_after_deleting_node_modules() {
         workspace.join("node_modules/.pnpm/lock.yaml").exists(),
         "the current lockfile must be rewritten",
     );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn concurrent_installs_sharing_a_gvs_do_not_fail_while_linking_bins() {
+    const WORKERS: usize = 8;
+    const REPETITIONS: usize = 20;
+    const PARENT: &str = "@pnpm.e2e/hello-world-js-bin-parent";
+
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+    set_gvs_workspace_yaml(&workspace, "");
+    write_manifest(
+        &workspace,
+        &serde_json::json!({ "@pnpm.e2e/hello-world-js-bin-parent": "1.0.0" }),
+    );
+    pacquet(&workspace).with_arg("install").assert().success();
+
+    let fixture_files =
+        ["package.json", "pnpm-workspace.yaml", ".npmrc", "pnpm-lock.yaml"].map(|name| {
+            let bytes = fs::read(workspace.join(name)).expect("read concurrent-install fixture");
+            (name, bytes)
+        });
+    // Siblings of `workspace`, not children of it: the harness writes
+    // `storeDir` / `cacheDir` as `../pacquet-store` / `../pacquet-cache`, so
+    // only at this depth do all the workers resolve to the one store — and
+    // with it the one GVS whose slots they race over. Nested any deeper they
+    // would each get a private store and the test would pass vacuously.
+    let worker_dirs = (0..WORKERS)
+        .map(|worker| {
+            let dir = root.path().join(format!("concurrent-gvs-{worker}"));
+            fs::create_dir(&dir).expect("create concurrent-install workspace");
+            for (name, bytes) in &fixture_files {
+                fs::write(dir.join(*name), bytes).expect("write concurrent-install fixture");
+            }
+            dir
+        })
+        .collect::<Vec<_>>();
+
+    fs::remove_dir_all(workspace.join("node_modules")).expect("remove priming node_modules");
+    fs::remove_dir_all(gvs_root(&store_dir)).expect("remove priming GVS");
+
+    for repetition in 1..=REPETITIONS {
+        let children = worker_dirs
+            .iter()
+            .enumerate()
+            .map(|(worker, dir)| {
+                let mut command = pacquet(dir);
+                command
+                    .args(["install", "--frozen-lockfile"])
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped());
+                let child = command.spawn().expect("spawn concurrent GVS install");
+                (worker, child)
+            })
+            .collect::<Vec<_>>();
+
+        for (worker, child) in children {
+            let output = child.wait_with_output().expect("wait for concurrent GVS install");
+            assert!(
+                output.status.success(),
+                "worker {worker} failed in repetition {repetition}: {}",
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
+
+        let version_dir = pkg_version_dir(&store_dir, PARENT, "1.0.0");
+        let hash_dir = sole_hash_dir(&version_dir);
+        let shared_bin =
+            pkg_in_slot(&hash_dir, PARENT).join("node_modules/.bin/hello-world-js-bin");
+        assert!(shared_bin.exists(), "the shared GVS bin must remain materialized");
+
+        if repetition < REPETITIONS {
+            for dir in &worker_dirs {
+                fs::remove_dir_all(dir.join("node_modules"))
+                    .expect("remove worker node_modules before the next repetition");
+            }
+            fs::remove_dir_all(gvs_root(&store_dir)).expect("reset GVS before the next repetition");
+        }
+    }
 
     drop((root, mock_instance));
 }
@@ -710,65 +808,135 @@ fn gvs_rebuilds_successfully_after_simulated_build_failure_cleanup() {
 /// (`globalVirtualStore.ts:411`).
 #[test]
 fn needs_build_marker_triggers_reimport_on_next_install() {
+    for with_installability_constraint in [false, true] {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+
+        let dependencies = if with_installability_constraint {
+            let constraint = workspace.join("constraint");
+            fs::create_dir(&constraint).expect("create constrained dependency");
+            fs::write(
+                constraint.join("package.json"),
+                serde_json::json!({
+                    "name": "constraint",
+                    "version": "1.0.0",
+                    "engines": { "node": ">=18" },
+                })
+                .to_string(),
+            )
+            .expect("write constrained dependency manifest");
+            serde_json::json!({
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+                "constraint": "file:./constraint",
+            })
+        } else {
+            serde_json::json!({
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            })
+        };
+        write_manifest(&workspace, &dependencies);
+        let workspace_settings = format!(
+            "{}nodeVersion: 20.0.0\nsideEffectsCache: false\n",
+            allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
+        );
+        set_gvs_workspace_yaml(&workspace, &workspace_settings);
+
+        eprintln!("First install, with the build approved...");
+        pacquet(&workspace).with_arg("install").assert().success();
+
+        let version_dir =
+            pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
+        let pkg = pkg_in_slot(
+            &sole_hash_dir(&version_dir),
+            "@pnpm.e2e/pre-and-postinstall-scripts-example",
+        );
+        let marker = pkg.join(".pnpm-needs-build");
+        let postinstall_artifact = pkg.join("generated-by-postinstall.js");
+        let package_manifest = pkg.join("package.json");
+        let pristine_manifest =
+            fs::read_to_string(&package_manifest).expect("read package manifest");
+        assert!(postinstall_artifact.exists());
+        assert!(!marker.exists());
+
+        eprintln!("Simulating a crash after import but before the build...");
+        fs::write(&marker, "").expect("write the incomplete-build marker");
+        fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
+        corrupt_pristine_file(&package_manifest);
+
+        eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
+        pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
+
+        assert!(!marker.exists(), "the successful retry must remove the marker");
+        assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
+        assert_eq!(
+            fs::read_to_string(&package_manifest).expect("read the restored manifest"),
+            pristine_manifest,
+            "the retry must re-import pristine package files before rebuilding",
+        );
+
+        eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
+        fs::write(&marker, "").expect("write the second incomplete-build marker");
+        fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
+        fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
+        pacquet(&workspace).with_arg("install").assert().success();
+
+        assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
+        assert!(
+            postinstall_artifact.exists(),
+            "the ordinary reinstall must not report up to date before rebuilding",
+        );
+        assert_eq!(
+            fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
+            pristine_manifest,
+            "the ordinary reinstall must re-import the package before rebuilding",
+        );
+
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
+fn orphan_needs_build_marker_does_not_invalidate_repeat_install() {
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
 
-    write_manifest(
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0",
+            },
+            "scripts": {
+                "postinstall": r#"node -e "require('fs').appendFileSync('root-postinstall.txt', 'run\n')""#,
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+    set_gvs_workspace_yaml(
         &workspace,
-        &serde_json::json!({ "@pnpm.e2e/pre-and-postinstall-scripts-example": "1.0.0" }),
+        &allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
     );
-    let workspace_settings = format!(
-        "{}sideEffectsCache: false\n",
-        allow_builds_yaml(&[("@pnpm.e2e/pre-and-postinstall-scripts-example", true)]),
-    );
-    set_gvs_workspace_yaml(&workspace, &workspace_settings);
 
-    eprintln!("First install, with the build approved...");
     pacquet(&workspace).with_arg("install").assert().success();
 
     let version_dir =
         pkg_version_dir(&store_dir, "@pnpm.e2e/pre-and-postinstall-scripts-example", "1.0.0");
-    let pkg =
-        pkg_in_slot(&sole_hash_dir(&version_dir), "@pnpm.e2e/pre-and-postinstall-scripts-example");
-    let marker = pkg.join(".pnpm-needs-build");
-    let postinstall_artifact = pkg.join("generated-by-postinstall.js");
-    let package_manifest = pkg.join("package.json");
-    let pristine_manifest = fs::read_to_string(&package_manifest).expect("read package manifest");
-    assert!(postinstall_artifact.exists());
-    assert!(!marker.exists());
-
-    eprintln!("Simulating a crash after import but before the build...");
-    fs::write(&marker, "").expect("write the incomplete-build marker");
-    fs::remove_file(&postinstall_artifact).expect("remove the build artifact");
-    corrupt_pristine_file(&package_manifest);
-
-    eprintln!("Frozen reinstall with intact project links must rebuild the marked slot...");
-    pacquet(&workspace).with_args(["install", "--frozen-lockfile"]).assert().success();
-
-    assert!(!marker.exists(), "the successful retry must remove the marker");
-    assert!(postinstall_artifact.exists(), "the successful retry must recreate build output");
-    assert_eq!(
-        fs::read_to_string(&package_manifest).expect("read the restored manifest"),
-        pristine_manifest,
-        "the retry must re-import pristine package files before rebuilding",
+    let orphan_pkg = pkg_in_slot(
+        &version_dir.join("0000000000000000000000000000000000000000000000000000000000000000"),
+        "@pnpm.e2e/pre-and-postinstall-scripts-example",
     );
+    fs::create_dir_all(&orphan_pkg).expect("create orphan GVS slot");
+    fs::write(orphan_pkg.join(".pnpm-needs-build"), "").expect("write orphan build marker");
 
-    eprintln!("Marking the slot again to exercise the optimistic repeat-install paths...");
-    fs::write(&marker, "").expect("write the second incomplete-build marker");
-    fs::remove_file(&postinstall_artifact).expect("remove the rebuilt artifact");
-    fs::write(&package_manifest, "{}").expect("corrupt the pristine file again");
     pacquet(&workspace).with_arg("install").assert().success();
 
-    assert!(!marker.exists(), "the ordinary reinstall must remove the marker");
-    assert!(
-        postinstall_artifact.exists(),
-        "the ordinary reinstall must not report up to date before rebuilding",
-    );
     assert_eq!(
-        fs::read_to_string(&package_manifest).expect("read the twice-restored manifest"),
-        pristine_manifest,
-        "the ordinary reinstall must re-import the package before rebuilding",
+        fs::read_to_string(workspace.join("root-postinstall.txt")).expect("read script output"),
+        "run\n",
+        "an unrelated GVS slot must not cause the root lifecycle scripts to run again",
     );
 
     drop((root, mock_instance));

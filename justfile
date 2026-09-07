@@ -12,7 +12,7 @@ alias t := test
 # You can download the pre-compiled binary from <https://github.com/cargo-bins/cargo-binstall#installation>
 # or install via `cargo install cargo-binstall`
 init:
-  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov -y
+  cargo binstall cargo-nextest cargo-watch cargo-insta typos-cli taplo-cli wasm-pack cargo-llvm-cov sccache@0.17.0 -y
   # `cargo-fixit` has no prebuilt binaries, so install it from source
   # with `cargo install` (pinned) instead of `cargo binstall`.
   cargo install cargo-fixit@0.1.15 --locked
@@ -54,8 +54,7 @@ check:
 
 # Run all the tests.
 test:
-  # Tests opt into CI-sensitive pnpm defaults explicitly.
-  env PNPM_CONFIG_CI=false cargo nextest run
+  node pnpm/scripts/run-rust-tests.mjs
 
 # A test process that is killed cannot run `TempDir`'s cleanup, so a
 # fail-fast or interrupted run abandons whole fixture trees — each holding a
@@ -71,15 +70,14 @@ sweep-test-temp:
 
 # Run pacquet package tests only.
 test-pacquet:
-  # GitHub Actions sets CI=true; keep lockfile-mutating tests deterministic.
-  env PNPM_CONFIG_CI=false cargo nextest run --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-package-name --exclude pnpr-policy --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-osv --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
+  node pnpm/scripts/run-rust-tests.mjs --workspace --exclude pnpr --exclude pnpr-auth --exclude pnpr-cargo --exclude pnpr-config --exclude pnpr-error --exclude pnpr-fixtures --exclude pnpr-oci --exclude pnpr-osv --exclude pnpr-package-name --exclude pnpr-pipeline-runs --exclude pnpr-policy --exclude pnpr-pypi --exclude pnpr-registry --exclude pnpr-route --exclude pnpr-search --exclude pnpr-shared-artifacts --exclude pnpr-storage --exclude pnpr-upstream
 
 # Run pnpr package tests only.
 test-pnpr:
   # Every `pnpr-*` crate, selected together so cargo's feature unification
   # gives them the same backend features `pnpr` itself defaults to — selecting
   # one alone would build it bare and silently skip its backend tests.
-  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-package-name -p pnpr-policy -p pnpr-registry -p pnpr-route -p pnpr-osv -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
+  cargo nextest run -p pnpr -p pnpr-auth -p pnpr-cargo -p pnpr-config -p pnpr-error -p pnpr-fixtures -p pnpr-oci -p pnpr-osv -p pnpr-package-name -p pnpr-pipeline-runs -p pnpr-policy -p pnpr-pypi -p pnpr-registry -p pnpr-route -p pnpr-search -p pnpr-shared-artifacts -p pnpr-storage -p pnpr-upstream
 
 # List expected-failing test ports
 [unix]
@@ -116,6 +114,10 @@ codecov:
 # Run the benchmarks. See `tasks/benchmark`
 micro-benchmark:
   cargo run --bin=micro-benchmark --release
+
+# Compare Rust artifact reuse between two disposable worktrees.
+bench-rust-cache *args:
+  node pnpm/scripts/bench-rust-cache.mjs {{args}}
 
 # Manage registry-mock. The launcher spawns `pnpr`; on
 # Windows you can't overwrite a running .exe, so we pre-build all

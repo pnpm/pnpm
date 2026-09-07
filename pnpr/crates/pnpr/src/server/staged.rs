@@ -26,11 +26,11 @@ use serde_json::{Value, json};
 
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
-    commit_publishes, json_response, not_found, private_no_cache, resolve_write_target,
-    stage_publish, validate_publish_doc,
+    commit_publishes, json_response, not_found, private_no_cache, publishing::report_unrecorded,
+    resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_search::percent_decode;
 use pnpr_storage::publish::{extract_attachments, now_iso};
 
@@ -107,13 +107,13 @@ fn parse_staged_list_query(query: &str) -> StagedListQuery {
 }
 
 // ---------------------------------------------------------------------
-// Route handlers. Each is registered both bare and under `/{prefix}`;
+// Route handlers. Each is registered both bare and under `/~{registry}`;
 // `TargetRegistry` reports which form the request arrived on.
 // ---------------------------------------------------------------------
 
 /// Path capture of the staged routes that address one record. Named rather
 /// than a bare `Path<String>` because the prefixed registration captures the
-/// `{prefix}` segment too, which a single-value `Path` would refuse.
+/// `{registry}` segment too, which a single-value `Path` would refuse.
 #[derive(Deserialize)]
 pub(super) struct StageIdPath {
     id: String,
@@ -194,7 +194,7 @@ async fn serve_staged_publish(
     raw_name: &str,
     body: &axum::body::Bytes,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
@@ -374,7 +374,10 @@ async fn serve_staged_approve(
         Ok(value) => value,
         Err(err) => return RegistryError::Json(err).into_response(),
     };
-    let name = match PackageName::parse(&record.package_name) {
+    let name = match CanonicalPackageName::parse(
+        &record.package_name,
+        pnpr_package_name::Ecosystem::Npm,
+    ) {
         Ok(name) => name,
         Err(err) => return err.into_response(),
     };
@@ -394,13 +397,20 @@ async fn serve_staged_approve(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = commit_publishes(state, vec![staged]).await {
-        return err.into_response();
-    }
+    let outcome = match commit_publishes(state, vec![staged]).await {
+        Ok(outcome) => outcome,
+        Err(err) => return err.into_response(),
+    };
+    // Past the commit the stage is spent, whatever the transaction could not
+    // record: leaving the record listed would offer an approval that cannot
+    // happen again.
     if let Err(err) = state.inner.storage.remove_staged(stage_id).await {
         // The publish is already committed and visible; a failed record
         // cleanup must not report the approval as failed.
         tracing::warn!(error = %err, stage_id, "approved staged publish but its record cleanup failed");
+    }
+    if let Err(err) = report_unrecorded(outcome) {
+        return err.into_response();
     }
     json_response(StatusCode::CREATED, &json!({ "ok": true }))
 }
@@ -482,7 +492,8 @@ async fn authorize_staged(
     identity: &Identity,
     record: &StagedRecord,
 ) -> Result<(), RegistryError> {
-    let name = PackageName::parse(&record.package_name)?;
+    let name =
+        CanonicalPackageName::parse(&record.package_name, pnpr_package_name::Ecosystem::Npm)?;
     let target = resolve_write_target(state, identity, record.registry.as_deref(), &name)?;
     authorize(
         state,

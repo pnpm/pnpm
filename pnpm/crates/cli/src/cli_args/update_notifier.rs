@@ -68,7 +68,10 @@ pub(crate) fn spawn(config: &Config, emit: fn(&LogEvent)) -> PendingUpdateCheck 
 /// before the process exits. A command that failed drops the check
 /// instead: the error is what the user needs to read, and nothing was
 /// recorded, so the next command checks again.
-pub(crate) async fn settle(pending: PendingUpdateCheck, outcome: &miette::Result<()>) {
+pub(crate) async fn settle<Output: Sync>(
+    pending: PendingUpdateCheck,
+    outcome: &miette::Result<Output>,
+) {
     let Some(handle) = pending else { return };
     if outcome.is_ok() {
         let _ = handle.await;

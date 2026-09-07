@@ -72,12 +72,12 @@ jobs:
         runtime: node@26.8.1
 
     - name: Install Rust Toolchain
-      uses: ./.github/actions/rustup
+      uses: $/.github/actions/rustup
       with:
         shared-key: pnpm-benchmark
 
     - name: Install hyperfine
-      uses: ./.github/actions/binstall
+      uses: $/.github/actions/binstall
       with:
         packages: hyperfine@1.18.0
 

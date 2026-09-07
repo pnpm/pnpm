@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     State,
+    config_deps::prepare_config,
     config_overrides::{
         ConfigOverrides, apply_registry_override, apply_state_dir_override,
         apply_store_dir_override,
@@ -16,11 +17,13 @@ use crate::{
 };
 use miette::{Context, IntoDiagnostic};
 use pnpm_config::{ColorMode, Config, Host, default_pnpm_home_dir};
+use pnpm_default_reporter::DefaultReporter;
 use pnpm_network_web_auth::OtpNonInteractiveError;
-use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use pnpm_reporter::{ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, SilentReporter};
 use std::{future::Future, path::Path, pin::Pin};
 
-pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
+pub(crate) type CommandFuture<'a, Output = ()> =
+    Pin<Box<dyn Future<Output = miette::Result<Output>> + Send + 'a>>;
 
 /// The shared context every subcommand handler needs: the canonicalized
 /// `--dir`, the derived `package.json` path, the selected reporter, the
@@ -36,6 +39,11 @@ pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<(
 /// [`super::approve_builds::ApproveBuildsArgs::prepare`] already consumes.
 pub(crate) struct RunCtx<'a> {
     pub(crate) dir: &'a Path,
+    /// The `--dir` as the command line gave it, or the process cwd when it
+    /// gave none — pnpm's `cliOptions.dir ?? process.cwd()`. `init`
+    /// scaffolds here and a non-recursive `exec` runs here, rather than at
+    /// the local prefix [`Self::dir`] resolves to.
+    pub(crate) cli_dir: &'a Path,
     pub(crate) manifest_path: &'a Path,
     pub(crate) reporter: ReporterType,
     pub(crate) recursive: bool,
@@ -196,6 +204,7 @@ impl CliArgs {
         let CliArgs {
             command,
             dir,
+            dir_from_command_line,
             store_dir,
             state_dir,
             npmrc_auth_file,
@@ -250,6 +259,11 @@ impl CliArgs {
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
+        let cli_dir = if dir_from_command_line {
+            dir.clone()
+        } else {
+            std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
+        };
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,
@@ -440,6 +454,7 @@ impl CliArgs {
 
         let ctx = RunCtx {
             dir: &dir,
+            cli_dir: &cli_dir,
             manifest_path: &manifest_path,
             reporter,
             recursive,
@@ -487,6 +502,31 @@ impl CliArgs {
     }
 }
 
+/// Install the project's config dependencies and apply their `updateConfig`
+/// pnpmfile hooks to `config` before a command spawns anything, so a hook's
+/// settings — `extraEnv` and `extraBinPaths` among them — reach the child
+/// processes the command starts. pnpm applies them once per invocation,
+/// whatever the command.
+///
+/// Every [`RunCtx::config`] call yields a fresh `Config`, so the pass has to
+/// run on the instance the handler goes on to use — it cannot be hoisted ahead
+/// of [`route`]. The install family and pack/publish apply the same pass at
+/// their own entry points, where they already hold that instance.
+pub(super) async fn apply_update_config(
+    config: &mut Config,
+    dir: &Path,
+    reporter: ReporterType,
+) -> miette::Result<()> {
+    match reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            prepare_config::<DefaultReporter>(config, dir).await?
+        }
+        ReporterType::Ndjson => prepare_config::<NdjsonReporter>(config, dir).await?,
+        ReporterType::Silent => prepare_config::<SilentReporter>(config, dir).await?,
+    };
+    Ok(())
+}
+
 /// Route a parsed [`CliCommand`] to its handler. The per-command logic lives
 /// in the `dispatch_install` / `dispatch_query` / `dispatch_script` modules,
 /// grouped by what the command does (mutate the install graph, read-only
@@ -503,6 +543,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Install(args) => dispatch_install::install(ctx, args),
         CliCommand::InstallTest(args) => dispatch_install::install_test(ctx, args),
         CliCommand::Ci(args) => dispatch_install::ci(ctx, args),
+        CliCommand::Pipeline(args) => dispatch_install::pipeline(ctx, args),
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
@@ -596,6 +637,7 @@ fn prints_json_errors(command: &CliCommand) -> bool {
     match command {
         CliCommand::Publish(args) => args.flags.json,
         CliCommand::View(args) => args.json,
+        CliCommand::Pack(args) => args.json,
         _ => false,
     }
 }

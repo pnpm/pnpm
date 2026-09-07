@@ -81,7 +81,11 @@ export async function verifySignatures (
   }
   // RegistriesByScope without signing keys are not counted as audited: there is no
   // registry trust root to verify against.
-  const packumentCache = new Map<string, Promise<Packument | undefined>>()
+  const packumentContext: PackumentFetchContext = {
+    getAuthHeader,
+    opts,
+    packumentCache: new Map(),
+  }
   const limit = pLimit(opts.networkConcurrency ?? 16)
 
   await Promise.all(packages.map((pkg) => limit(async () => {
@@ -91,7 +95,7 @@ export async function verifySignatures (
     let version: PackumentVersion | undefined
     let publishedAt: string | undefined
     try {
-      const packument = await getPackument(pkg, getAuthHeader, opts, packumentCache)
+      const packument = await getPackument(pkg, packumentContext)
       if (!packument) return
       result.audited++
       version = packument.versions?.[pkg.version]
@@ -192,18 +196,23 @@ async function fetchRegistryKeys (
 }
 
 
+interface PackumentFetchContext {
+  cacheNamespace?: string
+  getAuthHeader: GetAuthHeader
+  opts: VerifySignaturesOptions
+  packumentCache: Map<string, Promise<Packument | undefined>>
+}
+
 async function getPackument (
   pkg: SignaturePackage,
-  getAuthHeader: GetAuthHeader,
-  opts: VerifySignaturesOptions,
-  packumentCache: Map<string, Promise<Packument | undefined>>
+  ctx: PackumentFetchContext
 ): Promise<Packument | undefined> {
-  const cacheKey = `${pkg.registry}:${pkg.name}`
-  let packument = packumentCache.get(cacheKey)
+  const cacheKey = `${ctx.cacheNamespace ?? ''}:${pkg.registry}:${pkg.name}`
+  let packument = ctx.packumentCache.get(cacheKey)
   if (!packument) {
     // Multiple installed versions share one full packument fetch.
-    packument = fetchPackument(pkg, getAuthHeader, opts)
-    packumentCache.set(cacheKey, packument)
+    packument = fetchPackument(pkg, ctx.getAuthHeader, ctx.opts)
+    ctx.packumentCache.set(cacheKey, packument)
   }
   return packument
 }
@@ -463,7 +472,9 @@ export interface VerifyInstalledSignaturesOptions extends VerifySignaturesOption
    * Signatures are verified against the caller's trusted keys over the installed
    * integrity, so where the signature bytes come from does not affect what they
    * prove — a package passes only when some genuine signature validates over the
-   * bytes actually installed. See https://github.com/pnpm/pnpm/issues/13147.
+   * bytes actually installed. The fallback request is attempted once because it
+   * is an optional availability check after the primary registry already failed
+   * to provide a verifiable signature. See https://github.com/pnpm/pnpm/issues/13147.
    */
   fallbackRegistry?: string
 }
@@ -475,6 +486,7 @@ export async function verifyInstalledPackageSignatures (
   opts: VerifyInstalledSignaturesOptions
 ): Promise<InstalledSignatureVerificationResult> {
   const ctx: SignatureVerificationContext = {
+    cacheNamespace: 'primary',
     trustedKeys,
     getAuthHeader,
     opts,
@@ -496,6 +508,7 @@ export async function verifyInstalledPackageSignatures (
 
 /** State shared by every verification of one installed-package batch. */
 interface SignatureVerificationContext {
+  cacheNamespace: 'fallback' | 'primary'
   trustedKeys: RegistryKey[]
   getAuthHeader: GetAuthHeader
   opts: VerifyInstalledSignaturesOptions
@@ -524,7 +537,14 @@ async function findSignatureFailure (
   const { fallbackRegistry } = ctx.opts
   if (fallbackRegistry == null || equalRegistries(pkg.registry, fallbackRegistry)) return primary
 
-  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, ctx)
+  const secondary = await attemptSignatureVerification(pkg, fallbackRegistry, {
+    ...ctx,
+    cacheNamespace: 'fallback',
+    opts: {
+      ...ctx.opts,
+      retry: { ...ctx.opts.retry, retries: 0 },
+    },
+  })
   // A genuine signature validating over the installed integrity proves the
   // installed bytes regardless of which registry the primary attempt hit or
   // what it answered (e.g. a mirror serving stale signatures from a rotated
@@ -558,7 +578,7 @@ async function attemptSignatureVerification (
   const displayRegistry = redactAndSanitize(registry)
   let packument: Packument | undefined
   try {
-    packument = await getPackument({ ...pkg, registry }, ctx.getAuthHeader, ctx.opts, ctx.packumentCache)
+    packument = await getPackument({ ...pkg, registry }, ctx)
   } catch (err: unknown) {
     // The fetch error may echo the request URL, credentials included.
     return { reason: redactAndSanitize(util.types.isNativeError(err) ? err.message : String(err)), category: 'unreachable' }

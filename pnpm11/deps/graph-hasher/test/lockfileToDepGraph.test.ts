@@ -158,8 +158,7 @@ describe('lockfileToDepGraph link target hashing', () => {
     return calcGraphNodeHash({
       graph,
       cache: {},
-      builtDepPaths: new Set(),
-      buildRequiredCache: {},
+      buildRequiredDepPaths: new Set(),
     }, parentPkgMeta)
   }
 
@@ -225,8 +224,7 @@ describe('lockfileToDepGraph link hash parity with pacquet', () => {
     expect(calcGraphNodeHash({
       graph,
       cache: {},
-      builtDepPaths: new Set(),
-      buildRequiredCache: {},
+      buildRequiredDepPaths: new Set(),
     }, {
       depPath: fixturePackage.key,
       name: fixturePackage.name,

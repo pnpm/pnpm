@@ -8,7 +8,7 @@
 
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, PackageManagerBootstrap};
+use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
 use pnpm_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
 use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pnpm_package_is_installable::SupportedArchitectures;
@@ -292,6 +292,11 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.package_extensions = None;
     cfg.catalogs = None;
     cfg.patched_dependencies = None;
+    // The engine closure is pnpm's own, so the project's linker choice must
+    // not shape its layout: under `hoisted` the engine materializes inside
+    // `install_dir` instead of the global virtual store the caller resolves
+    // its slot from (pnpm/pnpm#14595).
+    cfg.node_linker = NodeLinker::Isolated;
 
     let config: &'static Config = Config::leak(cfg);
     let manifest_path = install_dir.join("package.json");
@@ -333,9 +338,15 @@ pub(super) fn exe_platform_pkg_dir_name(platform: &str, arch: &str, libc: &str) 
 /// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 ships
 /// its native binaries under.
 pub(super) fn exe_platform_pkg_dir_name_next(platform: &str, arch: &str, libc: &str) -> String {
+    format!("exe.{}", native_target_name(platform, arch, libc))
+}
+
+/// The `<platform>-<arch>[-musl]` target a pnpm native binary is built for,
+/// as the `exe.<target>` platform packages are named after it.
+pub(super) fn native_target_name(platform: &str, arch: &str, libc: &str) -> String {
     let arch = normalized_arch(platform, arch);
     let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
-    format!("exe.{platform}-{arch}{libc_suffix}")
+    format!("{platform}-{arch}{libc_suffix}")
 }
 
 fn normalized_arch<'a>(platform: &str, arch: &'a str) -> &'a str {

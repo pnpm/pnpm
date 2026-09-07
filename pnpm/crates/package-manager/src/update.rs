@@ -642,6 +642,7 @@ impl Update<'_> {
             selected_dirs,
             install_dirs,
             active_manifest_is_standin,
+            workspace_cycles: crate::PrecomputedWorkspaceCycles::Unknown,
         };
         let ignored_builds = match lockfile_specifier_project_manifests {
             Some(manifests) => {
@@ -1909,7 +1910,10 @@ fn ensure_latest_resolver_chain<'chain>(
             create_configured_npm_resolver(ctx.config, Arc::clone(ctx.http_client_arc), &policy)
                 .map_err(UpdateError::InvalidNamedRegistry)?,
         );
-        let mut node_resolver = NodeResolver::new(Arc::clone(ctx.http_client_arc));
+        let mut node_resolver = NodeResolver::new_with_auth(
+            Arc::clone(ctx.http_client_arc),
+            Arc::clone(&ctx.config.auth_headers),
+        );
         node_resolver.node_download_mirrors.clone_from(&ctx.config.node_download_mirrors);
         node_resolver.offline = ctx.config.offline;
         node_resolver.cache_dir = Some(ctx.config.cache_dir.clone());
@@ -1918,7 +1922,10 @@ fn ensure_latest_resolver_chain<'chain>(
             Box::new(node_resolver),
             Box::new(DenoResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
             Box::new(BunResolver::new(Arc::clone(ctx.http_client_arc), Arc::clone(&npm_resolver))),
-            Box::new(YarnResolver::new(Arc::clone(ctx.http_client_arc))),
+            Box::new(YarnResolver::new(
+                Arc::clone(ctx.http_client_arc),
+                ctx.config.tls.strict_ssl.unwrap_or(true),
+            )),
         ]);
         *chain = Some(LatestResolverChain {
             resolver,

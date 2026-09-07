@@ -36,11 +36,11 @@ pub(super) fn apply(original: &str, patch: &Patch<'_, str>) -> Result<String, St
     let mut modifications = Vec::new();
     for (index, hunk) in patch.hunks().iter().enumerate() {
         let parts = split_into_parts(hunk.lines());
-        let start = to_isize(hunk.old_range().start());
+        let old_range = hunk.old_range();
+        // Empty ranges name the gap after the line; nonempty ranges are one-based.
+        let start = to_isize(old_range.start()) - isize::from(!old_range.is_empty());
         let matched = fuzzing_offsets()
-            .find_map(|offset| {
-                evaluate_hunk(&parts, &lines, start - 1 + offset, hunk.old_range().len())
-            })
+            .find_map(|offset| evaluate_hunk(&parts, &lines, start + offset, old_range.len()))
             .ok_or_else(|| format!("error applying hunk #{}", index + 1))?;
         modifications.extend(matched);
     }

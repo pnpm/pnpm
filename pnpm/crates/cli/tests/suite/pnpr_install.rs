@@ -8,15 +8,18 @@
 //! client-supplied registry. The client then links `node_modules` from the
 //! server-produced lockfile.
 
+use crate::cargo_install::crate_archive;
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_crypto_hash::integrity_addressed_tarball_path;
 use pnpm_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fs::is_symlink_or_junction,
+    fs::{get_all_files, is_symlink_or_junction},
 };
-use pnpr::TokenBackend;
+use pnpr::{Ecosystem, Registries, Registry, TokenBackend, UpstreamConfig};
+use reqwest::header::HeaderMap;
+use sha2::{Digest, Sha256};
 use std::{
     fmt::Write as _,
     fs,
@@ -27,6 +30,7 @@ use std::{
     thread,
     time::Duration,
 };
+use text_block_macros::text_block_fnl;
 
 const IS_POSITIVE_PATCH: &str = include_str!(
     "../../../../../pnpm11/installing/deps-installer/test/fixtures/patch-pkg/is-positive@1.0.0.patch"
@@ -38,14 +42,8 @@ const IS_POSITIVE_PATCH: &str = include_str!(
 /// boundary); returns its base URL and a pre-seeded bearer token.
 fn start_pnpr(registry_url: &str) -> (String, String) {
     let registry_url = registry_url.to_string();
-    // Persisted (not cleaned) because the detached server thread outlives
-    // this function.
-    let storage = tempfile::tempdir().expect("pnpr storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
-    // tokio's `from_std` requires the listener to be non-blocking.
-    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
-    let addr = listener.local_addr().expect("pnpr addr");
-    let tokens_path = storage.join("tokens.db");
+    let server = PnprServer::bind("pnpr");
+    let tokens_path = server.storage.join("tokens.db");
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -55,65 +53,91 @@ fn start_pnpr(registry_url: &str) -> (String, String) {
         tokens.issue("pacquet-test").await.expect("issue pnpr test token")
     });
 
-    thread::Builder::new()
-        .name("pnpr".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("pnpr runtime");
-            runtime.block_on(async move {
-                let mut config = pnpr::Config::proxy(addr, storage);
-                config.public_url = format!("http://{addr}");
-                config.auth.tokens.file = Some(tokens_path);
-                config
-                    .route_policy
-                    .public
-                    .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
-                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
-                let _ = pnpr::serve_listener(config, listener).await;
-            });
-        })
-        .expect("spawn pnpr thread");
-
-    wait_until_ready(addr);
+    let addr = server.serve(move |config| {
+        config.auth.tokens.file = Some(tokens_path);
+        config
+            .route_policy
+            .public
+            .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
+    });
     (format!("http://{addr}/"), token)
 }
 
-fn start_pnpr_registry(upstream_url: &str) -> String {
+/// Start an in-process pnpr that proxies one upstream registry of
+/// `ecosystem`, and return the base URL its clients address.
+fn start_pnpr_registry(upstream_url: &str, ecosystem: Ecosystem) -> String {
     let upstream_url = upstream_url.to_string();
-    let storage = tempfile::tempdir().expect("pnpr storage").keep();
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
-    listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
-    let addr = listener.local_addr().expect("pnpr addr");
+    let name = "upstream";
+    let addr = PnprServer::bind("pnpr-registry").serve(move |config| {
+        config.upstreams.insert(
+            name.to_string(),
+            UpstreamConfig::with_defaults(upstream_url, HeaderMap::new()),
+        );
+        config.registries = Registries::new(
+            indexmap::IndexMap::from([(
+                name.to_string(),
+                Registry::Upstream { patterns: Vec::new() },
+            )]),
+            Some(name.to_string()),
+        )
+        .with_ecosystem(name, ecosystem);
+    });
+    // The server's root is its npm alias; every other ecosystem is
+    // addressed under its own prefix.
+    if ecosystem == Ecosystem::Npm {
+        format!("http://{addr}")
+    } else {
+        format!("http://{addr}/{ecosystem}/")
+    }
+}
 
-    thread::Builder::new()
-        .name("pnpr-registry".to_string())
-        .spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("pnpr runtime");
-            runtime.block_on(async move {
-                let mut config = pnpr::Config::proxy(addr, storage);
-                config.public_url = format!("http://{addr}");
-                config.upstreams.get_mut("npmjs").unwrap().url = upstream_url;
-                config.registries = pnpr::Registries::new(
-                    std::iter::once((
-                        "npmjs".to_string(),
-                        pnpr::Registry::Upstream { patterns: Vec::new() },
-                    ))
-                    .collect(),
-                    Some("npmjs".to_string()),
-                );
-                let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
-                let _ = pnpr::serve_listener(config, listener).await;
-            });
-        })
-        .expect("spawn pnpr registry thread");
+/// A bound port and storage directory waiting for [`Self::serve`] to start
+/// pnpr on them. Binding first lets a caller seed storage — a token store,
+/// say — with the address the server will answer on already known.
+struct PnprServer {
+    name: &'static str,
+    listener: TcpListener,
+    addr: SocketAddr,
+    /// Persisted (not cleaned) because the detached server thread outlives
+    /// the test that started it.
+    storage: std::path::PathBuf,
+}
 
-    wait_until_ready(addr);
-    format!("http://{addr}")
+impl PnprServer {
+    fn bind(name: &'static str) -> Self {
+        let storage = tempfile::tempdir().expect("pnpr storage").keep();
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind pnpr");
+        // tokio's `from_std` requires the listener to be non-blocking.
+        listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
+        let addr = listener.local_addr().expect("pnpr addr");
+        Self { name, listener, addr, storage }
+    }
+
+    /// Run the server on a detached thread until the process exits, with
+    /// `configure` applied to the proxy defaults. Returns once it answers.
+    fn serve(self, configure: impl FnOnce(&mut pnpr::Config) + Send + 'static) -> SocketAddr {
+        let Self { name, listener, addr, storage } = self;
+        thread::Builder::new()
+            .name(name.to_string())
+            .spawn(move || {
+                let runtime = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("pnpr runtime");
+                runtime.block_on(async move {
+                    let mut config = pnpr::Config::proxy(addr, storage);
+                    config.public_url = format!("http://{addr}");
+                    configure(&mut config);
+                    let listener =
+                        tokio::net::TcpListener::from_std(listener).expect("tokio listener");
+                    let _ = pnpr::serve_listener(config, listener).await;
+                });
+            })
+            .expect("spawn pnpr thread");
+
+        wait_until_ready(addr);
+        addr
+    }
 }
 
 fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
@@ -238,7 +262,7 @@ fn revision_install_and_frozen_reinstall_work_through_pnpr() {
         .with_body(&tarball)
         .expect(1)
         .create();
-    let registry = start_pnpr_registry(&upstream.url());
+    let registry = start_pnpr_registry(&upstream.url(), Ecosystem::Npm);
 
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -281,7 +305,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .with_body(&first_tarball)
         .expect(1)
         .create();
-    let first_registry = start_pnpr_registry(&first_upstream.url());
+    let first_registry = start_pnpr_registry(&first_upstream.url(), Ecosystem::Npm);
 
     let mut second_upstream = mockito::Server::new();
     let (second_integrity, second_packument) =
@@ -293,7 +317,7 @@ fn update_patches_refreshes_a_pnpr_revision_without_changing_the_version() {
         .with_body(&second_tarball)
         .expect(1)
         .create();
-    let second_registry = start_pnpr_registry(&second_upstream.url());
+    let second_registry = start_pnpr_registry(&second_upstream.url(), Ecosystem::Npm);
 
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -433,6 +457,53 @@ fn install_via_pnpr_links_node_modules() {
     // The client store was populated by the frozen install fetching tarballs
     // directly from the registry after pnpr returned the lockfile.
     assert!(store_dir.join("v11/index.db").exists(), "client store index should exist");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_via_pnpr_replaces_a_conflicted_lockfile() {
+    const CONFLICTED_LOCKFILE: &str = text_block_fnl! {
+        "<<<<<<< HEAD"
+        "lockfileVersion: '9.0'"
+        "======="
+        "lockfileVersion: '9.0'"
+        ">>>>>>> branch"
+    };
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "dependencies": { "@foo/no-deps": "1.0.0" } }).to_string(),
+    )
+    .expect("write package.json");
+    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
+        .expect("write conflicted lockfile");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+
+    let lockfile = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer_version(&lockfile, ".", "@foo/no-deps"), "1.0.0");
+    assert!(is_symlink_or_junction(&workspace.join("node_modules/@foo/no-deps")).unwrap());
+
+    fs::write(workspace.join("pnpm-lock.yaml"), CONFLICTED_LOCKFILE)
+        .expect("rewrite conflicted lockfile");
+    pacquet_at(&workspace)
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_args(["install", "--fix-lockfile", "--pnpr-server", &pnpr_url])
+        .assert()
+        .success();
+    let repaired = read_workspace_lockfile(&workspace);
+    assert_eq!(workspace_importer_version(&repaired, ".", "@foo/no-deps"), "1.0.0");
 
     drop((root, mock_instance));
 }
@@ -812,8 +883,11 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
     drop((root, mock_instance));
 }
 
+/// `pnpm import` has to control the version each dependency resolves to,
+/// which the pnpr protocol cannot yet express, so it resolves locally and
+/// says so rather than silently ignoring the server.
 #[test]
-fn import_via_pnpr_server_writes_lockfile_without_linking() {
+fn import_ignores_the_pnpr_server_and_resolves_locally() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
@@ -826,18 +900,44 @@ fn import_via_pnpr_server_writes_lockfile_without_linking() {
         "dependencies": { "@foo/no-deps": "1.0.0" },
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+    fs::write(
+        workspace.join("package-lock.json"),
+        serde_json::json!({
+            "lockfileVersion": 1,
+            "dependencies": {
+                "@foo/no-deps": { "version": "1.0.0" },
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package-lock.json");
 
-    pacquet
+    let output = pacquet
         .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_arg("import")
         .with_arg("--pnpr-server")
         .with_arg(&pnpr_url)
         .assert()
-        .success();
+        .success()
+        .get_output()
+        .clone();
 
-    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!("the pnpr server at {pnpr_url} is not used")),
+        "import must say the pnpr server was skipped:\n{stdout}",
+    );
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "import must write the lockfile");
     assert!(!workspace.join("node_modules").exists(), "import must not link node_modules");
-    assert!(!store_dir.join("v11/index.db").exists(), "import must not populate the client store");
+    // The store writer task always creates an empty `v11/index.db`, so the
+    // absence of fetched package content is what says nothing was downloaded.
+    let cas_blobs: Vec<String> = get_all_files(&store_dir)
+        .into_iter()
+        .filter(|path| {
+            Path::new(path).components().any(|component| component.as_os_str() == "files")
+        })
+        .collect();
+    assert!(cas_blobs.is_empty(), "import must not fetch package content: {cas_blobs:?}");
 
     drop((root, mock_instance));
 }
@@ -1473,4 +1573,93 @@ fn filtered_workspace_pnpr_resolves_workspace_protocol_from_project_identity() {
     assert!(!workspace_slot(&workspace, WORKSPACE_HELLO, "1.0.0").exists());
 
     drop((root, mock_instance));
+}
+
+#[test]
+fn cargo_install_uses_a_configured_pnpr_registry_and_accelerator() {
+    let mut upstream = mockito::Server::new();
+    let archive = crate_archive("demo", "1.0.0");
+    let checksum = format!("{:x}", Sha256::digest(&archive));
+    let _config_mock = upstream
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", upstream.url()),
+                "api": upstream.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    let index_mock = upstream
+        .mock("GET", "/de/mo/demo")
+        .with_body(format!(
+            "{}\n",
+            serde_json::json!({
+                "name": "demo",
+                "vers": "1.0.0",
+                "deps": [],
+                "cksum": checksum,
+                "features": {},
+                "yanked": false,
+                "v": 1,
+            }),
+        ))
+        .expect(1)
+        .create();
+    let download_mock =
+        upstream.mock("GET", "/dl/demo/1.0.0").with_body(&archive).expect(1).create();
+    let registry_url = start_pnpr_registry(&upstream.url(), Ecosystem::Cargo);
+    let (pnpr_url, token) = start_pnpr(&format!("{registry_url}index"));
+
+    let root = tempfile::tempdir().expect("create Cargo project");
+    fs::create_dir(root.path().join("src")).expect("create source directory");
+    fs::write(root.path().join("src/lib.rs"), "pub use demo::answer;\n").expect("write source");
+    fs::write(
+        root.path().join("Cargo.toml"),
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2024\"\n\n[dependencies]\ndemo = \"1\"\n",
+    )
+    .expect("write Cargo manifest");
+    fs::write(
+        root.path().join("pnpm-workspace.yaml"),
+        format!(
+            "cargo:\n  enabled: true\n  indexUrl: {registry_url}index/\npnprServer: {pnpr_url}\n",
+        ),
+    )
+    .expect("configure pnpm");
+    fs::write(
+        root.path().join(".npmrc"),
+        format!(
+            "//{}/:_authToken={token}\n",
+            pnpr_url.trim_start_matches("http://").trim_end_matches('/'),
+        ),
+    )
+    .expect("configure pnpr authentication");
+
+    pacquet_at(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+        .with_arg("install")
+        .assert()
+        .success();
+
+    let lockfile = fs::read_to_string(root.path().join("Cargo.lock")).expect("read Cargo lockfile");
+    assert!(lockfile.contains(&format!(r#"source = "sparse+{registry_url}index/""#)), "{lockfile}");
+    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    // The accelerator resolved: a local resolve would have walked the sparse
+    // index itself and left the entry it read in the client's index cache.
+    // Only the registry's config.json, which the download needs either way,
+    // is cached here.
+    let cached_index_files = get_all_files(&root.path().join("cache/v11/cargo-index"));
+    assert!(
+        cached_index_files.iter().all(|path| path.ends_with("config.json")),
+        "{cached_index_files:?}",
+    );
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["check", "--offline"])
+        .assert()
+        .success();
+
+    index_mock.assert();
+    download_mock.assert();
 }

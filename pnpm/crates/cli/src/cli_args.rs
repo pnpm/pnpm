@@ -59,6 +59,7 @@ pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod peers;
 pub mod ping;
+pub mod pipeline;
 pub mod pkg;
 pub mod prefix;
 pub mod prune;
@@ -100,6 +101,7 @@ pub mod view;
 pub mod whoami;
 pub mod why;
 pub mod with;
+mod workspace_option;
 
 pub(crate) mod cli_command;
 mod dispatch;

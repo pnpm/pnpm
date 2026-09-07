@@ -39,7 +39,7 @@ use pnpm_exportable_manifest::{
 use pnpm_fs::lexical_normalize;
 use pnpm_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pnpm_hooks::{HookContext, LogFn, PnpmfileHooks};
-use pnpm_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
+use pnpm_package_manifest::{PackageManifestError, is_truthy, safe_read_package_json_from_dir};
 use pnpm_reporter::{HookLog, LogEvent, LogLevel, Reporter};
 use pnpm_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use serde_json::Value;
@@ -586,20 +586,6 @@ fn prevent_bundled_dependencies_without_hoisted(
         }
     }
     Ok(())
-}
-
-/// Whether a JSON value is truthy under JavaScript's coercion rules, so
-/// the guard fires for exactly the values pnpm's `if (bundledDependencies)`
-/// check rejects — `false`, `0`, `""`, and `null`/absent are skipped,
-/// while a non-empty array, object, number, string, or `true` all fire.
-fn is_truthy(value: &Value) -> bool {
-    match value {
-        Value::Null => false,
-        Value::Bool(boolean) => *boolean,
-        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
-        Value::String(string) => !string.is_empty(),
-        Value::Array(_) | Value::Object(_) => true,
-    }
 }
 
 fn node_linker_str(node_linker: NodeLinker) -> &'static str {

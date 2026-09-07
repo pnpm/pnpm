@@ -187,6 +187,52 @@ fn summarize_tarball_requires_a_manifest_with_name_and_version() {
 }
 
 #[test]
+fn summarize_tarball_uses_the_final_duplicate_manifest() {
+    let tarball = gzipped_tarball(&[
+        ("package/package.json", "{"),
+        ("package/package.json", r#"{"name":"pkg","version":"2.0.0"}"#),
+    ]);
+
+    let summary = summarize_tarball(&tarball).expect("the final manifest is valid");
+
+    assert_eq!(summary.name, "pkg");
+    assert_eq!(summary.version, "2.0.0");
+}
+
+#[test]
+fn summarize_tarball_accepts_a_utf8_bom_before_the_manifest() {
+    let tarball = gzipped_tarball(&[(
+        "package/package.json",
+        "\u{feff}{\"name\":\"pkg\",\"version\":\"1.0.0\"}",
+    )]);
+
+    let summary = summarize_tarball(&tarball).expect("a manifest prefixed by a UTF-8 BOM");
+
+    assert_eq!(summary.name, "pkg");
+    assert_eq!(summary.version, "1.0.0");
+}
+
+#[test]
+fn summarize_tarball_validates_the_manifest_identity() {
+    let invalid_name = summarize_tarball(&gzipped_tarball(&[(
+        "package/package.json",
+        r#"{"name":"__proto__","version":"1.0.0"}"#,
+    )]))
+    .expect_err("an invalid package name");
+    assert!(matches!(invalid_name.downcast_ref(), Some(StageError::InvalidPackageName { .. })));
+
+    let invalid_version = summarize_tarball(&gzipped_tarball(&[(
+        "package/package.json",
+        r#"{"name":"pkg","version":"not a version"}"#,
+    )]))
+    .expect_err("an invalid package version");
+    assert!(matches!(
+        invalid_version.downcast_ref(),
+        Some(StageError::InvalidPackageVersion { .. })
+    ));
+}
+
+#[test]
 fn render_tarball_summary_matches_the_pnpm_layout() {
     let mut summary = sample_summary("pkg", "1.0.0");
     summary.files = vec![

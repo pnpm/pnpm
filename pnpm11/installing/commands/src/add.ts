@@ -1,3 +1,4 @@
+import { parseAllowBuildSelector } from '@pnpm/building.policy'
 import type { CommandHandlerMap } from '@pnpm/cli.command'
 import { FILTERING, OPTIONS, UNIVERSAL_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl } from '@pnpm/cli.utils'
@@ -183,7 +184,7 @@ For options that may be used with `-r`, see "pnpm help recursive"',
           OPTIONS.globalDir,
           ...UNIVERSAL_OPTIONS,
           {
-            description: 'A list of package names that are allowed to run postinstall scripts during installation',
+            description: 'A list of package names that are allowed to run postinstall scripts during installation. Prefix a name with ! to deny its scripts instead',
             name: '--allow-build',
           },
         ],
@@ -252,6 +253,13 @@ export async function handler (
       'If you don\'t want to see this warning anymore, you may set the ignore-workspace-root-check setting to true.'
     )
   }
+  const allowBuildSelectors = opts.allowBuild?.map(parseAllowBuildSelector) ?? []
+  if (
+    allowBuildSelectors.length &&
+    (opts.argv.original.includes('--allow-build') || allowBuildSelectors.some(({ name }) => name === ''))
+  ) {
+    throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
+  }
   if (opts.global) {
     if (!opts.bin) {
       throw new PnpmError('NO_GLOBAL_BIN_DIR', 'Unable to find the global bin directory', {
@@ -263,6 +271,7 @@ export async function handler (
     }
     return handleGlobalAdd({
       ...opts,
+      allowBuilds: applyAllowBuildSelectors(opts.allowBuilds, allowBuildSelectors),
       ...createGlobalPolicyCallbacks(opts),
     }, params, commands ?? {})
   }
@@ -272,25 +281,20 @@ export async function handler (
     devDependencies: opts.dev !== false,
     optionalDependencies: opts.optional !== false,
   }
-  if (opts.allowBuild?.length) {
-    if (opts.argv.original.includes('--allow-build')) {
-      throw new PnpmError('ALLOW_BUILD_MISSING_PACKAGE', 'The --allow-build flag is missing a package name. Please specify the package name(s) that are allowed to run installation scripts.')
-    }
+  if (allowBuildSelectors.length) {
     if (opts.allowBuilds) {
       const disallowedBuilds = Object.entries(opts.allowBuilds)
         .filter(([, value]) => value === false)
         .map(([pkg]) => pkg)
-      const overlapDependencies = disallowedBuilds.filter((dep) => opts.allowBuild?.includes(dep))
+      const allowedOnly = allowBuildSelectors.filter(({ allowed }) => allowed).map(({ name }) => name)
+      const overlapDependencies = disallowedBuilds.filter((dep) => allowedOnly.includes(dep))
       if (overlapDependencies.length) {
         throw new PnpmError('OVERRIDING_IGNORED_BUILT_DEPENDENCIES', `The following dependencies are ignored by the root project, but are allowed to be built by the current command: ${overlapDependencies.join(', ')}`, {
           hint: 'If you are sure you want to allow those dependencies to run installation scripts, remove them from the allowBuilds list (or change their value to true).',
         })
       }
     }
-    const allowBuilds = { ...opts.allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      allowBuilds[pkg] = true
-    }
+    const allowBuilds = applyAllowBuildSelectors(opts.allowBuilds, allowBuildSelectors)
     if (opts.rootProjectManifestDir) {
       opts.rootProjectManifest = opts.rootProjectManifest ?? {}
       await writeSettings({
@@ -320,4 +324,15 @@ export async function handler (
     includeDirect: include,
     dryRun: false,
   }, params)
+}
+
+function applyAllowBuildSelectors (
+  allowBuilds: Record<string, boolean | string> | undefined,
+  selectors: Array<ReturnType<typeof parseAllowBuildSelector>>
+): Record<string, boolean | string> {
+  const updated = { ...allowBuilds }
+  for (const { name, allowed } of selectors) {
+    updated[name] = allowed
+  }
+  return updated
 }

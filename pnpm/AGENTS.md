@@ -6,57 +6,47 @@ Guidance for AI coding agents working in `pnpm/`.
 
 ## What this project is
 
-`pacquet` is the [pnpm](https://pnpm.io) CLI implemented in Rust. It is one of
-two parallel implementations of the same package manager — the other is the
-TypeScript pnpm CLI (the workspaces outside `pnpm/`). The two are kept
-behaviorally identical: the same commands, flags, defaults, error codes, file
-formats, lockfile shape, and directory layout. pacquet is not a downstream port
-that trails the TypeScript CLI; it is a source of truth in its own right, at
-near-complete feature parity, and the two stacks are developed together.
+`pacquet` is pnpm v12, implemented in Rust and the target for new feature
+development. The TypeScript CLI under `../pnpm11/` is pnpm v11, which is
+maintained for bug fixes. New features are developed only in pacquet.
 
-## The cardinal rule
+## Version policy
 
-**pacquet and the TypeScript pnpm CLI must stay behaviorally identical.**
-They are parallel implementations of one package manager, developed together at
-near-complete feature parity. Any user-visible change — a command, flag,
-default, error code or message, lockfile/manifest/state-file format, log
-emission parsed by `@pnpm/cli.default-reporter`, store layout, or hook
-semantic — must land in both stacks at the same time. The repo-wide statement
-of this obligation lives in
-[`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync); this section is the
-pacquet-side detail.
+**Implement new features only in pnpm v12. Do not add them to pnpm v11.** A
+new command, flag, behavior, or format introduced in pacquet does not need a
+TypeScript implementation.
 
-Neither stack is downstream of the other. You are not "porting from" the
-TypeScript code: when you implement or change behavior in pacquet, make the
-equivalent change in the TypeScript workspaces in the same PR, and vice versa.
-If you genuinely can't (different expertise, scope too large, or the other
-stack hasn't grown the surrounding feature yet), ship your side and say so in
-the PR description so the matching commits can follow before it lands.
+Bug fixes follow the affected versions. If a bug is present in both pnpm v11
+and v12, fix and test it in both implementations. If it is present in only one
+version, fix only that version. The repo-wide policy lives in
+[`../AGENTS.md`](../AGENTS.md#pnpm-v12-and-v11-development-policy); this section
+is the pacquet-side detail.
 
 Working rules:
 
-1. **Keep the two implementations in agreement.** When you touch behavior in
-   pacquet, find the counterpart in the TypeScript workspaces — they live at
-   the repo root (`pnpm/` for the CLI entry, `pkg-manager/`, `resolving/`,
-   `lockfile/`, `store/`, `fetching/`, `config/`, `hooks/`, and so on; see the
-   [repo-structure section](../AGENTS.md#repository-structure)) — and change it
-   there too. The two must agree on logic, edge cases, config resolution, error
-   messages, and file/lockfile formats.
-2. **Match observable behavior, not structure.** Structural similarity (similar
+1. **Classify the change before editing v11.** New features and v12-only bug
+   fixes stay in pacquet. Only edit `../pnpm11/` when fixing a bug that is also
+   present in v11 or when doing work explicitly requested for v11.
+2. **Fix shared bugs in both versions.** For a bug present in both releases,
+   find the counterpart under `../pnpm11/` and make both implementations agree
+   on logic, edge cases, config resolution, error messages, and file/lockfile
+   formats affected by the fix.
+3. **Match observable behavior, not structure.** Structural similarity (similar
    function decomposition and names) is a convenience for cross-referencing, not
    a requirement. What must match is what a user or a downstream tool can
-   observe.
-3. **Don't diverge unilaterally.** Do not add a feature, flag, or quirk to one
-   stack without the other, and do not "fix" a behavior in only one. A genuine
-   bug present in both is fixed in both.
-4. **Log emissions are part of behavioral identity.** A function that fires
-   `pnpm:<channel>` events through the reporter must use the same call site,
-   payload, and ordering in both stacks so `@pnpm/cli.default-reporter` parses
-   pacquet's NDJSON the same way it parses the TypeScript CLI's. See
+   observe for the shared bug fix.
+4. **Keep version-specific behavior deliberate.** A new v12 feature is an
+   intentional difference, not something to backport to v11. Do not introduce
+   unrelated differences while implementing a shared bug fix.
+5. **Log emissions are part of shared bug-fix behavior.** When a shared fix
+   changes a function that fires `pnpm:<channel>` events through the reporter,
+   keep the call site, payload, and ordering consistent in both stacks so
+   `@pnpm/cli.default-reporter` parses pacquet's NDJSON the same way it parses
+   the TypeScript CLI's. See
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
-5. **Prefer real fixtures; reach for the dependency-injection seam
+6. **Prefer real fixtures; reach for the dependency-injection seam
    only when they can't cover the branch.** Most happy paths and
    error paths should be tested with a `tempfile::TempDir`, the
    mocked registry, or an integration test that spawns the actual
@@ -206,10 +196,10 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pnpm-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When a behavior change spans both stacks, keep their tests in sync — give
+- When a bug fix spans both versions, keep their tests in sync — give
   pacquet a Rust test for the same scenario the TypeScript stack covers (and
   vice versa) whenever it translates. Matching test coverage is the easiest
-  way to prove behavioral parity.
+  way to prove the shared bug is fixed consistently.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
@@ -402,9 +392,9 @@ are part of the public contract, not implementation detail. See
 
 - Keep commits focused. A bug fix commit should not also refactor or
   reformat unrelated code.
-- When a change has a counterpart in the TypeScript pnpm CLI, land both
-  together; if they must be split, cross-reference the matching PR so a
-  reviewer can confirm the two stacks stay in sync.
+- When a bug fix also applies to pnpm v11, land both implementations together;
+  if they must be split, cross-reference the matching PR so a reviewer can
+  confirm both versions are fixed.
 - Run `just ready` before pushing.
 - The repo-wide husky `pre-push` hook runs `pnpm/scripts/pre-push-rust.sh`,
   which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
@@ -433,11 +423,10 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
 
 ## Things not to do
 
-- Do not add a feature, flag, or behavior to one stack without making the
-  same change to the other. The two move together.
-- Do not change lockfile format, store layout, `.npmrc` semantics, or CLI
-  surface in only one stack — those are the shared contract and must change
-  in both at once.
+- Do not implement new features, flags, or behaviors in pnpm v11. New features
+  belong only in pnpm v12.
+- Do not fix a bug in only one implementation when the same bug is present in
+  both pnpm v11 and v12.
 - A dependency that is already declared in `[workspace.dependencies]` in the
   root `Cargo.toml` may be added to any crate that needs it.
 - Do not add a dependency that is not already declared in the workspace

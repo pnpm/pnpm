@@ -6,8 +6,9 @@
 //! the URL carries inline `user:password@`, that takes precedence and
 //! is encoded as a `Basic` header even when no per-host token matches.
 //!
-//! The map is built once per install from the merged `.npmrc` and is
-//! consulted on every metadata fetch and tarball download. The lookup
+//! Configuration readers build the map once per install from their native
+//! credential sources, and request code consults it on every metadata fetch
+//! and archive download. The lookup
 //! walks parts of the *request* URL: a tarball served from a CDN on a
 //! different host than the registry only matches keys keyed at the
 //! CDN's host (or a path prefix on that host). It does *not* fall
@@ -99,8 +100,9 @@ pub enum MetadataCacheScope {
 }
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
-/// of each registry URL. Pacquet builds one of these from the parsed
-/// `.npmrc` and shares it across every HTTP call made during install.
+/// of each registry URL. Ecosystem-specific configuration readers normalize
+/// their credentials into this request-facing form and share it across HTTP
+/// calls made during install.
 ///
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
@@ -132,6 +134,7 @@ pub struct AuthHeaders {
     /// the client-forwarded credentials above are ignored. See
     /// [`UpstreamRouteHook`].
     route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+    require_secure_transport: bool,
     /// Set iff any entry is an [`AuthEntry::TokenHelper`]. Surfaced in the
     /// [`fmt::Debug`] output (never the values) so a resolve trace shows
     /// at a glance whether any helper is configured. The lookup hot path
@@ -177,11 +180,52 @@ impl fmt::Debug for AuthHeaders {
             .field("scoped_by_scope", &self.scoped_by_scope.len())
             .field("has_token_helpers", &self.has_token_helpers)
             .field("route_hook", &self.route_hook.is_some())
+            .field("require_secure_transport", &self.require_secure_transport)
             .finish_non_exhaustive()
     }
 }
 
 impl AuthHeaders {
+    /// Restrict every credential lookup to TLS or loopback URLs, including
+    /// lookups made by shared fetchers. This restriction survives cloning.
+    #[must_use]
+    pub fn with_secure_transport(mut self) -> Self {
+        self.require_secure_transport = true;
+        self
+    }
+
+    /// Whether no configured credential or route hook can provide
+    /// authorization for any URL.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_uri.is_empty() && self.scoped_by_scope.is_empty() && self.route_hook.is_none()
+    }
+
+    /// Overlay a ready-to-send `Authorization` header at `url`.
+    ///
+    /// This is the boundary for credential sources that are already scoped to
+    /// a concrete request URL and have no npm package-scope semantics. The
+    /// caller owns the authentication scheme: npm tokens include `Bearer`,
+    /// Cargo tokens are bare, and future readers may supply `Basic` or another
+    /// registry-defined value. An invalid or unsupported URL is ignored.
+    pub fn insert_url_header(&mut self, url: &str, header: String) {
+        let mut terminated;
+        let url = if url.ends_with('/') {
+            url
+        } else {
+            terminated = String::with_capacity(url.len() + 1);
+            terminated.push_str(url);
+            terminated.push('/');
+            &terminated
+        };
+        let uri = nerf_dart(url);
+        if uri.is_empty() {
+            return;
+        }
+        self.max_parts = self.max_parts.max(uri.split('/').count());
+        self.by_uri.insert(uri, AuthEntry::Header(header));
+    }
+
     /// Build an [`AuthHeaders`] from `(nerf_darted_uri, header_value)`
     /// pairs. Caller is responsible for nerf-darting and for choosing
     /// the right scheme (`Bearer ...` or `Basic ...`).
@@ -305,6 +349,7 @@ impl AuthHeaders {
             max_parts,
             max_scoped_parts_by_scope,
             route_hook: None,
+            require_secure_transport: false,
             has_token_helpers,
             resolved_token_helpers: Arc::default(),
             token_helper_runner: None,
@@ -383,6 +428,23 @@ impl AuthHeaders {
         self.for_url_with_package(url, None)
     }
 
+    /// Resolve an `Authorization` header only when `url` uses TLS or targets
+    /// the local machine. The loopback exception keeps local registry proxies
+    /// usable without exposing credentials on a network link.
+    #[must_use]
+    pub fn for_secure_url(&self, url: &str) -> Option<String> {
+        self.for_secure_url_with_package(url, None)
+    }
+
+    /// Package-aware counterpart to [`Self::for_secure_url`].
+    #[must_use]
+    pub fn for_secure_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        if !is_url_secure_for_credentials(url) {
+            return None;
+        }
+        self.for_url_with_package(url, pkg_name)
+    }
+
     /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
     /// selection. The returned [`AuthHeaders`] keeps its
     /// client-forwarded credentials (so [`Self::to_by_scope`] still
@@ -437,6 +499,9 @@ impl AuthHeaders {
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        if self.require_secure_transport && !is_url_secure_for_credentials(url) {
+            return None;
+        }
         // A server route hook owns the decision: ignore the
         // client-forwarded credentials entirely (including any inline
         // `user:pass@` in `url`) and let the deployment's policy pick the
@@ -661,12 +726,20 @@ impl<'a> ParsedUrl<'a> {
             Some((user_info, host_port)) => (Some(user_info), host_port),
             None => (None, authority),
         };
-        let (host, port) = match host_port.rsplit_once(':') {
-            // Skip IPv6 brackets. Pnpm doesn't handle them either, and
-            // no npm registry we care about uses them. Documenting the
-            // limit here rather than silently misparsing.
-            Some((host, port)) if !host.contains('[') => (host, Some(port)),
-            _ => (host_port, None),
+        let (host, port) = if host_port.starts_with('[') {
+            match host_port.find(']') {
+                Some(closing_bracket) => {
+                    let host = &host_port[..=closing_bracket];
+                    let port = host_port[closing_bracket + 1..].strip_prefix(':');
+                    (host, port)
+                }
+                None => (host_port, None),
+            }
+        } else {
+            match host_port.rsplit_once(':') {
+                Some((host, port)) => (host, Some(port)),
+                None => (host_port, None),
+            }
         };
         Some(ParsedUrl { scheme, user_info, host, port, path })
     }
@@ -719,6 +792,24 @@ impl<'a> ParsedUrl<'a> {
 
 fn is_default_port(scheme: &str, port: &str) -> bool {
     matches!((scheme, port), ("https", "443") | ("http", "80"))
+}
+
+fn is_loopback_host(host: &str) -> bool {
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .trim_matches(['[', ']'])
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|address| address.is_loopback())
+}
+
+/// Whether credentials may be sent to `url` without crossing a cleartext
+/// network link. HTTPS and loopback HTTP endpoints are accepted.
+#[must_use]
+pub fn is_url_secure_for_credentials(url: &str) -> bool {
+    ParsedUrl::parse(url).is_some_and(|parsed| {
+        parsed.scheme.eq_ignore_ascii_case("https")
+            || (parsed.scheme.eq_ignore_ascii_case("http") && is_loopback_host(parsed.host))
+    })
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for

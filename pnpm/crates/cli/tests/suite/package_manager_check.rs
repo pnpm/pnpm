@@ -2,7 +2,12 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::{bin::CommandTempCwd, command_env::CommandTestExt};
+use pnpm_lockfile::EnvLockfile;
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+    diagnostics::assert_diagnostic_contains as assert_contains,
+};
 use std::{
     fs,
     path::Path,
@@ -359,6 +364,105 @@ fn turning_off_version_management_accepts_a_mismatched_pnpm_pin() {
     assert!(!output_text(&output).contains("0.0.0"), "unexpected mention of the pinned version");
 }
 
+/// Turning version management off hands the user which pnpm runs, not which
+/// one the lockfile records: the install family records the pin from its own
+/// pipeline either way, so a read-only command has to record it too, or the
+/// two rewrite each other forever (pnpm/pnpm#14575).
+#[test]
+fn turning_off_version_management_still_records_the_pinned_package_manager() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+    let unmanaged = || {
+        Command::cargo_bin("pnpm")
+            .expect("find the pnpm binary")
+            .with_current_dir(&workspace)
+            .without_ambient_pnpm_config()
+            .with_env("PNPM_CONFIG_MANAGE_PACKAGE_MANAGER_VERSIONS", "false")
+            .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+    };
+
+    let output = run(unmanaged(), root.path(), &["list"]);
+
+    assert_success(&output);
+    let env_lockfile = EnvLockfile::read(&workspace)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].specifier, pnpm_config::PNPM_VERSION);
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+    let after_list = env_document(&workspace);
+
+    let output = run(unmanaged(), root.path(), &["install", "--lockfile-only"]);
+
+    assert_success(&output);
+    assert_eq!(
+        env_document(&workspace),
+        after_list,
+        "the install must leave the env document the other command wrote alone",
+    );
+
+    drop(mock_instance);
+}
+
+fn env_document(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-lock.yaml"))
+        .expect("read pnpm-lock.yaml")
+        .split("\n---\n")
+        .next()
+        .expect("the env document")
+        .to_string()
+}
+
+/// `lockfileDir` moves `pnpm-lock.yaml`, and the recorded pin is the first
+/// document of that file, so it moves with it. Recording it at the
+/// workspace root instead would leave a second lockfile there, and the one
+/// the install reads would never carry the pin.
+#[test]
+fn a_pinned_package_manager_is_recorded_in_the_lockfile_directory() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry_with_pnpm_version(pnpm_config::PNPM_VERSION);
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let lockfile_dir = workspace.join("lf");
+    fs::create_dir_all(&lockfile_dir).expect("create the lockfile directory");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "lockfileDir: ./lf\n")
+        .expect("write the workspace manifest");
+    write_dev_engines_package_manager(
+        &workspace,
+        "pnpm",
+        pnpm_config::PNPM_VERSION,
+        Some("download"),
+    );
+
+    let output =
+        run(pacquet.with_env("PNPM_CONFIG_REGISTRY", mock_instance.url()), root.path(), &["list"]);
+
+    assert_success(&output);
+    assert!(
+        !workspace.join("pnpm-lock.yaml").exists(),
+        "the workspace root should carry no lockfile of its own",
+    );
+    let env_lockfile = EnvLockfile::read(&lockfile_dir)
+        .expect("read the written env lockfile")
+        .expect("the env lockfile should have been written beside the lockfile");
+    let recorded = env_lockfile.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("packageManagerDependencies should be recorded");
+    assert_eq!(recorded["pnpm"].version, pnpm_config::PNPM_VERSION);
+
+    drop(mock_instance);
+}
+
 #[test]
 fn a_global_command_warns_instead_of_failing_the_package_manager_check() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -667,20 +771,6 @@ fn assert_failure(output: &Output) {
         stdout(output),
         stderr(output),
     );
-}
-
-fn assert_contains(text: &str, expected: &str) {
-    assert!(
-        unwrap_diagnostic(text).contains(&unwrap_diagnostic(expected)),
-        "expected {expected:?} in:\n{text}",
-    );
-}
-
-/// miette hard-wraps a diagnostic to the terminal width and prefixes the
-/// continuation lines with `│`, so an expected message only matches after
-/// both sides are flattened to single-spaced text.
-fn unwrap_diagnostic(text: &str) -> String {
-    text.replace('│', " ").split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn output_text(output: &Output) -> String {

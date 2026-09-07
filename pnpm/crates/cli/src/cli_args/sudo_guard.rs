@@ -82,11 +82,11 @@ fn sudo_blocked_operation(command: &CliCommand) -> Option<String> {
         // Config writes default to the global config file when no
         // `--location` is given, so gate on the effective scope, not the
         // `--global` flag alone.
-        CliCommand::Config(ConfigArgs { command: ConfigSubcommand::Set(args), .. }) => {
-            global_write(super::config::resolve_global(args.flags), "config set")
+        CliCommand::Config(ConfigArgs { flags, command: ConfigSubcommand::Set(_), .. }) => {
+            global_write(super::config::resolve_global(*flags), "config set")
         }
-        CliCommand::Config(ConfigArgs { command: ConfigSubcommand::Delete(args), .. }) => {
-            global_write(super::config::resolve_global(args.flags), "config delete")
+        CliCommand::Config(ConfigArgs { flags, command: ConfigSubcommand::Delete(_), .. }) => {
+            global_write(super::config::resolve_global(*flags), "config delete")
         }
         CliCommand::Set(args) => global_write(super::config::resolve_global(args.flags), "set"),
         // `env use --global` installs a runtime into the global packages

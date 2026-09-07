@@ -4,9 +4,11 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { linkBins, linkBinsOfPackages } from '@pnpm/bins.linker'
+import { dirRequiresBuild } from '@pnpm/building.pkg-requires-build'
 import { getWorkspaceConcurrency } from '@pnpm/config.reader'
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { calcDepState, type DepsStateCache, findRuntimeNodeVersion } from '@pnpm/deps.graph-hasher'
+import { isRuntimeDepPath } from '@pnpm/deps.path'
 import { PnpmError } from '@pnpm/error'
 import { runPostinstallHooks } from '@pnpm/exec.lifecycle'
 import { logger } from '@pnpm/logger'
@@ -143,27 +145,13 @@ export async function buildModules<T extends string> (
     runNode: async (depPath): Promise<TaskCompletion> => {
       if (!shouldBuild(depPath)) return 'passed'
       try {
-        let ignoreScripts = Boolean(buildDepOpts.ignoreScripts)
-        if (!ignoreScripts) {
-          const node = depGraph[depPath]
-          if (node.requiresBuild) {
-            const allowed = allowBuild(node.depPath)
-            switch (allowed) {
-              case false:
-              // Explicitly disallowed - don't report as ignored
-                ignoreScripts = true
-                break
-              case undefined:
-              // Not in allowlist - report as ignored
-                ignoredBuilds.add(node.depPath)
-                ignoreScripts = true
-                break
-            }
-            // allowed === true means build is permitted
-          }
-        }
+        const node = depGraph[depPath]
+        const ignoreScripts = Boolean(buildDepOpts.ignoreScripts) ||
+          (Boolean(node.requiresBuild) && !buildIsAllowed(node.depPath, allowBuild, ignoredBuilds))
         await buildDependency(depPath, depGraph, {
           ...buildDepOpts,
+          allowBuild,
+          ignoredBuilds,
           ignoreScripts,
         })
         return 'passed'
@@ -191,6 +179,21 @@ export async function buildModules<T extends string> (
   }
 }
 
+/**
+ * Whether `depPath`'s lifecycle scripts may run under the allow-build policy.
+ *
+ * A package the policy has no verdict on is recorded in `ignoredBuilds`, which
+ * is what `pnpm approve-builds` later offers the user. An explicit `false` is
+ * a decision already made, so it is not reported.
+ */
+function buildIsAllowed (depPath: DepPath, allowBuild: AllowBuild, ignoredBuilds: Set<DepPath>): boolean {
+  const allowed = allowBuild(depPath)
+  if (allowed === undefined) {
+    ignoredBuilds.add(depPath)
+  }
+  return allowed === true
+}
+
 /** Refuse a build under a read-only global virtual store. See the call site. */
 function throwFrozenStoreNeedsBuild (blocked: Set<string>): never {
   const list = Array.from(blocked).sort()
@@ -207,6 +210,8 @@ async function buildDependency<T extends string> (
   depPath: T,
   depGraph: DependenciesGraph<T>,
   opts: {
+    allowBuild: AllowBuild
+    ignoredBuilds: Set<DepPath>
     extraBinPaths?: string[]
     extraNodePaths?: string[]
     extraEnv?: Record<string, string>
@@ -258,7 +263,22 @@ async function buildDependency<T extends string> (
       }
       isPatched = applyPatchToDir({ patchedDir: depNode.dir, patchFilePath: depNode.patch.patchFilePath })
     }
-    const hasSideEffects = !opts.ignoreScripts && await runPostinstallHooks({
+    // A patch can add install scripts - or a binding.gyp, which the lifecycle
+    // runner turns into `node-gyp rebuild` - to a package that published
+    // neither, and the caller's gate could not have seen that: the files it
+    // read requiresBuild off were still unpatched. Build work a patch
+    // introduces needs approval like any other, so put it through the same gate.
+    // The recompute runs even when scripts are already suppressed, because
+    // `buildPending` below needs to know a build is owed either way.
+    let requiresBuild = depNode.requiresBuild === true
+    let ignoreScripts = Boolean(opts.ignoreScripts)
+    if (isPatched && !requiresBuild) {
+      requiresBuild = await dirRequiresBuild(depNode.dir)
+      if (requiresBuild && !ignoreScripts) {
+        ignoreScripts = !buildIsAllowed(depNode.depPath, opts.allowBuild, opts.ignoredBuilds)
+      }
+    }
+    const hasSideEffects = !ignoreScripts && await runPostinstallHooks({
       depPath,
       extraBinPaths: opts.extraBinPaths,
       extraEnv: opts.extraEnv,
@@ -286,7 +306,12 @@ async function buildDependency<T extends string> (
       opts.pnprServer != null &&
       opts.remoteSideEffectsCache?.packages?.includes(depNode.name) === true &&
       depNode.resolution != null
-    if ((isPatched || hasSideEffects) && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
+    // A package whose build was withheld - the allow-build policy said so, or
+    // ignoreScripts did - must not be cached as if it were built. The entry
+    // the patch alone produced would replay on the install that finally runs
+    // the build, and the scripts would never get their chance.
+    const buildPending = requiresBuild && ignoreScripts
+    if ((isPatched || hasSideEffects) && !buildPending && (opts.sideEffectsCacheWrite || shouldPublishSharedSideEffects) && !opts.frozenStore) {
       try {
         const sideEffectsCacheKey = calcDepState(depGraph, opts.depsStateCache, depPath, {
           patchFileHash: depNode.patch?.hash,
@@ -423,4 +448,21 @@ export async function linkBinsOfDependencies<T extends string> (
       warn: opts.warn,
     })
   }
+}
+
+export async function linkBinsOfRuntimeDependencies<T extends string> (
+  depNodes: Array<DependenciesGraphNode<T> | undefined>,
+  binPath: string,
+  opts: {
+    extraNodePaths?: string[]
+    preferSymlinkedExecutables?: boolean
+  }
+): Promise<void> {
+  const runtimeNodes = depNodes.filter((dep): dep is DependenciesGraphNode<T> => dep != null && isRuntimeDepPath(dep.depPath))
+  if (runtimeNodes.length === 0) return
+  const pkgs = await Promise.all(runtimeNodes.map(async (dep) => ({
+    location: dep.dir,
+    manifest: ((await dep.fetching?.())?.bundledManifest ?? (await safeReadPackageJsonFromDir(dep.dir))) as DependencyManifest ?? {},
+  })))
+  await linkBinsOfPackages(pkgs, binPath, opts)
 }

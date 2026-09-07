@@ -13,6 +13,9 @@ use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
 
 pub mod package_manager_spec;
+mod truthiness;
+
+pub use truthiness::is_truthy;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
@@ -290,11 +293,16 @@ impl PackageManifest {
     }
 
     pub fn from_path(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
-        if !path.exists() {
-            return Err(PackageManifestError::NoImporterManifestFound(path.display().to_string()));
-        }
-
-        PackageManifest::read_from_file(path)
+        // The read itself answers existence: a NotFound maps to the
+        // same missing-manifest error a pre-check would raise, without
+        // paying a stat before every successful read.
+        let rendered_path = path.display().to_string();
+        PackageManifest::read_from_file(path).map_err(|error| match error {
+            PackageManifestError::Io(io_error) if io_error.kind() == io::ErrorKind::NotFound => {
+                PackageManifestError::NoImporterManifestFound(rendered_path)
+            }
+            other => other,
+        })
     }
 
     pub fn create_if_needed(path: PathBuf) -> Result<PackageManifest, PackageManifestError> {
@@ -994,13 +1002,32 @@ pub fn pkg_requires_build(pkg_root: &Path) -> bool {
 
 /// Decide whether a parsed manifest declares lifecycle scripts that
 /// make its package a build candidate.
+///
+/// A script has to carry a value to count. An empty `postinstall` runs
+/// nothing, and pnpm v11's `pkgRequiresBuild` reads the same manifest as
+/// build-free, so treating the key's presence as build work would ask the
+/// user to approve a build that does not exist.
 #[must_use]
 pub fn manifest_requires_build(manifest: &Value) -> bool {
     manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
-        scripts.contains_key("preinstall")
-            || scripts.contains_key("install")
-            || scripts.contains_key("postinstall")
+        ["preinstall", "install", "postinstall"]
+            .iter()
+            .any(|name| scripts.get(*name).is_some_and(script_is_set))
     })
+}
+
+/// Whether a `scripts` entry holds something to run.
+///
+/// Mirrors `Boolean(manifest.scripts.postinstall)` in pnpm v11's
+/// `pkgRequiresBuild`: `null`, `false`, `0`, and `""` are the falsy values
+/// a manifest can carry there.
+fn script_is_set(script: &Value) -> bool {
+    match script {
+        Value::String(script) => !script.is_empty(),
+        Value::Null | Value::Bool(false) => false,
+        Value::Number(number) => number.as_f64() != Some(0.0),
+        _ => true,
+    }
 }
 
 /// Decide whether a store-index file key implies build hooks.

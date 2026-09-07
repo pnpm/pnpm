@@ -26,7 +26,8 @@
 //! relation is decidable for this deliberately small glob language.
 
 use indexmap::IndexMap;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
+pub use pnpr_package_name::Ecosystem;
 use std::fmt;
 
 /// A package-name pattern: one member of a concrete registry's declared
@@ -47,37 +48,52 @@ pub enum PackagePattern {
     /// `@<scope>/*` — every package in one scope. Stores the scope without its
     /// leading `@`.
     Scope(String),
-    /// A literal package name (`foo` or `@scope/foo`).
+    /// `<namespace>/*` — every image repository under one leading path
+    /// component. One component only, so two namespace patterns are either
+    /// equal or disjoint and the specificity chain stays strict.
+    Namespace(String),
+    /// A literal package name (`foo`, `@scope/foo`, or `namespace/image`).
     Exact(String),
 }
 
 impl PackagePattern {
-    /// Parse a registry pattern. Rejects any `*` that is not one of the three
-    /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), and any
-    /// remaining literal that is not a well-formed package name — so an
-    /// unsupported glob or a typo like `@acme` (meaning `@acme/*`) fails
-    /// loudly instead of being read as a literal name that silently never
+    /// Parse a registry pattern. `**` claims everything in any ecosystem; the
+    /// wildcard shape below it is the one that ecosystem's names can carry,
+    /// and everything else must be a well-formed name.
+    ///
+    /// An unsupported glob, or a typo like `@acme` meaning `@acme/*`, fails
+    /// loudly rather than being read as a literal name that silently never
     /// matches and lets the scope land on a later router source.
-    pub fn parse(pattern: &str) -> Result<Self, RegistryConfigError> {
-        let invalid = || RegistryConfigError::InvalidPattern { pattern: pattern.to_string() };
+    pub fn parse(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.is_empty() {
-            return Err(invalid());
+            return Err(invalid_pattern(pattern, ecosystem));
         }
         if pattern == "**" {
             return Ok(PackagePattern::All);
         }
+        match ecosystem {
+            Ecosystem::Npm => Self::parse_scoped_pattern(pattern),
+            Ecosystem::Oci => Self::parse_image_pattern(pattern),
+            // A crate or project name is one flat token with no namespace in
+            // it, so an exact name is the only claim below `**`. A scoped
+            // shape here would be a claim no name of this ecosystem could
+            // ever match.
+            Ecosystem::Cargo | Ecosystem::Pypi => Self::parse_exact(pattern, ecosystem),
+        }
+    }
+
+    /// The npm shapes: `@*/*` for every scoped name, `@<scope>/*` for one
+    /// scope, or a literal name.
+    fn parse_scoped_pattern(pattern: &str) -> Result<Self, RegistryConfigError> {
         if pattern == "@*/*" {
             return Ok(PackagePattern::AnyScoped);
         }
         if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
-            // A single, concrete scope: `@acme/*`. A wildcard inside the
-            // scope is an unsupported glob; a scope that request parsing
-            // (`PackageName::parse`) would reject — `@.acme`, `@..`, a
-            // separator — is a claim no valid package name can ever match,
-            // so both fail loudly instead of becoming a dead pattern that
-            // silently lets the scope land on a later router source.
+            // A wildcard inside the scope is an unsupported glob; a scope
+            // that request parsing would reject — `@.acme`, `@..`, a
+            // separator — is a claim no valid package name can ever match.
             if scope.contains('*') {
-                return Err(invalid());
+                return Err(invalid_pattern(pattern, Ecosystem::Npm));
             }
             if !pnpr_package_name::is_safe_path_segment(scope) {
                 return Err(RegistryConfigError::ScopePatternNotAScope {
@@ -86,14 +102,34 @@ impl PackagePattern {
             }
             return Ok(PackagePattern::Scope(scope.to_string()));
         }
-        // Anything left that still carries a `*` is an unsupported glob.
+        Self::parse_exact(pattern, Ecosystem::Npm)
+    }
+
+    /// The image-repository shapes: `<namespace>/*` for one leading path
+    /// component, or a literal repository name. An image name carries no `@`,
+    /// so npm's scoped shapes are not reachable here.
+    fn parse_image_pattern(pattern: &str) -> Result<Self, RegistryConfigError> {
+        let Some(namespace) = pattern.strip_suffix("/*") else {
+            return Self::parse_exact(pattern, Ecosystem::Oci);
+        };
+        // One component only, so two namespace patterns are either equal or
+        // disjoint and the specificity chain below stays strict.
+        if namespace.contains('*') || namespace.contains('/') {
+            return Err(invalid_pattern(pattern, Ecosystem::Oci));
+        }
+        pnpr_package_name::canonicalize_oci_name(namespace).map(PackagePattern::Namespace).map_err(
+            |_| RegistryConfigError::NamespacePatternNotANamespace { pattern: pattern.to_string() },
+        )
+    }
+
+    /// A literal name, canonicalized the way a request for it will be.
+    fn parse_exact(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.contains('*') {
-            return Err(invalid());
+            return Err(invalid_pattern(pattern, ecosystem));
         }
-        if PackageName::parse(pattern).is_err() {
-            return Err(RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
-        }
-        Ok(PackagePattern::Exact(pattern.to_string()))
+        CanonicalPackageName::parse(pattern, ecosystem)
+            .map(|name| PackagePattern::Exact(name.as_str().to_string()))
+            .map_err(|_| RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() })
     }
 
     /// How specific this pattern is: an exact name beats `@scope/*` beats
@@ -107,7 +143,7 @@ impl PackagePattern {
         match self {
             PackagePattern::All => 0,
             PackagePattern::AnyScoped => 1,
-            PackagePattern::Scope(_) => 2,
+            PackagePattern::Scope(_) | PackagePattern::Namespace(_) => 2,
             PackagePattern::Exact(_) => 3,
         }
     }
@@ -120,6 +156,14 @@ impl PackagePattern {
         scoped_name(package).map(|(scope, _)| scope)
     }
 
+    /// The leading path component of a multi-component image repository name
+    /// (`acme/app` → `acme`); `None` for a single-component name. The
+    /// namespace-tier key a specificity lookup consults.
+    #[must_use]
+    pub fn namespace_of(package: &str) -> Option<&str> {
+        package.split_once('/').map(|(namespace, _)| namespace)
+    }
+
     /// Whether this pattern matches `package`.
     #[must_use]
     pub fn matches(&self, package: &str) -> bool {
@@ -130,6 +174,9 @@ impl PackagePattern {
             PackagePattern::AnyScoped => scoped_name(package).is_some(),
             PackagePattern::Scope(scope) => {
                 scoped_name(package).is_some_and(|(package_scope, _)| package_scope == scope)
+            }
+            PackagePattern::Namespace(namespace) => {
+                Self::namespace_of(package).is_some_and(|leading| leading == namespace)
             }
             PackagePattern::Exact(name) => name == package,
         }
@@ -144,11 +191,11 @@ impl PackagePattern {
     /// coverage is sufficient for union coverage in this language.
     #[must_use]
     pub fn covers(&self, other: &PackagePattern) -> bool {
-        use PackagePattern::{All, AnyScoped, Exact, Scope};
+        use PackagePattern::{All, AnyScoped, Exact, Namespace, Scope};
         match self {
             All => true,
             AnyScoped => match other {
-                All => false,
+                All | Namespace(_) => false,
                 AnyScoped | Scope(_) => true,
                 // Consistent with `matches`: an exact name is scoped only when
                 // it is a well-formed `@scope/name`, never a bare `@scope`.
@@ -157,7 +204,12 @@ impl PackagePattern {
             Scope(scope) => match other {
                 Scope(other_scope) => other_scope == scope,
                 Exact(name) => scoped_name(name).is_some_and(|(name_scope, _)| name_scope == scope),
-                All | AnyScoped => false,
+                All | AnyScoped | Namespace(_) => false,
+            },
+            Namespace(namespace) => match other {
+                Namespace(other_namespace) => other_namespace == namespace,
+                Exact(name) => Self::namespace_of(name).is_some_and(|leading| leading == namespace),
+                All | AnyScoped | Scope(_) => false,
             },
             Exact(name) => matches!(other, Exact(other_name) if other_name == name),
         }
@@ -170,6 +222,7 @@ impl fmt::Display for PackagePattern {
             PackagePattern::All => f.write_str("**"),
             PackagePattern::AnyScoped => f.write_str("@*/*"),
             PackagePattern::Scope(scope) => write!(f, "@{scope}/*"),
+            PackagePattern::Namespace(namespace) => write!(f, "{namespace}/*"),
             PackagePattern::Exact(name) => f.write_str(name),
         }
     }
@@ -252,26 +305,100 @@ pub enum Resolved<'a> {
 /// target. Built and validated by the `config` module at load time.
 #[derive(Debug, Default, Clone)]
 pub struct Registries {
-    registries: IndexMap<String, Registry>,
+    entries: IndexMap<String, Registry>,
     /// The registry the path-less base URL (`https://<pnpr>/`) aliases. `None`
     /// disables the path-less base entirely — clients must address a registry.
     default_registry: Option<String>,
+    /// The ecosystem of every concrete registry that is not npm. A concrete
+    /// registry absent here is an npm registry; a router's ecosystem is the one
+    /// its sources share.
+    ecosystems: IndexMap<String, Ecosystem>,
 }
 
 impl Registries {
     #[must_use]
     pub fn new(registries: IndexMap<String, Registry>, default_registry: Option<String>) -> Self {
-        Self { registries, default_registry }
+        Self { entries: registries, default_registry, ecosystems: IndexMap::new() }
+    }
+
+    /// Declare the ecosystem a concrete registry serves. Every registry is npm
+    /// unless declared otherwise.
+    #[must_use]
+    pub fn with_ecosystem(mut self, registry: &str, ecosystem: Ecosystem) -> Self {
+        self.ecosystems.insert(registry.to_string(), ecosystem);
+        self
+    }
+
+    /// The ecosystem a concrete registry serves. `None` for a router (which
+    /// serves whatever its sources do) and for an undefined registry.
+    #[must_use]
+    pub fn ecosystem(&self, registry: &str) -> Option<Ecosystem> {
+        match self.entries.get(registry)? {
+            Registry::Hosted { .. } | Registry::Upstream { .. } => {
+                Some(self.concrete_ecosystem(registry))
+            }
+            Registry::Router { .. } => None,
+        }
+    }
+
+    #[must_use]
+    pub fn has_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.entries.iter().any(|(name, registry)| {
+            registry.is_concrete() && self.concrete_ecosystem(name) == ecosystem
+        })
+    }
+
+    #[must_use]
+    pub fn is_only_ecosystem(&self, ecosystem: Ecosystem) -> bool {
+        self.has_ecosystem(ecosystem)
+            && Ecosystem::all()
+                .all(|candidate| candidate == ecosystem || !self.has_ecosystem(candidate))
+    }
+
+    /// The path an ecosystem's endpoints sit under: nothing when it is the
+    /// only one served, `/<ecosystem>` when it shares the server.
+    ///
+    /// Every URL pnpr writes about itself and every route it mounts starts
+    /// here, so the decision lives in one place rather than being spelled out
+    /// again at each of them.
+    #[must_use]
+    pub fn base_path(&self, ecosystem: Ecosystem) -> String {
+        if self.is_only_ecosystem(ecosystem) { String::new() } else { format!("/{ecosystem}") }
+    }
+
+    fn concrete_ecosystem(&self, registry: &str) -> Ecosystem {
+        self.ecosystems.get(registry).copied().unwrap_or_default()
+    }
+
+    /// The concrete registries of `ecosystem` a request through `registry` can
+    /// land on, in selection order: the registry itself when it is concrete and
+    /// serves that ecosystem, a router's matching sources, nothing otherwise.
+    #[must_use]
+    pub fn sources(&self, registry: &str, ecosystem: Ecosystem) -> Vec<&str> {
+        match self.entries.get_key_value(registry) {
+            Some((id, Registry::Hosted { .. } | Registry::Upstream { .. })) => {
+                if self.concrete_ecosystem(id) == ecosystem { vec![id] } else { Vec::new() }
+            }
+            Some((_, Registry::Router { sources })) => sources
+                .iter()
+                .filter(|source| {
+                    self.entries.get(source.as_str()).is_some_and(Registry::is_concrete)
+                        && self.concrete_ecosystem(source) == ecosystem
+                })
+                .map(String::as_str)
+                .collect(),
+            None => Vec::new(),
+        }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.registries.is_empty()
+        self.entries.is_empty()
     }
 
     #[must_use]
     pub fn get(&self, registry: &str) -> Option<&Registry> {
-        self.registries.get(registry)
+        self.entries.get(registry)
     }
 
     #[must_use]
@@ -281,13 +408,13 @@ impl Registries {
 
     /// The declared registry names, in declaration order.
     pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.registries.keys().map(String::as_str)
+        self.entries.keys().map(String::as_str)
     }
 
     /// Whether `registry` is a defined router.
     #[must_use]
     pub fn is_router(&self, registry: &str) -> bool {
-        matches!(self.registries.get(registry), Some(Registry::Router { .. }))
+        matches!(self.entries.get(registry), Some(Registry::Router { .. }))
     }
 
     /// Insert `name` as a pattern-less upstream registry when it is not
@@ -296,74 +423,63 @@ impl Registries {
     /// table for `/~<name>/` traffic. An embedder that wants a namespace
     /// bound on an upstream declares its own entry (with patterns) first.
     pub fn ensure_upstream(&mut self, name: &str) {
-        if !self.registries.contains_key(name) {
-            self.registries.insert(name.to_string(), Registry::Upstream { patterns: Vec::new() });
+        if !self.entries.contains_key(name) {
+            self.entries.insert(name.to_string(), Registry::Upstream { patterns: Vec::new() });
         }
     }
 
-    /// Resolve a request addressed to `registry` for `package` to its single
-    /// concrete origin, enforcing every concrete registry's declared namespace at
-    /// the registry itself. A concrete registry resolves to itself only when its
-    /// patterns claim the package; a router resolves to the first source whose
+    /// Resolve a request addressed to `registry` for `package` in `ecosystem`
+    /// to its single concrete origin, enforcing every concrete registry's
+    /// declared namespace at the registry itself. A concrete registry resolves
+    /// to itself only when it serves the ecosystem and its patterns claim the
+    /// package; a router resolves to the first source of that ecosystem whose
     /// patterns claim it (authoritatively — an unclaimed package is
-    /// [`Resolved::Unclaimed`], never a fall-through).
+    /// [`Resolved::Unclaimed`], never a fall-through). Sources of another
+    /// ecosystem are invisible to the request, so one router can front every
+    /// ecosystem while each protocol's requests only ever reach origins that
+    /// speak it.
     #[must_use]
-    pub fn resolve<'a>(&'a self, registry: &str, package: &str) -> Resolved<'a> {
-        let Some((registry_id, kind)) = self.registries.get_key_value(registry) else {
+    pub fn resolve<'a>(
+        &'a self,
+        registry: &str,
+        ecosystem: Ecosystem,
+        package: &str,
+    ) -> Resolved<'a> {
+        let Some((registry_id, kind)) = self.entries.get_key_value(registry) else {
             return Resolved::UnknownRegistry;
         };
+        let claim = |id: &'a str, kind: &Registry| -> Option<Resolved<'a>> {
+            let (patterns, concrete) = match kind {
+                Registry::Hosted { patterns } => (patterns, ConcreteKind::Hosted),
+                Registry::Upstream { patterns } => (patterns, ConcreteKind::Upstream),
+                Registry::Router { .. } => return None,
+            };
+            (self.concrete_ecosystem(id) == ecosystem && namespace_claims(patterns, package))
+                .then_some(Resolved::Concrete { registry: id, kind: concrete })
+        };
         match kind {
-            Registry::Hosted { patterns } => {
-                if namespace_claims(patterns, package) {
-                    Resolved::Concrete { registry: registry_id, kind: ConcreteKind::Hosted }
-                } else {
-                    Resolved::Unclaimed
-                }
+            Registry::Hosted { .. } | Registry::Upstream { .. } => {
+                claim(registry_id, kind).unwrap_or(Resolved::Unclaimed)
             }
-            Registry::Upstream { patterns } => {
-                if namespace_claims(patterns, package) {
-                    Resolved::Concrete { registry: registry_id, kind: ConcreteKind::Upstream }
-                } else {
-                    Resolved::Unclaimed
-                }
-            }
-            Registry::Router { sources } => {
-                // Validation guarantees every source is a defined concrete
-                // registry; a non-concrete entry here can only mean the graph was
-                // built without validation, and it simply never matches.
-                for source in sources {
-                    match self.registries.get_key_value(source) {
-                        Some((source_id, Registry::Hosted { patterns }))
-                            if namespace_claims(patterns, package) =>
-                        {
-                            return Resolved::Concrete {
-                                registry: source_id,
-                                kind: ConcreteKind::Hosted,
-                            };
-                        }
-                        Some((source_id, Registry::Upstream { patterns }))
-                            if namespace_claims(patterns, package) =>
-                        {
-                            return Resolved::Concrete {
-                                registry: source_id,
-                                kind: ConcreteKind::Upstream,
-                            };
-                        }
-                        _ => {}
-                    }
-                }
-                Resolved::Unclaimed
-            }
+            // Validation guarantees every source is a defined concrete
+            // registry; a non-concrete entry here can only mean the graph was
+            // built without validation, and it simply never matches.
+            Registry::Router { sources } => sources
+                .iter()
+                .filter_map(|source| self.entries.get_key_value(source))
+                .find_map(|(source_id, source)| claim(source_id, source))
+                .unwrap_or(Resolved::Unclaimed),
         }
     }
 
-    /// Resolve a request to the path-less base (`https://<pnpr>/`) through the
-    /// configured default target. With no default target the path-less base is
-    /// disabled, so every package is [`Resolved::UnknownRegistry`].
+    /// Resolve a request to an ecosystem's path-less base (`https://<pnpr>/`,
+    /// `https://<pnpr>/cargo/`, ...) through the configured default target.
+    /// With no default target the path-less base is disabled, so every package
+    /// is [`Resolved::UnknownRegistry`].
     #[must_use]
-    pub fn resolve_default<'a>(&'a self, package: &str) -> Resolved<'a> {
+    pub fn resolve_default<'a>(&'a self, ecosystem: Ecosystem, package: &str) -> Resolved<'a> {
         match self.default_registry.as_deref() {
-            Some(target) => self.resolve(target, package),
+            Some(target) => self.resolve(target, ecosystem, package),
             None => Resolved::UnknownRegistry,
         }
     }
@@ -373,11 +489,22 @@ impl Registries {
     /// Run at config load and on reload.
     pub fn validate(&self) -> Result<(), RegistryConfigError> {
         if let Some(target) = &self.default_registry
-            && !self.registries.contains_key(target)
+            && !self.entries.contains_key(target)
         {
             return Err(RegistryConfigError::UndefinedDefaultRegistry { target: target.clone() });
         }
-        for (name, kind) in &self.registries {
+        for (name, ecosystem) in &self.ecosystems {
+            match self.entries.get(name) {
+                Some(kind) if kind.is_concrete() => {}
+                _ => {
+                    return Err(RegistryConfigError::EcosystemOnNonConcreteRegistry {
+                        registry: name.clone(),
+                        ecosystem: *ecosystem,
+                    });
+                }
+            }
+        }
+        for (name, kind) in &self.entries {
             match kind {
                 Registry::Hosted { patterns } | Registry::Upstream { patterns } => {
                     validate_namespace(name, patterns)?;
@@ -403,7 +530,10 @@ impl Registries {
         // by the same relation as any declared pattern.
         const CATCH_ALL: &[PackagePattern] = &[PackagePattern::All];
         let mut seen_sources: Vec<&str> = Vec::new();
-        let mut seen_patterns: Vec<&PackagePattern> = Vec::new();
+        // Coverage is decided per ecosystem: a request only ever sees the
+        // sources that speak its protocol, so a Cargo catch-all cannot shadow an
+        // npm source listed after it.
+        let mut seen_patterns: IndexMap<Ecosystem, Vec<&PackagePattern>> = IndexMap::new();
         for (index, source) in sources.iter().enumerate() {
             // The source must resolve to a defined concrete registry: an unknown
             // name, the router itself, or another router are all rejected, so a
@@ -413,7 +543,7 @@ impl Registries {
                     router: router.to_string(),
                 });
             }
-            let kind = match self.registries.get(source) {
+            let kind = match self.entries.get(source) {
                 None => {
                     return Err(RegistryConfigError::UnknownSource {
                         router: router.to_string(),
@@ -428,6 +558,7 @@ impl Registries {
                 }
                 Some(kind) => kind,
             };
+            let seen_patterns = seen_patterns.entry(self.concrete_ecosystem(source)).or_default();
             if seen_sources.contains(&source.as_str()) {
                 return Err(RegistryConfigError::DuplicateSource {
                     router: router.to_string(),
@@ -506,14 +637,19 @@ fn validate_namespace(
 /// `InvalidConfig` so a bad registry set fails server startup and config reload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryConfigError {
-    /// An unsupported wildcard in a registry pattern.
-    InvalidPattern { pattern: String },
+    /// An unsupported wildcard in a registry pattern. Carries the ecosystem
+    /// so the message can name the shapes that ecosystem admits, rather than
+    /// sending an operator to one it always refuses.
+    InvalidPattern { pattern: String, ecosystem: Ecosystem },
     /// A wildcard-free registry pattern that is not a well-formed package name,
     /// so it could never match any request.
     ExactPatternNotAName { pattern: String },
     /// A `@<scope>/*` pattern whose scope no well-formed package name can
     /// carry, so it could never match any request.
     ScopePatternNotAScope { pattern: String },
+    /// A `<namespace>/*` pattern whose namespace no well-formed image
+    /// repository name can carry, so it could never match any request.
+    NamespacePatternNotANamespace { pattern: String },
     /// `defaultRegistry` names a registry that does not exist.
     UndefinedDefaultRegistry { target: String },
     /// A router has no sources at all, so it can never serve any package.
@@ -535,15 +671,34 @@ pub enum RegistryConfigError {
     /// pattern, so it can never be selected in this router even though the
     /// rest of its source stays reachable.
     ShadowedPattern { router: String, source: String, pattern: String, by: String },
+    /// An ecosystem is declared for a name that is not a concrete registry.
+    EcosystemOnNonConcreteRegistry { registry: String, ecosystem: Ecosystem },
+}
+
+/// The wildcard shapes an ecosystem's names can carry, for the message an
+/// operator reads when theirs is not one of them.
+fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
+    match ecosystem {
+        Ecosystem::Npm => "`@scope/*` or `@*/*`",
+        Ecosystem::Oci => "`<namespace>/*`",
+        // A crate or project name is one flat token, so there is no namespace
+        // to claim below `**`.
+        Ecosystem::Cargo | Ecosystem::Pypi => "nothing narrower",
+    }
+}
+
+fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
+    RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
 }
 
 impl fmt::Display for RegistryConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RegistryConfigError::InvalidPattern { pattern } => write!(
+            RegistryConfigError::InvalidPattern { pattern, ecosystem } => write!(
                 f,
-                "unsupported registry pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
-                 or `**`",
+                "unsupported {ecosystem} registry pattern {pattern:?}: use an exact name, {}, or \
+                 `**`",
+                wildcard_shapes(*ecosystem),
             ),
             RegistryConfigError::ExactPatternNotAName { pattern } => write!(
                 f,
@@ -554,6 +709,11 @@ impl fmt::Display for RegistryConfigError {
                 f,
                 "registry pattern {pattern:?} does not name a valid scope, so it can never match \
                  any package",
+            ),
+            RegistryConfigError::NamespacePatternNotANamespace { pattern } => write!(
+                f,
+                "registry pattern {pattern:?} does not name a valid image namespace, so it can \
+                 never match any repository",
             ),
             RegistryConfigError::UndefinedDefaultRegistry { target } => {
                 write!(f, "defaultRegistry {target:?} is not a defined registry")
@@ -592,6 +752,11 @@ impl fmt::Display for RegistryConfigError {
                 "router {router:?} can never select source {source:?} for its pattern \
                  {pattern:?}: an earlier source's pattern {by:?} already claims every package it \
                  would; reorder the sources or adjust the declared namespaces",
+            ),
+            RegistryConfigError::EcosystemOnNonConcreteRegistry { registry, ecosystem } => write!(
+                f,
+                "registry {registry:?} declares ecosystem {ecosystem} but is not a hosted or \
+                 upstream registry",
             ),
         }
     }

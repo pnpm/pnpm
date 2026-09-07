@@ -12,7 +12,10 @@ pub use _utils::*;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    fixtures::tarball_with_manifest,
+};
 use std::{fs, os::unix::fs::MetadataExt, path::Path};
 
 /// `version` field of the `package.json` under `workspace/relative`.
@@ -419,6 +422,67 @@ fn repeat_hoisted_install_with_workspace_member_deps_is_up_to_date() {
     assert!(
         second_output.contains("Already up to date"),
         "the repeat install must short-circuit: {second_output}",
+    );
+    assert_eq!(
+        fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino(),
+        inode_before,
+        "the second install must re-import nothing",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// pnpm/pnpm#14495: an unchanged local tarball does not make a hoisted
+/// workspace reinstall its registry dependency tree.
+#[test]
+fn repeat_hoisted_install_with_unchanged_local_tarball_is_up_to_date() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    yaml.push_str("nodeLinker: hoisted\npackages:\n  - member\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "ws-root", "private": true }).to_string(),
+    )
+    .expect("write the root package.json");
+    fs::create_dir_all(workspace.join("member")).expect("mkdir member");
+    fs::write(
+        workspace.join("member/package.json"),
+        serde_json::json!({
+            "name": "member",
+            "version": "1.0.0",
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+                "local-pkg": "file:../vendor/local-pkg.tgz",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write the member package.json");
+    fs::create_dir_all(workspace.join("vendor")).expect("mkdir vendor");
+    fs::write(
+        workspace.join("vendor/local-pkg.tgz"),
+        tarball_with_manifest(&serde_json::json!({
+            "name": "local-pkg",
+            "version": "1.0.0",
+        })),
+    )
+    .expect("write local tarball");
+
+    pacquet.with_arg("install").assert().success();
+    let hoisted_manifest =
+        workspace.join("node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json");
+    let inode_before = fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino();
+
+    let second = pacquet_in(&workspace).with_arg("install").assert().success();
+    let second_output = String::from_utf8_lossy(&second.get_output().stdout).into_owned();
+    assert!(
+        second_output.contains("Already up to date"),
+        "the unchanged tarball must leave the fast path available: {second_output}",
     );
     assert_eq!(
         fs::metadata(&hoisted_manifest).expect("stat the hoisted dep").ino(),

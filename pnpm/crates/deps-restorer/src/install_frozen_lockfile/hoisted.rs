@@ -262,6 +262,10 @@ pub fn run_hoisted_linker<Reporter: self::Reporter>(
         // pnpm gates `extraNodePaths` on the isolated linker, so the
         // hoisted linker's shims never carry `NODE_PATH`.
         link_options: &link_options,
+        // `link_only` keeps only `link:` siblings, which have no
+        // lockfile row for a prefetched manifest to serve.
+        package_manifests: None,
+        requires_build_by_snapshot: None,
     }
     .run::<Reporter>()
     .map_err(HoistedLinkerError::SymlinkDirectDependencies)?;

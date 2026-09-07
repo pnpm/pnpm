@@ -51,7 +51,7 @@ import {
   overrideSupportedArchitecturesWithCLI,
 } from './overrideSupportedArchitecturesWithCLI.js'
 import { quoteAndJoin } from './quoteAndJoin.js'
-import { transformPathKeys } from './transformPath.js'
+import { transformGlobalDirKeys, transformPathKeys } from './transformPath.js'
 import { types } from './types.js'
 import { isKnownSettingKey, quoteAndAnnotateUnknown } from './unknownSettings.js'
 export { types }
@@ -399,6 +399,9 @@ export async function getConfig (opts: {
     // reached only through a stored credential is reached the same way when
     // pnpm downloads itself as when it installs.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    // A `registry=` in a trusted `.npmrc` declares the default registry as
+    // plainly as a yaml does, so it holds the file fallback back here too.
+    ...npmrcResult.trustedDeclaredRegistries,
     ...trustedNetworkConfigs.registries,
     // `_auth` routes apply here too so bootstrap (self-download / version
     // switching) resolves the same way as regular installs.
@@ -429,6 +432,21 @@ export async function getConfig (opts: {
     }
   }
   pnpmConfig.pnpmHomeDir = getDataDir({ env, platform: process.platform })
+  // `globalPkgDir` and `bin` are derived just below, and `globalPkgDir` is
+  // read again further down, both before the full `PNPM_CONFIG_*` pass runs.
+  // The two settings they are built from therefore have to come off the
+  // environment here; that pass sets them again to the same values. The CLI
+  // outranks the environment, exactly as it does there.
+  for (const { key, value } of parseEnvVars(
+    schemaKey => schemaKey === 'global-dir' || schemaKey === 'global-bin-dir' ? types[schemaKey] : undefined,
+    env
+  )) {
+    if ((key !== 'globalDir' && key !== 'globalBinDir') || typeof value !== 'string') continue
+    if (Object.hasOwn(cliOptions, key) || Object.hasOwn(cliOptions, kebabCase(key))) continue
+    pnpmConfig[key] = value
+    explicitlySetKeys.add(key)
+  }
+  transformGlobalDirKeys(pnpmConfig, os.homedir())
   let globalDirRoot
   if (pnpmConfig.globalDir) {
     globalDirRoot = pnpmConfig.globalDir
@@ -501,13 +519,23 @@ export async function getConfig (opts: {
       if (ignoredPnpmFieldKeys.length > 0) {
         warnings.push(`The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: ${quoteAndJoin(ignoredPnpmFieldKeys.map(k => `pnpm.${k}`))}. See https://pnpm.io/settings for the new home of each setting.`)
       }
-      const wantedPmResult = getWantedPackageManager(pnpmConfig.rootProjectManifest)
+    }
+
+    // `lockfileDir` moves `rootProjectManifestDir` off the workspace root,
+    // and the engine pins stay with the workspace the contributor works in.
+    // Re-read only when the two directories differ.
+    const enginePinManifestDir = pnpmConfig.workspaceDir ?? pnpmConfig.dir
+    pnpmConfig.enginePinManifest = enginePinManifestDir === pnpmConfig.rootProjectManifestDir
+      ? pnpmConfig.rootProjectManifest
+      : await safeReadProjectManifestOnly(enginePinManifestDir) ?? undefined
+    if (pnpmConfig.enginePinManifest != null) {
+      const wantedPmResult = getWantedPackageManager(pnpmConfig.enginePinManifest)
       if (wantedPmResult.pm) {
         pnpmConfig.wantedPackageManager = wantedPmResult.pm
       }
       warnings.push(...wantedPmResult.warnings)
       if (pnpmConfig.nodeVersion == null) {
-        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.rootProjectManifest)
+        pnpmConfig.nodeVersion = getNodeVersionFromEnginesRuntime(pnpmConfig.enginePinManifest)
       }
     }
 
@@ -572,7 +600,7 @@ export async function getConfig (opts: {
     }
   }
 
-  // Precedence: builtin < .npmrc < `_auth` file < yaml < `_auth` env < CLI. CLI
+  // Precedence: builtin < `_auth` file < .npmrc < yaml < `_auth` env < CLI. CLI
   // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
   // via `authConfig`, so they're re-applied last here to avoid being buried
   // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
@@ -590,8 +618,11 @@ export async function getConfig (opts: {
     ...registriesFromNpmrc,
     // The global config file's `_auth` only fills in what nothing declares:
     // it is where a `pnpm login` stores a credential, and holding one is not
-    // a statement about where packages come from.
+    // a statement about where packages come from. `registriesFromNpmrc`
+    // carries the builtin default as well as what the `.npmrc` files
+    // declared, so only the latter are restated above the fallback.
     ...npmrcResult.jsonAuth.fallbackRegistries,
+    ...npmrcResult.declaredRegistries,
     ...globalYamlRegistries,
     ...workspaceManifestRegistries,
     ...declaredDefault,
@@ -667,6 +698,14 @@ export async function getConfig (opts: {
     }
     if (key === 'maxSockets') {
       maxSocketsFromEnv = value as number
+      continue
+    }
+
+    // The environment can only spell the boolean, and a plain assignment
+    // would drop a remote tier a config file declared under the object form.
+    if (key === 'sideEffectsCache') {
+      applySideEffectsCacheDeclaration(pnpmConfig, value)
+      explicitlySetKeys.add(key)
       continue
     }
 
@@ -937,7 +976,7 @@ export async function getConfig (opts: {
   const {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -946,7 +985,7 @@ export async function getConfig (opts: {
   const context: ConfigContext = {
     hooks, finders,
     allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
-    rootProjectManifest, rootProjectManifestDir,
+    rootProjectManifest, rootProjectManifestDir, enginePinManifest,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
     packageManager: ctxPackageManager, wantedPackageManager,
@@ -1533,6 +1572,7 @@ const CONFIG_CONTEXT_KEYS = [
   'prodOnlySelectedProjectDirs',
   'rootProjectManifest',
   'rootProjectManifestDir',
+  'enginePinManifest',
   'cliOptions',
   'explicitlySetKeys',
   'packageManager',
@@ -1616,7 +1656,9 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
   workspaceManifest: WorkspaceManifest
 }): void {
   const skipped: ReadonlySet<string> | undefined = skipSettings
-  const newSettings = Object.assign(getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource }), configFromCliOpts)
+  const settingsFromManifest = getOptionsFromPnpmSettings(workspaceDir, workspaceManifest, { manifest: projectManifest, expandRequestDestinationEnv, trustedSource })
+  const sideEffectsCacheFromManifest = settingsFromManifest.sideEffectsCache
+  const newSettings = Object.assign(settingsFromManifest, configFromCliOpts)
   for (const [key, value] of Object.entries(newSettings)) {
     if (!isCamelCase(key)) continue
     if (CONFIG_CONTEXT_KEY_SET.has(key)) continue
@@ -1639,30 +1681,14 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
       continue
     }
     if (key === 'sideEffectsCache') {
-      const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
-        ? pnpmConfig.sideEffectsCache
-        : undefined
-      if (typeof value === 'boolean') {
-        // A boolean says whether to read and write. It says nothing about the
-        // remote tier, so one declared by an earlier source survives it — but
-        // it has to survive as a remote tier rather than by turning the
-        // boolean into an object, which would move the whole declaration onto
-        // the object branch of the resolver and take it out of reach of
-        // `sideEffectsCacheReadonly`.
-        if (previous?.remote != null) {
-          pnpmConfig.remoteSideEffectsCache = {
-            ...pnpmConfig.remoteSideEffectsCache,
-            ...withCanonicalOrg(previous.remote),
-          }
-        }
-        pnpmConfig.sideEffectsCache = value
-      } else if (value != null) {
-        const declared = value as SideEffectsCacheSettings
-        const remote = previous?.remote != null || declared.remote != null
-          ? { ...previous?.remote, ...withCanonicalOrg(declared.remote) }
-          : undefined
-        pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
+      // The command line is a layer on top of the manifest, not a substitute
+      // for it: applying only the value that won the merge above would drop a
+      // remote tier the manifest declared, which the boolean says nothing
+      // about.
+      if (sideEffectsCacheFromManifest != null && sideEffectsCacheFromManifest !== value) {
+        applySideEffectsCacheDeclaration(pnpmConfig, sideEffectsCacheFromManifest)
       }
+      applySideEffectsCacheDeclaration(pnpmConfig, value)
       pnpmConfig.explicitlySetKeys.add(key)
       continue
     }
@@ -1679,6 +1705,38 @@ function addSettingsFromWorkspaceManifestToConfig (pnpmConfig: Config & ConfigCo
     pnpmConfig.verifyDepsBeforeRun = process.env.pnpm_config_verify_deps_before_run as VerifyDepsBeforeRun
   }
   pnpmConfig.catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+}
+
+/**
+ * Merge one source's `sideEffectsCache` declaration into the config, later
+ * sources landing on top of earlier ones.
+ *
+ * A boolean says whether to read and write. It says nothing about the remote
+ * tier, so one declared by an earlier source survives it — but it has to
+ * survive as a remote tier rather than by turning the boolean into an object,
+ * which would move the whole declaration onto the object branch of
+ * {@link resolveSideEffectsCache} and take it out of reach of
+ * `sideEffectsCacheReadonly`.
+ */
+function applySideEffectsCacheDeclaration (pnpmConfig: Config, value: unknown): void {
+  const previous = typeof pnpmConfig.sideEffectsCache === 'object' && pnpmConfig.sideEffectsCache != null
+    ? pnpmConfig.sideEffectsCache
+    : undefined
+  if (typeof value === 'boolean') {
+    if (previous?.remote != null) {
+      pnpmConfig.remoteSideEffectsCache = {
+        ...pnpmConfig.remoteSideEffectsCache,
+        ...withCanonicalOrg(previous.remote),
+      }
+    }
+    pnpmConfig.sideEffectsCache = value
+  } else if (value != null) {
+    const declared = value as SideEffectsCacheSettings
+    const remote = previous?.remote != null || declared.remote != null
+      ? { ...previous?.remote, ...withCanonicalOrg(declared.remote) }
+      : undefined
+    pnpmConfig.sideEffectsCache = { ...previous, ...declared, remote }
+  }
 }
 
 /**

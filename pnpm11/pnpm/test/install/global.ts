@@ -163,6 +163,30 @@ test('run lifecycle events of global packages in correct working directory', asy
   expect(fs.existsSync(path.join(pkgPath!, 'created-by-postinstall'))).toBeTruthy()
 })
 
+// A denial has to survive the post-install approval prompt: an undecided
+// package is offered for approval, an explicitly denied one is not. The
+// auto-approve env var stands in for a user who approves everything
+// pending, so the build artifact appears only if the `!` was dropped.
+test('global add denies scripts for a package prefixed with ! in --allow-build', async () => {
+  prepare()
+  const global = path.resolve('..', 'global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(pnpmHome, { recursive: true })
+
+  const env = {
+    [PATH_NAME]: `${path.join(pnpmHome, 'bin')}${path.delimiter}${process.env[PATH_NAME]!}`,
+    PNPM_HOME: pnpmHome,
+    XDG_DATA_HOME: global,
+    PNPM_AUTO_APPROVE_BUILDS_FOR_TESTS: '1',
+  }
+
+  await execPnpm(['add', '-g', '--allow-build=!@pnpm.e2e/install-script-example', '@pnpm.e2e/install-script-example@1.0.0'], { env })
+
+  const pkgPath = findGlobalPkg(globalPkgDir(pnpmHome), '@pnpm.e2e/install-script-example')
+  expect(pkgPath).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgPath!, 'generated-by-install.js'))).toBe(false)
+})
+
 // Regression test for https://github.com/pnpm/pnpm/issues/11403.
 //
 // When `pnpm add -g` installs a package whose build is not pre-allowed,

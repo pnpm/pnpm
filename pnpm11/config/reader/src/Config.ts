@@ -60,6 +60,18 @@ export interface ConfigContext {
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
+  /**
+   * The manifest that declares the engine pins pnpm acts on: the
+   * `packageManager` field, `devEngines.packageManager`, and the runtimes
+   * under `devEngines.runtime` / `engines.runtime`.
+   *
+   * The workspace root's manifest, which is the same object as
+   * `rootProjectManifest` unless `lockfileDir` moved the root project
+   * directory off the workspace root. The pins belong to the workspace the
+   * contributor is working in, not to whichever directory the lockfile was
+   * pointed at.
+   */
+  enginePinManifest?: ProjectManifest
 
   // -- CLI metadata --
   cliOptions: Record<string, any> // eslint-disable-line

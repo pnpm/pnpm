@@ -4,6 +4,7 @@ mod package_tag;
 mod package_version;
 mod package_versions;
 mod range_spec_style;
+mod wire_tolerance;
 
 pub use package::{DerivedPackuments, Package};
 pub use package_distribution::{AttestationsDist, PackageDistribution, ProvenanceMeta};

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 
 use axum::{
     body::Body,
@@ -11,12 +11,12 @@ use serde_json::{Value, json};
 use ssri::Integrity;
 
 use pnpr_error::RegistryError;
-use pnpr_package_name::PackageName;
+use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
-use pnpr_registry::Registry;
+use pnpr_registry::{Ecosystem, Registry};
 use pnpr_storage::{
-    HostedPackumentVersion, PackumentWrite, TarballFinalize,
-    journal::{JournaledPublish, JournaledRevisionRef},
+    HostedDocumentVersion,
+    journal::{CommitOutcome, JournaledPublish, JournaledRevisionRef},
     publish::{
         PendingAttachment, extract_attachments, merge_manifest, now_iso,
         stream_decode_verify_and_write,
@@ -25,8 +25,8 @@ use pnpr_storage::{
 
 use super::{
     Action, AppState, AuthedCaller, HostedGate, HostedOriginalRef, RegistrySource, WriteTarget,
-    authorize, authorized_upstream, default_registry_target, hosted_gate, hosted_storage,
-    resolve_registry_source, resolve_write_target,
+    authorize, authorized_upstream, default_registry_target, documents::RegistryDocuments,
+    hosted_gate, hosted_storage, resolve_ecosystem_source, resolve_write_target,
 };
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
@@ -59,10 +59,11 @@ pub(super) enum PublishTarget {
 /// path-less base routes through its default-target registry; with no default
 /// target the bare host has no registry and the publish is a not-found,
 /// exactly like a read.
-pub(super) fn resolve_publish_target(
+pub(super) fn resolve_publish_target_for(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
+    ecosystem: Ecosystem,
     package: &str,
 ) -> PublishTarget {
     let (target, context) = match registry {
@@ -72,7 +73,7 @@ pub(super) fn resolve_publish_target(
             None => return PublishTarget::NotFound,
         },
     };
-    match resolve_registry_source(state, &target, package) {
+    match resolve_ecosystem_source(state, &target, ecosystem, package) {
         RegistrySource::Hosted(registry) => {
             match hosted_gate(state, identity, &registry, package) {
                 HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
@@ -151,7 +152,7 @@ pub(super) async fn publish_package(
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
-    let name = match PackageName::parse(raw_name) {
+    let name = match CanonicalPackageName::parse(raw_name, pnpr_package_name::Ecosystem::Npm) {
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
@@ -196,10 +197,10 @@ pub(super) async fn publish_package(
         Ok(staged) => staged,
         Err(err) => return err.into_response(),
     };
-    if let Err(err) = commit_publishes(state, vec![staged]).await {
-        return err.into_response();
+    match commit_publishes(state, vec![staged]).await.and_then(report_unrecorded) {
+        Ok(()) => publish_created_response(),
+        Err(err) => err.into_response(),
     }
-    publish_created_response()
 }
 
 /// `PUT /-/pnpm/v1/publish` — publish several packages with one
@@ -247,7 +248,7 @@ pub(super) async fn serve_batch_publish(
             }
             .into_response();
         };
-        let name = match PackageName::parse(doc_name) {
+        let name = match CanonicalPackageName::parse(doc_name, pnpr_package_name::Ecosystem::Npm) {
             Ok(name) => name,
             Err(err) => return err.into_response(),
         };
@@ -292,10 +293,10 @@ pub(super) async fn serve_batch_publish(
             }
         }
     }
-    if let Err(err) = commit_publishes(&state, staged).await {
-        return err.into_response();
+    match commit_publishes(&state, staged).await.and_then(report_unrecorded) {
+        Ok(()) => publish_created_response(),
+        Err(err) => err.into_response(),
     }
-    publish_created_response()
 }
 
 /// A publish document that passed every check that can run before
@@ -303,7 +304,7 @@ pub(super) async fn serve_batch_publish(
 /// each attachment maps to a canonical disk filename and a
 /// `versions[v].dist` block.
 pub(super) struct ValidatedPublish {
-    pub(super) name: PackageName,
+    pub(super) name: CanonicalPackageName,
     /// The publish body with `_attachments` stripped.
     pub(super) incoming: Value,
     /// One entry per attachment.
@@ -328,7 +329,7 @@ pub(super) async fn validate_publish_doc(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
-    name: PackageName,
+    name: CanonicalPackageName,
     mut incoming: Value,
 ) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     // Route the write to its hosted registry first (masking a denied caller
@@ -345,6 +346,7 @@ pub(super) async fn validate_publish_doc(
     )?;
 
     let attachments = extract_attachments(&mut incoming)?;
+    record_publisher(&mut incoming, identity);
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the
@@ -368,19 +370,39 @@ pub(super) async fn validate_publish_doc(
     Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
 
-/// A publish whose packument is merged and whose tarballs are fully
-/// written to tmp slots — everything verified, nothing visible to
-/// readers yet. [`commit_publishes`] makes it visible.
+fn record_publisher(incoming: &mut Value, identity: &Identity) {
+    let Some(versions) = incoming.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    for manifest in versions.values_mut().filter_map(Value::as_object_mut) {
+        match identity {
+            Identity::User { username } => {
+                manifest.insert("_npmUser".to_string(), json!({ "name": username }));
+            }
+            Identity::Anonymous => {
+                manifest.remove("_npmUser");
+            }
+        }
+    }
+}
+
+/// A publish whose document is computed and whose blobs are fully written to
+/// tmp slots — everything verified, nothing visible to readers yet.
+/// [`commit_publishes`] makes it visible. Every surface stages into this, so
+/// one commit can carry packages of more than one ecosystem.
 pub(super) struct StagedPublish {
-    name: PackageName,
-    merged_bytes: Vec<u8>,
-    base_version: Option<HostedPackumentVersion>,
-    slots: Vec<pnpr_storage::TarballSlot>,
-    original_refs: Vec<JournaledRevisionRef>,
+    pub(super) name: CanonicalPackageName,
+    pub(super) ecosystem: Ecosystem,
+    /// The document to record, merged with what the store held when it was
+    /// read: a packument, a crate document, a project document.
+    pub(super) document: Vec<u8>,
+    pub(super) base_version: Option<HostedDocumentVersion>,
+    pub(super) slots: Vec<pnpr_storage::BlobSlot>,
+    pub(super) revision_refs: Vec<JournaledRevisionRef>,
     /// Hosted-org storage namespace this publish targets, or `None` for the
     /// flat (path-less) hosted store. Threaded into the commit and journal so
-    /// the write — and any crash-recovery roll-forward — lands in the right org.
-    org: Option<String>,
+    /// the write — and any crash recovery — lands in the right org.
+    pub(super) org: Option<String>,
 }
 
 /// Merge the incoming packument with the on-disk / upstream state
@@ -397,7 +419,7 @@ pub(super) async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
     let storage = hosted_storage(state, org);
 
-    let hosted_packument = storage.read_hosted_packument_for_update(&name).await?;
+    let hosted_packument = storage.read_hosted_document_for_update(&name).await?;
     let (hosted_bytes, base_version) = match hosted_packument {
         Some(packument) => (Some(packument.bytes), Some(packument.version)),
         None => (None, None),
@@ -476,7 +498,7 @@ pub(super) async fn stage_publish(
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
     for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
-        let slot = match storage.reserve_hosted_tarball(&name, &canonical).await {
+        let slot = match storage.reserve_hosted_blob(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
@@ -506,16 +528,17 @@ pub(super) async fn stage_publish(
     }
     Ok(StagedPublish {
         name,
-        merged_bytes,
+        ecosystem: Ecosystem::Npm,
+        document: merged_bytes,
         base_version,
         slots: written_slots,
-        original_refs,
+        revision_refs: original_refs,
         org: org.map(str::to_string),
     })
 }
 
 fn staged_hosted_original_ref(
-    package: &PackageName,
+    package: &CanonicalPackageName,
     attachment: &PreparedAttachment,
 ) -> Option<JournaledRevisionRef> {
     let integrity: Integrity = attachment.dist.get("integrity")?.as_str()?.parse().ok()?;
@@ -530,136 +553,65 @@ fn staged_hosted_original_ref(
     Some(JournaledRevisionRef { filename: attachment.canonical.clone(), digest, ref_id, bytes })
 }
 
-/// Make every staged publish visible. The full intent — merged
-/// packument bytes, revision references, and staged tmp-file locations — is sealed into
-/// the commit journal first, so a crash or I/O failure mid-apply can
-/// never leave the batch partially published: startup recovery rolls
-/// a sealed transaction forward. If sealing itself fails, nothing was
-/// promoted and the staged tmp files are cleaned up here.
+/// Make every staged publish visible, as one journaled transaction: a crash
+/// or I/O failure mid-apply can never leave the batch partially published,
+/// because startup recovery applies whatever the seal committed. The batch
+/// may mix ecosystems; each package's document is merged by the rule its own
+/// surface owns.
 ///
-/// Within each package, tarballs are promoted before the packument so
-/// a successful packument write never advertises a tarball that's
-/// missing from disk.
+/// A version whose blob lost its immutable slot to another replica is dropped
+/// from the document the transaction writes, which keeps the store consistent
+/// with the blob that won; the caller reads that out of the outcome. One that
+/// could not claim a digest-reference slot is dropped the same way, and
+/// reported here: the publisher asked for a version that is not there.
 pub(super) async fn commit_publishes(
     state: &AppState,
     staged: Vec<StagedPublish>,
-) -> Result<(), RegistryError> {
-    let journal = state.inner.storage.publish_journal();
+) -> Result<CommitOutcome, RegistryError> {
     let entries: Vec<JournaledPublish<'_>> = staged
         .iter()
         .map(|stage| JournaledPublish {
             name: &stage.name,
             org: stage.org.as_deref(),
-            packument: &stage.merged_bytes,
+            ecosystem: stage.ecosystem,
+            document: &stage.document,
+            base_version: stage.base_version.as_ref(),
             slots: &stage.slots,
-            revision_refs: &stage.original_refs,
+            revision_refs: &stage.revision_refs,
         })
         .collect();
-    let sealed = journal.seal(&entries).await;
-    drop(entries);
-    let txn = match sealed {
-        Ok(txn) => txn,
-        Err(err) => {
-            for stage in staged {
-                cleanup_tmp_slots(stage.slots).await;
-            }
-            return Err(err);
-        }
-    };
-    let revision_ref_owner = txn.revision_ref_owner().to_string();
-    // Past the seal the transaction is committed: the apply below is pure
-    // roll-forward, and failures must NOT clean up the staged files. If
-    // the apply fails partway, complete it immediately via the same
-    // idempotent recovery path so a running server never leaves the batch
-    // partially visible; startup recovery is the final backstop if even
-    // that fails.
-    let apply_result = async {
-        for stage in staged {
-            // Promote into the package's hosted namespace (or the flat
-            // store when it has none) — the same target the journal recorded,
-            // so an inline failure and a startup roll-forward land identically.
-            let store = hosted_storage(state, stage.org.as_deref());
-            for slot in stage.slots {
-                match store.finalize_tarball_slot(slot).await? {
-                    TarballFinalize::Written | TarballFinalize::AlreadyIdentical => {}
-                    // A concurrent replica already promoted a different tarball
-                    // for this version. Its bytes are immutable, so abort the
-                    // apply rather than advertise our integrity against them.
-                    // The seal's roll-forward re-runs from the journal, where it
-                    // drops the version we lost and re-merges the rest.
-                    TarballFinalize::Conflict => {
-                        return Err(RegistryError::PackumentWriteConflict {
-                            package: stage.name.as_str().to_string(),
-                        });
-                    }
-                }
-            }
-            for original in &stage.original_refs {
-                store
-                    .write_hosted_revision_ref(
-                        &original.digest,
-                        &original.ref_id,
-                        &revision_ref_owner,
-                        &original.bytes,
-                    )
-                    .await?;
-            }
-            match store
-                .write_hosted_packument_if_current(
-                    &stage.name,
-                    &stage.merged_bytes,
-                    stage.base_version.as_ref(),
-                )
-                .await?
-            {
-                PackumentWrite::Written => {
-                    for original in &stage.original_refs {
-                        store
-                            .commit_hosted_revision_ref(
-                                &original.digest,
-                                &original.ref_id,
-                                &revision_ref_owner,
-                            )
-                            .await?;
-                    }
-                }
-                // Tarballs are already promoted at this point. A conflict means
-                // another replica advanced the packument since staging, so the
-                // base version is stale. Surfacing it drops into the seal's
-                // roll-forward path (the caller), which re-reads the current
-                // packument and re-merges this transaction's journaled manifest —
-                // re-referencing the promoted tarballs — rather than leaving them
-                // orphaned. Only if roll-forward and startup recovery both never
-                // converge would a promoted tarball stay unreferenced.
-                PackumentWrite::Conflict => {
-                    return Err(RegistryError::PackumentWriteConflict {
-                        package: stage.name.as_str().to_string(),
-                    });
-                }
-            }
-        }
-        Ok::<(), RegistryError>(())
-    }
-    .await;
-    match apply_result {
-        Ok(()) => {
-            txn.finish().await;
-            Ok(())
-        }
-        Err(apply_err) => {
-            tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
-            let report_conflict =
-                matches!(&apply_err, RegistryError::RevisionReferenceLimit { .. });
-            match txn.roll_forward(&state.inner.storage).await {
-                Ok(()) if report_conflict => Err(apply_err),
-                Ok(()) => Ok(()),
-                Err(_) => Err(apply_err),
-            }
-        }
+    let outcome = state
+        .inner
+        .storage
+        .publish_journal()
+        .commit(&state.inner.storage, &entries, &RegistryDocuments)
+        .await?;
+    match outcome.reference_limit {
+        Some(limit) => Err(RegistryError::RevisionReferenceLimit { limit }),
+        None => Ok(outcome),
     }
 }
 
-fn publish_created_response() -> Response {
+/// The packages a commit could not record, as the error a publisher gets
+/// instead of a success it did not earn: another writer owns the blob their
+/// version described, so that version is not the one the store serves. Each
+/// is named with its ecosystem, since the same name in two of them is two
+/// packages.
+pub(super) fn report_unrecorded(outcome: CommitOutcome) -> Result<(), RegistryError> {
+    let mut missing: BTreeSet<String> = outcome
+        .unrecorded
+        .into_iter()
+        .chain(outcome.lost_blobs.into_iter().map(|lost| lost.package))
+        .map(|package| format!("{} {}", package.ecosystem, package.name))
+        .collect();
+    let Some(first) = missing.pop_first() else {
+        return Ok(());
+    };
+    let packages = std::iter::once(first).chain(missing).collect::<Vec<_>>().join(", ");
+    Err(RegistryError::PublishNotRecorded { packages })
+}
+
+pub(super) fn publish_created_response() -> Response {
     let body = json!({ "ok": true, "success": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
@@ -673,8 +625,11 @@ fn publish_created_response() -> Response {
 /// already wrote. Errors are swallowed: the caller is already
 /// returning an error response, and a leftover `*.tmp.*` file is
 /// harmless beyond a small amount of disk.
-async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::TarballSlot>) {
+pub(super) async fn cleanup_tmp_slots(slots: Vec<pnpr_storage::BlobSlot>) {
     for slot in slots {
         let _ = tokio::fs::remove_file(&slot.tmp_path).await;
     }
 }
+
+#[cfg(test)]
+mod tests;

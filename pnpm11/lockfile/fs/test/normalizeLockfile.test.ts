@@ -35,6 +35,27 @@ test('empty overrides are removed during lockfile normalization', () => {
   })
 })
 
+test('linkDirectory false is preserved during lockfile normalization', () => {
+  expect(convertToLockfileFile({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      ['foo' as ProjectId]: {
+        linkDirectory: false,
+        publishDirectory: 'dist',
+        specifiers: {},
+      },
+    },
+  })).toStrictEqual({
+    lockfileVersion: LOCKFILE_VERSION,
+    importers: {
+      foo: {
+        publishDirectory: 'dist',
+        linkDirectory: false,
+      },
+    },
+  })
+})
+
 test('redundant fields are removed from "time"', () => {
   expect(convertToLockfileFile({
     lockfileVersion: LOCKFILE_VERSION,

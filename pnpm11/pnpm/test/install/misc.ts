@@ -1,4 +1,6 @@
 import fs from 'node:fs'
+import http from 'node:http'
+import type { AddressInfo, Socket } from 'node:net'
 import path from 'node:path'
 
 import { afterAll, expect, test } from '@jest/globals'
@@ -507,11 +509,52 @@ test('CI mode: frozen-lockfile can be overridden via updateConfig hook', async (
 
 test('installation fails with a timeout error', async () => {
   prepare()
+  const registry = await startStalledRegistry()
 
-  await expect(
-    execPnpm(['add', 'typescript@2.4.2', '--fetch-timeout=1', '--fetch-retries=0'])
-  ).rejects.toThrow()
+  try {
+    await expect(
+      execPnpm(['add', 'typescript@2.4.2', `--registry=${registry.url}`, '--fetch-timeout=500', '--fetch-retries=0'])
+    ).rejects.toThrow('ERR_PNPM_META_FETCH_FAIL')
+    expect(registry.requestCount()).toBeGreaterThan(0)
+  } finally {
+    registry.close()
+  }
 })
+
+interface StalledRegistry {
+  url: string
+  requestCount: () => number
+  close: () => void
+}
+
+/**
+ * A registry that accepts the request and never answers it, so the fetch
+ * timeout is the only thing that can end the install.
+ */
+async function startStalledRegistry (): Promise<StalledRegistry> {
+  const sockets = new Set<Socket>()
+  let requests = 0
+  const server = http.createServer(() => {
+    requests++
+  })
+  server.on('connection', (socket) => {
+    sockets.add(socket)
+    socket.on('close', () => {
+      sockets.delete(socket)
+    })
+  })
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve)
+  })
+  return {
+    url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`,
+    requestCount: () => requests,
+    close: () => {
+      for (const socket of sockets) socket.destroy()
+      server.close()
+    },
+  }
+}
 
 test('installation fails when the stored package name and version do not match the meta of the installed package', async () => {
   prepare()

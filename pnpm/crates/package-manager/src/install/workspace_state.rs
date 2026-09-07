@@ -6,6 +6,7 @@ use super::{
     gvs_build_marker_present, gvs_build_markers_may_require_recovery, load_workspace_projects,
     manifest_string_field, unapproved_recorded_ignored_builds,
 };
+use crate::optimistic_repeat_install::{refreshed_validation_baseline_ms, validation_baseline_ms};
 
 /// Inputs for [`install_already_up_to_date`].
 pub struct UpToDateFastPathCheck<'a> {
@@ -117,7 +118,13 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
     }
     if gvs_build_markers_may_require_recovery(config) {
         let wanted = lockfile.get().ok().flatten()?;
-        if gvs_build_marker_present(wanted, config, &lockfile_root) {
+        let effective_node_version = super::effective_node_version(config, manifest);
+        if gvs_build_marker_present(
+            wanted,
+            config,
+            &lockfile_root,
+            effective_node_version.as_deref(),
+        ) {
             return None;
         }
     }
@@ -132,12 +139,14 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<U
 /// [`OptimisticRepeatInstallCheck`] inputs from a bare directory and run
 /// [`crate::check_deps_status_before_run`].
 ///
-/// Returns `None` when `dir` has no manifest and no enclosing workspace:
-/// the run/exec command is about to fail with its own missing-manifest
-/// error, and reporting "outdated" would only trigger an install that
-/// can do nothing but crash with `NO_PKG_MANIFEST` (the same guard
-/// pnpm's `checkDepsStatus` applies when it finds neither a root
-/// manifest nor a workspace).
+/// Returns `None` when there is no manifest to check against. Outside a
+/// workspace the run/exec command is about to fail with its own
+/// missing-manifest error, and reporting "outdated" would only trigger
+/// an install that can do nothing but crash with `NO_PKG_MANIFEST` (the
+/// same guard pnpm's `checkDepsStatus` applies when it finds neither a
+/// root manifest nor a workspace). Under dedicated per-project
+/// lockfiles a directory with no manifest of its own owns no lockfile
+/// and no state either.
 ///
 /// Any other discovery failure conservatively reports the dependencies
 /// as unverifiable ("Cannot check whether dependencies are outdated"),
@@ -158,10 +167,17 @@ pub fn check_deps_status_before_run_at(
         return cannot_check();
     };
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| dir.to_path_buf());
-    let root_manifest = match pnpm_workspace::read_project_manifest_only(&workspace_root) {
+    // One shared lockfile is written at the workspace root, whose
+    // manifest heads the importer list the install recorded. Dedicated
+    // per-project lockfiles give every project its own lockfile, state
+    // and single-importer list, so the gate reads the manifest of the
+    // project the command runs in.
+    let shares_one_lockfile = config.shares_one_lockfile();
+    let manifest_dir = if shares_one_lockfile { workspace_root.as_path() } else { dir };
+    let manifest = match pnpm_workspace::read_project_manifest_only(manifest_dir) {
         Ok(manifest) => manifest,
         Err(pnpm_workspace::ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
-            if workspace_dir_opt.is_none() =>
+            if workspace_dir_opt.is_none() || !shares_one_lockfile =>
         {
             return None;
         }
@@ -175,8 +191,9 @@ pub fn check_deps_status_before_run_at(
         None => None,
     };
     // A pinned `lockfileDir` is where the install left the state and the
-    // lockfile; the root manifest above stays where the workspace put it.
-    let lockfile_root = config.lockfile_dir.clone().unwrap_or_else(|| workspace_root.clone());
+    // lockfile; otherwise it follows the manifest read above, just as it
+    // does during install.
+    let lockfile_root = lockfile_root_for(config, workspace_dir_opt.as_deref(), manifest_dir);
     // pnpm reports "cannot check" straight from the missing workspace
     // state, before any project discovery — a fresh project (the common
     // out-of-sync case) must not pay for the workspace-projects walk
@@ -192,13 +209,18 @@ pub fn check_deps_status_before_run_at(
             Err(_) => return cannot_check(),
         },
     };
-    let Ok(workspace_projects) =
-        load_workspace_projects(&workspace_root, workspace_manifest.as_ref())
-    else {
-        return cannot_check();
+    // The sibling projects only belong in the comparison when one
+    // lockfile and one state file cover them all; a dedicated-lockfile
+    // install records this project alone.
+    let workspace_projects = if shares_one_lockfile {
+        match load_workspace_projects(&workspace_root, workspace_manifest.as_ref()) {
+            Ok(projects) => projects,
+            Err(_) => return cannot_check(),
+        }
+    } else {
+        None
     };
-    let project_manifests =
-        build_project_manifests_list(&root_manifest, workspace_projects.as_deref());
+    let project_manifests = build_project_manifests_list(&manifest, workspace_projects.as_deref());
     let lockfile = if config.lockfile {
         LazyLockfile::deferred(lockfile_root.clone(), config.wanted_lockfile_selection())
     } else {
@@ -554,7 +576,10 @@ pub(super) fn build_projects_map(
 /// [`pnpm_workspace_state::update_workspace_state`].
 ///
 /// Records the projects pacquet just materialized plus the resolved
-/// settings the install used.
+/// settings the install used. `lastValidatedTimestamp` is the
+/// [`validation_baseline_ms`] of the lockfile and manifests raised to
+/// `filesystem_now_ms`, per [`refreshed_validation_baseline_ms`]; the
+/// wall clock stands in only when nothing can be stat'd.
 /// Settings pacquet does not track yet (e.g. `peersSuffixMaxLength`)
 /// are omitted; pnpm's `checkDepsStatus`
 /// only iterates fields present in the serialized object, so an
@@ -572,26 +597,14 @@ pub(crate) fn build_workspace_state<Sys: Clock>(
     catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     filtered_install: bool,
+    filesystem_now_ms: Option<i64>,
 ) -> WorkspaceState {
     WorkspaceState {
-        // Record the freshness baseline from the lockfile this install
-        // just wrote, not the wall clock. The repeat-install fast path
-        // compares this timestamp against file mtimes, so the two must be
-        // on the same clock: on a runner whose wall clock runs ahead of
-        // the filesystem's mtime clock (observed ~2 ms on some CI
-        // microVMs), a wall-clock baseline can sit above the mtime of
-        // a manifest/pnpmfile edited moments later, hiding the edit and
-        // wrongly keeping the fast path. The lockfile's own mtime shares
-        // the filesystem clock with every file the check compares, so no
-        // skew is possible. Mirrors pnpm's `checkDepsStatus`, whose
-        // single-project path keys off the wanted lockfile's mtime. Fall
-        // back to the clock only when no lockfile was written.
-        last_validated_timestamp: crate::optimistic_repeat_install::validation_baseline_ms(
-            workspace_root,
-            config,
-            project_manifests,
-        )
-        .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+        last_validated_timestamp: refreshed_validation_baseline_ms(
+            validation_baseline_ms(workspace_root, config, project_manifests)
+                .unwrap_or_else(|| pnpm_workspace_state::millis_since_epoch(Sys::now())),
+            filesystem_now_ms,
+        ),
         projects: build_projects_map(project_manifests),
         pnpmfiles: crate::optimistic_repeat_install::current_pnpmfiles(workspace_root, config),
         filtered_install,

@@ -73,6 +73,7 @@ export {
   type UpdateMatchingFunction,
   type WantedDependency,
 }
+export { isWorkspaceLocalPathSpecifier } from './updateProjectManifest.js'
 export { assertValidDependencyAliases, isValidDependencyAlias } from './validateDependencyAlias.js'
 
 interface ProjectToLink {
@@ -530,6 +531,9 @@ function addDirectDependenciesToLockfile (
 
   if (newManifest.publishConfig?.directory) {
     newProjectSnapshot.publishDirectory = newManifest.publishConfig.directory
+    if (newManifest.publishConfig.linkDirectory === false) {
+      newProjectSnapshot.linkDirectory = false
+    }
   }
 
   for (const linkedPkg of linkedPackages) {

@@ -15,6 +15,28 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[test]
+fn secure_transport_restricts_all_credential_lookups_and_survives_cloning() {
+    let mut headers = AuthHeaders::default().with_secure_transport();
+    for host in ["registry.example", "127.0.0.1", "localhost", "[::1]"] {
+        headers.insert_url_header(&format!("https://{host}/simple/"), "Basic secret".to_string());
+    }
+    for headers in [headers.clone(), headers] {
+        for (url, allowed) in [
+            ("https://registry.example/simple/pkg.whl", true),
+            ("http://registry.example/simple/pkg.whl", false),
+            ("http://user:secret@registry.example/simple/pkg.whl", false),
+            ("http://127.0.0.1/simple/pkg.whl", true),
+            ("http://localhost/simple/pkg.whl", true),
+            ("http://[::1]/simple/pkg.whl", true),
+        ] {
+            eprintln!("url={url}, allowed={allowed}");
+            assert_eq!(headers.for_url(url).is_some(), allowed);
+            assert_eq!(headers.for_url_with_package(url, Some("python:alpha")).is_some(), allowed);
+        }
+    }
+}
+
 fn token_helper_by_uri(uri: &str, command: &[&str]) -> HashMap<String, Vec<String>> {
     std::iter::once((
         uri.to_owned(),
@@ -122,6 +144,20 @@ fn a_failing_token_helper_sends_no_credential_and_does_not_fall_back() {
     assert_eq!(auth.for_url("https://reg.com/path/pkg"), None);
     // A request that doesn't match the helper prefix still gets the static token.
     assert_eq!(auth.for_url("https://reg.com/pkg"), Some("Bearer root-token".to_owned()));
+}
+
+#[test]
+fn a_url_header_overlays_only_its_request_route() {
+    let mut auth = AuthHeaders::from_creds_map([
+        ("//cargo.example/".to_string(), "Bearer npm-token".to_string()),
+        ("//npm.example/".to_string(), "Bearer keep-me".to_string()),
+    ]);
+
+    auth.insert_url_header("https://cargo.example/index", "cargo-token".to_string());
+
+    assert_eq!(auth.for_url("https://cargo.example/index/crate"), Some("cargo-token".to_string()));
+    assert_eq!(auth.for_url("https://cargo.example/other"), Some("Bearer npm-token".to_string()));
+    assert_eq!(auth.for_url("https://npm.example/package"), Some("Bearer keep-me".to_string()));
 }
 
 /// Records every `(url, package)` it is asked about and answers with a
@@ -546,7 +582,37 @@ fn registry_with_pathname_matches_with_explicit_port() {
 
 #[test]
 fn returns_none_for_unmatched_url_in_empty_map() {
-    assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
+    let headers = AuthHeaders::default();
+    assert!(headers.is_empty());
+    assert_eq!(headers.for_url("http://reg.com"), None);
+}
+
+#[test]
+fn secure_lookup_rejects_plain_http_but_allows_loopback() {
+    let headers = build(&[
+        ("//reg.com/", "Bearer remote"),
+        ("//127.0.0.1/", "Bearer local"),
+        ("//[::1]/", "Bearer ipv6-local"),
+    ]);
+    assert!(!headers.is_empty());
+    assert_eq!(headers.for_secure_url("http://reg.com/pkg"), None);
+    let remote = headers.for_secure_url("https://reg.com/pkg");
+    assert_eq!(remote.as_deref(), Some("Bearer remote"));
+    let local = headers.for_secure_url("http://127.0.0.1/pkg");
+    assert_eq!(local.as_deref(), Some("Bearer local"));
+    let ipv6_local = headers.for_secure_url("http://[::1]:4873/pkg");
+    assert_eq!(ipv6_local.as_deref(), Some("Bearer ipv6-local"));
+}
+
+#[test]
+fn classifies_urls_that_are_secure_for_credentials() {
+    assert!(super::is_url_secure_for_credentials("https://reg.example/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://localhost:4873/pkg"));
+    assert!(super::is_url_secure_for_credentials("http://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("http://reg.example/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ftp://localhost/pkg"));
+    assert!(!super::is_url_secure_for_credentials("ws://127.0.0.1/pkg"));
+    assert!(!super::is_url_secure_for_credentials("not a url"));
 }
 
 /// Specifically exercises the trailing-slash-append branch in

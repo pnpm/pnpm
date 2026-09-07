@@ -155,14 +155,16 @@ pub(super) fn gvs_build_markers_may_require_recovery(config: &Config) -> bool {
             || config.patched_dependencies.as_ref().is_some_and(|patches| !patches.is_empty()))
 }
 
-/// Probe the GVS name/version directories that can contain an actionable
-/// marker for this lockfile. Hash directories are enumerated rather than
-/// recomputed because buildable slots include the runtime engine in their
-/// graph hash, which the pre-runtime fast path deliberately has not resolved.
+/// Probe the buildable or patched GVS slots this lockfile resolves to.
+/// Markers in sibling hash directories belong to other dependency graphs and
+/// cannot be recovered by materializing this one. The effective Node version
+/// participates only when materialization would run installability checks;
+/// constraint-free materialization keys the layout to the detected host Node.
 pub(super) fn gvs_build_marker_present(
     wanted: &Lockfile,
     config: &Config,
     lockfile_dir: &Path,
+    effective_node_version: Option<&str>,
 ) -> bool {
     if !gvs_build_markers_may_require_recovery(config) {
         return false;
@@ -170,36 +172,34 @@ pub(super) fn gvs_build_marker_present(
     let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
         return true;
     };
-    let layout = crate::VirtualStoreLayout::new(
-        config,
-        None,
-        wanted.snapshots.as_ref(),
-        wanted.packages.as_ref(),
-        Some(&policy),
-        Some(lockfile_dir),
-    );
-    if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
-        return true;
-    }
     let Some(snapshots) = wanted.snapshots.as_ref() else {
         return false;
     };
-
+    let eligible_snapshots = snapshots
+        .keys()
+        .filter(|snapshot_key| {
+            crate::snapshot_has_patch(snapshot_key)
+                || policy.check(&snapshot_key.without_peer().to_string()) == Some(true)
+        })
+        .collect::<Vec<_>>();
+    let mut marker_candidate = false;
     let mut visited_version_dirs = HashSet::new();
-    for snapshot_key in snapshots.keys() {
-        let can_recover = crate::snapshot_has_patch(snapshot_key)
-            || policy.check(&snapshot_key.without_peer().to_string()) == Some(true);
-        if !can_recover {
-            continue;
-        }
-        let Some(version_dir) = layout.slot_dir(snapshot_key).parent().map(Path::to_path_buf)
-        else {
+    for &snapshot_key in &eligible_snapshots {
+        let metadata = wanted
+            .packages
+            .as_ref()
+            .and_then(|packages| packages.get(&snapshot_key.without_peer()));
+        let Some(version_dir) = crate::global_virtual_store_version_dir(
+            &config.global_virtual_store_dir,
+            snapshot_key,
+            metadata,
+        ) else {
             return true;
         };
         if !visited_version_dirs.insert(version_dir.clone()) {
             continue;
         }
-        let hash_dirs = match std::fs::read_dir(&version_dir) {
+        let hash_dirs = match std::fs::read_dir(version_dir) {
             Ok(hash_dirs) => hash_dirs,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(_) => return true,
@@ -221,8 +221,48 @@ pub(super) fn gvs_build_marker_present(
                 return true;
             };
             if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
-                return true;
+                marker_candidate = true;
+                break;
             }
+        }
+        if marker_candidate {
+            break;
+        }
+    }
+    if !marker_candidate {
+        return false;
+    }
+    let effective_node_version = match (&wanted.snapshots, &wanted.packages) {
+        (Some(snapshots), Some(packages))
+            if !config.force
+                && !snapshots.is_empty()
+                && crate::any_installability_constraint(snapshots, packages) =>
+        {
+            effective_node_version
+        }
+        _ => None,
+    };
+    let layout = crate::virtual_store_layout_for_lockfile(
+        config,
+        effective_node_version,
+        wanted.snapshots.as_ref(),
+        wanted.packages.as_ref(),
+        Some(&policy),
+        Some(lockfile_dir),
+    );
+    if crate::validate_virtual_store_slot_containment(wanted.snapshots.as_ref(), &layout).is_err() {
+        return true;
+    }
+
+    for snapshot_key in eligible_snapshots {
+        let Ok(pkg_dir) = crate::safe_join_modules_dir::safe_join_modules_dir(
+            &layout.slot_dir(snapshot_key).join("node_modules"),
+            &snapshot_key.name.to_string(),
+        ) else {
+            return true;
+        };
+        if pkg_dir.join(crate::NEEDS_BUILD_MARKER).is_file() {
+            return true;
         }
     }
     false

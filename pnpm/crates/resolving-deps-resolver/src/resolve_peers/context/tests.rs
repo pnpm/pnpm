@@ -1,15 +1,14 @@
 //! Unit tests for the peer-resolution context helpers.
 
 use super::{
-    ChainSuffixMemo, ParentRef, SharedChain, importer_relative_link_dep_path, peer_segment_names,
-    remap_link_node_id, satisfies_with_prereleases, scoped_hoisted_optional_parent_refs,
+    ChainSuffixMemo, SharedChain, importer_relative_link_dep_path, peer_segment_names,
+    remap_link_node_id, satisfies_with_prereleases,
 };
 use crate::{
     node_id::NodeId,
     resolve_peers::{ResolvePeersOptions, test_support::linked_package},
 };
 use pnpm_deps_path::DepPath;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::path::{Path, PathBuf};
 
 const PATCHED_WORKFLOWS_SDK: &str = concat!(
@@ -21,39 +20,15 @@ const PATCHED_WORKFLOWS_SDK: &str = concat!(
 );
 
 #[test]
-fn locked_direct_dep_only_sees_its_locked_hoisted_optional_peers() {
-    let debug = NodeId::next();
-    let supports_color = NodeId::next();
-    let regular = NodeId::next();
-    let parent = |version: &str, node_id| ParentRef {
-        version: version.to_string(),
-        node_id: Some(node_id),
-        alias: None,
-        depth: 0,
-        occurrence: 0,
-    };
-    let parent_refs = HashMap::from_iter([
-        ("debug".to_string(), parent("4.4.3", debug.clone())),
-        ("supports-color".to_string(), parent("8.1.1", supports_color.clone())),
-        ("regular".to_string(), parent("1.0.0", regular)),
-    ]);
-
-    let scoped = scoped_hoisted_optional_parent_refs(
-        &parent_refs,
-        &HashSet::from_iter(["supports-color".to_string()]),
-        &HashSet::from_iter([debug, supports_color]),
-    );
-
-    assert!(!scoped.contains_key("debug"));
-    assert!(scoped.contains_key("supports-color"));
-    assert!(scoped.contains_key("regular"));
-}
-
-#[test]
 fn importer_relative_self_link_keeps_an_empty_target() {
     let workspace = Path::new("workspace");
     assert_eq!(
-        importer_relative_link_dep_path(&DepPath::from("link:."), Some(workspace), Some(workspace),),
+        importer_relative_link_dep_path(
+            &DepPath::from("link:."),
+            &crate::link_target::ImporterAnchor::new(workspace, workspace),
+            Some(workspace),
+            Some(workspace),
+        ),
         DepPath::from("link:"),
     );
 }
@@ -71,6 +46,10 @@ fn importer_relative_link_normalizes_the_project_dir() {
         assert_eq!(
             importer_relative_link_dep_path(
                 &DepPath::from("link:packages/lib"),
+                &crate::link_target::ImporterAnchor::new(
+                    Path::new(project_dir),
+                    Path::new("workspace"),
+                ),
                 Some(Path::new("workspace")),
                 Some(Path::new(project_dir)),
             ),

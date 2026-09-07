@@ -1787,6 +1787,10 @@ async fn install_writes_workspace_state() {
 
     let manifest_path = dir.path().join("package.json");
     let manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    pnpm_testing_utils::fs::set_mtime(
+        manifest.path(),
+        std::time::SystemTime::UNIX_EPOCH + Duration::new(1_700_000_000, 500_000),
+    );
 
     let mut config = Config::new();
     config.lockfile = false;
@@ -1855,6 +1859,15 @@ async fn install_writes_workspace_state() {
         state.last_validated_timestamp > 0,
         "lastValidatedTimestamp should be populated, got {}",
         state.last_validated_timestamp,
+    );
+    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
+        .expect("manifest should have an mtime");
+    assert!(
+        !crate::optimistic_repeat_install::modified_at_or_after(
+            manifest_mtime,
+            state.last_validated_timestamp,
+        ),
+        "fresh install state should cover the validated manifest mtime",
     );
 
     // The state must record the project that pacquet just installed
@@ -1942,12 +1955,18 @@ mod build_workspace_state_tests {
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
+    fn config_for(workspace_root: &std::path::Path) -> Config {
+        let mut config = Config::new();
+        config.virtual_store_dir = workspace_root.join("node_modules/.pnpm");
+        config
+    }
+
     /// With nothing on disk to take an mtime from, the timestamp falls
     /// back to the clock.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -1957,6 +1976,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[],
             false,
+            None,
         );
         assert!(state.projects.is_empty());
         assert_eq!(state.last_validated_timestamp, FAKE_NOW_MS);
@@ -1968,7 +1988,7 @@ mod build_workspace_state_tests {
     fn prefers_the_manifest_mtime_over_the_clock() {
         let dir = tempdir().unwrap();
         let manifest = write_manifest(dir.path(), "root", "1.0.0");
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -1978,11 +1998,47 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[(dir.path().to_path_buf(), &manifest)],
             false,
+            None,
         );
         assert_eq!(
             state.last_validated_timestamp,
             pnpm_testing_utils::fs::mtime_ms(manifest.path()),
         );
+    }
+
+    /// A manifest mtime truncated to milliseconds reads as modified
+    /// against itself on a sub-millisecond filesystem, so the recorded
+    /// baseline is raised to the filesystem clock's `now`, which the
+    /// caller reads off a probe file.
+    #[test]
+    fn raises_the_manifest_mtime_baseline_to_the_filesystem_now() {
+        let dir = tempdir().unwrap();
+        let manifest = write_manifest(dir.path(), "root", "1.0.0");
+        pnpm_testing_utils::fs::set_mtime(
+            manifest.path(),
+            SystemTime::UNIX_EPOCH + Duration::new(1_600_000_000, 500_000),
+        );
+        let config = config_for(dir.path());
+        let build = |filesystem_now_ms| {
+            build_workspace_state::<FrozenClock>(
+                dir.path(),
+                &config,
+                pnpm_config::NodeLinker::default(),
+                IncludedDependencies::default(),
+                None,
+                &BTreeMap::default(),
+                &[(dir.path().to_path_buf(), &manifest)],
+                false,
+                filesystem_now_ms,
+            )
+        };
+
+        let now_ms = 1_600_000_001_000;
+        assert_eq!(build(Some(now_ms)).last_validated_timestamp, now_ms);
+        // A manifest dated ahead of the filesystem clock keeps its own
+        // mtime as the baseline.
+        let manifest_ms = pnpm_testing_utils::fs::mtime_ms(manifest.path());
+        assert_eq!(build(Some(manifest_ms - 1)).last_validated_timestamp, manifest_ms);
     }
 
     /// Every project in the list lands in `state.projects` keyed by its
@@ -2005,7 +2061,7 @@ mod build_workspace_state_tests {
         let project_manifests: Vec<(PathBuf, &PackageManifest)> =
             manifests.iter().map(|(p, m)| (p.clone(), m)).collect();
 
-        let config = Config::new();
+        let config = config_for(dir.path());
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -2015,6 +2071,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &project_manifests,
             false,
+            None,
         );
 
         assert_eq!(state.projects.len(), packages.len());
@@ -2037,12 +2094,12 @@ mod build_workspace_state_tests {
     /// stale, and reinstalls on every `pnpm run` / `pnpm node`.
     #[test]
     fn records_config_dependencies_from_config() {
-        let mut config = Config::new();
+        let dir = tempdir().unwrap();
+        let mut config = config_for(dir.path());
         config.config_dependencies = Some(BTreeMap::from([(
             "@pnpm/pacquet".to_string(),
             ConfigDependency::VersionWithIntegrity("0.2.2-14".to_string()),
         )]));
-        let dir = tempdir().unwrap();
         let state = build_workspace_state::<FrozenClock>(
             dir.path(),
             &config,
@@ -2052,6 +2109,7 @@ mod build_workspace_state_tests {
             &BTreeMap::default(),
             &[],
             false,
+            None,
         );
         assert_eq!(state.config_dependencies, config.config_dependencies);
     }
@@ -7747,6 +7805,16 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     };
     write_modules_manifest::<Host>(&modules_dir, seed_modules).expect("seed .modules.yaml");
     lockfile.save_current_to_virtual_store_dir(&virtual_store_dir).expect("seed current lockfile");
+    // Date the manifest inside a millisecond after the lockfile, as a
+    // sub-millisecond filesystem leaves a manifest edited after the last
+    // lockfile write: the manifest's truncated mtime alone would read as
+    // modified against itself on the next `pnpm run`.
+    let validated_at = std::time::SystemTime::UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+    pnpm_testing_utils::fs::set_mtime(
+        &virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME),
+        validated_at,
+    );
+    pnpm_testing_utils::fs::set_mtime(manifest.path(), validated_at + Duration::from_micros(500));
     // The short-circuit probes the tree it would skip; seed the one
     // direct-dep entry the lockfile records so the probe holds. A
     // marker *file* doubles as the materialization sentinel below:
@@ -7831,9 +7899,19 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     let written = load_workspace_state(&project_root)
         .expect("read workspace state")
         .expect("workspace state must be written");
+    let manifest_mtime = crate::optimistic_repeat_install::file_mtime(manifest.path())
+        .expect("manifest should have an mtime");
+    assert_eq!(
+        manifest_mtime.ns, 1_700_000_000_000_500_000,
+        "the short-circuit must leave the manifest untouched",
+    );
     assert!(
-        written.last_validated_timestamp > 0,
-        "last_validated_timestamp must be refreshed on the fast path",
+        !crate::optimistic_repeat_install::modified_at_or_after(
+            manifest_mtime,
+            written.last_validated_timestamp,
+        ),
+        "the refreshed state must cover the validated manifest mtime; got {}",
+        written.last_validated_timestamp,
     );
 
     drop(dir);

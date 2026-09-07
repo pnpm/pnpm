@@ -1,6 +1,8 @@
+import { isIP } from 'node:net'
+
 import { fetchShasumsFileCached, fetchVerifiedNodeShasumsFileCached } from '@pnpm/crypto.shasums-file'
 import { PnpmError } from '@pnpm/error'
-import type { FetchFromRegistry } from '@pnpm/fetching.types'
+import type { FetchFromRegistry, GetAuthHeader } from '@pnpm/fetching.types'
 import type {
   BinaryResolution,
   LatestInfo,
@@ -39,6 +41,7 @@ export interface NodeRuntimeResolveResult extends ResolveResult {
 export async function resolveNodeRuntime (
   ctx: {
     fetchFromRegistry: FetchFromRegistry
+    getAuthHeader?: GetAuthHeader
     nodeDownloadMirrors?: Record<string, string>
     offline?: boolean
     cacheDir?: string
@@ -57,6 +60,7 @@ export async function resolveNodeRuntime (
   }
 
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
+  const fetch = createAuthenticatedFetch(ctx.fetchFromRegistry, ctx.getAuthHeader)
   const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
@@ -66,21 +70,21 @@ export async function resolveNodeRuntime (
   const exactVersion = exactReleaseVersion(releaseChannel, versionSpecifier)
   let version = exactVersion
   if (version == null) {
-    version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl) ?? undefined
+    version = await resolveNodeVersion(fetch, versionSpecifier, nodeMirrorBaseUrl) ?? undefined
     if (!version) {
       throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
     }
   }
   let variants: PlatformAssetResolution[]
   try {
-    variants = await readNodeAssets(ctx.fetchFromRegistry, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir })
+    variants = await readNodeAssets(fetch, { nodeMirrorBaseUrl, version, releaseChannel, cacheDir: ctx.cacheDir, getAuthHeader: ctx.getAuthHeader })
   } catch (err: unknown) {
     // The exact-specifier pick skipped the release index, so a failed asset
     // read is ambiguous: the version may simply not exist. Consult the index
     // now, purely to raise the same NODEJS_VERSION_NOT_FOUND the index-first
     // path raises for a nonexistent version; any other outcome re-raises the
     // asset error unchanged.
-    if (exactVersion != null && await versionMissingFromIndex(ctx.fetchFromRegistry, exactVersion, nodeMirrorBaseUrl)) {
+    if (exactVersion != null && await versionMissingFromIndex(fetch, exactVersion, nodeMirrorBaseUrl)) {
       throw new PnpmError('NODEJS_VERSION_NOT_FOUND', `Could not find a Node.js version that satisfies ${versionSpec}`)
     }
     throw err
@@ -103,7 +107,7 @@ export async function resolveNodeRuntime (
 }
 
 export async function resolveLatestNodeRuntime (
-  ctx: { fetchFromRegistry: FetchFromRegistry, nodeDownloadMirrors?: Record<string, string> },
+  ctx: { fetchFromRegistry: FetchFromRegistry, getAuthHeader?: GetAuthHeader, nodeDownloadMirrors?: Record<string, string> },
   query: LatestQuery,
   _opts: ResolveOptions
 ): Promise<LatestInfo | undefined> {
@@ -112,7 +116,10 @@ export async function resolveLatestNodeRuntime (
   const versionSpec = query.compatible ? normalizeRuntimeSpec(manifestSpec.substring('runtime:'.length)) : 'latest'
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
-  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
+  const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, {
+    nodeMirrorBaseUrl,
+    getAuthHeader: ctx.getAuthHeader,
+  })
   if (!version) return {}
   return { latestManifest: { name: 'node', version } }
 }
@@ -163,15 +170,16 @@ async function readNodeAssets (
     version: string
     releaseChannel: string
     cacheDir?: string
+    getAuthHeader?: GetAuthHeader
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir } = opts
+  const { nodeMirrorBaseUrl, version, releaseChannel, cacheDir, getAuthHeader } = opts
   // The mirror is repository-configurable, so the SHASUMS file's hashes are only
   // trustworthy once its OpenPGP signature is verified against the Node.js
   // release keys embedded in pnpm. Only the `release` channel publishes a signed
   // SHASUMS256.txt; pre-release channels (rc, nightly, …) are unsigned by Node,
   // so they cannot be verified this way.
-  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir })
+  const assets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl, version, muslOnly: false, verifySignature: releaseChannel === 'release', cacheDir, getAuthHeader })
 
   // When using the default mirror, also fetch musl variants from unofficial-builds.nodejs.org,
   // since musl builds are not available on the official mirror. That URL is hardcoded (not
@@ -179,7 +187,7 @@ async function readNodeAssets (
   // over TLS rather than verified against the official release keys.
   if (nodeMirrorBaseUrl === DEFAULT_NODE_MIRROR_BASE_URL) {
     try {
-      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir })
+      const muslAssets = await readNodeAssetsFromMirror(fetch, { nodeMirrorBaseUrl: UNOFFICIAL_NODE_MIRROR_BASE_URL, version, muslOnly: true, verifySignature: false, cacheDir, getAuthHeader })
       assets.push(...muslAssets)
     } catch {
       // Musl variants may not be available for all Node.js versions (e.g. very old ones)
@@ -197,15 +205,21 @@ async function readNodeAssetsFromMirror (
     muslOnly: boolean
     verifySignature: boolean
     cacheDir?: string
+    getAuthHeader?: GetAuthHeader
   }
 ): Promise<PlatformAssetResolution[]> {
-  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature, cacheDir } = opts
+  const { nodeMirrorBaseUrl, version, muslOnly, verifySignature, getAuthHeader } = opts
   // The URL is pinned to one released version, which is what makes it
   // eligible for the SHASUMS disk cache.
   const integritiesFileUrl = `${nodeMirrorBaseUrl}v${version}/SHASUMS256.txt`
+  const cacheOpts = {
+    cacheDir: opts.cacheDir,
+    skipCache: getSecureAuthHeader(getAuthHeader, integritiesFileUrl) != null ||
+      getSecureAuthHeader(getAuthHeader, `${integritiesFileUrl}.sig`) != null,
+  }
   const shasumsFileItems = verifySignature
-    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
-    : await fetchShasumsFileCached(fetch, integritiesFileUrl, { cacheDir })
+    ? await fetchVerifiedNodeShasumsFileCached(fetch, integritiesFileUrl, cacheOpts)
+    : await fetchShasumsFileCached(fetch, integritiesFileUrl, cacheOpts)
   const escaped = version.replace(/\\/g, '\\\\').replace(/\./g, '\\.')
   // The second capture group uses [^.-]+ to stop at a dash, so that the optional
   // third group can capture the '-musl' suffix separately (e.g. 'x64' + '-musl').
@@ -264,12 +278,15 @@ const SEMVER_OPTS = {
   loose: true,
 }
 
+const MAX_NODE_MIRROR_REDIRECTS = 20
+
 export async function resolveNodeVersion (
   fetch: FetchFromRegistry,
   versionSpec: string,
-  nodeMirrorBaseUrl?: string
+  opts?: string | NodeVersionFetchOptions
 ): Promise<string | null> {
-  const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
+  const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
     return allVersions[0].version
@@ -281,9 +298,10 @@ export async function resolveNodeVersion (
 export async function resolveNodeVersions (
   fetch: FetchFromRegistry,
   versionSpec?: string,
-  nodeMirrorBaseUrl?: string
+  opts?: string | NodeVersionFetchOptions
 ): Promise<string[]> {
-  const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
+  const { nodeMirrorBaseUrl, getAuthHeader } = normalizeNodeVersionFetchOptions(opts)
+  const allVersions = await fetchAllVersions(createAuthenticatedFetch(fetch, getAuthHeader), nodeMirrorBaseUrl)
   if (versionSpec == null) {
     return allVersions.map(({ version }) => version)
   }
@@ -306,6 +324,52 @@ async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: s
     version: version.substring(1),
     lts,
   }))
+}
+
+export interface NodeVersionFetchOptions {
+  nodeMirrorBaseUrl?: string
+  getAuthHeader?: GetAuthHeader
+}
+
+function normalizeNodeVersionFetchOptions (opts?: string | NodeVersionFetchOptions): NodeVersionFetchOptions {
+  return typeof opts === 'string' ? { nodeMirrorBaseUrl: opts } : opts ?? {}
+}
+
+function createAuthenticatedFetch (fetch: FetchFromRegistry, getAuthHeader?: GetAuthHeader): FetchFromRegistry {
+  if (getAuthHeader == null) return fetch
+  return async (url, opts) => {
+    let currentUrl = url
+    for (let redirectCount = 0; ; redirectCount++) {
+      // eslint-disable-next-line no-await-in-loop
+      const response = await fetch(currentUrl, {
+        ...opts,
+        authHeaderValue: getSecureAuthHeader(getAuthHeader, currentUrl),
+        redirect: 'manual',
+      })
+      if (opts?.redirect === 'manual' || !isRedirectStatus(response.status) || redirectCount === MAX_NODE_MIRROR_REDIRECTS) {
+        return response
+      }
+      const location = response.headers.get('location')
+      if (location == null) return response
+      currentUrl = new URL(location, currentUrl).toString()
+    }
+  }
+}
+
+function getSecureAuthHeader (getAuthHeader: GetAuthHeader | undefined, url: string): string | undefined {
+  const authHeaderValue = getAuthHeader?.(url)
+  if (authHeaderValue == null) return undefined
+  const parsed = new URL(url)
+  if (parsed.protocol === 'https:' || isLoopbackHost(parsed.hostname)) return authHeaderValue
+  return undefined
+}
+
+function isLoopbackHost (hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '[::1]' || (isIP(hostname) === 4 && hostname.startsWith('127.'))
+}
+
+function isRedirectStatus (status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308
 }
 
 function getNodeBinsForCurrentOS (platform: string = process.platform): Record<string, string> {

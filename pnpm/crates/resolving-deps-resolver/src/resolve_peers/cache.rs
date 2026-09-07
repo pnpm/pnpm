@@ -38,6 +38,10 @@ use std::{collections::BTreeMap, sync::Arc};
 /// subtree promotes its providers to importer level.
 #[derive(Debug)]
 pub(super) struct PeersCacheItem {
+    /// The fully walked occurrence that produced this verdict. Cache
+    /// hits are semantically equivalent to this node and must reuse its
+    /// final depPath instead of being finalized as independent nodes.
+    pub(super) owner_node_id: NodeId,
     pub(super) dep_path: DepPath,
     pub(super) resolved_peers: Arc<HashMap<String, NodeId>>,
     pub(super) missing_peers: Arc<HashMap<String, MissingPeerInfo>>,
@@ -64,6 +68,7 @@ impl PeersCacheItem {
 
     pub(super) fn to_cached_node_output(&self) -> CachedNodeOutput {
         CachedNodeOutput {
+            owner_node_id: self.owner_node_id.clone(),
             output: self.to_node_output(),
             missing_peers_of_children: Arc::clone(&self.missing_peers_of_children),
         }
@@ -71,6 +76,7 @@ impl PeersCacheItem {
 }
 
 pub(super) struct CachedNodeOutput {
+    owner_node_id: NodeId,
     output: NodeOutput,
     missing_peers_of_children: Arc<HashMap<String, MissingPeerInfo>>,
 }
@@ -369,7 +375,7 @@ impl Walker<'_> {
             parent_pkg_ids_chain,
             preview_undo,
         } = context;
-        let output = cached.output;
+        let CachedNodeOutput { owner_node_id, output, missing_peers_of_children } = cached;
         self.undo_realize(node_id, preview_undo, None);
 
         if !output.missing_peers.is_empty() {
@@ -395,11 +401,19 @@ impl Walker<'_> {
         }
         self.remember_resolved_node(node_id, &output.dep_path);
         if !self.discovery {
+            if &owner_node_id != node_id {
+                let owner_is_fully_walked =
+                    !self.cache_owner_by_node_id.contains_key(&owner_node_id);
+                debug_assert!(
+                    owner_is_fully_walked,
+                    "cache owner {owner_node_id:?} of {node_id:?} is itself a cache hit",
+                );
+                self.cache_owner_by_node_id.insert(node_id.clone(), owner_node_id);
+            }
             self.node_external_peers
                 .insert(node_id.clone(), Arc::clone(&output.external_resolved_peers));
             self.node_missing_peers.insert(node_id.clone(), Arc::clone(&output.missing_peers));
-            self.node_missing_peers_of_children
-                .insert(node_id.clone(), cached.missing_peers_of_children);
+            self.node_missing_peers_of_children.insert(node_id.clone(), missing_peers_of_children);
         }
         if let Some(node) = self.graph.get_mut(&output.dep_path)
             && node.depth > tree_node_depth

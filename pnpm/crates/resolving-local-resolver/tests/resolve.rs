@@ -4,7 +4,8 @@
 use pnpm_lockfile::{LockfileResolution, TarballResolution};
 use pnpm_resolving_local_resolver::{
     LocalResolverContext, LocalResolverOptions, LocalResolverUpdate, ResolveLocalError,
-    WantedLocalDependency, resolve_from_local_path, resolve_from_local_scheme,
+    WantedLocalDependency, is_local_filesystem_specifier, resolve_from_local_path,
+    resolve_from_local_scheme,
 };
 use pnpm_resolving_resolver_base::PkgResolutionId;
 use std::{
@@ -602,4 +603,38 @@ impl LexicalNormalize for PathBuf {
 
 fn forward_slashes(input: String) -> String {
     if input.contains('\\') { input.replace('\\', "/") } else { input }
+}
+
+/// The narrowed shape test [`is_local_filesystem_specifier`] answers,
+/// versus what [`resolve_from_local_path`] itself claims: a bare
+/// `<a>/<b>` is a hosted-git shorthand and a `<alias>:<pkg>` a
+/// named-registry reference, and neither is this predicate's to take.
+#[test]
+fn recognizes_only_unambiguous_local_specifiers() {
+    for specifier in [
+        "file:./pkg",
+        "link:../pkg",
+        "./pkg",
+        "../pkg",
+        "/abs/pkg",
+        "~/pkg",
+        "C:/pkg",
+        "C:pkg",
+        "pkg-1.0.0.tgz",
+        "deps/pkg-1.0.0.tar.gz",
+    ] {
+        assert!(is_local_filesystem_specifier(specifier), "{specifier:?} names a local path");
+    }
+    for specifier in [
+        "is-positive",
+        "^1.0.0",
+        "latest",
+        "npm:is-positive@1",
+        "user/repo",
+        "gh:@scope/pkg",
+        "https://example.com/pkg.tgz",
+        "workspace:*",
+    ] {
+        assert!(!is_local_filesystem_specifier(specifier), "{specifier:?} is not a local path");
+    }
 }

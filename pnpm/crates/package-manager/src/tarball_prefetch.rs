@@ -10,7 +10,7 @@
 //!
 //! Each download lands its result in the shared [`MemCache`] keyed by
 //! tarball URL and fetch policy; the later install pass picks it up via
-//! [`DownloadTarballToStore::run_with_mem_cache`] (an immediate
+//! [`IngestTarballToStore::run_with_mem_cache`] (an immediate
 //! `CacheValue::Available` hit, or a brief park on the per-URL `Notify`
 //! while the prefetch finishes).
 
@@ -26,7 +26,7 @@ use pnpm_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexError,
     StoreIndexWriter, store_index_key,
 };
-use pnpm_tarball::{DownloadTarballToStore, MemCache, RetryOpts, TarballError};
+use pnpm_tarball::{IngestTarballToStore, MemCache, RetryOpts, TarballError};
 use ssri::Integrity;
 use std::{
     collections::{HashMap, HashSet},
@@ -128,7 +128,7 @@ async fn run_tarball_download(
         revision_addressed,
     } = download;
 
-    let download = DownloadTarballToStore {
+    let download = IngestTarballToStore {
         http_client: &http_client,
         store_dir,
         store_index,
@@ -152,7 +152,7 @@ async fn run_tarball_download(
         // against — the frozen materialization install emits its own
         // progress as it consumes each tarball from the mem cache.
         progress_reported: None,
-        append_manifest: None,
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     };
     if revision_addressed {
         download.run_revision_addressed_with_mem_cache::<SilentReporter>(&mem_cache).await

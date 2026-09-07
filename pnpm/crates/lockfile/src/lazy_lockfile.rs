@@ -1,7 +1,12 @@
 use crate::{
-    LoadLockfileError, LoadedWantedLockfile, Lockfile, ProjectSnapshot, WantedLockfileSelection,
+    LoadLockfileError, LoadedRepairLockfile, LoadedWantedLockfile, Lockfile, ProjectSnapshot,
+    WantedLockfileSelection,
 };
-use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex, OnceLock},
+};
 
 /// Wanted lockfile (`pnpm-lock.yaml`) whose read + parse are deferred
 /// until a consumer actually needs the contents.
@@ -16,9 +21,11 @@ use std::{collections::HashMap, path::PathBuf, sync::OnceLock};
 pub struct LazyLockfile {
     source: Option<(PathBuf, WantedLockfileSelection)>,
     cell: OnceLock<LoadedWantedLockfile>,
-    fix_cell: OnceLock<LoadedWantedLockfile>,
-    fix_merge_cell: OnceLock<LoadedWantedLockfile>,
+    fix_cell: OnceLock<LoadedRepairLockfile>,
+    prefetch: Mutex<Option<PrefetchHandle>>,
 }
+
+type PrefetchHandle = std::thread::JoinHandle<Result<LoadedWantedLockfile, LoadLockfileError>>;
 
 impl LazyLockfile {
     /// A lockfile that will be loaded from `dir` (the same source as
@@ -29,7 +36,7 @@ impl LazyLockfile {
             source: Some((dir, selection)),
             cell: OnceLock::new(),
             fix_cell: OnceLock::new(),
-            fix_merge_cell: OnceLock::new(),
+            prefetch: Mutex::new(None),
         }
     }
 
@@ -42,7 +49,7 @@ impl LazyLockfile {
             source: None,
             cell: OnceLock::new(),
             fix_cell: OnceLock::new(),
-            fix_merge_cell: OnceLock::new(),
+            prefetch: Mutex::new(None),
         }
     }
 
@@ -51,14 +58,36 @@ impl LazyLockfile {
     #[must_use]
     pub fn preloaded(lockfile: Option<Lockfile>) -> Self {
         let cell = OnceLock::new();
-        cell.set(LoadedWantedLockfile { lockfile, pre_merge_importers: None })
-            .expect("a fresh OnceLock accepts the first set");
-        LazyLockfile {
-            source: None,
-            cell,
-            fix_cell: OnceLock::new(),
-            fix_merge_cell: OnceLock::new(),
+        cell.set(LoadedWantedLockfile {
+            lockfile: lockfile.map(Arc::new),
+            pre_merge_importers: None,
+        })
+        .expect("a fresh OnceLock accepts the first set");
+        LazyLockfile { source: None, cell, fix_cell: OnceLock::new(), prefetch: Mutex::new(None) }
+    }
+
+    /// Start the read + parse on a background thread, so a later
+    /// [`Self::get`] finds the work done (or joins it) instead of
+    /// paying for a multi-megabyte YAML parse inline. Idempotent, and
+    /// a no-op when the lockfile is disabled or already loaded.
+    ///
+    /// Call this only on a path that is certain to need the contents:
+    /// the deferred design exists so the repeat-install fast path never
+    /// pays for the parse, and a prefetch spends that work even when
+    /// its result goes unused.
+    pub fn prefetch(&self) {
+        if self.cell.get().is_some() {
+            return;
         }
+        let Some((dir, selection)) = self.source.clone() else { return };
+        let mut slot = match self.prefetch.lock() {
+            Ok(slot) => slot,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        if slot.is_some() {
+            return;
+        }
+        *slot = Some(std::thread::spawn(move || Lockfile::load_wanted_detailed(&dir, &selection)));
     }
 
     /// The parsed wanted lockfile, loading it on first call. `None`
@@ -66,16 +95,16 @@ impl LazyLockfile {
     /// error is returned without being cached, so a subsequent call
     /// retries — callers abort on the first error in practice.
     pub fn get(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        Ok(self.load()?.lockfile.as_ref())
+        Ok(self.load()?.lockfile.as_deref())
     }
 
     /// Load after discarding fields that a repairing resolution regenerates.
     pub fn get_for_fix(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        Ok(self.load_for_fix()?.lockfile.as_ref())
+        Ok(self.load_for_fix()?.seed())
     }
 
     fn get_for_fix_merge(&self) -> Result<Option<&Lockfile>, LoadLockfileError> {
-        Ok(self.load_for_fix_merge()?.lockfile.as_ref())
+        Ok(self.load_for_fix()?.merge())
     }
 
     /// The importers the branch-lockfile fold started from, loading the
@@ -90,12 +119,25 @@ impl LazyLockfile {
     fn pre_merge_importers_for_fix(
         &self,
     ) -> Result<Option<&HashMap<String, ProjectSnapshot>>, LoadLockfileError> {
-        Ok(self.load_for_fix()?.pre_merge_importers.as_ref())
+        Ok(self.load_for_fix()?.pre_merge_importers())
     }
 
     fn load(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
         if let Some(loaded) = self.cell.get() {
             return Ok(loaded);
+        }
+        let prefetched = match self.prefetch.lock() {
+            Ok(mut slot) => slot.take(),
+            Err(poisoned) => poisoned.into_inner().take(),
+        };
+        // A panicked prefetch thread falls through to the inline load,
+        // which reproduces the panic's cause as a plain error or
+        // succeeds where a transient condition has passed.
+        if let Some(handle) = prefetched
+            && let Ok(result) = handle.join()
+        {
+            let loaded = result?;
+            return Ok(self.cell.get_or_init(|| loaded));
         }
         let loaded = match self.source.as_ref() {
             Some((dir, selection)) => Lockfile::load_wanted_detailed(dir, selection)?,
@@ -104,32 +146,16 @@ impl LazyLockfile {
         Ok(self.cell.get_or_init(|| loaded))
     }
 
-    fn load_for_fix(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
+    fn load_for_fix(&self) -> Result<&LoadedRepairLockfile, LoadLockfileError> {
         if let Some(loaded) = self.fix_cell.get() {
             return Ok(loaded);
         }
         let loaded = if let Some((dir, selection)) = self.source.as_ref() {
             Lockfile::load_wanted_detailed_for_fix(dir, selection)?
         } else {
-            let mut loaded = self.cell.get().cloned().unwrap_or_default();
-            if let Some(lockfile) = loaded.lockfile.as_mut() {
-                lockfile.prepare_for_fix();
-            }
-            loaded
+            LoadedRepairLockfile::from_loaded(self.cell.get().cloned().unwrap_or_default())
         };
         Ok(self.fix_cell.get_or_init(|| loaded))
-    }
-
-    fn load_for_fix_merge(&self) -> Result<&LoadedWantedLockfile, LoadLockfileError> {
-        if let Some(loaded) = self.fix_merge_cell.get() {
-            return Ok(loaded);
-        }
-        let loaded = if let Some((dir, selection)) = self.source.as_ref() {
-            Lockfile::load_wanted_detailed_for_fix_merge(dir, selection)?
-        } else {
-            self.cell.get().cloned().unwrap_or_default()
-        };
-        Ok(self.fix_merge_cell.get_or_init(|| loaded))
     }
 
     /// Whether a wanted lockfile is known to be available: the parsed
@@ -140,10 +166,11 @@ impl LazyLockfile {
     /// the repeat-install fast path.
     #[must_use]
     pub fn is_loaded_or_on_disk(&self) -> bool {
-        if let Some(loaded) =
-            self.cell.get().or_else(|| self.fix_cell.get()).or_else(|| self.fix_merge_cell.get())
-        {
+        if let Some(loaded) = self.cell.get() {
             return loaded.lockfile.is_some();
+        }
+        if let Some(loaded) = self.fix_cell.get() {
+            return loaded.seed().is_some();
         }
         self.source
             .as_ref()
@@ -178,7 +205,29 @@ impl<'a> MaybeLazyLockfile<'a> {
         match self {
             MaybeLazyLockfile::Loaded(lockfile) => Ok(lockfile),
             MaybeLazyLockfile::Lazy(lazy) => lazy.get(),
-            MaybeLazyLockfile::Repair(lazy) => lazy.get().or_else(|_| lazy.get_for_fix_merge()),
+            MaybeLazyLockfile::Repair(lazy) => lazy.get_for_fix_merge(),
+        }
+    }
+
+    /// An `Arc` handle to the parsed wanted lockfile, for a consumer
+    /// that shares the document with long-lived machinery — the
+    /// resolver's lockfile-reuse seed above all — without deep-copying
+    /// a workspace-scale lockfile. `None` when no lockfile exists *or*
+    /// for the borrowed and repair variants, which hold no `Arc`;
+    /// callers fall back to cloning [`Self::get`]'s reference.
+    pub fn shared(self) -> Result<Option<Arc<Lockfile>>, LoadLockfileError> {
+        match self {
+            MaybeLazyLockfile::Lazy(lazy) => Ok(lazy.load()?.lockfile.clone()),
+            MaybeLazyLockfile::Loaded(_) | MaybeLazyLockfile::Repair(_) => Ok(None),
+        }
+    }
+
+    /// See [`LazyLockfile::prefetch`], including its "only on a path
+    /// certain to need the contents" caveat. A repair load takes a
+    /// different loader, so only the plain lazy case prefetches.
+    pub fn prefetch(self) {
+        if let MaybeLazyLockfile::Lazy(lazy) = self {
+            lazy.prefetch();
         }
     }
 

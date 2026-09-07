@@ -95,6 +95,13 @@ pub enum StalenessReason {
     )]
     PublishDirectoryMismatch { lockfile: Option<String>, manifest: Option<String> },
 
+    /// Whether workspace links use `publishDirectory` differs from the
+    /// manifest's effective `publishConfig.linkDirectory` value.
+    #[display(
+        r#""linkDirectory" in the lockfile ({lockfile}) doesn't match "publishConfig.linkDirectory" in package.json ({manifest})"#
+    )]
+    LinkDirectoryMismatch { lockfile: bool, manifest: bool },
+
     /// `dependenciesMeta` on the importer doesn't match
     /// `dependenciesMeta` on the manifest.
     #[display(
@@ -267,6 +274,7 @@ impl StalenessReason {
             | StalenessReason::RemovedImporter { .. }
             | StalenessReason::SpecifiersDiffer(_)
             | StalenessReason::PublishDirectoryMismatch { .. }
+            | StalenessReason::LinkDirectoryMismatch { .. }
             | StalenessReason::DependenciesMetaMismatch { .. }
             | StalenessReason::DepSpecifierMismatch { .. }
             | StalenessReason::ResolutionDoesNotSatisfy { .. } => None,
@@ -571,7 +579,7 @@ fn all_catalogs_are_up_to_date(
 ///    dependencies ∪ optionalDependencies` (∪ the auto-installed
 ///    peers below). Catches added / removed / modified deps in one
 ///    bucket.
-/// 2. `publishDirectory` vs `publishConfig.directory`.
+/// 2. `publishDirectory` / `linkDirectory` vs `publishConfig`.
 /// 3. `dependenciesMeta` equality.
 /// 4. Per-field name-set, per-dep specifier, and resolved-version
 ///    checks. Catches
@@ -610,12 +618,9 @@ pub fn satisfies_package_manifest(
         return Err(StalenessReason::SpecifiersDiffer(diff));
     }
 
-    // Phase 2: `publishDirectory` parity. Compares the importer's
-    // `publishDirectory` to the manifest's `publishConfig.directory`
-    // verbatim; pacquet's `ProjectSnapshot.publish_directory` is
-    // `Option<String>` and the manifest exposes the field via the
-    // raw `value()`. Two `None`s match; anything else mismatched
-    // fails the check.
+    // Phase 2: publish-directory parity. The directory is compared verbatim;
+    // `linkDirectory` is compared by its effective value because omitted and
+    // explicit `true` have the same behavior and only `false` is recorded.
     let manifest_publish_dir = manifest
         .value()
         .get("publishConfig")
@@ -626,6 +631,21 @@ pub fn satisfies_package_manifest(
         return Err(StalenessReason::PublishDirectoryMismatch {
             lockfile: importer.publish_directory.clone(),
             manifest: manifest_publish_dir,
+        });
+    }
+    let lockfile_links_publish_directory =
+        importer.publish_directory.is_some() && importer.link_directory != Some(false);
+    let manifest_links_publish_directory = manifest_publish_dir.is_some()
+        && manifest
+            .value()
+            .get("publishConfig")
+            .and_then(|publish_config| publish_config.get("linkDirectory"))
+            .and_then(serde_json::Value::as_bool)
+            != Some(false);
+    if lockfile_links_publish_directory != manifest_links_publish_directory {
+        return Err(StalenessReason::LinkDirectoryMismatch {
+            lockfile: lockfile_links_publish_directory,
+            manifest: manifest_links_publish_directory,
         });
     }
 

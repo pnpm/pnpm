@@ -6,7 +6,7 @@ use pnpm_hooks::{
 };
 use pnpm_lockfile::LockfileResolution;
 use pnpm_reporter::Reporter;
-use pnpm_tarball::{DownloadTarballToStore, FetchErrorDetails, FetchedTarball, TarballError};
+use pnpm_tarball::{FetchErrorDetails, FetchedTarball, IngestTarballToStore, TarballError};
 use serde::Deserialize;
 use serde_json::Value;
 use ssri::Integrity;
@@ -36,7 +36,7 @@ impl CustomFetcherSession {
 
     pub async fn resolve_tarball_integrity<Reporter: self::Reporter>(
         &self,
-        download: DownloadTarballToStore<'_>,
+        download: IngestTarballToStore<'_>,
         original: &LockfileResolution,
         opts: Value,
     ) -> Result<LockfileResolution, InstallPackageBySnapshotError> {
@@ -81,13 +81,13 @@ impl CustomFetcherSession {
 
     pub(crate) async fn fetch<Reporter: self::Reporter>(
         &self,
-        download: DownloadTarballToStore<'_>,
+        download: IngestTarballToStore<'_>,
         original: &LockfileResolution,
         opts: Value,
     ) -> Result<CustomFetchOutcome, InstallPackageBySnapshotError> {
         let package_id = download.package_id;
         let locked = original.checkable_integrity();
-        let download = DownloadTarballToStore { package_integrity: locked, ..download };
+        let download = IngestTarballToStore { package_integrity: locked, ..download };
         if let Some(integrity) = locked
             && let Some(tarball) = self
                 .completed
@@ -228,7 +228,7 @@ fn decode_resolution(
 /// discovery calls this, so there is nothing to hash and nothing to verify; the
 /// install pass materializes such a resolution through its own dispatch.
 async fn fetch_custom_tarball<Reporter: self::Reporter>(
-    download: DownloadTarballToStore<'_>,
+    download: IngestTarballToStore<'_>,
     resolution: &LockfileResolution,
     lockfile_dir: &Path,
 ) -> Result<Option<Arc<FetchedTarball>>, InstallPackageBySnapshotError> {
@@ -250,12 +250,12 @@ async fn fetch_custom_tarball<Reporter: self::Reporter>(
 }
 
 async fn fetch_location<Reporter: self::Reporter>(
-    download: &DownloadTarballToStore<'_>,
+    download: &IngestTarballToStore<'_>,
     location: TarballLocation,
     lockfile_dir: &Path,
 ) -> Result<Arc<FetchedTarball>, TarballError> {
     let url = local_file_tarball_install_url(location.tarball.as_str().into(), lockfile_dir);
-    DownloadTarballToStore {
+    IngestTarballToStore {
         package_url: &url,
         package_integrity: download
             .package_integrity
@@ -268,7 +268,7 @@ async fn fetch_location<Reporter: self::Reporter>(
 }
 
 async fn run_callback<Reporter: self::Reporter>(
-    download: &DownloadTarballToStore<'_>,
+    download: &IngestTarballToStore<'_>,
     lockfile_dir: &Path,
     callback: &FetcherCallback,
     verified: &mut Vec<Arc<FetchedTarball>>,

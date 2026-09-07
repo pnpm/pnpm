@@ -40,6 +40,7 @@ export async function fetchVerifiedNodeShasumsFile (
 
 export interface FetchShasumsFileCachedOpts {
   cacheDir?: string
+  skipCache?: boolean
 }
 
 export interface FetchVerifiedNodeShasumsFileCachedOpts extends FetchShasumsFileCachedOpts {
@@ -61,7 +62,7 @@ export async function fetchVerifiedNodeShasumsFileCached (
   shasumsUrl: string,
   opts?: FetchVerifiedNodeShasumsFileCachedOpts
 ): Promise<ShasumsFileItem[]> {
-  const cacheOpts = { cacheDir: opts?.cacheDir, trust: 'verified' as const }
+  const cacheOpts = { cacheDir: opts?.skipCache === true ? undefined : opts?.cacheDir, trust: 'verified' as const }
   const signatureUrl = `${shasumsUrl}.sig`
   const [cachedBody, cachedSignature] = await Promise.all([
     readCachedShasums(shasumsUrl, cacheOpts),
@@ -93,7 +94,7 @@ export async function fetchShasumsFileCached (
   shasumsUrl: string,
   opts?: FetchShasumsFileCachedOpts
 ): Promise<ShasumsFileItem[]> {
-  const cacheOpts = { cacheDir: opts?.cacheDir, trust: 'unverified' as const }
+  const cacheOpts = { cacheDir: opts?.skipCache === true ? undefined : opts?.cacheDir, trust: 'unverified' as const }
   const cached = await readCachedShasums(shasumsUrl, cacheOpts)
   if (cached != null) return parseShasumsFile(cached)
   const body = await fetchShasumsFileRaw(fetch, shasumsUrl)

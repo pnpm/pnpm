@@ -424,6 +424,52 @@ async fn a_bogus_stage_id_is_not_found_or_rejected() {
     assert_eq!(hostile.status(), StatusCode::BAD_REQUEST);
 }
 
+/// Approving a stage spends it: the transaction committed, so the record goes
+/// even when it reports a package it could not put in the document. Leaving it
+/// listed would offer an approval that cannot happen again.
+#[tokio::test]
+async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
+    use object_store::{ObjectStore, ObjectStoreExt, memory::InMemory, path::Path as ObjectPath};
+    use pnpr::HostedStoreConfig;
+    use std::sync::Arc;
+
+    let tmp = TempDir::new().unwrap();
+    let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.hosted_store =
+        HostedStoreConfig::ObjectStore { store: Arc::clone(&store), prefix: String::new() };
+    let app = router(config);
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the losing tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    // Another writer takes the tarball key while the stage waits for approval.
+    store
+        .put(
+            &ObjectPath::from("staged-pkg/staged-pkg-1.0.0.tgz"),
+            axum::body::Bytes::from_static(b"the winning tarball").into(),
+        )
+        .await
+        .unwrap();
+
+    let approve = app
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CONFLICT);
+
+    let list = app
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");
+}
+
 /// Compute the SRI `sha512-...` string the way npm clients send it
 /// in `dist.integrity`.
 fn sri_sha512(bytes: &[u8]) -> String {

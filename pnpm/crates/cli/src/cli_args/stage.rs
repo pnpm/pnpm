@@ -9,12 +9,13 @@
 mod approve;
 mod summarize_tarball;
 
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::Config;
+use pnpm_hooks::PnpmfileHooks;
 use pnpm_network::{
     RetryOpts, ThrottledClient, read_limited_body, redact_url_credentials, send_with_retry,
 };
@@ -111,6 +112,21 @@ pub enum StageError {
     #[diagnostic(code(ERR_PNPM_STAGE_TARBALL_MANIFEST_NOT_FOUND))]
     TarballManifestNotFound,
 
+    #[display(
+        "Cannot approve stages {first_stage_id} and {second_stage_id} together because both publish {package_name}@{version}"
+    )]
+    #[diagnostic(code(ERR_PNPM_STAGE_DUPLICATE_PACKAGE))]
+    DuplicateStagePackage {
+        #[error(not(source))]
+        first_stage_id: String,
+        #[error(not(source))]
+        second_stage_id: String,
+        #[error(not(source))]
+        package_name: String,
+        #[error(not(source))]
+        version: String,
+    },
+
     #[display(r#"Invalid package name "{name}"."#)]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidPackageName {
@@ -180,9 +196,12 @@ impl StageArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<Option<String>> {
         match self.params.first().map(String::as_str) {
-            Some("publish") => self.stage_publish::<Reporter>(dir, config, recursive).await,
+            Some("publish") => {
+                self.stage_publish::<Reporter>(dir, config, recursive, before_packing_hooks).await
+            }
             Some("list") => self.stage_list(config).await,
             Some("view") => self.stage_view(config).await,
             Some("approve") => approve::stage_approve::<Reporter>(&self, config).await,
@@ -203,13 +222,21 @@ impl StageArgs {
         dir: &Path,
         config: &Config,
         recursive: bool,
+        before_packing_hooks: Vec<Arc<dyn PnpmfileHooks>>,
     ) -> miette::Result<Option<String>> {
         let StageArgs { params, flags, .. } = self;
         let json = flags.json;
         let dry_run = flags.dry_run;
         let publish = PublishArgs { package: params.get(1).cloned(), flags };
-        let published =
-            publish.publish_packages::<Reporter>(dir, config, recursive, /* stage */ true).await?;
+        let published = publish
+            .publish_packages::<Reporter>(
+                dir,
+                config,
+                recursive,
+                /* stage */ true,
+                before_packing_hooks,
+            )
+            .await?;
         let summaries = published.summaries();
         if json {
             let keyed = key_by_package_name(summaries);
@@ -285,25 +312,7 @@ impl StageArgs {
     async fn stage_download(&self, dir: &Path, config: &Config) -> miette::Result<Option<String>> {
         let stage_id = require_stage_id(&self.params, "download")?;
         let context = self.stage_context(config, None)?;
-        let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
-        let action = format!("download staged package {stage_id}");
-        let (_guard, response) = stage_send(&context, reqwest::Method::GET, url.as_str(), None)
-            .await
-            .map_err(|source| request_failed(&action, source))?;
-        if !response.status().is_success() {
-            return Err(registry_error_from_response(response, &action).await.into());
-        }
-        let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
-            .await
-            .map_err(|source| request_failed(&action, source))?;
-        if tarball_data.truncated {
-            return Err(StageError::RequestFailed {
-                operation: action,
-                reason: format!("registry response exceeded {STAGE_TARBALL_BODY_LIMIT} bytes"),
-            }
-            .into());
-        }
-        let tarball_data = tarball_data.bytes;
+        let tarball_data = fetch_stage_tarball(&context, stage_id).await?;
 
         let mut summary = summarize_tarball(&tarball_data)?;
         let filename = create_tarball_filename(&summary.name, &summary.version, Some(stage_id))?;
@@ -374,6 +383,29 @@ impl StageArgs {
             },
         })
     }
+}
+
+/// Download one staged package without writing it to disk.
+async fn fetch_stage_tarball(context: &StageContext, stage_id: &str) -> miette::Result<Vec<u8>> {
+    let url = stage_endpoint_url(&context.registry, &format!("-/stage/{stage_id}/tarball"))?;
+    let action = format!("download staged package {stage_id}");
+    let (_guard, response) = stage_send(context, reqwest::Method::GET, url.as_str(), None)
+        .await
+        .map_err(|source| request_failed(&action, source))?;
+    if !response.status().is_success() {
+        return Err(registry_error_from_response(response, &action).await.into());
+    }
+    let tarball_data = read_limited_body(response, STAGE_TARBALL_BODY_LIMIT)
+        .await
+        .map_err(|source| request_failed(&action, source))?;
+    if tarball_data.truncated {
+        return Err(StageError::RequestFailed {
+            operation: action,
+            reason: format!("registry response exceeded {STAGE_TARBALL_BODY_LIMIT} bytes"),
+        }
+        .into());
+    }
+    Ok(tarball_data.bytes)
 }
 
 struct StageContext {

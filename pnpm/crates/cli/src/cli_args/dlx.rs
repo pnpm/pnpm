@@ -517,8 +517,8 @@ fn run_bin(
     set_command_path(&mut cmd, &path);
     cmd.env("npm_config_user_agent", user_agent);
 
-    let status = cmd
-        .status()
+    let status = pnpm_executor::spawn_child(&mut cmd, None)
+        .and_then(|mut child| child.wait())
         .map_err(|source| DlxError::Spawn { command: program.command().to_string(), source })?;
     if !status.success() {
         #[expect(

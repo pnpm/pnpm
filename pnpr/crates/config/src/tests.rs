@@ -11,12 +11,45 @@ use pnpm_env_replace::EnvVar;
 use pnpm_testing_utils::env_guard::EnvGuard;
 use pnpr_error::RegistryError;
 use pnpr_policy::Identity;
+use pnpr_registry::Ecosystem;
 use reqwest::header::AUTHORIZATION;
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
     time::Duration,
 };
+
+#[test]
+fn compiler_cache_policies_distinguish_readers_and_publishers() {
+    let config = Config::from_yaml_str(
+        "artifacts:\n  enabled: true\n  compilerCaches:\n    acme:\n      access: [ci, developer]\n      publish: ci\n    disabled:\n      access: []\n      publish: []\n",
+        Path::new("/config"), listen(), None,
+    ).unwrap();
+    let policy = &config.artifacts.compiler_caches["acme"];
+    assert!(policy.access.allows(&Identity::user("developer")), "developer must be able to read");
+    assert!(!policy.publish.allows(&Identity::user("developer")), "developer must not publish");
+    assert!(policy.publish.allows(&Identity::user("ci")), "CI must be able to publish");
+    assert!(!policy.access.allows(&Identity::Anonymous), "anonymous reads must not be granted");
+    assert!(
+        config.artifacts.compiler_caches["disabled"].access.is_empty(),
+        "empty access must deny reads",
+    );
+}
+
+#[test]
+fn compiler_cache_policies_reject_ambiguous_or_incomplete_declarations() {
+    for declaration in [
+        "    '../acme': { access: ci, publish: ci }",
+        "    acme: { access: ci }",
+        "    acme: { access: 'ci developer', publish: ci }",
+        "    acme: { access: ci, publish: 'team:missing' }",
+        "    acme: { access: ci, publish: ci, unexpected: true }",
+    ] {
+        let yaml = format!("artifacts:\n  enabled: true\n  compilerCaches:\n{declaration}\n");
+        let result = Config::from_yaml_str(&yaml, Path::new("/config"), listen(), None);
+        assert!(result.is_err(), "accepted {declaration:?}");
+    }
+}
 
 /// Test [`EnvVar`] provider with a fixed set of variables, so
 /// `token_env` resolution can be exercised without touching the real
@@ -47,6 +80,7 @@ fn upstream_config_file(
         max_fails: None,
         fail_timeout: None,
         cache: None,
+        search: false,
         access: None,
     }
 }
@@ -389,6 +423,40 @@ registries:
 }
 
 #[test]
+fn parses_cors_origins_and_upstream_search() {
+    let yaml = r"
+cors:
+  allowedOrigins:
+    - https://npmx.dev
+    - http://localhost:3000/
+registries:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    search: true
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(
+        config.cors.allowed_origins(),
+        ["https://npmx.dev".to_string(), "http://localhost:3000".to_string()],
+    );
+    assert!(config.upstreams["npmjs"].search);
+}
+
+#[test]
+fn rejects_non_origin_cors_urls() {
+    for origin in ["*", "null", "ftp://example.test", "https://example.test/path"] {
+        let yaml = format!("cors:\n  allowedOrigins: [{origin:?}]\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(err, RegistryError::InvalidConfig { reason } if reason.contains("CORS allowed origin")),
+            "expected an InvalidConfig for {origin:?}",
+        );
+    }
+}
+
+#[test]
 fn from_yaml_str_tolerates_unresolved_env_var_references() {
     let yaml = r"
 storage: ${PNPR_UNSET_VAR_FOR_TEST}./store
@@ -429,16 +497,16 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     // The flat-root hosted org serves the registry-mock fixture scopes.
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        config.registries.resolve_default(Ecosystem::Npm, "@pnpm.e2e/dep-of-pkg-with-1-dep"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        config.registries.resolve_default("create-touch-file-one-bin"),
+        config.registries.resolve_default(Ecosystem::Npm, "create-touch-file-one-bin"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
-        config.registries.resolve_default("is-positive"),
+        config.registries.resolve_default(Ecosystem::Npm, "is-positive"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -452,7 +520,7 @@ fn static_constructor_serves_everything_from_one_hosted() {
     // flat storage root (its `org` namespace is empty).
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.registries.resolve_default("anything"),
+        config.registries.resolve_default(Ecosystem::Npm, "anything"),
         Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
@@ -469,14 +537,14 @@ fn from_default_yaml_parses_bundled_file() {
     // everything else — including the rest of those real scopes — to npmjs.
     for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
-            config.registries.resolve_default(local),
+            config.registries.resolve_default(Ecosystem::Npm, local),
             Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.registries.resolve_default(upstream),
+            config.registries.resolve_default(Ecosystem::Npm, upstream),
             Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
@@ -870,11 +938,11 @@ defaultRegistry: main
     assert!(config.upstreams["corp"].access.is_some());
     assert_eq!(config.registries.default_registry(), Some("main"));
     assert!(config.registries.is_router("main"));
-    match config.registries.resolve("main", "@corp/secret") {
+    match config.registries.resolve("main", Ecosystem::Npm, "@corp/secret") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
-    match config.registries.resolve("main", "lodash") {
+    match config.registries.resolve("main", Ecosystem::Npm, "lodash") {
         pnpr_registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
@@ -2181,10 +2249,10 @@ registries:
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
-        config.registries.resolve("corp", "@corp/tool"),
+        config.registries.resolve("corp", Ecosystem::Npm, "@corp/tool"),
         Resolved::Concrete { registry: "corp", kind: ConcreteKind::Upstream },
     );
-    assert_eq!(config.registries.resolve("corp", "lodash"), Resolved::Unclaimed);
+    assert_eq!(config.registries.resolve("corp", Ecosystem::Npm, "lodash"), Resolved::Unclaimed);
 }
 
 #[test]
@@ -2225,6 +2293,7 @@ fn resolve_upstream_config_defaults_knobs_to_verdaccio_values() {
     assert_eq!(upstream.max_fails, UpstreamConfig::DEFAULT_MAX_FAILS);
     assert_eq!(upstream.fail_timeout, UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
     assert!(upstream.cache);
+    assert!(!upstream.search);
 }
 
 #[test]
@@ -2236,12 +2305,14 @@ fn resolve_upstream_config_parses_explicit_knobs() {
     file.max_fails = Some(5);
     file.fail_timeout = Some(Interval("1m".to_string()));
     file.cache = Some(false);
+    file.search = true;
     let upstream = resolve_upstream("npmjs", file).unwrap();
     assert_eq!(upstream.maxage, Some(Duration::from_mins(10)));
     assert_eq!(upstream.timeout, Duration::from_secs(45));
     assert_eq!(upstream.max_fails, 5);
     assert_eq!(upstream.fail_timeout, Duration::from_mins(1));
     assert!(!upstream.cache);
+    assert!(upstream.search);
 }
 
 #[test]
@@ -2277,7 +2348,7 @@ fn bundled_default_config_enforces_its_protections() {
     // resolves to the npmjs catch-all through the router.
     use pnpr_registry::{ConcreteKind, Resolved};
     assert_eq!(
-        config.registries.resolve_default("lodash"),
+        config.registries.resolve_default(Ecosystem::Npm, "lodash"),
         Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
@@ -2488,4 +2559,230 @@ fn a_key_prefix_is_normalized_to_empty_or_slash_terminated() {
     assert_eq!(normalize_key_prefix(Some("")), "");
     assert_eq!(normalize_key_prefix(Some("   ")), "");
     assert_eq!(normalize_key_prefix(Some("/")), "");
+}
+
+#[test]
+fn from_yaml_str_reads_registry_ecosystems() {
+    let yaml = "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    org: crates
+    packages:
+      Demo_Crate: {}
+  cratesio:
+    type: upstream
+    ecosystem: cargo
+    url: https://index.crates.io/
+    public: true
+  cargo:
+    type: router
+    sources: [crates, cratesio]
+  internal:
+    type: hosted
+    ecosystem: pypi
+    org: python
+    packages:
+      Demo_Pkg.Extra: {}
+      '**': {}
+  local:
+    type: hosted
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let registries = &config.registries;
+    assert_eq!(registries.ecosystem("crates"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("cratesio"), Some(Ecosystem::Cargo));
+    assert_eq!(registries.ecosystem("cargo"), None);
+    assert_eq!(registries.ecosystem("internal"), Some(Ecosystem::Pypi));
+    assert_eq!(registries.ecosystem("local"), Some(Ecosystem::Npm));
+    // Exact-name keys are canonicalized the way each ecosystem compares names.
+    assert!(matches!(
+        registries.resolve("cargo", Ecosystem::Cargo, "demo_crate"),
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
+    ));
+    assert!(matches!(
+        registries.resolve("internal", Ecosystem::Pypi, "demo-pkg-extra"),
+        pnpr_registry::Resolved::Concrete { registry: "internal", .. }
+    ));
+}
+
+#[test]
+fn from_yaml_str_accepts_mixed_routers_and_rejects_unknown_ecosystems_and_bad_keys() {
+    let mixed = "
+registries:
+  crates: { type: hosted, ecosystem: cargo, org: crates }
+  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
+  main: { type: router, sources: [crates, npmjs] }
+defaultRegistry: main
+";
+    let config = Config::from_yaml_str(mixed, Path::new("/x"), listen(), None).unwrap();
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Cargo, "serde"),
+        pnpr_registry::Resolved::Concrete { registry: "crates", .. }
+    ));
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Npm, "serde"),
+        pnpr_registry::Resolved::Concrete { registry: "npmjs", .. }
+    ));
+    assert_eq!(
+        config.registries.resolve_default(Ecosystem::Pypi, "serde"),
+        pnpr_registry::Resolved::Unclaimed,
+    );
+
+    let unknown = "
+registries:
+  gems: { type: hosted, ecosystem: rubygems }
+";
+    let err = Config::from_yaml_str(unknown, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
+
+    let bad_crate_key = "
+registries:
+  crates:
+    type: hosted
+    ecosystem: cargo
+    packages:
+      'not a crate': {}
+";
+    let err = Config::from_yaml_str(bad_crate_key, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains(r#"cargo registry "crates" `packages:` key"#), "{err}");
+}
+
+#[test]
+fn non_npm_router_sources_reject_scoped_wildcard_claims() {
+    for ecosystem in ["cargo", "pypi"] {
+        let yaml = format!(
+            r"
+registries:
+  hosted:
+    type: hosted
+    ecosystem: {ecosystem}
+    packages:
+      '@scope/*': {{}}
+  upstream:
+    type: upstream
+    ecosystem: {ecosystem}
+    url: https://upstream.test/
+    public: true
+  main:
+    type: router
+    sources: [hosted, upstream]
+defaultRegistry: main
+",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(matches!(err, RegistryError::InvalidConfig { .. }), "{err}");
+        assert!(err.to_string().contains("packages:"), "{err}");
+    }
+}
+
+#[test]
+fn rejects_package_keys_that_normalize_to_the_same_name() {
+    for (ecosystem, first, second) in [("cargo", "Demo", "demo"), ("pypi", "Foo.Bar", "foo-bar")] {
+        let yaml = format!(
+            "registries:\n  hosted:\n    type: hosted\n    ecosystem: {ecosystem}\n    packages:\n      {first}: {{ access: '$authenticated' }}\n      {second}: {{ access: '$all' }}\n",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(err.to_string().contains("duplicates normalized key"), "{err}");
+    }
+}
+
+#[test]
+fn an_image_registry_claims_a_namespace_and_exact_repositories() {
+    let yaml = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    org: images
+    packages:
+      'acme/*': {}
+      'library/nginx': {}
+defaultRegistry: images
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    for repository in ["acme/app", "acme/team/tool", "library/nginx"] {
+        assert!(
+            matches!(
+                config.registries.resolve_default(Ecosystem::Oci, repository),
+                pnpr_registry::Resolved::Concrete { registry: "images", .. }
+            ),
+            "{repository} should resolve to the image registry",
+        );
+    }
+    assert_eq!(
+        config.registries.resolve_default(Ecosystem::Oci, "other/app"),
+        pnpr_registry::Resolved::Unclaimed,
+    );
+}
+
+#[test]
+fn image_registry_keys_are_normalized_and_validated() {
+    let case_folded = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'ACME/*': {}
+defaultRegistry: images
+";
+    let config = Config::from_yaml_str(case_folded, Path::new("/x"), listen(), None).unwrap();
+    assert!(matches!(
+        config.registries.resolve_default(Ecosystem::Oci, "acme/app"),
+        pnpr_registry::Resolved::Concrete { registry: "images", .. }
+    ));
+
+    let duplicate = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'ACME/*': {}
+      'acme/*': {}
+";
+    let err = Config::from_yaml_str(duplicate, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains("duplicates normalized key"), "{err}");
+
+    let bad_key = "
+registries:
+  images:
+    type: hosted
+    ecosystem: oci
+    packages:
+      'acme/app/*': {}
+";
+    let err = Config::from_yaml_str(bad_key, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(err.to_string().contains(r#"oci registry "images" `packages:` key"#), "{err}");
+}
+
+#[test]
+fn oci_limits_are_positive_and_preserve_defaults() {
+    let config = Config::from_yaml_str(
+        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, bearerAuth: true}",
+        Path::new("/config"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(config.oci.max_blob_bytes, 123);
+    assert_eq!(config.oci.max_manifest_bytes, 456);
+    assert!(config.oci.bearer_auth);
+    let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
+    assert_eq!(config.oci.max_manifest_bytes, 4 * 1024 * 1024);
+    assert!(!config.oci.bearer_auth);
+    for yaml in [
+        "oci: {maxBlobBytes: 0}",
+        "oci: {maxManifestBytes: 0}",
+        "oci: {maxBlobBytes: -1}",
+        "oci: {maxManifestByte: 1}",
+    ] {
+        assert!(
+            Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).is_err(),
+            "{yaml}",
+        );
+    }
 }

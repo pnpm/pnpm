@@ -10,9 +10,11 @@
 //! `add`'s grammar, which is the same thing pnpm's own parser does with
 //! it. The scan runs after [`relocate_pre_subcommand_flags`], so an option
 //! written before the subcommand already sits after it and cannot be
-//! mistaken for the package name.
+//! mistaken for the package name. The settings extraction ahead of both
+//! resolves the command the same way — see [`subcommand_option_names`].
 //!
 //! [`relocate_pre_subcommand_flags`]: crate::flag_relocation::relocate_pre_subcommand_flags
+//! [`subcommand_option_names`]: crate::parse_boundary::subcommand_option_names
 
 use crate::flag_relocation::{ArgTable, PositionalScan, find_positional, scan_for_positional};
 use clap::Command;

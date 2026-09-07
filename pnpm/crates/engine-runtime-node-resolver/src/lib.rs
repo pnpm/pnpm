@@ -39,5 +39,5 @@ pub use normalize_arch::get_normalized_arch;
 pub use parse_node_specifier::{NodeSpecifier, ParseNodeSpecifierError, parse_node_specifier};
 pub use resolve_node_version::{
     NODE_EXTRAS_IGNORE_PATTERN, ResolveNodeVersionError, resolve_node_version,
-    resolve_node_versions,
+    resolve_node_version_with_auth, resolve_node_versions, resolve_node_versions_with_auth,
 };

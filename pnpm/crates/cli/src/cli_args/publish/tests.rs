@@ -87,7 +87,7 @@ async fn pack_for_publish_writes_a_tarball_and_returns_the_manifest() {
 
     let args = publish_args_with(PublishFlags { ignore_scripts: true, ..publish_flags() });
     let result = args
-        .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path())
+        .pack_for_publish::<SilentReporter>(dir.path(), &Config::default(), dest.path(), &[])
         .await
         .expect("packing succeeds");
 
@@ -150,7 +150,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
     let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
 
     let err = args
-        .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network)
+        .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network, &[])
         .await
         .expect_err("an empty directory has no package.json");
 
@@ -166,7 +166,7 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
 async fn run_rejects_batch_without_recursive() {
     let args = publish_args_with(PublishFlags { batch: true, ..publish_flags() });
     let err = args
-        .run::<SilentReporter>(std::path::Path::new("."), &Config::default(), false)
+        .run::<SilentReporter>(std::path::Path::new("."), &Config::default(), false, Vec::new())
         .await
         .expect_err("--batch requires --recursive");
     assert_eq!(

@@ -195,6 +195,20 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
     }
 }
 
+/// The package an `--allow-build` value or an `approve-builds` argument
+/// names, and whether it is allowed to build: a leading `!` denies the
+/// build.
+///
+/// A selector that is empty or only `!` yields an empty name. Callers
+/// reject that rather than persist an empty `allowBuilds` key.
+#[must_use]
+pub fn parse_allow_build_selector(selector: &str) -> (&str, bool) {
+    match selector.strip_prefix('!') {
+        Some(name) => (name, false),
+        None => (selector, true),
+    }
+}
+
 /// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
 /// (with any `(patch_hash=…)` segment stripped) — the half of depPath
 /// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns

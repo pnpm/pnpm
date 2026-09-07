@@ -7,6 +7,8 @@
 //!
 //! See <https://github.com/pnpm/pnpm> for the parent project.
 
+pub mod oci_maintenance;
+
 mod resolver;
 mod server;
 
@@ -15,7 +17,7 @@ pub use pnpr_auth::{
     identify,
 };
 pub use pnpr_config::{
-    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource,
+    AccessSpec, ArtifactsFeature, AuthConfig, BackendConfig, Config, ConfigSource, CorsConfig,
     DEFAULT_CONFIG_YAML, FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig,
     LibsqlSettings, LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess,
     PublicRoute, RegistryFeature, ResolverFeature, RoutePolicy, S3Settings, SqlBackendSettings,
@@ -24,9 +26,9 @@ pub use pnpr_config::{
 pub use pnpr_error::{RegistryError, Result};
 pub use pnpr_policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 pub use pnpr_registry::{
-    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+    ConcreteKind, Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
-pub use pnpr_storage::journal::recover_publish_journal;
 pub use server::{
-    router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
+    recover_publish_journal, router, router_with_auth, serve, serve_listener, try_router,
+    try_router_with_auth,
 };

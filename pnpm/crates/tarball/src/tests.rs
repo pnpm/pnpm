@@ -1,9 +1,11 @@
+mod archive_contract;
+
 use super::{
-    FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache, RetryOpts,
-    SharedReportedProgressKeys,
+    ArchiveStoreProjection, FetchTarballForResolution, MAX_UNTRUSTED_PREALLOC_BYTES, MemCache,
+    RetryOpts, SharedReportedProgressKeys, auth_header_for_package_download,
     download::{
-        DownloadTarballToStore, download_priority, fetch_and_extract_with_retry,
-        is_transient_error, slow_download_warning,
+        IngestTarballToStore, download_priority, fetch_and_extract_with_retry, is_transient_error,
+        slow_download_warning, store_index_cache_key,
     },
     error::{HttpStatusError, NetworkError, TarballError, VerifyChecksumError},
     extract::{
@@ -40,6 +42,31 @@ use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
+}
+
+#[test]
+fn node_runtime_downloads_do_not_send_auth_over_remote_http() {
+    let auth_headers = AuthHeaders::from_creds_map([(
+        "//mirror.example/".to_string(),
+        "Bearer mirror-token".to_string(),
+    )]);
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "http://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        ),
+        None,
+    );
+    assert_eq!(
+        auth_header_for_package_download(
+            &auth_headers,
+            "https://mirror.example/node.tar.gz",
+            "node@runtime:22.0.0",
+        )
+        .as_deref(),
+        Some("Bearer mirror-token"),
+    );
 }
 
 #[test]
@@ -256,7 +283,7 @@ fn tempdir_with_leaked_path() -> (TempDir, &'static StoreDir) {
 #[cfg(not(target_os = "windows"))]
 async fn packages_under_orgs_should_work() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
-    let cas_files = DownloadTarballToStore {
+    let cas_files = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -276,7 +303,7 @@ async fn packages_under_orgs_should_work() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -322,7 +349,7 @@ async fn network_fetch_records_progress_key() {
     let pkg_id = "@fastify/error@3.3.0";
     let progress_reported = SharedReportedProgressKeys::default();
 
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -342,7 +369,7 @@ async fn network_fetch_records_progress_key() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -360,7 +387,7 @@ async fn network_fetch_records_progress_key() {
 #[tokio::test]
 async fn should_throw_error_on_checksum_mismatch() {
     let (store_dir, store_path) = tempdir_with_leaked_path();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -380,7 +407,7 @@ async fn should_throw_error_on_checksum_mismatch() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -443,7 +470,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
     // key to prevent a later warm/cold pass from counting the same
     // package status again.
     let progress_reported = SharedReportedProgressKeys::default();
-    let download = DownloadTarballToStore {
+    let download = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -467,7 +494,7 @@ async fn reuses_cached_cas_paths_when_index_entry_is_live() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
     let cas_paths = download
         .run_without_mem_cache::<SilentReporter>()
@@ -518,7 +545,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
     // somewhere to point even though we never read it.
     let (_keep, store_path) = tempdir_with_leaked_path();
 
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         // No SQLite handle: any fall-through to the per-snapshot
@@ -542,7 +569,7 @@ async fn reuses_prefetched_cas_paths_when_provided() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -816,7 +843,7 @@ async fn falls_through_when_cafs_file_missing() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -836,7 +863,7 @@ async fn falls_through_when_cafs_file_missing() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -887,7 +914,7 @@ async fn store_row_holding_another_package_fails_the_read() {
     let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
     seed_row_holding_another_package(store_path, &index_key);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -907,7 +934,7 @@ async fn store_row_holding_another_package_fails_the_read() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -948,7 +975,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
     seed_row_holding_another_package(store_path, &index_key);
 
     EVENTS.lock().unwrap().clear();
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -970,7 +997,7 @@ async fn store_row_holding_another_package_only_warns_when_not_strict() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -1028,7 +1055,7 @@ async fn falls_through_when_digest_is_malformed() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1048,7 +1075,7 @@ async fn falls_through_when_digest_is_malformed() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1098,7 +1125,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1118,7 +1145,7 @@ async fn falls_through_when_cafs_path_is_a_directory() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -1178,7 +1205,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     index.set(&index_key, &entry).unwrap();
     drop(index);
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &fast_fail_client(),
         store_dir: store_path,
         store_index: StoreIndex::shared_readonly_in(store_path),
@@ -1198,7 +1225,7 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2178,6 +2205,543 @@ fn gzipped_tar(entries: &[(&str, &[u8])]) -> Vec<u8> {
     encoder.finish().expect("finish gzip")
 }
 
+#[test]
+fn package_projection_preserves_existing_store_index_keys() {
+    let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
+    let package_id = "artifact@1.0.0";
+    let legacy_key = store_index_key(&integrity.to_string(), package_id);
+
+    assert_eq!(
+        store_index_cache_key(
+            Some(&integrity),
+            package_id,
+            ArchiveStoreProjection::Package { append_manifest: None },
+        ),
+        Some(legacy_key.clone()),
+    );
+    assert_ne!(
+        store_index_cache_key(
+            Some(&integrity),
+            package_id,
+            ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"runtime"}"#) },
+        ),
+        Some(legacy_key),
+    );
+}
+
+#[test]
+fn ordinary_package_projection_preserves_existing_mem_cache_keys() {
+    let package_url = "https://example.test/artifact.tgz";
+    let package = ArchiveStoreProjection::Package { append_manifest: None };
+
+    assert_eq!(package.mem_cache_key(package_url, false), package_url);
+    assert_eq!(
+        package.mem_cache_key(package_url, true),
+        format!("revision-addressed:{package_url}"),
+    );
+}
+
+#[test]
+fn mem_cache_keys_include_every_file_set_discriminator() {
+    let package_url = "https://example.test/artifact.tgz";
+    let raw = ArchiveStoreProjection::RawArchive.mem_cache_key(package_url, false);
+    let first_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let same_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"first"}"#) }
+            .mem_cache_key(package_url, false);
+    let second_manifest =
+        ArchiveStoreProjection::Package { append_manifest: Some(br#"{"name":"second"}"#) }
+            .mem_cache_key(package_url, false);
+
+    assert_ne!(raw, package_url);
+    assert_eq!(first_manifest, same_manifest);
+    assert_ne!(first_manifest, second_manifest);
+}
+
+#[tokio::test]
+async fn mem_cache_partitions_raw_and_package_projections_in_both_orders() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"archive")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+
+    for package_first in [true, false] {
+        let (store_dir, store_path) = tempdir_with_leaked_path();
+        let mem_cache = MemCache::default();
+        let ingest = |store_projection| IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: None,
+            store_index_writer: None,
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: None,
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id: "artifact@1.0.0",
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection,
+        };
+
+        let (package_files, raw_files) = if package_first {
+            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            let raw_files = ingest(ArchiveStoreProjection::RawArchive)
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            (package_files, raw_files)
+        } else {
+            let raw_files = ingest(ArchiveStoreProjection::RawArchive)
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            let package_files = ingest(ArchiveStoreProjection::Package { append_manifest: None })
+                .run_with_mem_cache::<SilentReporter>(&mem_cache)
+                .await
+                .unwrap();
+            (package_files, raw_files)
+        };
+
+        let mut package_names = package_files.keys().map(String::as_str).collect::<Vec<_>>();
+        package_names.sort_unstable();
+        assert_eq!(package_names, ["README.md", "package.json"]);
+        assert_eq!(raw_files.keys().map(String::as_str).collect::<Vec<_>>(), ["README.md"]);
+        assert_eq!(mem_cache.len(), 2);
+        drop(store_dir);
+    }
+
+    drop(local_dir);
+}
+
+#[tokio::test]
+async fn mem_cache_partitions_synthesized_package_manifests_by_content() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"archive")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let mem_cache = MemCache::default();
+    let ingest = |append_manifest| IngestTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "artifact@1.0.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: Some(append_manifest),
+        },
+    };
+    let first_manifest = br#"{"name":"first"}"#;
+    let second_manifest = br#"{"name":"second"}"#;
+
+    let first =
+        ingest(first_manifest).run_with_mem_cache::<SilentReporter>(&mem_cache).await.unwrap();
+    let second =
+        ingest(second_manifest).run_with_mem_cache::<SilentReporter>(&mem_cache).await.unwrap();
+
+    assert_eq!(std::fs::read(&first["package.json"]).unwrap(), first_manifest);
+    assert_eq!(std::fs::read(&second["package.json"]).unwrap(), second_manifest);
+    assert_eq!(mem_cache.len(), 2);
+    drop((store_dir, local_dir));
+}
+
+#[tokio::test]
+async fn store_index_partitions_synthesized_package_manifests_by_content() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    let archive = gzipped_tar(&[("artifact/README.md", b"archive")]);
+    std::fs::write(&tarball_path, &archive).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let mut integrity_opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    integrity_opts.input(&archive);
+    let package_integrity = integrity_opts.result();
+    let package_id = "runtime:artifact@1.0.0";
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let first_manifest = br#"{"name":"first"}"#;
+    let second_manifest = br#"{"name":"second"}"#;
+
+    for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
+        let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+        IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: StoreIndex::shared_readonly_in(store_path),
+            store_index_writer: Some(Arc::clone(&writer)),
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: Some(&package_integrity),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
+        }
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("each synthesized manifest should be ingested independently");
+        drop(writer);
+        writer_task.await.expect("writer task").expect("writer flushed");
+    }
+
+    std::fs::remove_file(&tarball_path).unwrap();
+    let store_index = StoreIndex::shared_readonly_in(store_path);
+    for manifest in [first_manifest.as_slice(), second_manifest.as_slice()] {
+        let files = IngestTarballToStore {
+            http_client: &client,
+            store_dir: store_path,
+            store_index: store_index.clone(),
+            store_index_writer: None,
+            verify_store_integrity: true,
+            strict_store_pkg_content_check: true,
+            verified_files_cache: SharedVerifiedFilesCache::default(),
+            package_integrity: Some(&package_integrity),
+            package_unpacked_size: None,
+            package_file_count: None,
+            package_url: &package_url,
+            package_id,
+            requester: "",
+            prefetched_cas_paths: None,
+            retry_opts: test_retry_opts(),
+            auth_headers: &auth_headers,
+            ignore_file_pattern: None,
+            offline: true,
+            progress_reported: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: Some(manifest) },
+        }
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("the matching synthesized manifest should be read from the store");
+        assert_eq!(std::fs::read(&files["package.json"]).unwrap(), manifest);
+    }
+
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    assert_eq!(index.keys().expect("read index keys").len(), 2);
+    drop((index, store_dir, local_dir));
+}
+
+#[tokio::test]
+async fn synthesized_projection_reuses_only_a_matching_legacy_row_offline() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let package_id = "artifact@1.0.0";
+    let package_integrity = integrity(
+        "sha512-z4PhNX7vuL3xVChQ1m2AB9Yg5AULVxXcg/SpIdNs6c5H0NE8XYXysPYCfdwTgVb0suyqF4bmI3ZJno7K1aUa6Q==",
+    );
+    let manifest = br#"{"name":"artifact","version":"1.0.0"}"#;
+    let readme = b"legacy runtime archive";
+    let (_, manifest_hash) = store_path.write_cas_file(manifest, false).unwrap();
+    let (_, readme_hash) = store_path.write_cas_file(readme, false).unwrap();
+    let legacy_key = store_index_key(&package_integrity.to_string(), package_id);
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &legacy_key,
+            &PackageFilesIndex {
+                manifest: Some(serde_json::from_slice(manifest).unwrap()),
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([
+                    (
+                        "README.md".to_string(),
+                        CafsFileInfo {
+                            digest: format!("{readme_hash:x}"),
+                            mode: 0o644,
+                            size: readme.len() as u64,
+                            checked_at: None,
+                        },
+                    ),
+                    (
+                        "package.json".to_string(),
+                        CafsFileInfo {
+                            digest: format!("{manifest_hash:x}"),
+                            mode: 0o644,
+                            size: manifest.len() as u64,
+                            checked_at: None,
+                        },
+                    ),
+                ]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let client = fast_fail_client();
+    let auth_headers = AuthHeaders::default();
+    let store_index = StoreIndex::shared_readonly_in(store_path);
+    let ingest = |append_manifest| IngestTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: store_index.clone(),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&package_integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "https://example.test/runtime.tgz",
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &auth_headers,
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::Package {
+            append_manifest: Some(append_manifest),
+        },
+    };
+
+    let files = ingest(manifest)
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect("a matching legacy runtime row should remain available offline");
+    assert_eq!(std::fs::read(&files["package.json"]).unwrap(), manifest);
+    assert_eq!(std::fs::read(&files["README.md"]).unwrap(), readme);
+
+    let error = ingest(br#"{"name":"other","version":"1.0.0"}"#)
+        .run_without_mem_cache::<SilentReporter>()
+        .await
+        .expect_err("a different synthesized manifest must not reuse the legacy row");
+    assert!(matches!(error, TarballError::NoOfflineTarball { .. }));
+    drop(store_dir);
+}
+
+#[tokio::test]
+async fn raw_archive_projection_does_not_inject_an_npm_manifest() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    std::fs::write(&tarball_path, gzipped_tar(&[("artifact/README.md", b"raw")])).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: None,
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "artifact@1.0.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a local raw archive should be ingested");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), ["README.md"]);
+    drop((store_dir, local_dir));
+}
+
+#[tokio::test]
+async fn raw_archive_projection_skips_npm_identity_checks_on_store_hits() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let contents = b"raw artifact";
+    let (cas_path, file_hash) = store_path.write_cas_file(contents, false).unwrap();
+    let integrity = integrity("sha256-q80k8iD1xuGM3a48ipTFD+P7KQnhs4e5Blnos+dQpJM=");
+    let package_id = "crate:artifact@1.0.0";
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &store_index_cache_key(
+                Some(&integrity),
+                package_id,
+                ArchiveStoreProjection::RawArchive,
+            )
+            .unwrap(),
+            &PackageFilesIndex {
+                manifest: Some(serde_json::json!({ "name": "unrelated", "version": "2.0.0" })),
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    "README.md".to_string(),
+                    CafsFileInfo {
+                        digest: format!("{file_hash:x}"),
+                        mode: 0o644,
+                        size: contents.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: None,
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: "https://example.test/artifact.tgz",
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("raw archive cache hits must not use npm package identity semantics");
+
+    assert_eq!(cas_paths, HashMap::from([("README.md".to_string(), cas_path)]));
+    drop(store_dir);
+}
+
+#[tokio::test]
+async fn raw_archive_projection_ignores_legacy_package_rows() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("artifact.tgz");
+    let archive = gzipped_tar(&[("artifact/README.md", b"fresh raw artifact")]);
+    std::fs::write(&tarball_path, &archive).unwrap();
+    let package_url = format!("file:{}", tarball_path.display());
+    let mut integrity_opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
+    integrity_opts.input(&archive);
+    let integrity = integrity_opts.result();
+    let package_id = "crate:artifact@1.0.0";
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    store_path.init().unwrap();
+    let legacy_contents = b"{}";
+    let (_, legacy_file_hash) = store_path.write_cas_file(legacy_contents, false).unwrap();
+    let legacy_key = store_index_key(&integrity.to_string(), package_id);
+    StoreIndex::open_in(store_path)
+        .unwrap()
+        .set(
+            &legacy_key,
+            &PackageFilesIndex {
+                manifest: None,
+                requires_build: Some(false),
+                requires_prepare: None,
+                algo: "sha512".to_string(),
+                files: HashMap::from([(
+                    "package.json".to_string(),
+                    CafsFileInfo {
+                        digest: format!("{legacy_file_hash:x}"),
+                        mode: 0o644,
+                        size: legacy_contents.len() as u64,
+                        checked_at: None,
+                    },
+                )]),
+                side_effects: None,
+                remote_side_effects_quarantine: None,
+            },
+        )
+        .unwrap();
+
+    let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
+    let cas_paths = IngestTarballToStore {
+        http_client: &fast_fail_client(),
+        store_dir: store_path,
+        store_index: StoreIndex::shared_readonly_in(store_path),
+        store_index_writer: Some(Arc::clone(&writer)),
+        verify_store_integrity: true,
+        strict_store_pkg_content_check: true,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        package_integrity: Some(&integrity),
+        package_unpacked_size: None,
+        package_file_count: None,
+        package_url: &package_url,
+        package_id,
+        requester: "",
+        prefetched_cas_paths: None,
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+        store_projection: ArchiveStoreProjection::RawArchive,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("a legacy npm-projected row must not satisfy a raw archive read");
+
+    assert_eq!(cas_paths.keys().collect::<Vec<_>>(), ["README.md"]);
+    assert_eq!(std::fs::read(&cas_paths["README.md"]).unwrap(), b"fresh raw artifact");
+
+    drop(writer);
+    writer_task.await.expect("writer task").expect("writer flushed");
+    let raw_key =
+        store_index_cache_key(Some(&integrity), package_id, ArchiveStoreProjection::RawArchive)
+            .unwrap();
+    assert_ne!(raw_key, legacy_key);
+
+    let index = StoreIndex::open_in(store_path).expect("open store index");
+    assert!(index.get(&legacy_key).unwrap().is_some(), "legacy row is retained");
+    let raw_entry = index.get(&raw_key).unwrap().expect("raw row is indexed separately");
+    assert_eq!(raw_entry.files.keys().collect::<Vec<_>>(), ["README.md"]);
+
+    drop((index, store_dir, local_dir));
+}
+
 /// The local resolver maps this to `ERR_PNPM_LINKED_PKG_DIR_NOT_FOUND`,
 /// so the error kind has to survive.
 #[tokio::test]
@@ -2213,7 +2777,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
         let expected = package_integrity.unwrap_or(&sha512);
         let (store_dir, store_path) = tempdir_with_leaked_path();
         let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
-        let result = DownloadTarballToStore {
+        let result = IngestTarballToStore {
             http_client: &client,
             store_dir: store_path,
             store_index: None,
@@ -2233,7 +2797,7 @@ async fn fetch_and_extract_records_expected_or_computed_integrity() {
             ignore_file_pattern: None,
             offline: true,
             progress_reported: None,
-            append_manifest: None,
+            store_projection: ArchiveStoreProjection::Package { append_manifest: None },
         }
         .fetch_and_extract::<SilentReporter>()
         .await
@@ -2273,7 +2837,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
     let package_url = format!("file:{}", tarball_path.display());
     let client = fast_fail_client();
     let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2293,7 +2857,7 @@ async fn run_without_mem_cache_fetches_unverified_and_writes_no_index_row() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -2445,7 +3009,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
     let mem_cache = MemCache::default();
     let auth_headers = AuthHeaders::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let download = || DownloadTarballToStore {
+    let download = || IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2465,7 +3029,7 @@ async fn revision_addressed_mem_cache_does_not_retry_a_failed_prefetch() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     let (first, second) = futures_util::future::join(
@@ -2517,7 +3081,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
     let mem_cache = MemCache::default();
     let auth_headers = AuthHeaders::default();
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let download = || DownloadTarballToStore {
+    let download = || IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -2537,7 +3101,7 @@ async fn revision_addressed_mem_cache_does_not_reuse_a_redirect_permitting_fetch
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     download()
@@ -3029,7 +3593,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
 
                 let auth_headers: &'static AuthHeaders =
                     Box::leak(Box::new(AuthHeaders::default()));
-                let make_dts = |url: &'static str| DownloadTarballToStore {
+                let make_dts = |url: &'static str| IngestTarballToStore {
                     http_client: client,
                     store_dir: store_path,
                     store_index: None,
@@ -3049,7 +3613,7 @@ fn run_with_mem_cache_does_not_deadlock_on_dashmap_shard_contention() {
                     ignore_file_pattern: None,
                     offline: false,
                     progress_reported: None,
-                    append_manifest: None,
+                    store_projection: ArchiveStoreProjection::Package { append_manifest: None },
                 };
 
                 // Spawn each task and yield once before the next so the
@@ -3329,7 +3893,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
     // First requester: silent legacy owner.
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3349,7 +3913,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<pnpm_reporter::SilentReporter>(&mem_cache)
     .await
@@ -3360,7 +3924,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
     // because no shared progress set says this package status was
     // already reported.
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3380,7 +3944,7 @@ async fn mem_cache_hit_emits_found_in_store_against_callers_reporter() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3458,7 +4022,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     let pkg_id = "@fastify/error@3.3.0";
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3478,7 +4042,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3498,7 +4062,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
     );
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3518,7 +4082,7 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: Some(SharedReportedProgressKeys::clone(&progress_reported)),
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_with_mem_cache::<RecordingReporter>(&mem_cache)
     .await
@@ -3573,7 +4137,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
 
     let url = format!("{}/pkg.tgz", server.url());
     // Leak the inputs so concurrent tasks can each construct a
-    // borrow-style `DownloadTarballToStore` without lifetime
+    // borrow-style `IngestTarballToStore` without lifetime
     // gymnastics on the spawned futures. The test scope is short and
     // the leak is negligible.
     let client: &'static ThrottledClient = Box::leak(Box::new(ThrottledClient::default()));
@@ -3582,7 +4146,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
     let mem_cache: &'static MemCache = Box::leak(Box::new(MemCache::default()));
     let auth_headers: &'static AuthHeaders = Box::leak(Box::<AuthHeaders>::default());
 
-    let make_dts = || DownloadTarballToStore {
+    let make_dts = || IngestTarballToStore {
         http_client: client,
         store_dir: store_path,
         store_index: None,
@@ -3602,7 +4166,7 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     };
 
     // Drive both calls concurrently. One hits the `else` branch and
@@ -3873,7 +4437,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     let (writer, writer_task) = StoreIndexWriter::spawn(store_path);
     let verified_files_cache = SharedVerifiedFilesCache::default();
 
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: None,
@@ -3893,7 +4457,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -3915,7 +4479,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
     .expect("index opens after the first install");
 
     EVENTS.lock().unwrap().clear();
-    DownloadTarballToStore {
+    IngestTarballToStore {
         http_client: &client,
         store_dir: store_path,
         store_index: Some(store_index),
@@ -3935,7 +4499,7 @@ async fn found_in_store_event_fires_on_cache_hit() {
         ignore_file_pattern: None,
         offline: false,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<RecordingReporter>()
     .await
@@ -4393,7 +4957,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
     let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
     let pkg_id = "@fastify/error@3.3.0";
 
-    let err = DownloadTarballToStore {
+    let err = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -4413,7 +4977,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -4467,7 +5031,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
     let mut prefetched: PrefetchedCasPaths = HashMap::new();
     prefetched.insert(cache_key, Arc::new(HashMap::new()));
 
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: &ThrottledClient::default(),
         store_dir: store_path,
         store_index: None,
@@ -4487,7 +5051,7 @@ async fn offline_mode_still_uses_prefetched_cache() {
         ignore_file_pattern: None,
         offline: true,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<SilentReporter>()
     .await
@@ -5378,4 +5942,23 @@ fn extract_reads_a_windows_separator_entry_as_a_nested_path() {
     );
 
     drop(tempdir);
+}
+
+/// A tarball URL can carry inline `user:pass@` credentials — typed on the
+/// command line for `pnpm add <url>`, or declared in a manifest — and every
+/// error rendering the URL lands in terminal scrollback and CI logs.
+#[test]
+fn url_bearing_errors_redact_inline_credentials() {
+    let url = "https://alice:hunter2@example.com/pkg.tgz".to_string();
+    let rendered = [
+        TarballError::HttpStatus(HttpStatusError { url: url.clone(), status: 404 }).to_string(),
+        TarballError::TarballTooLarge { url: url.clone(), advertised_size: u64::MAX }.to_string(),
+        TarballError::SiblingFetchFailed { url: url.clone() }.to_string(),
+        TarballError::OffAllowlist { url }.to_string(),
+    ];
+    for message in rendered {
+        eprintln!("MESSAGE: {message}");
+        assert!(!message.contains("hunter2"), "the password must not be rendered: {message}");
+        assert!(message.contains("example.com/pkg.tgz"), "the host must survive: {message}");
+    }
 }

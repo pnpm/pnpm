@@ -165,6 +165,68 @@ export function assembleReleasePlan (opts: AssembleReleasePlanOptions): ReleaseP
   }
 }
 
+export interface VersioningInvariantViolation {
+  code: 'VERSIONING_EPIC_OUT_OF_BAND' | 'VERSIONING_FIXED_GROUP_MISMATCH'
+  message: string
+}
+
+export interface CheckVersioningInvariantsOptions {
+  workspaceDir: string
+  projects: WorkspaceProject[]
+  versioning?: VersioningSettings
+}
+
+/**
+ * Validates that the committed versions already satisfy the invariants the
+ * configuration declares: every epic member's major sits inside its lead's
+ * band, and every fixed group shares one version. This is the static
+ * counterpart to the release-time enforcement in `assembleReleasePlan`, which
+ * only checks packages a plan actually releases — so a committed manifest that
+ * drifted out of band, or a fixed group that fell out of lockstep, would
+ * otherwise go unnoticed until a release that happens to touch it. Returns
+ * every violation so a caller can report them all at once; malformed
+ * configuration (unknown lead, epic overlap, a group straddling an epic) still
+ * throws, exactly as plan assembly would.
+ */
+export function checkVersioningInvariants (opts: CheckVersioningInvariantsOptions): VersioningInvariantViolation[] {
+  const refs = indexProjectRefs(opts.projects, opts.workspaceDir)
+  const participants = collectParticipants(opts.projects, refs, opts)
+  const lanesByDir = resolveLanes(refs, participants, opts.versioning)
+  const fixedGroups = resolveFixedGroups(refs, participants, opts.versioning)
+  validateFixedGroupLanes(fixedGroups, lanesByDir, opts.versioning)
+  const epics = resolveEpics(refs, participants, opts.versioning)
+  validateEpics(epics, fixedGroups)
+
+  // With no plan (no new versions), the band derives from the lead's current
+  // major, and members are checked against their current versions.
+  const noNewVersions = new Map<string, string>()
+  const violations: VersioningInvariantViolation[] = []
+  for (const epic of epics) {
+    const band = epicBand(epic, participants, noNewVersions)
+    for (const memberDir of [...epic.memberDirs].sort()) {
+      const member = participants.get(memberDir)!
+      const memberMajor = Number(member.currentVersion.split('.')[0])
+      if (!band.contains(memberMajor)) {
+        violations.push({
+          code: 'VERSIONING_EPIC_OUT_OF_BAND',
+          message: `${member.name} is at ${member.currentVersion}, whose major ${memberMajor} is outside the band ${band.low}-${band.high} of the epic led by "${epic.leadRef}" (major ${band.major}).`,
+        })
+      }
+    }
+  }
+  for (const [index, group] of fixedGroups.entries()) {
+    const members = group.map((dir) => participants.get(dir)!)
+    if (new Set(members.map((member) => member.currentVersion)).size > 1) {
+      const detail = members.map((member) => `${member.name}@${member.currentVersion}`).join(', ')
+      violations.push({
+        code: 'VERSIONING_FIXED_GROUP_MISMATCH',
+        message: `The fixed group [${(opts.versioning?.fixed ?? [])[index].join(', ')}] is not in lockstep: ${detail}.`,
+      })
+    }
+  }
+  return violations
+}
+
 interface Participant {
   name: string
   dir: string
@@ -372,7 +434,7 @@ function assertNoDuplicateReleaseIdentity (releases: PlannedRelease[]): void {
 function collectParticipants (
   projects: WorkspaceProject[],
   refs: ProjectRefIndex,
-  opts: AssembleReleasePlanOptions
+  opts: Pick<AssembleReleasePlanOptions, 'workspaceDir' | 'versioning'>
 ): Map<string, Participant> {
   const ignoredDirs = new Set<string>()
   for (const ref of opts.versioning?.ignore ?? []) {
@@ -852,8 +914,13 @@ function epicRebaseFloor (
   const newLeadVersion = newVersions.get(epic.leadDir)
   if (lead == null || newLeadVersion == null || parsePrerelease(newLeadVersion) != null) return null
   const newMajor = Number(newLeadVersion.split('.')[0])
-  const currentMajor = Number(lead.currentVersion.split('.')[0])
+  const currentMajor = epicLeadBandMajor(lead.currentVersion)
   return newMajor > currentMajor ? newMajor * 100 : null
+}
+
+function epicLeadBandMajor (version: string): number {
+  const [major, minor, patch] = stablePart(version).split('.').map(Number)
+  return parsePrerelease(version) != null && minor === 0 && patch === 0 ? Math.max(0, major - 1) : major
 }
 
 interface ApplyEpicBandVersionsOptions {
@@ -893,13 +960,23 @@ function applyEpicBandVersions ({ participants, state, newVersions, epics, lanes
  * re-based major when the lead crosses to a new stable major, otherwise the
  * lead's current major (a prerelease lead does not open the next band).
  */
-function epicBandMajor (
+interface EpicBand {
+  major: number
+  low: number
+  high: number
+  contains: (memberMajor: number) => boolean
+}
+
+function epicBand (
   epic: ResolvedEpic,
   participants: Map<string, Participant>,
   newVersions: Map<string, string>
-): number {
+): EpicBand {
   const floor = epicRebaseFloor(epic, participants, newVersions)
-  return floor != null ? floor / 100 : Number(participants.get(epic.leadDir)!.currentVersion.split('.')[0])
+  const major = floor != null ? floor / 100 : epicLeadBandMajor(participants.get(epic.leadDir)!.currentVersion)
+  const low = major * 100
+  const high = low + 99
+  return { major, low, high, contains: (memberMajor) => memberMajor >= low && memberMajor <= high }
 }
 
 /**
@@ -915,18 +992,16 @@ function enforceEpicBands (
   newVersions: Map<string, string>
 ): void {
   for (const epic of epics) {
-    const bandMajor = epicBandMajor(epic, participants, newVersions)
-    const low = bandMajor * 100
-    const high = low + 99
+    const band = epicBand(epic, participants, newVersions)
     for (const memberDir of epic.memberDirs) {
       const memberVersion = newVersions.get(memberDir)
       if (memberVersion == null) continue
       const memberMajor = Number(memberVersion.split('.')[0])
-      if (memberMajor < low || memberMajor > high) {
+      if (!band.contains(memberMajor)) {
         throw new PnpmError(
           'VERSIONING_EPIC_OUT_OF_BAND',
-          `The release plan takes ${participants.get(memberDir)!.name} to ${memberVersion}, whose major ${memberMajor} is outside the band ${low}-${high} of the epic led by "${epic.leadRef}" (major ${bandMajor}). ` +
-          (memberMajor > high
+          `The release plan takes ${participants.get(memberDir)!.name} to ${memberVersion}, whose major ${memberMajor} is outside the band ${band.low}-${band.high} of the epic led by "${epic.leadRef}" (major ${band.major}). ` +
+          (memberMajor > band.high
             ? 'The band is exhausted - the lead must advance to a new major to open the next band.'
             : 'Re-base the member into the band, or remove it from the epic.')
         )

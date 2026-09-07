@@ -16,7 +16,7 @@ use pnpm_store_dir::{
     SharedVerifiedFilesCache, StoreIndex, StoreIndexError, StoreIndexWriter,
     git_hosted_store_index_key,
 };
-use pnpm_tarball::{DownloadTarballToStore, MemCache, TarballError};
+use pnpm_tarball::{IngestTarballToStore, MemCache, TarballError};
 use std::{
     cmp::Ordering,
     collections::BTreeSet,
@@ -220,7 +220,7 @@ impl WritePackageForPatch<'_> {
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
         let result = async {
-            let cas_paths = DownloadTarballToStore {
+            let cas_paths = IngestTarballToStore {
                 http_client,
                 store_dir: &config.store_dir,
                 store_index: store_index.clone(),
@@ -240,7 +240,9 @@ impl WritePackageForPatch<'_> {
                 ignore_file_pattern: None,
                 offline: config.offline,
                 progress_reported: None,
-                append_manifest: None,
+                store_projection: pnpm_tarball::ArchiveStoreProjection::Package {
+                    append_manifest: None,
+                },
             }
             .run_with_mem_cache::<Reporter>(tarball_mem_cache)
             .await

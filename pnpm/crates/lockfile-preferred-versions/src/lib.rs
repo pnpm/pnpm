@@ -13,6 +13,7 @@ use pnpm_resolving_resolver_base::{
     DIRECT_DEP_SELECTOR_WEIGHT, EXISTING_VERSION_SELECTOR_WEIGHT, PreferredVersions,
     VersionSelectorEntry, VersionSelectorType, VersionSelectorWithWeight,
 };
+use rayon::prelude::*;
 
 mod version_selector_type;
 
@@ -40,23 +41,38 @@ pub fn get_preferred_versions_from_lockfile_and_manifests_excluding(
     manifests: &[&PackageManifest],
     withheld: &dyn Fn(&PackageKey) -> bool,
 ) -> PreferredVersions {
-    let mut preferred: PreferredVersions = PreferredVersions::new();
-    for manifest in manifests {
-        for (name, spec) in manifest.dependencies([
-            DependencyGroup::Dev,
-            DependencyGroup::Prod,
-            DependencyGroup::Optional,
-        ]) {
-            let Some(selector_type) = get_version_selector_type(spec) else { continue };
-            preferred.entry(name.to_string()).or_default().insert(
-                spec.to_string(),
-                VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                    selector_type,
-                    weight: DIRECT_DEP_SELECTOR_WEIGHT,
-                }),
-            );
-        }
-    }
+    // Each manifest's selector classification (semver parses, mostly)
+    // is independent, so a workspace-scale manifest list fans out
+    // across the rayon pool. Every entry is a pure function of its
+    // `(name, spec)` pair — same selector type, same weight — so the
+    // reduce's merge order is immaterial: colliding inserts write the
+    // same value the serial loop would.
+    let mut preferred: PreferredVersions = manifests
+        .par_iter()
+        .map(|manifest| {
+            let mut preferred = PreferredVersions::new();
+            for (name, spec) in manifest.dependencies([
+                DependencyGroup::Dev,
+                DependencyGroup::Prod,
+                DependencyGroup::Optional,
+            ]) {
+                let Some(selector_type) = get_version_selector_type(spec) else { continue };
+                preferred.entry(name.to_string()).or_default().insert(
+                    spec.to_string(),
+                    VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+                        selector_type,
+                        weight: DIRECT_DEP_SELECTOR_WEIGHT,
+                    }),
+                );
+            }
+            preferred
+        })
+        .reduce(PreferredVersions::new, |mut merged, next| {
+            for (name, selectors) in next {
+                merged.entry(name).or_default().extend(selectors);
+            }
+            merged
+        });
     if let Some(snapshots) = snapshots {
         add_preferred_versions_from_lockfile(snapshots, withheld, &mut preferred);
     }

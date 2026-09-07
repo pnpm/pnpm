@@ -14,12 +14,27 @@ pub enum RegistryError {
         source: reqwest::Error,
     },
 
+    #[display("Upstream response body from {url} failed: {source}")]
+    UpstreamBody {
+        url: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[display("Upstream returned status {status} for {url}")]
     UpstreamStatus {
         url: String,
         status: u16,
         #[error(not(source))]
         body: String,
+    },
+
+    #[display("Invalid response from upstream {url}: {reason}")]
+    #[from(skip)]
+    UpstreamResponse {
+        #[error(not(source))]
+        url: String,
+        reason: String,
     },
 
     /// The upstream's circuit breaker is open: it reached `max_fails`
@@ -47,6 +62,16 @@ pub enum RegistryError {
     InvalidPackageName {
         #[error(not(source))]
         name: String,
+    },
+
+    #[display("Package name {name:?} is not valid for {ecosystem}: {reason}")]
+    InvalidEcosystemPackageName {
+        #[error(not(source))]
+        name: String,
+        #[error(not(source))]
+        ecosystem: String,
+        #[error(not(source))]
+        reason: String,
     },
 
     #[display("Tarball filename {filename:?} is not valid for package {package:?}")]
@@ -152,9 +177,27 @@ pub enum RegistryError {
         entry: String,
     },
 
-    #[display("Hosted packument for package {package:?} changed while writing")]
+    /// A publish transaction committed, but another writer already owned
+    /// what one of its packages tried to publish, so that package's entry
+    /// was left out of the document rather than pointed at bytes that are
+    /// not the ones it uploaded.
+    #[display("Publish transaction could not record: {packages}")]
     #[from(skip)]
-    PackumentWriteConflict {
+    PublishNotRecorded {
+        #[error(not(source))]
+        packages: String,
+    },
+
+    #[display("Upload {id:?} changed; query its offset before retrying")]
+    #[from(skip)]
+    BlobUploadConflict {
+        #[error(not(source))]
+        id: String,
+    },
+
+    #[display("Hosted document for package {package:?} changed while writing")]
+    #[from(skip)]
+    DocumentWriteConflict {
         #[error(not(source))]
         package: String,
     },
@@ -275,7 +318,9 @@ impl RegistryError {
     #[must_use]
     pub fn is_transient_upstream_error(&self) -> bool {
         match self {
-            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::Upstream { .. }
+            | RegistryError::UpstreamBody { .. }
+            | RegistryError::UpstreamUnavailable { .. } => true,
             RegistryError::UpstreamStatus { status, .. } => *status >= 500,
             _ => false,
         }
@@ -284,11 +329,13 @@ impl RegistryError {
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         match self {
-            RegistryError::Upstream { .. } => "upstream",
+            RegistryError::Upstream { .. } | RegistryError::UpstreamBody { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
+            RegistryError::UpstreamResponse { .. } => "upstream_response",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
             RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
+            RegistryError::InvalidEcosystemPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidConfig { .. } => "invalid_config",
             RegistryError::NotFound => "not_found",
@@ -299,7 +346,9 @@ impl RegistryError {
             RegistryError::BadRequest { .. } => "bad_request",
             RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::ArtifactAlreadyPublished { .. } => "artifact_already_published",
-            RegistryError::PackumentWriteConflict { .. } => "packument_write_conflict",
+            RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
+            RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
+            RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
                 "revision_reference_write_conflict"
@@ -368,18 +417,33 @@ impl RegistryError {
                     StatusCode::BAD_GATEWAY
                 }
             }
-            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
-                StatusCode::BAD_GATEWAY
+            RegistryError::UpstreamBody { source, .. } => {
+                if source.kind() == std::io::ErrorKind::TimedOut
+                    || source
+                        .get_ref()
+                        .and_then(|source| source.downcast_ref::<reqwest::Error>())
+                        .is_some_and(reqwest::Error::is_timeout)
+                {
+                    StatusCode::GATEWAY_TIMEOUT
+                } else {
+                    StatusCode::BAD_GATEWAY
+                }
             }
+            RegistryError::UpstreamStatus { .. }
+            | RegistryError::UpstreamResponse { .. }
+            | RegistryError::TarballIntegrity { .. } => StatusCode::BAD_GATEWAY,
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
+            | RegistryError::InvalidEcosystemPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::VersionAlreadyPublished { .. }
             | RegistryError::ArtifactAlreadyPublished { .. }
-            | RegistryError::PackumentWriteConflict { .. }
+            | RegistryError::PublishNotRecorded { .. }
+            | RegistryError::BlobUploadConflict { .. }
+            | RegistryError::DocumentWriteConflict { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,

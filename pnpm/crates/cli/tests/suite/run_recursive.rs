@@ -100,6 +100,12 @@ rmdir "$marker"
     .expect("write concurrency probe");
 }
 
+fn process_group_probe() -> &'static str {
+    r#"child_group=$(ps -o pgid= -p $$ | tr -d ' ')
+parent_group=$(ps -o pgid= -p $PPID | tr -d ' ')
+printf "%s %s\n" "$child_group" "$parent_group" >> ../process-groups.txt"#
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -126,6 +132,99 @@ fn recursive_run_executes_script_in_every_project() {
         !workspace.join("ran.txt").exists(),
         "scripts must run from each package root, not the workspace root",
     );
+
+    drop(root);
+}
+
+/// A single filtered script cannot run alongside a sibling, so it must
+/// stay in pacquet's own process group: a child moved into its own group
+/// is stopped the moment it reads from the terminal.
+#[test]
+fn filtered_run_keeps_single_script_in_foreground_process_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            (
+                "project-1",
+                json!({
+                    "name": "project-1",
+                    "version": "1.0.0",
+                    "scripts": { "prompt": process_group_probe() },
+                }),
+            ),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet.with_args(["--filter", "project-1", "run", "prompt"]).assert().success();
+
+    let groups =
+        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
+    let mut fields = groups.split_whitespace();
+    let child_group = fields.next().expect("child process group");
+    let parent_group = fields.next().expect("parent process group");
+    assert_eq!(
+        child_group, parent_group,
+        "the child must share pacquet's process group to keep reading the terminal",
+    );
+
+    drop(root);
+}
+
+/// A per-task `concurrency: 1` serializes the scripts just as firmly as a
+/// dependency chain does, so they must stay in pacquet's process group
+/// too — the scheduler never has two of them in flight to keep apart.
+#[test]
+fn task_concurrency_of_one_keeps_scripts_in_the_foreground_process_group() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let manifest = |name: &str| {
+        json!({
+            "name": name,
+            "version": "1.0.0",
+            "scripts": { "build": process_group_probe() },
+        })
+    };
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", manifest("project-1")),
+            ("project-2", manifest("project-2")),
+            ("project-3", manifest("project-3")),
+        ],
+    );
+    fs::write(
+        workspace.join("pnpm-workspace.yaml"),
+        concat!(
+            "packages:\n",
+            "  - project-1\n",
+            "  - project-2\n",
+            "  - project-3\n",
+            "tasks:\n",
+            "  build:\n",
+            "    concurrency: 1\n",
+        ),
+    )
+    .expect("write task settings");
+
+    pacquet.with_args(["-r", "run", "build"]).assert().success();
+
+    let groups =
+        fs::read_to_string(workspace.join("process-groups.txt")).expect("read process groups");
+    let mut lines = groups.lines();
+    let parent_group = lines
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .expect("parent process group")
+        .to_string();
+    for line in groups.lines() {
+        let child_group = line.split_whitespace().next().expect("child process group");
+        assert_eq!(
+            child_group, parent_group,
+            "every serialized script must share pacquet's process group",
+        );
+    }
+    assert_eq!(groups.lines().count(), 3, "every project should have run");
 
     drop(root);
 }

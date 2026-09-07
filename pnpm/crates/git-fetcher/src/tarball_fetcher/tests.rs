@@ -18,7 +18,7 @@ fn allow_all_builds<'a>() -> AllowBuildRef<'a> {
 }
 
 /// Build the `cas_paths` map the dispatcher would hand the fetcher
-/// after `DownloadTarballToStore` finishes: a fresh `StoreDir`, a few
+/// after `IngestTarballToStore` finishes: a fresh `StoreDir`, a few
 /// files written via `write_cas_file`, and a `path → cas_path` map.
 fn write_to_cas(store_dir: &StoreDir, files: &[(&str, &[u8], bool)]) -> HashMap<String, PathBuf> {
     let mut out = HashMap::new();

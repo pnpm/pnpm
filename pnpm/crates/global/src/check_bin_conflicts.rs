@@ -128,9 +128,9 @@ pub fn check_global_bin_conflicts(
 }
 
 /// Whether a bin named `name` already occupies a slot in `global_bin_dir`.
-/// On Windows the `node` runtime bin is linked as `<name>.exe` (with no bare
-/// `<name>` file), so that flavor is checked too — otherwise an existing
-/// `node.exe` would not be detected as a conflict.
+/// On Windows a directly linked `node` runtime and every context-aware shim
+/// occupy `<name>.exe` with no bare `<name>` file, so that flavor is checked
+/// too — otherwise such an entry would not be detected as a conflict.
 #[must_use]
 pub fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
     if global_bin_dir.join(name).exists() {

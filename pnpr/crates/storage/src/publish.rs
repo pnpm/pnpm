@@ -9,13 +9,16 @@
 //! it inside [`tokio::task::spawn_blocking`] without blocking the
 //! async runtime, and so these helpers stay easy to unit-test.
 
-use crate::streaming::{integrity_checker, parse_integrity};
+use crate::{
+    journal::DocumentMerge,
+    streaming::{integrity_checker, parse_integrity},
+};
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64, read::DecoderReader};
-use pnpr_error::RegistryError;
+use pnpr_error::{RegistryError, Result};
 use serde_json::{Map, Value};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashSet},
     fmt::Write as FmtWrite,
     fs::File,
     io::{Cursor, Read, Write},
@@ -388,6 +391,58 @@ fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Va
         }
     }
     Value::Object(merged)
+}
+
+/// The npm half of the journal's [`crate::journal::HostedDocuments`]: merge a
+/// journaled packument into the packument the store holds, minus the versions
+/// whose tarball the transaction lost. Publishing and startup recovery both
+/// land here, so a re-applied transaction adds its versions to whatever was
+/// published in the meantime instead of erasing it.
+pub fn merge_journaled_packument(merge: &DocumentMerge<'_>) -> Result<Option<Vec<u8>>> {
+    let mut journaled: Value = serde_json::from_slice(merge.journaled)?;
+    if !merge.lost_blobs.is_empty() {
+        let lost_versions = merge
+            .lost_blobs
+            .iter()
+            .map(|filename| merge.name.parse_tarball_name(filename).map(|(_, version)| version))
+            .collect::<Result<HashSet<String>>>()?;
+        drop_lost_versions(&mut journaled, &lost_versions);
+    }
+    let existing: Option<Value> = match merge.existing {
+        Some(bytes) => Some(serde_json::from_slice(bytes)?),
+        None => None,
+    };
+    let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
+    Ok(Some(serde_json::to_vec_pretty(&merged)?))
+}
+
+/// Drop from a journaled packument every version the transaction could not
+/// place: one whose tarball slot another writer already owned, or that could
+/// not reserve a bounded digest-reference slot. The journal keeps each staged
+/// attachment's canonical filename, so callers resolve that name to the
+/// version before reaching this helper instead of trusting a publisher-
+/// supplied `dist.tarball` URL as the transaction identity.
+fn drop_lost_versions(journaled: &mut Value, lost: &HashSet<String>) {
+    let Some(versions) = journaled.get_mut("versions").and_then(Value::as_object_mut) else {
+        return;
+    };
+    let mut removed_versions = HashSet::new();
+    versions.retain(|version, _| {
+        let keep = !lost.contains(version);
+        if !keep {
+            removed_versions.insert(version.clone());
+        }
+        keep
+    });
+
+    if let Some(tags) = journaled.get_mut("dist-tags").and_then(Value::as_object_mut) {
+        tags.retain(|_, version| {
+            version.as_str().is_none_or(|version| !removed_versions.contains(version))
+        });
+    }
+    if let Some(time) = journaled.get_mut("time").and_then(Value::as_object_mut) {
+        time.retain(|version, _| !removed_versions.contains(version));
+    }
 }
 
 /// Format the current time as an ISO-8601 / RFC-3339 string with

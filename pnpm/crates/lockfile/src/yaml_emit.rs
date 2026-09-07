@@ -23,8 +23,17 @@
 //!
 //! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
+use rayon::prelude::*;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
+
+/// Entry count from which a map's independent per-entry work (deep key
+/// sorting, block rendering) fans out across the rayon pool. In
+/// practice only a workspace's `importers:` / `packages:` /
+/// `snapshots:` sections grow past this; the small maps nested inside
+/// every package entry stay serial, where the fan-out's fixed cost
+/// would dominate.
+const PARALLEL_ENTRY_THRESHOLD: usize = 64;
 
 /// Keys whose collection value always renders on a single line (flow style).
 /// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
@@ -79,6 +88,7 @@ pub(crate) fn to_string(value: Value) -> String {
     let value = sort_lockfile_keys(value);
     let mut dump = render(&value, 0, true, true, None, false);
     dump.push('\n');
+    pnpm_fs::background_drop(value);
     dump
 }
 
@@ -136,8 +146,20 @@ fn priority_cmp(priority: &[&str], left: &str, right: &str) -> Ordering {
     }
 }
 
-fn map_values(map: Map<String, Value>, transform: impl Fn(Value) -> Value) -> Map<String, Value> {
-    map.into_iter().map(|(key, value)| (key, transform(value))).collect()
+fn map_values(
+    map: Map<String, Value>,
+    transform: impl Fn(Value) -> Value + Sync,
+) -> Map<String, Value> {
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        return map.into_iter().map(|(key, value)| (key, transform(value))).collect();
+    }
+    map.into_iter()
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .map(|(key, value)| (key, transform(value)))
+        .collect::<Vec<_>>()
+        .into_iter()
+        .collect()
 }
 
 fn sort_direct_keys(map: Map<String, Value>) -> Map<String, Value> {
@@ -262,11 +284,13 @@ fn write_block_mapping(
     compact: bool,
     double_line: bool,
 ) -> String {
-    let mut result = String::new();
-    for (key, value) in map {
-        if !compact || !result.is_empty() {
-            result.push_str(&next_line(level, double_line));
-        }
+    // Each entry's rendering depends only on its own key and value, so
+    // a large map fans its entries out across the rayon pool and the
+    // serial stitch below applies the only order-dependent rule — the
+    // first entry of a compact block omits its leading newline. Small
+    // maps (the nested ones inside every package entry, above all)
+    // append straight into one buffer, chunk-free.
+    let render_entry_into = |result: &mut String, key: &String, value: &Value| {
         let rendered_key = write_scalar(key, level + 1, true, true);
         let explicit_pair = rendered_key.encode_utf16().count() > EXPLICIT_KEY_THRESHOLD;
         if explicit_pair {
@@ -282,6 +306,32 @@ fn write_block_mapping(
             result.push(' ');
         }
         result.push_str(&rendered);
+    };
+    let mut result = String::new();
+    if map.len() < PARALLEL_ENTRY_THRESHOLD {
+        for (key, value) in map {
+            if !compact || !result.is_empty() {
+                result.push_str(&next_line(level, double_line));
+            }
+            render_entry_into(&mut result, key, value);
+        }
+    } else {
+        let rendered_entries: Vec<String> = map
+            .iter()
+            .collect::<Vec<_>>()
+            .par_iter()
+            .map(|(key, value)| {
+                let mut entry = String::new();
+                render_entry_into(&mut entry, key, value);
+                entry
+            })
+            .collect();
+        for (index, entry) in rendered_entries.iter().enumerate() {
+            if !compact || index > 0 {
+                result.push_str(&next_line(level, double_line));
+            }
+            result.push_str(entry);
+        }
     }
     if result.is_empty() { "{}".to_string() } else { result }
 }

@@ -15,7 +15,9 @@ name = "pnpm"
 path = "src/bin/main.rs"
 
 [dependencies]
+cargo-util-schemas                     = { workspace = true }
 pnpm-auth-commands                     = { workspace = true }
+pnpm-cargo-resolver                    = { workspace = true }
 pnpm-catalogs-config                   = { workspace = true }
 pnpm-catalogs-protocol-parser          = { workspace = true }
 pnpm-catalogs-resolver                 = { workspace = true }
@@ -33,7 +35,9 @@ pnpm-global                            = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }
 pnpm-injected-deps-syncer              = { workspace = true }
+pnpm-install-coordinator               = { workspace = true }
 pnpm-lockfile                          = { workspace = true }
+pnpm-lockfile-import                   = { workspace = true }
 pnpm-lockfile-verification             = { workspace = true }
 pnpm-modules-yaml                      = { workspace = true }
 pnpm-network                           = { workspace = true }
@@ -47,6 +51,7 @@ pnpm-deps-path                         = { workspace = true }
 pnpm-deps-restorer                     = { workspace = true }
 pnpm-pack                              = { workspace = true }
 pnpm-publish                           = { workspace = true }
+pnpm-python-resolver                   = { workspace = true }
 pnpm-package-manifest                  = { workspace = true }
 pnpm-package-manager                   = { workspace = true }
 pnpm-patching                          = { workspace = true }
@@ -72,6 +77,7 @@ pnpm-workspace-projects-filter         = { workspace = true }
 pnpm-workspace-state                   = { workspace = true }
 pnpm-workspace-task-scheduler          = { workspace = true }
 
+cargo-lock           = { workspace = true }
 chrono               = { workspace = true }
 clap                 = { workspace = true }
 console              = { workspace = true }
@@ -90,7 +96,11 @@ owo-colors.workspace = true
 p256                 = { workspace = true }
 pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
+pep440_rs            = { workspace = true }
+pep508_rs            = { workspace = true }
+pubgrub              = { workspace = true }
 rayon                = { workspace = true }
+rustc-hash           = { workspace = true }
 reflink-copy         = { workspace = true }
 regex                = { workspace = true }
 reqwest              = { workspace = true }
@@ -98,10 +108,13 @@ rmp-serde            = { workspace = true }
 same-file            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
+semver               = { workspace = true }
+shell-words          = { workspace = true }
 ssri                 = { workspace = true }
 tabled               = { workspace = true }
 tar                  = { workspace = true }
 tempfile             = { workspace = true }
+toml                 = { workspace = true }
 tokio                = { workspace = true, features = ["process"] }
 tracing              = { workspace = true }
 url                  = { workspace = true }
@@ -119,8 +132,6 @@ windows-sys = { workspace = true, features = [
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
   "Win32_System_SystemInformation",
-  "Win32_UI_Shell",
-  "Win32_UI_WindowsAndMessaging",
 ] }
 
 [target.'cfg(unix)'.dependencies]

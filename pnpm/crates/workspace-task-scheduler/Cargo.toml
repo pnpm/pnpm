@@ -19,6 +19,7 @@ derive_more  = { workspace = true }
 futures-util = { workspace = true }
 indexmap     = { workspace = true }
 miette       = { workspace = true }
+rustc-hash   = { workspace = true }
 serde        = { workspace = true }
 
 [dev-dependencies]

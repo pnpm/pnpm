@@ -7,8 +7,9 @@ use pnpm_deps_inspection_peers::{
 };
 use pnpm_lockfile::Lockfile;
 
-use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+use crate::cli_args::{
+    catalogs::configured_catalogs,
+    recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
 
 #[derive(Debug, Args)]
@@ -77,14 +78,20 @@ impl PeersArgs {
         }
         .into_diagnostic()
         .wrap_err("load lockfile")?;
+        let catalogs = configured_catalogs(config)?;
+        let catalogs =
+            (config.workspace_dir.is_some() || config.catalogs.is_some()).then_some(&catalogs);
 
         // A missing lockfile yields empty issues, mirroring pnpm's
         // `checkPeerDependencies`, so both output modes stay on the common
         // path (`{}` for `--json`, "No peer dependency issues found" otherwise).
         let issues = match &lockfile {
-            Some(lockfile) => {
-                check_peer_dependencies_from_lockfile(lockfile, lockfile_dir, &project_dirs)
-            }
+            Some(lockfile) => check_peer_dependencies_from_lockfile(
+                lockfile,
+                lockfile_dir,
+                &project_dirs,
+                catalogs,
+            )?,
             None => IssuesByProjects::new(),
         };
         let issues = filter_peer_issues(issues, &config.peer_dependency_rules);

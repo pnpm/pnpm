@@ -49,6 +49,9 @@ fn global_command(workspace: &Path, pnpm_home: &Path) -> Command {
         .with_current_dir(workspace)
         .with_env("PNPM_HOME", pnpm_home)
         .with_env("PATH", path)
+        .with_env("XDG_STATE_HOME", pnpm_home.join("state-home"))
+        .with_env("XDG_CONFIG_HOME", pnpm_home.join("config-home"))
+        .with_env("XDG_CACHE_HOME", pnpm_home.join("cache-home"))
         .without_ambient_pnpm_config()
 }
 
@@ -164,10 +167,10 @@ fn global_shims_all_prefers_local_bins() {
         .success();
 
     let shim_path = global_bin.join("touch-file-one-bin");
-    let shim = fs::read_to_string(&shim_path).expect("read the generated global shim");
-    assert!(shim.contains("--shim 'touch-file-one-bin'"), "shim should dispatch, was:\n{shim}");
-    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
-    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+    assert!(shim_path.is_file());
+    let target = fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
+        .expect("read the shim target");
+    assert!(target.ends_with(b"/cli.js"), "target was: {}", String::from_utf8_lossy(&target));
 
     fs::write(global_bin.join("pnpm"), "#!/bin/sh\nexit 64\n").unwrap();
     fs::set_permissions(global_bin.join("pnpm"), fs::Permissions::from_mode(0o755)).unwrap();
@@ -230,11 +233,9 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .with_args(["shim", "add", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    let virtual_shim = fs::read_to_string(&shim_path).expect("read virtual shim");
-    assert!(
-        virtual_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
-        "shim was:\n{virtual_shim}",
-    );
+    let target_file = global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target");
+    let virtual_target = fs::read(&target_file).expect("read virtual shim target");
+    assert_eq!(virtual_target, b"pkg:@foo/touch-file-one-bin");
 
     let unrelated = root.path().join("unrelated");
     fs::create_dir_all(&unrelated).expect("create unrelated package");
@@ -257,15 +258,18 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
     let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
     assert!(stderr.contains("ERR_PNPM_GLOBAL_BIN_CONFLICT"), "{stderr}");
     assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
-    assert_eq!(fs::read_to_string(&shim_path).unwrap(), virtual_shim);
+    assert_eq!(fs::read(&target_file).unwrap(), virtual_target);
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    let backed_shim = fs::read_to_string(&shim_path).expect("read backed shim");
-    assert!(backed_shim.contains("# pnpm-shim-style=context-aware"), "{backed_shim}");
-    assert!(!backed_shim.contains("cmd-shim-target=pkg:"), "{backed_shim}");
+    let backed_target = fs::read(&target_file).expect("read backed shim target");
+    assert!(
+        !backed_target.starts_with(b"pkg:"),
+        "target was: {}",
+        String::from_utf8_lossy(&backed_target),
+    );
 
     let collision = global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
         .with_args(["add", "-g", &unrelated_selector])
@@ -273,17 +277,18 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .failure();
     let stderr = String::from_utf8_lossy(&collision.get_output().stderr);
     assert!(stderr.contains("pnpm shim rm @foo/touch-file-one-bin"), "{stderr}");
-    assert_eq!(fs::read_to_string(&shim_path).unwrap(), backed_shim);
+    assert_eq!(fs::read(&target_file).unwrap(), backed_target);
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
-    assert!(
-        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
-        "shim was:\n{restored_shim}",
+    assert_eq!(
+        fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
+            .expect("read restored virtual shim target"),
+        b"pkg:@foo/touch-file-one-bin",
     );
+    assert!(shim_path.is_file(), "the restored shim must be in place");
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
@@ -298,6 +303,7 @@ fn global_install_preserves_virtual_shim_ownership_and_restores_it_on_remove() {
         .assert()
         .success();
     assert!(!shim_path.exists(), "shim rm must cancel restoration after global removal");
+    assert!(!target_file.exists(), "shim rm must drop the recorded target");
 
     drop(npmrc_info);
     drop(root);
@@ -336,18 +342,23 @@ fn global_replacement_restores_a_virtual_shim_for_a_dropped_bin() {
         .with_args(["add", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    assert!(!fs::read_to_string(&shim_path).unwrap().contains("cmd-shim-target=pkg:"));
+    assert!(
+        !fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
+            .unwrap()
+            .starts_with(b"pkg:"),
+    );
 
     global_shim_command(&workspace, &pnpm_home, root.path(), &registry)
         .with_args(["add", "-g", &format!("file:{}", new_package.display())])
         .assert()
         .success();
 
-    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
-    assert!(
-        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
-        "shim was:\n{restored_shim}",
+    assert_eq!(
+        fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
+            .expect("read restored virtual shim target"),
+        b"pkg:@foo/touch-file-one-bin",
     );
+    assert!(shim_path.is_file(), "the restored shim must be in place");
 
     drop((root, npmrc_info));
 }
@@ -392,11 +403,12 @@ fn failed_virtual_shim_restoration_leaves_global_removal_retryable() {
         .with_args(["remove", "-g", "@foo/touch-file-one-bin"])
         .assert()
         .success();
-    let restored_shim = fs::read_to_string(&shim_path).expect("read restored virtual shim");
-    assert!(
-        restored_shim.contains("# cmd-shim-target=pkg:@foo/touch-file-one-bin"),
-        "shim was:\n{restored_shim}",
+    assert_eq!(
+        fs::read(global_bin.join(".pnpm-shim-v1-touch-file-one-bin-target"))
+            .expect("read restored virtual shim target"),
+        b"pkg:@foo/touch-file-one-bin",
     );
+    assert!(shim_path.is_file(), "the restored shim must be in place");
     assert!(
         symlink_entries(&global_pkg_dir).is_empty(),
         "the successful retry must remove the global package",
@@ -427,7 +439,7 @@ fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
     let shim = fs::read_to_string(pnpm_home.join("bin").join("touch-file-one-bin"))
         .expect("read the generated global shim");
     assert!(!shim.contains("--shim"), "shim should exec directly, was:\n{shim}");
-    assert!(!shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
+    assert!(!pnpm_home.join("bin").join(".pnpm-shim-v1-touch-file-one-bin-target").exists());
 
     drop(npmrc_info);
     drop(root);
@@ -435,7 +447,7 @@ fn global_shims_auto_writes_direct_shims_for_ordinary_packages() {
 
 #[cfg(unix)]
 #[test]
-fn global_shims_auto_writes_context_aware_shims_for_node_runtime() {
+fn global_shims_auto_writes_native_dispatcher_for_node_runtime() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
@@ -457,10 +469,15 @@ fn global_shims_auto_writes_context_aware_shims_for_node_runtime() {
         .success();
 
     let global_bin = pnpm_home.join("bin");
-    let shim = fs::read_to_string(global_bin.join("node")).expect("read the Node.js global shim");
-    assert!(shim.contains("--shim 'node'"), "shim should dispatch, was:\n{shim}");
-    assert!(shim.contains("# pnpm-shim-style=context-aware"), "shim was:\n{shim}");
-    assert!(global_bin.join(".pnpm-shim-v1").is_file());
+    let node = global_bin.join("node");
+    assert_eq!(
+        fs::metadata(&node).unwrap().len(),
+        fs::metadata(assert_cmd::cargo::cargo_bin("pnpm")).unwrap().len(),
+        "node should be a copy of the pnpm executable",
+    );
+    let target = fs::read(global_bin.join(".pnpm-shim-v1-node-target")).unwrap();
+    assert!(target.ends_with(b"/bin/node"), "target was: {}", String::from_utf8_lossy(&target));
+    assert!(!global_bin.join(".pnpm-shim-v1").exists());
 
     drop(npmrc_info);
     drop(root);
@@ -556,11 +573,11 @@ fn global_add_materializes_transitive_optional_dependencies() {
 }
 
 /// `pnpm setup` installs the standalone executable through this exact
-/// command shape. The local directory's package name must be inferred
-/// without treating the `file:` selector as a registry package.
+/// command shape. Its package files include the bundled node-gyp payload,
+/// while its lifecycle scripts must remain disabled.
 #[cfg(unix)]
 #[test]
-fn global_add_accepts_ignore_scripts_for_local_directory() {
+fn global_add_installs_standalone_package_files_without_scripts() {
     use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
@@ -571,9 +588,12 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
     let package_dir = tempfile::tempdir_in(target_dir).expect("create local package");
     fs::write(
         package_dir.path().join("package.json"),
-        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "scripts": { "install": "exit 1" } }"#,
+        r#"{ "name": "@pnpm/exe", "version": "12.0.0", "files": ["dist/"], "scripts": { "install": "exit 1" } }"#,
     )
     .expect("write local package manifest");
+    let bundled_node_gyp = package_dir.path().join("dist/node_modules/node-gyp/bin/node-gyp.js");
+    fs::create_dir_all(bundled_node_gyp.parent().unwrap()).expect("create bundled node-gyp dir");
+    fs::write(&bundled_node_gyp, "").expect("write bundled node-gyp");
     fs::create_dir_all(pnpm_home.join("bin")).expect("create global bin dir");
     // Pin a per-test store/cache so `add -g` cannot read from or write to the
     // developer/CI machine's default global store. The global install anchors
@@ -603,6 +623,16 @@ fn global_add_accepts_ignore_scripts_for_local_directory() {
         .with_arg(format!("file:{}", package_dir.path().display()))
         .assert()
         .success();
+
+    let links = symlink_entries(&global_pkg_dir);
+    assert_eq!(links.len(), 1, "exactly one global package group should be installed");
+    let install_dir = global_pkg_dir.join(fs::read_link(&links[0]).expect("read group symlink"));
+    assert!(
+        install_dir
+            .join("node_modules/@pnpm/exe/dist/node_modules/node-gyp/bin/node-gyp.js")
+            .exists(),
+        "the standalone package's bundled node-gyp must be installed",
+    );
 
     drop(root);
 }

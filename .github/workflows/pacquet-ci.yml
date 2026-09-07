@@ -123,7 +123,7 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           save-cache: ${{ github.ref_name == 'main' }}
 
@@ -149,7 +149,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: just
 
@@ -157,9 +157,14 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
-          tool: cargo-nextest
+          tool: cargo-nextest,sccache@0.17.0
+
+      - name: Install Python for ecosystem tests
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 #v7.0.0  v6
+        with:
+          python-version: '3.13'
 
       - name: Test pacquet
         shell: bash
@@ -254,7 +259,7 @@ jobs:
           df -h /
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           clippy: true
 
@@ -272,7 +277,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           docs: true
 
@@ -289,11 +294,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Both, because the wrapper places and spawns a native executable and
-          # those are where Windows differs. The tests that need to spawn one
-          # skip themselves there; the download half runs everywhere.
+          # All three, because the wrapper places and spawns a native executable
+          # and runs a shebang-less bin, and those are where the platforms
+          # differ. Windows runs neither, so those tests skip themselves there;
+          # macOS reaches them through a BSD `sh`, `readlink`, and `dirname`.
           - os: blacksmith-4vcpu-ubuntu-2404
             os_label: ubuntu
+          - os: blacksmith-12vcpu-macos-latest
+            os_label: macos
           - os: blacksmith-8vcpu-windows-2025
             os_label: windows
     runs-on: ${{ matrix.os }}
@@ -348,7 +356,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: crate-ci/typos@4d9c206a77c041268485162b8e2579ad7a5cb9a3 # v1.50.0
+      - uses: crate-ci/typos@d43b6c087ac471e2ea7b8af622ff15f05c0c365b # v1.50.1
         with:
           files: pnpm pnpr
 
@@ -373,7 +381,7 @@ jobs:
 
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: cargo-deny
 
@@ -391,7 +399,7 @@ jobs:
           persist-credentials: false
 
       - name: Install Rust
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           fmt: true
           restore-cache: false
@@ -399,7 +407,7 @@ jobs:
       - run: cargo fmt --all -- --check
 
       - name: Install Taplo CLI
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           packages: taplo-cli@0.8.1
 
@@ -468,7 +476,7 @@ jobs:
           key: ${{ github.job }}-dylint-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('dylint.toml') }}
 
       - name: Install Rust Toolchain
-        uses: ./.github/actions/rustup
+        uses: $/.github/actions/rustup
         with:
           # Disable Swatinem/rust-cache: it strips `target/` aggressively
           # before saving, which would wipe the `target/dylint`
@@ -477,7 +485,7 @@ jobs:
           restore-cache: false
 
       - name: Install cargo-dylint and dylint-link
-        uses: ./.github/actions/binstall
+        uses: $/.github/actions/binstall
         with:
           # Pin to 6.0.0 until trailofbits/dylint cuts a 6.0.2. The
           # 6.0.1 binstall artifacts (published 2026-05-26 17:51 UTC)

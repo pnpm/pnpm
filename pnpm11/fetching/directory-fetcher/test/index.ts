@@ -38,6 +38,25 @@ test('fetch including only package files', async () => {
   ])
 })
 
+test('fetch package files includes bundled dependencies under a listed directory', async () => {
+  const packageDir = f.find('standalone-pkg')
+  const fetcher = createDirectoryFetcher({ includeOnlyPackageFiles: true })
+
+  // eslint-disable-next-line
+  const fetchResult = await fetcher.directory({} as any, {
+    directory: '.',
+    type: 'directory',
+  }, {
+    lockfileDir: packageDir,
+  })
+
+  expect(Array.from(fetchResult.filesMap.keys()).sort(lexCompare)).toStrictEqual([
+    'dist/node_modules/node-gyp/bin/node-gyp.js',
+    'package.json',
+    'pnpm',
+  ])
+})
+
 test('fetch including all files', async () => {
   process.chdir(f.find('simple-pkg'))
   const fetcher = createDirectoryFetcher()
@@ -88,7 +107,9 @@ test('fetch a directory that has no package.json', async () => {
 
 test('fetch does not fail on package with broken symlink', async () => {
   jest.mocked(debug).mockClear()
-  process.chdir(f.find('pkg-with-broken-symlink'))
+  const dir = f.prepare('pkg-with-broken-symlink')
+  fs.symlinkSync('broken-symlink', path.join(dir, 'not-exists'))
+  process.chdir(dir)
   const fetcher = createDirectoryFetcher()
 
   // eslint-disable-next-line

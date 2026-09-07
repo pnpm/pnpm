@@ -1,19 +1,27 @@
 use super::{
-    ConvertCtx, convert_package_key, convert_package_metadata, create_deploy_install_config,
-    split_local_payload, validate_lockfile_local_path,
+    ConvertCtx, ProjectInfo, ProjectPathKey, convert_package_key, convert_package_metadata,
+    create_deploy_install_config, create_file_url_key, index_projects, split_local_payload,
+    validate_lockfile_local_path,
 };
 use pnpm_config::{Config, NodeLinker};
 use pnpm_lockfile::{LockfileResolution, PackageKey, PackageMetadata, TarballResolution};
-use std::path::Path;
+use pnpm_package_manifest::PackageManifest;
+use pnpm_workspace::Project;
+use serde_json::json;
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+};
 
 #[cfg(unix)]
 use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
 #[cfg(unix)]
 use pnpm_lockfile::Lockfile;
 #[cfg(unix)]
-use serde_json::json;
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
+use std::{
+    ffi::OsStr,
+    os::unix::{ffi::OsStrExt, fs::symlink},
+};
 
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
@@ -68,7 +76,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
     let lockfile_dir = tmp.path().join("workspace");
     let deploy_dir = lockfile_dir.join("deploy");
     let deployed_project_root = lockfile_dir.join("packages/app");
-    let all_projects = Vec::new();
+    let projects_by_path = HashMap::new();
     let metadata = PackageMetadata {
         resolution: LockfileResolution::Tarball(TarballResolution {
             tarball: "file:vendor/pkg.tgz".to_string(),
@@ -94,7 +102,7 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
         peer_dependencies_meta: None,
     };
     let ctx = ConvertCtx {
-        all_projects: &all_projects,
+        projects_by_path: &projects_by_path,
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
@@ -116,9 +124,9 @@ fn convert_package_key_preserves_local_tarball_name() {
     let lockfile_dir = tmp.path().join("workspace");
     let deploy_dir = lockfile_dir.join("deploy");
     let deployed_project_root = lockfile_dir.join("packages/app");
-    let all_projects = Vec::new();
+    let projects_by_path = HashMap::new();
     let ctx = ConvertCtx {
-        all_projects: &all_projects,
+        projects_by_path: &projects_by_path,
         deploy_dir: &deploy_dir,
         lockfile_dir: &lockfile_dir,
         deployed_project_root: &deployed_project_root,
@@ -133,6 +141,65 @@ fn convert_package_key_preserves_local_tarball_name() {
         "tar-pkg",
         "the tarball's package name must be kept, not the tarball filename",
     );
+}
+
+#[test]
+fn create_file_url_key_prefers_workspace_project_name() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let project_root = tmp.path().join("workspace/packages/local-pkg");
+    let resolved_path = project_root.join("../local-pkg");
+    let mut projects_by_path = HashMap::new();
+    projects_by_path.insert(
+        ProjectPathKey::new(&project_root),
+        ProjectInfo {
+            name: Some("workspace-name".to_string()),
+            peer_dependencies: Vec::new(),
+            declared_dependencies: HashSet::default(),
+        },
+    );
+    let lockfile_name = "lockfile-name".parse().expect("parse package name");
+
+    let key = create_file_url_key(&resolved_path, "", &projects_by_path, Some(&lockfile_name))
+        .expect("create file URL key");
+
+    assert_eq!(key.name.to_string(), "workspace-name");
+}
+
+#[cfg(unix)]
+#[test]
+fn index_projects_keeps_the_first_project_per_lossy_root() {
+    // Both roots print as `a\u{FFFD}`, so they share a comparison key while
+    // staying distinct paths.
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xff"))),
+        workspace_project("second", PathBuf::from(OsStr::from_bytes(b"/workspace/packages/a\xfe"))),
+    ]);
+}
+
+#[cfg(windows)]
+#[test]
+fn index_projects_keeps_the_first_project_per_case_variant_root() {
+    assert_first_project_wins(&[
+        workspace_project("first", PathBuf::from(r"C:\Workspace\Packages\Lib")),
+        workspace_project("second", PathBuf::from(r"c:\workspace\packages\lib")),
+    ]);
+}
+
+fn workspace_project(name: &str, root_dir: PathBuf) -> Project {
+    let manifest =
+        PackageManifest::from_value(root_dir.join("package.json"), json!({ "name": name }));
+    Project { root_dir, manifest, dependency_manifest: None }
+}
+
+/// The two projects must have distinct roots that share one comparison key.
+fn assert_first_project_wins(projects: &[Project; 2]) {
+    assert_ne!(projects[0].root_dir, projects[1].root_dir, "the roots must be distinct paths");
+
+    let index = index_projects(projects);
+
+    assert_eq!(index.len(), 1, "comparison-equal roots share one entry");
+    let project = index.get(&ProjectPathKey::new(&projects[1].root_dir)).expect("indexed project");
+    assert_eq!(project.name.as_deref(), Some("first"), "the first discovered project wins");
 }
 
 #[cfg(unix)]

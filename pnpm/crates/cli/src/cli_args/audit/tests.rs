@@ -1,6 +1,7 @@
 use super::{
-    BTreeMap, Config, ConfigAuditLevel, HashMap, MAX_PATHS_PER_FINDING, PackageVersionGuard,
-    PackageVersionGuardDecision, Range, SnapshotDepRef, filter_ignored_advisories,
+    BTreeMap, Config, ConfigAuditLevel, GuardExhaustionPolicy, HashMap, MAX_PATHS_PER_FINDING,
+    PackageVersionGuard, PackageVersionGuardDecision, Range, SnapshotDepRef,
+    filter_ignored_advisories,
     fix::{
         InstalledPackages, PackumentPublishInfo, VulnerabilityGuard, classify_for_update,
         create_overrides, filter_advisories_for_fix, format_fix_with_update_output,
@@ -18,6 +19,7 @@ use super::{
 };
 use chrono::{DateTime, Utc};
 use pnpm_lockfile::{EnvLockfile, Lockfile, SnapshotEntry, SpecifierAndResolution};
+use pnpm_registry::RangeSpecStyle;
 use std::{collections::HashSet, fmt::Write as _};
 
 fn parse_lockfile(yaml: &str) -> Lockfile {
@@ -978,9 +980,118 @@ fn text_report_separates_advisory_table_from_summary() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     let summary_start = output.find("1 vulnerabilities found").unwrap();
     assert_eq!(output.as_bytes()[summary_start - 1], b'\n');
+}
+
+#[test]
+fn text_report_summary_omits_advisories_fully_suppressed_by_ignore_ghsas() {
+    let report = AuditReport {
+        advisories: BTreeMap::new(),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 1,
+                critical: 0,
+            },
+            dependencies: 1,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 1,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    eprintln!("REPORT:\n{output}\n");
+    assert_eq!(
+        output,
+        "All found vulnerabilities were already reviewed and decided to be ignored\n\
+         1 ignored: 1 high\n",
+    );
+}
+
+#[test]
+fn text_report_summary_counts_advisories_rather_than_registry_metadata() {
+    // The registry repeated one advisory id under two packages, so the
+    // metadata counts it twice while the report keeps a single entry.
+    let report = AuditReport {
+        advisories: BTreeMap::new(),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 2,
+                critical: 0,
+            },
+            dependencies: 2,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 2,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 0, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    eprintln!("REPORT:\n{output}\n");
+    assert_eq!(
+        output,
+        "All found vulnerabilities were already reviewed and decided to be ignored\n\
+         1 ignored: 1 high\n",
+    );
+}
+
+#[test]
+fn text_report_summary_excludes_ignored_advisories_from_severity_counts() {
+    let report = AuditReport {
+        advisories: BTreeMap::from([(
+            "1".to_string(),
+            advisory(1, "high issue", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
+        )]),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 1,
+                high: 2,
+                critical: 0,
+            },
+            dependencies: 3,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 3,
+        },
+    };
+    let ignored = AuditVulnerabilityCounts { info: 0, low: 0, moderate: 1, high: 1, critical: 0 };
+
+    let output = render_text_report(&report, ConfigAuditLevel::Low, &ignored);
+
+    eprintln!("REPORT:\n{output}\n");
+    assert_eq!(
+        output,
+        "┌─────────────────────┬───────────────────────────────────────────────────┐\n\
+         │ high                │ high issue                                        │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Package             │ pkg                                               │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Vulnerable versions │ <2.0.0                                            │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Patched versions    │ >=2.0.0                                           │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ Paths               │ .>pkg                                             │\n\
+         ├─────────────────────┼───────────────────────────────────────────────────┤\n\
+         │ More info           │ https://github.com/advisories/GHSA-high-3333-4444 │\n\
+         └─────────────────────┴───────────────────────────────────────────────────┘\n\
+         1 vulnerabilities found\n\
+         Severity: 1 high\n\
+         2 ignored: 1 moderate | 1 high",
+    );
 }
 
 #[test]
@@ -1006,7 +1117,7 @@ fn text_report_shows_none_when_patched_version_was_unpublished() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     assert!(output.contains("Patched versions"), "row label should be present:\n{output}");
     assert!(
         output.contains("Patched versions    │ None"),
@@ -1041,7 +1152,7 @@ fn text_report_shows_unknown_when_patched_version_cannot_be_inferred() {
     };
 
     let output =
-        render_text_report(&report, ConfigAuditLevel::Low, 1, &AuditVulnerabilityCounts::default());
+        render_text_report(&report, ConfigAuditLevel::Low, &AuditVulnerabilityCounts::default());
     assert!(
         output.contains("Patched versions    │ (unknown)"),
         "a non-inferable range renders as (unknown):\n{output}",
@@ -1147,7 +1258,7 @@ fn create_overrides_sorts_and_skips_unfixable() {
         ),
     ]);
 
-    let overrides = create_overrides(&advisories);
+    let overrides = create_overrides(&advisories, RangeSpecStyle::Major);
 
     assert_eq!(
         overrides.into_iter().collect::<Vec<_>>(),
@@ -1156,6 +1267,26 @@ fn create_overrides_sorts_and_skips_unfixable() {
             ("zoo@<2.0.0".to_string(), "^2.0.0".to_string()),
         ],
     );
+}
+
+#[test]
+fn create_overrides_respects_save_style() {
+    let advisories = BTreeMap::from([(
+        "1".to_string(),
+        fix_advisory(1, "axios", "<=0.18.0", Some(">=0.18.1"), ConfigAuditLevel::High, "GHSA-a"),
+    )]);
+
+    let exact = create_overrides(&advisories, RangeSpecStyle::from_save_options(true, None));
+    assert_eq!(exact["axios@<=0.18.0"], "0.18.1");
+
+    let tilde = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("~")));
+    assert_eq!(tilde["axios@<=0.18.0"], "~0.18.1");
+
+    let equals = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("=")));
+    assert_eq!(equals["axios@<=0.18.0"], "=0.18.1");
+
+    let bare = create_overrides(&advisories, RangeSpecStyle::from_save_options(false, Some("")));
+    assert_eq!(bare["axios@<=0.18.0"], "0.18.1");
 }
 
 #[test]
@@ -1199,6 +1330,10 @@ async fn vulnerability_guard_rejects_only_vulnerable_versions() {
 
     let allowed_other = guard.check("unrelated", "1.0.0").await.expect("guard check");
     assert_eq!(allowed_other, PackageVersionGuardDecision::Allow);
+
+    // A package with no safe version in range keeps resolving; `--fix update`
+    // reports it as remaining rather than failing the run.
+    assert_eq!(guard.exhaustion_policy(), GuardExhaustionPolicy::AcceptRejected);
 }
 
 #[test]

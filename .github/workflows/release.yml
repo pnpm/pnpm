@@ -484,7 +484,7 @@ jobs:
         id: github-release
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           # Draft so a maintainer publishes it deliberately, like the Rust and
           # pnpr releases: the repository uses immutable releases, so a
@@ -595,6 +595,30 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -611,13 +635,16 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
 
       - name: Build with cross
-        run: cross build --locked -p pnpm-cli --bin pnpm --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpm-cli --bin pnpm --release --target="$TARGET"
 
       - name: Download node-gyp payload
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -708,6 +735,30 @@ jobs:
             target: aarch64-unknown-linux-musl
             code-target: linux-arm64-musl
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: riscv64gc-unknown-linux-gnu
+            code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: powerpc64le-unknown-linux-gnu
+            code-target: linux-ppc64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: s390x-unknown-linux-gnu
+            code-target: linux-s390x
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: aarch64-linux-android
+            code-target: android-arm64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-linux-android
+            code-target: android-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -724,7 +775,7 @@ jobs:
           persist-credentials: false
 
       - name: Prepare the release target
-        uses: ./.github/actions/rust-release-target
+        uses: $/.github/actions/rust-release-target
         with:
           target: ${{ matrix.target }}
           version: ${{ needs.plan.outputs.rust_version }}
@@ -747,7 +798,7 @@ jobs:
           if [[ "$TARGET" == *musl* ]]; then
             export RUSTFLAGS="-C target-feature=-crt-static"
           fi
-          cross build --locked -p pnpm-napi --profile napi-release --target="$TARGET"
+          .github/scripts/cross-build.sh --locked -p pnpm-napi --profile napi-release --target="$TARGET"
 
       - name: Prepare NAPI addon
         shell: bash
@@ -910,7 +961,8 @@ jobs:
           tar -xzf "$wrapper_tarball" \
             -C "$smoke_dir/node_modules/pnpm" --strip-components=1
           node "$smoke_dir/node_modules/pnpm/install.js"
-          "$smoke_dir/node_modules/pnpm/pnpm" --version
+          wrapper_bin=$(node -p 'require(process.argv[1]).bin.pnpm' "$smoke_dir/node_modules/pnpm/package.json")
+          "$smoke_dir/node_modules/pnpm/$wrapper_bin" --version
           # Corepack's entry point into the same tarball; it never runs
           # install.js, so its only job here is to prove it was published and
           # can reach the binary.
@@ -1080,7 +1132,7 @@ jobs:
         # publishes it deliberately. `make_latest: false` keeps a published v12
         # prerelease from stealing the "Latest" badge from the stable v11
         # line.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.rust_version, '-') }}
@@ -1142,7 +1194,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@742a3317eac7bd62f91cd888b4eead5e784ba833 # v2.87.1
+        uses: taiki-e/install-action@84f5ac3124727fb3d284d4d22ee9ab3654fd09a6 # v2.87.7
         with:
           tool: cross
 
@@ -1201,7 +1253,10 @@ jobs:
         run: grep -E "^version\s*=\s*\"$VERSION\"" pnpr/crates/pnpr/Cargo.toml
 
       - name: Build with cross
-        run: cross build --locked -p pnpr --bin pnpr --release --target=${{ matrix.target }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: .github/scripts/cross-build.sh --locked -p pnpr --bin pnpr --release --target="$TARGET"
 
       # The binary is zipped to fix permission loss https://github.com/actions/upload-artifact#permission-loss
       # Rename the binary to include the target triple so the archive
@@ -1493,7 +1548,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
@@ -1572,7 +1627,7 @@ jobs:
         # byte-for-byte as attested there. Draft so a maintainer publishes it
         # deliberately; `make_latest: false` keeps a pnpr release off the
         # repository's "Latest" badge, which tracks the stable pnpm CLI.
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2 # zizmor: ignore[superfluous-actions]
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3 # zizmor: ignore[superfluous-actions]
         with:
           draft: true
           prerelease: ${{ contains(needs.plan.outputs.pnpr_version, '-') }}

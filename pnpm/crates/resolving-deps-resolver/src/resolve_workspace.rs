@@ -63,6 +63,14 @@ pub struct WorkspaceResolveOptions {
     pub exclude_links_from_lockfile: bool,
     pub lockfile_dir: PathBuf,
     pub peers_suffix_max_length: usize,
+    /// Whether named workspace resolutions may be shared across importers.
+    /// When `true`, an eligible named `workspace:` request resolves once
+    /// against a cache key that omits the consuming importer's `project_dir`,
+    /// and the importer-relative `link:` is rendered from that canonical
+    /// result afterwards. Must stay `false` whenever the resolver chain can
+    /// make a resolution depend on the consuming importer beyond that
+    /// rendering — a pnpmfile custom resolver above all.
+    pub share_workspace_resolutions: bool,
     /// `readPackageHook` applied to every resolved manifest before it
     /// enters the wanted-dep cache. Workspace-wide (one hook per
     /// install); the install layer typically threads
@@ -133,6 +141,12 @@ pub struct WorkspaceResolveOptions {
     /// log). `None` keeps the skip behavior but drops the notification.
     pub skipped_optional_log: Option<crate::SkippedOptionalLogFn>,
 
+    /// Sink told about every package whose subtree has settled peer-free,
+    /// so the install layer can materialize it into the virtual store
+    /// before peer resolution. `None` skips the sweep. See
+    /// [`crate::FinalizedPackageFn`].
+    pub finalized_package: Option<crate::FinalizedPackageFn>,
+
     /// Package-name → semver-range map from the
     /// `pnpm.allowedDeprecatedVersions` setting. When a newly-resolved
     /// package is deprecated and its `name@version` satisfies an entry
@@ -199,11 +213,13 @@ where
         exclude_links_from_lockfile,
         lockfile_dir,
         peers_suffix_max_length,
+        share_workspace_resolutions,
         manifest_hook,
         overrides_hook,
         pnpmfile_hook,
         read_package_log,
         skipped_optional_log,
+        finalized_package,
         allowed_deprecated_versions,
         deprecation_log,
         pick_lowest_direct,
@@ -225,6 +241,7 @@ where
         .flatten();
     let workspace = Arc::new(
         WorkspaceTreeCtx::default()
+            .with_shared_workspace_resolutions(share_workspace_resolutions)
             .with_manifest_hook(manifest_hook)
             .with_overrides_hook(overrides_hook)
             .with_wanted_lockfile(wanted_lockfile)
@@ -235,6 +252,7 @@ where
             .with_pnpmfile_hook(pnpmfile_hook)
             .with_read_package_log(read_package_log)
             .with_skipped_optional_log(skipped_optional_log)
+            .with_finalized_package(finalized_package)
             .with_allowed_deprecated_versions(allowed_deprecated_versions)
             .with_deprecation_log(deprecation_log)
             .with_auto_install_peers(auto_install_peers)
@@ -387,12 +405,11 @@ where
     for ((importer, state), (project_dir, modules_dir)) in
         importers.iter().zip(states).zip(input_dirs)
     {
-        let (direct, importer_provider_node_ids, importer_optional_node_ids) = state.into_direct();
+        let (direct, importer_provider_node_ids) = state.into_direct();
         hoisted_peer_provider_node_ids.extend(importer_provider_node_ids);
         per_importer_inputs.push(ImporterPeerInput {
             id: importer.id.clone(),
             direct,
-            hoisted_optional_peer_node_ids: importer_optional_node_ids,
             root_dir: project_dir,
             modules_dir,
         });

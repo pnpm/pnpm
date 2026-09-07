@@ -393,6 +393,55 @@ test('devEngines.packageManager with explicit onFail is respected (regression gu
   expect(context.wantedPackageManager?.onFail).toBe('error')
 })
 
+test('lockfileDir does not hide the engine pins declared at the workspace root', async () => {
+  prepare({
+    devEngines: {
+      packageManager: {
+        name: 'pnpm',
+        version: '11.0.0',
+        onFail: 'error',
+      },
+      runtime: {
+        name: 'node',
+        version: '20.0.0',
+        onFail: 'error',
+      },
+    },
+  })
+  fs.mkdirSync('lf')
+
+  const { context } = await getConfig({
+    cliOptions: { 'lockfile-dir': 'lf' },
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.rootProjectManifest).toBeUndefined()
+  expect(context.wantedPackageManager).toMatchObject({
+    name: 'pnpm',
+    version: '11.0.0',
+    onFail: 'error',
+  })
+  expect(context.enginePinManifest?.devEngines?.runtime).toMatchObject({
+    name: 'node',
+    version: '20.0.0',
+  })
+})
+
+test('without lockfileDir the engine pin manifest is the root project manifest itself', async () => {
+  prepare({
+    devEngines: {
+      packageManager: { name: 'pnpm', version: '11.0.0', onFail: 'error' },
+    },
+  })
+
+  const { context } = await getConfig({
+    cliOptions: {},
+    packageManager: { name: 'pnpm', version: '11.0.0' },
+  })
+
+  expect(context.enginePinManifest).toBe(context.rootProjectManifest)
+})
+
 describe('"packageManager" / "devEngines.packageManager" conflict warning', () => {
   const HASH_A = 'sha512.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   const HASH_B = 'sha512.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
@@ -2986,6 +3035,65 @@ test('a scope declared in pnpm-workspace.yaml beats the global _auth file', asyn
   expect(config.registriesByScope['@org']).toBe('https://project-choice.example/')
 })
 
+test('a registry declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', 'registry=http://project-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+      },
+    },
+  })
+
+  expect(config.registry).toBe('http://project-choice.example/')
+  expect(config.registriesByScope.default).toBe('http://project-choice.example/')
+  // The credential still reaches the registry it was written for.
+  expect(config.authConfig['//private.example/:_authToken']).toBe('stored-token')
+})
+
+test('a scope declared in the project .npmrc beats the global _auth file', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '@org:registry=https://from-npmrc.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://private.example': {
+        '@': { authToken: 'stored-token' },
+        '@org': { authToken: 'stored-org-token' },
+      },
+    },
+  })
+
+  expect(config.registriesByScope['@org']).toBe('https://from-npmrc.example/')
+  // Nothing declares the default registry, so the stored credential still routes it.
+  expect(config.registry).toBe('https://private.example/')
+})
+
+test('a registry declared in the user .npmrc beats the global _auth file in the package-manager registries', async () => {
+  prepareEmpty()
+
+  const userNpmrc = path.resolve('user-npmrc')
+  fs.writeFileSync(userNpmrc, 'registry=https://user-choice.example/', 'utf8')
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://private.example': {
+          '@': { authToken: 'stored-token' },
+        },
+      },
+    },
+    { cliOptions: { 'npmrc-auth-file': userNpmrc } }
+  )
+
+  expect(config.registry).toBe('https://user-choice.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://user-choice.example/')
+})
+
 test('a registry declared in the global config beats its own _auth file', async () => {
   prepareEmpty()
 
@@ -4796,6 +4904,39 @@ describe('global config.yaml', () => {
     expect(config.dangerouslyAllowAllBuilds).toBeDefined()
   })
 
+  // The scenario the reporter hit: `pnpm config set -g global-bin-dir` writes
+  // the key into this file, and `pnpm add -g` has to install into it.
+  test('globalDir and globalBinDir from the global config.yaml reach the derived directories', async () => {
+    prepareEmpty()
+
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', {
+      globalBinDir: '~/pnpm-bin',
+      globalDir: '~/pnpm-global',
+    })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const home = path.resolve('user-home')
+    const binDir = path.join(home, 'pnpm-bin')
+    const homedirSpy = jest.spyOn(os, 'homedir').mockReturnValue(home)
+    try {
+      const { config } = await getConfig({
+        cliOptions: { global: true },
+        env: {
+          [PATH]: `${binDir}${path.delimiter}${process.env[PATH]!}`,
+        },
+        packageManager: {
+          name: 'pnpm',
+          version: '1.0.0',
+        },
+      })
+      expect(config.globalPkgDir).toBe(path.join(home, 'pnpm-global', GLOBAL_LAYOUT_VERSION))
+      expect(config.bin).toBe(binDir)
+    } finally {
+      homedirSpy.mockRestore()
+    }
+  })
+
   test('warns about a kebab-case key in the global config.yaml', async () => {
     prepareEmpty()
 
@@ -4963,6 +5104,56 @@ describe('global config.yaml', () => {
     expect(config.virtualStoreDir).toBe('/custom/.pnpm')
     expect(config.virtualStoreDirMaxLength).toBe(80)
     expect(warnings.find((w) => w.includes('global config file'))).toBeUndefined()
+  })
+
+  test('resolves a path-like scriptShell from pnpm-workspace.yaml against the workspace root', async () => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { scriptShell: './workspace-shell.sh' })
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+      workspaceDir: process.cwd(),
+    })
+
+    expect(config.scriptShell).toBe(path.join(process.cwd(), 'workspace-shell.sh'))
+  })
+
+  test('keeps a path-like scriptShell from global config.yaml unresolved', async () => {
+    prepareEmpty()
+    fs.mkdirSync('.config/pnpm', { recursive: true })
+    writeYamlFileSync('.config/pnpm/config.yaml', { scriptShell: './global-shell.sh' })
+    process.env.XDG_CONFIG_HOME = path.resolve('.config')
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./global-shell.sh')
+  })
+
+  test('keeps a path-like scriptShell from PNPM_CONFIG_* unresolved', async () => {
+    prepareEmpty()
+
+    const { config } = await getConfig({
+      cliOptions: {},
+      env: {
+        PNPM_CONFIG_SCRIPT_SHELL: './env-shell.sh',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+
+    expect(config.scriptShell).toBe('./env-shell.sh')
   })
 
   test('warns when global config.yaml contains settings that are not allowed in the global config', async () => {
@@ -5892,6 +6083,47 @@ test('getConfig() resolves the canonical sideEffectsCache declaration', async ()
   expect(config.sideEffectsCacheRead).toBe(true)
   expect(config.sideEffectsCacheWrite).toBe(false)
   expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme', packages: ['native-addon'] })
+})
+
+test('getConfig() lets a command-line boolean replace a declared sideEffectsCache object', async () => {
+  const resolveWith = async (declared: object, cliValue: boolean): Promise<Config> => {
+    prepareEmpty()
+    writeYamlFileSync('pnpm-workspace.yaml', { sideEffectsCache: declared })
+    const { config } = await getConfig({
+      cliOptions: { 'side-effects-cache': cliValue },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: process.cwd(),
+    })
+    return config
+  }
+
+  const disabled = await resolveWith({ read: true, write: true, remote: { org: 'acme' } }, false)
+  expect(disabled.sideEffectsCacheRead).toBe(false)
+  expect(disabled.sideEffectsCacheWrite).toBe(false)
+  // The boolean says nothing about the remote tier, so the object's survives it.
+  expect(disabled.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
+
+  const enabled = await resolveWith({ read: false, write: false }, true)
+  expect(enabled.sideEffectsCacheRead).toBe(true)
+  expect(enabled.sideEffectsCacheWrite).toBe(true)
+})
+
+test('getConfig() lets PNPM_CONFIG_SIDE_EFFECTS_CACHE replace a declared sideEffectsCache object', async () => {
+  prepareEmpty()
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    sideEffectsCache: { read: true, write: true, remote: { org: 'acme' } },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: { PNPM_CONFIG_SIDE_EFFECTS_CACHE: 'false' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.sideEffectsCacheRead).toBe(false)
+  expect(config.sideEffectsCacheWrite).toBe(false)
+  expect(config.remoteSideEffectsCache).toStrictEqual({ org: 'acme' })
 })
 
 test('getConfig() defaults read and write when only the remote tier is declared', async () => {

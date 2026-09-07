@@ -6,14 +6,19 @@ use super::{
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
     LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
-    ShimPolicy, TrustPolicy, api::EnvVar,
+    ShimPolicy, TrustPolicy,
+    api::{EnvVar, GetHomeDir},
 };
 use pipe_trait::Pipe;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 #[test]
 fn parses_common_settings_from_yaml() {
@@ -608,6 +613,39 @@ userAgent: ${USER_AGENT}
 }
 
 #[test]
+fn keeps_non_ascii_text_in_workspace_values() {
+    struct EnvWithPaths;
+    impl EnvVar for EnvWithPaths {
+        fn var(name: &str) -> Option<String> {
+            match name {
+                "CACHE_DIR" => Some("cache-dir".to_owned()),
+                "STORE_DIR" => Some("store-dir".to_owned()),
+                _ => None,
+            }
+        }
+    }
+
+    let yaml = r"
+storeDir: ${STORE_DIR}/café
+cacheDir: 日本語/${CACHE_DIR}
+scriptShell: ./ünicode-shell
+";
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.substitute_env_untrusted::<EnvWithPaths>();
+
+    let base = Path::new("/workspace/root");
+    let mut config = Config::new();
+    settings.resolve_script_shell(base);
+    settings.apply_to(&mut config, base);
+
+    assert_eq!(config.store_dir, StoreDir::from(base.join("store-dir/café")));
+    assert_eq!(config.cache_dir, base.join("日本語/cache-dir"));
+    let expected_script_shell =
+        pnpm_fs::lexical_normalize(&base.join("./ünicode-shell")).to_string_lossy().into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected_script_shell.as_str()));
+}
+
+#[test]
 fn trusted_settings_expand_env_vars_inside_request_destination_values() {
     struct EnvWithHost;
     impl EnvVar for EnvWithHost {
@@ -956,6 +994,61 @@ configDependencies:
     assert!(settings.force_legacy_deploy.is_none());
     assert!(settings.shared_workspace_lockfile.is_none());
     assert!(settings.config_dependencies.is_none());
+}
+
+#[test]
+fn cargo_settings_parse_apply_and_remain_workspace_only() {
+    let yaml = r"
+cargo:
+  enabled: true
+  indexUrl: https://registry.example.test/index/
+";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    assert_eq!(settings.cargo.as_ref().map(|cargo| cargo.enabled), Some(true));
+    assert_eq!(
+        settings.cargo.as_ref().map(|cargo| cargo.index_url.as_str()),
+        Some("https://registry.example.test/index/"),
+    );
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+
+    assert!(config.cargo.enabled);
+    assert_eq!(config.cargo.index_url, "https://registry.example.test/index/");
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.cargo.is_none());
+}
+
+#[test]
+fn cargo_settings_reject_unknown_fields() {
+    let error = serde_saphyr::from_str::<WorkspaceSettings>(
+        r"
+cargo:
+  enabled: true
+  registry: https://example.com
+",
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("unknown field `registry`"), "{error}");
+}
+
+#[test]
+fn python_settings_parse_apply_and_remain_workspace_only() {
+    let yaml = "python:\n  enabled: true\n  executable: python3.13\n  indexUrl: https://example.org/simple/\n  extras: [speed]\n  groups: [test]\n";
+    let settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    let mut config = Config::default();
+    settings.apply_to(&mut config, Path::new("/workspace"));
+    assert!(config.python.enabled);
+    assert_eq!(config.python.executable, "python3.13");
+    assert_eq!(config.python.index_url, "https://example.org/simple/");
+    assert_eq!(config.python.extras, ["speed"]);
+    assert_eq!(config.python.groups, ["test"]);
+    let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
+    settings.clear_workspace_only_fields();
+    assert!(settings.python.is_none());
+    assert!(serde_saphyr::from_str::<WorkspaceSettings>("python:\n  unknown: true\n").is_err());
 }
 
 /// `allowBuilds` is a map of `name[@version]` → bool. Same camelCase
@@ -2548,6 +2641,76 @@ nodeOptions: --max-old-space-size=4096
     assert_eq!(config.node_options.as_deref(), Some("--max-old-space-size=4096"));
 }
 
+#[test]
+fn resolves_relative_script_shell_against_workspace_root() {
+    let base = Path::new("/workspace/root");
+    for script_shell in ["./scripts/shell.sh", "../scripts/shell.sh", "scripts/shell.sh"] {
+        let mut settings: WorkspaceSettings =
+            serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
+        settings.resolve_script_shell(base);
+        let mut config = Config::new();
+        settings.apply_to(&mut config, base);
+        let expected =
+            pnpm_fs::lexical_normalize(&base.join(script_shell)).to_string_lossy().into_owned();
+        assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+    }
+}
+
+#[test]
+fn keeps_bare_and_absolute_script_shell_values() {
+    for script_shell in ["bash", "/usr/bin/bash"] {
+        let mut settings: WorkspaceSettings =
+            serde_saphyr::from_str(&format!("scriptShell: {script_shell}")).unwrap();
+        settings.resolve_script_shell(Path::new("/workspace/root"));
+        let mut config = Config::new();
+        settings.apply_to(&mut config, Path::new("/workspace/root"));
+        assert_eq!(config.script_shell.as_deref(), Some(script_shell));
+    }
+}
+
+#[test]
+fn resolves_script_shell_from_the_manifest_found_above_a_nested_package() {
+    let root = tempfile::tempdir().unwrap();
+    let nested = root.path().join("packages/nested");
+    fs::create_dir_all(&nested).unwrap();
+    fs::write(root.path().join(WORKSPACE_MANIFEST_FILENAME), "scriptShell: ./a.sh\n").unwrap();
+
+    let (manifest, mut settings) =
+        WorkspaceSettings::find_and_load(&nested).unwrap().expect("ancestor workspace manifest");
+    assert_eq!(manifest.parent(), Some(root.path()));
+
+    let mut config = Config::new();
+    settings.resolve_script_shell(root.path());
+    settings.apply_to(&mut config, root.path());
+    let expected = root.path().join("a.sh").to_string_lossy().into_owned();
+    assert_eq!(config.script_shell.as_deref(), Some(expected.as_str()));
+}
+
+/// The global config file, `PNPM_CONFIG_*`, and `updateConfig` hooks reach
+/// `apply_to` without the resolution step, and their `scriptShell` stays as
+/// written.
+#[test]
+fn apply_to_copies_script_shell_verbatim() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("scriptShell: ./scripts/shell.sh").unwrap();
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace/root"));
+    assert_eq!(config.script_shell.as_deref(), Some("./scripts/shell.sh"));
+}
+
+/// A drive-relative path (`C:tools\shell.cmd`) has a prefix but no root.
+/// Node's `path.win32.join` keeps the workspace base in front of it.
+#[cfg_attr(not(windows), ignore = "Windows path semantics")]
+#[test]
+fn resolves_drive_relative_script_shell_against_workspace_base() {
+    let mut settings: WorkspaceSettings =
+        serde_saphyr::from_str(r"scriptShell: 'C:tools\shell.cmd'").unwrap();
+    settings.resolve_script_shell(Path::new(r"C:\workspace\root"));
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new(r"C:\workspace\root"));
+    assert_eq!(config.script_shell.as_deref(), Some(r"C:\workspace\root\C:tools\shell.cmd"));
+}
+
 /// The tri-state distinguishes "absent" from "explicit null", matching
 /// pnpm: an explicit `scriptShell: null` / `nodeOptions: null` clears a
 /// value inherited from global `config.yaml`, while an absent key leaves
@@ -3089,6 +3252,31 @@ fn resolved_declarations_declare_every_route() {
     );
 }
 
+/// Every scope-routed lookup resolves through this map, so the built-in `@jsr`
+/// route has to be in it. See <https://github.com/pnpm/pnpm/issues/14649>.
+#[test]
+fn resolved_registries_carry_the_builtin_jsr_route() {
+    let mut config = Config::new();
+    config.registry = "https://npm.corp.example/".to_owned();
+
+    let registries = config.resolved_registries();
+
+    assert_eq!(registries.get("default").map(String::as_str), Some("https://npm.corp.example/"));
+    assert_eq!(registries.get("@jsr").map(String::as_str), Some("https://npm.jsr.io/"));
+}
+
+#[test]
+fn a_configured_jsr_route_beats_the_builtin_one() {
+    let mut config = Config::new();
+    config.registries_by_scope =
+        BTreeMap::from([("@jsr".to_owned(), "https://jsr.corp.example/".to_owned())]);
+
+    assert_eq!(
+        config.resolved_registries().get("@jsr").map(String::as_str),
+        Some("https://jsr.corp.example/"),
+    );
+}
+
 /// A declaration map survives the round trip through the lookups it is split
 /// into, which is what makes it safe to rebuild one for a pnpr request.
 #[test]
@@ -3420,4 +3608,65 @@ fn rejects_string_task_concurrency_as_an_invalid_setting() {
         LoadWorkspaceYamlError::InvalidTaskConcurrency { ref task, ref concurrency }
             if task == "build" && concurrency == r#""2""#
     ));
+}
+
+/// The odd suffixes pnpm's `path.join(homedir, rest)` swallows: a doubled
+/// separator must not turn the value absolute, and a parent segment must
+/// collapse rather than survive into the resolved path.
+#[test]
+fn expanding_a_home_prefix_joins_the_way_pnpm_does() {
+    struct FakeHome;
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/example"))
+        }
+    }
+
+    // Compared as paths, not strings: the join separator is `\\` on Windows.
+    let home = PathBuf::from("/home/example");
+    for (configured, expected) in [
+        ("~/bin", home.join("bin")),
+        ("~//bin", home.join("bin")),
+        ("~/../bin", PathBuf::from("/home").join("bin")),
+        ("~/nested/../bin", home.join("bin")),
+    ] {
+        let mut settings = WorkspaceSettings {
+            global_dir: Some(configured.to_string()),
+            global_bin_dir: Some(configured.to_string()),
+            ..WorkspaceSettings::default()
+        };
+        settings.expand_global_dir_home_prefixes::<FakeHome>();
+        let expected = Some(expected.as_path());
+        assert_eq!(
+            settings.global_dir.as_deref().map(Path::new),
+            expected,
+            "globalDir {configured}",
+        );
+        assert_eq!(
+            settings.global_bin_dir.as_deref().map(Path::new),
+            expected,
+            "globalBinDir {configured}",
+        );
+    }
+}
+
+/// A tilde that names no home-relative path is an ordinary value: pnpm's
+/// `/^~[/\\]/` does not match it either.
+#[test]
+fn a_tilde_without_a_separator_is_left_alone() {
+    struct FakeHome;
+    impl GetHomeDir for FakeHome {
+        fn home_dir() -> Option<PathBuf> {
+            Some(PathBuf::from("/home/example"))
+        }
+    }
+
+    let mut settings = WorkspaceSettings {
+        global_dir: Some("~backup/global".to_string()),
+        global_bin_dir: Some("bin/~/nested".to_string()),
+        ..WorkspaceSettings::default()
+    };
+    settings.expand_global_dir_home_prefixes::<FakeHome>();
+    assert_eq!(settings.global_dir.as_deref(), Some("~backup/global"));
+    assert_eq!(settings.global_bin_dir.as_deref(), Some("bin/~/nested"));
 }

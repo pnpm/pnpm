@@ -16,6 +16,7 @@ use miette::IntoDiagnostic;
 use pnpm_config::Config;
 use pnpm_network::{ThrottledClient, encode_package_name, redact_url_credentials};
 use pnpm_registry::Package;
+use pnpm_resolving_npm_resolver::pick_registry_for_package;
 use pnpm_versioning::{
     ChangelogStorage, ReleasePlan, changelog_storage, list_pending_changelogs,
     read_pending_changelog, render_changelog,
@@ -227,15 +228,11 @@ fn previous_version(package: &Package, version: &str) -> Option<String> {
         .map(|(_, key)| key.clone())
 }
 
-/// The registry a package's metadata is read from: the scope's registry when
-/// configured, else the default. Mirrors `pickRegistryForPackage`.
+/// The registry a package's metadata is read from, with the trailing slash
+/// the request paths are joined onto.
 fn registry_for(config: &Config, name: &str) -> String {
-    let registry = name
-        .strip_prefix('@')
-        .and_then(|rest| rest.split('/').next())
-        .and_then(|scope| config.registries_by_scope.get(&format!("@{scope}")))
-        .cloned()
-        .unwrap_or_else(|| config.registry.clone());
+    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
+    let registry = pick_registry_for_package(&registries, name, None);
     if registry.ends_with('/') { registry } else { format!("{registry}/") }
 }
 

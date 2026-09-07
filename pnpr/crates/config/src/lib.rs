@@ -14,7 +14,7 @@ use object_store::{
 use pnpm_env_replace::{EnvVar, SystemEnv, env_replace_lossy};
 use pnpr_error::{RegistryError, redact_url_credentials};
 use pnpr_policy::{AccessList, AccessToken, PackageRule, PackageRules};
-use pnpr_registry::{PackagePattern, Registries, Registry, RegistryConfigError};
+use pnpr_registry::{Ecosystem, PackagePattern, Registries, Registry, RegistryConfigError};
 use reqwest::header::HeaderMap;
 use serde::Deserialize;
 use std::{
@@ -67,6 +67,11 @@ pub struct Config {
     /// `dist.tarball` URLs in served packuments so tarball requests
     /// flow through this server.
     pub public_url: String,
+    /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
+    /// response headers unless an operator explicitly names trusted origins.
+    pub cors: CorsConfig,
+    /// OCI authentication and size limits.
+    pub oci: OciConfig,
     /// Directory under which authoritative packuments and tarballs
     /// live: packages published to this server and the content served
     /// in static mode. This is the source of truth — it is never
@@ -122,10 +127,12 @@ pub struct Config {
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
-    /// Organization-scoped signed build artifacts. Kept separate from the
+    /// Signed build artifacts and compiler caches. Kept separate from the
     /// resolver so deployments can scale the compute-bound resolver and the
     /// I/O-bound artifact store independently. See [`ArtifactsFeature`].
     pub artifacts: ArtifactsFeature,
+    /// The pipeline run-record surface. See [`PipelineFeature`].
+    pub pipeline: PipelineFeature,
     /// Which fetch routes the resolution cache treats as public (fetched
     /// anonymously and shared globally) vs. private, driving the
     /// resolver's route classification.
@@ -151,6 +158,25 @@ pub struct Config {
     pub hosted: IndexMap<String, HostedConfig>,
 }
 
+/// Authentication and byte limits for the OCI distribution surface.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub struct OciConfig {
+    pub bearer_auth: bool,
+    pub max_blob_bytes: u64,
+    pub max_manifest_bytes: usize,
+}
+
+impl Default for OciConfig {
+    fn default() -> Self {
+        Self {
+            bearer_auth: false,
+            max_blob_bytes: 10 * 1024 * 1024 * 1024,
+            max_manifest_bytes: 4 * 1024 * 1024,
+        }
+    }
+}
+
 /// A resolved hosted registry: the `org` namespace it serves and its
 /// `packages:` rules — the namespace it claims plus the per-package
 /// `access` / `publish` / `unpublish` policies, with the registry-level
@@ -170,6 +196,32 @@ pub struct HostedConfig {
     /// list them. Membership is config-declared: the API serves reads only,
     /// and team mutations are rejected.
     pub teams: Teams,
+}
+
+/// Exact browser origins allowed to call pnpr across origins.
+#[derive(Debug, Default, Clone)]
+pub struct CorsConfig {
+    allowed_origins: Vec<String>,
+}
+
+impl CorsConfig {
+    pub fn from_allowed_origins(
+        origins: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> Result<Self, RegistryError> {
+        let mut allowed_origins = Vec::new();
+        for origin in origins {
+            let origin = normalize_cors_origin(origin.as_ref())?;
+            if !allowed_origins.contains(&origin) {
+                allowed_origins.push(origin);
+            }
+        }
+        Ok(Self { allowed_origins })
+    }
+
+    #[must_use]
+    pub fn allowed_origins(&self) -> &[String] {
+        &self.allowed_origins
+    }
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -229,12 +281,29 @@ impl Default for ResolverFeature {
     }
 }
 
-/// Toggle for the signed shared-artifact surface. Off by default while the
+/// Toggle for the shared-artifact surface. Off by default while the
 /// protocol is a proof of concept.
 #[derive(Debug, Default, Clone)]
 pub struct ArtifactsFeature {
-    /// Master switch for the artifact publish, lookup, and blob endpoints.
+    /// Master switch for artifact and compiler-cache endpoints.
     pub enabled: bool,
+    /// Named compiler caches with independent read and publication policies.
+    pub compiler_caches: IndexMap<String, StorageAccess>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StorageAccess {
+    pub access: AccessList,
+    pub publish: AccessList,
+}
+
+/// Toggle for the pipeline run-record surface (`/-/pnpr/v0/pipeline*`).
+/// Off by default while the surface is a proof of concept.
+#[derive(Debug, Default, Clone)]
+pub struct PipelineFeature {
+    /// Master switch for the run submission, listing, and viewer endpoints.
+    pub enabled: bool,
+    pub workspaces: IndexMap<String, StorageAccess>,
 }
 
 /// CLI-level overrides for the feature toggles, applied *during* config
@@ -869,6 +938,10 @@ enum RegistryFile {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct HostedFile {
+    /// The package ecosystem this registry serves, which selects the protocol
+    /// spoken at its `/~<name>/` endpoint. Omitted ⇒ `npm`.
+    #[serde(default)]
+    ecosystem: Ecosystem,
     /// Storage namespace for this registry's packages, so two hosted registries can
     /// hold the same `name@version` without colliding. Omitted ⇒ the flat
     /// `storage` root (`""`).
@@ -899,6 +972,12 @@ struct HostedFile {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct UpstreamFile {
+    /// The package ecosystem the origin serves, which selects the protocol
+    /// pnpr proxies at `/~<name>/` and speaks to `url`. Omitted ⇒ `npm`. For
+    /// `cargo`, `url` is a sparse index root (`https://index.crates.io/`); for
+    /// `pypi`, a Simple API root (`https://pypi.org/simple/`).
+    #[serde(default)]
+    ecosystem: Ecosystem,
     url: String,
     /// An anonymous, world-readable origin (e.g. the public npm registry).
     /// Mutually exclusive with `auth`.
@@ -918,6 +997,9 @@ struct UpstreamFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
+    /// Opt an upstream into browser-facing search and organization discovery.
+    #[serde(default)]
+    search: bool,
     /// Which pnpr callers may reach this registry at `/~<name>/`. Required for a
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
@@ -959,6 +1041,12 @@ struct ConfigFile {
     /// it defaults to a `.pnpr-cache` subdirectory of `storage`.
     #[serde(default)]
     cache: Option<String>,
+    /// pnpr-only browser access policy. Cross-origin access stays disabled
+    /// when this block is absent or its allowlist is empty.
+    #[serde(default)]
+    cors: CorsFile,
+    #[serde(default)]
+    oci: OciConfig,
     /// pnpr-only block: store the hosted (published) packages in an
     /// S3-compatible object store instead of `storage`. Absent on a
     /// stock verdaccio config (silently ignored there).
@@ -983,6 +1071,10 @@ struct ConfigFile {
     /// the resolver because deployments may mount either surface alone.
     #[serde(default)]
     artifacts: Option<ArtifactsFeatureFile>,
+    /// pnpr-only feature toggle for the pipeline run-record surface, a peer
+    /// of the artifact store.
+    #[serde(default)]
+    pipeline: Option<PipelineFeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`. The only routing surface — there is no legacy
     /// `upstreams:`/`packages: proxy:` fallback.
@@ -1026,6 +1118,13 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CorsFile {
+    #[serde(default)]
+    allowed_origins: Vec<String>,
 }
 
 /// Marker for a present top-level `packages:` key, whatever its value.
@@ -1147,6 +1246,24 @@ impl Default for FeatureFile {
 struct ArtifactsFeatureFile {
     #[serde(default)]
     enabled: bool,
+    #[serde(default, rename = "compilerCaches")]
+    compiler_caches: IndexMap<String, StorageAccessFile>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct StorageAccessFile {
+    access: AccessSpec,
+    publish: AccessSpec,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PipelineFeatureFile {
+    #[serde(default)]
+    enabled: bool,
+    #[serde(default)]
+    workspaces: IndexMap<String, StorageAccessFile>,
 }
 
 fn default_true() -> bool {
@@ -1200,7 +1317,7 @@ fn registry_mock_rules() -> PackageRules {
     let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
         .iter()
         .map(|pattern| PackageRule {
-            pattern: PackagePattern::parse(pattern)
+            pattern: PackagePattern::parse(pattern, Ecosystem::Npm)
                 .expect("valid built-in fixture registry pattern"),
             access: (*pattern == "@private/*").then(authenticated).flatten(),
             publish: (*pattern == "@private/*").then(authenticated).flatten(),
@@ -1208,7 +1325,7 @@ fn registry_mock_rules() -> PackageRules {
         })
         .collect();
     rules.push(PackageRule {
-        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth")
+        pattern: PackagePattern::parse("@pnpm.e2e/needs-auth", Ecosystem::Npm)
             .expect("valid built-in fixture registry pattern"),
         access: authenticated(),
         publish: authenticated(),
@@ -1265,6 +1382,8 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cors: CorsConfig::default(),
+            oci: OciConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams,
@@ -1277,6 +1396,7 @@ impl Config {
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
             artifacts: ArtifactsFeature::default(),
+            pipeline: PipelineFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1314,6 +1434,8 @@ impl Config {
         Self {
             listen,
             public_url: format!("http://{listen}"),
+            cors: CorsConfig::default(),
+            oci: OciConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams: IndexMap::new(),
@@ -1326,6 +1448,7 @@ impl Config {
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
             artifacts: ArtifactsFeature::default(),
+            pipeline: PipelineFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             registries,
@@ -1520,6 +1643,11 @@ impl Config {
         }
         let file: ConfigFile = serde_saphyr::from_str(&substituted)
             .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
+        if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
+            return Err(RegistryError::InvalidConfig {
+                reason: "oci size limits must be greater than zero".to_string(),
+            });
+        }
         let storage = resolve_relative(&file.storage, base_dir);
         let cache_storage = file
             .cache
@@ -1531,6 +1659,7 @@ impl Config {
         };
         let backend = build_backend_config(file.backend, base_dir)?;
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
+        let cors = build_cors_config(file.cors)?;
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
         // The global ACL and group blocks are gone, not ignorable: they used
@@ -1566,8 +1695,15 @@ impl Config {
         let resolver =
             ResolverFeature { enabled: resolver_file.enabled && !overrides.disable_resolver };
         let artifacts_file = file.artifacts.unwrap_or_default();
-        let artifacts =
-            ArtifactsFeature { enabled: artifacts_file.enabled && !overrides.disable_artifacts };
+        let artifacts = ArtifactsFeature {
+            enabled: artifacts_file.enabled && !overrides.disable_artifacts,
+            compiler_caches: parse_storage_access(artifacts_file.compiler_caches)?,
+        };
+        let pipeline_file = file.pipeline.unwrap_or_default();
+        let pipeline = PipelineFeature {
+            enabled: pipeline_file.enabled,
+            workspaces: parse_storage_access(pipeline_file.workspaces)?,
+        };
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a
@@ -1588,6 +1724,8 @@ impl Config {
         let config = Self {
             listen,
             public_url,
+            cors,
+            oci: file.oci,
             storage,
             cache_storage,
             upstreams,
@@ -1600,6 +1738,7 @@ impl Config {
             registry,
             resolver,
             artifacts,
+            pipeline,
             route_policy,
             resolution_cache_secret,
             registries,
@@ -1615,13 +1754,17 @@ impl Config {
     /// endpoints. Checked at config load and again in the serve/router
     /// entry points for programmatically built configs.
     pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
-        if self.registry.enabled || self.resolver.enabled || self.artifacts.enabled {
+        if self.registry.enabled
+            || self.resolver.enabled
+            || self.artifacts.enabled
+            || self.pipeline.enabled
+        {
             Ok(())
         } else {
             Err(RegistryError::InvalidConfig {
                 reason: "nothing to serve: the npm-registry surface is off (no `registries:` \
                          declared, or `--disable-registry`), the resolver is disabled, and \
-                         artifacts are disabled"
+                         artifacts and the pipeline surface are disabled"
                     .to_string(),
             })
         }
@@ -1729,6 +1872,30 @@ impl Config {
     }
 }
 
+fn build_cors_config(file: CorsFile) -> Result<CorsConfig, RegistryError> {
+    CorsConfig::from_allowed_origins(file.allowed_origins)
+}
+
+fn normalize_cors_origin(raw: &str) -> Result<String, RegistryError> {
+    let parsed = url::Url::parse(raw).map_err(|_| RegistryError::InvalidConfig {
+        reason: format!("CORS allowed origin {raw:?} is not an absolute URL"),
+    })?;
+    if !matches!(parsed.scheme(), "http" | "https")
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() != "/"
+    {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "CORS allowed origin {raw:?} must contain only an http(s) scheme, host, and optional port",
+            ),
+        });
+    }
+    Ok(parsed.origin().ascii_serialization())
+}
+
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
 /// Relative paths are resolved against `base_dir` so a path like
 /// `./htpasswd` lives next to the config file (verdaccio's
@@ -1791,6 +1958,7 @@ fn build_registries(
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
     let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
     let mut graph: IndexMap<String, Registry> = IndexMap::new();
+    let mut ecosystems: IndexMap<String, Ecosystem> = IndexMap::new();
     // Every configured upstream is, by definition, an upstream registry addressable
     // at `/~<name>/`. No declared patterns ⇒ it serves every name.
     for name in upstreams.keys() {
@@ -1817,9 +1985,12 @@ fn build_registries(
                 }
                 let teams = build_teams(&name, &registry.teams)?;
                 let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
-                let rules = build_rules(&name, &registry.packages, access, &teams)?;
+                let packages =
+                    ecosystem_package_keys(&name, registry.ecosystem, registry.packages)?;
+                let rules = build_rules(&name, registry.ecosystem, &packages, access, &teams)?;
                 let patterns = rules.patterns();
                 hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
+                ecosystems.insert(name.clone(), registry.ecosystem);
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
@@ -1831,7 +2002,10 @@ fn build_registries(
                 // write can land on — fails startup on every tier too.
                 let teams = build_teams(&name, &upstream.teams)?;
                 let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
-                let rules = build_rules(&name, &upstream.packages, access, &teams)?;
+                let packages =
+                    ecosystem_package_keys(&name, upstream.ecosystem, upstream.packages.clone())?;
+                let rules = build_rules(&name, upstream.ecosystem, &packages, access, &teams)?;
+                ecosystems.insert(name.clone(), upstream.ecosystem);
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
@@ -1854,9 +2028,45 @@ fn build_registries(
             }
         }
     }
-    let registries = Registries::new(graph, default_registry);
+    let registries = ecosystems
+        .iter()
+        .filter(|(_, ecosystem)| **ecosystem != Ecosystem::Npm)
+        .fold(Registries::new(graph, default_registry), |registries, (name, ecosystem)| {
+            registries.with_ecosystem(name, *ecosystem)
+        });
     registries.validate().map_err(|err| registry_err(&err))?;
     Ok((hosted, registries))
+}
+
+/// A registry's `packages:` keys in the spelling its ecosystem matches
+/// requests by. Crate names are compared lowercase and Python project names
+/// normalized (PEP 503), so a `cargo` or `pypi` registry's exact-name keys
+/// are canonicalized here, and a key no registry of that ecosystem could
+/// serve is a config error. Only the catch-all `**` applies to every ecosystem.
+fn ecosystem_package_keys(
+    registry: &str,
+    ecosystem: Ecosystem,
+    packages: IndexMap<String, Option<PackageAccess>>,
+) -> Result<IndexMap<String, Option<PackageAccess>>, RegistryError> {
+    let mut normalized = IndexMap::new();
+    for (key, access) in packages {
+        // Through the pattern language, so a wildcard shape is normalized as
+        // itself rather than failing the ecosystem's name rules.
+        let normalized_key = PackagePattern::parse(&key, ecosystem)
+            .map(|pattern| pattern.to_string())
+            .map_err(|error| RegistryError::InvalidConfig {
+                reason: format!("{ecosystem} registry {registry:?} `packages:` key: {error}"),
+            })?;
+        if normalized.contains_key(&normalized_key) {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "{ecosystem} registry {registry:?} `packages:` key {key:?} duplicates normalized key {normalized_key:?}",
+                ),
+            });
+        }
+        normalized.insert(normalized_key, access);
+    }
+    Ok(normalized)
 }
 
 /// Two hosted registries sharing an `org` would read and write the same
@@ -1940,6 +2150,7 @@ fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
 /// [`Registries::validate`] once the whole graph exists.
 fn build_rules(
     registry: &str,
+    ecosystem: Ecosystem,
     packages: &IndexMap<String, Option<PackageAccess>>,
     default_access: Option<AccessList>,
     teams: &Teams,
@@ -1947,7 +2158,7 @@ fn build_rules(
     let rules = packages
         .iter()
         .map(|(key, rule)| {
-            let pattern = PackagePattern::parse(key).map_err(|err| {
+            let pattern = PackagePattern::parse(key, ecosystem).map_err(|err| {
                 RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
             })?;
             let fields = rule.as_ref();
@@ -2031,6 +2242,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
         max_fails: file.max_fails,
         fail_timeout: file.fail_timeout,
         cache: file.cache,
+        search: file.search,
         access,
     };
     resolve_upstream_config::<Sys>(name, upstream_config_file, teams)
@@ -2225,3 +2437,24 @@ pub fn default_cache_dir(storage: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests;
+
+fn parse_storage_access(
+    policies: IndexMap<String, StorageAccessFile>,
+) -> Result<IndexMap<String, StorageAccess>, RegistryError> {
+    policies
+        .into_iter()
+        .map(|(name, policy)| {
+            validate_registry_name(&name)?;
+            let parse = |spec: &AccessSpec| {
+                spec.to_access_list(&Teams::default()).map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!("storage namespace {name:?}: {reason}"),
+                    }
+                })
+            };
+            let access =
+                StorageAccess { access: parse(&policy.access)?, publish: parse(&policy.publish)? };
+            Ok((name, access))
+        })
+        .collect()
+}

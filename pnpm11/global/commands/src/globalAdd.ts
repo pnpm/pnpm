@@ -27,7 +27,7 @@ export type GlobalAddOptions = CreateStoreControllerOptions & {
   bin?: string
   globalPkgDir?: string
   registriesByScope: Record<string, string>
-  allowBuild?: string[]
+  /** Already merged with the `--allow-build` selectors by `add`'s handler. */
   allowBuilds?: Record<string, string | boolean>
   saveExact?: boolean
   savePrefix?: string
@@ -45,14 +45,7 @@ export async function handleGlobalAdd (
   const globalBinDir = opts.bin!
   cleanOrphanedInstallDirs(globalDir)
 
-  // Convert allowBuild array to allowBuilds Record (same conversion as add.handler)
-  let allowBuilds = opts.allowBuilds ?? {}
-  if (opts.allowBuild?.length) {
-    allowBuilds = { ...allowBuilds }
-    for (const pkg of opts.allowBuild) {
-      allowBuilds[pkg] = true
-    }
-  }
+  const allowBuilds = opts.allowBuilds ?? {}
 
   // Each space-separated CLI param becomes its own isolated install group.
   // A param containing commas is split into multiple selectors that share a

@@ -24,7 +24,7 @@ use pnpm_reporter::{
     Reporter, SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason,
 };
 use pnpm_store_dir::SharedVerifiedFilesCache;
-use pnpm_tarball::DownloadTarballToStore;
+use pnpm_tarball::IngestTarballToStore;
 use ssri::Integrity;
 use std::{
     collections::{BTreeMap, HashSet},
@@ -175,7 +175,7 @@ async fn materialize<Reporter: self::Reporter>(
     dir: &Path,
 ) -> Result<(), ConfigDepError> {
     let package_id = format!("{name}@{version}");
-    let cas_paths = DownloadTarballToStore {
+    let cas_paths = IngestTarballToStore {
         http_client: opts.http_client,
         store_dir: opts.store_dir,
         store_index: None,
@@ -195,7 +195,7 @@ async fn materialize<Reporter: self::Reporter>(
         ignore_file_pattern: None,
         offline: opts.offline,
         progress_reported: None,
-        append_manifest: None,
+        store_projection: pnpm_tarball::ArchiveStoreProjection::Package { append_manifest: None },
     }
     .run_without_mem_cache::<Reporter>()
     .await

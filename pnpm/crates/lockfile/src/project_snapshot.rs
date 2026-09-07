@@ -37,6 +37,9 @@ pub struct ProjectSnapshot {
     pub dependencies_meta: Option<serde_json::Value>, // TODO: DependenciesMeta
     #[serde(skip_serializing_if = "Option::is_none")]
     pub publish_directory: Option<String>,
+    /// `Some(false)` when workspace links must ignore [`Self::publish_directory`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link_directory: Option<bool>,
 }
 
 impl ProjectSnapshot {

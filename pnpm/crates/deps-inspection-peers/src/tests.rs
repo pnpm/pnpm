@@ -3,9 +3,9 @@ use std::collections::BTreeMap;
 use pnpm_config::PeerDependencyRules;
 
 use super::{
-    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, filter_peer_issues,
-    format_range, intersect_multiple_ranges, merge_missing_peers, normalize_version_str,
-    parse_allowed_versions, path_is_within, satisfies,
+    BadPeerIssue, IssuesByProjects, MissingPeerIssue, ParentPkg, PeerIssues, canonical_path_within,
+    filter_peer_issues, format_range, intersect_multiple_ranges, merge_missing_peers,
+    normalize_version_str, parse_allowed_versions, satisfies,
 };
 
 fn have_common_version(version_ranges: &[String]) -> bool {
@@ -65,6 +65,32 @@ fn test_satisfies_prerelease_matches_include_prerelease() {
         ("19.0.0-rc.1", "^16.8.4 || ^17.0.0 || ^18.0.0", false),
     ];
     for (version, range, expected) in cases {
+        assert_eq!(satisfies(version, range), expected, "{version} against {range}");
+    }
+}
+
+/// A version left partial after `<=` is an X-Range, so the bound rises
+/// to the first version the range leaves out: `<=16` reaches every 16.x.
+/// Values checked against `semver.satisfies(v, r, { includePrerelease:
+/// true, loose: true })`.
+#[test]
+fn test_satisfies_partial_upper_bound_covers_the_omitted_component() {
+    let cases = [
+        (">=0.11 <=3", "3.0.1", true),
+        ("<=16", "16.0.0", true),
+        ("<=16", "16.8.2", true),
+        ("<=16", "17.0.0", false),
+        ("<=16", "16.1.0-rc.1", true),
+        ("<=2.0", "2.0.0", true),
+        ("<=2.0", "2.0.5", true),
+        ("<=2.0", "2.1.0", false),
+        ("<=1.2.x", "1.2.9", true),
+        ("<=1.2.x", "1.3.0", false),
+        // A fully spelled-out bound stays exact.
+        ("<=1.2.3", "1.2.3", true),
+        ("<=1.2.3", "1.2.4", false),
+    ];
+    for (range, version, expected) in cases {
         assert_eq!(satisfies(version, range), expected, "{version} against {range}");
     }
 }
@@ -535,12 +561,30 @@ fn test_path_is_within() {
     let sub = base.join("foo");
     std::fs::create_dir(&sub).unwrap();
 
-    assert!(path_is_within(&sub, base));
-    assert!(path_is_within(base, base));
+    assert!(canonical_path_within(&sub, base).is_some());
+    assert!(canonical_path_within(base, base).is_some());
 
     let outside = base.join("../bar");
-    assert!(!path_is_within(&outside, base));
+    assert!(canonical_path_within(&outside, base).is_none());
 
     let absolute_outside = std::path::Path::new("/etc");
-    assert!(!path_is_within(absolute_outside, base));
+    assert!(canonical_path_within(absolute_outside, base).is_none());
+}
+
+#[cfg(unix)]
+#[test]
+fn canonical_containment_keeps_the_root_used_for_importer_ids() {
+    let temp = tempfile::tempdir().unwrap();
+    let real_root = temp.path().join("real");
+    let project = real_root.join("packages/lib");
+    std::fs::create_dir_all(&project).unwrap();
+    let linked_root = temp.path().join("linked");
+    std::os::unix::fs::symlink(&real_root, &linked_root).unwrap();
+
+    let canonical = canonical_path_within(&linked_root.join("packages/lib"), &linked_root).unwrap();
+
+    assert_eq!(
+        pnpm_workspace::importer_id_from_root_dir(&canonical.base, &canonical.path),
+        "packages/lib",
+    );
 }

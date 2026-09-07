@@ -1,7 +1,7 @@
 [package]
 name              = "pnpr"
 description       = "pnpm-compatible npm registry server"
-version           = "0.1.0-alpha.9"
+version           = "0.1.0-alpha.10"
 authors           = ["pnpm contributors"]
 edition.workspace = true
 license-file      = "../../LICENSE.md"
@@ -26,27 +26,34 @@ backend-postgres = ["dep:sqlx", "sqlx/postgres", "pnpr-error/backend-postgres", 
 
 [dependencies]
 pnpr-auth                     = { workspace = true }
+pnpr-cargo                    = { workspace = true }
 pnpr-config                   = { workspace = true }
 pnpr-error                    = { workspace = true }
+pnpr-oci                      = { workspace = true }
 pnpr-osv                      = { workspace = true }
 pnpr-package-name             = { workspace = true }
 pnpr-policy                   = { workspace = true }
+pnpr-pypi                     = { workspace = true }
 pnpr-registry                 = { workspace = true }
 pnpr-storage                  = { workspace = true }
 pnpr-route                    = { workspace = true }
 pnpr-search                   = { workspace = true }
+pnpr-pipeline-runs            = { workspace = true }
 pnpr-shared-artifacts         = { workspace = true }
 pnpr-upstream                 = { workspace = true }
+pnpm-cargo-resolver           = { workspace = true }
 pnpm-catalogs-types           = { workspace = true }
 pnpm-config                   = { workspace = true }
 pnpm-config-dir               = { workspace = true }
 pnpm-crypto-hash              = { workspace = true }
 pnpm-env-replace              = { workspace = true }
+pnpm-fs                       = { workspace = true }
 pnpm-lockfile                 = { workspace = true }
 pnpm-lockfile-verification    = { workspace = true }
 pnpm-network                  = { workspace = true }
 pnpm-package-manager          = { workspace = true }
 pnpm-package-manifest         = { workspace = true }
+pnpm-python-resolver          = { workspace = true }
 pnpm-reporter                 = { workspace = true }
 pnpm-resolving-npm-resolver   = { workspace = true }
 pnpm-resolving-resolver-base  = { workspace = true }
@@ -58,7 +65,7 @@ axum                          = { workspace = true }
 base64                        = { workspace = true }
 bcrypt                        = { workspace = true }
 chrono                        = { workspace = true }
-clap                          = { workspace = true }
+clap                          = { workspace = true, features = ["env"] }
 dashmap                       = { workspace = true }
 derive_more                   = { workspace = true }
 flate2                        = { workspace = true }
@@ -70,6 +77,9 @@ libc                          = { workspace = true }
 libsql                        = { workspace = true, optional = true }
 miette                        = { workspace = true }
 node-semver                   = { workspace = true }
+pep440_rs                     = { workspace = true }
+pep508_rs                     = { workspace = true }
+p256                          = { workspace = true }
 object_store                  = { workspace = true }
 reqwest                       = { workspace = true }
 rusqlite                      = { workspace = true }
@@ -89,11 +99,14 @@ wax                           = { workspace = true }
 zip                           = { workspace = true }
 
 [dev-dependencies]
-mockito    = { workspace = true }
-pipe-trait = { workspace = true }
-tempfile   = { workspace = true }
-tokio      = { workspace = true }
-tower      = { workspace = true }
+mockito            = { workspace = true }
+walkdir            = { workspace = true }
+tar                = { workspace = true }
+pipe-trait         = { workspace = true }
+pnpm-testing-utils = { workspace = true }
+tempfile           = { workspace = true }
+tokio              = { workspace = true }
+tower              = { workspace = true }
 
 [lints]
 workspace = true

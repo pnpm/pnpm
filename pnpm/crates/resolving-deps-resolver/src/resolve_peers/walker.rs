@@ -15,10 +15,10 @@ use crate::{
             merge_realize_undo,
         },
         context::{
-            CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs, SharedChain,
-            importer_relative_link_dep_path, insert_parent_ref, link_node_id_as_dep_path,
-            peer_id_pair, pkg_name_version, remap_link_node_id, satisfies_with_prereleases,
-            scoped_hoisted_optional_parent_refs,
+            ComparablePeerRange, CurrentProviderSource, ParentPkgInfo, ParentRef, ParentRefs,
+            SharedChain, importer_relative_link_dep_path, insert_parent_ref,
+            link_node_id_as_dep_path, peer_id_pair, pkg_name_version, remap_link_node_id,
+            satisfies_with_prereleases,
         },
         discovery::PeerDiscoveryCaches,
         finalize::{NodeRecord, PendingPeerEdge, WalkedNode},
@@ -50,6 +50,9 @@ pub(super) struct Walker<'tree> {
     /// its descendants' peer dependencies into its own peer suffix.
     /// Indexed by `NodeId`; value's keys are peer aliases.
     pub(super) node_external_peers: HashMap<NodeId, Arc<HashMap<String, NodeId>>>,
+    /// Cache-hit occurrence → fully walked occurrence that produced the
+    /// reused peer-resolution verdict.
+    pub(super) cache_owner_by_node_id: HashMap<NodeId, NodeId>,
     /// Peers each node and its subtree declared but couldn't find.
     /// Indexed by `NodeId`; value's keys are peer aliases.
     pub(super) node_missing_peers: HashMap<NodeId, Arc<HashMap<String, MissingPeerInfo>>>,
@@ -156,6 +159,12 @@ pub(super) struct Walker<'tree> {
     /// and an importer-context miss there would demand an auto-install
     /// the positions do not need.
     in_canonical_drain: bool,
+    /// Raw `peerDependencies` range → its comparable form. Peer-heavy
+    /// workspaces declare the same few ranges across many nodes, so the
+    /// walk parses each distinct one once. Scoped to the walk: the
+    /// mapping is a pure function of the raw range, and nothing outside
+    /// it needs the entries.
+    comparable_peer_ranges: HashMap<String, Arc<ComparablePeerRange>>,
 }
 
 impl<'tree> Walker<'tree> {
@@ -181,29 +190,38 @@ impl<'tree> Walker<'tree> {
             peer_provider_children_by_pkg_id.clear();
             peer_provider_index_peer_names.clone_from(&tree.all_peer_dep_names);
         }
+        // With no peer names in the tree, no edge can index as a
+        // provider: every entry stays the empty default.
+        let tree_declares_peers = !tree.all_peer_dep_names.is_empty();
         for (pkg_id, children) in &tree.children_by_id {
             if peer_provider_children_by_pkg_id.contains_key(&**pkg_id) {
                 continue;
             }
             let mut providers = PeerProviderChildren::default();
-            for (edge_index, edge) in children.iter().enumerate() {
-                let Some(pkg) = tree.packages.get(&edge.pkg_id) else { continue };
-                let real_name = pkg_name_version(&pkg.result).0;
-                let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
-                let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
-                if !alias_is_peer && !real_name_is_peer {
-                    continue;
-                }
-                providers.relevant_edge_indices.push(edge_index);
-                if alias_is_peer {
-                    providers
-                        .edge_indices_by_name
-                        .entry(edge.alias.clone())
-                        .or_default()
-                        .push(edge_index);
-                }
-                if real_name_is_peer && real_name != edge.alias {
-                    providers.edge_indices_by_name.entry(real_name).or_default().push(edge_index);
+            if tree_declares_peers {
+                for (edge_index, edge) in children.iter().enumerate() {
+                    let Some(pkg) = tree.packages.get(&edge.pkg_id) else { continue };
+                    let real_name = pkg_name_version(&pkg.result).0;
+                    let alias_is_peer = tree.all_peer_dep_names.contains(&edge.alias);
+                    let real_name_is_peer = tree.all_peer_dep_names.contains(&real_name);
+                    if !alias_is_peer && !real_name_is_peer {
+                        continue;
+                    }
+                    providers.relevant_edge_indices.push(edge_index);
+                    if alias_is_peer {
+                        providers
+                            .edge_indices_by_name
+                            .entry(edge.alias.clone())
+                            .or_default()
+                            .push(edge_index);
+                    }
+                    if real_name_is_peer && real_name != edge.alias {
+                        providers
+                            .edge_indices_by_name
+                            .entry(real_name)
+                            .or_default()
+                            .push(edge_index);
+                    }
                 }
             }
             peer_provider_children_by_pkg_id
@@ -217,6 +235,7 @@ impl<'tree> Walker<'tree> {
             missing_ancestor_pkg_ids: HashMap::default(),
             node_dep_paths,
             node_external_peers: HashMap::default(),
+            cache_owner_by_node_id: HashMap::default(),
             node_missing_peers: HashMap::default(),
             node_missing_peers_of_children: HashMap::default(),
             resolved_peer_providers_by_alias: BTreeMap::new(),
@@ -242,7 +261,20 @@ impl<'tree> Walker<'tree> {
             canonical_backedge_nodes,
             pending_canonical_nodes: Vec::new(),
             in_canonical_drain: false,
+            comparable_peer_ranges: HashMap::default(),
         }
+    }
+
+    /// The cached [`ComparablePeerRange`] for `raw_range`, building it
+    /// on the first request. Shared out behind an [`Arc`] so the caller
+    /// can keep it while taking `&mut self` again.
+    fn comparable_peer_range(&mut self, raw_range: &str) -> Arc<ComparablePeerRange> {
+        if let Some(range) = self.comparable_peer_ranges.get(raw_range) {
+            return Arc::clone(range);
+        }
+        let range = Arc::new(ComparablePeerRange::new(raw_range));
+        self.comparable_peer_ranges.insert(raw_range.to_string(), Arc::clone(&range));
+        range
     }
 
     pub(super) fn into_caches(self) -> PeerDiscoveryCaches {
@@ -552,10 +584,17 @@ impl Walker<'_> {
         // that are walk-ancestors), then rebuild the graph from the
         // per-node records keyed by the corrected depPaths.
         let final_dep_paths = self.build_final_dep_paths();
+        let anchor = match (self.opts.project_dir.as_deref(), self.opts.lockfile_dir.as_deref()) {
+            (Some(project_dir), Some(lockfile_dir)) => {
+                crate::link_target::ImporterAnchor::new(project_dir, lockfile_dir)
+            }
+            _ => crate::link_target::ImporterAnchor::default(),
+        };
         for dep in &direct {
             let dep_path = self.final_dep_path_of(&dep.node_id, &final_dep_paths);
             let dep_path = importer_relative_link_dep_path(
                 &dep_path,
+                &anchor,
                 self.opts.lockfile_dir.as_deref(),
                 self.opts.project_dir.as_deref(),
             );
@@ -603,6 +642,9 @@ impl Walker<'_> {
     pub(super) fn is_peer_relevant(&self, alias: &str, pkg: &ResolvedPackage) -> bool {
         if self.tree.all_peer_dep_names.contains(alias) {
             return true;
+        }
+        if self.tree.all_peer_dep_names.is_empty() {
+            return false;
         }
         let (real_name, _) = pkg_name_version(&pkg.result);
         self.tree.all_peer_dep_names.contains(&real_name)
@@ -710,7 +752,7 @@ impl Walker<'_> {
         let fast_cached = {
             let tree_node = &self.tree.dependencies_tree[node_id];
             tree_node
-                .has_no_locked_peers()
+                .has_no_locked_peer_context()
                 .then(|| {
                     self.find_fast_hit(node_id, parent_parent_refs, &tree_node.resolved_package_id)
                 })
@@ -730,13 +772,12 @@ impl Walker<'_> {
                 },
             );
         }
-        let (pkg_id, tree_node_depth, tree_node_installable, locked_peer_names) = {
+        let (pkg_id, tree_node_depth, tree_node_installable) = {
             let tree_node = &self.tree.dependencies_tree[node_id];
             (
                 std::sync::Arc::<str>::clone(&tree_node.resolved_package_id),
                 tree_node.depth,
                 tree_node.installable,
-                tree_node.locked_peer_names().cloned(),
             )
         };
         let pkg = self.owned_package(&pkg_id);
@@ -750,7 +791,6 @@ impl Walker<'_> {
             node_id,
             &pkg,
             parent_parent_refs,
-            locked_peer_names.as_deref(),
             &provider_children,
             parent_node_ids,
         );
@@ -973,6 +1013,7 @@ impl Walker<'_> {
                 .entry(std::sync::Arc::<str>::clone(&pkg.id).to_string())
                 .or_default()
                 .push(PeersCacheItem {
+                    owner_node_id: node_id.clone(),
                     dep_path: dep_path.clone(),
                     resolved_peers: Arc::clone(&all_resolved_peers),
                     missing_peers: Arc::clone(&all_missing_peers),
@@ -1026,32 +1067,22 @@ impl Walker<'_> {
     }
 
     /// Build the [`ParentRefs`] map that descendants of this node see:
-    /// the parent's view (scoped down when the node's locked peer names
-    /// exclude hoisted optional providers), plus the node's own
-    /// peer-relevant children, plus the pins the wanted lockfile locked
-    /// in. Kept behind `Arc` copy-on-write: most nodes contribute
-    /// nothing, so they pass the parent's map down by refcount instead
-    /// of cloning it — the per-node map clones dominated the walker's
-    /// CPU time on peer-heavy workspaces.
+    /// the parent's view, plus the node's own peer-relevant children,
+    /// plus the pins the wanted lockfile locked in. Kept behind `Arc`
+    /// copy-on-write: most nodes contribute nothing, so they pass the
+    /// parent's map down by refcount instead of cloning it — the
+    /// per-node map clones dominated the walker's CPU time on
+    /// peer-heavy workspaces.
     fn build_child_parent_refs(
         &self,
         node_id: &NodeId,
         pkg: &ResolvedPackage,
         parent_parent_refs: &Arc<ParentRefs>,
-        locked_peer_names: Option<&HashSet<String>>,
         provider_children: &BTreeMap<String, NodeId>,
         parent_node_ids: &SharedChain<NodeId>,
     ) -> ChildParentRefs {
-        let mut refs_changed = locked_peer_names.is_some();
-        let mut child_parent_refs = if let Some(locked_peer_names) = locked_peer_names {
-            Arc::new(scoped_hoisted_optional_parent_refs(
-                parent_parent_refs,
-                locked_peer_names,
-                &self.opts.hoisted_optional_peer_node_ids,
-            ))
-        } else {
-            Arc::clone(parent_parent_refs)
-        };
+        let mut refs_changed = false;
+        let mut child_parent_refs = Arc::clone(parent_parent_refs);
 
         let mut new_parent_refs = ParentRefs::default();
         for (alias, child_node_id) in provider_children {
@@ -1358,7 +1389,7 @@ impl Walker<'_> {
         let range_for_match = raw_range.strip_prefix("workspace:").unwrap_or(raw_range);
         // The satisfaction check needs a comparable semver range, so
         // named-registry/`npm:` bodies are extracted and opaque specs become `*`.
-        let range_for_satisfies = get_peer_version_range(raw_range);
+        let comparable_range = self.comparable_peer_range(raw_range);
         let optional = peer_dep.optional;
 
         match parent_refs.get(peer_name) {
@@ -1371,7 +1402,7 @@ impl Walker<'_> {
                     self.record_missing_issue(
                         peer_name,
                         MissingPeer {
-                            wanted_range: range_for_satisfies,
+                            wanted_range: comparable_range.text.clone(),
                             raw_range: range_for_match.to_string(),
                             optional,
                             parents: self.issue_parents(chain),
@@ -1381,13 +1412,11 @@ impl Walker<'_> {
                 }
             }
             Some(parent) => {
-                if !satisfies_with_prereleases(&parent.version, &range_for_satisfies)
-                    && !self.in_canonical_drain
-                {
+                if !comparable_range.satisfies(&parent.version) && !self.in_canonical_drain {
                     let parents = self.issue_parents(chain);
                     self.issues.bad.entry(peer_name.to_string()).or_default().push(
                         PeerDependencyIssue {
-                            wanted_range: range_for_satisfies,
+                            wanted_range: comparable_range.text.clone(),
                             found_version: parent.version.clone(),
                             optional,
                             parents,

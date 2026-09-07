@@ -1,11 +1,13 @@
 use crate::{
     State,
     cli_args::{
+        install::resolve_bool_override,
         lockfile_dir::LockfileDirArg,
         pipelines::InstallFamilySelection,
         recursive,
         supported_architectures::SupportedArchitecturesArgs,
         update_interactive::{InteractiveUpdateOptions, UpdatePrompt},
+        workspace_option::{WorkspaceOptionError, workspace_link_root},
     },
     github_actions,
 };
@@ -148,26 +150,20 @@ pub struct UpdateArgs {
     #[clap(long = "ignore-pnpmfile")]
     pub ignore_pnpmfile: bool,
 
+    /// Don't run lifecycle scripts of the project or its dependencies.
+    #[clap(long = "ignore-scripts", overrides_with = "no_ignore_scripts")]
+    pub ignore_scripts: bool,
+
+    /// Run lifecycle scripts even when the configuration disables them.
+    #[clap(long = "no-ignore-scripts", overrides_with = "ignore_scripts")]
+    pub no_ignore_scripts: bool,
+
     /// URL of a pnpr server to offload revision refresh resolution to.
     #[clap(long = "pnpr-server")]
     pub pnpr_server: Option<String>,
 
     #[clap(skip)]
     pub(crate) prompt: UpdatePrompt,
-}
-
-/// The option combinations `--workspace` rejects, checked before any
-/// resolution happens on every dispatch path — plain, selected, and
-/// global (whose global directory is never a workspace).
-#[derive(Debug, Display, Error, Diagnostic)]
-enum WorkspaceUpdateError {
-    #[display("Cannot use --latest with --workspace simultaneously")]
-    #[diagnostic(code(ERR_PNPM_BAD_OPTIONS))]
-    LatestWithWorkspace,
-
-    #[display("--workspace can only be used inside a workspace")]
-    #[diagnostic(code(ERR_PNPM_WORKSPACE_OPTION_OUTSIDE_WORKSPACE))]
-    OutsideWorkspace,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -179,6 +175,11 @@ struct PatchesWithSelectorError;
 
 impl UpdateArgs {
     pub(crate) fn apply_cli_config(&self, config: &mut Config) {
+        config.ignore_scripts = resolve_bool_override(
+            self.ignore_scripts,
+            self.no_ignore_scripts,
+            config.ignore_scripts,
+        );
         config.ignore_pnpmfile = self.ignore_pnpmfile || config.ignore_pnpmfile;
         if let Some(pnpr_server) = self.pnpr_server.clone() {
             config.pnpr_server = Some(pnpr_server);
@@ -394,6 +395,7 @@ impl UpdateArgs {
         let run_package_update = !self.interactive || !package_selectors.is_empty();
         let InstallFamilySelection {
             workspace_root: _,
+            workspace_cycles: _,
             mut projects,
             project_dependencies,
             ordered_dirs,
@@ -460,7 +462,7 @@ impl UpdateArgs {
             return Err(crate::cli_args::global::GlobalError::GlobalPnpmInstall.into());
         }
         let selected_hashes: Option<HashSet<String>> = if self.interactive {
-            match crate::cli_args::update_interactive::select_global_package_groups(
+            match crate::cli_args::update_interactive::select_global_package_groups::<Reporter>(
                 config,
                 &self.packages,
                 self.latest,
@@ -500,13 +502,10 @@ impl UpdateArgs {
         &self,
         workspace_root: Option<&'root Path>,
     ) -> miette::Result<Option<&'root Path>> {
-        if !self.workspace {
-            return Ok(None);
+        if self.workspace && self.latest {
+            return Err(WorkspaceOptionError::LatestWithWorkspace.into());
         }
-        if self.latest {
-            return Err(WorkspaceUpdateError::LatestWithWorkspace.into());
-        }
-        workspace_root.ok_or_else(|| WorkspaceUpdateError::OutsideWorkspace.into()).map(Some)
+        workspace_link_root(self.workspace, workspace_root)
     }
 
     fn check_patches_options(&self) -> miette::Result<()> {
