@@ -822,9 +822,8 @@ fn for_installs_with_multiple_ca_pems_builds() {
 }
 
 // Regression for <https://github.com/pnpm/pnpm/issues/14646>: an
-// unreadable `ca` entry took the whole install down with
-// `Invalid CA certificate (entry 0)`, while pnpm 11 installs fine
-// because Node ignores CA material it cannot parse.
+// unreadable `ca` entry contributes no trust anchor and the client
+// still builds, the way Node ignores CA material it cannot parse.
 #[test]
 fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
     let unreadable = ["", "${CORP_CA}", "not a pem certificate"];

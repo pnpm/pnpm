@@ -1194,8 +1194,7 @@ fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
 
 // Regression for <https://github.com/pnpm/pnpm/issues/14646>: a `ca=`
 // whose `${VAR}` never resolved reaches the client builder as an empty
-// entry, and building the client there failed the whole install with
-// `Invalid CA certificate (entry 0)`.
+// entry, which the builder ignores.
 #[test]
 fn ca_with_an_unresolved_placeholder_still_builds_a_client() {
     let auth = NpmrcAuth::from_ini::<NoEnv>("ca=${CORP_CA}\n", Path::new(""));
