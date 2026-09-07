@@ -1,6 +1,6 @@
 use super::{
     dispatch::{CommandFuture, RunCtx, apply_update_config},
-    exec::ExecArgs,
+    exec::{ExecArgs, ExecDirs},
     init::InitArgs,
     pkg::PkgArgs,
     restart::RestartArgs,
@@ -18,6 +18,7 @@ use pnpm_package_manifest::{InitAuthor, InitOptions, PackageManifest};
 pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<CommandFuture<'a>> {
     let config: &Config = (ctx.config)()?;
     let es_module = args.effective_init_type(config) == InitType::Module;
+    let manifest_path = ctx.cli_dir.join("package.json");
     // `config_self_update`, so a repo-controlled `pnpm-workspace.yaml` cannot
     // relax the release-age and trust policies governing the version pnpm
     // ends up downloading. A manifest that is already there skips the lookup
@@ -25,12 +26,11 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
     // `pnpm init` should not wait on a registry to report an error it can
     // already see.
     let pin_config: Option<&Config> =
-        if args.pins_pnpm(config, ctx.dir) && !ctx.manifest_path.exists() {
+        if args.pins_pnpm(config, ctx.cli_dir) && !manifest_path.exists() {
             Some((ctx.config_self_update)()?)
         } else {
             None
         };
-    let manifest_path = ctx.manifest_path;
     Ok(Box::pin(async move {
         let pinned_pnpm_version = match pin_config {
             Some(pin_config) => Some(super::init::version_to_pin(pin_config).await),
@@ -47,7 +47,7 @@ pub(super) fn init<'a>(ctx: &RunCtx<'a>, args: &InitArgs) -> miette::Result<Comm
             license: config.init_license.as_deref(),
             version: config.init_version.as_deref(),
         };
-        PackageManifest::init(manifest_path, options).wrap_err("initialize package.json")
+        PackageManifest::init(&manifest_path, options).wrap_err("initialize package.json")
     }))
 }
 
@@ -116,6 +116,7 @@ pub(super) fn fallback<'a>(
     let config = (ctx.config)()?;
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
+    let cli_dir = ctx.cli_dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
@@ -125,7 +126,7 @@ pub(super) fn fallback<'a>(
         if recursive {
             args.run_recursive(config, dir, reporter)
         } else {
-            args.run_fallback(dir, config, reporter)
+            args.run_fallback(ExecDirs { run: cli_dir, project: dir }, config, reporter)
         }
     }))
 }
@@ -134,6 +135,7 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let config = (ctx.config)()?;
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
+    let cli_dir = ctx.cli_dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
@@ -143,7 +145,7 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
         if recursive {
             args.run_recursive(config, dir, reporter).await
         } else {
-            args.run(dir, config, reporter)
+            args.run(ExecDirs { run: cli_dir, project: dir }, config, reporter)
         }
     }))
 }

@@ -1,5 +1,5 @@
 use super::{
-    exec::ExecArgs,
+    exec::{ExecArgs, ExecDirs},
     reporter::{ReporterType, reporter_emit},
 };
 use clap::Args;
@@ -172,25 +172,28 @@ impl RunArgs {
     /// meaningful for the recursive path (see [`Self::run_recursive`])
     /// and are ignored here.
     pub fn run(self, dir: &Path, config: &Config, reporter: ReporterType) -> miette::Result<()> {
-        self.run_inner(dir, config, reporter, false)
+        self.run_inner(ExecDirs::same(dir), config, reporter, false)
     }
 
+    /// Like [`Self::run`], but a name that matches no script is handed to
+    /// `exec`, which runs it in `dirs.run`.
     pub fn run_fallback(
         self,
-        dir: &Path,
+        dirs: ExecDirs<'_>,
         config: &Config,
         reporter: ReporterType,
     ) -> miette::Result<()> {
-        self.run_inner(dir, config, reporter, true)
+        self.run_inner(dirs, config, reporter, true)
     }
 
     fn run_inner(
         self,
-        dir: &Path,
+        dirs: ExecDirs<'_>,
         config: &Config,
         reporter: ReporterType,
         fallback_to_exec: bool,
     ) -> miette::Result<()> {
+        let dir = dirs.project;
         // Before the dependency verification: an unsupported flag must
         // fail before anything can trigger an install or a prompt.
         if self.dry_run {
@@ -214,7 +217,7 @@ impl RunArgs {
             Err(ReadProjectManifestOnlyError::NoImporterManifestFound { .. })
                 if fallback_to_exec =>
             {
-                return exec_fallback(script_name, args, dir, config, reporter);
+                return exec_fallback(script_name, args, dirs, config, reporter);
             }
             Err(err) => return Err(RunError::Manifest(err).into()),
         };
@@ -233,7 +236,7 @@ impl RunArgs {
                 return Ok(());
             }
             if fallback_to_exec {
-                return exec_fallback(script_name, args, dir, config, reporter);
+                return exec_fallback(script_name, args, dirs, config, reporter);
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
@@ -385,7 +388,7 @@ impl RunArgs {
 fn exec_fallback(
     script_name: &str,
     args: &[String],
-    dir: &Path,
+    dirs: ExecDirs<'_>,
     config: &Config,
     reporter: ReporterType,
 ) -> miette::Result<()> {
@@ -399,7 +402,7 @@ fn exec_fallback(
         reverse: false,
         parallel: false,
     }
-    .run(dir, config, reporter)
+    .run(dirs, config, reporter)
 }
 
 /// Shared inputs for running a script, threaded through

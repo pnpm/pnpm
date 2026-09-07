@@ -131,6 +131,15 @@ pub struct CliArgs {
     #[clap(short = 'C', long, alias = "prefix", default_value = ".", global = true)]
     pub dir: PathBuf,
 
+    /// Whether `--dir` came from the command line rather than from its
+    /// default. pnpm keeps that distinction: a `--dir` it was given is
+    /// taken as is, while the default resolves to the local prefix and
+    /// `init` scaffolds in the process cwd. `clap` cannot report it
+    /// through a derived field, so the entry point fills it in from the
+    /// parsed matches.
+    #[clap(skip)]
+    pub dir_from_command_line: bool,
+
     /// Directory in which the package store is created. Relative paths
     /// are resolved from the workspace root, or from `--dir` outside a
     /// workspace.
@@ -411,6 +420,26 @@ impl CliArgs {
         }
     }
 
+    /// Resolve a `--dir` the command line did not give to pnpm's local
+    /// prefix: the nearest ancestor of the process cwd that holds a
+    /// manifest, a `node_modules`, or a `pnpm-workspace.yaml`. pnpm's
+    /// `config.dir` is that prefix, so a command run from a plain
+    /// subdirectory of a project acts on the project rather than on the
+    /// subdirectory. Call before anything reads `--dir`.
+    ///
+    /// A cwd that cannot be read leaves `--dir` at its default, which the
+    /// canonicalization in [`Self::run`] then reports on.
+    pub fn apply_local_prefix(&mut self) -> miette::Result<()> {
+        if self.dir_from_command_line {
+            return Ok(());
+        }
+        let Ok(cwd) = std::env::current_dir() else {
+            return Ok(());
+        };
+        self.dir = super::prefix::find_local_prefix(&cwd)?;
+        Ok(())
+    }
+
     /// Apply `--workspace-root` / `-w`: point `--dir` at the workspace
     /// root so the command runs on the root project. Call after
     /// [`Self::promote_recursive_for_filter`] and before anything reads
@@ -442,6 +471,9 @@ impl CliArgs {
             .map_err(WorkspaceRootError::FindWorkspaceDir)?
             .ok_or(WorkspaceRootError::NotInWorkspace)?;
         self.dir = workspace_dir;
+        // pnpm's parser writes the workspace root into `cliOptions.dir`, so
+        // `-w` also decides where `init` scaffolds.
+        self.dir_from_command_line = true;
         Ok(())
     }
 

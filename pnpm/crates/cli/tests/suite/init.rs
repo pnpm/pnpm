@@ -195,6 +195,29 @@ fn a_new_workspace_member_is_not_pinned() {
     drop(root);
 }
 
+/// Every other command run from a plain subdirectory of a project acts on
+/// the project, but `init` scaffolds where the user stands — otherwise
+/// there would be no way to start a package inside an existing one.
+#[test]
+fn init_scaffolds_in_the_cwd_inside_an_existing_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "outer" }"#)
+        .expect("write the outer package.json");
+    let subdir = workspace.join("packages/inner");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet
+        .with_current_dir(&subdir)
+        .with_args(["init", "--no-init-package-manager"])
+        .assert()
+        .success();
+
+    let manifest = fs::read_to_string(subdir.join("package.json")).expect("read package.json");
+    assert!(manifest.contains(r#""name": "inner""#), "{manifest}");
+
+    drop(root);
+}
+
 fn assert_unpinned(dir: &Path) {
     let manifest = fs::read_to_string(dir.join("package.json")).expect("read from package.json");
     assert!(!manifest.contains("devEngines"), "{manifest}");

@@ -44,6 +44,32 @@ fn run_executes_declared_script() {
     drop(root);
 }
 
+/// The same local-prefix resolution as
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622), which
+/// `pnpm bin` reported.
+#[cfg(unix)]
+#[test]
+fn run_from_a_plain_subdir_runs_the_projects_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    // A relative marker, so where the file lands pins the working
+    // directory the script ran in.
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": { "touch-marker": "touch marker.txt" },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let subdir = workspace.join("src/utils");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet.with_current_dir(&subdir).with_args(["run", "touch-marker"]).assert().success();
+    assert!(workspace.join("marker.txt").exists(), "the script should have run in the project");
+    assert!(!subdir.join("marker.txt").exists(), "the script should not have run in the subdir");
+
+    drop(root);
+}
+
 /// Positional arguments after the script name flow through to the
 /// spawned shell verbatim, joined by spaces. Mirrors
 /// `pnpm run <script> -- <args>` minus the npm `--` separator
