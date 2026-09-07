@@ -1165,10 +1165,21 @@ impl SwitchInput {
         }
     }
 
+    /// The `--dir` a command line without one resolves to, matching
+    /// [`CliArgs::apply_local_prefix`]. Degrades to `.` — the caller
+    /// canonicalizes it, and a cwd it cannot resolve is not the
+    /// version check's to report.
+    fn local_prefix_or_cwd() -> PathBuf {
+        std::env::current_dir()
+            .ok()
+            .and_then(|cwd| super::prefix::find_local_prefix(&cwd).ok())
+            .unwrap_or_else(|| PathBuf::from("."))
+    }
+
     fn from_version_argv(argv: &[OsString]) -> Self {
         let global_options = ArgTable::top_level(super::grammar());
         let mut input = Self {
-            dir: PathBuf::from("."),
+            dir: Self::local_prefix_or_cwd(),
             state_dir: None,
             npmrc_auth_file: None,
             command: None,

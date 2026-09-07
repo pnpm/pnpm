@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use super::global::GlobalError;
 
-/// Print the current package prefix — the nearest directory containing a
-/// `package.json`, `node_modules`, or `pnpm-workspace.yaml`.
+/// Print the current package prefix — the nearest directory holding a
+/// project, as [`find_local_prefix`] resolves it.
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
     /// Print the global prefix
@@ -25,8 +25,14 @@ pub enum PrefixError {
     Io { path: PathBuf, source: std::io::Error },
 }
 
-/// Find the nearest directory containing package.json, `node_modules`, etc.
-/// Port of findLocalPrefix from pnpm.
+/// Find the nearest ancestor of `start_dir` that holds a project: a
+/// manifest, a `node_modules`, or a `pnpm-workspace.yaml`. `start_dir`
+/// itself counts, and a `start_dir` no ancestor qualifies for is its own
+/// prefix.
+///
+/// Port of pnpm's `findLocalPrefix`, widened by the manifests pnpm v12
+/// manages beyond `package.json` — a Cargo or Python package without a
+/// `package.json` is a project too.
 pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
@@ -43,8 +49,15 @@ pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
 
 fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
     let mut current = name.to_path_buf();
-    let targets =
-        ["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
+    let targets = [
+        "node_modules",
+        "package.json",
+        "package.json5",
+        "package.yaml",
+        "pnpm-workspace.yaml",
+        "Cargo.toml",
+        "pyproject.toml",
+    ];
 
     loop {
         for target in &targets {
@@ -52,9 +65,13 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
             match target_path.try_exists() {
                 Ok(true) => return Ok(current),
                 Ok(false) => continue,
-                Err(e) => {
+                // A directory that cannot be read only aborts the walk when
+                // it is the one the caller named. Above it, an unreadable
+                // ancestor means the walk found nothing, matching pnpm.
+                Err(e) if current == original => {
                     return Err(PrefixError::Io { path: target_path, source: e }.into());
                 }
+                Err(_) => return Ok(original.to_path_buf()),
             }
         }
 

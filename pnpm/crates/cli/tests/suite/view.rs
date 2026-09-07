@@ -691,7 +691,9 @@ fn searches_upward_for_manifest() {
         .expect("write package.json");
     let nested = workspace.join("a").join("b");
     fs::create_dir_all(&nested).expect("create nested dir");
-    write_registry_npmrc(&nested, &format!("{}/", server.url()));
+    // The `.npmrc` belongs next to the manifest: a command run from a plain
+    // subdirectory reads its configuration from the project above it too.
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
     let mock = serve(&mut server, "/is-negative", &is_negative_body());
     let auth_file = empty_auth_file(root.path());
 

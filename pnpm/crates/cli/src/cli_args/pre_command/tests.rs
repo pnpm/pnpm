@@ -19,7 +19,9 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     struct Case {
         name: &'static str,
         argv: &'static [&'static str],
-        dir: &'static str,
+        /// The `--dir` the scan is expected to find, or `None` when the
+        /// command line carries none and it falls back to the local prefix.
+        dir: Option<&'static str>,
         npmrc_auth_file: Option<&'static str>,
         command: Option<&'static str>,
     }
@@ -28,63 +30,63 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         Case {
             name: "separate long dir and equals auth file",
             argv: &["pnpm", "--dir", "/tmp/project", "--npmrc-auth-file=auth.ini", "--version"],
-            dir: "/tmp/project",
+            dir: Some("/tmp/project"),
             npmrc_auth_file: Some("auth.ini"),
             command: None,
         },
         Case {
             name: "short dir",
             argv: &["pnpm", "-C", "/tmp/short-dir", "--version"],
-            dir: "/tmp/short-dir",
+            dir: Some("/tmp/short-dir"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "equals dir and userconfig alias",
             argv: &["pnpm", "--dir=/tmp/equals-dir", "--userconfig", "user.ini", "--version"],
-            dir: "/tmp/equals-dir",
+            dir: Some("/tmp/equals-dir"),
             npmrc_auth_file: Some("user.ini"),
             command: None,
         },
         Case {
             name: "prefix alias of dir",
             argv: &["pnpm", "--prefix", "/tmp/prefix-dir", "--version"],
-            dir: "/tmp/prefix-dir",
+            dir: Some("/tmp/prefix-dir"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "equals prefix alias of dir",
             argv: &["pnpm", "--prefix=/tmp/equals-prefix", "--version"],
-            dir: "/tmp/equals-prefix",
+            dir: Some("/tmp/equals-prefix"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "separator stops command detection",
             argv: &["pnpm", "--dir=/tmp/separator", "--", "run"],
-            dir: "/tmp/separator",
+            dir: Some("/tmp/separator"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "value-taking global option is skipped",
             argv: &["pnpm", "--filter", "pkg", "--reporter", "append-only", "install"],
-            dir: ".",
+            dir: None,
             npmrc_auth_file: None,
             command: Some("install"),
         },
         Case {
             name: "store directory value is not mistaken for the command",
             argv: &["pnpm", "--store", "/tmp/store", "--prefix", "/tmp/scanned", "--version"],
-            dir: "/tmp/scanned",
+            dir: Some("/tmp/scanned"),
             npmrc_auth_file: None,
             command: None,
         },
         Case {
             name: "canonical store directory value is not mistaken for the command",
             argv: &["pnpm", "--store-dir", "/tmp/store", "--dir", "/tmp/scanned", "--version"],
-            dir: "/tmp/scanned",
+            dir: Some("/tmp/scanned"),
             npmrc_auth_file: None,
             command: None,
         },
@@ -94,7 +96,8 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
         let input = SwitchInput::from_version_argv(&argv);
 
-        assert_eq!(input.dir, PathBuf::from(case.dir), "case: {}", case.name);
+        let expected_dir = case.dir.map_or_else(SwitchInput::local_prefix_or_cwd, PathBuf::from);
+        assert_eq!(input.dir, expected_dir, "case: {}", case.name);
         assert_eq!(
             input.npmrc_auth_file,
             case.npmrc_auth_file.map(PathBuf::from),

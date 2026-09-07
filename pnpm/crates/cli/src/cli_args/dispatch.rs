@@ -39,6 +39,11 @@ pub(crate) type CommandFuture<'a, Output = ()> =
 /// [`super::approve_builds::ApproveBuildsArgs::prepare`] already consumes.
 pub(crate) struct RunCtx<'a> {
     pub(crate) dir: &'a Path,
+    /// The `--dir` as the command line gave it, or the process cwd when it
+    /// gave none — pnpm's `cliOptions.dir ?? process.cwd()`. `init`
+    /// scaffolds here and a non-recursive `exec` runs here, rather than at
+    /// the local prefix [`Self::dir`] resolves to.
+    pub(crate) cli_dir: &'a Path,
     pub(crate) manifest_path: &'a Path,
     pub(crate) reporter: ReporterType,
     pub(crate) recursive: bool,
@@ -199,6 +204,7 @@ impl CliArgs {
         let CliArgs {
             command,
             dir,
+            dir_from_command_line,
             store_dir,
             state_dir,
             npmrc_auth_file,
@@ -253,6 +259,11 @@ impl CliArgs {
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
+        let cli_dir = if dir_from_command_line {
+            dir.clone()
+        } else {
+            std::env::current_dir().and_then(dunce::canonicalize).unwrap_or_else(|_| dir.clone())
+        };
         let started_at = now_millis();
         let is_install_family = matches!(
             &command,
@@ -443,6 +454,7 @@ impl CliArgs {
 
         let ctx = RunCtx {
             dir: &dir,
+            cli_dir: &cli_dir,
             manifest_path: &manifest_path,
             reporter,
             recursive,

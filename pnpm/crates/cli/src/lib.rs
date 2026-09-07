@@ -132,10 +132,11 @@ fn run_cli() -> miette::Result<()> {
     // A command whose arguments begin at a `--` would otherwise lose it to
     // clap's escape handling. See `leading_separator`.
     let argv = leading_separator::preserve_leading_separator(argv);
-    let mut args = match command
-        .try_get_matches_from(argv.clone())
-        .and_then(|matches| CliArgs::from_arg_matches(&matches))
-    {
+    let mut args = match command.try_get_matches_from(argv.clone()).and_then(|matches| {
+        let dir_from_command_line =
+            matches.value_source("dir") == Some(clap::parser::ValueSource::CommandLine);
+        CliArgs::from_arg_matches(&matches).map(|args| CliArgs { dir_from_command_line, ..args })
+    }) {
         Ok(args) => args,
         // pnpm prints the bare version, not clap's "pnpm <version>" rendering.
         Err(err) if err.kind() == clap::error::ErrorKind::DisplayVersion => {
@@ -158,6 +159,7 @@ fn run_cli() -> miette::Result<()> {
     }
     args.apply_parallel_run_options();
     args.promote_recursive_for_filter();
+    args.apply_local_prefix()?;
     args.apply_workspace_root()?;
     args.promote_recursive_by_default();
     args.configure_reporter();

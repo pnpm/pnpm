@@ -44,6 +44,33 @@ fn run_executes_declared_script() {
     drop(root);
 }
 
+/// A subdirectory with no `package.json` of its own is part of the project
+/// above it, so a script run from there is the project's, and runs at the
+/// project root. Same local-prefix resolution as
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622).
+#[cfg(unix)]
+#[test]
+fn run_from_a_plain_subdir_runs_the_projects_script() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let marker_path = workspace.join("marker.txt");
+    let manifest = json!({
+        "name": "test",
+        "version": "0.0.0",
+        "scripts": {
+            "touch-marker": format!(r#"touch "{}""#, marker_path.display()),
+        },
+    })
+    .to_string();
+    fs::write(workspace.join("package.json"), manifest).expect("write package.json");
+    let subdir = workspace.join("src/utils");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet.with_current_dir(&subdir).with_args(["run", "touch-marker"]).assert().success();
+    assert!(marker_path.exists(), "script should have created the marker file");
+
+    drop(root);
+}
+
 /// Positional arguments after the script name flow through to the
 /// spawned shell verbatim, joined by spaces. Mirrors
 /// `pnpm run <script> -- <args>` minus the npm `--` separator
