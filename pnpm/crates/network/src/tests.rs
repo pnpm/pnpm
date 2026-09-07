@@ -821,27 +821,28 @@ fn for_installs_with_multiple_ca_pems_builds() {
     .expect("multiple CA PEMs build");
 }
 
+// Regression for <https://github.com/pnpm/pnpm/issues/14646>: an
+// unreadable `ca` entry contributes no trust anchor and the client
+// still builds, the way Node ignores CA material it cannot parse.
 #[test]
-fn for_installs_with_invalid_ca_pem_errors_with_index() {
-    // First entry valid, second malformed — the index in the error
-    // must point at the broken one so users with a multi-cert
-    // `cafile` can find which entry failed.
-    let tls = TlsConfig {
-        ca: vec![TEST_CA_PEM.to_string(), "not a pem certificate".to_string()],
-        ..TlsConfig::default()
-    };
-    let err = ThrottledClient::for_installs(
+fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
+    let unreadable = ["", "${CORP_CA}", "not a pem certificate"];
+    for pem in unreadable {
+        assert!(super::parse_ca_bundle(pem.as_bytes()).is_empty(), "{pem:?} parsed as a cert");
+    }
+    let mut ca: Vec<String> = unreadable.iter().map(|pem| (*pem).to_string()).collect();
+    ca.push(TEST_CA_PEM.to_string());
+    // The valid entry must still reach the trust store — dropping it
+    // alongside its unreadable neighbours would break the install a
+    // different way.
+    assert_eq!(ca.iter().flat_map(|pem| super::parse_ca_bundle(pem.as_bytes())).count(), 1);
+    ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &tls,
+        &TlsConfig { ca, ..TlsConfig::default() },
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
-    .expect_err("invalid CA must error");
-    eprintln!("err={err:?}");
-    match err {
-        ForInstallsError::Tls(super::TlsError::InvalidCa { index, .. }) => assert_eq!(index, 1),
-        other => panic!("expected Tls(InvalidCa {{ index: 1 }}), got {other:?}"),
-    }
+    .expect("unreadable CA entries are dropped, not fatal");
 }
 
 #[test]
@@ -1082,11 +1083,9 @@ fn for_installs_does_not_retain_per_registry_tls_material() {
 }
 
 #[test]
-fn for_installs_per_registry_invalid_ca_errors() {
-    // A malformed per-registry CA must surface as `InvalidCa` at
-    // build time, same as the top-level path. The `index` in the
-    // error indexes into the merged CA list — which is exactly the
-    // one-element vec carrying the scoped PEM, so `index == 0`.
+fn for_installs_ignores_a_per_registry_ca_that_carries_no_certificate() {
+    // Same tolerance as the top-level path: the override contributes
+    // no trust anchor and the client still builds.
     use crate::RegistryTls;
     use std::collections::HashMap;
     let mut map = HashMap::new();
@@ -1095,17 +1094,62 @@ fn for_installs_per_registry_invalid_ca_errors() {
         RegistryTls { ca: Some("not a pem".to_string()), ..RegistryTls::default() },
     );
     let per_registry = PerRegistryTls::from_map(map);
-    let err = ThrottledClient::for_installs(
+    ThrottledClient::for_installs(
         &ProxyConfig::default(),
         &TlsConfig::default(),
         &per_registry,
         &NetworkSettings::default(),
     )
-    .expect_err("must error");
-    eprintln!("err={err:?}");
-    let is_invalid_ca =
-        matches!(err, ForInstallsError::Tls(super::TlsError::InvalidCa { index: 0, .. }));
-    assert!(is_invalid_ca, "err={err:?}: expected Tls(InvalidCa {{ index: 0 }})");
+    .expect("unreadable per-registry CA is dropped, not fatal");
+}
+
+#[test]
+fn a_blank_scoped_cert_shadows_the_top_level_identity() {
+    // pnpm spreads the per-registry entry over the top-level one, so a
+    // blank `//reg/:cert=` overrides rather than falls back. Letting
+    // it fall back would pair the top-level certificate with the
+    // scoped key and send an identity the user never configured for
+    // that registry.
+    use crate::RegistryTls;
+    let top = TlsConfig {
+        cert: Some(TEST_CLIENT_PKCS1_CERT.to_string()),
+        key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
+        ..TlsConfig::default()
+    };
+    let scoped = RegistryTls { cert: Some(String::new()), ..RegistryTls::default() };
+    assert_eq!(super::merge_tls(&top, &scoped).cert.as_deref(), Some(""));
+}
+
+#[test]
+fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
+    // A per-registry `:ca` / `:cafile` arrives as one buffer, so a
+    // single corrupt block must not cost the registry every custom
+    // root in it.
+    const CORRUPT: &str = "-----BEGIN CERTIFICATE-----\nnot-base64!!!\n-----END CERTIFICATE-----";
+    let bundle = format!("{TEST_CA_PEM}\n{CORRUPT}\n{TEST_CA_PEM}\n");
+    assert_eq!(super::parse_ca_bundle(bundle.as_bytes()).len(), 2);
+    assert_eq!(super::parse_ca_bundle(CORRUPT.as_bytes()).len(), 0);
+    assert_eq!(super::parse_ca_bundle(TEST_CA_PEM.as_bytes()).len(), 1);
+}
+
+#[test]
+fn for_installs_ignores_a_blank_client_identity() {
+    // `cert=` / `key=` lines with nothing after them read as unset to
+    // pnpm, which checks them for truthiness before handing them to
+    // undici. Pairing a blank `cert` with a real `key` must not build
+    // an identity rustls then rejects.
+    let tls = TlsConfig {
+        cert: Some("   ".to_string()),
+        key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
+        ..TlsConfig::default()
+    };
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &tls,
+        &PerRegistryTls::default(),
+        &NetworkSettings::default(),
+    )
+    .expect("a blank cert leaves the identity unset");
 }
 
 #[tokio::test]

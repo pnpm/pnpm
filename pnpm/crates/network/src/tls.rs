@@ -49,7 +49,8 @@ pub struct TlsConfig {
     /// `ca` key (inline PEM, possibly multiple via array shape) or by
     /// reading `cafile` (which gets split on
     /// `-----END CERTIFICATE-----`). `cafile`-not-found is silently
-    /// treated as unset.
+    /// treated as unset, and so is an entry that carries no readable
+    /// certificate.
     pub ca: Vec<String>,
 
     /// PEM-encoded client certificate, when client-cert auth is
@@ -86,23 +87,20 @@ pub struct TlsConfig {
 /// Build-time error returned by [`crate::ThrottledClient::for_installs`]
 /// when configured TLS material is invalid.
 ///
-/// pnpm does not define `ERR_PNPM_INVALID_CA` / `ERR_PNPM_INVALID_CERT`
-/// / `ERR_PNPM_INVALID_KEY` error codes — invalid PEM surfaces as raw
-/// `tls.connect` errors at request time.
-/// Pacquet validates eagerly because reqwest's `Certificate::from_pem`
-/// / `Identity::from_pem` return errors up-front and pushing that to
-/// per-request time would silently degrade every install behind a
-/// broken `ca`. Diagnostic messages are plain prose; no code
-/// attribute is emitted so reviewers can see at a glance that this is
-/// a pacquet-only diagnostic, not a pnpm error code.
+/// pnpm does not define `ERR_PNPM_INVALID_CERT` / `ERR_PNPM_INVALID_KEY`
+/// error codes — invalid PEM surfaces as a raw `tls.createSecureContext`
+/// throw. Pacquet reports the same failure up-front because reqwest's
+/// `Identity::from_pem` returns the error there. Diagnostic messages
+/// are plain prose; no code attribute is emitted so reviewers can see
+/// at a glance that this is a pacquet-only diagnostic, not a pnpm
+/// error code.
+///
+/// A `ca` entry is not part of this surface: Node ignores CA material
+/// it cannot read, so pacquet drops the entry rather than fail the
+/// install (pnpm/pnpm#14646).
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum TlsError {
-    /// `Certificate::from_pem` rejected one of the `ca` entries.
-    /// `index` is the 0-based position within the resolved CA list.
-    #[display("Invalid CA certificate (entry {index}): {reason}")]
-    InvalidCa { index: usize, reason: String },
-
     /// `Identity::from_pem` rejected the concatenated `cert` +
     /// `key` PEM pair. Rustls accepts PKCS#1, PKCS#8, and EC keys —
     /// landing here means the bytes aren't a valid PEM in any of

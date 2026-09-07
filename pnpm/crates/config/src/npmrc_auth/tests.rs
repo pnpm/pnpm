@@ -1166,9 +1166,9 @@ fn cafile_reads_and_splits_into_per_cert_pems() {
 
 #[test]
 fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
-    // Silently dropping the trailing chunk would mask a truncated cert
-    // bundle and leave the user wondering why their CA list is
-    // shorter than expected.
+    // The split matches pnpm's `readCAFileSync`, which keeps the
+    // trailing chunk of a truncated bundle. The network layer is what
+    // decides an entry carries no certificate.
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     let bundle = format!("{TEST_CA_PEM}\ngarbage-not-a-cert");
@@ -1190,6 +1190,24 @@ fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
         "delimiter was not re-appended to garbage entry: {:?}",
         config.tls.ca[1],
     );
+}
+
+// Regression for <https://github.com/pnpm/pnpm/issues/14646>: a `ca=`
+// whose `${VAR}` never resolved reaches the client builder as an empty
+// entry, which the builder ignores.
+#[test]
+fn ca_with_an_unresolved_placeholder_still_builds_a_client() {
+    let auth = NpmrcAuth::from_ini::<NoEnv>("ca=${CORP_CA}\n", Path::new(""));
+    let mut config = Config::new();
+    auth.apply_to::<NoEnv>(&mut config);
+    assert_eq!(config.tls.ca, vec![String::new()], "tls.ca={:?}", config.tls.ca);
+    pnpm_network::ThrottledClient::for_installs(
+        &config.proxy,
+        &config.tls,
+        &config.tls_by_uri,
+        &config.network_settings(),
+    )
+    .expect("an unresolved `ca` placeholder is ignored, not fatal");
 }
 
 #[test]
