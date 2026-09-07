@@ -790,9 +790,7 @@ async fn a_download_that_fails_the_index_checksum_is_never_cached() {
         )
         .await
         .unwrap();
-    // Streaming has started by the time the mismatch is known; the client
-    // verifies the bytes itself, and the cache is never populated.
-    let _ = body_bytes(response.into_body()).await;
+    assert!(axum::body::to_bytes(response.into_body(), usize::MAX).await.is_err());
     assert!(find_file(&tmp.path().join(".pnpr-cache"), "serde-1.0.0.crate").is_none());
 }
 

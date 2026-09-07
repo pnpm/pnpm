@@ -26,6 +26,7 @@
 use super::{
     AppState, AuthedCaller, Identity,
     cargo::{CratePublication, authorize_crate_publish, verify_crate_archive},
+    oci::{OciPublication, authorize_publication},
     publishing::{
         StagedPublish, cleanup_tmp_slots, commit_publishes, publish_created_response,
         report_unrecorded, stage_publish, validate_publish_doc,
@@ -83,12 +84,22 @@ struct PypiEntry {
     sha256_digest: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OciEntry {
+    name: String,
+    reference: String,
+    manifest: String,
+    content_type: Option<String>,
+}
+
 /// One entry of the batch, checked as far as it can be before any package
 /// lock is held: the caller may publish it, and it carries what it claims.
 enum ValidatedEntry {
     Npm(Box<super::publishing::ValidatedPublish>, String),
     Cargo(CratePublication),
     Pypi(PypiPublication),
+    Oci(OciPublication),
 }
 
 impl ValidatedEntry {
@@ -97,6 +108,7 @@ impl ValidatedEntry {
             ValidatedEntry::Npm(..) => Ecosystem::Npm,
             ValidatedEntry::Cargo(_) => Ecosystem::Cargo,
             ValidatedEntry::Pypi(_) => Ecosystem::Pypi,
+            ValidatedEntry::Oci(_) => Ecosystem::Oci,
         }
     }
 
@@ -105,6 +117,7 @@ impl ValidatedEntry {
             ValidatedEntry::Npm(doc, _) => &doc.name,
             ValidatedEntry::Cargo(publication) => publication.key(),
             ValidatedEntry::Pypi(publication) => publication.key(),
+            ValidatedEntry::Oci(publication) => publication.key(),
         }
     }
 
@@ -113,6 +126,7 @@ impl ValidatedEntry {
             ValidatedEntry::Npm(doc, org) => stage_publish(state, *doc, now, Some(&org)).await,
             ValidatedEntry::Cargo(publication) => publication.stage(state).await,
             ValidatedEntry::Pypi(publication) => publication.stage(state).await,
+            ValidatedEntry::Oci(publication) => publication.stage(state).await.map_err(Into::into),
         }
     }
 }
@@ -240,12 +254,22 @@ async fn validate_entry(
             upload.content = decode_base64(&entry.content, "content")?;
             Ok(ValidatedEntry::Pypi(verify_upload(target, upload)?))
         }
-        // An image release is pushed as many requests — every blob, then the
-        // manifest that references them — so there is no single entry this
-        // endpoint could carry. The manifest PUT is already its atomic point.
-        Ecosystem::Oci => Err(RegistryError::BadRequest {
-            reason: "images are published through the /v2/ endpoints, not this batch".to_string(),
-        }),
+        Ecosystem::Oci => {
+            let entry: OciEntry =
+                serde_json::from_value(package).map_err(|err| malformed_body(&err))?;
+            let target = authorize_publication(state, identity, None, &entry.name)
+                .map_err(RegistryError::from)?;
+            let bytes = decode_base64(&entry.manifest, "manifest")?;
+            OciPublication::new(
+                target,
+                entry.reference,
+                bytes.into(),
+                entry.content_type.as_deref(),
+                state.inner.config.oci.max_manifest_bytes,
+            )
+            .map(ValidatedEntry::Oci)
+            .map_err(RegistryError::from)
+        }
     }
 }
 

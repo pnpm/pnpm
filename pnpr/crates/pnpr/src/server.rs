@@ -210,7 +210,13 @@ fn load_active_osv_index(config: &Config) -> pnpr_error::Result<Option<Arc<pnpr_
 /// call this before binding; an embedder that builds a router directly should
 /// call it itself on startup, before serving requests.
 pub async fn recover_publish_journal(config: &Config) -> pnpr_error::Result<()> {
-    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await
+    pnpr_storage::journal::recover_publish_journal(config, &RegistryDocuments).await?;
+    let storage =
+        Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone())?;
+    for hosted in config.hosted.values() {
+        storage.for_hosted(&hosted.org).rebuild_package_index().await?;
+    }
+    Ok(())
 }
 
 /// Reclaim blob uploads abandoned before an unclean shutdown, and any left

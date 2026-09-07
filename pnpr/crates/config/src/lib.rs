@@ -70,6 +70,8 @@ pub struct Config {
     /// Cross-origin browser access. Empty by default, so pnpr emits no CORS
     /// response headers unless an operator explicitly names trusted origins.
     pub cors: CorsConfig,
+    /// OCI authentication and size limits.
+    pub oci: OciConfig,
     /// Directory under which authoritative packuments and tarballs
     /// live: packages published to this server and the content served
     /// in static mode. This is the source of truth — it is never
@@ -154,6 +156,25 @@ pub struct Config {
     /// namespace and an access policy gating its packages. The only registry kind
     /// that accepts writes.
     pub hosted: IndexMap<String, HostedConfig>,
+}
+
+/// Authentication and byte limits for the OCI distribution surface.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase", deny_unknown_fields)]
+pub struct OciConfig {
+    pub bearer_auth: bool,
+    pub max_blob_bytes: u64,
+    pub max_manifest_bytes: usize,
+}
+
+impl Default for OciConfig {
+    fn default() -> Self {
+        Self {
+            bearer_auth: false,
+            max_blob_bytes: 10 * 1024 * 1024 * 1024,
+            max_manifest_bytes: 4 * 1024 * 1024,
+        }
+    }
 }
 
 /// A resolved hosted registry: the `org` namespace it serves and its
@@ -1024,6 +1045,8 @@ struct ConfigFile {
     /// when this block is absent or its allowlist is empty.
     #[serde(default)]
     cors: CorsFile,
+    #[serde(default)]
+    oci: OciConfig,
     /// pnpr-only block: store the hosted (published) packages in an
     /// S3-compatible object store instead of `storage`. Absent on a
     /// stock verdaccio config (silently ignored there).
@@ -1360,6 +1383,7 @@ impl Config {
             listen,
             public_url: format!("http://{listen}"),
             cors: CorsConfig::default(),
+            oci: OciConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams,
@@ -1411,6 +1435,7 @@ impl Config {
             listen,
             public_url: format!("http://{listen}"),
             cors: CorsConfig::default(),
+            oci: OciConfig::default(),
             cache_storage: default_cache_dir(&storage),
             storage,
             upstreams: IndexMap::new(),
@@ -1618,6 +1643,11 @@ impl Config {
         }
         let file: ConfigFile = serde_saphyr::from_str(&substituted)
             .map_err(|err| RegistryError::InvalidConfig { reason: err.to_string() })?;
+        if file.oci.max_blob_bytes == 0 || file.oci.max_manifest_bytes == 0 {
+            return Err(RegistryError::InvalidConfig {
+                reason: "oci size limits must be greater than zero".to_string(),
+            });
+        }
         let storage = resolve_relative(&file.storage, base_dir);
         let cache_storage = file
             .cache
@@ -1695,6 +1725,7 @@ impl Config {
             listen,
             public_url,
             cors,
+            oci: file.oci,
             storage,
             cache_storage,
             upstreams,

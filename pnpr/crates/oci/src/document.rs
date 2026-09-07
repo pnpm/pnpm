@@ -65,14 +65,19 @@ struct StoredImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
+    #[serde(default)]
+    generation: u64,
+    #[serde(default)]
+    deleting_blob: Option<Digest>,
 }
 
 impl From<StoredImageDocument> for ImageDocument {
     fn from(stored: StoredImageDocument) -> Self {
-        let StoredImageDocument { name, mut manifests, mut tags } = stored;
+        let StoredImageDocument { name, mut manifests, mut tags, generation, deleting_blob } =
+            stored;
         manifests.sort_by(|left, right| left.digest.hex().cmp(right.digest.hex()));
         tags.sort_by(|left, right| left.tag.cmp(&right.tag));
-        Self { name, manifests, tags }
+        Self { name, manifests, tags, generation, deleting_blob }
     }
 }
 
@@ -94,6 +99,12 @@ pub struct ImageDocument {
     manifests: Vec<ManifestEntry>,
     #[serde(default)]
     tags: Vec<TagEntry>,
+    /// Fences journaled publishes prepared before an explicit blob deletion.
+    #[serde(default)]
+    pub generation: u64,
+    /// Blocks new publishes until the deletion completes or offline collection recovers it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleting_blob: Option<Digest>,
 }
 
 impl ImageDocument {
@@ -199,7 +210,14 @@ impl ImageDocument {
     /// bytes and is left alone. Tags reach the same result whichever order
     /// the two documents arrive in, which is what lets a journaled write be
     /// replayed after the one that superseded it.
+    ///
+    /// A generation mismatch or pending blob deletion refuses the addition
+    /// and returns `false`, just like an unchanged document. Older generations
+    /// cannot be replayed after deletion advances the stored generation.
     pub fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
+        if self.generation != addition.generation || self.deleting_blob.is_some() {
+            return false;
+        }
         let mut changed = false;
         if self.name.is_empty() && !addition.name.is_empty() {
             self.name.clone_from(&addition.name);

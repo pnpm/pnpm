@@ -6120,6 +6120,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "object_store",
+ "p256",
  "pep440_rs",
  "pep508_rs",
  "pipe-trait",

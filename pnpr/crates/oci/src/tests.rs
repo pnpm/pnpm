@@ -318,3 +318,20 @@ fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
         }
     }
 }
+
+#[test]
+fn deletion_generations_fence_staged_and_recovered_manifest_writes() {
+    let mut stored = ImageDocument::new("acme/app");
+    let mut staged = stored.clone();
+    staged.insert_manifest(entry("manifest"));
+    staged.set_tag(tag("latest", "manifest", 1));
+    stored.generation = 1;
+    stored.deleting_blob = Some(digest_of("layer"));
+    assert!(!stored.merge(staged.clone(), &HashSet::new()));
+    stored.deleting_blob = None;
+    assert!(!stored.merge(staged.clone(), &HashSet::new()));
+    assert!(stored.manifests().is_empty());
+    staged.generation = 1;
+    assert!(stored.merge(staged, &HashSet::new()));
+    assert!(stored.resolve("latest").is_some());
+}

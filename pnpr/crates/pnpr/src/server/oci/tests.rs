@@ -73,17 +73,17 @@ fn a_digest_is_read_from_the_raw_query() {
 
 #[test]
 fn the_blob_ceiling_bounds_the_whole_upload_not_one_chunk() {
-    use super::{MAX_BLOB_BYTES, advance_within_ceiling};
+    use super::advance_within_ceiling;
 
-    let ceiling = MAX_BLOB_BYTES as u64;
-    assert_eq!(advance_within_ceiling(0, 1), Some(1));
-    assert_eq!(advance_within_ceiling(ceiling - 1, 1), Some(ceiling));
+    let ceiling = 10;
+    assert_eq!(advance_within_ceiling(0, 1, ceiling), Some(1));
+    assert_eq!(advance_within_ceiling(ceiling - 1, 1, ceiling), Some(ceiling));
     // A chunk that is itself small still refuses once the upload is full,
     // which is what the per-request body limit cannot see.
-    assert_eq!(advance_within_ceiling(ceiling, 1), None);
-    assert_eq!(advance_within_ceiling(ceiling - 1, 2), None);
+    assert_eq!(advance_within_ceiling(ceiling, 1, ceiling), None);
+    assert_eq!(advance_within_ceiling(ceiling - 1, 2, ceiling), None);
     // Saturating, so a length near the top refuses rather than wrapping.
-    assert_eq!(advance_within_ceiling(u64::MAX, 1), None);
+    assert_eq!(advance_within_ceiling(u64::MAX, 1, ceiling), None);
 }
 
 #[test]
@@ -101,4 +101,20 @@ fn a_content_range_is_read_whole_or_not_at_all() {
     assert_eq!(parse_content_range("5-2"), None);
     assert_eq!(parse_content_range("4"), None);
     assert_eq!(parse_content_range(""), None);
+}
+
+#[test]
+fn refusals_preserve_registry_errors_for_batch_responses() {
+    let err = pnpr_error::RegistryError::Forbidden {
+        user: "alice".to_string(),
+        action: "unpublish",
+        resource: "acme/app".to_string(),
+    };
+    let expected = err.public_message();
+    let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
+    assert_eq!(restored.public_message(), expected);
+    assert_eq!(restored.status_code(), axum::http::StatusCode::FORBIDDEN);
+    let err = pnpr_error::RegistryError::Internal { reason: "test".to_string() };
+    let restored = pnpr_error::RegistryError::from(super::Refusal::from(err));
+    assert_eq!(restored.status_code(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
 }

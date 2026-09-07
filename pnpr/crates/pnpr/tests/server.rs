@@ -1647,7 +1647,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 }
 
 #[tokio::test]
-async fn tampered_upstream_tarball_is_served_but_never_cached() {
+async fn tampered_upstream_tarball_aborts_the_stream_and_is_never_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-tarball-bytes";
     let poison_bytes = b"poisoned-cache-bytes";
@@ -1689,10 +1689,6 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     let storage = tmp.path().to_path_buf();
     let cache_path = public_cache_pkg(&storage, "poisoned").join("poisoned-1.0.0.tgz");
 
-    // Upstream serves bytes that don't match the version's `dist.integrity`.
-    // They are streamed to the client (which re-verifies and rejects them),
-    // but the SRI mismatch on the full body means they are never promoted to
-    // the cache — so they can't poison a later request.
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
@@ -1705,7 +1701,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     assert_eq!(tarball_response.status(), StatusCode::OK);
     // Draining the body runs the end-of-stream SRI check, which abandons the
     // cache temp on the mismatch.
-    assert_eq!(body_bytes(tarball_response.into_body()).await, poison_bytes);
+    assert!(to_bytes(tarball_response.into_body(), usize::MAX).await.is_err());
     assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
     packument_mock.assert_async().await;

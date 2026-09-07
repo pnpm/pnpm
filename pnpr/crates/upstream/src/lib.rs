@@ -1,3 +1,7 @@
+mod oci;
+
+pub use oci::oci_download_allowed;
+
 use chrono::{DateTime, Timelike, Utc};
 use pnpm_lockfile::{
     MAX_TARBALL_REVISION, TarballRevision, integrity_addressed_registry_tarball_url,
@@ -64,6 +68,7 @@ pub struct Upstream {
     /// every clone of this `Upstream` (the registry holds one per upstream
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
+    oci_tokens: Arc<Mutex<std::collections::HashMap<String, oci::CachedToken>>>,
 }
 
 impl fmt::Debug for Upstream {
@@ -78,7 +83,7 @@ impl fmt::Debug for Upstream {
             .field("maxage", &self.maxage)
             .field("cache", &self.cache)
             .field("breaker", &self.breaker)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -242,6 +247,7 @@ impl Upstream {
             maxage: config.maxage,
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
+            oci_tokens: Arc::default(),
         }
     }
 

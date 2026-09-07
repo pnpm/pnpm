@@ -220,3 +220,35 @@ async fn failed_blob_finalize_removes_tmp_file() {
     assert!(write.finalize().await.is_err());
     assert!(!tmp_path.exists(), "failed finalization must remove its temporary file");
 }
+
+#[tokio::test]
+async fn package_index_migrates_nested_legacy_documents_and_ignores_removed_ones() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let root = tmp.path().join("storage");
+    fs::create_dir_all(root.join("acme/app/tool")).await.unwrap();
+    fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
+    fs::write(root.join("acme/app/tool/package.json"), b"{}").await.unwrap();
+    storage.rebuild_package_index().await.unwrap();
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
+    fs::remove_file(root.join("acme/app/package.json")).await.unwrap();
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
+}
+
+#[tokio::test]
+async fn package_index_removes_deleted_and_failed_package_entries() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("@scope/app");
+    storage
+        .update_hosted_document_with_retry(&name, 1, |_| Ok(Some(b"{}".to_vec())))
+        .await
+        .unwrap();
+    let index = tmp.path().join("storage/.package-index/@scope");
+    assert!(index.exists());
+    storage.remove_package(&name).await.unwrap();
+    assert!(!index.exists());
+    fs::create_dir_all(tmp.path().join("storage/@scope/app/package.json")).await.unwrap();
+    assert!(storage.hosted.write_document_if_current(&name, b"{}", None).await.is_err());
+    assert!(!index.exists());
+}

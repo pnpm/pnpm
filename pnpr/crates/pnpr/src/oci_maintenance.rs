@@ -42,7 +42,7 @@ pub async fn collect_oci_blobs(
     } else {
         HashSet::new()
     };
-    collect(&storage, min_age, dry_run, &excluded).await
+    collect(&storage, min_age, dry_run, &excluded, config.oci.max_manifest_bytes).await
 }
 
 async fn collect(
@@ -50,6 +50,7 @@ async fn collect(
     min_age: Duration,
     dry_run: bool,
     excluded: &HashSet<&str>,
+    manifest_limit: usize,
 ) -> Result<(usize, u64)> {
     let temporary = tempfile::NamedTempFile::new()?;
     let inventory = Connection::open(temporary.path())?;
@@ -103,7 +104,7 @@ async fn collect(
         .optional()?
     {
         let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
-        let reachable = referenced_blobs(storage, &name).await?;
+        let reachable = referenced_blobs(storage, &name, manifest_limit).await?;
         for filename in reachable {
             inventory.execute(
                 "UPDATE blobs SET keep = 1 WHERE repository = ? AND filename = ?",
@@ -137,6 +138,40 @@ async fn collect(
             bytes += size;
         }
     }
+    if !dry_run {
+        let mut previous = String::new();
+        while let Some(repository) = inventory
+            .query_row(
+                "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
+                [&previous],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?
+        {
+            let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
+            previous = repository;
+            let Some(body) = storage.read_hosted_document(&name).await? else { continue };
+            let mut document = ImageDocument::parse(&body)?;
+            if let Some(digest) = document.deleting_blob.take() {
+                let size = storage
+                    .open_hosted_blob(&name, &digest.blob_filename())
+                    .await?
+                    .and_then(|(_, size)| size)
+                    .unwrap_or_default();
+                if storage.remove_hosted_blob(&name, &digest.blob_filename()).await? {
+                    removed += 1;
+                    bytes += size;
+                }
+                storage
+                    .update_hosted_document_with_retry(
+                        &name,
+                        pnpr_storage::DOCUMENT_WRITE_RETRIES,
+                        |_| Ok(Some(document.to_bytes())),
+                    )
+                    .await?;
+            }
+        }
+    }
     Ok((removed, bytes))
 }
 
@@ -147,9 +182,19 @@ fn filename_digest(filename: &str) -> Option<Digest> {
 async fn referenced_blobs(
     storage: &Storage,
     name: &CanonicalPackageName,
+    manifest_limit: usize,
 ) -> Result<HashSet<String>> {
     let Some(bytes) = storage.read_hosted_document(name).await? else { return Ok(HashSet::new()) };
     let document = ImageDocument::parse(&bytes)?;
+    referenced_document_blobs(storage, name, &document, manifest_limit).await
+}
+
+pub(crate) async fn referenced_document_blobs(
+    storage: &Storage,
+    name: &CanonicalPackageName,
+    document: &ImageDocument,
+    manifest_limit: usize,
+) -> Result<HashSet<String>> {
     let mut pending: Vec<(Digest, Option<String>)> = document
         .manifests()
         .iter()
@@ -170,7 +215,7 @@ async fn referenced_blobs(
             .open_hosted_blob(name, &filename)
             .await?
             .ok_or_else(|| invalid("retained manifest is missing".into()))?;
-        let bytes = axum::body::to_bytes(body, 4 * 1024 * 1024)
+        let bytes = axum::body::to_bytes(body, manifest_limit)
             .await
             .map_err(|error| invalid(error.to_string()))?;
         if Digest::of(&bytes) != digest {
@@ -187,6 +232,15 @@ async fn referenced_blobs(
                 pending.push((reference.digest.clone(), content_type));
             }
         }
+    }
+    if document
+        .deleting_blob
+        .as_ref()
+        .is_some_and(|digest| reachable.contains(&digest.blob_filename()))
+    {
+        return Err(RegistryError::BadRequest {
+            reason: format!("pending deletion in {} references a retained blob", name.as_str()),
+        });
     }
     Ok(reachable)
 }

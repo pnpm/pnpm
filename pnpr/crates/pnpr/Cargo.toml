@@ -79,6 +79,7 @@ miette                        = { workspace = true }
 node-semver                   = { workspace = true }
 pep440_rs                     = { workspace = true }
 pep508_rs                     = { workspace = true }
+p256                          = { workspace = true }
 object_store                  = { workspace = true }
 reqwest                       = { workspace = true }
 rusqlite                      = { workspace = true }

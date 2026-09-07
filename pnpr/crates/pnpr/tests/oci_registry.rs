@@ -7,7 +7,7 @@
 #[path = "common/ecosystem.rs"]
 #[allow(
     dead_code,
-    reason = "the shared fixtures also carry the upstream-proxy helpers the Cargo and Python               surfaces use, which this surface has no half of yet"
+    reason = "the shared fixtures include helpers for the Cargo and Python surfaces"
 )]
 mod common;
 
@@ -24,6 +24,7 @@ use axum::{
     http::{Request, StatusCode, header},
 };
 use common::{HostedSource, body_bytes, mixed_router_config, sha256_hex};
+use futures_util::StreamExt as _;
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, PackagePattern, PackageRule, PackageRules,
     router_with_auth,
@@ -731,20 +732,18 @@ async fn an_index_over_pushed_children_publishes() {
 }
 
 #[tokio::test]
-async fn deleting_a_blob_is_not_offered() {
+async fn deleting_a_referenced_blob_is_refused() {
     let tmp = TempDir::new().unwrap();
     let app = app_allowing_deletes(&tmp);
     let auth = basic(&token(&app).await);
     push_image(&app, &auth, "acme/app", "1.0").await;
 
-    // Nothing tracks which manifests reference a blob, so removing one would
-    // leave the repository advertising an image that cannot be pulled.
     let request = Request::delete(format!("/v2/acme/app/blobs/{}", digest_of(b"layer")))
         .header(header::AUTHORIZATION, &auth)
         .body(Body::empty())
         .unwrap();
     let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(
         get(&app, &format!("/v2/acme/app/blobs/{}", digest_of(b"layer"))).await.status(),
         StatusCode::OK,
@@ -1691,4 +1690,549 @@ async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests(
             .unwrap();
     assert!(document.manifest(&digest).is_none());
     assert_eq!(document.resolve("fresh").unwrap().digest.to_string(), published);
+}
+
+#[tokio::test]
+async fn catalog_lists_repositories_under_published_and_blob_only_parents() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "latest").await;
+    push_image(&app, &auth, "acme/app/tool", "latest").await;
+    push_blob(&app, &auth, "acme/blobs", b"loose").await;
+    push_image(&app, &auth, "acme/blobs/tool", "latest").await;
+    let response = get(&app, "/v2/_catalog").await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/app", "acme/app/tool", "acme/blobs/tool"]));
+}
+
+#[tokio::test]
+async fn unreferenced_blobs_can_be_deleted_and_uploaded_again() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_allowing_deletes(&tmp);
+    let auth = basic(&token(&app).await);
+    let digest = push_blob(&app, &auth, "acme/app", b"config").await;
+    let response = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/v2/acme/app/blobs/{digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/app/blobs/{digest}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+    push_image(&app, &auth, "acme/app", "after-delete").await;
+    assert_eq!(get(&app, "/v2/acme/app/manifests/after-delete").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn configured_limits_bound_monolithic_resumable_and_manifest_uploads() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.oci.max_blob_bytes = 5;
+    config.oci.max_manifest_bytes = 16;
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/v2/acme/app/blobs/uploads/?digest={}", digest_of(b"123456")))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("123456"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/v2/acme/app/blobs/uploads/")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("123"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::patch(&location)
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from("456"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/v2/acme/app/manifests/latest")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from(image_manifest("", &[])))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn batch_publishes_an_oci_manifest_and_rolls_back_on_invalid_siblings() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+    push_blob(&app, &auth, "acme/app", b"config").await;
+    let entry = json!({ "ecosystem": "oci", "name": "acme/app", "reference": "release", "manifest": STANDARD.encode(image_manifest("config", &[])) });
+    let invalid = json!({ "ecosystem": "oci", "name": "acme/missing", "reference": "release", "manifest": STANDARD.encode(image_manifest("missing", &[])) });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/-/pnpr/v0/publish")
+                .header(header::AUTHORIZATION, &auth)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "packages": [entry.clone(), invalid] }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/release").await.status(), StatusCode::NOT_FOUND);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/-/pnpr/v0/publish")
+                .header(header::AUTHORIZATION, &auth)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json!({ "packages": [entry] }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    assert_eq!(get(&app, "/v2/acme/app/manifests/release").await.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn scoped_bearer_credentials_cannot_write_escape_repository_or_survive_revocation() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.oci.bearer_auth = true;
+    let auth_state = AuthState::in_memory();
+    let app = router_with_auth(config, auth_state.clone());
+    let parent = token(&app).await;
+    let auth = basic(&parent);
+    push_image(&app, &auth, "acme/app", "latest").await;
+    push_image(&app, &auth, "acme/other", "latest").await;
+    let challenge = get(&app, "/v2/").await;
+    assert!(challenge.headers()[header::WWW_AUTHENTICATE].to_str().unwrap().starts_with("Bearer "));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/token?service=pnpr&scope=repository:acme/app:pull")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let scoped = format!("Bearer {}", payload["token"].as_str().unwrap());
+    for (method, path, expected) in [
+        ("GET", "/v2/acme/app/manifests/latest", StatusCode::OK),
+        ("GET", "/v2/acme/other/manifests/latest", StatusCode::UNAUTHORIZED),
+        ("POST", "/v2/acme/app/blobs/uploads/", StatusCode::UNAUTHORIZED),
+        ("GET", "/-/npm/v1/tokens", StatusCode::UNAUTHORIZED),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header(header::AUTHORIZATION, &scoped)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected, "{method} {path}");
+    }
+    auth_state.tokens.revoke_by_key(&sha256_hex(parent.as_bytes())).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/v2/acme/app/manifests/latest")
+                .header(header::AUTHORIZATION, scoped)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn proxy_verifies_and_caches_manifest_and_blob_content() {
+    let mut upstream = mockito::Server::new_async().await;
+    let manifest = image_manifest("config", &[]);
+    let manifest_mock = upstream
+        .mock("GET", "/v2/other/app/manifests/latest")
+        .with_header("content-type", "application/vnd.oci.image.manifest.v1+json")
+        .with_header("docker-content-digest", &digest_of(&manifest))
+        .with_body(manifest.clone())
+        .expect(1)
+        .create_async()
+        .await;
+    let blob_mock = upstream
+        .mock("GET", format!("/v2/other/app/blobs/{}", digest_of(b"config")).as_str())
+        .with_body("config")
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+    let app = router_with_auth(config, AuthState::in_memory());
+    for _ in 0..2 {
+        let response = get(&app, "/v2/other/app/manifests/latest").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, manifest);
+        let response = get(&app, &format!("/v2/other/app/blobs/{}", digest_of(b"config"))).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, b"config");
+    }
+    let response = app
+        .clone()
+        .oneshot(Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], manifest.len().to_string());
+    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_MANIFEST);
+    assert_eq!(response.headers()["docker-content-digest"], digest_of(&manifest));
+    assert!(body_bytes(response.into_body()).await.is_empty());
+    manifest_mock.assert_async().await;
+    blob_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn blob_deletion_fences_a_manifest_commit_on_another_replica() {
+    let tmp = TempDir::new().unwrap();
+    let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::clone(&objects) as std::sync::Arc<dyn object_store::ObjectStore>,
+        prefix: "fenced/".into(),
+    };
+    let hosted = config.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
+    let auth_state = AuthState::in_memory();
+    let first = router_with_auth(config.clone(), auth_state.clone());
+    config.cache_storage = tmp.path().join("second-cache");
+    let second = router_with_auth(config, auth_state);
+    let auth = basic(&token(&first).await);
+    let digest = push_blob(&first, &auth, "acme/app", b"config").await;
+    objects.pause_write("package.json".to_string());
+    let publish = tokio::spawn(
+        first.oneshot(
+            Request::put("/v2/acme/app/manifests/latest")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from(image_manifest("config", &[])))
+                .unwrap(),
+        ),
+    );
+    tokio::time::timeout(std::time::Duration::from_secs(10), objects.started.notified())
+        .await
+        .unwrap();
+    let deleted = second
+        .clone()
+        .oneshot(
+            Request::delete(format!("/v2/acme/app/blobs/{digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(deleted.status(), StatusCode::ACCEPTED);
+    objects.resume.notify_one();
+    assert_eq!(publish.await.unwrap().unwrap().status(), StatusCode::CONFLICT);
+    assert_eq!(get(&second, "/v2/acme/app/manifests/latest").await.status(), StatusCode::NOT_FOUND);
+    push_image(&second, &auth, "acme/app", "retry").await;
+}
+
+#[tokio::test]
+async fn proxy_does_not_cache_corrupt_content_or_download_blob_bodies_for_head() {
+    let mut upstream = mockito::Server::new_async().await;
+    let manifest = image_manifest("config", &[]);
+    let corrupt_manifest = upstream
+        .mock("GET", "/v2/other/app/manifests/latest")
+        .with_header("docker-content-digest", &digest_of(b"different"))
+        .with_body(manifest)
+        .expect(2)
+        .create_async()
+        .await;
+    let path = format!("/v2/other/app/blobs/{}", digest_of(b"config"));
+    let corrupt_blob =
+        upstream.mock("GET", path.as_str()).with_body("poison").expect(2).create_async().await;
+    let head = upstream
+        .mock("HEAD", path.as_str())
+        .with_header("content-length", "6")
+        .expect(1)
+        .create_async()
+        .await;
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+    let app = router_with_auth(config, AuthState::in_memory());
+    let response =
+        app.clone().oneshot(Request::head(&path).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], "6");
+    assert!(body_bytes(response.into_body()).await.is_empty());
+    for _ in 0..2 {
+        assert_eq!(
+            get(&app, "/v2/other/app/manifests/latest").await.status(),
+            StatusCode::BAD_REQUEST,
+        );
+        let response = get(&app, &path).await;
+        let mut stream = response.into_body().into_data_stream();
+        let mut bytes = Vec::new();
+        loop {
+            match stream.next().await {
+                Some(Ok(chunk)) => bytes.extend_from_slice(&chunk),
+                Some(Err(_)) => break,
+                None => panic!("corrupt content must terminate with an integrity error"),
+            }
+        }
+        assert_eq!(bytes, b"poison");
+        assert!(stream.next().await.is_none());
+    }
+    head.assert_async().await;
+    corrupt_manifest.assert_async().await;
+    corrupt_blob.assert_async().await;
+}
+
+#[tokio::test]
+async fn deletion_requires_read_access_even_with_a_permissive_unpublish_rule() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "alice");
+    let hosted = config.hosted.get_mut("images").unwrap();
+    hosted.rules =
+        std::mem::take(&mut hosted.rules).with_default_unpublish(AccessList::from_tokens(["$all"]));
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    push_image(&app, &auth, "acme/app", "latest").await;
+    let digest = push_blob(&app, &auth, "acme/app", b"orphan").await;
+    for path in
+        ["/v2/acme/app/manifests/latest".to_string(), format!("/v2/acme/app/blobs/{digest}")]
+    {
+        let response =
+            app.clone().oneshot(Request::delete(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+    let response = app
+        .oneshot(
+            Request::get(format!("/v2/acme/app/blobs/{digest}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn scoped_mount_without_source_pull_permission_falls_back_to_upload() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.oci.bearer_auth = true;
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    let digest = push_blob(&app, &auth, "acme/source", b"source layer").await;
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/token?service=pnpr&scope=repository:acme/dest:push")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let scoped = format!("Bearer {}", payload["token"].as_str().unwrap());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!("/v2/acme/dest/blobs/uploads/?mount={digest}&from=acme/source"))
+                .header(header::AUTHORIZATION, &scoped)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let location = response.headers()[header::LOCATION].to_str().unwrap().to_string();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get(&location)
+                .header(header::AUTHORIZATION, &scoped)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/dest/blobs/{digest}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+}
+
+#[tokio::test]
+async fn cold_manifest_head_forwards_headers_without_getting_or_caching_a_body() {
+    for cache in [true, false] {
+        let mut upstream = mockito::Server::new_async().await;
+        let digest = digest_of(b"manifest");
+        let head = upstream
+            .mock("HEAD", "/v2/other/app/manifests/latest")
+            .with_header("content-length", "123")
+            .with_header("content-type", pnpr_oci::media_type::OCI_IMAGE_MANIFEST)
+            .with_header("docker-content-digest", &digest)
+            .expect(2)
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        let source = config.upstreams.get_mut("dockerhub").unwrap();
+        source.url = format!("{}/", upstream.url());
+        source.cache = cache;
+        let app = router_with_auth(config, AuthState::in_memory());
+        for _ in 0..2 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::head("/v2/other/app/manifests/latest").body(Body::empty()).unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CONTENT_LENGTH], "123");
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
+            );
+            assert_eq!(response.headers()["docker-content-digest"], digest);
+            assert!(body_bytes(response.into_body()).await.is_empty());
+        }
+        head.assert_async().await;
+    }
+}
+
+#[tokio::test]
+async fn token_scopes_ignore_unknown_resources_and_count_distinct_repositories() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.oci.bearer_auth = true;
+    let app = router_with_auth(config, AuthState::in_memory());
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    for index in 0..32 {
+        query.append_pair("scope", &format!("repository:other/app{index}:pull"));
+    }
+    query.append_pair("scope", "repository(plugin):other/app0:pull");
+    query.append_pair("scope", "registry:catalog:*");
+    query.append_pair("scope", "repository:host:5000/app:pull");
+    let query = query.finish();
+    let response = get(&app, &format!("/v2/token?{query}")).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/_catalog")
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", payload["token"].as_str().unwrap()),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let response = get(&app, "/v2/token?scope=repository(plugin):acme/app:pull").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v2/acme/app/manifests/latest")
+                .header(
+                    header::AUTHORIZATION,
+                    format!("Bearer {}", payload["token"].as_str().unwrap()),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let response = get(&app, &format!("/v2/token?{query}&scope=repository:other/extra:pull")).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn manifest_head_checks_digests_and_verifies_legacy_responses_without_a_header() {
+    let manifest = image_manifest("config", &[]);
+    let digest = digest_of(&manifest);
+    let wrong = digest_of(b"different manifest");
+    for (reference, declared, valid_body, expected) in [
+        (digest.as_str(), Some(digest.as_str()), true, StatusCode::OK),
+        (digest.as_str(), Some(wrong.as_str()), true, StatusCode::BAD_REQUEST),
+        (digest.as_str(), Some("invalid"), true, StatusCode::BAD_REQUEST),
+        (digest.as_str(), None, true, StatusCode::OK),
+        (digest.as_str(), None, false, StatusCode::BAD_REQUEST),
+        ("latest", Some(digest.as_str()), true, StatusCode::OK),
+        ("latest", Some("invalid"), true, StatusCode::BAD_REQUEST),
+    ] {
+        let mut upstream = mockito::Server::new_async().await;
+        let path = format!("/v2/other/app/manifests/{reference}");
+        let mut head = upstream.mock("HEAD", path.as_str()).expect(1);
+        if let Some(declared) = declared {
+            head = head.with_header("docker-content-digest", declared);
+        }
+        let head = head.create_async().await;
+        let get = upstream
+            .mock("GET", path.as_str())
+            .with_body(if valid_body { manifest.as_slice() } else { b"corrupt" })
+            .expect(usize::from(declared.is_none()))
+            .create_async()
+            .await;
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        config.upstreams.get_mut("dockerhub").unwrap().url = format!("{}/", upstream.url());
+        let app = router_with_auth(config, AuthState::in_memory());
+        let response = app.oneshot(Request::head(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), expected, "declared digest: {declared:?}");
+        if expected == StatusCode::OK {
+            assert_eq!(response.headers()["docker-content-digest"], digest);
+            assert!(body_bytes(response.into_body()).await.is_empty());
+        }
+        head.assert_async().await;
+        get.assert_async().await;
+    }
 }
