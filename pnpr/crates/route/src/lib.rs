@@ -710,7 +710,8 @@ impl RouteMatcher {
     /// admits.
     fn allowlists(&self, fetch: &str, scheme: Option<&str>) -> bool {
         self.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin))
-            && (!self.https_only || scheme == Some("https"))
+            && (!self.https_only
+                || scheme.is_some_and(|scheme| scheme.eq_ignore_ascii_case("https")))
     }
 
     fn matches(&self, fetch: &str, package: Option<&str>) -> bool {

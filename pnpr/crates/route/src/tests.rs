@@ -223,6 +223,8 @@ fn the_builtin_routes_admit_https_only() {
 
     assert!(!context.allows_registry("http://registry.npmjs.org/lodash"));
     assert!(!context.allows_registry("http://npm.jsr.io/@jsr%2fstd__csv"));
+    // Schemes are case-insensitive, so only the transport is being refused.
+    assert!(context.allows_registry("HTTPS://npm.jsr.io/@jsr%2fstd__csv"));
 }
 
 /// An operator declares the scheme their own route is reached over, which on
