@@ -983,9 +983,9 @@ fn load_cafile(path: &Path) -> Vec<String> {
     //   from each chunk and re-appended on the map side.
     // - Filter on `chunk.trim().is_empty()` — drops the trailing
     //   empty chunk produced when the file ends with a delimiter,
-    //   but *keeps* a trailing non-empty (malformed) chunk so
-    //   downstream `Certificate::from_pem` surfaces the parse error
-    //   instead of pacquet silently dropping the entry.
+    //   but *keeps* a trailing non-empty (malformed) chunk, which is
+    //   what pnpm's `readCAFileSync` produces too. The network layer
+    //   drops whatever carries no certificate.
     // - `trim_start()` (not full `trim`) — any trailing whitespace
     //   inside the chunk before the appended delimiter is preserved.
     //   It doesn't matter to a PEM parser but does matter for

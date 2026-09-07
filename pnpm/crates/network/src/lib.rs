@@ -23,6 +23,7 @@ pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
 };
+use tls::drop_blank;
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
@@ -1089,21 +1090,20 @@ fn load_node_extra_ca_certs() -> Vec<Certificate> {
     let Ok(bytes) = std::fs::read(&path) else {
         return Vec::new();
     };
-    Certificate::from_pem_bundle(&bytes).unwrap_or_default()
+    parse_ca_bundle(&bytes)
 }
 
-/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
-/// CA, install the client identity, set `danger_accept_invalid_certs`
-/// when `strict_ssl: false`, and pin the outbound interface. Returns
-/// the modified builder unchanged when every field is `None` / empty —
-/// matching pnpm's "TLS-unset is default-TLS" semantics.
+/// The certificates carried by one PEM buffer.
 ///
-/// `strict_ssl` defaults to `true` here (`unwrap_or(true)`) rather than
-/// in the config layer because that's where pnpm applies the same
-/// default — see the "Defaults" section of [`TlsConfig`]. Failures from
-/// PEM parsing surface as [`TlsError::InvalidCa`] /
-/// [`TlsError::InvalidClientIdentity`] and bubble through
-/// [`ForInstallsError`].
+/// Material the TLS backend cannot read yields an empty list. Node
+/// ignores such an entry rather than refusing to open a TLS context,
+/// so pnpm 11 installs fine with an empty, truncated, or
+/// `${VAR}`-unresolved `ca=` value; pacquet drops the same entry
+/// instead of failing the client build (pnpm/pnpm#14646).
+fn parse_ca_bundle(pem: &[u8]) -> Vec<Certificate> {
+    Certificate::from_pem_bundle(pem).unwrap_or_default()
+}
+
 /// Build the effective [`TlsConfig`] for a per-registry override:
 /// each scoped field (`ca`, `cert`, `key`) replaces its top-level
 /// counterpart field-by-field; `strict_ssl` and `local_address`
@@ -1115,7 +1115,7 @@ fn load_node_extra_ca_certs() -> Vec<Certificate> {
 /// the top-level `ca` is a `Vec<String>` (the `cafile` loader split).
 /// When the override has a `ca`, the effective top-level CA list is
 /// *replaced* (not merged) by a one-element list with the scoped PEM
-/// blob — which `Certificate::from_pem` handles fine since it accepts
+/// blob — which [`parse_ca_bundle`] handles fine since it accepts
 /// multi-cert PEM buffers.
 fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
     TlsConfig {
@@ -1130,48 +1130,40 @@ fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
     }
 }
 
-/// Lightweight syntactic check that `pem` contains at least one
-/// `-----BEGIN CERTIFICATE-----` / `-----END CERTIFICATE-----` armor
-/// pair. Catches the "user pasted garbage instead of PEM" case
-/// without parsing the base64 body — rustls's
-/// `Certificate::from_pem` stores the bytes verbatim and validates
-/// lazily, so without this guard a malformed CA would silently slip
-/// through and the install would proceed against an unknown trust
-/// root. A stricter parse (base64 decode + DER validation) is left
-/// to rustls itself when the connection is actually made.
-fn looks_like_pem_cert(pem: &str) -> bool {
-    let begin = pem.find("-----BEGIN CERTIFICATE-----");
-    let end = pem.rfind("-----END CERTIFICATE-----");
-    matches!((begin, end), (Some(b), Some(e)) if b < e)
-}
-
+/// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each
+/// CA, install the client identity, set `danger_accept_invalid_certs`
+/// when `strict_ssl: false`, and pin the outbound interface. Returns
+/// the modified builder unchanged when every field is `None` / empty —
+/// matching pnpm's "TLS-unset is default-TLS" semantics.
+///
+/// `strict_ssl` defaults to `true` here (`unwrap_or(true)`) rather than
+/// in the config layer because that's where pnpm applies the same
+/// default — see the "Defaults" section of [`TlsConfig`]. A `cert` /
+/// `key` pair rustls rejects surfaces as
+/// [`TlsError::InvalidClientIdentity`] and bubbles through
+/// [`ForInstallsError`], the way Node throws from
+/// `tls.createSecureContext`. Unreadable `ca` material is dropped
+/// instead — see [`parse_ca_bundle`].
 fn apply_tls(
     mut builder: reqwest::ClientBuilder,
     tls: &TlsConfig,
 ) -> Result<reqwest::ClientBuilder, TlsError> {
     for (index, pem) in tls.ca.iter().enumerate() {
-        // Validate the PEM armor *before* handing to reqwest.
-        // Reqwest's rustls backend stores the bytes verbatim and
-        // parses lazily at `Client::build()` time — a garbage CA
-        // entry would otherwise be silently dropped and the install
-        // would proceed against an unknown trust root. The eager
-        // check catches the no-armor case (the common "user
-        // pasted a path instead of PEM contents" failure) and lets
-        // the malformed-CA error point at the specific entry in
-        // the list.
-        if !looks_like_pem_cert(pem) {
-            return Err(TlsError::InvalidCa {
+        let certs = parse_ca_bundle(pem.as_bytes());
+        if certs.is_empty() {
+            tracing::warn!(
+                target: "pacquet::tls",
                 index,
-                reason: "missing `-----BEGIN CERTIFICATE-----` / `-----END CERTIFICATE-----` \
-                         armor"
-                    .to_string(),
-            });
+                "ignoring a `ca` entry that carries no readable certificate",
+            );
         }
-        let cert = Certificate::from_pem(pem.as_bytes())
-            .map_err(|source| TlsError::InvalidCa { index, reason: source.to_string() })?;
-        builder = builder.add_root_certificate(cert);
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
     }
-    if let (Some(cert), Some(key)) = (tls.cert.as_deref(), tls.key.as_deref()) {
+    let cert = drop_blank(tls.cert.as_deref());
+    let key = drop_blank(tls.key.as_deref());
+    if let (Some(cert), Some(key)) = (cert, key) {
         // reqwest's `Identity::from_pem` (gated on the `rustls`
         // feature pacquet builds with) takes a single PEM buffer
         // containing *both* the certificate and the private key, in
