@@ -436,10 +436,11 @@ test('sec-fetch-* headers are stripped from requests', async () => {
 })
 
 test('the timeout a registry fetcher is created with reaches the response body', async () => {
+  const TIMEOUT = 300
   await using server = await startServer((res) => {
     res.write('chunk')
   })
-  const fetchFromRegistry = createFetchFromRegistry({ timeout: 300 })
+  const fetchFromRegistry = createFetchFromRegistry({ timeout: TIMEOUT })
   try {
     const response = await fetchFromRegistry(server.url, { retry: { retries: 0 } })
     const startedAt = Date.now()
@@ -447,8 +448,10 @@ test('the timeout a registry fetcher is created with reaches the response body',
     await expect(response.text()).rejects.toMatchObject({
       cause: expect.objectContaining({ code: 'UND_ERR_BODY_TIMEOUT' }),
     })
-    // Falling back to the default timeout would also fail here, just much later.
-    expect(Date.now() - startedAt).toBeLessThan(DEFAULT_FETCH_TIMEOUT)
+    // The body timer starts when the response head arrives, just before this.
+    const elapsed = Date.now() - startedAt
+    expect(elapsed).toBeGreaterThan(TIMEOUT - 50)
+    expect(elapsed).toBeLessThan(DEFAULT_FETCH_TIMEOUT)
   } finally {
     clearDispatcherCache()
   }
