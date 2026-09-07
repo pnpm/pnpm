@@ -173,6 +173,37 @@ fn exec_runs_binary_from_node_modules_bin() {
     drop(root);
 }
 
+/// From a plain subdirectory of a project the command runs where the user
+/// stands, while the executable comes from the project — pnpm's `exec`
+/// takes its working directory from `cliOptions.dir ?? process.cwd()` and
+/// its `PATH` from the project.
+#[cfg(unix)]
+#[test]
+fn exec_runs_in_the_cwd_with_the_projects_binaries() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "outer" }"#)
+        .expect("write package.json");
+    let bin_dir = workspace.join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).expect("create node_modules/.bin");
+    let marker_path = workspace.join("cwd.txt");
+    write_executable(
+        &bin_dir.join("record-cwd"),
+        &format!("#!/bin/sh\npwd > \"{}\"\n", marker_path.display()),
+    );
+    let subdir = workspace.join("src/utils");
+    fs::create_dir_all(&subdir).expect("create the subdirectory");
+
+    pacquet.with_current_dir(&subdir).with_args(["exec", "record-cwd"]).assert().success();
+
+    let recorded = fs::read_to_string(&marker_path).expect("read the recorded cwd");
+    assert_eq!(
+        dunce::canonicalize(recorded.trim()).expect("canonicalize the recorded cwd"),
+        dunce::canonicalize(&subdir).expect("canonicalize the subdirectory"),
+    );
+
+    drop(root);
+}
+
 /// Arguments after the command name flow through to the spawned binary.
 #[cfg(unix)]
 #[test]

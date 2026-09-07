@@ -1,6 +1,6 @@
 use super::{
     dispatch::{CommandFuture, RunCtx, apply_update_config},
-    exec::ExecArgs,
+    exec::{ExecArgs, ExecDirs},
     init::InitArgs,
     pkg::PkgArgs,
     restart::RestartArgs,
@@ -116,6 +116,7 @@ pub(super) fn fallback<'a>(
     let config = (ctx.config)()?;
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
+    let cli_dir = ctx.cli_dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
     Ok(Box::pin(async move {
@@ -125,7 +126,7 @@ pub(super) fn fallback<'a>(
         if recursive {
             args.run_recursive(config, dir, reporter)
         } else {
-            args.run_fallback(dir, config, reporter)
+            args.run_fallback(ExecDirs { run: cli_dir, project: dir }, config, reporter)
         }
     }))
 }
@@ -134,10 +135,6 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
     let config = (ctx.config)()?;
     let cli_options = RecursiveCliOptions::from_ctx(ctx);
     let dir = ctx.dir;
-    // A non-recursive `exec` runs the command where the user stands, so
-    // `pnpm exec` from a plain subdirectory of a project acts on that
-    // subdirectory. Only the config and dependency check behind it come
-    // from the project.
     let cli_dir = ctx.cli_dir;
     let reporter = ctx.reporter;
     let recursive = ctx.recursive;
@@ -148,7 +145,7 @@ pub(super) fn exec<'a>(ctx: &RunCtx<'a>, args: ExecArgs) -> miette::Result<Comma
         if recursive {
             args.run_recursive(config, dir, reporter).await
         } else {
-            args.run(cli_dir, config, reporter)
+            args.run(ExecDirs { run: cli_dir, project: dir }, config, reporter)
         }
     }))
 }

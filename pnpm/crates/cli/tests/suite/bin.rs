@@ -156,12 +156,10 @@ fn bin_global_writes_warnings_to_stderr_so_stdout_stays_a_clean_path() {
     drop(root);
 }
 
-/// A directory that is only a subdirectory of a project — no manifest, no
-/// `node_modules` of its own — is not where the project's executables live,
-/// so `bin` prints the project's. Regression test for
-/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622), where the
-/// printed path did not exist and tools spawning executables out of it
-/// failed with `ENOENT`.
+/// Regression test for
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622): the path
+/// printed under the subdirectory does not exist, so tools spawning
+/// executables out of it failed with `ENOENT`.
 #[test]
 fn bin_prints_the_project_bin_dir_from_a_plain_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();

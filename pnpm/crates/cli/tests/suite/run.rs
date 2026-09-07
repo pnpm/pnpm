@@ -44,10 +44,9 @@ fn run_executes_declared_script() {
     drop(root);
 }
 
-/// A subdirectory with no `package.json` of its own is part of the project
-/// above it, so a script run from there is the project's, and runs at the
-/// project root. Same local-prefix resolution as
-/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622).
+/// The same local-prefix resolution as
+/// [pnpm/pnpm#14622](https://github.com/pnpm/pnpm/issues/14622), which
+/// `pnpm bin` reported.
 #[cfg(unix)]
 #[test]
 fn run_from_a_plain_subdir_runs_the_projects_script() {

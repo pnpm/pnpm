@@ -1165,10 +1165,10 @@ impl SwitchInput {
         }
     }
 
-    /// The `--dir` a command line without one resolves to, matching
-    /// [`CliArgs::apply_local_prefix`]. Degrades to `.` — the caller
-    /// canonicalizes it, and a cwd it cannot resolve is not the
-    /// version check's to report.
+    /// The `--dir` a command line without one resolves to.
+    ///
+    /// Degrades to `.`, which the caller canonicalizes: a cwd that cannot
+    /// be resolved fails there, with the path it was given.
     fn local_prefix_or_cwd() -> PathBuf {
         std::env::current_dir()
             .ok()

@@ -11,7 +11,7 @@
 //! `--reverse` runs the reverse graph, and `--parallel` starts every
 //! project concurrently.
 
-use super::{ExecArgs, ExecError, prepare_command, read_package_name, spawn_in_dir};
+use super::{ExecArgs, ExecDirs, ExecError, prepare_command, read_package_name, spawn_in_dir};
 use crate::cli_args::{
     recursive::{
         AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
@@ -221,8 +221,14 @@ pub async fn exec_recursive(
         let start = Instant::now();
         let dep_path = project_dep_path(root, dir, show_prefix);
         let output = project_output(dep_path.as_deref(), emit);
-        let outcome =
-            spawn_in_dir(&command, root, config, args.shell_mode, output, process_tracker.as_ref());
+        let outcome = spawn_in_dir(
+            &command,
+            ExecDirs::same(root),
+            config,
+            args.shell_mode,
+            output,
+            process_tracker.as_ref(),
+        );
         let execution = project_execution(start, outcome);
         let mut result = result.lock().expect("summary lock is not poisoned");
         let entry = &mut result[&prefix];

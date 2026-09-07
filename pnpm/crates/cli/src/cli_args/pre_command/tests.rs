@@ -19,8 +19,10 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
     struct Case {
         name: &'static str,
         argv: &'static [&'static str],
-        /// The `--dir` the scan is expected to find, or `None` when the
-        /// command line carries none and it falls back to the local prefix.
+        /// The `--dir` the scan is expected to find. `None` asserts
+        /// nothing: the command line carries none, and the default it
+        /// falls back to is covered by the CLI tests that run in a real
+        /// project.
         dir: Option<&'static str>,
         npmrc_auth_file: Option<&'static str>,
         command: Option<&'static str>,
@@ -96,8 +98,9 @@ fn version_argv_reads_dir_auth_file_and_command_forms() {
         let argv = case.argv.iter().copied().map(OsString::from).collect::<Vec<_>>();
         let input = SwitchInput::from_version_argv(&argv);
 
-        let expected_dir = case.dir.map_or_else(SwitchInput::local_prefix_or_cwd, PathBuf::from);
-        assert_eq!(input.dir, expected_dir, "case: {}", case.name);
+        if let Some(dir) = case.dir {
+            assert_eq!(input.dir, PathBuf::from(dir), "case: {}", case.name);
+        }
         assert_eq!(
             input.npmrc_auth_file,
             case.npmrc_auth_file.map(PathBuf::from),
