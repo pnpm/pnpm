@@ -190,6 +190,7 @@ const TARGETS = [
   { platform: "linux", arch: "riscv64", libc: "glibc", codeTarget: "linux-riscv64", packageTarget: "linux-riscv64" },
   { platform: "linux", arch: "x64", libc: "musl", codeTarget: "linux-x64-musl", packageTarget: "linux-x64-musl" },
   { platform: "linux", arch: "arm64", libc: "musl", codeTarget: "linux-arm64-musl", packageTarget: "linux-arm64-musl" },
+  { platform: "freebsd", arch: "x64", codeTarget: "freebsd-x64", packageTarget: "freebsd-x64" },
 ];
 
 for (const target of TARGETS) {

@@ -599,6 +599,10 @@ jobs:
             target: riscv64gc-unknown-linux-gnu
             code-target: linux-riscv64
 
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
+
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             code-target: darwin-x64
@@ -718,6 +722,10 @@ jobs:
           - os: blacksmith-8vcpu-ubuntu-2404
             target: riscv64gc-unknown-linux-gnu
             code-target: linux-riscv64
+
+          - os: blacksmith-8vcpu-ubuntu-2404
+            target: x86_64-unknown-freebsd
+            code-target: freebsd-x64
 
           - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin

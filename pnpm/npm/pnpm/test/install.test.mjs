@@ -74,7 +74,7 @@ test('pnpm links a symlink that runs the placeholder when executables are symlin
 })
 
 test('linux riscv64 resolves the glibc package, and nothing under musl', async (t) => {
-  const { setLibc } = fakeHost(t, 'riscv64')
+  const { setLibc } = fakeHost(t, 'linux', 'riscv64')
 
   // `native-binary.mjs` reads process.platform and process.arch at module
   // scope, so it has to be imported again once they are faked. The libc is
@@ -90,8 +90,17 @@ test('linux riscv64 resolves the glibc package, and nothing under musl', async (
   assert.deepEqual(candidates(), [])
 })
 
+test('freebsd x64 resolves the native package', async (t) => {
+  fakeHost(t, 'freebsd', 'x64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?freebsd')
+
+  // FreeBSD has no glibc/musl split, so its entry is a bare specifier and the
+  // libc ordering never applies to it.
+  assert.deepEqual(candidates(), ['@pnpm/exe.freebsd-x64/pnpm'])
+})
+
 test('an architecture released for both libcs still offers the other as a fallback', async (t) => {
-  const { setLibc } = fakeHost(t, 'x64')
+  const { setLibc } = fakeHost(t, 'linux', 'x64')
   const { getBinCandidates: candidates } = await import('../native-binary.mjs?x64')
 
   setLibc('glibc')
@@ -232,16 +241,17 @@ function runNpm (args, cwd) {
 }
 
 /**
- * Present the running process as a Linux host of `arch`, restoring the real
+ * Present the running process as a `platform`/`arch` host, restoring the real
  * descriptors when the test ends.
  *
  * @param {import('node:test').TestContext} t The test, for cleanup.
+ * @param {string} platform The `process.platform` to present.
  * @param {string} arch The `process.arch` to present.
  * @returns {{ setLibc: (libc: 'glibc' | 'musl') => void }} `setLibc` fakes the
- *   `process.report` that `detectLinuxLibc` reads, so a case does not depend on
- *   the host's own libc.
+ *   `process.report` that `detectLinuxLibc` reads, so a Linux case does not
+ *   depend on the host's own libc.
  */
-function fakeHost (t, arch) {
+function fakeHost (t, platform, arch) {
   const saved = ['platform', 'arch', 'report']
     .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
   t.after(() => {
@@ -249,7 +259,7 @@ function fakeHost (t, arch) {
       if (descriptor) Object.defineProperty(process, key, descriptor)
     }
   })
-  Object.defineProperty(process, 'platform', { value: 'linux', configurable: true })
+  Object.defineProperty(process, 'platform', { value: platform, configurable: true })
   Object.defineProperty(process, 'arch', { value: arch, configurable: true })
   return {
     setLibc (libc) {

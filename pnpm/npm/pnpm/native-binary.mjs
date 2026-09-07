@@ -34,6 +34,9 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
     },
   },
+  freebsd: {
+    x64: '@pnpm/exe.freebsd-x64/pnpm',
+  },
 }
 
 /**
