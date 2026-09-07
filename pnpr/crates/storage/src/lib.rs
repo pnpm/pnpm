@@ -1084,14 +1084,12 @@ impl Storage {
         self.hosted.create_record(PIPELINE_RUNS_DIR, &key, bytes).await
     }
 
-    /// Every recorded run as `(workspace, run id)`, in unspecified order.
-    pub async fn list_pipeline_runs(&self) -> Result<Vec<(String, String)>> {
-        let keys = self.hosted.list_record_keys(PIPELINE_RUNS_DIR).await?;
-        Ok(keys
-            .iter()
-            .filter_map(|key| key.split_once('/'))
-            .map(|(workspace, run_id)| (workspace.to_string(), run_id.to_string()))
-            .collect())
+    /// One workspace's recorded run keys, in unspecified order. Scoped to the
+    /// workspace so a listing costs what that workspace holds rather than what
+    /// the deployment holds.
+    pub async fn list_pipeline_runs(&self, workspace: &str) -> Result<Vec<String>> {
+        let namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(workspace)?);
+        self.hosted.list_record_keys(&namespace).await
     }
 }
 

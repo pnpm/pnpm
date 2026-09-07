@@ -88,26 +88,24 @@ impl PipelineRunStore {
         })
     }
 
-    /// The most recent runs, newest first — run ids sort by their leading
-    /// timestamp. `workspace` narrows the listing to one workspace.
-    pub async fn list(
-        &self,
-        workspace: Option<&str>,
-        limit: usize,
-    ) -> Result<Vec<PipelineRunEntry>> {
+    /// The most recent runs across `workspaces`, newest first — run ids sort
+    /// by their leading timestamp.
+    ///
+    /// Only the runs that make the page are read: the ids are picked from the
+    /// listing first, so a long history costs a listing rather than a read per
+    /// record. Every workspace to search is named, because which ones a caller
+    /// may see is the endpoint's decision, not the store's.
+    pub async fn list(&self, workspaces: &[&str], limit: usize) -> Result<Vec<PipelineRunEntry>> {
         let limit = limit.clamp(1, MAX_LIST_RUNS);
-        if let Some(workspace) = workspace {
-            validate_name(workspace, "workspace")?;
-        }
         let mut newest = BTreeSet::new();
-        for (recorded_workspace, run_id) in self.storage.list_pipeline_runs().await? {
-            if workspace.is_some_and(|wanted| wanted != recorded_workspace) {
-                continue;
-            }
-            let Some(run_id) = run_id.strip_suffix(RECORD_SUFFIX) else { continue };
-            newest.insert((run_id.to_string(), recorded_workspace));
-            if newest.len() > limit {
-                newest.pop_first();
+        for workspace in workspaces {
+            validate_name(workspace, "workspace")?;
+            for key in self.storage.list_pipeline_runs(workspace).await? {
+                let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else { continue };
+                newest.insert((run_id.to_string(), (*workspace).to_string()));
+                if newest.len() > limit {
+                    newest.pop_first();
+                }
             }
         }
         let mut entries = Vec::with_capacity(newest.len());

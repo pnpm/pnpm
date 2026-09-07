@@ -14,7 +14,6 @@ fn run(workspace: &str, run_id: &str) -> PublishPipelineRun {
     }
 }
 
-/// A run store over a local storage root, as a single-node deployment has.
 fn local_store(root: &TempDir) -> PipelineRunStore {
     PipelineRunStore::new(storage_in(&HostedStoreConfig::Fs, root))
 }
@@ -44,15 +43,15 @@ async fn list_returns_newest_first_and_honors_the_workspace_filter() {
     store.publish(&run("ws-a", "200-default")).await.expect("publish");
     store.publish(&run("ws-b", "150-default")).await.expect("publish");
 
-    let all = store.list(None, 10).await.expect("list");
+    let all = store.list(&["ws-a", "ws-b"], 10).await.expect("list");
     let ids: Vec<&str> = all.iter().map(|entry| entry.run_id.as_str()).collect();
     assert_eq!(ids, ["200-default", "150-default", "100-default"]);
 
-    let only_a = store.list(Some("ws-a"), 10).await.expect("list");
+    let only_a = store.list(&["ws-a"], 10).await.expect("list");
     assert_eq!(only_a.len(), 2);
     assert!(only_a.iter().all(|entry| entry.workspace == "ws-a"));
 
-    let limited = store.list(None, 1).await.expect("list");
+    let limited = store.list(&["ws-a", "ws-b"], 1).await.expect("list");
     assert_eq!(limited.len(), 1);
     assert_eq!(limited[0].run_id, "200-default");
 }
@@ -122,7 +121,22 @@ async fn listing_does_not_parse_records_outside_the_requested_page() {
     let store = PipelineRunStore::new(storage.clone());
     store.publish(&run("demo", "200-default")).await.unwrap();
     storage.create_pipeline_run("demo", "100-default.json", b"invalid JSON").await.unwrap();
-    assert_eq!(store.list(Some("demo"), 1).await.unwrap()[0].run_id, "200-default");
+    assert_eq!(store.list(&["demo"], 1).await.unwrap()[0].run_id, "200-default");
+}
+
+/// A listing reads one workspace's keys, not the whole store's: a workspace
+/// no one asked about cannot slow down or break the answer.
+#[tokio::test]
+async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
+    let root = TempDir::new().unwrap();
+    let storage = storage_in(&HostedStoreConfig::Fs, &root);
+    let store = PipelineRunStore::new(storage.clone());
+    store.publish(&run("wanted", "100-default")).await.unwrap();
+    storage.create_pipeline_run("ignored", "999-default.json", b"invalid JSON").await.unwrap();
+
+    let listed = store.list(&["wanted"], 10).await.unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].run_id, "100-default");
 }
 
 /// Run records are the account of something that happened once, so they
@@ -143,7 +157,7 @@ async fn a_run_recorded_on_one_replica_is_served_by_another() {
 
     let stored = serving.get("demo", "100-default").await.expect("get").expect("run exists");
     assert_eq!(stored.summary["runId"], "100-default");
-    let listed = serving.list(None, 10).await.expect("list");
+    let listed = serving.list(&["demo"], 10).await.expect("list");
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].run_id, "100-default");
     assert!(
