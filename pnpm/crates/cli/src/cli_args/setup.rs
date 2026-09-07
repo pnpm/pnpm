@@ -179,20 +179,44 @@ fn create_alias_scripts(target_dir: &Path) -> std::io::Result<()> {
 fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io::Result<()> {
     // Windows can also run shell scripts via mingw / cygwin, so write the
     // POSIX script unconditionally.
-    let shell_script = format!("#!/bin/sh\nexec {command} \"$@\"\n");
-    let script_path = target_dir.join(name);
-    fs::write(&script_path, shell_script)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&script_path, fs::Permissions::from_mode(0o755))?;
-    }
+    write_script(target_dir, name, &format!("#!/bin/sh\nexec {command} \"$@\"\n"))?;
 
     if cfg!(windows) {
-        fs::write(target_dir.join(format!("{name}.cmd")), format!("@echo off\n{command} %*\n"))?;
-        fs::write(target_dir.join(format!("{name}.ps1")), format!("{command} @args\n"))?;
+        write_script(target_dir, &format!("{name}.cmd"), &format!("@echo off\n{command} %*\n"))?;
+        write_script(target_dir, &format!("{name}.ps1"), &format!("{command} @args\n"))?;
     }
     Ok(())
+}
+
+/// Write `contents` to `target_dir/name`, replacing whatever is already there.
+///
+/// The existing file is never opened for writing. `$PNPM_HOME/bin/{pn,pnpx,pnx}`
+/// are routinely hardlinks of the pnpm executable itself — that is the layout
+/// `npm i -g pnpm` leaves behind — and truncating such a path while the inode
+/// is being executed fails with `ETXTBSY` ("Text file busy") on Linux, which is
+/// exactly the case when it is `pnpm setup` doing the executing. Writing a
+/// sibling temp file and renaming it over the target swaps the directory entry
+/// and leaves the busy inode alone.
+fn write_script(target_dir: &Path, name: &str, contents: &str) -> std::io::Result<()> {
+    // The global bin lock keeps concurrent `setup` runs apart, but the pid
+    // keeps a crashed run's leftovers from being mistaken for this one's.
+    let temp_path = target_dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    let write_and_rename = || {
+        fs::write(&temp_path, contents)?;
+        // Set the mode before the rename so the script is never observable
+        // at its final path without the executable bit.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&temp_path, fs::Permissions::from_mode(0o755))?;
+        }
+        fs::rename(&temp_path, target_dir.join(name))
+    };
+    let result = write_and_rename();
+    if result.is_err() {
+        let _ = fs::remove_file(&temp_path);
+    }
+    result
 }
 
 /// v10-layout shim names that v11 writes under `pnpm_home_dir/bin` instead.

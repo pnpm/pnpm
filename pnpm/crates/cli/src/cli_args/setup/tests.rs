@@ -89,6 +89,40 @@ fn alias_scripts_are_written_and_executable() {
 }
 
 #[test]
+#[cfg(unix)]
+fn alias_scripts_replace_a_hardlink_of_a_running_executable() {
+    // `npm i -g pnpm` leaves `$PNPM_HOME/bin/{pn,pnpx,pnx}` as hardlinks of
+    // the pnpm executable. Truncating one of those paths in place while the
+    // inode is executing fails with ETXTBSY, and the process doing the
+    // truncating is `pnpm setup` itself, so setup must replace the directory
+    // entry rather than write through to the shared inode.
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let bin_dir = dir.path().join("bin");
+    std::fs::create_dir_all(&bin_dir).expect("create bin dir");
+
+    let pn = bin_dir.join("pn");
+    std::fs::write(&pn, "the pnpm executable\n").expect("write the existing shim");
+    let executable = dir.path().join("pnpm");
+    std::fs::hard_link(&pn, &executable).expect("hard link the existing shim");
+
+    create_alias_scripts(&bin_dir).expect("write alias scripts");
+
+    assert_eq!(std::fs::read_to_string(&pn).expect("read pn"), "#!/bin/sh\nexec pnpm \"$@\"\n");
+    assert_eq!(
+        std::fs::read_to_string(&executable).expect("read the other hardlink"),
+        "the pnpm executable\n",
+        "the old inode must survive untouched; writing through it is what raises ETXTBSY",
+    );
+
+    let leftovers: Vec<_> = std::fs::read_dir(&bin_dir)
+        .expect("read bin dir")
+        .map(|entry| entry.expect("read dir entry").file_name())
+        .filter(|name| name.to_string_lossy().ends_with(".tmp"))
+        .collect();
+    assert_eq!(leftovers, Vec::<std::ffi::OsString>::new(), "no temp file should be left behind");
+}
+
+#[test]
 fn remove_legacy_homedir_shims_unlinks_all_v10_names() {
     // pnpm/pnpm#12496: setup must clean up the v10-layout shims at the top
     // of pnpm_home_dir, otherwise self-update keeps warning about a v10
