@@ -1799,10 +1799,10 @@ pub struct Config {
     /// `scheme://host[:port]` at `n` in-flight sockets, queueing the rest.
     pub max_sockets: Option<usize>,
 
-    /// Per-request network timeout in milliseconds. The `fetchTimeout`
-    /// setting (default `60000` — 60 s, see
-    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both
-    /// the response and connect deadline of the reqwest client.
+    /// How long a request may make no progress, in milliseconds. The
+    /// `fetchTimeout` setting (default `60000` — 60 s, see
+    /// [`pnpm_network::DEFAULT_FETCH_TIMEOUT_MS`]). Applied as both the
+    /// read and connect deadline of the reqwest client.
     #[default(_code = "default_fetch_timeout()")]
     pub fetch_timeout: u64,
 

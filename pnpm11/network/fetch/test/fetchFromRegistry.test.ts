@@ -4,9 +4,11 @@ import http from 'node:http'
 import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
-import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry } from '@pnpm/network.fetch'
+import { clearDispatcherCache, createDispatchedFetch, createFetchFromRegistry, DEFAULT_FETCH_TIMEOUT } from '@pnpm/network.fetch'
 import { ProxyServer } from 'https-proxy-server-express'
 import { type Dispatcher, getGlobalDispatcher, MockAgent, setGlobalDispatcher } from 'undici'
+
+import { startServer } from './utils/trickleServer.js'
 
 let originalDispatcher: Dispatcher | null = null
 let currentMockAgent: MockAgent | null = null
@@ -431,4 +433,26 @@ test('sec-fetch-* headers are stripped from requests', async () => {
   })
   const secFetchHeaders = Object.keys(receivedHeaders).filter(h => h.startsWith('sec-fetch-'))
   expect(secFetchHeaders).toEqual([])
+})
+
+test('the timeout a registry fetcher is created with reaches the response body', async () => {
+  const TIMEOUT = 300
+  await using server = await startServer((res) => {
+    res.write('chunk')
+  })
+  const fetchFromRegistry = createFetchFromRegistry({ timeout: TIMEOUT })
+  try {
+    const response = await fetchFromRegistry(server.url, { retry: { retries: 0 } })
+    const startedAt = Date.now()
+
+    await expect(response.text()).rejects.toMatchObject({
+      cause: expect.objectContaining({ code: 'UND_ERR_BODY_TIMEOUT' }),
+    })
+    // The body timer starts when the response head arrives, just before this.
+    const elapsed = Date.now() - startedAt
+    expect(elapsed).toBeGreaterThan(TIMEOUT - 50)
+    expect(elapsed).toBeLessThan(DEFAULT_FETCH_TIMEOUT)
+  } finally {
+    clearDispatcherCache()
+  }
 })

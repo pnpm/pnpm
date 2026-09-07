@@ -1368,6 +1368,66 @@ fn for_installs_rejects_zero_network_concurrency() {
     assert!(matches!(err, ForInstallsError::ZeroNetworkConcurrency), "got {err:?}");
 }
 
+/// Regression test for <https://github.com/pnpm/pnpm/issues/14604>.
+#[tokio::test]
+async fn a_body_that_keeps_arriving_outlives_the_fetch_timeout() {
+    const CHUNKS: usize = 6;
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/runtime.tar.gz")
+        .with_chunked_body(|writer| {
+            for _ in 0..CHUNKS {
+                std::thread::sleep(Duration::from_millis(60));
+                writer.write_all(b"chunk")?;
+            }
+            Ok(())
+        })
+        .create_async()
+        .await;
+    let client = client_with_fetch_timeout(Duration::from_millis(200));
+    let url = format!("{}/runtime.tar.gz", server.url());
+
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let body = response.bytes().await.expect("a body that keeps arriving must not time out");
+
+    assert_eq!(body.len(), CHUNKS * "chunk".len());
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn a_stalled_body_fails_after_the_fetch_timeout() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/runtime.tar.gz")
+        .with_chunked_body(|writer| {
+            writer.write_all(b"chunk")?;
+            std::thread::sleep(Duration::from_millis(600));
+            Ok(())
+        })
+        .create_async()
+        .await;
+    let client = client_with_fetch_timeout(Duration::from_millis(100));
+    let url = format!("{}/runtime.tar.gz", server.url());
+
+    let guard = client.acquire_for_url(&url).await;
+    let response = guard.get(&url).send().await.expect("the mock server responds");
+    let error = response.bytes().await.expect_err("a stalled body must time out");
+
+    assert!(error.is_timeout(), "got {error:?}");
+}
+
+fn client_with_fetch_timeout(fetch_timeout: Duration) -> ThrottledClient {
+    let settings = NetworkSettings { fetch_timeout, ..NetworkSettings::default() };
+    ThrottledClient::for_installs(
+        &ProxyConfig::default(),
+        &TlsConfig::default(),
+        &PerRegistryTls::default(),
+        &settings,
+    )
+    .expect("custom fetch timeout builds")
+}
+
 #[test]
 fn for_installs_falls_back_on_unencodable_user_agent() {
     // A user-agent containing a control character cannot be encoded as
