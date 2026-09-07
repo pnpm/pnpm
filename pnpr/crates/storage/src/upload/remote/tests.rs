@@ -11,6 +11,7 @@ async fn a_full_chunk_list_still_accepts_an_empty_completion_request() {
         repository: "app".into(),
         chunks: vec!["b".repeat(32); MAX_CHUNKS],
         size: 0,
+        completion: None,
         closed: false,
     };
     let version = backend.write(&id, &record, PutMode::Create).await.unwrap();
@@ -29,8 +30,13 @@ async fn expiry_removes_unrecorded_chunks_even_when_they_are_listed_first() {
     let disk = tempfile::TempDir::new().unwrap();
     let backend = RemoteUploadStore::new(Arc::new(InMemory::new()), "", disk.path().into());
     let id = "a".repeat(32);
-    let record =
-        UploadRecord { repository: "app".into(), chunks: Vec::new(), size: 0, closed: false };
+    let record = UploadRecord {
+        repository: "app".into(),
+        chunks: Vec::new(),
+        size: 0,
+        completion: None,
+        closed: false,
+    };
     backend.write(&id, &record, PutMode::Create).await.unwrap();
     backend.store.put(&backend.key(&id, &"b".repeat(32)), b"orphan".to_vec().into()).await.unwrap();
     assert_eq!(backend.sweep(std::time::Duration::ZERO).await.unwrap(), 1);
@@ -54,8 +60,13 @@ async fn unreadable_sessions_do_not_prevent_other_uploads_from_expiring() {
         .put(&backend.key(&unreadable, &"b".repeat(32)), b"keep".to_vec().into())
         .await
         .unwrap();
-    let record =
-        UploadRecord { repository: "app".into(), chunks: Vec::new(), size: 0, closed: false };
+    let record = UploadRecord {
+        repository: "app".into(),
+        chunks: Vec::new(),
+        size: 0,
+        completion: None,
+        closed: false,
+    };
     backend.write(&expired, &record, PutMode::Create).await.unwrap();
     assert_eq!(backend.sweep(std::time::Duration::ZERO).await.unwrap(), 1);
     assert!(backend.read(&expired).await.unwrap().is_none());

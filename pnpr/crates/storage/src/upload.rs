@@ -209,11 +209,15 @@ impl Storage {
         let remote = upload.remote.clone();
         let slot = self.stage_uploaded_blob(upload, name, filename).await?;
         let _temp = tempfile::TempPath::try_from_path(slot.tmp_path.clone())?;
+        if let Some(remote) = &remote {
+            remote.prepare_completion(filename).await?;
+        }
         let outcome = self.finalize_blob_slot(slot).await?;
         if outcome != BlobFinalize::Conflict
             && let Some(remote) = remote
+            && let Err(error) = remote.close().await
         {
-            remote.close().await?;
+            tracing::warn!(error = %error.log_message(), "promoted upload awaits session cleanup");
         }
         Ok(outcome)
     }
@@ -221,7 +225,7 @@ impl Storage {
     /// Move a finished upload into a hosted blob slot, ready for
     /// [`Storage::finalize_blob_slot`].
     ///
-    /// Shared sessions remain open until their bytes have been promoted.
+    /// Shared chunks remain available until their bytes have been promoted.
     async fn stage_uploaded_blob(
         &self,
         upload: BlobUpload,

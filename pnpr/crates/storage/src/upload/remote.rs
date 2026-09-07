@@ -29,6 +29,8 @@ struct UploadRecord {
     chunks: Vec<String>,
     size: u64,
     closed: bool,
+    #[serde(default)]
+    completion: Option<String>,
 }
 
 #[derive(Debug)]
@@ -123,6 +125,7 @@ impl RemoteUploadStore {
             chunks: Vec::new(),
             size: 0,
             closed: false,
+            completion: None,
         };
         let version = self.write(&id, &record, PutMode::Create).await?;
         self.handle(&id, VersionedRecord { record, version }).await
@@ -144,6 +147,9 @@ impl RemoteUploadStore {
         let Some(mut state) = self.read(id).await? else { return Ok(false) };
         if state.record.closed {
             return Ok(false);
+        }
+        if state.record.completion.is_some() {
+            return Err(RegistryError::BlobUploadConflict { id: id.to_string() });
         }
         state.record.closed = true;
         self.write(id, &state.record, PutMode::Update(state.version)).await?;
@@ -272,6 +278,23 @@ impl RemoteUpload {
         Ok(())
     }
 
+    /// Freeze the verified chunk list before promotion. A retry can promote the
+    /// same digest after a crash or failed object-store write.
+    pub(super) async fn prepare_completion(&self, filename: &str) -> Result<()> {
+        let mut state = self.state.lock().await;
+        if state.record.closed
+            || state.record.completion.as_deref().is_some_and(|value| value != filename)
+        {
+            return Err(RegistryError::BlobUploadConflict { id: self.id.clone() });
+        }
+        let mut record = state.record.clone();
+        record.completion = Some(filename.to_string());
+        let version =
+            self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
+        *state = VersionedRecord { record, version };
+        Ok(())
+    }
+
     pub(super) async fn close(&self) -> Result<()> {
         let mut state = self.state.lock().await;
         let mut record = state.record.clone();
@@ -296,6 +319,9 @@ impl RemoteChunk {
                 return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
             }
             return Ok(self.snapshot.size);
+        }
+        if self.snapshot.closed || self.snapshot.completion.is_some() {
+            return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
         }
         if self.snapshot.chunks.len() == MAX_CHUNKS {
             return Err(RegistryError::BadRequest { reason: "upload has too many chunks".into() });

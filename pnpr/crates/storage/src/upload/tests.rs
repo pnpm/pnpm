@@ -327,6 +327,7 @@ async fn s3_concurrent_append_and_stale_completion_cannot_overwrite_accepted_byt
     winner.finish().await.unwrap();
     assert!(loser.finish().await.is_err());
     assert!(second.finalize_uploaded_blob(stale, &repository, "sha256-stale").await.is_err());
+    assert!(second.open_hosted_blob(&repository, "sha256-stale").await.unwrap().is_none());
     let resumed = second.open_blob_upload(&repository, original.id()).await.unwrap().unwrap();
     resumed.materialize().await.unwrap();
     assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"winner");
@@ -364,6 +365,7 @@ async fn failed_promotion_keeps_shared_chunks_available_for_retry() {
     let mut writer = upload.append().await.unwrap();
     writer.write_all(b"accepted").await.unwrap();
     writer.finish().await.unwrap();
+    upload.remote.as_ref().unwrap().prepare_completion("sha256-test").await.unwrap();
     let slot = first.stage_uploaded_blob(upload, &repository, "sha256-test").await.unwrap();
     tokio::fs::remove_file(&slot.tmp_path).await.unwrap();
     assert!(first.finalize_blob_slot(slot).await.is_err());
@@ -411,4 +413,34 @@ async fn conflicting_blob_promotion_does_not_consume_the_shared_upload() {
     assert_eq!(resumed.offset().await.unwrap(), 8);
     first.remove_blob(&repository, "sha256-test").await.unwrap();
     second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+}
+
+#[tokio::test]
+async fn prepared_completion_freezes_chunks_and_survives_replica_loss() {
+    let (first, second, first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    let id = upload.id().to_string();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"accepted").await.unwrap();
+    writer.finish().await.unwrap();
+    let stale = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    let mut stale_writer = stale.append().await.unwrap();
+    stale_writer.write_all(b"racing").await.unwrap();
+    upload.remote.as_ref().unwrap().prepare_completion("sha256-test").await.unwrap();
+    assert!(stale_writer.finish().await.is_err());
+    assert!(second.abort_blob_upload(&id).await.is_err());
+    drop(upload);
+    drop(first_disk);
+    let resumed = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    let mut writer = resumed.append().await.unwrap();
+    writer.write_all(b"extra").await.unwrap();
+    assert!(writer.finish().await.is_err());
+    assert_eq!(resumed.append().await.unwrap().finish().await.unwrap(), 8);
+    assert!(second.finalize_uploaded_blob(resumed, &repository, "sha256-other").await.is_err());
+    assert!(second.open_hosted_blob(&repository, "sha256-other").await.unwrap().is_none());
+    let resumed = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    let (body, _) = second.open_hosted_blob(&repository, "sha256-test").await.unwrap().unwrap();
+    assert_eq!(axum::body::to_bytes(body, 100).await.unwrap().as_ref(), b"accepted");
 }

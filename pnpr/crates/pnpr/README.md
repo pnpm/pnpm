@@ -337,7 +337,10 @@ streams the accepted chunks to local scratch for digest verification, then
 streams large blobs back to S3 in 8 MiB parts. Allow scratch space for concurrent
 requests and completed layers. Concurrent changes to one session are rejected;
 clients can query its current offset and retry. A session accepts up to 10,000
-nonempty chunks.
+nonempty chunks. Completion freezes the chunk list and digest before promotion.
+If promotion fails, retry completion with that digest and an empty request body.
+Frozen sessions reject further chunks and cancellation, and expire after 24 hours
+of inactivity.
 
 Startup removes upload sessions idle for more than 24 hours, including their
 accepted chunks. Run a rolling restart periodically if abandoned uploads need
