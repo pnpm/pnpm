@@ -23,10 +23,10 @@ unmaintained = "workspace"
 yanked = "warn"
 ignore = [
   # `pgp` pulls in `rsa` to verify OpenPGP signatures made by RSA Node.js
-  # release keys. Pacquet only performs public-key signature verification here;
-  # it never handles RSA private keys, so the private-key timing side channel
-  # described by this advisory is not reachable through this use.
-  { id = "RUSTSEC-2023-0071", reason = "Only public-key OpenPGP signature verification is performed for pinned Node.js release keys; no RSA private-key operation is exposed." },
+  # release keys. `openidconnect` also uses it to verify pnpr OIDC tokens.
+  # Production code only performs public-key verification in both paths;
+  # the private-key timing side channel is not reachable.
+  { id = "RUSTSEC-2023-0071", reason = "Only public-key verification is performed for Node.js OpenPGP release signatures and pnpr OIDC tokens; no RSA private-key operation is exposed." },
   # quick-xml DoS advisories (quadratic duplicate-attribute check, unbounded
   # namespace-declaration allocation). quick-xml is reached only through
   # object_store's S3 XML response parsing in pnpr, so the XML comes from the

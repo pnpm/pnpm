@@ -5,6 +5,7 @@ mod compiler_cache;
 mod documents;
 mod ecosystem;
 mod oci;
+mod oidc;
 mod package_mutation;
 mod publishing;
 mod pypi;
@@ -128,6 +129,7 @@ struct AppInner {
     upstream_cache_namespaces: IndexMap<String, String>,
     config: Config,
     auth: AuthState,
+    oidc: pnpr_auth::oidc::OidcState,
     /// Serializes the read-modify-write packument flows per package so
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
@@ -263,10 +265,13 @@ async fn load_startup_auth(config: &Config) -> pnpr_error::Result<AuthState> {
 /// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
 /// puts the raw bearer token in the URL path, and a reusable credential
 /// must never reach a log line, so everything after that marker is
-/// redacted. Every other URI is logged verbatim; a false positive (a
+/// redacted. OIDC callback queries are also omitted. Other URIs are logged verbatim; a false positive (a
 /// registry path that merely embeds the marker) is redacted too, which
 /// only costs log detail on a request no route serves.
 fn loggable_uri(uri: &axum::http::Uri) -> String {
+    if uri.path().starts_with("/-/oidc/") {
+        return uri.path().to_string();
+    }
     const TOKEN_MARKER: &str = "/-/user/token/";
     match uri.path().find(TOKEN_MARKER) {
         Some(index) => {
@@ -2139,6 +2144,22 @@ async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Respo
         Ok(username) => username,
         Err(err) => return err.into_response(),
     };
+    match state.inner.oidc.session(raw_token) {
+        Ok(Some(owner)) if owner == username => {
+            state.inner.oidc.revoke_session(raw_token);
+            return json_response(StatusCode::OK, &json!({ "ok": true }));
+        }
+        Ok(Some(_)) => {
+            return RegistryError::Forbidden {
+                user: username,
+                action: "revoke",
+                resource: "this session".to_string(),
+            }
+            .into_response();
+        }
+        Err(err) => return err.into_response(),
+        Ok(None) => {}
+    }
     let target_owner = match state.inner.auth.tokens.lookup(raw_token).await {
         Ok(Some(owner)) => owner,
         Ok(None) => return not_found(),
@@ -2203,6 +2224,11 @@ async fn caller_username(
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
     let authorization = single_authorization_header(headers)?;
+    if let Some(raw) = authorization.and_then(authentication::bearer_credentials)
+        && let Some(username) = state.inner.oidc.session(raw)?
+    {
+        return Ok(Some(username));
+    }
     identify(authorization, state.inner.auth.tokens.as_ref()).await
 }
 

@@ -102,6 +102,8 @@ pub(super) fn router_with_auth_and_osv(
         .keys()
         .map(|name| (name.clone(), compute_upstream_cache_namespace(&config, name)))
         .collect();
+    super::oidc::validate_workloads(&config)?;
+    let oidc = pnpr_auth::oidc::OidcState::new(&config.auth.oidc, &config.public_url)?;
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -112,6 +114,7 @@ pub(super) fn router_with_auth_and_osv(
             upstream_cache_namespaces,
             config,
             auth,
+            oidc,
             package_locks: StripedLocks::new(),
             referrer_migration_locks: StripedLocks::new(),
             resolver: std::sync::OnceLock::new(),
@@ -122,7 +125,10 @@ pub(super) fn router_with_auth_and_osv(
     // configurable surfaces are mounted only when their feature is enabled,
     // so resolver, registry, and artifacts can be deployed independently.
     // The config guarantees at least one is enabled.
-    let mut router = Router::new().route("/-/ping", get(serve_ping));
+    let mut router = Router::new()
+        .route("/-/ping", get(serve_ping))
+        .route("/-/oidc/{provider}/login", get(super::oidc::login))
+        .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
     let account = account_routes();
     router = router.merge(account.clone());
     // The install-accelerator and shared-artifact surfaces live under the

@@ -26,6 +26,8 @@
 //! only its SHA-256 hash hits storage, so a leak of the database
 //! doesn't grant access on its own.
 
+pub mod oidc;
+
 use async_trait::async_trait;
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;

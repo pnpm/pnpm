@@ -4,6 +4,11 @@ A pnpm-compatible npm registry server, written in Rust.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
 
+## OpenID Connect
+
+[Configure OIDC sign-in and keyless CI publishing](./OIDC.md) with Okta,
+Microsoft Entra ID, Google Workspace, or GitHub Actions workload identity.
+
 ## Cargo compilation cache
 
 pnpr's experimental artifact service supports sccache's WebDAV backend.
