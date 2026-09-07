@@ -101,7 +101,13 @@ impl PipelineRunStore {
         for workspace in workspaces {
             validate_name(workspace, "workspace")?;
             for key in self.storage.list_pipeline_runs(workspace).await? {
+                // Only what this store writes is a run: anything else under
+                // the workspace — a nested path, a file with another suffix —
+                // is passed over rather than failing the listing.
                 let Some(run_id) = key.strip_suffix(RECORD_SUFFIX) else { continue };
+                if validate_name(run_id, "runId").is_err() {
+                    continue;
+                }
                 newest.insert((run_id.to_string(), (*workspace).to_string()));
                 if newest.len() > limit {
                     newest.pop_first();
@@ -126,7 +132,11 @@ impl PipelineRunStore {
         let Some(bytes) = self.storage.read_pipeline_run(workspace, &key).await? else {
             return Ok(None);
         };
-        Ok(Some(serde_json::from_slice(&bytes)?))
+        serde_json::from_slice(&bytes).map(Some).map_err(|error| RegistryError::Internal {
+            // Name the record: it is one of many in a store several replicas
+            // write, and an operator has to be able to find the one at fault.
+            reason: format!("pipeline run {workspace}/{run_id} is not readable: {error}"),
+        })
     }
 }
 

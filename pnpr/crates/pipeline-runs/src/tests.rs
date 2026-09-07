@@ -124,8 +124,8 @@ async fn listing_does_not_parse_records_outside_the_requested_page() {
     assert_eq!(store.list(&["demo"], 1).await.unwrap()[0].run_id, "200-default");
 }
 
-/// A listing reads one workspace's keys, not the whole store's: a workspace
-/// no one asked about cannot slow down or break the answer.
+/// A workspace no one asked about must not be able to slow down or break the
+/// answer.
 #[tokio::test]
 async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
     let root = TempDir::new().unwrap();
@@ -139,9 +139,41 @@ async fn a_listing_is_scoped_to_the_workspaces_it_was_given() {
     assert_eq!(listed[0].run_id, "100-default");
 }
 
-/// Run records are the account of something that happened once, so they
-/// belong to the deployment rather than to the replica that was asked. A run
-/// recorded through one replica is served by every other.
+/// An operator should hear that a record cannot be read, and be told which.
+#[tokio::test]
+async fn a_corrupt_record_on_the_page_is_named() {
+    let root = TempDir::new().unwrap();
+    let storage = storage_in(&HostedStoreConfig::Fs, &root);
+    let store = PipelineRunStore::new(storage.clone());
+    storage.create_pipeline_run("demo", "100-default.json", b"invalid JSON").await.unwrap();
+
+    let error = store.list(&["demo"], 10).await.expect_err("the listing fails");
+    let rendered = error.to_string();
+    assert!(rendered.contains("demo/100-default"), "unexpected error: {rendered}");
+}
+
+/// A listing must not fail because something the store did not write is under
+/// the workspace.
+#[tokio::test]
+async fn a_key_the_store_did_not_write_is_passed_over() {
+    let root = TempDir::new().unwrap();
+    let storage = storage_in(&HostedStoreConfig::Fs, &root);
+    let store = PipelineRunStore::new(storage.clone());
+    store.publish(&run("demo", "100-default")).await.unwrap();
+    std::fs::create_dir_all(root.path().join("storage/.pipeline-runs/v0/demo/nested")).unwrap();
+    std::fs::write(
+        root.path().join("storage/.pipeline-runs/v0/demo/nested/deeper.json"),
+        b"invalid JSON",
+    )
+    .unwrap();
+    std::fs::write(root.path().join("storage/.pipeline-runs/v0/demo/notes.txt"), b"notes").unwrap();
+
+    let listed = store.list(&["demo"], 10).await.expect("list");
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].run_id, "100-default");
+}
+
+/// Run records belong to the deployment, not to the replica that was asked.
 #[tokio::test]
 async fn a_run_recorded_on_one_replica_is_served_by_another() {
     let bucket: Arc<dyn object_store::ObjectStore> =
