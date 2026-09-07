@@ -1076,9 +1076,10 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 struct Store {
     root: PathBuf,
     revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
-    /// Serializes the read-compare-write of a staged record. One process
-    /// owns this store, so an in-process lock is the whole of the
-    /// compare-and-set the object-store backend gets from an `ETag`.
+    /// Serializes the read-compare-write of a staged record against every
+    /// other write to it, removals included. One process owns this store, so
+    /// an in-process lock is the whole of the compare-and-set the
+    /// object-store backend gets from an `ETag`.
     staged_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
@@ -1438,7 +1439,11 @@ impl Store {
         Ok(DocumentWrite::Written)
     }
 
+    /// Under the staged-write lock, so a removal cannot land between a
+    /// conditional replace's comparison and its write and see the record it
+    /// deleted written back.
     async fn remove_staged(&self, object: &str) -> Result<bool> {
+        let _guard = self.staged_write_lock.lock().await;
         match fs::remove_file(self.root.join(STAGED_DIR).join(object)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),

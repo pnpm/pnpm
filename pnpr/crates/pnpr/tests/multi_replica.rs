@@ -6,16 +6,22 @@
 //! drive two routers over one bucket the way a load balancer would spread
 //! requests over two containers.
 
+#[path = "common/npm.rs"]
+mod npm;
+#[path = "common/pausing_store.rs"]
+#[expect(dead_code, reason = "the shared store pauses writes too, which this suite does not need")]
+mod pausing_store;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::publish_doc;
 use object_store::{ObjectStore, memory::InMemory};
+use pausing_store::PausingStore;
 use pnpr::{Config, HostedStoreConfig, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
-    fmt::Write,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     sync::Arc,
 };
@@ -91,9 +97,8 @@ impl Replica {
     }
 }
 
-/// Two replicas publishing different versions of one package at the same time
-/// keep both: the conditional document write makes the loser re-read and merge
-/// rather than write over the version it never saw.
+/// The publish that loses the conditional document write must re-read and
+/// merge; it must not write over the version it never saw.
 #[tokio::test]
 async fn concurrent_publishes_of_one_package_keep_both_versions() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -114,8 +119,7 @@ async fn concurrent_publishes_of_one_package_keep_both_versions() {
     }
 }
 
-/// A staged publish is shared state: it can be created on one replica and
-/// approved on another, and it is spent once it has been.
+/// A staged record is shared state, not the state of the replica that took it.
 #[tokio::test]
 async fn a_stage_created_on_one_replica_is_approved_on_another() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -132,9 +136,8 @@ async fn a_stage_created_on_one_replica_is_approved_on_another() {
     );
 }
 
-/// Approving the same stage on two replicas at once publishes it once. The
-/// approval claims the record with a conditional write, so the second replica
-/// finds a record that is no longer the one it read.
+/// Approving one stage on two replicas at once publishes it once: the held
+/// document is replayed by whichever approval claims the record.
 #[tokio::test]
 async fn one_stage_approved_on_two_replicas_publishes_once() {
     let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
@@ -154,6 +157,45 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
     let (status, listing) = second.send("GET", "/-/stage", Body::empty()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(listing["total"], 0, "the stage is spent");
+}
+
+/// A rejection reaching one replica takes the stage back from an approval
+/// under way on another, as long as it lands before that approval commits.
+///
+/// The approving replica is paused after it has the held publish in hand,
+/// inside the read of the package it is about to write, which is where a
+/// rejection can still be observed.
+#[tokio::test]
+async fn a_rejection_stops_an_approval_that_has_not_committed() {
+    let objects = Arc::new(PausingStore::default());
+    let store: Arc<dyn ObjectStore> = Arc::clone(&objects) as Arc<dyn ObjectStore>;
+    let approving = Replica::start(&store).await;
+    let rejecting = Replica::start(&store).await;
+
+    let stage_id = approving.stage("staged-pkg", "1.0.0", b"the tarball").await;
+    objects.pause("package.json".to_string());
+    let approval = tokio::spawn({
+        let app = approving.app.clone();
+        let token = approving.token.clone();
+        let path = format!("/-/stage/{stage_id}/approve");
+        async move {
+            let request = Request::post(&path)
+                .header("Authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap();
+            app.oneshot(request).await.unwrap().status()
+        }
+    });
+
+    objects.started.notified().await;
+    let (rejected, _) =
+        rejecting.send("DELETE", &format!("/-/stage/{stage_id}"), Body::empty()).await;
+    assert_eq!(rejected, StatusCode::NO_CONTENT);
+    objects.resume.notify_one();
+
+    assert_ne!(approval.await.unwrap(), StatusCode::CREATED, "the rejection stands");
+    let (status, _) = approving.send("GET", "/staged-pkg", Body::empty()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "a rejected publish must not be served");
 }
 
 /// A dist-tag moved through one replica is what every replica serves.
@@ -193,49 +235,4 @@ async fn add_user_and_get_token(app: axum::Router, username: &str, password: &st
     let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: Value = serde_json::from_slice(&bytes).unwrap();
     payload["token"].as_str().expect("token in response").to_string()
-}
-
-fn publish_doc(name: &str, version: &str, tarball: &[u8]) -> Value {
-    let filename = format!("{name}-{version}.tgz");
-    json!({
-        "_id": name,
-        "name": name,
-        "description": "test",
-        "dist-tags": { "latest": version },
-        "versions": {
-            version: {
-                "name": name,
-                "version": version,
-                "dist": {
-                    "tarball": format!("http://localhost:4873/{name}/-/{filename}"),
-                    "shasum": sha1_hex(tarball),
-                    "integrity": sri_sha512(tarball),
-                }
-            }
-        },
-        "_attachments": {
-            filename: {
-                "content_type": "application/octet-stream",
-                "data": BASE64.encode(tarball),
-                "length": tarball.len()
-            }
-        }
-    })
-}
-
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
-}
-
-fn sha1_hex(bytes: &[u8]) -> String {
-    let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha1);
-    opts.input(bytes);
-    let integrity = opts.result();
-    let digest_bytes = BASE64.decode(&integrity.hashes[0].digest).unwrap();
-    digest_bytes.iter().fold(String::with_capacity(40), |mut acc, byte| {
-        write!(acc, "{byte:02x}").unwrap();
-        acc
-    })
 }

@@ -31,7 +31,8 @@ use serde_json::{Value, json};
 
 use super::{
     Action, AppState, AuthedCaller, Identity, RegistrySource, TargetRegistry, authorize,
-    commit_publishes, json_response, not_found, private_no_cache, publishing::report_unrecorded,
+    commit_publishes, json_response, not_found, private_no_cache,
+    publishing::{cleanup_tmp_slots, report_unrecorded},
     resolve_write_target, stage_publish, validate_publish_doc,
 };
 use pnpr_error::RegistryError;
@@ -90,7 +91,10 @@ struct ApprovalClaim {
 /// How long a claim on a staged record is honored. An approval releases its
 /// claim on every outcome, so the lease only matters when the replica holding
 /// one died mid-approval: after it the record can be approved again instead of
-/// being stranded until someone rejects it.
+/// being stranded until someone rejects it. An approval slower than the lease
+/// can therefore be joined by a second one, which is bounded rather than
+/// unsafe: both replay the same held bytes onto the same immutable blob slot
+/// and merge the same version into the document.
 const APPROVAL_CLAIM_LEASE: Duration = Duration::from_mins(10);
 
 impl StagedRecord {
@@ -385,12 +389,8 @@ async fn serve_staged_reject(
     }
 }
 
-/// `POST /-/stage/:id/approve` — publish the held document through the
-/// regular validate → stage → commit flow, then drop the staged record.
-///
-/// The record is claimed with a conditional write first, so a stage is
-/// approved once even when two requests reach two replicas of one hosted
-/// store: the second finds the record is no longer the one it read.
+/// `POST /-/stage/:id/approve` — claim the record, publish the held document
+/// through the regular validate → stage → commit flow, then drop the record.
 async fn serve_staged_approve(
     state: &AppState,
     identity: &Identity,
@@ -405,7 +405,7 @@ async fn serve_staged_approve(
         Ok(claim) => claim,
         Err(err) => return err.into_response(),
     };
-    match approve_claimed(state, identity, stage_id, &claim.record).await {
+    match approve_claimed(state, identity, stage_id, &claim).await {
         Ok(response) => response,
         Err(err) => {
             release_approval_claim(state, stage_id, &claim).await;
@@ -450,17 +450,35 @@ async fn claim_for_approval(
     }
 }
 
-/// Whether a claim started at `since` still holds the record. An unparsable
-/// timestamp is treated as expired: a value pnpr cannot read must not be able
-/// to hold a stage forever.
+/// Whether a claim started at `since` still holds the record.
+///
+/// A claim from the future is live: replicas time their claims by their own
+/// clocks, and one running ahead must not have its claim read as expired by
+/// one running behind. An unparsable timestamp is expired instead — a value
+/// pnpr cannot read must not be able to hold a stage forever.
 fn approval_claim_is_live(since: &str) -> bool {
     let Ok(started) = chrono::DateTime::parse_from_rfc3339(since) else {
         return false;
     };
-    chrono::Utc::now()
-        .signed_duration_since(started)
-        .to_std()
-        .is_ok_and(|held| held < APPROVAL_CLAIM_LEASE)
+    let Ok(held) = chrono::Utc::now().signed_duration_since(started).to_std() else {
+        return true;
+    };
+    held < APPROVAL_CLAIM_LEASE
+}
+
+/// Whether the record this approval claimed is still the one it claimed: a
+/// rejection removes it, and a claim the lease handed to another approval is
+/// no longer this one's.
+async fn still_claimed(
+    state: &AppState,
+    stage_id: &str,
+    claim: &ApprovalClaim,
+) -> Result<(), RegistryError> {
+    match state.inner.storage.read_staged_meta(stage_id).await? {
+        Some(stored) if stored == claim.claimed_bytes => Ok(()),
+        Some(_) => Err(RegistryError::StagedApprovalInFlight { stage_id: stage_id.to_string() }),
+        None => Err(RegistryError::NotFound),
+    }
 }
 
 /// Put back the record this approval claimed, so a failed approval can be
@@ -483,8 +501,9 @@ async fn approve_claimed(
     state: &AppState,
     identity: &Identity,
     stage_id: &str,
-    record: &StagedRecord,
+    claim: &ApprovalClaim,
 ) -> Result<Response, RegistryError> {
+    let record = &claim.record;
     let Some(body) = state.inner.storage.read_staged_body(stage_id).await? else {
         return Err(RegistryError::Io(std::io::Error::other(format!(
             "staged publish {stage_id} has no stored body",
@@ -501,6 +520,12 @@ async fn approve_claimed(
 
     let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
     let staged = stage_publish(state, validated, &now_iso(), Some(&target.org)).await?;
+    // Nothing is visible yet, which is the last moment a rejection can still
+    // take the stage back. Past the commit it cannot: the publish is served.
+    if let Err(err) = still_claimed(state, stage_id, claim).await {
+        cleanup_tmp_slots(staged.slots).await;
+        return Err(err);
+    }
     let outcome = commit_publishes(state, vec![staged]).await?;
     // Past the commit the stage is spent, whatever the transaction could not
     // record: leaving the record listed would offer an approval that cannot
