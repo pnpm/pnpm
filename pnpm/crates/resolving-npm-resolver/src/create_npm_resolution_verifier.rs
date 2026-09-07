@@ -28,7 +28,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use miette::Diagnostic as _;
 use pipe_trait::Pipe;
-use pnpm_config::{TrustPolicy, version_policy::PackageVersionPolicy};
+use pnpm_config::{DEFAULT_JSR_REGISTRY, TrustPolicy, version_policy::PackageVersionPolicy};
 use pnpm_lockfile::{
     LockfileResolution, PkgName, TarballRevision, is_git_hosted_tarball_url,
     is_integrity_addressed_registry_tarball_url,
@@ -239,6 +239,8 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
+    let mut registries = opts.registries;
+    registries.entry("@jsr".to_string()).or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
     let age_check_active = opts.minimum_release_age.is_some_and(|minutes| minutes > 0);
 
     let cutoff = if age_check_active {
@@ -286,7 +288,7 @@ pub fn create_npm_resolution_verifier(
         trust_policy_ignore_after: opts.trust_policy_ignore_after,
         sorted_min_age_excludes,
         sorted_trust_excludes,
-        registries: opts.registries,
+        registries,
         named_registry_prefixes,
         registries_by_prefix,
         http_client: opts.http_client,

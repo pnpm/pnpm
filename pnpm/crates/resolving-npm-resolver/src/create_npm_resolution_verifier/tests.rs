@@ -200,6 +200,30 @@ fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
     VerifyCtx { name, version, registry_name: None }
 }
 
+#[test]
+fn unconfigured_jsr_scope_uses_the_builtin_jsr_registry() {
+    let verifier = create_npm_resolution_verifier(default_opts("https://registry.npmjs.org/"));
+    let name: PkgName = "@jsr/std__csv".parse().expect("parse");
+
+    assert_eq!(
+        verifier.pick_registry(&name, Some("https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz"),),
+        pnpm_config::DEFAULT_JSR_REGISTRY,
+    );
+}
+
+#[test]
+fn configured_jsr_scope_overrides_the_builtin_jsr_registry() {
+    let mut opts = default_opts("https://registry.npmjs.org/");
+    opts.registries.insert("@jsr".to_string(), "https://jsr.example/".to_string());
+    let verifier = create_npm_resolution_verifier(opts);
+    let name: PkgName = "@jsr/std__csv".parse().expect("parse");
+
+    assert_eq!(
+        verifier.pick_registry(&name, Some("https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz"),),
+        "https://jsr.example/",
+    );
+}
+
 #[tokio::test]
 async fn verifies_tarball_url_when_no_policy_active() {
     let mut server = mockito::Server::new_async().await;
