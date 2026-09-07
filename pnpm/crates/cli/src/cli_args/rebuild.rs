@@ -74,7 +74,7 @@ impl RebuildArgs {
             let run_node = |project_dir: PathBuf| {
                 let args = self.clone();
                 let mut project_config = base_config.clone();
-                project_config.anchor_lockfile_paths(&project_dir);
+                project_config.anchor_dedicated_project(&project_dir);
                 let first_error = &first_error;
                 async move {
                     let result = async {

@@ -63,6 +63,7 @@ pub use workspace_yaml::{
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -2199,6 +2200,13 @@ pub struct Config {
     /// [`WorkspaceSettings::package_extensions`]: crate::workspace_yaml::WorkspaceSettings::package_extensions
     pub package_extensions: Option<IndexMap<String, workspace_yaml::PackageExtension>>,
 
+    /// `packageConfigs` from `pnpm-workspace.yaml`, flattened to the
+    /// `project name → settings` lookup
+    /// [`Self::anchor_dedicated_project`] reads. Empty maps collapse
+    /// to `None`. See [`ProjectConfig`] for the settings an entry may
+    /// carry.
+    pub package_configs: Option<IndexMap<String, ProjectConfig>>,
+
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
@@ -3021,6 +3029,22 @@ impl Config {
                 None => self.modules_dir.join(".pnpm"),
             };
         }
+    }
+
+    /// [`Self::anchor_lockfile_paths`] plus the `packageConfigs` entry
+    /// of the project at `project_dir`, for the per-project installs of
+    /// a workspace whose projects keep their own lockfiles.
+    ///
+    /// A project the setting does not name, and a directory whose
+    /// `package.json` cannot be read, keep the workspace-wide settings:
+    /// the manifest is read again by the install this anchors, which is
+    /// where an unreadable one is reported.
+    pub fn anchor_dedicated_project(&mut self, project_dir: &Path) {
+        self.anchor_lockfile_paths(project_dir);
+        let Some(package_configs) = self.package_configs.as_ref() else { return };
+        let Some(name) = project_manifest_name(project_dir) else { return };
+        let Some(project_config) = package_configs.get(&name).cloned() else { return };
+        project_config.apply_to(self, project_dir);
     }
 
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as
@@ -3950,6 +3974,18 @@ fn note_declared_registries(
             declared.scopes.insert(scope);
         }
     }
+}
+
+/// The `name` of the manifest at `project_dir`, which is the key
+/// `packageConfigs` addresses a project by. `None` when the directory
+/// has no readable manifest, or one that declares no name.
+fn project_manifest_name(project_dir: &Path) -> Option<String> {
+    pnpm_package_manifest::PackageManifest::from_path(project_dir.join("package.json"))
+        .ok()?
+        .value()
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .map(ToOwned::to_owned)
 }
 
 fn collect_explicit_settings(

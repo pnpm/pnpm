@@ -14,6 +14,7 @@ use crate::{
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::Diagnostic;
+use package_configs::PackageConfigsSetting;
 use pipe_trait::Pipe;
 use pnpm_env_replace::env_replace_lossy;
 use pnpm_network::redact_and_sanitize;
@@ -906,6 +907,15 @@ pub struct WorkspaceSettings {
     /// (a separate slice) can keep the same key ordering pnpm does.
     pub package_extensions: Option<IndexMap<String, PackageExtension>>,
 
+    /// `packageConfigs` from `pnpm-workspace.yaml`: settings that
+    /// apply to one project of the workspace instead of all of them.
+    /// See [`PackageConfigsSetting`] for the two spellings and
+    /// [`Config::anchor_dedicated_project`] for where the settings
+    /// are applied.
+    ///
+    /// [`Config::anchor_dedicated_project`]: crate::Config::anchor_dedicated_project
+    pub package_configs: Option<PackageConfigsSetting>,
+
     /// `resolutionMode` from `pnpm-workspace.yaml`. See
     /// [`ResolutionMode`].
     pub resolution_mode: Option<ResolutionMode>,
@@ -1675,6 +1685,7 @@ impl WorkspaceSettings {
         self.public_hoist_pattern = None;
         self.shamefully_hoist = None;
         self.modules_dir = None;
+        self.package_configs = None;
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
@@ -2378,6 +2389,10 @@ impl WorkspaceSettings {
         if let Some(v) = self.package_extensions {
             config.package_extensions = (!v.is_empty()).then_some(v);
         }
+        if let Some(v) = self.package_configs {
+            let record = v.into_record();
+            config.package_configs = (!record.is_empty()).then_some(record);
+        }
         if let Some(v) = self.cache_dir {
             config.cache_dir = resolve(base_dir, &v);
         }
@@ -2590,6 +2605,7 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .unwrap_or_else(|| start.to_path_buf())
 }
 
+pub mod package_configs;
 pub mod registries;
 
 #[cfg(test)]

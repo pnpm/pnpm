@@ -16,7 +16,7 @@ use super::{
 use crate::{
     State,
     cli_args::{
-        config_warnings::warn_unmatched_registry_options,
+        config_warnings::{warn_unapplied_package_configs, warn_unmatched_registry_options},
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
@@ -308,10 +308,11 @@ fn select_workspace_projects_with_cycles(
 
 /// Build the project-anchored `State` for one project of a
 /// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
-/// output paths under `project_dir` via [`Config::anchor_lockfile_paths`],
-/// and initialize the state. The clone is leaked because [`State::init`] needs
-/// a `&'static Config`; see [`run_dedicated_lockfile_workspace_install`] for
-/// why the bounded leak is acceptable.
+/// output paths and per-project settings under `project_dir` via
+/// [`Config::anchor_dedicated_project`], and initialize the state. The
+/// clone is leaked because [`State::init`] needs a `&'static Config`; see
+/// [`run_dedicated_lockfile_workspace_install`] for why the bounded leak
+/// is acceptable.
 fn init_dedicated_project_state(
     cfg: &Config,
     project_dir: &Path,
@@ -319,7 +320,7 @@ fn init_dedicated_project_state(
     http_client: Option<Arc<ThrottledClient>>,
 ) -> miette::Result<State> {
     let mut project_config = cfg.clone();
-    project_config.anchor_lockfile_paths(project_dir);
+    project_config.anchor_dedicated_project(project_dir);
     let project_config = Config::leak(project_config);
     let manifest_path = project_dir.join("package.json");
     match http_client {
@@ -626,7 +627,7 @@ impl AddPipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    cfg.anchor_lockfile_paths(&manifest_dir);
+                    cfg.anchor_dedicated_project(&manifest_dir);
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -648,7 +649,7 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir =
             manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
-        cfg.anchor_lockfile_paths(&manifest_dir);
+        cfg.anchor_dedicated_project(&manifest_dir);
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
@@ -743,7 +744,7 @@ impl UpdatePipeline {
                 .parent()
                 .expect("manifest path always has a parent dir")
                 .to_path_buf();
-            cfg.anchor_lockfile_paths(&manifest_dir);
+            cfg.anchor_dedicated_project(&manifest_dir);
         }
         let generate_changeset = if args.changeset {
             true
@@ -838,7 +839,7 @@ impl RemovePipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    cfg.anchor_lockfile_paths(&manifest_dir);
+                    cfg.anchor_dedicated_project(&manifest_dir);
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -925,6 +926,7 @@ pub(crate) fn derive_config_root(
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
+    warn_unapplied_package_configs(cfg);
     Ok(config_root)
 }
 
