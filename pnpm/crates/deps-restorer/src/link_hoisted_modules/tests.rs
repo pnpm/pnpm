@@ -348,6 +348,7 @@ fn unplanned_directory_in_importer_modules_is_quarantined() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -402,6 +403,7 @@ fn entries_that_are_not_packages_are_preserved() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -445,6 +447,7 @@ fn quarantine_does_not_follow_a_symlinked_ignored_dir() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
@@ -487,6 +490,7 @@ fn orphan_scan_does_not_delete_through_a_symlinked_scope() {
         import_method: PackageImportMethod::Auto,
         logged_methods: &logged,
         requester: lockfile_dir.to_str().expect("requester"),
+        link_options: &LinkBinsOptions::default(),
         confine_root: &lockfile_dir,
     };
     link_hoisted_modules::<SilentReporter>(&opts).expect("linker succeeds");
