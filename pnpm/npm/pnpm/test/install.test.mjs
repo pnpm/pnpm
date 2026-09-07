@@ -9,6 +9,14 @@ import { fileURLToPath } from 'node:url'
 
 import { getBinCandidates, splitBinSpecifier } from '../native-binary.mjs'
 
+// Captured once, before any test fakes them. Restoring from these rather than
+// from whatever was current at the call means repeated fakes cannot restore
+// each other's state: `node:test` runs `after` hooks in registration order, so
+// a later fake's hook is the last to run.
+const REAL_HOST = ['platform', 'arch', 'report']
+  .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
+const REAL_ENDIANNESS = Object.getOwnPropertyDescriptor(os, 'endianness')
+
 const wrapperDir = path.resolve(fileURLToPath(import.meta.url), '../..')
 const wrapperManifest = JSON.parse(fs.readFileSync(path.join(wrapperDir, 'package.json'), 'utf8'))
 const HAS_A_SHELL = process.platform === 'win32' && 'Windows has no sh'
@@ -283,14 +291,11 @@ function runNpm (args, cwd) {
  *   host's own libc or byte order.
  */
 function fakeHost (t, platform, arch) {
-  const saved = ['platform', 'arch', 'report']
-    .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
-  const savedEndianness = Object.getOwnPropertyDescriptor(os, 'endianness')
   t.after(() => {
-    for (const [key, descriptor] of saved) {
+    for (const [key, descriptor] of REAL_HOST) {
       if (descriptor) Object.defineProperty(process, key, descriptor)
     }
-    if (savedEndianness) Object.defineProperty(os, 'endianness', savedEndianness)
+    if (REAL_ENDIANNESS) Object.defineProperty(os, 'endianness', REAL_ENDIANNESS)
   })
   Object.defineProperty(process, 'platform', { value: platform, configurable: true })
   Object.defineProperty(process, 'arch', { value: arch, configurable: true })
