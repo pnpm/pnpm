@@ -2548,7 +2548,11 @@ pub struct PackageManagerBootstrap {
 
 impl PackageManagerBootstrap {
     /// Registry map in pnpm's `Registries` shape: `default` plus the
-    /// configured scoped routes. Mirrors [`Config::resolved_registries`].
+    /// configured scoped routes.
+    ///
+    /// The built-in `@jsr` route [`Config::resolved_registries`] carries is
+    /// left out: this map resolves the package manager alone, which is never
+    /// a JSR package.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
         let mut registries = self.registries.clone();
@@ -2807,9 +2811,17 @@ impl Config {
 
     /// Registry map in pnpm's `Registries` shape: `default` plus the
     /// configured scoped routes keyed by `@scope`.
+    ///
+    /// The built-in `@jsr` route is one of them, so every consumer that
+    /// routes a package by its scope — the resolver, the lockfile
+    /// verifier, `pnpm why`, `pnpm view` — reaches JSR packages at
+    /// npm.jsr.io instead of asking the default registry for an
+    /// `@jsr/*` packument it does not serve. A configured `@jsr:registry`
+    /// wins over it.
     #[must_use]
     pub fn resolved_registries(&self) -> BTreeMap<String, String> {
         let mut registries = self.registries_by_scope.clone();
+        registries.entry("@jsr".to_string()).or_insert_with(|| DEFAULT_JSR_REGISTRY.to_string());
         registries.insert("default".to_string(), self.registry.clone());
         registries
     }

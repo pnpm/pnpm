@@ -3252,6 +3252,31 @@ fn resolved_declarations_declare_every_route() {
     );
 }
 
+/// Every scope-routed lookup resolves through this map, so the built-in `@jsr`
+/// route has to be in it. See <https://github.com/pnpm/pnpm/issues/14649>.
+#[test]
+fn resolved_registries_carry_the_builtin_jsr_route() {
+    let mut config = Config::new();
+    config.registry = "https://npm.corp.example/".to_owned();
+
+    let registries = config.resolved_registries();
+
+    assert_eq!(registries.get("default").map(String::as_str), Some("https://npm.corp.example/"));
+    assert_eq!(registries.get("@jsr").map(String::as_str), Some("https://npm.jsr.io/"));
+}
+
+#[test]
+fn a_configured_jsr_route_beats_the_builtin_one() {
+    let mut config = Config::new();
+    config.registries_by_scope =
+        BTreeMap::from([("@jsr".to_owned(), "https://jsr.corp.example/".to_owned())]);
+
+    assert_eq!(
+        config.resolved_registries().get("@jsr").map(String::as_str),
+        Some("https://jsr.corp.example/"),
+    );
+}
+
 /// A declaration map survives the round trip through the lookups it is split
 /// into, which is what makes it safe to rebuild one for a pnpr request.
 #[test]

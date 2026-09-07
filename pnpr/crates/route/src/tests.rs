@@ -192,6 +192,56 @@ fn the_builtin_npmjs_route_is_always_allowlisted_and_public() {
     );
 }
 
+/// pnpm resolves the `@jsr` scope through npm.jsr.io with no configuration at
+/// all, so a graph holding a JSR dependency has to resolve through a default
+/// server too. See <https://github.com/pnpm/pnpm/issues/14649>.
+#[test]
+fn the_builtin_jsr_route_is_always_allowlisted_and_public() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    let context = RouteContext::from_config(&config);
+
+    assert!(context.allows_registry("https://npm.jsr.io/@jsr%2fstd__csv"));
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://npm.jsr.io/@jsr%2fstd__csv",
+            Some("@jsr/std__csv"),
+        ),
+        RouteClass::Public,
+    );
+    assert!(context.allows_registry("https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz"));
+}
+
+/// Every redirect hop is re-checked against this allowlist, so admitting
+/// cleartext on a built-in host would admit a downgrade to it.
+#[test]
+fn the_builtin_routes_admit_https_only() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    let context = RouteContext::from_config(&config);
+
+    assert!(!context.allows_registry("http://registry.npmjs.org/lodash"));
+    assert!(!context.allows_registry("http://npm.jsr.io/@jsr%2fstd__csv"));
+    // Schemes are case-insensitive, so only the transport is being refused.
+    assert!(context.allows_registry("HTTPS://npm.jsr.io/@jsr%2fstd__csv"));
+}
+
+/// An operator declares the scheme their own route is reached over, which on
+/// an internal network is legitimately plain HTTP.
+#[test]
+fn an_operator_declared_http_route_is_allowlisted() {
+    let mut config = base_config();
+    config.upstreams.clear();
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("http://npm.internal.example/".to_string()),
+        package: None,
+    });
+    let context = RouteContext::from_config(&config);
+
+    assert!(context.allows_registry("http://npm.internal.example/lodash"));
+}
+
 #[test]
 fn custom_registry_is_off_allowlist_until_declared_public() {
     let mut config = base_config();
