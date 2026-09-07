@@ -2,6 +2,7 @@
 // (`install.js`), which links it over the placeholder bins, and by the Corepack
 // entry (`bin/pnpm.mjs`), which spawns it.
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -33,8 +34,6 @@ const PLATFORMS = {
     riscv64: {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
     },
-    // Node reports both POWER endiannesses as `ppc64`, and the released build
-    // is the little-endian one.
     ppc64: {
       glibc: '@pnpm/exe.linux-ppc64/pnpm',
     },
@@ -59,6 +58,12 @@ export function getBinCandidates () {
   const platformEntry = PLATFORMS?.[platform]?.[arch]
 
   if (platformEntry == null) {
+    return []
+  }
+  // Node reports both POWER endiannesses as `ppc64` and npm's `cpu` field
+  // cannot tell them apart, so a big-endian host installs the little-endian
+  // package it cannot run. Only the little-endian build is released.
+  if (arch === 'ppc64' && os.endianness() !== 'LE') {
     return []
   }
   if (typeof platformEntry === 'string') {

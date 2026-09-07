@@ -97,12 +97,27 @@ test('linux ppc64 and s390x resolve their glibc packages', async (t) => {
     ['ppc64', '@pnpm/exe.linux-ppc64/pnpm'],
     ['s390x', '@pnpm/exe.linux-s390x/pnpm'],
   ]) {
-    const { setLibc } = fakeHost(t, 'linux', arch)
+    const { setLibc, setEndianness } = fakeHost(t, 'linux', arch)
     const { getBinCandidates: candidates } = await import(`../native-binary.mjs?${arch}`)
 
     setLibc('glibc')
+    setEndianness('LE')
     assert.deepEqual(candidates(), [specifier])
   }
+})
+
+test('big-endian POWER resolves nothing, since only the little-endian build ships', async (t) => {
+  const { setLibc, setEndianness } = fakeHost(t, 'linux', 'ppc64')
+  const { getBinCandidates: candidates } = await import('../native-binary.mjs?ppc64-be')
+
+  setLibc('glibc')
+  // Node labels both byte orders `ppc64` and npm's `cpu` field cannot separate
+  // them, so npm will happily install the little-endian package here.
+  setEndianness('BE')
+  assert.deepEqual(candidates(), [])
+
+  setEndianness('LE')
+  assert.deepEqual(candidates(), ['@pnpm/exe.linux-ppc64/pnpm'])
 })
 
 test('freebsd x64 resolves the native package', async (t) => {
@@ -262,17 +277,20 @@ function runNpm (args, cwd) {
  * @param {import('node:test').TestContext} t The test, for cleanup.
  * @param {string} platform The `process.platform` to present.
  * @param {string} arch The `process.arch` to present.
- * @returns {{ setLibc: (libc: 'glibc' | 'musl') => void }} `setLibc` fakes the
- *   `process.report` that `detectLinuxLibc` reads, so a Linux case does not
- *   depend on the host's own libc.
+ * @returns {{ setLibc: (libc: 'glibc' | 'musl') => void, setEndianness: (order: 'LE' | 'BE') => void }}
+ *   `setLibc` fakes the `process.report` that `detectLinuxLibc` reads and
+ *   `setEndianness` fakes `os.endianness()`, so a case does not depend on the
+ *   host's own libc or byte order.
  */
 function fakeHost (t, platform, arch) {
   const saved = ['platform', 'arch', 'report']
     .map(key => [key, Object.getOwnPropertyDescriptor(process, key)])
+  const savedEndianness = Object.getOwnPropertyDescriptor(os, 'endianness')
   t.after(() => {
     for (const [key, descriptor] of saved) {
       if (descriptor) Object.defineProperty(process, key, descriptor)
     }
+    if (savedEndianness) Object.defineProperty(os, 'endianness', savedEndianness)
   })
   Object.defineProperty(process, 'platform', { value: platform, configurable: true })
   Object.defineProperty(process, 'arch', { value: arch, configurable: true })
@@ -283,6 +301,9 @@ function fakeHost (t, platform, arch) {
         value: { getReport: () => ({ header }) },
         configurable: true,
       })
+    },
+    setEndianness (order) {
+      Object.defineProperty(os, 'endianness', { value: () => order, configurable: true })
     },
   }
 }
