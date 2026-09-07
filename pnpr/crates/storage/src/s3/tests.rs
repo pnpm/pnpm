@@ -1,5 +1,5 @@
 use super::{Body, ObjectStore, S3Store};
-use crate::HostedRevisionRefWrite;
+use crate::{DocumentWrite, HostedRevisionRefWrite};
 use futures_util::TryStreamExt;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use pnpr_config::S3Settings;
@@ -444,4 +444,57 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
         crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
     assert_eq!(files.len(), 3);
     assert!(files.iter().any(|file| file.path == "acme/app/tool/sha256-child"));
+}
+
+/// A staged record is claimed by rewriting it. Two replicas that read the same
+/// record both compute a claim, and only the one whose read is still current
+/// gets to write it.
+#[tokio::test]
+async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
+    let (store, _staging) = store_with_prefix("");
+    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
+
+    let first = store
+        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .await
+        .unwrap();
+    assert_eq!(first, DocumentWrite::Written);
+
+    let second = store
+        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","b":2}"#)
+        .await
+        .unwrap();
+    assert_eq!(second, DocumentWrite::Conflict);
+    assert_eq!(
+        store.read_staged("stage.json").await.unwrap().as_deref(),
+        Some(&br#"{"id":"stage","a":1}"#[..]),
+    );
+}
+
+/// A record another replica removed — a rejection, or an approval that
+/// finished — is not one to write back.
+#[tokio::test]
+async fn a_removed_staged_record_is_not_replaced() {
+    let (store, _staging) = store_with_prefix("");
+    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
+    assert!(store.remove_staged("stage.json").await.unwrap());
+
+    let replaced = store
+        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .await
+        .unwrap();
+    assert_eq!(replaced, DocumentWrite::Conflict);
+    assert!(store.read_staged("stage.json").await.unwrap().is_none());
+}
+
+/// Stage ids are minted fresh, so an occupied key belongs to another record.
+#[tokio::test]
+async fn creating_a_staged_record_twice_fails() {
+    let (store, _staging) = store_with_prefix("");
+    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
+    assert!(store.create_staged("stage.json", br#"{"id":"other"}"#).await.is_err());
+    assert_eq!(
+        store.read_staged("stage.json").await.unwrap().as_deref(),
+        Some(&br#"{"id":"stage"}"#[..]),
+    );
 }

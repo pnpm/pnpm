@@ -1,10 +1,10 @@
 /// A fixed stripe set bounds lock memory while serializing writers for the
 /// same logical resource. Hash collisions only reduce concurrency.
 ///
-/// This guards concurrency **within one instance**. Across replicas
-/// sharing one hosted store, the same race needs a conditional write
-/// (S3 `If-Match` / `ETag`); that is the cross-replica half tracked in
-/// [pnpm/pnpm#12199](https://github.com/pnpm/pnpm/issues/12199).
+/// This guards concurrency **within one instance**. Across replicas sharing
+/// one hosted store the same race is settled by the conditional write every
+/// shared record is written under (S3 `If-Match` / `ETag`), which is what
+/// makes the lock an optimization there rather than the guarantee.
 pub(crate) struct StripedLocks {
     stripes: Box<[tokio::sync::Mutex<()>]>,
 }

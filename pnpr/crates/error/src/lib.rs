@@ -202,6 +202,17 @@ pub enum RegistryError {
         package: String,
     },
 
+    /// Another request is already approving this staged publish. A staged
+    /// record is approved exactly once: the approving request claims it with
+    /// a conditional write, and a second one is refused rather than
+    /// publishing the held document twice.
+    #[display("Staged publish {stage_id:?} is already being approved")]
+    #[from(skip)]
+    StagedApprovalInFlight {
+        #[error(not(source))]
+        stage_id: String,
+    },
+
     #[display("Hosted revision digest already has the maximum of {limit} references")]
     #[from(skip)]
     RevisionReferenceLimit { limit: usize },
@@ -349,6 +360,7 @@ impl RegistryError {
             RegistryError::PublishNotRecorded { .. } => "publish_not_recorded",
             RegistryError::BlobUploadConflict { .. } => "blob_upload_conflict",
             RegistryError::DocumentWriteConflict { .. } => "document_write_conflict",
+            RegistryError::StagedApprovalInFlight { .. } => "staged_approval_in_flight",
             RegistryError::RevisionReferenceLimit { .. } => "revision_reference_limit",
             RegistryError::RevisionReferenceWriteConflict { .. } => {
                 "revision_reference_write_conflict"
@@ -444,6 +456,7 @@ impl RegistryError {
             | RegistryError::PublishNotRecorded { .. }
             | RegistryError::BlobUploadConflict { .. }
             | RegistryError::DocumentWriteConflict { .. }
+            | RegistryError::StagedApprovalInFlight { .. }
             | RegistryError::RevisionReferenceLimit { .. }
             | RegistryError::RevisionReferenceWriteConflict { .. } => StatusCode::CONFLICT,
             RegistryError::NotFound => StatusCode::NOT_FOUND,
