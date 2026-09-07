@@ -246,3 +246,62 @@ fn submodule_projects_and_their_dependents_bypass_task_caching() {
         assert_eq!(fs::read_to_string(workspace.join("packages/independent/runs")).unwrap(), "x");
     }
 }
+
+#[test]
+fn projects_rooted_in_submodules_bypass_task_caching() {
+    let root = tempfile::tempdir().unwrap();
+    let repo = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "workspace");
+    let module = pnpm_testing_utils::git_repo::GitRepoFixture::init(root.path(), "module");
+    let script = r#"node -e "const fs=require('fs');fs.mkdirSync('out',{recursive:true});fs.writeFileSync('out/result',fs.readFileSync('input'));fs.appendFileSync('runs','x')""#;
+    module.write_file(
+        "package.json",
+        &serde_json::json!({"name":"producer","version":"1.0.0","scripts":{"build":script}})
+            .to_string(),
+    );
+    module.write_file(".gitignore", "out/\nruns\nnode_modules/\n");
+    module.write_file("input", "one");
+    let _ = module.commit("initial submodule package");
+    repo.write_file("package.json", r#"{"private":true}"#);
+    repo.write_file(".gitignore", "node_modules/\n**/out/\n**/runs\n");
+    repo.write_file("pnpm-workspace.yaml", "packages: ['packages/*']\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: ['^build']\n    outputs: ['out/**']\n");
+    repo.write_file("packages/consumer/package.json", &serde_json::json!({"name":"consumer","version":"1.0.0","dependencies":{"producer":"workspace:*"},"scripts":{"build":script.replace("'input'", "'../producer/out/result'")}}).to_string());
+    let workspace = root.path().join("workspace-src");
+    Command::new("git")
+        .current_dir(&workspace)
+        .args([
+            "-c",
+            "protocol.file.allow=always",
+            "submodule",
+            "add",
+            "-b",
+            "main",
+            &module.file_url(),
+            "packages/producer",
+        ])
+        .assert()
+        .success();
+    let _ = repo.commit("workspace with submodule package");
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(&workspace)
+            .env("XDG_CACHE_HOME", root.path().join("cache"))
+            .env("XDG_CONFIG_HOME", root.path().join("config"));
+        command
+    };
+    command().arg("install").assert().success();
+    for (index, value) in ["one", "one", "two", "two"].into_iter().enumerate() {
+        fs::write(workspace.join("packages/producer/input"), value).unwrap();
+        command().args(["pipeline", "--full"]).assert().success();
+        for name in ["producer", "consumer"] {
+            assert_eq!(
+                fs::read_to_string(workspace.join(format!("packages/{name}/out/result"))).unwrap(),
+                value,
+            );
+            assert_eq!(
+                fs::read_to_string(workspace.join(format!("packages/{name}/runs"))).unwrap(),
+                "x".repeat(index + 1),
+            );
+        }
+    }
+}

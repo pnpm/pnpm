@@ -86,7 +86,8 @@ for this implementation.
 
 ## Pipeline execution and reporting
 
-Projects with Git submodule inputs and tasks depending on them bypass task
+Projects inside Git submodules, projects with submodule inputs, and tasks
+depending on them bypass task
 and Cargo snapshot caching. Their scripts still run, including when the
 submodule contains local edits or has not been initialized. Their run reports
 record a null task key.

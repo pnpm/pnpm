@@ -418,7 +418,7 @@ impl TaskCache {
         {
             return Ok(files.as_ref().map(Arc::clone));
         }
-        if has_gitlinks(project)? {
+        if has_submodule_inputs(project)? {
             self.project_files
                 .lock()
                 .expect("project-files lock is not poisoned")
@@ -548,18 +548,24 @@ fn compile_globs_owned(patterns: &[String]) -> miette::Result<Vec<Glob<'static>>
 #[cfg(test)]
 mod tests;
 
-fn has_gitlinks(project: &Path) -> miette::Result<bool> {
+fn has_submodule_inputs(project: &Path) -> miette::Result<bool> {
+    let superproject =
+        git_input_metadata(project, &["rev-parse", "--show-superproject-working-tree"])?;
+    if superproject.iter().any(|byte| !byte.is_ascii_whitespace()) {
+        return Ok(true);
+    }
+    let index = git_input_metadata(project, &["ls-files", "--stage", "-z"])?;
+    Ok(index.split(|byte| *byte == 0).any(|entry| entry.starts_with(b"160000 ")))
+}
+
+fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> {
     let project_display = project.display();
-    let output = Command::new("git")
-        .args(["ls-files", "--stage", "-z"])
-        .current_dir(project)
-        .output()
-        .map_err(|error| {
-            miette::miette!("reading Git input metadata in {project_display}: {error}")
-        })?;
+    let output = Command::new("git").args(args).current_dir(project).output().map_err(|error| {
+        miette::miette!("reading Git input metadata in {project_display}: {error}")
+    })?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(miette::miette!("reading Git input metadata in {project_display}: {error}"));
     }
-    Ok(output.stdout.split(|byte| *byte == 0).any(|entry| entry.starts_with(b"160000 ")))
+    Ok(output.stdout)
 }
