@@ -3252,10 +3252,8 @@ fn resolved_declarations_declare_every_route() {
     );
 }
 
-/// The map every scope-routed lookup resolves through carries the built-in
-/// `@jsr` route, so an `@jsr/*` package is fetched from npm.jsr.io instead of
-/// being asked of the default registry, which does not serve it. See
-/// <https://github.com/pnpm/pnpm/issues/14649>.
+/// Every scope-routed lookup resolves through this map, so the built-in `@jsr`
+/// route has to be in it. See <https://github.com/pnpm/pnpm/issues/14649>.
 #[test]
 fn resolved_registries_carry_the_builtin_jsr_route() {
     let mut config = Config::new();
@@ -3267,8 +3265,6 @@ fn resolved_registries_carry_the_builtin_jsr_route() {
     assert_eq!(registries.get("@jsr").map(String::as_str), Some("https://npm.jsr.io/"));
 }
 
-/// A configured `@jsr` route wins over the built-in one, so a user who mirrors
-/// JSR resolves through their mirror.
 #[test]
 fn a_configured_jsr_route_beats_the_builtin_one() {
     let mut config = Config::new();

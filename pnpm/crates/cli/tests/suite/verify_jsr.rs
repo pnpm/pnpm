@@ -8,6 +8,9 @@ use assert_cmd::prelude::*;
 use std::fs;
 use tempfile::{TempDir, tempdir};
 
+/// The integrity is a placeholder: the run fails at the metadata lookup this
+/// test is about, so no artifact is ever fetched or hashed. What matters is
+/// the entry's name and its `npm.jsr.io` tarball.
 const JSR_LOCKFILE: &str = r"lockfileVersion: '9.0'
 
 settings:
@@ -25,16 +28,15 @@ importers:
 packages:
 
   '@jsr/std__csv@1.0.6':
-    resolution: {integrity: sha512-9n/SZzjolPQ907gUPksQU3EFURwRl4GA9V6MylA8hpSkpxhcj6J98zDpn9EmDqgE2A4L9MnlUvFhRpeWl+Y/ZQ==, tarball: https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz}
+    resolution: {integrity: sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==, tarball: https://npm.jsr.io/~/11/@jsr/std__csv/1.0.6.tgz}
 
 snapshots:
 
   '@jsr/std__csv@1.0.6': {}
 ";
 
-/// A project whose committed lockfile holds a JSR dependency, with an empty
-/// cache and a default registry that is not npmjs, so the host the run reaches
-/// for is the one under test.
+/// The default registry is deliberately neither npmjs nor a reachable host, so
+/// the only registry the run can succeed at naming is the built-in JSR route.
 fn jsr_project() -> TempDir {
     let root = tempdir().expect("create temp directory");
     let workspace = root.path();
@@ -51,10 +53,8 @@ fn jsr_project() -> TempDir {
     root
 }
 
-/// The metadata a `@jsr/*` entry is verified against is asked of npm.jsr.io,
-/// the built-in route for the scope, not of the default registry, which serves
-/// no `@jsr/*` packument. `--offline` names the registry in the mirror path it
-/// looked the metadata up in, so the routing is observable without a request.
+/// `--offline` names the registry in the metadata mirror path it failed to
+/// read, which is what makes the route observable without a request.
 #[test]
 fn a_jsr_lockfile_entry_is_verified_against_the_jsr_registry() {
     let root = jsr_project();
