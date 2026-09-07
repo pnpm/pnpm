@@ -23,7 +23,6 @@ pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{
     RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
 };
-use tls::drop_blank;
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
@@ -1095,14 +1094,31 @@ fn load_node_extra_ca_certs() -> Vec<Certificate> {
 
 /// The certificates carried by one PEM buffer.
 ///
-/// Material the TLS backend cannot read yields an empty list. Node
-/// ignores such an entry rather than refusing to open a TLS context,
-/// so pnpm 11 installs fine with an empty, truncated, or
-/// `${VAR}`-unresolved `ca=` value; pacquet drops the same entry
+/// Material the TLS backend cannot read is skipped rather than
+/// rejected. Node ignores such material instead of refusing to open a
+/// TLS context, so pnpm 11 installs fine with an empty, truncated, or
+/// `${VAR}`-unresolved `ca=` value; pacquet drops the same material
 /// instead of failing the client build (pnpm/pnpm#14646).
+///
+/// `Certificate::from_pem_bundle` reads the buffer as a unit and fails
+/// it whole, so one corrupt block in a bundle would take the roots
+/// around it down with it. Falling back to a block-by-block read keeps
+/// every certificate that is readable on its own.
 fn parse_ca_bundle(pem: &[u8]) -> Vec<Certificate> {
-    Certificate::from_pem_bundle(pem).unwrap_or_default()
+    if let Ok(certs) = Certificate::from_pem_bundle(pem) {
+        return certs;
+    }
+    String::from_utf8_lossy(pem)
+        .split_inclusive(END_CERTIFICATE)
+        .filter_map(|block| Certificate::from_pem_bundle(block.as_bytes()).ok())
+        .flatten()
+        .collect()
 }
+
+/// The PEM armor that closes a certificate. Splitting a bundle on it
+/// is how pnpm's own `cafile` reader delimits one certificate from the
+/// next.
+const END_CERTIFICATE: &str = "-----END CERTIFICATE-----";
 
 /// Build the effective [`TlsConfig`] for a per-registry override:
 /// each scoped field (`ca`, `cert`, `key`) replaces its top-level
@@ -1148,16 +1164,8 @@ fn apply_tls(
     mut builder: reqwest::ClientBuilder,
     tls: &TlsConfig,
 ) -> Result<reqwest::ClientBuilder, TlsError> {
-    for (index, pem) in tls.ca.iter().enumerate() {
-        let certs = parse_ca_bundle(pem.as_bytes());
-        if certs.is_empty() {
-            tracing::warn!(
-                target: "pacquet::tls",
-                index,
-                "ignoring a `ca` entry that carries no readable certificate",
-            );
-        }
-        for cert in certs {
+    for pem in &tls.ca {
+        for cert in parse_ca_bundle(pem.as_bytes()) {
             builder = builder.add_root_certificate(cert);
         }
     }
@@ -1193,6 +1201,19 @@ fn apply_tls(
         builder = builder.local_address(addr);
     }
     Ok(builder)
+}
+
+/// `None` for a PEM slot that is empty or all whitespace.
+///
+/// A blank setting is how an unset one looks: a `cert=` line a config
+/// generator wrote out with nothing after it, or a `key=${CORP_KEY}`
+/// whose variable never resolved. pnpm tests these fields for
+/// truthiness before handing them to undici, so a blank one never
+/// reaches Node's TLS layer; pacquet drops it at the same point rather
+/// than pair it with its counterpart and fail the install on the
+/// identity rustls then rejects (pnpm/pnpm#14646).
+fn drop_blank(pem: Option<&str>) -> Option<&str> {
+    pem.filter(|pem| !pem.trim().is_empty())
 }
 
 /// Error surface of [`ThrottledClient::for_installs`]. Wraps either a

@@ -827,18 +827,19 @@ fn for_installs_with_multiple_ca_pems_builds() {
 // because Node ignores CA material it cannot parse.
 #[test]
 fn for_installs_ignores_ca_entries_that_carry_no_certificate() {
-    let tls = TlsConfig {
-        ca: vec![
-            String::new(),
-            "${CORP_CA}".to_string(),
-            "not a pem certificate".to_string(),
-            TEST_CA_PEM.to_string(),
-        ],
-        ..TlsConfig::default()
-    };
+    let unreadable = ["", "${CORP_CA}", "not a pem certificate"];
+    for pem in unreadable {
+        assert!(super::parse_ca_bundle(pem.as_bytes()).is_empty(), "{pem:?} parsed as a cert");
+    }
+    let mut ca: Vec<String> = unreadable.iter().map(|pem| (*pem).to_string()).collect();
+    ca.push(TEST_CA_PEM.to_string());
+    // The valid entry must still reach the trust store — dropping it
+    // alongside its unreadable neighbours would break the install a
+    // different way.
+    assert_eq!(ca.iter().flat_map(|pem| super::parse_ca_bundle(pem.as_bytes())).count(), 1);
     ThrottledClient::for_installs(
         &ProxyConfig::default(),
-        &tls,
+        &TlsConfig { ca, ..TlsConfig::default() },
         &PerRegistryTls::default(),
         &NetworkSettings::default(),
     )
@@ -1101,6 +1102,35 @@ fn for_installs_ignores_a_per_registry_ca_that_carries_no_certificate() {
         &NetworkSettings::default(),
     )
     .expect("unreadable per-registry CA is dropped, not fatal");
+}
+
+#[test]
+fn a_blank_scoped_cert_shadows_the_top_level_identity() {
+    // pnpm spreads the per-registry entry over the top-level one, so a
+    // blank `//reg/:cert=` overrides rather than falls back. Letting
+    // it fall back would pair the top-level certificate with the
+    // scoped key and send an identity the user never configured for
+    // that registry.
+    use crate::RegistryTls;
+    let top = TlsConfig {
+        cert: Some(TEST_CLIENT_PKCS1_CERT.to_string()),
+        key: Some(TEST_CLIENT_PKCS1_KEY.to_string()),
+        ..TlsConfig::default()
+    };
+    let scoped = RegistryTls { cert: Some(String::new()), ..RegistryTls::default() };
+    assert_eq!(super::merge_tls(&top, &scoped).cert.as_deref(), Some(""));
+}
+
+#[test]
+fn a_corrupt_block_does_not_discard_the_rest_of_a_ca_bundle() {
+    // A per-registry `:ca` / `:cafile` arrives as one buffer, so a
+    // single corrupt block must not cost the registry every custom
+    // root in it.
+    const CORRUPT: &str = "-----BEGIN CERTIFICATE-----\nnot-base64!!!\n-----END CERTIFICATE-----";
+    let bundle = format!("{TEST_CA_PEM}\n{CORRUPT}\n{TEST_CA_PEM}\n");
+    assert_eq!(super::parse_ca_bundle(bundle.as_bytes()).len(), 2);
+    assert_eq!(super::parse_ca_bundle(CORRUPT.as_bytes()).len(), 0);
+    assert_eq!(super::parse_ca_bundle(TEST_CA_PEM.as_bytes()).len(), 1);
 }
 
 #[test]

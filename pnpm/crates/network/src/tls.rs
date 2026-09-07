@@ -179,41 +179,14 @@ impl RegistryTls {
     pub fn is_empty(&self) -> bool {
         self.ca.is_none() && self.cert.is_none() && self.key.is_none()
     }
-
-    /// Unset every field that is set but blank, so it falls back to
-    /// the top-level value rather than overriding it with nothing.
-    #[must_use]
-    fn without_blank_fields(self) -> Self {
-        RegistryTls {
-            ca: drop_blank(self.ca),
-            cert: drop_blank(self.cert),
-            key: drop_blank(self.key),
-        }
-    }
-}
-
-/// `None` for a PEM slot that is empty or all whitespace.
-///
-/// A blank TLS setting is how an unset one looks: a `cert=` line a
-/// config generator wrote out with nothing after it, or a
-/// `ca=${CORP_CA}` whose variable never resolved. pnpm tests these
-/// fields for truthiness before handing them to undici, so a blank one
-/// never reaches Node's TLS layer; pacquet drops it at the same point
-/// rather than fail the install on it (pnpm/pnpm#14646).
-pub(crate) fn drop_blank<Pem: AsRef<str>>(pem: Option<Pem>) -> Option<Pem> {
-    pem.filter(|pem| !pem.as_ref().trim().is_empty())
 }
 
 impl PerRegistryTls {
-    /// Build from a nerf-darted → [`RegistryTls`] map. Drops blank
-    /// fields and then the entries left with nothing to override.
+    /// Build from a nerf-darted → [`RegistryTls`] map. Drops empty
+    /// entries.
     #[must_use]
     pub fn from_map(by_uri: HashMap<String, RegistryTls>) -> Self {
-        let by_uri: HashMap<_, _> = by_uri
-            .into_iter()
-            .map(|(uri, tls)| (uri, tls.without_blank_fields()))
-            .filter(|(_, tls)| !tls.is_empty())
-            .collect();
+        let by_uri: HashMap<_, _> = by_uri.into_iter().filter(|(_, v)| !v.is_empty()).collect();
         PerRegistryTls { by_uri: PerRegistryMap::from_map(by_uri) }
     }
 
