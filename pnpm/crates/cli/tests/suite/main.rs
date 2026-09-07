@@ -136,6 +136,7 @@ mod update_jsr;
 mod update_notifier;
 mod update_recursive;
 mod verify_deps_before_run;
+mod verify_jsr;
 mod version;
 mod view;
 mod whoami;
