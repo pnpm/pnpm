@@ -851,3 +851,76 @@ async fn a_path_that_names_no_endpoint_is_not_found() {
         assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
 }
+
+#[tokio::test]
+async fn an_upload_cannot_be_finished_into_another_repository() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+    let id = location.rsplit('/').next().unwrap().to_string();
+
+    // The same organization, and the caller may publish to both. The id still
+    // only names bytes the other repository's client sent.
+    let request = Request::patch(format!("/v2/acme/other/blobs/uploads/{id}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::from("hello"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_chunk_that_ends_early_leaves_the_prefix_to_resume_from() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+    let auth = basic(&token(&app).await);
+
+    let request = Request::post("/v2/acme/app/blobs/uploads/")
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let location = response.headers().get(header::LOCATION).unwrap().to_str().unwrap().to_string();
+
+    let torn = futures_util::stream::iter([
+        Ok::<_, std::io::Error>(axum::body::Bytes::from_static(b"hello")),
+        Err(std::io::Error::other("the connection went away")),
+    ]);
+    let request = Request::patch(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::from_stream(torn))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    // The bytes that did arrive are an ordered prefix of the blob, so the
+    // upload keeps them and says so. Dropping them would cost the client the
+    // whole layer for one lost connection.
+    let request =
+        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-4");
+
+    let request = Request::patch(&location)
+        .header(header::AUTHORIZATION, &auth)
+        .header(header::CONTENT_RANGE, "5-10")
+        .body(Body::from(" world"))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+
+    let digest = digest_of(b"hello world");
+    let request = Request::put(format!("{location}?digest={digest}"))
+        .header(header::AUTHORIZATION, &auth)
+        .body(Body::empty())
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+}

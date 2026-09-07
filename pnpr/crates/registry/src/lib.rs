@@ -66,7 +66,7 @@ impl PackagePattern {
     /// matches and lets the scope land on a later router source.
     pub fn parse(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.is_empty() {
-            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
+            return Err(invalid_pattern(pattern, ecosystem));
         }
         if pattern == "**" {
             return Ok(PackagePattern::All);
@@ -93,7 +93,7 @@ impl PackagePattern {
             // that request parsing would reject — `@.acme`, `@..`, a
             // separator — is a claim no valid package name can ever match.
             if scope.contains('*') {
-                return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
+                return Err(invalid_pattern(pattern, Ecosystem::Npm));
             }
             if !pnpr_package_name::is_safe_path_segment(scope) {
                 return Err(RegistryConfigError::ScopePatternNotAScope {
@@ -115,7 +115,7 @@ impl PackagePattern {
         // One component only, so two namespace patterns are either equal or
         // disjoint and the specificity chain below stays strict.
         if namespace.contains('*') || namespace.contains('/') {
-            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
+            return Err(invalid_pattern(pattern, Ecosystem::Oci));
         }
         pnpr_package_name::canonicalize_oci_name(namespace).map(PackagePattern::Namespace).map_err(
             |_| RegistryConfigError::NamespacePatternNotANamespace { pattern: pattern.to_string() },
@@ -125,7 +125,7 @@ impl PackagePattern {
     /// A literal name, canonicalized the way a request for it will be.
     fn parse_exact(pattern: &str, ecosystem: Ecosystem) -> Result<Self, RegistryConfigError> {
         if pattern.contains('*') {
-            return Err(RegistryConfigError::InvalidPattern { pattern: pattern.to_string() });
+            return Err(invalid_pattern(pattern, ecosystem));
         }
         CanonicalPackageName::parse(pattern, ecosystem)
             .map(|name| PackagePattern::Exact(name.as_str().to_string()))
@@ -637,8 +637,10 @@ fn validate_namespace(
 /// `InvalidConfig` so a bad registry set fails server startup and config reload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryConfigError {
-    /// An unsupported wildcard in a registry pattern.
-    InvalidPattern { pattern: String },
+    /// An unsupported wildcard in a registry pattern. Carries the ecosystem
+    /// so the message can name the shapes that ecosystem admits, rather than
+    /// sending an operator to one it always refuses.
+    InvalidPattern { pattern: String, ecosystem: Ecosystem },
     /// A wildcard-free registry pattern that is not a well-formed package name,
     /// so it could never match any request.
     ExactPatternNotAName { pattern: String },
@@ -673,13 +675,30 @@ pub enum RegistryConfigError {
     EcosystemOnNonConcreteRegistry { registry: String, ecosystem: Ecosystem },
 }
 
+/// The wildcard shapes an ecosystem's names can carry, for the message an
+/// operator reads when theirs is not one of them.
+fn wildcard_shapes(ecosystem: Ecosystem) -> &'static str {
+    match ecosystem {
+        Ecosystem::Npm => "`@scope/*` or `@*/*`",
+        Ecosystem::Oci => "`<namespace>/*`",
+        // A crate or project name is one flat token, so there is no namespace
+        // to claim below `**`.
+        Ecosystem::Cargo | Ecosystem::Pypi => "nothing narrower",
+    }
+}
+
+fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
+    RegistryConfigError::InvalidPattern { pattern: pattern.to_string(), ecosystem }
+}
+
 impl fmt::Display for RegistryConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RegistryConfigError::InvalidPattern { pattern } => write!(
+            RegistryConfigError::InvalidPattern { pattern, ecosystem } => write!(
                 f,
-                "unsupported registry pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
-                 or `**`",
+                "unsupported {ecosystem} registry pattern {pattern:?}: use an exact name, {}, or \
+                 `**`",
+                wildcard_shapes(*ecosystem),
             ),
             RegistryConfigError::ExactPatternNotAName { pattern } => write!(
                 f,

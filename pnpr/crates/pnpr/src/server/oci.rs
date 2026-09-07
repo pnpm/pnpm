@@ -537,7 +537,7 @@ impl Request {
             Err(refusal) => return refusal.respond(),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
-        let upload = match storage.begin_blob_upload().await {
+        let upload = match storage.begin_blob_upload(&key).await {
             Ok(upload) => upload,
             Err(err) => return registry_error(err),
         };
@@ -565,7 +565,7 @@ impl Request {
         // are stored under.
         let _guard = self.state.inner.package_locks.lock(&upload_lock_key(id)).await;
         let storage = self.state.inner.storage.for_hosted(&org);
-        let upload = match storage.open_blob_upload(id).await {
+        let upload = match storage.open_blob_upload(&key, id).await {
             Ok(Some(upload)) => upload,
             Ok(None) => return error(ErrorCode::BlobUploadUnknown, "no such upload"),
             Err(err) => return registry_error(err),
@@ -935,6 +935,14 @@ async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
 ///
 /// An upload that runs over is dropped rather than kept truncated at the
 /// ceiling, because what was sent is not a blob anyone asked for.
+///
+/// A stream that ends early is kept instead. The bytes written are an ordered
+/// prefix of the blob, which is the state a resumable upload exists to hold:
+/// discarding it would cost a client the whole of a multi-gigabyte layer for
+/// one dropped connection. The refusal a later chunk gets carries where the
+/// upload actually stands, so the client resumes from the prefix, and the
+/// digest check at `PUT` is what decides whether the assembled bytes are the
+/// blob that was promised.
 async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Result<(), Refusal> {
     let mut written = upload.offset().await?;
     let mut writer = upload.append().await?;

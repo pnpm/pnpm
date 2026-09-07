@@ -18,7 +18,7 @@ async fn an_upload_accumulates_across_appends() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let upload = storage.begin_blob_upload().await.unwrap();
+    let upload = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
     assert_eq!(upload.offset().await.unwrap(), 0);
 
     let mut writer = upload.append().await.unwrap();
@@ -36,12 +36,12 @@ async fn an_upload_is_reopened_by_id_and_dropped_on_abort() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let upload = storage.begin_blob_upload().await.unwrap();
+    let upload = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
     let id = upload.id().to_string();
-    assert!(storage.open_blob_upload(&id).await.unwrap().is_some());
+    assert!(storage.open_blob_upload(&image("acme/app"), &id).await.unwrap().is_some());
 
     assert!(storage.abort_blob_upload(&id).await.unwrap());
-    assert!(storage.open_blob_upload(&id).await.unwrap().is_none());
+    assert!(storage.open_blob_upload(&image("acme/app"), &id).await.unwrap().is_none());
     assert!(!storage.abort_blob_upload(&id).await.unwrap());
 }
 
@@ -50,7 +50,7 @@ async fn a_finished_upload_becomes_a_hosted_blob() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let upload = storage.begin_blob_upload().await.unwrap();
+    let upload = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
     let mut writer = upload.append().await.unwrap();
     writer.write_all(b"layer bytes").await.unwrap();
     writer.finish().await.unwrap();
@@ -70,7 +70,7 @@ async fn an_id_that_is_not_32_hex_never_reaches_the_filesystem() {
 
     for id in ["../escape", "", "not-hex", &"a".repeat(31), &"A".repeat(32)] {
         assert!(!is_upload_id(id), "{id:?} should not be an upload id");
-        assert!(storage.open_blob_upload(id).await.unwrap().is_none());
+        assert!(storage.open_blob_upload(&image("acme/app"), id).await.unwrap().is_none());
         assert!(!storage.abort_blob_upload(id).await.unwrap());
     }
 }
@@ -95,7 +95,7 @@ async fn an_in_progress_upload_is_not_a_repository() {
     let storage = storage_in(&tmp);
 
     storage.write_hosted_document_if_current(&image("acme/app"), b"{}", None).await.unwrap();
-    storage.begin_blob_upload().await.unwrap();
+    storage.begin_blob_upload(&image("acme/app")).await.unwrap();
 
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app"]);
 }
@@ -134,16 +134,16 @@ async fn the_sweep_reclaims_only_uploads_that_have_gone_quiet() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    let fresh = storage.begin_blob_upload().await.unwrap();
-    let stale = storage.begin_blob_upload().await.unwrap();
+    let fresh = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
+    let stale = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
 
     assert_eq!(storage.sweep_blob_uploads(Duration::from_hours(1)).await.unwrap(), 0);
-    assert!(storage.open_blob_upload(stale.id()).await.unwrap().is_some());
+    assert!(storage.open_blob_upload(&image("acme/app"), stale.id()).await.unwrap().is_some());
 
     // Every upload counts as idle once the age is zero.
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 2);
-    assert!(storage.open_blob_upload(fresh.id()).await.unwrap().is_none());
-    assert!(storage.open_blob_upload(stale.id()).await.unwrap().is_none());
+    assert!(storage.open_blob_upload(&image("acme/app"), fresh.id()).await.unwrap().is_none());
+    assert!(storage.open_blob_upload(&image("acme/app"), stale.id()).await.unwrap().is_none());
 
     assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 0);
 }
@@ -183,4 +183,33 @@ async fn an_unmanifested_package_does_not_have_its_blobs_walked() {
     storage.write_hosted_document_if_current(&image("acme/complete"), b"{}", None).await.unwrap();
 
     assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/complete"]);
+}
+
+#[tokio::test]
+async fn an_upload_belongs_to_the_repository_that_started_it() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+
+    let upload = storage.begin_blob_upload(&image("acme/app")).await.unwrap();
+    let id = upload.id().to_string();
+
+    // An id is a capability over the bytes its own client sent. A publisher
+    // for another repository of the same organization who learns one must not
+    // be able to finish it there.
+    assert!(storage.open_blob_upload(&image("acme/other"), &id).await.unwrap().is_none());
+    assert!(storage.open_blob_upload(&image("acme/app"), &id).await.unwrap().is_some());
+}
+
+#[tokio::test]
+async fn a_swept_upload_takes_its_repository_record_with_it() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    storage.begin_blob_upload(&image("acme/app")).await.unwrap();
+
+    assert_eq!(storage.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 1);
+    let left: Vec<_> = std::fs::read_dir(tmp.path().join("storage").join(".pnpr-uploads"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert!(left.is_empty(), "the sweep left {left:?}");
 }

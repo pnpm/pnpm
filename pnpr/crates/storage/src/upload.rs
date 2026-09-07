@@ -22,6 +22,11 @@ use tokio::{
 /// The dot prefix keeps it out of the hosted store's package walk.
 pub(crate) const UPLOADS_DIR: &str = ".pnpr-uploads";
 
+/// Where an upload records the repository it was started for. The id alone
+/// would let a caller who learns one finish it into a different repository of
+/// the same organization, with bytes they never sent.
+const REPOSITORY_SUFFIX: &str = ".repository";
+
 /// How long an untouched upload is kept before it is reclaimed.
 ///
 /// A client that disconnects mid-push leaves its bytes behind, and nothing
@@ -92,8 +97,8 @@ impl BlobUploadWriter {
 }
 
 impl Storage {
-    /// Start an upload and give it an unguessable id.
-    pub async fn begin_blob_upload(&self) -> Result<BlobUpload> {
+    /// Start an upload for `repository` and give it an unguessable id.
+    pub async fn begin_blob_upload(&self, repository: &CanonicalPackageName) -> Result<BlobUpload> {
         let root = self.uploads_root();
         fs::create_dir_all(&root).await.map_err(RegistryError::Io)?;
         let id = generate_upload_id();
@@ -106,15 +111,35 @@ impl Storage {
             .open(&path)
             .await
             .map_err(RegistryError::Io)?;
+        fs::write(root.join(format!("{id}{REPOSITORY_SUFFIX}")), repository.as_str())
+            .await
+            .map_err(RegistryError::Io)?;
         Ok(BlobUpload { id, path })
     }
 
-    /// Reopen an upload by id, or `None` when no such upload is held.
-    pub async fn open_blob_upload(&self, id: &str) -> Result<Option<BlobUpload>> {
+    /// Reopen an upload of `repository` by id.
+    ///
+    /// `None` when no such upload is held, and equally when one is held for
+    /// another repository: an id is a capability over the bytes its own
+    /// client sent, not over the organization's scratch space.
+    pub async fn open_blob_upload(
+        &self,
+        repository: &CanonicalPackageName,
+        id: &str,
+    ) -> Result<Option<BlobUpload>> {
         if !is_upload_id(id) {
             return Ok(None);
         }
-        let path = self.uploads_root().join(id);
+        let root = self.uploads_root();
+        let held = match fs::read_to_string(root.join(format!("{id}{REPOSITORY_SUFFIX}"))).await {
+            Ok(held) => held,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(RegistryError::Io(error)),
+        };
+        if held != repository.as_str() {
+            return Ok(None);
+        }
+        let path = root.join(id);
         match fs::metadata(&path).await {
             Ok(_) => Ok(Some(BlobUpload { id: id.to_string(), path })),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
@@ -127,7 +152,9 @@ impl Storage {
         if !is_upload_id(id) {
             return Ok(false);
         }
-        match fs::remove_file(self.uploads_root().join(id)).await {
+        let root = self.uploads_root();
+        let _ = fs::remove_file(root.join(format!("{id}{REPOSITORY_SUFFIX}"))).await;
+        match fs::remove_file(root.join(id)).await {
             Ok(()) => Ok(true),
             Err(error) if error.kind() == ErrorKind::NotFound => Ok(false),
             Err(error) => Err(RegistryError::Io(error)),
@@ -174,11 +201,19 @@ impl Storage {
         };
         let mut swept = 0;
         while let Some(entry) = entries.next_entry().await.map_err(RegistryError::Io)? {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            // The record of which repository an upload belongs to goes when
+            // that upload does, rather than on an age of its own.
+            if name.ends_with(REPOSITORY_SUFFIX) {
+                continue;
+            }
             let Ok(metadata) = entry.metadata().await else { continue };
             let idle = metadata.modified().ok().and_then(|at| at.elapsed().ok());
             if idle.is_some_and(|idle| idle > max_age)
                 && fs::remove_file(entry.path()).await.is_ok()
             {
+                let _ = fs::remove_file(root.join(format!("{name}{REPOSITORY_SUFFIX}"))).await;
                 swept += 1;
             }
         }
