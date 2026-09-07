@@ -148,9 +148,15 @@ async fn one_stage_approved_on_two_replicas_publishes_once() {
     let approve_here = first.approve(&stage_id);
     let approve_there = second.approve(&stage_id);
     let (left, right) = tokio::join!(approve_here, approve_there);
-    let approved =
-        [left, right].into_iter().filter(|status| *status == StatusCode::CREATED).count();
-    assert_eq!(approved, 1, "exactly one approval may publish: {left}, {right}");
+    let (approved, refused) =
+        if left == StatusCode::CREATED { (left, right) } else { (right, left) };
+    assert_eq!(approved, StatusCode::CREATED, "one approval must publish: {left}, {right}");
+    assert!(
+        // Whether the loser saw the winner's claim or the record it had
+        // already consumed depends on how far the winner got.
+        refused == StatusCode::CONFLICT || refused == StatusCode::NOT_FOUND,
+        "the other must be refused, not failed: {refused}",
+    );
 
     let packument = first.packument("staged-pkg").await;
     assert_eq!(packument["versions"].as_object().expect("versions").len(), 1);
