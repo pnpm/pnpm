@@ -1288,6 +1288,45 @@ fn a_boolean_settings_explicit_value_does_not_move_the_command_boundary() {
     assert_eq!(config.registry, "https://example.test/");
 }
 
+/// `pnpm install <pkg>` is pnpm's spelling of `pnpm add <pkg>`, so the
+/// options it claims are `add`'s: `--offline` is `install`'s own option
+/// but a setting to `add`.
+#[test]
+fn install_with_a_package_claims_the_options_of_add() {
+    for command_line in [
+        &["pacquet", "install", "valibot", "--offline", "--no-prefer-offline"][..],
+        &["pacquet", "--offline", "--no-prefer-offline", "install", "valibot"],
+        &["pacquet", "install", "--offline", "--no-prefer-offline", "--", "valibot"],
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(argv(command_line.iter().copied()));
+        let expected = command_line.iter().copied().filter(|token| !token.ends_with("offline"));
+        assert_eq!(remaining, argv(expected), "{command_line:?}");
+
+        let mut config = Config { prefer_offline: true, ..Config::default() };
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(config.offline, "{command_line:?}");
+        assert!(!config.prefer_offline, "{command_line:?}");
+        assert_eq!(
+            config.explicit_settings.get("offline"),
+            Some(&serde_json::Value::Bool(true)),
+            "{command_line:?}",
+        );
+    }
+
+    for command_line in [
+        argv(["pacquet", "install", "--offline"]),
+        argv(["pacquet", "install", "--offline", "--"]),
+        argv(["pacquet", "install", "--reporter", "silent", "--offline"]),
+    ] {
+        let (overrides, remaining) = ConfigOverrides::extract(command_line.clone());
+        assert_eq!(remaining, command_line);
+
+        let mut config = Config::default();
+        overrides.apply(&mut config, Path::new("/workspace"));
+        assert!(!config.offline, "{command_line:?}");
+    }
+}
+
 /// `lockfile` is both a setting and `clean`'s own option, so the boundary
 /// scan and the extraction have to agree on how much `--lockfile true`
 /// claims even when the command is not `clean`.

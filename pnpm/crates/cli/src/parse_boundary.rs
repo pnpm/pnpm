@@ -129,6 +129,14 @@ pub(crate) fn command_boundary(argv: &[OsString]) -> Option<CommandBoundary> {
 /// the command's entry is the one its handler reads (`pnpm clean
 /// --lockfile` removes lockfiles rather than turning the `lockfile`
 /// setting on). Empty when argv names no known command.
+///
+/// The command is the one pnpm resolves, which is `add` for an `install`
+/// given a package name — see [`install_as_add`]. That rewrite runs after
+/// the settings are extracted, so resolving here the same way is what
+/// keeps `pnpm install <pkg> --offline` from reaching `add`'s grammar with
+/// an option only `install` declares.
+///
+/// [`install_as_add`]: crate::install_as_add
 pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str> {
     let command = grammar();
     let arity = union_arity();
@@ -141,9 +149,12 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
             index = positional + 1;
             continue;
         }
-        let Some(subcommand) = matching_subcommand(command, name) else {
+        let Some(mut subcommand) = matching_subcommand(command, name) else {
             break;
         };
+        if subcommand.get_name() == "install" && names_a_package(argv, positional + 1, arity) {
+            subcommand = matching_subcommand(command, "add").expect("`add` is a subcommand");
+        }
         return subcommand
             .get_arguments()
             .flat_map(|arg| {
@@ -167,6 +178,14 @@ fn union_arity() -> &'static ArgTable {
         arity.absorb_subcommands(command);
         arity
     })
+}
+
+/// Whether a positional follows `from`. nopt strips the `--` terminator
+/// and treats what follows as positionals, so `pnpm install -- <pkg>`
+/// names a package too.
+fn names_a_package(argv: &[OsString], from: usize, arity: &ArgTable) -> bool {
+    next_positional(argv, from, arity)
+        .is_some_and(|index| argv[index] != "--" || index + 1 < argv.len())
 }
 
 /// The index of the first positional at or after `from`, or `None` when the
