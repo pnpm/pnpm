@@ -710,17 +710,10 @@ pub enum InstallError {
     #[display("Failed to remove the git branch lockfiles: {_0}")]
     CleanGitBranchLockfiles(#[error(source)] std::io::Error),
 
-    /// `path` is the entry the removal was working on, which is what a
-    /// user needs in order to act: release the handle on that file, or
-    /// fix its permissions. Without it an `Access is denied (os error 5)`
-    /// naming nothing leaves the whole modules directory as the search
-    /// space.
-    ///
-    /// Rendered through `dunce::simplified` and `Path::display` rather
-    /// than `{:?}` so the path stays copy-pasteable: the entries come
-    /// from a canonicalized modules directory, so `{:?}` would print
-    /// the `\\?\` verbatim prefix removed in #13990 and double every
-    /// separator.
+    /// `path` is the entry the removal was working on: the file or
+    /// directory the user has to act on.
+    // Not `{path:?}`: entries arrive canonicalized, so Debug would print
+    // the verbatim prefix and escape every separator.
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display(
         "Failed to remove {} from the modules directory: {error}",
