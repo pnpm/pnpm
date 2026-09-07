@@ -271,8 +271,6 @@ fn stored_out_of_order() -> serde_json::Value {
 
 #[test]
 fn a_document_stored_out_of_order_still_finds_its_entries() {
-    // Every lookup is a binary search, so a document that reached storage in
-    // another order would make entries it holds unreachable.
     let stored = stored_out_of_order();
     let document = ImageDocument::parse(&serde_json::to_vec(&stored).unwrap()).unwrap();
 
@@ -285,8 +283,6 @@ fn a_document_stored_out_of_order_still_finds_its_entries() {
 
 #[test]
 fn deserializing_directly_sorts_as_parsing_does() {
-    // The type derives `Deserialize`, so a caller can build one without going
-    // through `parse`. The ordering the lookups need has to hold for them too.
     let document: ImageDocument = serde_json::from_value(stored_out_of_order()).unwrap();
 
     assert!(document.manifest(&digest_of("one")).is_some());

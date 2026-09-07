@@ -39,13 +39,11 @@ pub struct TagEntry {
     pub updated: u64,
 }
 
-/// The stored shape, converted into [`ImageDocument`] on the way in.
+/// The stored shape, which [`ImageDocument`] sorts on the way in.
 ///
-/// Deserializing goes through here rather than straight into the document so
-/// that the ordering every lookup depends on is established by any caller who
-/// deserializes one, not only by the one that calls
-/// [`ImageDocument::parse`]. A document that reached storage in another
-/// order, or through another version, would otherwise hide entries it holds.
+/// It is a separate type so that the ordering that document guarantees is
+/// established for every caller who deserializes one, not only for the one
+/// that calls [`ImageDocument::parse`].
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredImageDocument {
@@ -72,9 +70,9 @@ impl From<StoredImageDocument> for ImageDocument {
 /// what publishes a release, so it is what the document records.
 ///
 /// Both collections are kept sorted, by digest and by tag, because every
-/// lookup here is a binary search. They are private, and deserializing sorts
-/// what it reads, so the ordering holds however the document was built
-/// rather than only on the paths that maintain it.
+/// lookup here is a binary search: a document whose entries reached storage
+/// in another order would hide entries it holds. The ordering holds however
+/// a document was built, not only on the paths that maintain it.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", from = "StoredImageDocument")]
 pub struct ImageDocument {
