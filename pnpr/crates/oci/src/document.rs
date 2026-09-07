@@ -158,8 +158,8 @@ impl ImageDocument {
         }
     }
 
-    /// Drop a manifest and every tag that named it, reporting whether
-    /// anything was held.
+    /// Every tag that named the manifest goes with it. `false` when the
+    /// repository held no such manifest.
     pub fn remove_manifest(&mut self, digest: &Digest) -> bool {
         let Ok(index) = self.manifests.binary_search_by(|held| held.digest.hex().cmp(digest.hex()))
         else {
@@ -170,8 +170,8 @@ impl ImageDocument {
         true
     }
 
-    /// Drop a tag, reporting whether it was held. The manifest it named
-    /// stays: it is still reachable by digest.
+    /// The manifest the tag named stays, still reachable by digest. `false`
+    /// when the repository held no such tag.
     pub fn remove_tag(&mut self, tag: &str) -> bool {
         let Ok(index) = self.tags.binary_search_by(|held| held.tag.as_str().cmp(tag)) else {
             return false;
@@ -185,8 +185,9 @@ impl ImageDocument {
     /// whether that changed anything.
     ///
     /// Manifests are content-addressed, so one already here is the same
-    /// bytes and is left alone. A tag is compared by [`TagEntry::updated`],
-    /// so the newer write wins whichever order the two arrive in.
+    /// bytes and is left alone. Tags reach the same result whichever order
+    /// the two documents arrive in, which is what lets a journaled write be
+    /// replayed after the one that superseded it.
     pub fn merge(&mut self, addition: Self, lost_blobs: &HashSet<String>) -> bool {
         let mut changed = false;
         if self.name.is_empty() && !addition.name.is_empty() {
