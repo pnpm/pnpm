@@ -1,4 +1,5 @@
 use super::{collect, referenced_blobs};
+use crate::RegistryError;
 use pnpr_config::HostedStoreConfig;
 use pnpr_oci::{Digest, ImageDocument, ManifestEntry, media_type};
 use pnpr_package_name::{CanonicalPackageName, Ecosystem};
@@ -79,12 +80,18 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
     let path = temp.path().join("store/acme/app").join(manifest.blob_filename());
     tokio::fs::write(&path, b"corrupt").await.unwrap();
-    assert!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.is_err());
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::BadRequest { reason } if reason.contains("manifest digest mismatch")),
+    );
     assert!(
         storage.open_hosted_blob(&name("aaa"), &orphan.blob_filename()).await.unwrap().is_some(),
     );
     tokio::fs::remove_file(path).await.unwrap();
-    assert!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.is_err());
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
+    );
 }
 
 #[tokio::test]
@@ -150,4 +157,58 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
         referenced_blobs(&storage, &repository).await.unwrap(),
         HashSet::from([digest.blob_filename(), layer.blob_filename()]),
     );
+}
+
+#[tokio::test]
+async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt() {
+    let (_temp, storage) = setup();
+    let repository = name("empty");
+    let mut document = ImageDocument::new(repository.as_str());
+    document.insert_manifest(ManifestEntry {
+        digest: Digest::of(b"missing"),
+        size: 7,
+        media_type: media_type::OCI_IMAGE_MANIFEST.into(),
+    });
+    storage
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .await
+        .unwrap();
+    let orphan = blob(&storage, &name("aaa"), b"orphan").await;
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    assert!(
+        matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
+    );
+    assert!(
+        storage.open_hosted_blob(&name("aaa"), &orphan.blob_filename()).await.unwrap().is_some(),
+    );
+}
+
+#[tokio::test]
+async fn collection_streams_an_object_store_inventory() {
+    let temp = TempDir::new().unwrap();
+    let config = HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::new(object_store::memory::InMemory::new()),
+        prefix: "images/".into(),
+    };
+    let storage =
+        Storage::new(&config, temp.path().join("store"), temp.path().join("cache")).unwrap();
+    let repository = name("acme/app");
+    retained_image(&storage, &repository).await;
+    blob(&storage, &name("acme/app/nested"), b"orphan").await;
+    assert_eq!(collect(&storage, Duration::ZERO, true, &HashSet::new()).await.unwrap(), (1, 6));
+    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (1, 6));
+    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (0, 0));
+}
+
+#[tokio::test]
+async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
+    let (temp, storage) = setup();
+    let hosted = storage.for_hosted("images");
+    let repository = name("acme/app");
+    let digest = blob(&hosted, &repository, b"orphan").await;
+    let cache = temp.path().join("cache/acme/app").join(digest.blob_filename());
+    tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
+    tokio::fs::write(&cache, b"cached").await.unwrap();
+    assert_eq!(collect(&hosted, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (1, 6));
+    assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
 }

@@ -74,7 +74,8 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn remove_package(&self, name: &CanonicalPackageName) -> Result<bool>;
 
-    async fn list_blob_files(&self) -> Result<Vec<crate::HostedBlobFile>>;
+    fn list_blob_files(&self)
+    -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>>;
 
     async fn list_package_names(&self) -> Result<Vec<String>>;
 

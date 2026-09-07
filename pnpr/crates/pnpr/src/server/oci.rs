@@ -678,13 +678,10 @@ impl Request {
             }
             Err(err) => return registry_error(err),
         }
-        let slot = match storage.stage_uploaded_blob(upload, key, &digest.blob_filename()).await {
-            Ok(slot) => slot,
-            Err(err) => return registry_error(err),
-        };
-        match storage.finalize_blob_slot(slot).await {
-            // A blob is its bytes, so another writer winning the slot means
-            // the content is already there, which is what the client wanted.
+        match storage.finalize_uploaded_blob(upload, key, &digest.blob_filename()).await {
+            Ok(pnpr_storage::BlobFinalize::Conflict) => {
+                error(ErrorCode::DigestInvalid, "stored blob conflicts with the uploaded content")
+            }
             Ok(_) => created(&format!("{}/{}/blobs/{digest}", self.base, key.as_str()), &digest),
             Err(err) => registry_error(err),
         }

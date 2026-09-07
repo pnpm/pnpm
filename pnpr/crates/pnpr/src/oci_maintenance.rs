@@ -2,13 +2,12 @@
 //! stopped, including other replicas, throughout the scan and deletion.
 
 use crate::{Config, Ecosystem, RegistryError, Result};
+use futures_util::TryStreamExt;
 use pnpr_oci::{Digest, ImageDocument, Manifest, media_type};
 use pnpr_package_name::CanonicalPackageName;
-use pnpr_storage::{HostedBlobFile, Storage};
-use std::{
-    collections::{BTreeMap, HashSet},
-    time::Duration,
-};
+use pnpr_storage::Storage;
+use rusqlite::{Connection, OptionalExtension, params};
+use std::{collections::HashSet, time::Duration};
 
 /// Reclaim unreferenced OCI blobs in one hosted registry.
 ///
@@ -52,34 +51,81 @@ async fn collect(
     dry_run: bool,
     excluded: &HashSet<&str>,
 ) -> Result<(usize, u64)> {
-    let mut repositories: BTreeMap<String, Vec<HostedBlobFile>> = BTreeMap::new();
-    for file in storage.hosted_blob_files().await? {
+    let temporary = tempfile::NamedTempFile::new()?;
+    let inventory = Connection::open(temporary.path())?;
+    inventory.execute_batch(
+        "PRAGMA journal_mode=OFF;
+         CREATE TABLE repositories (name TEXT PRIMARY KEY);
+         CREATE TABLE blobs (
+             repository TEXT, filename TEXT, size INTEGER, old INTEGER,
+             keep INTEGER DEFAULT 0, UNIQUE(repository, filename)
+         );
+         BEGIN;",
+    )?;
+    let mut files = storage.hosted_blob_files();
+    while let Some(file) = files.try_next().await? {
         if file.path.split('/').next().is_some_and(|part| excluded.contains(part)) {
             continue;
         }
         let Some((repository, filename)) = file.path.rsplit_once('/') else { continue };
-        if filename_digest(filename).is_none() {
+        if CanonicalPackageName::parse(repository, Ecosystem::Oci).is_err() {
             continue;
         }
-        repositories.entry(repository.to_string()).or_default().push(file);
-    }
-    let mut candidates = Vec::new();
-    for (repository, files) in repositories {
-        let Ok(name) = CanonicalPackageName::parse(&repository, Ecosystem::Oci) else { continue };
-        let reachable = referenced_blobs(storage, &name).await?;
-        for file in files {
-            let filename = file.path.rsplit('/').next().expect("inventory entry has a filename");
-            if !reachable.contains(filename)
-                && file.modified.elapsed().unwrap_or_default() >= min_age
-            {
-                candidates.push((name.clone(), filename.to_string(), file.size));
-            }
+        if filename != "package.json" && filename_digest(filename).is_none() {
+            continue;
         }
+        inventory.execute("INSERT OR IGNORE INTO repositories VALUES (?)", [repository])?;
+        if filename == "package.json" {
+            continue;
+        }
+        let size = i64::try_from(file.size).map_err(|_| RegistryError::BadRequest {
+            reason: format!("blob {} is too large to inventory", file.path),
+        })?;
+        inventory.execute(
+            "INSERT INTO blobs (repository, filename, size, old) VALUES (?, ?, ?, ?)",
+            params![
+                repository,
+                filename,
+                size,
+                file.modified.elapsed().unwrap_or_default() >= min_age
+            ],
+        )?;
     }
+    inventory.execute_batch("COMMIT;")?;
+    inventory.execute_batch("BEGIN;")?;
+    let mut previous = String::new();
+    while let Some(repository) = inventory
+        .query_row(
+            "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
+            [&previous],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+    {
+        let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
+        let reachable = referenced_blobs(storage, &name).await?;
+        for filename in reachable {
+            inventory.execute(
+                "UPDATE blobs SET keep = 1 WHERE repository = ? AND filename = ?",
+                params![repository, filename],
+            )?;
+        }
+        previous = repository;
+    }
+    inventory.execute_batch("COMMIT;")?;
     let mut removed = 0;
     let mut bytes = 0;
-    for (name, filename, size) in candidates {
-        if dry_run || storage.remove_blob(&name, &filename).await? {
+    let mut cursor = 0i64;
+    loop {
+        let candidate = inventory.query_row(
+            "SELECT rowid, repository, filename, size FROM blobs WHERE rowid > ? AND old = 1 AND keep = 0 ORDER BY rowid LIMIT 1",
+            [cursor], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)),
+        ).optional()?;
+        let Some((row, repository, filename, size)) = candidate else { break };
+        cursor = row;
+        let size = u64::try_from(size).expect("inventory only records nonnegative blob sizes");
+        let name = CanonicalPackageName::parse(&repository, Ecosystem::Oci)?;
+        if dry_run || storage.remove_hosted_blob(&name, &filename).await? {
             tracing::info!(
                 repository = name.as_str(),
                 blob = filename,

@@ -649,23 +649,28 @@ impl HostedBackend for S3Store {
         S3Store::remove_package(self, name).await
     }
 
-    async fn list_blob_files(&self) -> Result<Vec<crate::HostedBlobFile>> {
+    fn list_blob_files(
+        &self,
+    ) -> futures_util::stream::BoxStream<'_, Result<crate::HostedBlobFile>> {
         let prefix = ObjectPath::from(self.prefix.trim_end_matches('/'));
-        let mut listing = self.store.list(Some(&prefix));
-        let mut files = Vec::new();
-        while let Some(meta) = listing.next().await {
-            let meta = meta?;
-            let Some(path) = meta.location.as_ref().strip_prefix(&self.prefix) else { continue };
-            if path.split('/').any(|part| part.starts_with('.')) {
-                continue;
-            }
-            files.push(crate::HostedBlobFile {
-                path: path.to_string(),
-                modified: meta.last_modified.into(),
-                size: meta.size,
-            });
-        }
-        Ok(files)
+        self.store
+            .list(Some(&prefix))
+            .filter_map(move |result| async move {
+                let meta = match result {
+                    Ok(meta) => meta,
+                    Err(error) => return Some(Err(error.into())),
+                };
+                let path = meta.location.as_ref().strip_prefix(&self.prefix)?;
+                if path.split('/').any(|part| part.starts_with('.')) {
+                    return None;
+                }
+                Some(Ok(crate::HostedBlobFile {
+                    path: path.to_string(),
+                    modified: meta.last_modified.into(),
+                    size: meta.size,
+                }))
+            })
+            .boxed()
     }
 
     async fn list_package_names(&self) -> Result<Vec<String>> {

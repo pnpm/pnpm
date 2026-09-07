@@ -306,8 +306,7 @@ async fn s3_upload_resumes_on_another_replica_and_survives_loss_of_scratch() {
     assert_eq!(writer.finish().await.unwrap(), 11);
     resumed.materialize().await.unwrap();
     assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"hello world");
-    let slot = second.stage_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
-    second.finalize_blob_slot(slot).await.unwrap();
+    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
     assert_eq!(
         second.open_hosted_blob(&repository, "sha256-test").await.unwrap().unwrap().1,
         Some(11),
@@ -327,7 +326,7 @@ async fn s3_concurrent_append_and_stale_completion_cannot_overwrite_accepted_byt
     loser.write_all(b"loser").await.unwrap();
     winner.finish().await.unwrap();
     assert!(loser.finish().await.is_err());
-    assert!(second.stage_uploaded_blob(stale, &repository, "sha256-stale").await.is_err());
+    assert!(second.finalize_uploaded_blob(stale, &repository, "sha256-stale").await.is_err());
     let resumed = second.open_blob_upload(&repository, original.id()).await.unwrap().unwrap();
     resumed.materialize().await.unwrap();
     assert_eq!(tokio::fs::read(resumed.path()).await.unwrap(), b"winner");
@@ -354,4 +353,62 @@ async fn s3_sessions_are_repository_and_namespace_bound_and_expire() {
     stale.write_all(b"too late").await.unwrap();
     assert!(stale.finish().await.is_err());
     assert_eq!(second.sweep_blob_uploads(Duration::ZERO).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn failed_promotion_keeps_shared_chunks_available_for_retry() {
+    let (first, second, _first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    let id = upload.id().to_string();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"accepted").await.unwrap();
+    writer.finish().await.unwrap();
+    let slot = first.stage_uploaded_blob(upload, &repository, "sha256-test").await.unwrap();
+    tokio::fs::remove_file(&slot.tmp_path).await.unwrap();
+    assert!(first.finalize_blob_slot(slot).await.is_err());
+    let resumed = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    assert_eq!(resumed.offset().await.unwrap(), 8);
+    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
+    assert!(first.open_blob_upload(&repository, &id).await.unwrap().is_none());
+    let (body, _) = first.open_hosted_blob(&repository, "sha256-test").await.unwrap().unwrap();
+    assert_eq!(axum::body::to_bytes(body, 100).await.unwrap().as_ref(), b"accepted");
+}
+
+#[tokio::test]
+async fn empty_shared_chunks_reject_a_concurrently_changed_session() {
+    let (first, second, _first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    let resumed = second.open_blob_upload(&repository, upload.id()).await.unwrap().unwrap();
+    let empty = upload.append().await.unwrap();
+    let mut writer = resumed.append().await.unwrap();
+    writer.write_all(b"new bytes").await.unwrap();
+    writer.finish().await.unwrap();
+    assert!(matches!(
+        empty.finish().await,
+        Err(pnpr_error::RegistryError::BlobUploadConflict { .. })
+    ));
+}
+
+#[tokio::test]
+async fn conflicting_blob_promotion_does_not_consume_the_shared_upload() {
+    let (first, second, _first_disk, _second_disk) = replicas();
+    let repository = image("app");
+    let slot = first.reserve_hosted_blob(&repository, "sha256-test").await.unwrap();
+    tokio::fs::write(&slot.tmp_path, b"conflicting").await.unwrap();
+    first.finalize_blob_slot(slot).await.unwrap();
+    let upload = first.begin_blob_upload(&repository).await.unwrap();
+    let id = upload.id().to_string();
+    let mut writer = upload.append().await.unwrap();
+    writer.write_all(b"accepted").await.unwrap();
+    writer.finish().await.unwrap();
+    assert_eq!(
+        first.finalize_uploaded_blob(upload, &repository, "sha256-test").await.unwrap(),
+        BlobFinalize::Conflict,
+    );
+    let resumed = second.open_blob_upload(&repository, &id).await.unwrap().unwrap();
+    assert_eq!(resumed.offset().await.unwrap(), 8);
+    first.remove_blob(&repository, "sha256-test").await.unwrap();
+    second.finalize_uploaded_blob(resumed, &repository, "sha256-test").await.unwrap();
 }

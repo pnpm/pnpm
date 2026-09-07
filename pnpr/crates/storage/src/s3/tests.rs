@@ -1,5 +1,6 @@
 use super::{Body, ObjectStore, S3Store};
 use crate::HostedRevisionRefWrite;
+use futures_util::TryStreamExt;
 use object_store::{ObjectStoreExt, PutPayload, memory::InMemory, path::Path as ObjectPath};
 use pnpr_config::S3Settings;
 use pnpr_package_name::CanonicalPackageName;
@@ -439,7 +440,8 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
     upload(&store, &parent, "sha256-parent", b"parent").await;
     upload(&store, &child, "sha256-child", b"child").await;
     write_document(&store, &parent, b"{}").await;
-    let files = crate::HostedBackend::list_blob_files(&store).await.unwrap();
+    let files =
+        crate::HostedBackend::list_blob_files(&store).try_collect::<Vec<_>>().await.unwrap();
     assert_eq!(files.len(), 3);
     assert!(files.iter().any(|file| file.path == "acme/app/tool/sha256-child"));
 }

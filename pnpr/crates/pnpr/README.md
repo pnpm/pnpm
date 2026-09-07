@@ -365,7 +365,8 @@ Collection keeps untagged manifests, the children of retained indexes, and their
 config and layer blobs. Removing a tag alone does not make its image collectible.
 Missing or corrupt retained manifests stop collection before any blobs are
 deleted. The inventory includes unpublished repositories and nested repository
-names. Online `DELETE` of individual blobs remains unsupported because a manifest
+names. Collection streams the inventory into a temporary SQLite database, so
+local temporary storage must have room for the inventory metadata. Online `DELETE` of individual blobs remains unsupported because a manifest
 publish could race the reference check; use offline collection to delete safely.
 
 

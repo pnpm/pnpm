@@ -9,7 +9,7 @@ mod remote;
 
 pub(crate) use remote::RemoteUploadStore;
 
-use crate::{BlobSlot, Storage};
+use crate::{BlobFinalize, BlobSlot, Storage};
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use std::{fmt::Write as _, path::PathBuf, sync::Arc, time::Duration};
@@ -198,12 +198,31 @@ impl Storage {
         }
     }
 
+    /// Promote verified bytes before closing their shared upload session.
+    /// A failed promotion leaves accepted remote chunks available for retry.
+    pub async fn finalize_uploaded_blob(
+        &self,
+        upload: BlobUpload,
+        name: &CanonicalPackageName,
+        filename: &str,
+    ) -> Result<BlobFinalize> {
+        let remote = upload.remote.clone();
+        let slot = self.stage_uploaded_blob(upload, name, filename).await?;
+        let _temp = tempfile::TempPath::try_from_path(slot.tmp_path.clone())?;
+        let outcome = self.finalize_blob_slot(slot).await?;
+        if outcome != BlobFinalize::Conflict
+            && let Some(remote) = remote
+        {
+            remote.close().await?;
+        }
+        Ok(outcome)
+    }
+
     /// Move a finished upload into a hosted blob slot, ready for
     /// [`Storage::finalize_blob_slot`].
     ///
-    /// Consumes the upload on success. Object-store sessions must still match
-    /// the version that was verified; concurrent appends refuse promotion.
-    pub async fn stage_uploaded_blob(
+    /// Shared sessions remain open until their bytes have been promoted.
+    async fn stage_uploaded_blob(
         &self,
         upload: BlobUpload,
         name: &CanonicalPackageName,
@@ -213,9 +232,6 @@ impl Storage {
         let slot = self.reserve_hosted_blob(name, filename).await?;
         if let Some(parent) = slot.tmp_path.parent() {
             fs::create_dir_all(parent).await.map_err(RegistryError::Io)?;
-        }
-        if let Some(remote) = &upload.remote {
-            remote.close().await?;
         }
         // Both paths are under the backend's local scratch root, so this is a
         // rename rather than a copy through memory. A cross-device staging

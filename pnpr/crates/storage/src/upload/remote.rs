@@ -5,7 +5,12 @@ use object_store::{ObjectStore, ObjectStoreExt, PutMode, PutOptions, UpdateVersi
 use pnpr_error::{RegistryError, Result};
 use pnpr_package_name::CanonicalPackageName;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    path::PathBuf,
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::TempPath;
 use tokio::{fs, io::AsyncWriteExt, sync::Mutex};
 
@@ -142,13 +147,19 @@ impl RemoteUploadStore {
         }
         state.record.closed = true;
         self.write(id, &state.record, PutMode::Update(state.version)).await?;
-        self.remove_chunks(id, &state.record).await?;
+        self.remove_chunks(id).await?;
         Ok(true)
     }
 
-    async fn remove_chunks(&self, id: &str, record: &UploadRecord) -> Result<()> {
-        for chunk in &record.chunks {
-            self.remove(&self.key(id, chunk)).await?;
+    async fn remove_chunks(&self, id: &str) -> Result<()> {
+        let prefix = Path::from(format!("{}{id}/", self.prefix));
+        let mut listing = self.store.list(Some(&prefix));
+        let session = self.key(id, "session.json");
+        while let Some(meta) = listing.next().await {
+            let meta = meta?;
+            if meta.location != session {
+                self.remove(&meta.location).await?;
+            }
         }
         Ok(())
     }
@@ -163,7 +174,8 @@ impl RemoteUploadStore {
     pub(super) async fn sweep(&self, max_age: Duration) -> Result<usize> {
         let mut listing = self.store.list(Some(&Path::from(self.prefix.clone())));
         let mut swept = 0;
-        let mut live_sessions = HashSet::new();
+        let mut sessions = HashMap::new();
+        let mut unreadable = HashSet::new();
         while let Some(meta) = listing.next().await {
             let meta = meta?;
             let Some(relative) = meta.location.as_ref().strip_prefix(&self.prefix) else {
@@ -174,10 +186,27 @@ impl RemoteUploadStore {
                 continue;
             }
             let age = std::time::SystemTime::from(meta.last_modified).elapsed().unwrap_or_default();
-            if age <= max_age || (object != "session.json" && live_sessions.contains(id)) {
+            if age <= max_age || unreadable.contains(id) {
                 continue;
             }
-            let Some(mut state) = self.read(id).await? else {
+            if object != "session.json"
+                && let Some(live) = sessions.get(id)
+            {
+                if !live {
+                    self.remove(&meta.location).await?;
+                }
+                continue;
+            }
+            let state = match self.read(id).await {
+                Ok(state) => state,
+                Err(error) => {
+                    tracing::warn!(error = %error.log_message(), upload = id, "skipping unreadable upload session");
+                    unreadable.insert(id.to_string());
+                    continue;
+                }
+            };
+            let Some(mut state) = state else {
+                sessions.insert(id.to_string(), false);
                 self.remove(&meta.location).await?;
                 continue;
             };
@@ -191,14 +220,15 @@ impl RemoteUploadStore {
                     Err(RegistryError::BlobUploadConflict { .. }) => continue,
                     Err(error) => return Err(error),
                 }
-                live_sessions.remove(id);
-                self.remove_chunks(id, &state.record).await?;
+                sessions.insert(id.to_string(), false);
+                self.remove_chunks(id).await?;
                 self.remove(&meta.location).await?;
                 swept += 1;
-            } else if state.record.closed {
-                self.remove(&meta.location).await?;
             } else {
-                live_sessions.insert(id.to_string());
+                sessions.insert(id.to_string(), !state.record.closed);
+                if state.record.closed {
+                    self.remove(&meta.location).await?;
+                }
             }
         }
         Ok(swept)
@@ -249,7 +279,7 @@ impl RemoteUpload {
         let version =
             self.backend.write(&self.id, &record, PutMode::Update(state.version.clone())).await?;
         *state = VersionedRecord { record, version };
-        if let Err(error) = self.backend.remove_chunks(&self.id, &state.record).await {
+        if let Err(error) = self.backend.remove_chunks(&self.id).await {
             tracing::warn!(%error, upload = self.id, "completed upload chunks await expiry cleanup");
         }
         Ok(())
@@ -259,6 +289,12 @@ impl RemoteUpload {
 impl RemoteChunk {
     pub(super) async fn commit(mut self, size: u64) -> Result<u64> {
         if size == 0 {
+            let current = self.upload.backend.read(&self.upload.id).await?;
+            if current
+                .is_none_or(|current| current.record.closed || current.version != self.version)
+            {
+                return Err(RegistryError::BlobUploadConflict { id: self.upload.id.clone() });
+            }
             return Ok(self.snapshot.size);
         }
         if self.snapshot.chunks.len() == MAX_CHUNKS {
