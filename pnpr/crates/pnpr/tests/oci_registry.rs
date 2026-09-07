@@ -11,6 +11,9 @@
 )]
 mod common;
 
+#[path = "common/pausing_store.rs"]
+mod pausing_store;
+
 use axum::{
     Router,
     body::Body,
@@ -1606,4 +1609,88 @@ fn repository_with_colliding_lock_keys() -> String {
         .map(|index| format!("acme/lock-collision-{index}"))
         .find(|name| stripe(name) == stripe(&format!("oci-referrers:{name}")))
         .expect("a repository whose lock keys collide")
+}
+
+#[tokio::test]
+async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests() {
+    let tmp = TempDir::new().unwrap();
+    let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::<pausing_store::PausingStore>::clone(&objects),
+        prefix: "migration/".into(),
+    };
+    let hosted = config.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
+    let storage = pnpr_storage::Storage::new(
+        &config.hosted_store,
+        config.storage.clone(),
+        config.cache_storage.clone(),
+    )
+    .unwrap()
+    .for_hosted("images");
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    let subject = digest_of(b"subject");
+    let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
+        "manifests": [], "subject": { "digest": subject, "size": 7 } })
+    .to_string();
+    let digest = pnpr_oci::Digest::of(manifest.as_bytes());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/v2/acme/migration/manifests/sbom")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from(manifest))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let key =
+        pnpr_package_name::CanonicalPackageName::parse("acme/migration", Ecosystem::Oci).unwrap();
+    let mut document: Value =
+        serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+            .unwrap();
+    strip_referrer_metadata(&mut document, 1);
+    storage
+        .update_hosted_document_with_retry(&key, 1, |_| {
+            Ok(Some(serde_json::to_vec(&document).unwrap()))
+        })
+        .await
+        .unwrap();
+    objects.pause(digest.blob_filename());
+    let reader = app.clone();
+    let path = format!("/v2/acme/migration/referrers/{subject}");
+    let read = tokio::spawn(async move { get(&reader, &path).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), objects.started.notified())
+        .await
+        .unwrap();
+    let update = async {
+        let published = push_image(&app, &auth, "acme/migration", "fresh").await;
+        let deleted = app
+            .clone()
+            .oneshot(
+                Request::delete(format!("/v2/acme/migration/manifests/{digest}"))
+                    .header(header::AUTHORIZATION, &auth)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted.status(), StatusCode::ACCEPTED);
+        published
+    };
+    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update).await;
+    objects.resume.notify_one();
+    let published = published.expect("manifest reads must not hold the package writer lock");
+    let response =
+        tokio::time::timeout(std::time::Duration::from_secs(5), read).await.unwrap().unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let document =
+        pnpr_oci::ImageDocument::parse(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+            .unwrap();
+    assert!(document.manifest(&digest).is_none());
+    assert_eq!(document.resolve("fresh").unwrap().digest.to_string(), published);
 }

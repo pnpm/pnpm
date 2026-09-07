@@ -129,6 +129,7 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes.
     package_locks: StripedLocks,
+    referrer_migration_locks: StripedLocks,
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,

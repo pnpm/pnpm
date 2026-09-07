@@ -347,6 +347,9 @@ impl Request {
             } else {
                 entry.referrer.as_ref()
             };
+            if migration_guard.is_some() && indexed_metadata.is_some() && additions.is_empty() {
+                drop(migration_guard.take());
+            }
             let needs_read = indexed_metadata.is_none_or(|metadata| {
                 metadata.subject.as_ref() == Some(&digest)
                     && artifact_type_digest
@@ -360,7 +363,8 @@ impl Request {
                     break;
                 }
                 if indexed_metadata.is_none() && migration_guard.is_none() {
-                    migration_guard = Some(self.state.inner.package_locks.lock(key.as_str()).await);
+                    migration_guard =
+                        Some(self.state.inner.referrer_migration_locks.lock(key.as_str()).await);
                     current_document = match storage.read_hosted_document(&key).await {
                         Ok(Some(bytes)) => match ImageDocument::parse(&bytes) {
                             Ok(document) => Some(document),
@@ -420,6 +424,7 @@ impl Request {
             entries.next();
         }
         if !additions.is_empty() {
+            let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
             let outcome = storage
                 .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
                     let Some(bytes) = existing else { return Ok(None) };
