@@ -415,10 +415,7 @@ test('lockfileDir does not hide the engine pins declared at the workspace root',
     packageManager: { name: 'pnpm', version: '11.0.0' },
   })
 
-  // The lockfile moved, so the root project directory moved with it and
-  // carries no manifest of its own.
   expect(context.rootProjectManifest).toBeUndefined()
-  // The pins stay with the workspace the contributor works in.
   expect(context.wantedPackageManager).toMatchObject({
     name: 'pnpm',
     version: '11.0.0',
