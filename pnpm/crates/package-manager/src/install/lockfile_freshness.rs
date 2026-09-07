@@ -383,6 +383,11 @@ pub(crate) fn check_lockfile_settings_drift(
 /// Per-importer slice of the freshness gate: the manifest of the
 /// project at `importer_id` must still be satisfied by the lockfile's
 /// importer snapshot.
+///
+/// `lockfile_dir` is the directory the lockfile was written from. A
+/// relative `link:` / `file:` override target names a path from there,
+/// so anchoring the overrider anywhere else rewrites the manifest to
+/// specifiers the lockfile never recorded.
 pub(crate) fn check_importer_satisfies(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
