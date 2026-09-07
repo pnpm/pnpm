@@ -315,8 +315,6 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
-        let _guard =
-            self.state.inner.package_locks.lock(&format!("oci-referrers:{}", key.as_str())).await;
         let document =
             match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
                 .await
@@ -336,8 +334,20 @@ impl Request {
         let mut read_bytes = 0;
         let mut response_bytes = 128;
         let mut cursor = None;
+        let mut migration_guard = None;
+        let mut current_document: Option<ImageDocument> = None;
         while let Some(&entry) = entries.peek() {
-            let needs_read = entry.referrer.as_ref().is_none_or(|metadata| {
+            let indexed_metadata = if let Some(current) = &current_document {
+                let Some(current_entry) = current.manifest(&entry.digest) else {
+                    cursor = Some(&entry.digest);
+                    entries.next();
+                    continue;
+                };
+                current_entry.referrer.as_ref()
+            } else {
+                entry.referrer.as_ref()
+            };
+            let needs_read = indexed_metadata.is_none_or(|metadata| {
                 metadata.subject.as_ref() == Some(&digest)
                     && artifact_type_digest
                         .as_ref()
@@ -348,6 +358,18 @@ impl Request {
                     || (inspected > 0 && read_bytes + entry.size > MAX_REFERRER_READ_BYTES)
                 {
                     break;
+                }
+                if indexed_metadata.is_none() && migration_guard.is_none() {
+                    migration_guard = Some(self.state.inner.package_locks.lock(key.as_str()).await);
+                    current_document = match storage.read_hosted_document(&key).await {
+                        Ok(Some(bytes)) => match ImageDocument::parse(&bytes) {
+                            Ok(document) => Some(document),
+                            Err(err) => return registry_error(err.into()),
+                        },
+                        Ok(None) => Some(ImageDocument::new(key.as_str())),
+                        Err(err) => return registry_error(err),
+                    };
+                    continue;
                 }
                 let bytes = match read_manifest_bytes(&storage, &key, &entry.digest.blob_filename())
                     .await
@@ -374,7 +396,7 @@ impl Request {
                     && artifact_type
                         .as_deref()
                         .is_none_or(|filter| manifest.artifact_type() == Some(filter));
-                if entry.referrer.is_none() {
+                if indexed_metadata.is_none() {
                     let mut addition = entry.clone();
                     addition.referrer = Some(metadata);
                     additions.push(addition);
@@ -397,9 +419,29 @@ impl Request {
             cursor = Some(&entry.digest);
             entries.next();
         }
-        if let Err(err) = self.persist_referrer_metadata(&storage, &key, &additions).await {
-            return registry_error(err);
+        if !additions.is_empty() {
+            let outcome = storage
+                .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
+                    let Some(bytes) = existing else { return Ok(None) };
+                    let mut current = ImageDocument::parse(bytes)?;
+                    let mut changed = false;
+                    for entry in &additions {
+                        if current
+                            .manifest(&entry.digest)
+                            .is_some_and(|held| held.referrer.is_none())
+                        {
+                            current.insert_manifest(entry.clone());
+                            changed = true;
+                        }
+                    }
+                    Ok(changed.then(|| current.to_bytes()))
+                })
+                .await;
+            if let Err(err) = outcome {
+                return registry_error(err);
+            }
         }
+        drop(migration_guard);
         let manifests = referrers
             .iter()
             .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
@@ -432,33 +474,6 @@ impl Request {
             );
         }
         self.caller_scoped(Some(key.as_str()), response)
-    }
-
-    async fn persist_referrer_metadata(
-        &self,
-        storage: &Storage,
-        key: &CanonicalPackageName,
-        additions: &[ManifestEntry],
-    ) -> Result<(), RegistryError> {
-        if additions.is_empty() {
-            return Ok(());
-        }
-        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
-        storage
-            .update_hosted_document_with_retry(key, DOCUMENT_WRITE_RETRIES, |existing| {
-                let Some(bytes) = existing else { return Ok(None) };
-                let mut current = ImageDocument::parse(bytes)?;
-                let mut changed = false;
-                for entry in additions {
-                    if current.manifest(&entry.digest).is_some_and(|held| held.referrer.is_none()) {
-                        current.insert_manifest(entry.clone());
-                        changed = true;
-                    }
-                }
-                Ok(changed.then(|| current.to_bytes()))
-            })
-            .await?;
-        Ok(())
     }
 
     /// `GET /v2/_catalog` — the repository names this caller may read.

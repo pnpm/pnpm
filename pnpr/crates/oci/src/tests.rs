@@ -311,6 +311,10 @@ fn an_image_referrer_requires_an_artifact_type_or_config_media_type() {
             manifest["artifactType"] = "application/example.signature".into();
             let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
             assert_eq!(parsed.artifact_type(), Some("application/example.signature"));
+            assert!(manifest.as_object_mut().unwrap().remove("artifactType").is_some());
+            manifest["config"]["mediaType"] = "application/example.config".into();
+            let parsed = Manifest::parse(&serde_json::to_vec(&manifest).unwrap(), None).unwrap();
+            assert_eq!(parsed.artifact_type(), Some("application/example.config"));
         }
     }
 }

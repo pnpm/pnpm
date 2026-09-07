@@ -1354,13 +1354,14 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
         .for_hosted("images");
         let app = router_with_auth(config, AuthState::in_memory());
         let auth = basic(&token(&app).await);
+        let repository = repository_with_colliding_lock_keys();
         let subject = digest_of(b"subject");
         let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
             "manifests": [], "subject": { "digest": subject, "size": 7 }, "artifactType": "application/example.sbom" });
         let response = app
             .clone()
             .oneshot(
-                Request::put("/v2/acme/legacy/manifests/sbom")
+                Request::put(format!("/v2/{repository}/manifests/sbom"))
                     .header(header::AUTHORIZATION, &auth)
                     .body(Body::from(manifest.to_string()))
                     .unwrap(),
@@ -1369,7 +1370,7 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::CREATED);
         let key =
-            pnpr_package_name::CanonicalPackageName::parse("acme/legacy", Ecosystem::Oci).unwrap();
+            pnpr_package_name::CanonicalPackageName::parse(&repository, Ecosystem::Oci).unwrap();
         let mut document: Value =
             serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
                 .unwrap();
@@ -1380,7 +1381,12 @@ async fn referrers_backfill_preexisting_manifests_on_both_backends() {
             })
             .await
             .unwrap();
-        let response = get(&app, &format!("/v2/acme/legacy/referrers/{subject}")).await;
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            get(&app, &format!("/v2/{repository}/referrers/{subject}")),
+        )
+        .await
+        .expect("migration must not acquire the same stripe twice");
         assert_eq!(response.status(), StatusCode::OK);
         let payload: Value =
             serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
@@ -1584,4 +1590,20 @@ fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
             "the stored entry must carry referrer metadata before stripping it",
         );
     }
+}
+
+fn repository_with_colliding_lock_keys() -> String {
+    use std::{
+        collections::hash_map::DefaultHasher,
+        hash::{Hash, Hasher},
+    };
+    let stripe = |key: &str| {
+        let mut hasher = DefaultHasher::new();
+        key.hash(&mut hasher);
+        hasher.finish() % 64
+    };
+    (0..4096)
+        .map(|index| format!("acme/lock-collision-{index}"))
+        .find(|name| stripe(name) == stripe(&format!("oci-referrers:{name}")))
+        .expect("a repository whose lock keys collide")
 }
