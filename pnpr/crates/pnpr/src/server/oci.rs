@@ -133,12 +133,10 @@ async fn dispatch(
     Path(params): Path<HashMap<String, String>>,
     incoming: axum::extract::Request,
 ) -> Response {
-    let Some(tail) = params.get("path") else {
-        return error(ErrorCode::Unsupported, "unrecognized distribution endpoint");
+    let Some(endpoint) = params.get("path").and_then(|tail| parse_endpoint(tail)) else {
+        return error(ErrorCode::NameUnknown, "no distribution endpoint at this path");
     };
-    let Some(endpoint) = parse_endpoint(tail) else {
-        return error(ErrorCode::Unsupported, "unrecognized distribution endpoint");
-    };
+    let tail = &params["path"];
     let (parts, body) = incoming.into_parts();
     let request = Request {
         state,

@@ -570,14 +570,14 @@ async fn a_reference_that_is_neither_tag_nor_digest_is_refused() {
 
     // `sha256:short` parses as neither, and storing it verbatim would leave a
     // digest-shaped entry in the tag list.
-    for reference in ["sha256:short", ".leading-dot", "has%2Fslash"] {
+    for reference in ["sha256:short", ".leading-dot", "-leading-dash"] {
         let request = Request::put(format!("/v2/acme/app/manifests/{reference}"))
             .header(header::AUTHORIZATION, &auth)
             .header(header::CONTENT_TYPE, "application/vnd.oci.image.manifest.v1+json")
             .body(Body::from(image_manifest("config", &["layer"])))
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
-        assert_ne!(response.status(), StatusCode::CREATED, "{reference} should not be a tag");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{reference} should not be a tag");
     }
 
     let response = get(&app, "/v2/acme/app/tags/list").await;
@@ -828,6 +828,26 @@ async fn a_range_spanning_more_than_a_blob_can_hold_is_refused() {
             .body(Body::from("hello"))
             .unwrap();
         let response = app.clone().oneshot(request).await.unwrap();
-        assert_ne!(response.status(), StatusCode::ACCEPTED, "{range}");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{range}");
+    }
+
+    let request =
+        Request::get(&location).header(header::AUTHORIZATION, &auth).body(Body::empty()).unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.headers().get(header::RANGE).unwrap(), "0-0");
+}
+
+#[tokio::test]
+async fn a_path_that_names_no_endpoint_is_not_found() {
+    let tmp = TempDir::new().unwrap();
+    let app = app(&tmp);
+
+    // A slash inside a reference decodes into another path segment, which
+    // leaves a tail naming no endpoint rather than a manifest with an odd
+    // name. Nothing is served there, which is not the same as a method being
+    // refused on something that is.
+    for path in ["/v2/acme/app/manifests/has%2Fslash", "/v2/acme/app/nonsense/1.0", "/v2/acme"] {
+        let response = get(&app, path).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
     }
 }
