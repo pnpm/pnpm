@@ -90,6 +90,38 @@ pub(super) async fn authenticate(
     let path = request.uri().path().to_owned();
     let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
 
+    if let Some(raw) = header.as_deref().and_then(token_credentials) {
+        match super::oci::tokens::decode(&state, &raw) {
+            Ok(Some(claims)) => {
+                if !claims.permits(&path, &method) {
+                    return super::oci::tokens::rejected(&state, &path, &method);
+                }
+                let identity = match &claims.parent {
+                    Some(parent) => match state.inner.auth.tokens.find_by_key(parent).await {
+                        Ok(Some(record)) => {
+                            if let Err(err) =
+                                check_token_restrictions(&record, &method, &path, peer)
+                            {
+                                return err.into_response();
+                            }
+                            Identity::user(record.username)
+                        }
+                        Ok(None) => return super::oci::tokens::rejected(&state, &path, &method),
+                        Err(err) => return err.into_response(),
+                    },
+                    None => Identity::Anonymous,
+                };
+                request.extensions_mut().insert(AuthedCaller(identity));
+                return next.run(request).await;
+            }
+            Ok(None) => {}
+            Err(RegistryError::Unauthenticated { .. }) => {
+                return super::oci::tokens::rejected(&state, &path, &method);
+            }
+            Err(err) => return err.into_response(),
+        }
+    }
+
     let identity = match resolve_caller(&state, header.as_deref(), &method, &path, peer).await {
         Ok(identity) => identity,
         Err(err) => return err.into_response(),

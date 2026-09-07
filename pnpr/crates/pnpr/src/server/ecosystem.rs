@@ -284,6 +284,7 @@ pub(super) fn upstream_fetch_guard(
         let Some(base) = &base else { return false };
         is_fetchable_artifact_url(url)
             && (url.origin() == base.origin()
+                || pnpr_upstream::oci_download_allowed(base, url)
                 || context.allows_registry(url.as_str())
                 || (base.as_str() == "https://index.crates.io/"
                     && url.origin().ascii_serialization() == "https://static.crates.io")

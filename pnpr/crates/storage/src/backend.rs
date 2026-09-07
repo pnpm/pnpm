@@ -22,6 +22,10 @@ use std::{
 /// rename or by upload, and how a namespace maps onto paths or key prefixes.
 #[async_trait]
 pub(crate) trait HostedBackend: Debug + Send + Sync {
+    async fn rebuild_package_index(&self) -> Result<()> {
+        Ok(())
+    }
+
     fn upload_store(&self) -> Option<crate::upload::RemoteUploadStore> {
         None
     }

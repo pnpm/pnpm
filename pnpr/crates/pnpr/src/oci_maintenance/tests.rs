@@ -56,14 +56,22 @@ async fn collection_keeps_untagged_manifests_and_layers_and_finds_nested_orphans
     let nested = name("acme/app/tool");
     let nested_orphan = blob(&storage, &nested, b"nested orphan").await;
     assert_eq!(
-        collect(&storage, Duration::from_hours(24), false, &HashSet::new()).await.unwrap(),
+        collect(&storage, Duration::from_hours(24), false, &HashSet::new(), 4 * 1024 * 1024)
+            .await
+            .unwrap(),
         (0, 0),
     );
-    assert_eq!(collect(&storage, Duration::ZERO, true, &HashSet::new()).await.unwrap(), (2, 19));
+    assert_eq!(
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (2, 19),
+    );
     assert!(
         storage.open_hosted_blob(&nested, &nested_orphan.blob_filename()).await.unwrap().is_some(),
     );
-    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (2, 19));
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (2, 19),
+    );
     assert!(
         storage.open_hosted_blob(&repository, &manifest.blob_filename()).await.unwrap().is_some(),
     );
@@ -81,7 +89,9 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
     let path = temp.path().join("store/acme/app").join(manifest.blob_filename());
     tokio::fs::write(&path, b"corrupt").await.unwrap();
-    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("manifest digest mismatch")),
     );
@@ -89,7 +99,9 @@ async fn corrupt_or_missing_manifests_prevent_deletion() {
         storage.open_hosted_blob(&name("aaa"), &orphan.blob_filename()).await.unwrap().is_some(),
     );
     tokio::fs::remove_file(path).await.unwrap();
-    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
     );
@@ -118,10 +130,13 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
         .await
         .unwrap();
     assert_eq!(
-        referenced_blobs(&storage, &repository).await.unwrap(),
+        referenced_blobs(&storage, &repository, 4 * 1024 * 1024).await.unwrap(),
         HashSet::from([index.blob_filename(), child.blob_filename(), layer.blob_filename()]),
     );
-    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (0, 0));
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (0, 0),
+    );
 }
 
 #[tokio::test]
@@ -130,7 +145,9 @@ async fn flat_registry_collection_excludes_other_namespaces() {
     blob(&storage, &name("other/app"), b"private").await;
     blob(&storage, &name("app"), b"orphan").await;
     assert_eq!(
-        collect(&storage, Duration::ZERO, false, &HashSet::from(["other"])).await.unwrap(),
+        collect(&storage, Duration::ZERO, false, &HashSet::from(["other"]), 4 * 1024 * 1024)
+            .await
+            .unwrap(),
         (1, 6),
     );
 }
@@ -157,7 +174,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
         .await
         .unwrap();
     assert_eq!(
-        referenced_blobs(&storage, &repository).await.unwrap(),
+        referenced_blobs(&storage, &repository, 4 * 1024 * 1024).await.unwrap(),
         HashSet::from([digest.blob_filename(), layer.blob_filename()]),
     );
 }
@@ -178,7 +195,9 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
         .await
         .unwrap();
     let orphan = blob(&storage, &name("aaa"), b"orphan").await;
-    let error = collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap_err();
+    let error = collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024)
+        .await
+        .unwrap_err();
     assert!(
         matches!(error, RegistryError::BadRequest { reason } if reason.contains("retained manifest is missing")),
     );
@@ -199,9 +218,18 @@ async fn collection_streams_an_object_store_inventory() {
     let repository = name("acme/app");
     retained_image(&storage, &repository).await;
     blob(&storage, &name("acme/app/nested"), b"orphan").await;
-    assert_eq!(collect(&storage, Duration::ZERO, true, &HashSet::new()).await.unwrap(), (1, 6));
-    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (1, 6));
-    assert_eq!(collect(&storage, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (0, 0));
+    assert_eq!(
+        collect(&storage, Duration::ZERO, true, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (1, 6),
+    );
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (1, 6),
+    );
+    assert_eq!(
+        collect(&storage, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (0, 0),
+    );
 }
 
 #[tokio::test]
@@ -213,6 +241,40 @@ async fn collection_does_not_remove_a_matching_blob_from_the_shared_cache() {
     let cache = temp.path().join("cache/acme/app").join(digest.blob_filename());
     tokio::fs::create_dir_all(cache.parent().unwrap()).await.unwrap();
     tokio::fs::write(&cache, b"cached").await.unwrap();
-    assert_eq!(collect(&hosted, Duration::ZERO, false, &HashSet::new()).await.unwrap(), (1, 6));
+    assert_eq!(
+        collect(&hosted, Duration::ZERO, false, &HashSet::new(), 4 * 1024 * 1024).await.unwrap(),
+        (1, 6),
+    );
     assert_eq!(tokio::fs::read(cache).await.unwrap(), b"cached");
+}
+
+#[tokio::test]
+async fn offline_collection_finishes_interrupted_explicit_deletion() {
+    let (_temp, storage) = setup();
+    let repository = name("acme/app");
+    let digest = blob(&storage, &repository, b"pending deletion").await;
+    let mut document = ImageDocument::new(repository.as_str());
+    document.generation = 1;
+    document.deleting_blob = Some(digest.clone());
+    storage
+        .write_hosted_document_if_current(&repository, &document.to_bytes(), None)
+        .await
+        .unwrap();
+    collect(&storage, Duration::from_hours(24), true, &HashSet::new(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    assert!(
+        storage.open_hosted_blob(&repository, &digest.blob_filename()).await.unwrap().is_some(),
+    );
+    collect(&storage, Duration::from_hours(24), false, &HashSet::new(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    assert!(
+        storage.open_hosted_blob(&repository, &digest.blob_filename()).await.unwrap().is_none(),
+    );
+    let document =
+        ImageDocument::parse(&storage.read_hosted_document(&repository).await.unwrap().unwrap())
+            .unwrap();
+    assert_eq!(document.generation, 1);
+    assert!(document.deleting_blob.is_none());
 }

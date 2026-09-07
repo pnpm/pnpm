@@ -11,11 +11,16 @@ use tokio::sync::Notify;
 pub struct PausingStore {
     inner: InMemory,
     filename: Mutex<Option<String>>,
+    write_filename: Mutex<Option<String>>,
     pub started: Notify,
     pub resume: Notify,
 }
 
 impl PausingStore {
+    pub fn pause_write(&self, filename: String) {
+        *self.write_filename.lock().unwrap() = Some(filename);
+    }
+
     pub fn pause(&self, filename: String) {
         *self.filename.lock().unwrap() = Some(filename);
     }
@@ -57,6 +62,20 @@ impl ObjectStore for PausingStore {
         payload: PutPayload,
         options: PutOptions,
     ) -> object_store::Result<PutResult> {
+        let pause = {
+            let mut filename = self.write_filename.lock().unwrap();
+            let pause = filename
+                .as_ref()
+                .is_some_and(|filename| location.filename() == Some(filename.as_str()));
+            if pause {
+                *filename = None;
+            }
+            pause
+        };
+        if pause {
+            self.started.notify_one();
+            self.resume.notified().await;
+        }
         self.inner.put_opts(location, payload, options).await
     }
 

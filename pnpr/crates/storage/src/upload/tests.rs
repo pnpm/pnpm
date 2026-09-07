@@ -101,19 +101,15 @@ async fn an_in_progress_upload_is_not_a_repository() {
 }
 
 #[tokio::test]
-async fn a_package_nested_under_another_is_not_listed() {
+async fn a_package_nested_under_another_is_listed() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
 
-    // `acme/app` is both a package and the namespace of `acme/app/tool`. The
-    // walk stops at the first document so that a listing stays proportional
-    // to the number of packages rather than the number of blobs, which leaves
-    // the nested one unlisted. Tracked in pnpm/pnpm#14630.
     for name in ["acme/app", "acme/app/tool"] {
         storage.write_hosted_document_if_current(&image(name), b"{}", None).await.unwrap();
     }
 
-    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app"]);
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
 }
 
 #[tokio::test]

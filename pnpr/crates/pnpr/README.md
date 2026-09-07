@@ -369,8 +369,16 @@ config and layer blobs. Removing a tag alone does not make its image collectible
 Missing or corrupt retained manifests stop collection before any blobs are
 deleted. The inventory includes unpublished repositories and nested repository
 names. Collection streams the inventory into a temporary SQLite database, so
-local temporary storage must have room for the inventory metadata. Online `DELETE` of individual blobs remains unsupported because a manifest
-publish could race the reference check; use offline collection to delete safely.
+local temporary storage must have room for the inventory metadata.
+
+`DELETE /v2/<name>/blobs/<digest>` removes an unreferenced blob when the caller
+has `unpublish` permission. A blob reachable from any retained manifest or index
+is refused. A stored deletion marker blocks concurrent manifest publication,
+and a generation counter rejects publishes staged before the deletion.
+If deletion is interrupted, stop all writers and run `oci-gc` without `--dry-run`
+to finish it and unblock the repository. Recovery of an explicit deletion ignores
+`--min-age-secs`. All replicas sharing a store must run this version before using
+online deletion.
 
 
 `GET /v2/` answers `401` with a `Basic` challenge to an anonymous caller even
@@ -381,7 +389,17 @@ admits anonymous reads still answers its later requests.
 
 Blobs are uploaded in one request or in chunks, streamed to disk rather than
 held in memory, and verified against the digest the client promised before
-anything is stored. A layer may be up to 10 GiB and a manifest up to 4 MiB.
+anything is stored. By default, a layer may be up to 10 GiB and a manifest up to
+4 MiB. Configure positive byte limits with:
+
+```yaml
+oci:
+  maxBlobBytes: 10737418240
+  maxManifestBytes: 4194304
+```
+
+The blob limit applies to the entire resumable upload, including mounted layers.
+It also bounds uncached upstream downloads.
 The manifest write is the point a release becomes visible: it goes through the
 same publish journal as every other ecosystem, so it either lands whole or
 leaves nothing behind. A blob no manifest references is invisible rather than
@@ -410,9 +428,62 @@ manifest removes its referrer entry; removing a tag keeps it.
 `Link` header when another page is available. `last` is an exclusive lexical
 cursor. `n=0` returns an empty list without a continuation link.
 
-Proxying an upstream image registry and online blob deletion are not yet served.
-Deleting a manifest needs a registry whose `unpublish` rule admits the caller,
-which the per-registry default does not.
+The filesystem catalog uses a separate package index to find repositories nested
+under published repositories and repositories containing only uploaded blobs.
+Startup indexes legacy stores once. This initial scan visits existing files;
+subsequent requests enumerate package names without walking layer files.
+
+Set `oci.bearerAuth: true` to offer a Bearer challenge. Clients exchange their
+pnpr credential at `/v2/token` for a five-minute token scoped to repository
+`pull`, `push`, or `delete` actions. The endpoint grants only permitted actions.
+The parent credential's revocation, read-only flag, and network restrictions
+remain effective. Anonymous tokens can pull public repositories. Use the same
+`secret:` and registry configuration on all replicas so their tokens interoperate.
+Scoped tokens cannot access other pnpr APIs or the whole catalog.
+
+An OCI batch entry publishes a manifest whose layers have already been uploaded:
+
+```json
+{
+  "ecosystem": "oci",
+  "name": "acme/app",
+  "reference": "1.0",
+  "manifest": "<base64-encoded manifest bytes>"
+}
+```
+
+Include this entry alongside npm, Cargo, or Python entries in the `packages`
+array of `PUT /-/pnpr/v0/publish`. `contentType` is optional when the manifest
+contains its media type. An index's child manifests must already be published.
+The batch body keeps the endpoint's existing size limit; upload large layers
+through the streaming `/v2/` API first.
+
+Docker Hub and GHCR can be configured as pull-through upstreams:
+
+```yaml
+registries:
+  dockerhub:
+    type: upstream
+    ecosystem: oci
+    url: https://registry-1.docker.io/
+    public: true
+defaultRegistry: dockerhub
+```
+
+Pull an official Hub image as `pnpr.example.com/library/alpine:latest`. For GHCR,
+use `https://ghcr.io/` and the full repository name. Private origins use the
+existing upstream `auth:` configuration and access rules. pnpr negotiates
+repository-scoped pull tokens and restricts layer redirects to the origin's
+known CDN hosts. Configured credentials never travel to a layer CDN. Custom
+origins may use a token endpoint and downloads on their own origin.
+
+Manifest bodies are verified before caching. Blob bodies are verified while
+streaming and are cached only after a successful digest check. Clients still
+verify the streamed bytes. Tags refresh according to the configured upstream cache lifetime;
+digest-addressed content is immutable. `cache: false` disables this cache.
+Upstream writes, catalog enumeration, tag listing, and referrer discovery are
+not proxied. Hosted manifest and blob deletion require `unpublish` permission,
+which the registry default denies.
 
 ## License
 

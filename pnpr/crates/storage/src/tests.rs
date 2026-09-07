@@ -220,3 +220,17 @@ async fn failed_blob_finalize_removes_tmp_file() {
     assert!(write.finalize().await.is_err());
     assert!(!tmp_path.exists(), "failed finalization must remove its temporary file");
 }
+
+#[tokio::test]
+async fn package_index_migrates_nested_legacy_documents_and_ignores_removed_ones() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let root = tmp.path().join("storage");
+    fs::create_dir_all(root.join("acme/app/tool")).await.unwrap();
+    fs::write(root.join("acme/app/package.json"), b"{}").await.unwrap();
+    fs::write(root.join("acme/app/tool/package.json"), b"{}").await.unwrap();
+    storage.rebuild_package_index().await.unwrap();
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app", "acme/app/tool"]);
+    fs::remove_file(root.join("acme/app/package.json")).await.unwrap();
+    assert_eq!(storage.hosted_package_names().await.unwrap(), ["acme/app/tool"]);
+}

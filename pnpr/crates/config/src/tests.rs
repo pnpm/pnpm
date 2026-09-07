@@ -2757,3 +2757,32 @@ registries:
     let err = Config::from_yaml_str(bad_key, Path::new("/x"), listen(), None).unwrap_err();
     assert!(err.to_string().contains(r#"oci registry "images" `packages:` key"#), "{err}");
 }
+
+#[test]
+fn oci_limits_are_positive_and_preserve_defaults() {
+    let config = Config::from_yaml_str(
+        "oci: {maxBlobBytes: 123, maxManifestBytes: 456, bearerAuth: true}",
+        Path::new("/config"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(config.oci.max_blob_bytes, 123);
+    assert_eq!(config.oci.max_manifest_bytes, 456);
+    assert!(config.oci.bearer_auth);
+    let config = Config::from_yaml_str("{}", Path::new("/config"), listen(), None).unwrap();
+    assert_eq!(config.oci.max_blob_bytes, 10 * 1024 * 1024 * 1024);
+    assert_eq!(config.oci.max_manifest_bytes, 4 * 1024 * 1024);
+    assert!(!config.oci.bearer_auth);
+    for yaml in [
+        "oci: {maxBlobBytes: 0}",
+        "oci: {maxManifestBytes: 0}",
+        "oci: {maxBlobBytes: -1}",
+        "oci: {maxManifestByte: 1}",
+    ] {
+        assert!(
+            Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).is_err(),
+            "{yaml}",
+        );
+    }
+}

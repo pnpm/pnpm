@@ -401,6 +401,21 @@ pub enum DocumentUpdate {
 /// is promoted by rename.
 #[async_trait]
 impl HostedBackend for Store {
+    async fn rebuild_package_index(&self) -> Result<()> {
+        let complete = self.root.join(".package-index/.complete");
+        if fs::try_exists(&complete).await? {
+            return Ok(());
+        }
+        let mut files = self.list_blob_files();
+        while let Some(file) = files.next().await {
+            let file = file?;
+            let Some(name) = file.path.strip_suffix("/package.json") else { continue };
+            write_atomic(&self.root.join(".package-index").join(name).join(".present"), b"")
+                .await?;
+        }
+        write_atomic(&complete, b"").await
+    }
+
     async fn read_document(&self, name: &CanonicalPackageName) -> Result<Option<Vec<u8>>> {
         Store::read_document_any_age(self, name).await
     }
@@ -421,6 +436,8 @@ impl HostedBackend for Store {
         bytes: &[u8],
         _version: Option<&HostedDocumentVersion>,
     ) -> Result<DocumentWrite> {
+        write_atomic(&self.root.join(".package-index").join(name.as_str()).join(".present"), b"")
+            .await?;
         Store::write_document(self, name, bytes).await?;
         Ok(DocumentWrite::Written)
     }
@@ -618,6 +635,11 @@ impl Storage {
 
     /// The hosted package names, used by the local search scan (which
     /// indexes hosted/static packages only, never the proxy mirror).
+    /// Build the filesystem listing index for legacy stores before serving requests.
+    pub async fn rebuild_package_index(&self) -> Result<()> {
+        self.hosted.rebuild_package_index().await
+    }
+
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
     }
@@ -1188,21 +1210,34 @@ impl Store {
         }
     }
 
-    /// Walk the storage tree two levels deep to find package names —
-    /// directories holding a `package.json`. Layout is
-    /// `<root>/<pkg>/package.json` for unscoped and
-    /// `<root>/@scope/<name>/package.json` for scoped, so a two-level
-    /// walk suffices and avoids descending into blob-adjacent junk.
-    /// Hidden entries (the `.pnpr-cache` sibling) are skipped.
-    ///
-    /// Per-entry stat/read failures are tolerated (the entry is just
-    /// skipped) so a single unreadable directory or a stray non-package
-    /// file can't fail the whole search — this backs the best-effort,
-    /// verdaccio-style `/-/v1/search`, which prefers partial results
-    /// over a hard error. A failure to open the store root itself still
-    /// propagates.
-    async fn list_package_names(&self) -> Result<Vec<String>> {
+    async fn indexed_package_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
+        let mut pending = vec![(self.root.join(".package-index"), String::new())];
+        while let Some((dir, name)) = pending.pop() {
+            let mut entries = match fs::read_dir(&dir).await {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err.into()),
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                let component = entry.file_name().to_string_lossy().into_owned();
+                if component == ".present" && !name.is_empty() {
+                    if fs::try_exists(self.root.join(&name).join(DOCUMENT_FILE)).await? {
+                        names.push(name.clone());
+                    }
+                } else if !component.starts_with('.') && entry.file_type().await?.is_dir() {
+                    pending.push((
+                        entry.path(),
+                        if name.is_empty() { component } else { format!("{name}/{component}") },
+                    ));
+                }
+            }
+        }
+        Ok(names)
+    }
+
+    async fn list_package_names(&self) -> Result<Vec<String>> {
+        let mut names = self.indexed_package_names().await?;
         let mut pending = vec![(self.root.clone(), String::new(), 1usize)];
         while let Some((dir, prefix, depth)) = pending.pop() {
             let mut entries = match fs::read_dir(&dir).await {
@@ -1217,21 +1252,8 @@ impl Store {
                     continue;
                 }
                 if !entry.file_type().await.is_ok_and(|kind| kind.is_dir()) {
-                    // A namespace holds only directories, so a file means
-                    // this is a package that has not written its document
-                    // yet — an ordinary state between an image's blobs and
-                    // its manifest. Reading the rest would enumerate every
-                    // blob it holds, on a path an anonymous listing reaches.
-                    // The root is the exception: it is one directory, and
-                    // abandoning it would truncate the whole listing.
-                    //
-                    // A package nested under this one is missed as a result,
-                    // and which entry comes first is up to the filesystem.
-                    // That is the same gap a package nested under a
-                    // *manifested* one already has, and closing it by reading
-                    // to the end is what makes a listing cost the blob
-                    // population rather than the package count. It wants an
-                    // index, not a wider walk — pnpm/pnpm#14630.
+                    // Legacy package trees keep blobs beside the document.
+                    // Nested packages are discovered through the separate index.
                     if depth > 1 {
                         break;
                     }
@@ -1244,17 +1266,14 @@ impl Store {
                     format!("{prefix}/{name_str}")
                 };
                 if fs::try_exists(entry_path.join(DOCUMENT_FILE)).await.unwrap_or(false) {
-                    // Stopping here is what keeps a listing proportional to
-                    // the number of packages: descending would enumerate
-                    // every blob a package holds, on a path an anonymous
-                    // search reaches. A package nested under another is
-                    // therefore not listed — pnpm/pnpm#14630.
                     names.push(name);
                 } else if depth < MAX_NAME_COMPONENTS {
                     pending.push((entry_path, name, depth + 1));
                 }
             }
         }
+        names.sort();
+        names.dedup();
         Ok(names)
     }
 

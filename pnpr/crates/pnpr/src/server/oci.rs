@@ -15,13 +15,18 @@
 //! than half-published, which is what makes the split safe, and why
 //! collecting unreferenced blobs is a job of its own.
 
+mod deletion;
+mod proxy;
+mod publication;
+pub(super) mod tokens;
+
+pub(super) use publication::{OciPublication, authorize_publication};
+
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,
-    documents::{read_hosted_document, store_hosted_artifact},
+    documents::read_hosted_document,
     ecosystem::{addressed_registry, caller_scoped, hosted_sources, mount_bases},
-    hosted_read_namespace, private_no_cache,
-    publishing::{PublishTarget, resolve_publish_target_for},
-    resolve_ecosystem_source,
+    hosted_read_namespace, private_no_cache, resolve_ecosystem_source,
 };
 use axum::{
     Router,
@@ -34,8 +39,7 @@ use axum::{
 use futures_util::StreamExt as _;
 use pnpr_error::RegistryError;
 use pnpr_oci::{
-    API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry, TagEntry,
-    is_valid_tag, media_type,
+    API_SEGMENT, Digest, ErrorBody, ErrorCode, ImageDocument, Manifest, ManifestEntry, media_type,
 };
 use pnpr_package_name::CanonicalPackageName;
 use pnpr_policy::Identity;
@@ -45,24 +49,12 @@ use pnpr_storage::{DOCUMENT_WRITE_RETRIES, DocumentUpdate, Storage, upload::Blob
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::io::AsyncReadExt as _;
 
 const ECOSYSTEM: Ecosystem = Ecosystem::Oci;
-
-/// The largest manifest accepted. The distribution spec puts the ceiling at
-/// 4 MiB; a manifest is a list of digests, so real ones are far smaller.
-const MAX_MANIFEST_BYTES: usize = 4 * 1024 * 1024;
-
-/// The largest single blob accepted. Image layers are the only artifact pnpr
-/// serves that routinely runs to gigabytes.
-///
-/// As a `DefaultBodyLimit` this bounds one request. A resumable upload is many
-/// requests, so [`append_body`] holds the whole upload to the same
-/// ceiling; without that, chunks that are each under the limit add up past it.
-const MAX_BLOB_BYTES: usize = 10 * 1024 * 1024 * 1024;
 
 /// The most distinct blobs one manifest may reference. An image index lists
 /// a handful of manifests and an image its layers, so this is far above any
@@ -93,15 +85,13 @@ pub(super) fn routes(prefixed: bool) -> Router<AppState> {
     let mut router = Router::new();
     for base in bases {
         router = router
+            .route(&format!("{base}/{API_SEGMENT}/token"), get(tokens::issue))
             .route(&format!("{base}/{API_SEGMENT}/"), get(get_version_check))
             .route(&format!("{base}/{API_SEGMENT}"), get(get_version_check))
             .route(&format!("{base}/{API_SEGMENT}/{{*path}}"), any(dispatch));
     }
-    // Layers are the one artifact pnpr serves that outgrows the publish body
-    // limit the rest of the router carries. `route_layer` so the limit
-    // applies to these routes without giving the router a fallback of its
-    // own, which would make it unmergeable.
-    router.route_layer(DefaultBodyLimit::max(MAX_BLOB_BYTES))
+    // Streaming handlers enforce the configured cumulative upload limit.
+    router.route_layer(DefaultBodyLimit::disable())
 }
 
 /// `GET /v2/` — the version check every client makes first, and what
@@ -110,6 +100,8 @@ async fn get_version_check(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     TargetRegistry(registry): TargetRegistry,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
 ) -> Response {
     if addressed_registry(&state, registry.as_deref()).is_none() {
         return error(ErrorCode::NameUnknown, "no registry is addressed here");
@@ -119,8 +111,19 @@ async fn get_version_check(
     // caller is challenged even where reads are open: without the challenge
     // a push could not authenticate. A caller with no credentials carries on
     // regardless, and public repositories still answer its later requests.
-    if identity == Identity::Anonymous {
-        return error(ErrorCode::Unauthorized, "authentication required");
+    if identity == Identity::Anonymous
+        && !headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(super::authentication::token_credentials)
+            .is_some_and(|token| token.starts_with("pnpr_oci_"))
+    {
+        return tokens::challenge(
+            &state,
+            uri.path().trim_end_matches('/'),
+            None,
+            error(ErrorCode::Unauthorized, "authentication required"),
+        );
     }
     api_version(StatusCode::OK.into_response())
 }
@@ -151,7 +154,16 @@ async fn dispatch(
         query: uri.query().unwrap_or_default().to_string(),
         headers: parts.headers,
     };
-    match endpoint {
+    let scope_name = match &endpoint {
+        Endpoint::Catalog => None,
+        Endpoint::Referrers { name, .. }
+        | Endpoint::Tags { name }
+        | Endpoint::Manifest { name, .. }
+        | Endpoint::Blob { name, .. }
+        | Endpoint::StartUpload { name }
+        | Endpoint::Upload { name, .. } => Some(name.clone()),
+    };
+    let response = match endpoint {
         Endpoint::Referrers { name, digest } => request.referrers(&name, &digest).await,
         Endpoint::Catalog => request.catalog().await,
         Endpoint::Tags { name } => request.tags(&name).await,
@@ -159,7 +171,8 @@ async fn dispatch(
         Endpoint::Blob { name, digest } => request.blob(&name, &digest).await,
         Endpoint::StartUpload { name } => request.start_upload(&name, body).await,
         Endpoint::Upload { name, id } => request.upload(&name, &id, body).await,
-    }
+    };
+    request.challenge(scope_name.as_deref(), response)
 }
 
 /// Which endpoint a captured path tail addresses.
@@ -266,6 +279,16 @@ impl Request {
     ) -> Result<Option<Response>, RegistryError> {
         let Ok(digest) = Digest::parse(mount) else { return Ok(None) };
         let Ok((source_key, source)) = self.hosted_source(from) else { return Ok(None) };
+        if let Some(raw) = self
+            .headers
+            .get(header::AUTHORIZATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(super::authentication::token_credentials)
+            && let Some(claims) = tokens::decode(&self.state, &raw)?
+            && !claims.allows(source_key.as_str(), "pull")
+        {
+            return Ok(None);
+        }
         let source_org = match hosted_read_namespace(
             &self.state,
             &self.identity,
@@ -287,7 +310,10 @@ impl Request {
             return Ok(None);
         };
         let upload = destination.begin_blob_upload(key).await?;
-        if let Err(refusal) = append_body(destination, &upload, body).await {
+        if let Err(refusal) =
+            append_body(destination, &upload, body, self.state.inner.config.oci.max_blob_bytes)
+                .await
+        {
             destination.abort_blob_upload(upload.id()).await?;
             return Ok(Some(refusal.respond()));
         }
@@ -375,8 +401,13 @@ impl Request {
                     };
                     continue;
                 }
-                let bytes = match read_manifest_bytes(&storage, &key, &entry.digest.blob_filename())
-                    .await
+                let bytes = match read_manifest_bytes(
+                    &storage,
+                    &key,
+                    &entry.digest.blob_filename(),
+                    self.state.inner.config.oci.max_manifest_bytes,
+                )
+                .await
                 {
                     Ok(Some(bytes)) => bytes,
                     Ok(None) => {
@@ -412,7 +443,8 @@ impl Request {
                             Err(err) => return registry_error(err.into()),
                         };
                     if !referrers.is_empty()
-                        && response_bytes + descriptor_bytes > MAX_MANIFEST_BYTES
+                        && response_bytes + descriptor_bytes
+                            > self.state.inner.config.oci.max_manifest_bytes
                     {
                         break;
                     }
@@ -511,6 +543,8 @@ impl Request {
             // A listing may only name what this caller could have fetched.
             repositories.extend(names.into_iter().filter(|name| {
                 last.as_ref().is_none_or(|last| name > last)
+                    && CanonicalPackageName::parse(name, ECOSYSTEM).is_ok()
+                    && matches!(resolve_ecosystem_source(&self.state, &target, ECOSYSTEM, name), RegistrySource::Hosted(ref resolved) if resolved == &source)
                     && authorize(
                         &self.state,
                         &self.identity,
@@ -586,6 +620,9 @@ impl Request {
     }
 
     async fn read_manifest(&self, name: &str, reference: &str) -> Response {
+        if let Some((key, source)) = self.upstream_source(name) {
+            return self.proxy_manifest(&key, &source, reference).await;
+        }
         let (key, source) = match self.hosted_source(name) {
             Ok(found) => found,
             Err(refusal) => return refusal.respond(),
@@ -608,7 +645,14 @@ impl Request {
         let storage = self.state.inner.storage.for_hosted(&org);
         // A manifest is small enough to answer from memory, and the response
         // carries its digest and media type either way.
-        let bytes = match read_manifest_bytes(&storage, &key, &entry.digest.blob_filename()).await {
+        let bytes = match read_manifest_bytes(
+            &storage,
+            &key,
+            &entry.digest.blob_filename(),
+            self.state.inner.config.oci.max_manifest_bytes,
+        )
+        .await
+        {
             Ok(Some(bytes)) => bytes,
             Ok(None) => return error(ErrorCode::ManifestUnknown, "no such manifest"),
             Err(err) => return registry_error(err),
@@ -634,117 +678,31 @@ impl Request {
         };
         let content_type =
             self.headers.get(header::CONTENT_TYPE).and_then(|value| value.to_str().ok());
-        let bytes = match collect_body(body, MAX_MANIFEST_BYTES).await {
+        let bytes = match collect_body(body, self.state.inner.config.oci.max_manifest_bytes).await {
             Ok(bytes) => bytes,
             Err(refusal) => return refusal.respond(),
         };
-        let digest = Digest::of(&bytes);
-        // A manifest pushed under a digest must be the bytes that digest
-        // names, or a later pull by it would serve something else.
-        if Digest::parse(reference).is_ok_and(|addressed| addressed != digest) {
-            return error(
-                ErrorCode::DigestInvalid,
-                "manifest does not match the digest it was pushed under",
-            );
-        }
-        let manifest = match Manifest::parse(&bytes, content_type) {
-            Ok(manifest) => manifest,
-            Err(err) => return error(ErrorCode::ManifestInvalid, err.to_string()),
+        let publication = match OciPublication::new(
+            (key, org),
+            reference.to_string(),
+            bytes,
+            content_type,
+            self.state.inner.config.oci.max_manifest_bytes,
+        ) {
+            Ok(publication) => publication,
+            Err(refusal) => return refusal.respond(),
         };
-        let storage = self.state.inner.storage.for_hosted(&org);
-        // One digest is looked up once however often the manifest names it,
-        // and a manifest that names more than any image could is refused:
-        // otherwise a single 4 MiB body of repeated descriptors becomes tens
-        // of thousands of blob lookups.
-        let mut looked_up = HashSet::new();
-        for descriptor in manifest.references() {
-            if !looked_up.insert(descriptor.digest.clone()) {
-                continue;
-            }
-            if looked_up.len() > MAX_MANIFEST_REFERENCES {
-                return error(
-                    ErrorCode::ManifestInvalid,
-                    format!(
-                        "a manifest may not reference more than {MAX_MANIFEST_REFERENCES} blobs",
-                    ),
-                );
-            }
-            // The size is part of what a client verifies, so a descriptor that
-            // disagrees with the stored bytes publishes an image nothing can
-            // pull. Refuse it here rather than at every puller.
-            match storage.open_hosted_blob(&key, &descriptor.digest.blob_filename()).await {
-                Ok(Some((_, Some(size)))) if size != descriptor.size => {
-                    return error(
-                        ErrorCode::ManifestInvalid,
-                        format!(
-                            "{} is {size} bytes, but the manifest declares {}",
-                            descriptor.digest, descriptor.size,
-                        ),
-                    );
-                }
-                Ok(Some(_)) => {}
-                Ok(None) => {
-                    return error(
-                        ErrorCode::ManifestBlobUnknown,
-                        format!("{} is not in this repository", descriptor.digest),
-                    );
-                }
-                Err(err) => return registry_error(err),
-            }
-        }
-
-        let referrer = manifest.referrer_metadata();
-        let subject = referrer.subject.clone();
-        let mut addition = ImageDocument::new(key.as_str());
-        addition.insert_manifest(ManifestEntry {
-            digest: digest.clone(),
-            media_type: manifest.media_type().to_string(),
-            size: bytes.len() as u64,
-            referrer: Some(referrer),
-        });
-        if Digest::parse(reference).is_err() {
-            if !is_valid_tag(reference) {
-                return error(ErrorCode::ManifestInvalid, "not a valid tag or digest");
-            }
-            addition.set_tag(TagEntry {
-                tag: reference.to_string(),
-                digest: digest.clone(),
-                updated: now_millis(),
-            });
-        }
-        // An index's children are manifests, not loose blobs, and the check
-        // above only proves the bytes are present. Refusing here rather than
-        // before the write is what makes it race-free: the closure reads the
-        // stored document under the package lock, so a child pushed
-        // concurrently is seen and one deleted concurrently is not missed.
-        //
-        // Re-pushing a manifest is how a client retries and moving a tag is
-        // ordinary, so nothing else is refused; the merge decides what wins.
-        let children: Vec<Digest> = if media_type::is_index(manifest.media_type()) {
-            manifest.references().map(|descriptor| descriptor.digest.clone()).collect()
-        } else {
-            Vec::new()
+        let digest = publication.digest.clone();
+        let key = publication.key.clone();
+        let subject = publication.subject();
+        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+        let staged = match publication.stage(&self.state).await {
+            Ok(staged) => staged,
+            Err(refusal) => return refusal.respond(),
         };
-        let refuse = move |stored: &ImageDocument| {
-            for child in &children {
-                if stored.manifest(child).is_none() {
-                    return Err(RegistryError::BadRequest {
-                        reason: format!("{child} is not a manifest in this repository"),
-                    });
-                }
-            }
-            Ok(())
-        };
-        match store_hosted_artifact::<ImageDocument>(
-            &self.state,
-            &org,
-            &key,
-            &digest.blob_filename(),
-            &bytes,
-            refuse,
-            addition,
-        )
-        .await
+        match super::publishing::commit_publishes(&self.state, vec![staged])
+            .await
+            .and_then(super::publishing::report_unrecorded)
         {
             Ok(()) => {
                 let mut response =
@@ -763,6 +721,10 @@ impl Request {
             Ok(found) => found,
             Err(refusal) => return refusal.respond(),
         };
+        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
+            Ok(org) => org,
+            Err(err) => return registry_error(err),
+        };
         if let Err(err) = authorize(
             &self.state,
             &self.identity,
@@ -772,10 +734,7 @@ impl Request {
         ) {
             return registry_error(err);
         }
-        let Some(hosted) = self.state.inner.config.hosted.get(&source) else {
-            return unknown_repository(name).respond();
-        };
-        let storage = self.state.inner.storage.for_hosted(&hosted.org);
+        let storage = self.state.inner.storage.for_hosted(&org);
         let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
         let outcome = storage
             .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
@@ -795,25 +754,21 @@ impl Request {
         }
     }
 
-    /// `HEAD`/`GET /v2/<name>/blobs/<digest>`.
-    ///
-    /// Deleting a blob is optional in the spec and is not offered: nothing
-    /// tracks which manifests reference a blob yet, so removing one would
-    /// leave the repository advertising an image that can no longer be
-    /// pulled. Reclaiming what no manifest names is the collector's job,
-    /// tracked in
-    /// [pnpm/pnpm#14630](https://github.com/pnpm/pnpm/issues/14630).
     async fn blob(&self, name: &str, digest: &str) -> Response {
         let Ok(digest) = Digest::parse(digest) else {
             return error(ErrorCode::DigestInvalid, "not a supported digest");
         };
         match self.method {
             Method::GET | Method::HEAD => self.read_blob(name, &digest).await,
+            Method::DELETE => self.delete_blob(name, &digest).await,
             _ => method_not_allowed(),
         }
     }
 
     async fn read_blob(&self, name: &str, digest: &Digest) -> Response {
+        if let Some((key, source)) = self.upstream_source(name) {
+            return self.proxy_blob(&key, &source, digest).await;
+        }
         let (key, source) = match self.hosted_source(name) {
             Ok(found) => found,
             Err(refusal) => return refusal.respond(),
@@ -907,7 +862,9 @@ impl Request {
             Ok(upload) => upload,
             Err(err) => return registry_error(err),
         };
-        if let Err(refusal) = append_body(&storage, &upload, body).await {
+        if let Err(refusal) =
+            append_body(&storage, &upload, body, self.state.inner.config.oci.max_blob_bytes).await
+        {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return refusal.respond();
         }
@@ -939,7 +896,14 @@ impl Request {
                 if let Err(response) = self.check_chunk_start(&key, &upload).await {
                     return response;
                 }
-                match append_body(&storage, &upload, body).await {
+                match append_body(
+                    &storage,
+                    &upload,
+                    body,
+                    self.state.inner.config.oci.max_blob_bytes,
+                )
+                .await
+                {
                     Ok(()) => self.upload_progress(&key, &upload).await,
                     Err(refusal) => refusal.respond(),
                 }
@@ -951,7 +915,10 @@ impl Request {
                         "a completed upload must name its digest",
                     );
                 };
-                if let Err(refusal) = append_body(&storage, &upload, body).await {
+                if let Err(refusal) =
+                    append_body(&storage, &upload, body, self.state.inner.config.oci.max_blob_bytes)
+                        .await
+                {
                     return refusal.respond();
                 }
                 self.finish_upload(&storage, upload, &key, digest).await
@@ -987,10 +954,11 @@ impl Request {
         let Some(span) = end.checked_sub(start).and_then(|span| span.checked_add(1)) else {
             return Err(error(ErrorCode::BlobUploadInvalid, "Content-Range is not a real span"));
         };
-        if span > MAX_BLOB_BYTES as u64 {
+        let limit = self.state.inner.config.oci.max_blob_bytes;
+        if span > limit {
             return Err(error(
                 ErrorCode::SizeInvalid,
-                format!("a blob may not exceed {MAX_BLOB_BYTES} bytes"),
+                format!("a blob may not exceed {limit} bytes"),
             ));
         }
         if let Some(declared) = self.content_length()
@@ -1060,8 +1028,6 @@ impl Request {
             .ok_or_else(|| Refusal::new(ErrorCode::NameUnknown, "no registry is addressed here"))?;
         match resolve_ecosystem_source(&self.state, &target, ECOSYSTEM, key.as_str()) {
             RegistrySource::Hosted(source) => Ok((key, source)),
-            // Upstream image registries are not proxied yet, so a name routing
-            // to one is not served rather than served wrongly.
             RegistrySource::Upstream(_) | RegistrySource::Unclaimed | RegistrySource::NotFound => {
                 Err(unknown_repository(name))
             }
@@ -1071,29 +1037,7 @@ impl Request {
     /// The hosted registry a write of `name` lands on, once the caller is
     /// allowed to publish it.
     fn publish_target(&self, name: &str) -> Result<(CanonicalPackageName, String), Refusal> {
-        let key = CanonicalPackageName::parse(name, ECOSYSTEM)
-            .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "not a valid repository name"))?;
-        match resolve_publish_target_for(
-            &self.state,
-            &self.identity,
-            self.registry.as_deref(),
-            ECOSYSTEM,
-            key.as_str(),
-        ) {
-            PublishTarget::Hosted { source, org } => {
-                authorize(
-                    &self.state,
-                    &self.identity,
-                    &RegistrySource::Hosted(source),
-                    key.as_str(),
-                    Action::Publish,
-                )?;
-                Ok((key, org))
-            }
-            PublishTarget::Denied(err) => Err(err.into()),
-            PublishTarget::Reject(reason) => Err(Refusal::new(ErrorCode::Denied, reason)),
-            PublishTarget::NotFound => Err(unknown_repository(name)),
-        }
+        authorize_publication(&self.state, &self.identity, self.registry.as_deref(), name)
     }
 }
 
@@ -1179,7 +1123,7 @@ struct TagList<'listing> {
 /// The status is carried rather than re-derived from the code, because a
 /// `RegistryError` has already chosen one, and deriving it back from the spec
 /// code would answer `405` for every error that has no code of its own.
-struct Refusal {
+pub(super) struct Refusal {
     status: StatusCode,
     code: ErrorCode,
     message: String,
@@ -1190,7 +1134,7 @@ impl Refusal {
         Self { status: status_for(code), code, message: message.into() }
     }
 
-    fn respond(self) -> Response {
+    pub(super) fn respond(self) -> Response {
         respond(self.status, self.code, self.message)
     }
 }
@@ -1216,11 +1160,26 @@ impl From<RegistryError> for Refusal {
     }
 }
 
+impl From<Refusal> for RegistryError {
+    fn from(refusal: Refusal) -> Self {
+        match refusal.status {
+            StatusCode::UNAUTHORIZED => Self::Unauthenticated { resource: refusal.message },
+            StatusCode::FORBIDDEN => Self::Forbidden {
+                user: String::new(),
+                action: "publish",
+                resource: refusal.message,
+            },
+            StatusCode::NOT_FOUND => Self::NotFound,
+            _ => Self::BadRequest { reason: refusal.message },
+        }
+    }
+}
+
 fn registry_error(err: RegistryError) -> Response {
     Refusal::from(err).respond()
 }
 
-fn error(code: ErrorCode, message: impl Into<String>) -> Response {
+pub(super) fn error(code: ErrorCode, message: impl Into<String>) -> Response {
     Refusal::new(code, message).respond()
 }
 
@@ -1358,7 +1317,7 @@ async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
 }
 
 /// Stream a request body onto the end of an upload, holding the whole upload
-/// to [`MAX_BLOB_BYTES`]. The per-request body limit cannot do that on its
+/// to the configured byte limit. The per-request body limit cannot do that on its
 /// own: a resumable upload is many requests, each one under the limit.
 ///
 /// An upload that runs over is dropped rather than kept truncated at the
@@ -1371,8 +1330,20 @@ async fn collect_body(body: Body, limit: usize) -> Result<Bytes, Refusal> {
 /// upload actually stands, so the client resumes from the prefix, and the
 /// digest check at `PUT` is what decides whether the assembled bytes are the
 /// blob that was promised.
-async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Result<(), Refusal> {
+async fn append_body(
+    storage: &Storage,
+    upload: &BlobUpload,
+    body: Body,
+    limit: u64,
+) -> Result<(), Refusal> {
     let mut written = upload.offset().await?;
+    if written > limit {
+        storage.abort_blob_upload(upload.id()).await?;
+        return Err(Refusal::new(
+            ErrorCode::SizeInvalid,
+            format!("a blob may not exceed {limit} bytes"),
+        ));
+    }
     let mut writer = upload.append().await?;
     let mut stream = body.into_data_stream();
     while let Some(chunk) = stream.next().await {
@@ -1380,11 +1351,11 @@ async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Resu
             writer.finish().await?;
             return Err(Refusal::new(ErrorCode::BlobUploadInvalid, "upload stream ended early"));
         };
-        let Some(next) = advance_within_ceiling(written, chunk.len()) else {
+        let Some(next) = advance_within_ceiling(written, chunk.len(), limit) else {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return Err(Refusal::new(
                 ErrorCode::SizeInvalid,
-                format!("a blob may not exceed {MAX_BLOB_BYTES} bytes"),
+                format!("a blob may not exceed {limit} bytes"),
             ));
         };
         written = next;
@@ -1395,11 +1366,10 @@ async fn append_body(storage: &Storage, upload: &BlobUpload, body: Body) -> Resu
 }
 
 /// The upload's length once `chunk` is accepted, or `None` when that would
-/// take it past [`MAX_BLOB_BYTES`]. Saturating, so a length near `u64::MAX`
-/// refuses rather than wrapping into an accept.
-fn advance_within_ceiling(written: u64, chunk: usize) -> Option<u64> {
-    let next = written.saturating_add(chunk as u64);
-    (next <= MAX_BLOB_BYTES as u64).then_some(next)
+/// take it past the configured byte limit. Overflow refuses the chunk.
+fn advance_within_ceiling(written: u64, chunk: usize, limit: u64) -> Option<u64> {
+    let next = written.checked_add(chunk as u64)?;
+    (next <= limit).then_some(next)
 }
 
 /// Milliseconds since the Unix epoch: the ordering one tag write carries.
@@ -1436,11 +1406,12 @@ async fn read_manifest_bytes(
     storage: &Storage,
     key: &CanonicalPackageName,
     filename: &str,
+    limit: usize,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let Some((body, _)) = storage.open_hosted_blob(key, filename).await? else {
         return Ok(None);
     };
-    let bytes = axum::body::to_bytes(body, MAX_MANIFEST_BYTES)
+    let bytes = axum::body::to_bytes(body, limit)
         .await
         .map_err(|_| RegistryError::BadRequest { reason: "manifest is too large".to_string() })?;
     Ok(Some(bytes.to_vec()))
