@@ -73,7 +73,7 @@ impl RunReport {
         })
     }
 
-    pub fn task_started(&self, task: &str, key: &str) {
+    pub fn task_started(&self, task: &str, key: Option<&str>) {
         self.push(json!({
             "event": "taskStarted",
             "task": task,
@@ -118,10 +118,10 @@ impl RunReport {
     pub fn finish(
         &self,
         statuses: &IndexMap<String, ExecutionStatus>,
-        task_keys: &HashMap<TaskKey, String>,
+        task_keys: &HashMap<TaskKey, Option<String>>,
         workspace_root: &Path,
     ) {
-        let keys: IndexMap<String, &String> =
+        let keys: IndexMap<String, &Option<String>> =
             task_keys.iter().map(|(task, key)| (format_task(task, workspace_root), key)).collect();
         *self.summary.lock().expect("summary lock is not poisoned") = json!({
             "runId": self.run_id,

@@ -10,6 +10,7 @@ use super::{
     capture::CapturedScript,
     paths::{check_ancestors, validate_relative_path},
 };
+use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
 use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file, create_short_hash};
 use pnpm_workspace_task_scheduler::TaskNode;
@@ -60,8 +61,11 @@ pub struct TaskCache {
     /// Per-project tracked-file hashes, shared by every task of the
     /// project: enumeration and hashing run once, per-task input specs
     /// filter the shared list.
-    project_files: Mutex<HashMap<PathBuf, Arc<Vec<HashedFile>>>>,
+    project_files: Mutex<HashMap<PathBuf, ProjectInputHashes>>,
 }
+
+/// Submodule inputs have no complete hash list and require cache bypass.
+type ProjectInputHashes = Option<Arc<Vec<HashedFile>>>;
 
 #[derive(Debug)]
 struct HashedFile {
@@ -123,7 +127,7 @@ impl TaskCache {
 
     /// The task's cache key: `pnpm-pipeline-task:v0` over the components
     /// the RFC names, NUL-separated and hashed.
-    pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<String> {
+    pub fn compute_task_key(&self, inputs: &TaskKeyInputs<'_>) -> miette::Result<Option<String>> {
         let TaskKeyInputs { node, settings, dependency_keys, script_bodies, environment } = *inputs;
         let project_rel = self.project_rel(&node.project);
         let mut components: Vec<String> = vec![
@@ -142,13 +146,14 @@ impl TaskCache {
             let value = environment.get(name).cloned().or_else(|| env::var(name).ok());
             components.push(format!("env:{name}={value:?}"));
         }
-        for file in self.input_files(node, settings)?.iter() {
+        let Some(files) = self.input_files(node, settings)? else { return Ok(None) };
+        for file in files.iter() {
             components.push(format!("file:{}={}", file.rel_path, file.hash));
         }
         for dependency_key in dependency_keys {
             components.push(format!("dep:{dependency_key}"));
         }
-        Ok(create_hex_hash(&components.join("\0")))
+        Ok(Some(create_hex_hash(&components.join("\0"))))
     }
 
     pub fn lookup(&self, key: &str) -> Option<StoredTask> {
@@ -376,8 +381,8 @@ impl TaskCache {
         &self,
         node: &TaskNode,
         settings: Option<&TaskSettings>,
-    ) -> miette::Result<Arc<Vec<HashedFile>>> {
-        let all = self.hashed_project_files(&node.project)?;
+    ) -> miette::Result<ProjectInputHashes> {
+        let Some(all) = self.hashed_project_files(&node.project)? else { return Ok(None) };
         let outputs = settings.and_then(|settings| settings.outputs.as_deref()).unwrap_or_default();
         let inputs = settings.and_then(|settings| settings.inputs.as_deref());
         let output_globs = compile_globs(outputs)?;
@@ -404,14 +409,21 @@ impl TaskCache {
             })
             .map(|file| HashedFile { rel_path: file.rel_path.clone(), hash: file.hash.clone() })
             .collect();
-        Ok(Arc::new(filtered))
+        Ok(Some(Arc::new(filtered)))
     }
 
-    fn hashed_project_files(&self, project: &Path) -> miette::Result<Arc<Vec<HashedFile>>> {
+    fn hashed_project_files(&self, project: &Path) -> miette::Result<ProjectInputHashes> {
         if let Some(files) =
             self.project_files.lock().expect("project-files lock is not poisoned").get(project)
         {
-            return Ok(Arc::clone(files));
+            return Ok(files.as_ref().map(Arc::clone));
+        }
+        if has_submodule_inputs(project)? {
+            self.project_files
+                .lock()
+                .expect("project-files lock is not poisoned")
+                .insert(project.to_path_buf(), None);
+            return Ok(None);
         }
         let project_display = project.display();
         let output = Command::new("git")
@@ -431,24 +443,41 @@ impl TaskCache {
             if rel_path.is_empty() {
                 continue;
             }
-            let rel_path = String::from_utf8_lossy(rel_path).replace('\\', "/");
+            let rel_path = std::str::from_utf8(rel_path).map_err(|error| {
+                let display_path = String::from_utf8_lossy(rel_path);
+                miette::miette!(
+                    "non-UTF-8 cache input path {display_path:?} in {project_display}: {error}",
+                )
+            })?;
             if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
                 continue;
             }
-            // A tracked file deleted from the working tree contributes
-            // nothing; the deletion shows up as the file's absence.
-            let Ok(hash) = create_hex_hash_from_file(&project.join(&rel_path)) else {
-                continue;
+            check_ancestors(project, Path::new(rel_path)).into_diagnostic()?;
+            let absolute = project.join(rel_path);
+            let hash = match create_hex_hash_from_file(&absolute) {
+                Ok(hash) => hash,
+                Err(error)
+                    if error.kind() == io::ErrorKind::NotFound
+                        && fs::symlink_metadata(&absolute)
+                            .is_err_and(|error| error.kind() == io::ErrorKind::NotFound) =>
+                {
+                    continue;
+                }
+                Err(error) => {
+                    return Err(miette::miette!(
+                        "hashing cache input {rel_path:?} in {project_display}: {error}",
+                    ));
+                }
             };
-            files.push(HashedFile { rel_path, hash });
+            files.push(HashedFile { rel_path: rel_path.to_string(), hash });
         }
         files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
         let files = Arc::new(files);
         self.project_files
             .lock()
             .expect("project-files lock is not poisoned")
-            .insert(project.to_path_buf(), Arc::clone(&files));
-        Ok(files)
+            .insert(project.to_path_buf(), Some(Arc::clone(&files)));
+        Ok(Some(files))
     }
 }
 
@@ -518,3 +547,25 @@ fn compile_globs_owned(patterns: &[String]) -> miette::Result<Vec<Glob<'static>>
 
 #[cfg(test)]
 mod tests;
+
+fn has_submodule_inputs(project: &Path) -> miette::Result<bool> {
+    let superproject =
+        git_input_metadata(project, &["rev-parse", "--show-superproject-working-tree"])?;
+    if superproject.iter().any(|byte| !byte.is_ascii_whitespace()) {
+        return Ok(true);
+    }
+    let index = git_input_metadata(project, &["ls-files", "--stage", "-z"])?;
+    Ok(index.split(|byte| *byte == 0).any(|entry| entry.starts_with(b"160000 ")))
+}
+
+fn git_input_metadata(project: &Path, args: &[&str]) -> miette::Result<Vec<u8>> {
+    let project_display = project.display();
+    let output = Command::new("git").args(args).current_dir(project).output().map_err(|error| {
+        miette::miette!("reading Git input metadata in {project_display}: {error}")
+    })?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        return Err(miette::miette!("reading Git input metadata in {project_display}: {error}"));
+    }
+    Ok(output.stdout)
+}
