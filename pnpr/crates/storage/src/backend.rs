@@ -125,7 +125,24 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
 
     async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>>;
 
-    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()>;
+    /// Write a staged object that does not exist yet. A staged object is
+    /// named by a freshly generated stage id, so an occupied key means
+    /// another record already owns it and must not be overwritten.
+    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()>;
+
+    /// Replace a staged object only while it still holds `expected`.
+    ///
+    /// This is what makes an approval exclusive: the approving replica
+    /// rewrites the record it read, and a replica whose copy is no longer
+    /// what the store holds — because another approval claimed it, or a
+    /// rejection removed it — gets [`DocumentWrite::Conflict`] instead of
+    /// acting on a record that has moved on.
+    async fn replace_staged_if_current(
+        &self,
+        object: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite>;
 
     async fn remove_staged(&self, object: &str) -> Result<bool>;
 

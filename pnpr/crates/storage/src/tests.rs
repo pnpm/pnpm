@@ -252,3 +252,41 @@ async fn package_index_removes_deleted_and_failed_package_entries() {
     assert!(storage.hosted.write_document_if_current(&name, b"{}", None).await.is_err());
     assert!(!index.exists());
 }
+
+/// The local backend has no `ETag`, so its claim on a staged record compares
+/// the bytes: only the writer whose copy is what the store holds wins.
+#[tokio::test]
+async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let stage_id = "11111111-2222-3333-4444-555555555555";
+    storage.create_staged_meta(stage_id, br#"{"id":"stage"}"#).await.unwrap();
+
+    let first = storage
+        .replace_staged_meta_if_current(stage_id, br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .await
+        .unwrap();
+    assert_eq!(first, super::DocumentWrite::Written);
+
+    let second = storage
+        .replace_staged_meta_if_current(stage_id, br#"{"id":"stage"}"#, br#"{"id":"stage","b":2}"#)
+        .await
+        .unwrap();
+    assert_eq!(second, super::DocumentWrite::Conflict);
+    assert_eq!(
+        storage.read_staged_meta(stage_id).await.unwrap().as_deref(),
+        Some(&br#"{"id":"stage","a":1}"#[..]),
+    );
+
+    assert!(storage.remove_staged(stage_id).await.unwrap());
+    let removed = storage
+        .replace_staged_meta_if_current(
+            stage_id,
+            br#"{"id":"stage","a":1}"#,
+            br#"{"id":"stage","c":3}"#,
+        )
+        .await
+        .unwrap();
+    assert_eq!(removed, super::DocumentWrite::Conflict);
+    assert!(storage.read_staged_meta(stage_id).await.unwrap().is_none());
+}

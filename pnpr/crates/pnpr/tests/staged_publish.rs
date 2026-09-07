@@ -470,6 +470,118 @@ async fn an_approval_that_reports_a_conflict_still_consumes_the_stage() {
     assert_eq!(body_json(list.into_body()).await["total"], 0, "the approved stage is spent");
 }
 
+/// Rewrite the stored record of `stage_id` as if another replica had claimed
+/// it for approval `age` ago. The record lives in the hosted store, which is
+/// the one thing replicas of a stateless deployment share.
+fn claim_stage_on_disk(storage: &std::path::Path, stage_id: &str, age: chrono::Duration) {
+    let path = storage.join(".staged").join(format!("{stage_id}.json"));
+    let mut record: Value =
+        serde_json::from_slice(&std::fs::read(&path).expect("staged record on disk")).unwrap();
+    let since = chrono::Utc::now() - age;
+    record["approvingSince"] = json!(since.to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+    std::fs::write(&path, serde_json::to_vec(&record).unwrap()).unwrap();
+}
+
+/// A stage is approved once. While another replica's approval holds the
+/// record, this one is refused rather than replaying the held publish a
+/// second time.
+#[tokio::test]
+async fn an_approval_is_refused_while_another_holds_the_record() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    claim_stage_on_disk(tmp.path(), &stage_id, chrono::Duration::seconds(3));
+
+    let approve = app
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CONFLICT);
+    let message = String::from_utf8(body_bytes(approve.into_body()).await).unwrap();
+    assert!(message.contains("already being approved"), "unexpected message: {message}");
+
+    let packument =
+        app.clone().oneshot(request("GET", "/staged-pkg", Body::empty(), None)).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND, "the held publish stays held");
+
+    let list = app
+        .oneshot(request("GET", "/-/stage?page=0&perPage=100", Body::empty(), Some(&token)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(list.into_body()).await["total"], 1, "the stage is still approvable");
+}
+
+/// A replica that dies mid-approval leaves its claim behind. The claim is a
+/// lease, so the stage becomes approvable again instead of being stranded
+/// until someone rejects it.
+#[tokio::test]
+async fn a_claim_left_behind_by_a_dead_replica_expires() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    claim_stage_on_disk(tmp.path(), &stage_id, chrono::Duration::hours(1));
+
+    let approve = app
+        .clone()
+        .oneshot(request(
+            "POST",
+            &format!("/-/stage/{stage_id}/approve"),
+            Body::empty(),
+            Some(&token),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(approve.status(), StatusCode::CREATED);
+
+    let packument = app.oneshot(request("GET", "/staged-pkg", Body::empty(), None)).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::OK);
+}
+
+/// An approval that fails leaves the stage exactly as it found it: the claim
+/// is released, so the next attempt is not turned away as a second approval.
+#[tokio::test]
+async fn a_failed_approval_releases_its_claim() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let token = add_user_and_get_token(app.clone(), "alice", "secret").await;
+    let doc = publish_doc("staged-pkg", "1.0.0", b"the tarball");
+    let stage_id = stage_package(app.clone(), "staged-pkg", &doc, &token).await;
+    // Publishing the staged version directly makes every approval of the
+    // stage fail the same way, whatever its claim does.
+    let published =
+        app.clone().oneshot(json_request("PUT", "/staged-pkg", &doc, Some(&token))).await.unwrap();
+    assert_eq!(published.status(), StatusCode::CREATED);
+
+    for attempt in 0..2 {
+        let approve = app
+            .clone()
+            .oneshot(request(
+                "POST",
+                &format!("/-/stage/{stage_id}/approve"),
+                Body::empty(),
+                Some(&token),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(approve.status(), StatusCode::CONFLICT);
+        let message = String::from_utf8(body_bytes(approve.into_body()).await).unwrap();
+        assert!(
+            message.contains("previously published version"),
+            "attempt {attempt} must report the publish conflict, not a claim: {message}",
+        );
+    }
+}
+
 /// Compute the SRI `sha512-...` string the way npm clients send it
 /// in `dist.integrity`.
 fn sri_sha512(bytes: &[u8]) -> String {

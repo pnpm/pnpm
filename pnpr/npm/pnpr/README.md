@@ -311,6 +311,38 @@ When the `backend:` block is absent, auth stays on local disk and the
 `auth.htpasswd` / `auth.tokens` settings apply as before. The
 `auth.htpasswd.max_users` registration cap is honored either way.
 
+### Running several replicas
+
+Several `pnpr` processes can serve one registry behind a load balancer once
+they share their state. Give every replica the same `s3:` bucket for hosted
+packages and the same `backend:` database for users and tokens, and give each
+its own `storage` path for what stays local.
+
+Requests need no affinity. Every write into the shared bucket is conditional:
+a publish, a `dist-tag` change, a partial unpublish, and the approval of a
+staged publish each rewrite the package document under the `ETag` they read it
+at, and a replica that loses the race re-reads and merges on top of what the
+other one wrote. A published tarball is written only if its key is still free,
+so two replicas publishing one version can never overwrite each other's bytes:
+the one whose bytes did not land is told so with a `409` instead of
+advertising an integrity the store no longer serves. A staged publish is
+approved once, whichever replica the approval reaches.
+
+This needs an object store that honors the `If-Match` and `If-None-Match`
+preconditions. AWS S3, Cloudflare R2 and MinIO do.
+
+What stays local to each replica:
+
+- the proxy cache of upstream registries, and the resolver cache
+- publish staging scratch and the commit journal that rolls an interrupted
+  publish forward, so keep each replica's `storage` path on a volume that
+  outlives its restarts
+- blob upload sessions of the image registry when hosted packages are on
+  local disk, which is why `docker push` needs sticky sessions there; with
+  `s3:` an upload continues on any replica
+- pipeline run records
+- accounts and tokens, unless a `backend:` database is configured
+
 ## License
 
 Source-available under the [PolyForm Shield License 1.0.0](https://github.com/pnpm/pnpm/blob/main/pnpr/LICENSE.md) — **not** open source. You may run, modify, and self-host pnpr for any purpose except providing a product that competes with it. Commercial / non-compete licenses are available from Zoltan Kochan (<https://kochan.io>).

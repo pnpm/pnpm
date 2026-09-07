@@ -599,8 +599,17 @@ impl HostedBackend for Store {
         Store::read_staged(self, object).await
     }
 
-    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        Store::write_staged(self, object, bytes).await
+    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        Store::create_staged(self, object, bytes).await
+    }
+
+    async fn replace_staged_if_current(
+        &self,
+        object: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite> {
+        Store::replace_staged_if_current(self, object, expected, bytes).await
     }
 
     async fn remove_staged(&self, object: &str) -> Result<bool> {
@@ -980,16 +989,29 @@ impl Storage {
         self.hosted.read_staged(&staged_meta_object(stage_id)?).await
     }
 
-    pub async fn write_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        self.hosted.write_staged(&staged_meta_object(stage_id)?, bytes).await
+    pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.create_staged(&staged_meta_object(stage_id)?, bytes).await
+    }
+
+    /// Rewrite a staged record's metadata only while it still holds
+    /// `expected`, so an approval acts on the record it read or not at all.
+    /// [`DocumentWrite::Conflict`] means another writer claimed or removed
+    /// the record in the meantime.
+    pub async fn replace_staged_meta_if_current(
+        &self,
+        stage_id: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite> {
+        self.hosted.replace_staged_if_current(&staged_meta_object(stage_id)?, expected, bytes).await
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
         self.hosted.read_staged(&staged_body_object(stage_id)?).await
     }
 
-    pub async fn write_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        self.hosted.write_staged(&staged_body_object(stage_id)?, bytes).await
+    pub async fn create_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
+        self.hosted.create_staged(&staged_body_object(stage_id)?, bytes).await
     }
 
     /// Remove a staged record — the metadata first, so a concurrent list
@@ -1054,11 +1076,19 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 struct Store {
     root: PathBuf,
     revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
+    /// Serializes the read-compare-write of a staged record. One process
+    /// owns this store, so an in-process lock is the whole of the
+    /// compare-and-set the object-store backend gets from an `ETag`.
+    staged_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Store {
     fn new(root: PathBuf) -> Self {
-        Self { root, revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())) }
+        Self {
+            root,
+            revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+            staged_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+        }
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
@@ -1068,6 +1098,7 @@ impl Store {
         Store {
             root: self.root.join(prefix),
             revision_ref_write_lock: Arc::clone(&self.revision_ref_write_lock),
+            staged_write_lock: Arc::clone(&self.staged_write_lock),
         }
     }
 
@@ -1389,8 +1420,22 @@ impl Store {
         }
     }
 
-    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        write_atomic(&self.root.join(STAGED_DIR).join(object), bytes).await
+    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        write_atomic_new(&self.root.join(STAGED_DIR).join(object), bytes).await
+    }
+
+    async fn replace_staged_if_current(
+        &self,
+        object: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite> {
+        let _guard = self.staged_write_lock.lock().await;
+        if self.read_staged(object).await?.as_deref() != Some(expected) {
+            return Ok(DocumentWrite::Conflict);
+        }
+        write_atomic(&self.root.join(STAGED_DIR).join(object), bytes).await?;
+        Ok(DocumentWrite::Written)
     }
 
     async fn remove_staged(&self, object: &str) -> Result<bool> {

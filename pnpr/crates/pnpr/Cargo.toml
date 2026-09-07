@@ -99,6 +99,7 @@ wax                           = { workspace = true }
 zip                           = { workspace = true }
 
 [dev-dependencies]
+chrono             = { workspace = true }
 mockito            = { workspace = true }
 walkdir            = { workspace = true }
 tar                = { workspace = true }

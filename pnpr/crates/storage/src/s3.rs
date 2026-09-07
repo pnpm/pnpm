@@ -525,9 +525,60 @@ impl S3Store {
         }
     }
 
-    pub async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        self.store.put(&self.staged_key(object), PutPayload::from(bytes.to_vec())).await?;
+    pub async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        self.store
+            .put_opts(
+                &self.staged_key(object),
+                PutPayload::from(bytes.to_vec()),
+                PutOptions { mode: PutMode::Create, ..PutOptions::default() },
+            )
+            .await?;
         Ok(())
+    }
+
+    /// Rewrite a staged object under `If-Match` on the version the caller
+    /// read, so only one replica can claim a record whose copy is current.
+    /// The bytes are compared as well: a rewrite the caller computed from
+    /// something other than what the bucket holds is a conflict even where
+    /// the version still matches.
+    pub async fn replace_staged_if_current(
+        &self,
+        object: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite> {
+        let key = self.staged_key(object);
+        let result = match self.store.get(&key).await {
+            Ok(result) => result,
+            // Gone: an approval that finished, or a rejection. A store that
+            // failed for any other reason is an error, not a conflict.
+            Err(object_store::Error::NotFound { .. }) => return Ok(DocumentWrite::Conflict),
+            Err(err) => return Err(err.into()),
+        };
+        let version = UpdateVersion {
+            e_tag: result.meta.e_tag.clone(),
+            version: result.meta.version.clone(),
+        };
+        if result.bytes().await?.as_ref() != expected {
+            return Ok(DocumentWrite::Conflict);
+        }
+        match self
+            .store
+            .put_opts(
+                &key,
+                PutPayload::from(bytes.to_vec()),
+                PutOptions { mode: PutMode::Update(version), ..PutOptions::default() },
+            )
+            .await
+        {
+            Ok(_) => Ok(DocumentWrite::Written),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::NotFound { .. }
+                | object_store::Error::Precondition { .. },
+            ) => Ok(DocumentWrite::Conflict),
+            Err(err) => Err(err.into()),
+        }
     }
 
     pub async fn remove_staged(&self, object: &str) -> Result<bool> {
@@ -748,8 +799,17 @@ impl HostedBackend for S3Store {
         S3Store::read_staged(self, object).await
     }
 
-    async fn write_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        S3Store::write_staged(self, object, bytes).await
+    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
+        S3Store::create_staged(self, object, bytes).await
+    }
+
+    async fn replace_staged_if_current(
+        &self,
+        object: &str,
+        expected: &[u8],
+        bytes: &[u8],
+    ) -> Result<DocumentWrite> {
+        S3Store::replace_staged_if_current(self, object, expected, bytes).await
     }
 
     async fn remove_staged(&self, object: &str) -> Result<bool> {
