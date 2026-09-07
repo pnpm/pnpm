@@ -7,11 +7,11 @@ use super::{
         read_shim_target_from_content, small_file_hash,
     },
     is_automatic_runtime, local_bin_path, local_bin_unchanged, manifest_runtime_pin,
-    runtime_env::managed_runtime_bin,
+    runtime_env::{hardened_install_config, managed_runtime_bin},
     trust::{append_trust_decision, read_trust_decision},
     try_dispatch,
 };
-use pnpm_config::ShimPolicy;
+use pnpm_config::{Config, NodeLinker, ShimPolicy};
 use std::{ffi::OsString, fs, path::Path};
 
 fn strings(items: &[&str]) -> Vec<OsString> {
@@ -219,6 +219,22 @@ fn managed_runtime_must_resolve_inside_the_global_store() {
         managed_runtime_bin(root.path().join("state/environment").as_path(), "node", &store),
         None,
     );
+}
+
+/// [`managed_runtime_bin`] only accepts a runtime that resolves into the
+/// global virtual store, which the hoisted linker never writes to.
+#[test]
+fn hardened_runtime_install_pins_the_isolated_linker() {
+    let root = tempfile::tempdir().unwrap();
+    let config = Config { node_linker: NodeLinker::Hoisted, ..Config::default() };
+
+    let install_config = hardened_install_config(
+        config,
+        &root.path().join("environment"),
+        root.path().join("store/links"),
+    );
+
+    assert_eq!(install_config.node_linker, NodeLinker::Isolated);
 }
 
 #[test]

@@ -3,7 +3,7 @@
 
 use crate::{State, cli_args::add::add_package};
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, Host};
+use pnpm_config::{Config, Host, NodeLinker};
 use pnpm_crypto_hash::create_hex_hash;
 use pnpm_fs::DirLock;
 use pnpm_package_manifest::DependencyGroup;
@@ -56,6 +56,11 @@ pub(crate) fn trusted_runtime_config(environments_dir: &Path) -> miette::Result<
 /// `supportedArchitectures.libc: [musl]` override on a glibc host would
 /// select an unofficial-builds artifact that the promptless policy's
 /// host-libc check did not account for.
+///
+/// The linker is pinned to isolated for the same reason: a `hoisted`
+/// setting inherited from the environment or the global config would
+/// materialize the runtime inside the environment directory, where
+/// [`managed_runtime_bin`] does not accept it.
 pub(super) fn hardened_install_config(
     config: Config,
     environment_dir: &Path,
@@ -66,6 +71,7 @@ pub(super) fn hardened_install_config(
     install_config.virtual_store_dir = environment_dir.join("node_modules").join(".pnpm");
     install_config.enable_global_virtual_store = true;
     install_config.global_virtual_store_dir = global_virtual_store_dir;
+    install_config.node_linker = NodeLinker::Isolated;
     install_config.workspace_dir = Some(environment_dir.to_path_buf());
     install_config.lockfile = true;
     install_config.frozen_lockfile = Some(false);

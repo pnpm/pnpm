@@ -8,7 +8,7 @@
 
 use crate::{State, cli_args::add::add_package, executable_link::replace_executable};
 use miette::{Context, IntoDiagnostic};
-use pnpm_config::{Config, PackageManagerBootstrap};
+use pnpm_config::{Config, NodeLinker, PackageManagerBootstrap};
 use pnpm_global::{clean_orphaned_install_dirs, create_install_dir, find_global_package};
 use pnpm_graph_hasher::{format_global_virtual_store_path, host_arch, host_libc, host_platform};
 use pnpm_package_is_installable::SupportedArchitectures;
@@ -292,6 +292,11 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.package_extensions = None;
     cfg.catalogs = None;
     cfg.patched_dependencies = None;
+    // The engine closure is pnpm's own, so the project's linker choice must
+    // not shape its layout: under `hoisted` the engine materializes inside
+    // `install_dir` instead of the global virtual store the caller resolves
+    // its slot from (pnpm/pnpm#14595).
+    cfg.node_linker = NodeLinker::Isolated;
 
     let config: &'static Config = Config::leak(cfg);
     let manifest_path = install_dir.join("package.json");
