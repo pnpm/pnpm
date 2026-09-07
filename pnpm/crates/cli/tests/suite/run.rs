@@ -51,13 +51,12 @@ fn run_executes_declared_script() {
 #[test]
 fn run_from_a_plain_subdir_runs_the_projects_script() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    let marker_path = workspace.join("marker.txt");
+    // A relative marker, so where the file lands pins the working
+    // directory the script ran in.
     let manifest = json!({
         "name": "test",
         "version": "0.0.0",
-        "scripts": {
-            "touch-marker": format!(r#"touch "{}""#, marker_path.display()),
-        },
+        "scripts": { "touch-marker": "touch marker.txt" },
     })
     .to_string();
     fs::write(workspace.join("package.json"), manifest).expect("write package.json");
@@ -65,7 +64,8 @@ fn run_from_a_plain_subdir_runs_the_projects_script() {
     fs::create_dir_all(&subdir).expect("create the subdirectory");
 
     pacquet.with_current_dir(&subdir).with_args(["run", "touch-marker"]).assert().success();
-    assert!(marker_path.exists(), "script should have created the marker file");
+    assert!(workspace.join("marker.txt").exists(), "the script should have run in the project");
+    assert!(!subdir.join("marker.txt").exists(), "the script should not have run in the subdir");
 
     drop(root);
 }
