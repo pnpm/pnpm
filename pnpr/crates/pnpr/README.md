@@ -388,10 +388,31 @@ leaves nothing behind. A blob no manifest references is invisible rather than
 half-published, which also means unreferenced blobs accumulate until they are
 collected.
 
-Not yet served: proxying an upstream image registry, the referrers API,
-cross-repository blob mounts, and ranged blob downloads. Deleting a manifest
-or a blob needs a registry whose `unpublish` rule admits the caller, which the
-per-registry default does not.
+Blob downloads accept a single HTTP byte range on filesystem and S3 storage,
+including open-ended and suffix ranges. Responses include `Accept-Ranges` and
+an ETag. `If-Range` resumes a matching blob or returns the full blob when its
+validator does not match. Unsupported or malformed ranges are ignored.
+
+Cross-repository blob mounts reuse a layer from a repository the caller may
+read. The caller also needs permission to publish to the destination. A missing
+or inaccessible source starts an ordinary upload. Mounts stream through local
+scratch for digest verification; they do not require the client to resend the layer.
+
+`GET /v2/<name>/referrers/<digest>` returns an OCI image index of manifests and
+indexes attached to that subject. It supports the `artifactType` filter and
+includes annotations. A push acknowledges its subject with `OCI-Subject`.
+Follow the `Link` header to collect all pages, even when a filtered page is empty.
+Each page reads at most 32 manifests and 8 MiB of manifest content. Existing
+manifests are indexed incrementally as those pages are queried. Removing a
+manifest removes its referrer entry; removing a tag keeps it.
+
+`tags/list` and `_catalog` accept `n` and `last` for pagination and return a
+`Link` header when another page is available. `last` is an exclusive lexical
+cursor. `n=0` returns an empty list without a continuation link.
+
+Proxying an upstream image registry and online blob deletion are not yet served.
+Deleting a manifest needs a registry whose `unpublish` rule admits the caller,
+which the per-registry default does not.
 
 ## License
 

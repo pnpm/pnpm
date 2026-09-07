@@ -18,7 +18,7 @@ mod error_body;
 mod manifest;
 
 pub use digest::{Digest, DigestError};
-pub use document::{ImageDocument, ManifestEntry, TagEntry};
+pub use document::{ImageDocument, ManifestEntry, ReferrerMetadata, TagEntry};
 pub use error_body::{ErrorBody, ErrorCode};
 pub use manifest::{Descriptor, Manifest, ManifestError};
 

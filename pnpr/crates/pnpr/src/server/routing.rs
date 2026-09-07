@@ -113,6 +113,7 @@ pub(super) fn router_with_auth_and_osv(
             config,
             auth,
             package_locks: StripedLocks::new(),
+            referrer_migration_locks: StripedLocks::new(),
             resolver: std::sync::OnceLock::new(),
             osv_index,
         }),

@@ -72,6 +72,9 @@ const MAX_MANIFEST_REFERENCES: usize = 4096;
 /// How much of a blob is hashed per read when verifying a finished upload.
 const HASH_CHUNK: usize = 64 * 1024;
 
+const MAX_REFERRER_READS: usize = 32;
+const MAX_REFERRER_READ_BYTES: u64 = 8 * 1024 * 1024;
+
 const DOCKER_CONTENT_DIGEST: &str = "docker-content-digest";
 const DOCKER_UPLOAD_UUID: &str = "docker-upload-uuid";
 const API_VERSION_HEADER: &str = "docker-distribution-api-version";
@@ -145,9 +148,11 @@ async fn dispatch(
         base: api_base(uri.path(), tail),
         method: parts.method,
         digest: query_param(uri.query(), "digest"),
+        query: uri.query().unwrap_or_default().to_string(),
         headers: parts.headers,
     };
     match endpoint {
+        Endpoint::Referrers { name, digest } => request.referrers(&name, &digest).await,
         Endpoint::Catalog => request.catalog().await,
         Endpoint::Tags { name } => request.tags(&name).await,
         Endpoint::Manifest { name, reference } => request.manifest(&name, &reference, body).await,
@@ -160,6 +165,7 @@ async fn dispatch(
 /// Which endpoint a captured path tail addresses.
 enum Endpoint {
     Catalog,
+    Referrers { name: String, digest: String },
     Tags { name: String },
     Manifest { name: String, reference: String },
     Blob { name: String, digest: String },
@@ -187,6 +193,9 @@ fn parse_endpoint(tail: &str) -> Option<Endpoint> {
         [.., "manifests", reference] => {
             Some(Endpoint::Manifest { name: name(last - 2)?, reference: (*reference).to_string() })
         }
+        [.., "referrers", digest] => {
+            Some(Endpoint::Referrers { name: name(last - 2)?, digest: (*digest).to_string() })
+        }
         [.., "blobs", digest] => {
             Some(Endpoint::Blob { name: name(last - 2)?, digest: (*digest).to_string() })
         }
@@ -204,10 +213,274 @@ struct Request {
     method: Method,
     /// The `?digest=` a client completes an upload with.
     digest: Option<String>,
+    query: String,
     headers: HeaderMap,
 }
 
 impl Request {
+    fn page_size(&self) -> Result<Option<usize>, Refusal> {
+        query_param(Some(&self.query), "n")
+            .map(|value| {
+                if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+                    return Err(Refusal::new(
+                        ErrorCode::NameInvalid,
+                        "n must be a non-negative integer",
+                    ));
+                }
+                value
+                    .parse::<usize>()
+                    .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "n is too large"))
+            })
+            .transpose()
+    }
+
+    fn paginate<Item: AsRef<str>>(
+        &self,
+        items: &mut Vec<Item>,
+        endpoint: &str,
+    ) -> Result<Option<String>, Refusal> {
+        let count = self.page_size()?;
+        if let Some(last) = query_param(Some(&self.query), "last") {
+            items.retain(|item| item.as_ref() > last.as_str());
+        }
+        let Some(count) = count else { return Ok(None) };
+        let more = items.len() > count;
+        items.truncate(count);
+        Ok(if more && let Some(last) = items.last() {
+            let query = url::form_urlencoded::Serializer::new(String::new())
+                .append_pair("n", &count.to_string())
+                .append_pair("last", last.as_ref())
+                .finish();
+            Some(format!(r#"<{}/{endpoint}?{query}>; rel="next""#, self.base))
+        } else {
+            None
+        })
+    }
+
+    async fn mount_blob(
+        &self,
+        destination: &Storage,
+        key: &CanonicalPackageName,
+        mount: &str,
+        from: &str,
+    ) -> Result<Option<Response>, RegistryError> {
+        let Ok(digest) = Digest::parse(mount) else { return Ok(None) };
+        let Ok((source_key, source)) = self.hosted_source(from) else { return Ok(None) };
+        let source_org = match hosted_read_namespace(
+            &self.state,
+            &self.identity,
+            &source,
+            source_key.as_str(),
+        ) {
+            Ok(org) => org,
+            Err(
+                RegistryError::Unauthenticated { .. }
+                | RegistryError::Forbidden { .. }
+                | RegistryError::NotFound,
+            ) => return Ok(None),
+            Err(err) => return Err(err),
+        };
+        let source_storage = self.state.inner.storage.for_hosted(&source_org);
+        let Some((body, _)) =
+            source_storage.open_hosted_blob(&source_key, &digest.blob_filename()).await?
+        else {
+            return Ok(None);
+        };
+        let upload = destination.begin_blob_upload(key).await?;
+        if let Err(refusal) = append_body(destination, &upload, body).await {
+            destination.abort_blob_upload(upload.id()).await?;
+            return Ok(Some(refusal.respond()));
+        }
+        Ok(Some(self.finish_upload(destination, upload, key, mount).await))
+    }
+
+    async fn referrers(&self, name: &str, digest: &str) -> Response {
+        if self.method != Method::GET {
+            return method_not_allowed();
+        }
+        let Ok(digest) = Digest::parse(digest) else {
+            return error(ErrorCode::DigestInvalid, "not a supported digest");
+        };
+        let Ok(last) =
+            query_param(Some(&self.query), "last").map(|value| Digest::parse(&value)).transpose()
+        else {
+            return error(ErrorCode::DigestInvalid, "last must be a supported digest");
+        };
+        let (key, source) = match self.hosted_source(name) {
+            Ok(found) => found,
+            Err(refusal) => return refusal.respond(),
+        };
+        let org = match hosted_read_namespace(&self.state, &self.identity, &source, key.as_str()) {
+            Ok(org) => org,
+            Err(err) => return registry_error(err),
+        };
+        let storage = self.state.inner.storage.for_hosted(&org);
+        let document =
+            match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
+                .await
+            {
+                Ok(document) => document.unwrap_or_else(|| ImageDocument::new(key.as_str())),
+                Err(err) => return registry_error(err),
+            };
+        let artifact_type = query_param(Some(&self.query), "artifactType");
+        let artifact_type_digest = artifact_type.as_ref().map(|value| Digest::of(value.as_bytes()));
+        let start = document.manifests().partition_point(|entry| {
+            last.as_ref().is_some_and(|last| entry.digest.hex() <= last.hex())
+        });
+        let mut entries = document.manifests()[start..].iter().peekable();
+        let mut additions = Vec::new();
+        let mut referrers = Vec::new();
+        let mut inspected = 0;
+        let mut read_bytes = 0;
+        let mut response_bytes = 128;
+        let mut cursor = None;
+        let mut migration_guard = None;
+        let mut current_document: Option<ImageDocument> = None;
+        while let Some(&entry) = entries.peek() {
+            let indexed_metadata = if let Some(current) = &current_document {
+                let Some(current_entry) = current.manifest(&entry.digest) else {
+                    cursor = Some(&entry.digest);
+                    entries.next();
+                    continue;
+                };
+                current_entry.referrer.as_ref()
+            } else {
+                entry.referrer.as_ref()
+            };
+            if migration_guard.is_some() && indexed_metadata.is_some() && additions.is_empty() {
+                drop(migration_guard.take());
+            }
+            let needs_read = indexed_metadata.is_none_or(|metadata| {
+                metadata.subject.as_ref() == Some(&digest)
+                    && artifact_type_digest
+                        .as_ref()
+                        .is_none_or(|filter| metadata.artifact_type_digest.as_ref() == Some(filter))
+            });
+            if needs_read {
+                if inspected >= MAX_REFERRER_READS
+                    || (inspected > 0 && read_bytes + entry.size > MAX_REFERRER_READ_BYTES)
+                {
+                    break;
+                }
+                if indexed_metadata.is_none() && migration_guard.is_none() {
+                    migration_guard =
+                        Some(self.state.inner.referrer_migration_locks.lock(key.as_str()).await);
+                    current_document = match storage.read_hosted_document(&key).await {
+                        Ok(Some(bytes)) => match ImageDocument::parse(&bytes) {
+                            Ok(document) => Some(document),
+                            Err(err) => return registry_error(err.into()),
+                        },
+                        Ok(None) => Some(ImageDocument::new(key.as_str())),
+                        Err(err) => return registry_error(err),
+                    };
+                    continue;
+                }
+                let bytes = match read_manifest_bytes(&storage, &key, &entry.digest.blob_filename())
+                    .await
+                {
+                    Ok(Some(bytes)) => bytes,
+                    Ok(None) => {
+                        return error(
+                            ErrorCode::ManifestUnknown,
+                            "a referenced manifest is missing",
+                        );
+                    }
+                    Err(err) => return registry_error(err),
+                };
+                inspected += 1;
+                read_bytes += bytes.len() as u64;
+                let manifest = match Manifest::parse(&bytes, Some(&entry.media_type)) {
+                    Ok(manifest) => manifest,
+                    Err(err) => {
+                        return registry_error(RegistryError::Internal { reason: err.to_string() });
+                    }
+                };
+                let metadata = manifest.referrer_metadata();
+                let matches = metadata.subject.as_ref() == Some(&digest)
+                    && artifact_type
+                        .as_deref()
+                        .is_none_or(|filter| manifest.artifact_type() == Some(filter));
+                if indexed_metadata.is_none() {
+                    let mut addition = entry.clone();
+                    addition.referrer = Some(metadata);
+                    additions.push(addition);
+                }
+                if matches {
+                    let descriptor_bytes =
+                        match serde_json::to_vec(&ReferrerDescriptor::new(entry, &manifest)) {
+                            Ok(bytes) => bytes.len() + 1,
+                            Err(err) => return registry_error(err.into()),
+                        };
+                    if !referrers.is_empty()
+                        && response_bytes + descriptor_bytes > MAX_MANIFEST_BYTES
+                    {
+                        break;
+                    }
+                    response_bytes += descriptor_bytes;
+                    referrers.push((entry, manifest));
+                }
+            }
+            cursor = Some(&entry.digest);
+            entries.next();
+        }
+        if !additions.is_empty() {
+            let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
+            let outcome = storage
+                .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
+                    let Some(bytes) = existing else { return Ok(None) };
+                    let mut current = ImageDocument::parse(bytes)?;
+                    let mut changed = false;
+                    for entry in &additions {
+                        if current
+                            .manifest(&entry.digest)
+                            .is_some_and(|held| held.referrer.is_none())
+                        {
+                            current.insert_manifest(entry.clone());
+                            changed = true;
+                        }
+                    }
+                    Ok(changed.then(|| current.to_bytes()))
+                })
+                .await;
+            if let Err(err) = outcome {
+                return registry_error(err);
+            }
+        }
+        drop(migration_guard);
+        let manifests = referrers
+            .iter()
+            .map(|(entry, manifest)| ReferrerDescriptor::new(entry, manifest))
+            .collect();
+        let mut response = json(
+            StatusCode::OK,
+            &Referrers { schema_version: 2, media_type: media_type::OCI_IMAGE_INDEX, manifests },
+        );
+        insert_header(&mut response, "content-type", media_type::OCI_IMAGE_INDEX);
+        if artifact_type.is_some() {
+            insert_header(&mut response, "oci-filters-applied", "artifactType");
+        }
+        if entries.peek().is_some()
+            && let Some(cursor) = cursor
+        {
+            let mut query = url::form_urlencoded::Serializer::new(String::new());
+            query.append_pair("last", &cursor.to_string());
+            if let Some(artifact_type) = artifact_type {
+                query.append_pair("artifactType", &artifact_type);
+            }
+            insert_header(
+                &mut response,
+                "link",
+                &format!(
+                    r#"<{}/{}/referrers/{digest}?{}>; rel="next""#,
+                    self.base,
+                    key.as_str(),
+                    query.finish(),
+                ),
+            );
+        }
+        self.caller_scoped(Some(key.as_str()), response)
+    }
+
     /// `GET /v2/_catalog` — the repository names this caller may read.
     async fn catalog(&self) -> Response {
         if self.method != Method::GET {
@@ -216,28 +489,51 @@ impl Request {
         let Some(target) = addressed_registry(&self.state, self.registry.as_deref()) else {
             return error(ErrorCode::NameUnknown, "no registry is addressed here");
         };
+        match self.page_size() {
+            Ok(Some(0)) => {
+                return private_no_cache(json(
+                    StatusCode::OK,
+                    &Catalog { repositories: Vec::new() },
+                ));
+            }
+            Ok(_) => {}
+            Err(refusal) => return refusal.respond(),
+        }
+        let last = query_param(Some(&self.query), "last");
         let mut repositories = Vec::new();
         for source in hosted_sources(&self.state, &target, ECOSYSTEM) {
             let Some(hosted) = self.state.inner.config.hosted.get(&source) else { continue };
             let storage = self.state.inner.storage.for_hosted(&hosted.org);
-            let Ok(names) = storage.hosted_package_names().await else { continue };
+            let names = match storage.hosted_package_names().await {
+                Ok(names) => names,
+                Err(err) => return registry_error(err),
+            };
             // A listing may only name what this caller could have fetched.
             repositories.extend(names.into_iter().filter(|name| {
-                authorize(
-                    &self.state,
-                    &self.identity,
-                    &RegistrySource::Hosted(source.clone()),
-                    name,
-                    Action::Access,
-                )
-                .is_ok()
+                last.as_ref().is_none_or(|last| name > last)
+                    && authorize(
+                        &self.state,
+                        &self.identity,
+                        &RegistrySource::Hosted(source.clone()),
+                        name,
+                        Action::Access,
+                    )
+                    .is_ok()
             }));
         }
         repositories.sort();
         repositories.dedup();
         // The listing is built from what this caller may read, so it is
         // caller-specific whichever registry it came through.
-        private_no_cache(json(StatusCode::OK, &Catalog { repositories }))
+        let link = match self.paginate(&mut repositories, "_catalog") {
+            Ok(link) => link,
+            Err(refusal) => return refusal.respond(),
+        };
+        let mut response = json(StatusCode::OK, &Catalog { repositories });
+        if let Some(link) = link {
+            insert_header(&mut response, "link", &link);
+        }
+        private_no_cache(response)
     }
 
     /// `GET /v2/<name>/tags/list`.
@@ -253,10 +549,19 @@ impl Request {
             match read_hosted_document::<ImageDocument>(&self.state, &self.identity, &source, &key)
                 .await
             {
-                Ok(Some(document)) => json(
-                    StatusCode::OK,
-                    &TagList { name: key.as_str(), tags: document.tag_names() },
-                ),
+                Ok(Some(document)) => {
+                    let mut tags = document.tag_names();
+                    let link =
+                        match self.paginate(&mut tags, &format!("{}/tags/list", key.as_str())) {
+                            Ok(link) => link,
+                            Err(refusal) => return refusal.respond(),
+                        };
+                    let mut response = json(StatusCode::OK, &TagList { name: key.as_str(), tags });
+                    if let Some(link) = link {
+                        insert_header(&mut response, "link", &link);
+                    }
+                    response
+                }
                 Ok(None) => unknown_repository(name).respond(),
                 Err(err) => registry_error(err),
             };
@@ -388,11 +693,14 @@ impl Request {
             }
         }
 
+        let referrer = manifest.referrer_metadata();
+        let subject = referrer.subject.clone();
         let mut addition = ImageDocument::new(key.as_str());
         addition.insert_manifest(ManifestEntry {
             digest: digest.clone(),
             media_type: manifest.media_type().to_string(),
             size: bytes.len() as u64,
+            referrer: Some(referrer),
         });
         if Digest::parse(reference).is_err() {
             if !is_valid_tag(reference) {
@@ -439,7 +747,12 @@ impl Request {
         .await
         {
             Ok(()) => {
-                created(&format!("{}/{}/manifests/{digest}", self.base, key.as_str()), &digest)
+                let mut response =
+                    created(&format!("{}/{}/manifests/{digest}", self.base, key.as_str()), &digest);
+                if let Some(subject) = subject {
+                    insert_header(&mut response, "oci-subject", &subject.to_string());
+                }
+                response
             }
             Err(err) => registry_error(err),
         }
@@ -463,6 +776,7 @@ impl Request {
             return unknown_repository(name).respond();
         };
         let storage = self.state.inner.storage.for_hosted(&hosted.org);
+        let _guard = self.state.inner.package_locks.lock(key.as_str()).await;
         let outcome = storage
             .update_hosted_document_with_retry(&key, DOCUMENT_WRITE_RETRIES, |existing| {
                 let Some(bytes) = existing else { return Ok(None) };
@@ -509,6 +823,47 @@ impl Request {
             Err(err) => return registry_error(err),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
+        let etag = format!(r#""{digest}""#);
+        if self.method == Method::GET
+            && self.headers.get(header::IF_RANGE).is_none_or(|value| value == etag.as_str())
+            && self.headers.get_all(header::RANGE).iter().count() == 1
+            && let Some(range) = self
+                .headers
+                .get(header::RANGE)
+                .and_then(|value| value.to_str().ok())
+                .and_then(parse_download_range)
+        {
+            let response =
+                match storage.open_hosted_blob_range(&key, &digest.blob_filename(), &range).await {
+                    Ok(Some(pnpr_storage::RangedBlob::Read { body, range, size })) => {
+                        Response::builder()
+                            .status(StatusCode::PARTIAL_CONTENT)
+                            .header(header::CONTENT_TYPE, "application/octet-stream")
+                            .header(header::CONTENT_LENGTH, range.end - range.start)
+                            .header(
+                                header::CONTENT_RANGE,
+                                format!("bytes {}-{}/{size}", range.start, range.end - 1),
+                            )
+                            .header(header::ACCEPT_RANGES, "bytes")
+                            .header(header::ETAG, &etag)
+                            .header(DOCKER_CONTENT_DIGEST, digest.to_string())
+                            .body(body)
+                            .unwrap_or_else(|_| server_error())
+                    }
+                    Ok(Some(pnpr_storage::RangedBlob::Unsatisfiable { size })) => {
+                        let mut response = respond(
+                            StatusCode::RANGE_NOT_SATISFIABLE,
+                            ErrorCode::SizeInvalid,
+                            "range is outside the blob",
+                        );
+                        insert_header(&mut response, "content-range", &format!("bytes */{size}"));
+                        response
+                    }
+                    Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
+                    Err(err) => return registry_error(err),
+                };
+            return self.caller_scoped(Some(key.as_str()), response);
+        }
         let (body, size) = match storage.open_hosted_blob(&key, &digest.blob_filename()).await {
             Ok(Some(blob)) => blob,
             Ok(None) => return error(ErrorCode::BlobUnknown, "no such blob"),
@@ -516,6 +871,8 @@ impl Request {
         };
         let mut response = Response::builder()
             .status(StatusCode::OK)
+            .header(header::ACCEPT_RANGES, "bytes")
+            .header(header::ETAG, etag)
             .header(header::CONTENT_TYPE, "application/octet-stream")
             .header(DOCKER_CONTENT_DIGEST, digest.to_string());
         if let Some(size) = size {
@@ -537,6 +894,15 @@ impl Request {
             Err(refusal) => return refusal.respond(),
         };
         let storage = self.state.inner.storage.for_hosted(&org);
+        if let (Some(mount), Some(from)) =
+            (query_param(Some(&self.query), "mount"), query_param(Some(&self.query), "from"))
+        {
+            match self.mount_blob(&storage, &key, &mount, &from).await {
+                Ok(Some(response)) => return response,
+                Ok(None) => {}
+                Err(err) => return registry_error(err),
+            }
+        }
         let upload = match storage.begin_blob_upload(&key).await {
             Ok(upload) => upload,
             Err(err) => return registry_error(err),
@@ -545,8 +911,6 @@ impl Request {
             let _ = storage.abort_blob_upload(upload.id()).await;
             return refusal.respond();
         }
-        // A cross-repository mount is optional: handing back a fresh upload is
-        // the spec's own fallback, and the client re-sends the bytes.
         match self.digest.as_deref() {
             Some(digest) => self.finish_upload(&storage, upload, &key, digest).await,
             None => self.upload_progress(&key, &upload).await,
@@ -731,6 +1095,71 @@ impl Request {
             PublishTarget::NotFound => Err(unknown_repository(name)),
         }
     }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Referrers<'listing> {
+    schema_version: u64,
+    media_type: &'listing str,
+    manifests: Vec<ReferrerDescriptor<'listing>>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReferrerDescriptor<'listing> {
+    media_type: &'listing str,
+    digest: &'listing Digest,
+    size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    artifact_type: Option<&'listing str>,
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    annotations: &'listing std::collections::BTreeMap<String, String>,
+}
+
+impl<'listing> ReferrerDescriptor<'listing> {
+    fn new(entry: &'listing ManifestEntry, manifest: &'listing Manifest) -> Self {
+        Self {
+            media_type: &entry.media_type,
+            digest: &entry.digest,
+            size: entry.size,
+            artifact_type: manifest.artifact_type(),
+            annotations: manifest.annotations(),
+        }
+    }
+}
+
+fn insert_header(response: &mut Response, name: &'static str, value: &str) {
+    let value = HeaderValue::from_str(value).expect("generated OCI response header is valid");
+    response.headers_mut().insert(name, value);
+}
+
+fn parse_download_range(value: &str) -> Option<pnpr_storage::GetRange> {
+    let (unit, bounds) = value.trim().split_once('=')?;
+    if !unit.eq_ignore_ascii_case("bytes") {
+        return None;
+    }
+    let (start, end) = bounds.split_once('-')?;
+    let number = |value: &str| {
+        (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+            .then(|| value.parse::<u64>().ok())
+            .flatten()
+    };
+    if start.is_empty() {
+        return number(end).map(pnpr_storage::GetRange::Suffix);
+    }
+    let start = number(start)?;
+    if end.is_empty() {
+        return Some(pnpr_storage::GetRange::Offset(start));
+    }
+    let end = number(end)?;
+    if start > end {
+        return None;
+    }
+    Some(match end.checked_add(1) {
+        Some(end) => pnpr_storage::GetRange::Bounded(start..end),
+        None => pnpr_storage::GetRange::Offset(start),
+    })
 }
 
 #[derive(Serialize)]

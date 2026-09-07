@@ -5,6 +5,8 @@ mod s3;
 pub mod streaming;
 pub mod upload;
 
+pub use object_store::GetRange;
+
 use crate::s3::S3Store;
 use async_trait::async_trait;
 use axum::body::Body;
@@ -29,7 +31,7 @@ use std::{
 };
 use tokio::{
     fs,
-    io::{AsyncSeekExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
 
 pub(crate) use self::backend::HostedBackend;
@@ -364,6 +366,12 @@ pub struct Storage {
     cached: Store,
 }
 
+/// A partial blob read, including the full size needed for HTTP range headers.
+pub enum RangedBlob {
+    Read { body: Body, range: std::ops::Range<u64>, size: u64 },
+    Unsatisfiable { size: u64 },
+}
+
 /// A file in the hosted namespace, for offline maintenance.
 #[derive(Debug)]
 pub struct HostedBlobFile {
@@ -425,6 +433,26 @@ impl HostedBackend for Store {
         Ok(Store::open_blob(self, name, filename)
             .await?
             .map(|(file, len)| (streaming::stream_file(file), Some(len))))
+    }
+
+    async fn open_blob_range(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        range: &GetRange,
+    ) -> Result<Option<RangedBlob>> {
+        let Some((mut file, size)) = Store::open_blob(self, name, filename).await? else {
+            return Ok(None);
+        };
+        let Ok(range) = range.as_range(size) else {
+            return Ok(Some(RangedBlob::Unsatisfiable { size }));
+        };
+        if range.is_empty() {
+            return Ok(Some(RangedBlob::Unsatisfiable { size }));
+        }
+        file.seek(SeekFrom::Start(range.start)).await?;
+        let body = streaming::stream_file(file.take(range.end - range.start));
+        Ok(Some(RangedBlob::Read { body, range, size }))
     }
 
     async fn reserve_blob_tmp(
@@ -723,6 +751,16 @@ impl Storage {
         filename: &str,
     ) -> Result<Option<(Body, Option<u64>)>> {
         self.hosted.open_blob(name, filename).await
+    }
+
+    /// Open only the requested bytes, without reading the preceding content.
+    pub async fn open_hosted_blob_range(
+        &self,
+        name: &CanonicalPackageName,
+        filename: &str,
+        range: &GetRange,
+    ) -> Result<Option<RangedBlob>> {
+        self.hosted.open_blob_range(name, filename, range).await
     }
 
     /// Reserve a staging slot for a blob this server hosts. The

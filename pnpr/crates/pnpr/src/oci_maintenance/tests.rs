@@ -38,6 +38,7 @@ async fn retained_image(storage: &Storage, repository: &CanonicalPackageName) ->
     let manifest = blob(storage, repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        referrer: None,
         digest: manifest.clone(),
         size: bytes.len() as u64,
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
@@ -107,6 +108,7 @@ async fn index_keeps_children_removed_from_the_document_and_their_layers() {
     let index = blob(&storage, &repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        referrer: None,
         digest: index.clone(),
         size: bytes.len() as u64,
         media_type: media_type::OCI_IMAGE_INDEX.into(),
@@ -145,6 +147,7 @@ async fn collection_uses_the_stored_media_type_for_header_only_manifests() {
     let digest = blob(&storage, &repository, &bytes).await;
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        referrer: None,
         digest: digest.clone(),
         size: bytes.len() as u64,
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),
@@ -165,6 +168,7 @@ async fn a_document_without_any_blob_files_still_blocks_collection_when_corrupt(
     let repository = name("empty");
     let mut document = ImageDocument::new(repository.as_str());
     document.insert_manifest(ManifestEntry {
+        referrer: None,
         digest: Digest::of(b"missing"),
         size: 7,
         media_type: media_type::OCI_IMAGE_MANIFEST.into(),

@@ -9,6 +9,19 @@ pub struct ManifestEntry {
     pub digest: Digest,
     pub media_type: String,
     pub size: u64,
+    /// Missing metadata is populated from the manifest during referrer discovery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub referrer: Option<ReferrerMetadata>,
+}
+
+/// Metadata used to discover artifacts attached to a subject manifest.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferrerMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<Digest>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artifact_type_digest: Option<Digest>,
 }
 
 /// One tag and the manifest it currently names.

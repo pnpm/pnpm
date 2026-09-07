@@ -11,6 +11,13 @@
 )]
 mod common;
 
+#[path = "common/pausing_store.rs"]
+mod pausing_store;
+
+#[path = "../src/server/striped_locks.rs"]
+#[allow(dead_code, reason = "the collision fixture uses the production stripe mapping")]
+mod striped_locks;
+
 use axum::{
     Router,
     body::Body,
@@ -996,4 +1003,692 @@ async fn s3_upload_moves_between_replicas_and_keeps_an_interrupted_chunks_prefix
     let response = get(&second, &format!("/v2/acme/app/blobs/{digest}")).await;
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, b"hello world");
+}
+
+#[tokio::test]
+async fn protocol_surface_on_filesystem() {
+    let tmp = TempDir::new().unwrap();
+    check_protocol_surface(app_allowing_deletes(&tmp)).await;
+}
+
+#[tokio::test]
+async fn protocol_surface_on_object_store() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::new(object_store::memory::InMemory::new()),
+        prefix: "protocol/".into(),
+    };
+    let hosted = config.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
+    check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
+}
+
+async fn check_protocol_surface(app: Router) {
+    let auth = basic(&token(&app).await);
+    let digest = push_blob(&app, &auth, "acme/source", b"0123456789").await;
+    let blob_path = format!("/v2/acme/source/blobs/{digest}");
+    for (range, expected, content_range) in [
+        ("bytes=2-5", "2345", "bytes 2-5/10"),
+        ("bytes=7-", "789", "bytes 7-9/10"),
+        ("bytes=-3", "789", "bytes 7-9/10"),
+        ("bytes=7-999", "789", "bytes 7-9/10"),
+        ("bytes=-99", "0123456789", "bytes 0-9/10"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT, "{range}");
+        assert_eq!(response.headers()[header::CONTENT_RANGE], content_range);
+        assert_eq!(response.headers()[header::CONTENT_LENGTH], expected.len().to_string());
+        assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
+        assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
+    }
+    for range in ["bytes=10-", "bytes=-0", "bytes=99-100"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
+        assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
+    }
+    for range in ["items=1-2", "bytes=1-2,4-5", "bytes=9-1", "bytes=+1-2"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{range}");
+        assert_eq!(body_bytes(response.into_body()).await, b"0123456789");
+    }
+    for (validator, status) in [
+        (format!(r#""{digest}""#), StatusCode::PARTIAL_CONTENT),
+        (r#""other""#.into(), StatusCode::OK),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(&blob_path)
+                    .header(header::RANGE, "bytes=7-")
+                    .header(header::IF_RANGE, validator)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), status);
+    }
+    let response = app
+        .clone()
+        .oneshot(
+            Request::head(&blob_path)
+                .header(header::RANGE, "bytes=7-")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_LENGTH], "10");
+    assert!(body_bytes(response.into_body()).await.is_empty());
+    let empty = push_blob(&app, &auth, "acme/source", b"").await;
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get(format!("/v2/acme/source/blobs/{empty}"))
+                .header(header::RANGE, "bytes=0-")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE);
+    assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */0");
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/v2/acme/destination/blobs/uploads/?mount={digest}&from=acme%2Fsource",
+            ))
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let location = response.headers()[header::LOCATION].to_str().unwrap();
+    assert_eq!(location, format!("/v2/acme/destination/blobs/{digest}"));
+    assert_eq!(body_bytes(get(&app, location).await.into_body()).await, b"0123456789");
+    for from in ["acme/missing", "library/upstream"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post(format!(
+                    "/v2/acme/destination/blobs/uploads/?mount={digest}&from={from}",
+                ))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::ACCEPTED);
+        assert!(response.headers()[header::LOCATION].to_str().unwrap().contains("/uploads/"));
+    }
+
+    for tag in ["a", "c", "e"] {
+        push_image(&app, &auth, "acme/pages", tag).await;
+    }
+    push_image(&app, &auth, "acme/zebra", "latest").await;
+    let response = get(&app, "/v2/acme/pages/tags/list?n=2").await;
+    let link = response.headers()[header::LINK].to_str().unwrap().to_string();
+    assert_eq!(link, r#"</v2/acme/pages/tags/list?n=2&last=c>; rel="next""#);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["tags"], json!(["a", "c"]));
+    let response = get(&app, "/v2/acme/pages/tags/list?n=2&last=c").await;
+    assert!(!response.headers().contains_key(header::LINK));
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["tags"], json!(["e"]));
+    let response = get(&app, "/v2/acme/pages/tags/list?last=b").await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["tags"], json!(["c", "e"]));
+    for endpoint in ["acme/pages/tags/list", "_catalog"] {
+        let response = get(&app, &format!("/v2/{endpoint}?n=0")).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(!response.headers().contains_key(header::LINK));
+        let payload: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        let field = if endpoint == "_catalog" { "repositories" } else { "tags" };
+        assert_eq!(payload[field], json!([]));
+        for invalid in ["-1", "oops", "184467440737095516160", ""] {
+            assert_eq!(
+                get(&app, &format!("/v2/{endpoint}?n={invalid}")).await.status(),
+                StatusCode::BAD_REQUEST,
+            );
+        }
+    }
+    let response = get(&app, "/oci/~images/v2/_catalog?n=1").await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers()[header::LINK]
+            .to_str()
+            .unwrap()
+            .starts_with("</oci/~images/v2/_catalog?"),
+    );
+    let response = get(&app, "/v2/_catalog?n=1&last=acme%2Fpages").await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/zebra"]));
+
+    let subject = digest_of(b"not pushed yet");
+    let path = format!("/v2/acme/artifacts/referrers/{subject}");
+    let response = get(&app, &path).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["manifests"], json!([]));
+    let config = push_blob(&app, &auth, "acme/artifacts", b"{}").await;
+    let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
+        "config": { "digest": config, "size": 2, "mediaType": "application/example.signature" },
+        "layers": [], "subject": { "digest": subject, "size": 42 },
+        "annotations": { "example.key": "value" } });
+    let bytes = serde_json::to_vec(&manifest).unwrap();
+    let referrer = digest_of(&bytes);
+    for tag in ["signature", "another-tag"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/v2/acme/artifacts/manifests/{tag}"))
+                    .header(header::AUTHORIZATION, &auth)
+                    .body(Body::from(bytes.clone()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        assert_eq!(response.headers()["oci-subject"], subject);
+    }
+    let response = get(&app, &format!("{path}?artifactType=application%2Fexample.signature")).await;
+    assert_eq!(response.headers()[header::CONTENT_TYPE], pnpr_oci::media_type::OCI_IMAGE_INDEX);
+    assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["schemaVersion"], 2);
+    assert_eq!(
+        payload["manifests"],
+        json!([{ "mediaType": pnpr_oci::media_type::OCI_IMAGE_MANIFEST,
+        "digest": referrer, "size": bytes.len(), "artifactType": "application/example.signature",
+        "annotations": { "example.key": "value" } }]),
+    );
+    let response = get(&app, &format!("{path}?artifactType=other")).await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["manifests"], json!([]));
+    let response = app
+        .clone()
+        .oneshot(
+            Request::delete("/v2/acme/artifacts/manifests/signature")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let response = get(&app, &path).await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/v2/acme/artifacts/manifests/{referrer}"))
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    let response = get(&app, &path).await;
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["manifests"], json!([]));
+    assert_eq!(
+        get(&app, "/v2/acme/artifacts/referrers/invalid").await.status(),
+        StatusCode::BAD_REQUEST,
+    );
+}
+
+#[tokio::test]
+async fn mounts_and_discovery_respect_source_read_permissions() {
+    let tmp = TempDir::new().unwrap();
+    let auth_state = AuthState::in_memory();
+    let setup = router_with_auth(oci_config(tmp.path().to_path_buf(), "$all"), auth_state.clone());
+    let auth = basic(&token(&setup).await);
+    let digest = push_blob(&setup, &auth, "acme/secret", b"secret layer").await;
+    push_image(&setup, &auth, "acme/secret", "latest").await;
+    push_image(&setup, &auth, "acme/public", "latest").await;
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.hosted.get_mut("images").unwrap().rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("acme/secret", Ecosystem::Oci).unwrap(),
+            access: Some(AccessList::from_tokens(["bob"])),
+            publish: Some(AccessList::from_tokens(["$authenticated"])),
+            unpublish: None,
+        }],
+        Some(AccessList::from_tokens(["$all"])),
+    );
+    let app = router_with_auth(config, auth_state);
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/v2/acme/public/blobs/uploads/?mount={digest}&from=acme/secret",
+            ))
+            .header(header::AUTHORIZATION, &auth)
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::ACCEPTED);
+    assert_eq!(
+        get(&app, &format!("/v2/acme/public/blobs/{digest}")).await.status(),
+        StatusCode::NOT_FOUND,
+    );
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post(format!(
+                "/v2/acme/public/blobs/uploads/?mount={digest}&from=acme/secret",
+            ))
+            .body(Body::empty())
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    for path in [
+        format!("/v2/acme/secret/referrers/{digest}"),
+        "/v2/acme/secret/tags/list?n=1".into(),
+        format!("/v2/acme/secret/blobs/{digest}"),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, &auth)
+                    .header(header::RANGE, "bytes=0-1")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+    let response = get(&app, "/v2/_catalog?n=1").await;
+    assert!(!response.headers().contains_key(header::LINK));
+    assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+    let payload: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(payload["repositories"], json!(["acme/public"]));
+}
+
+#[tokio::test]
+async fn referrers_backfill_preexisting_manifests_on_both_backends() {
+    for hosted_store in [
+        pnpr::HostedStoreConfig::Fs,
+        pnpr::HostedStoreConfig::ObjectStore {
+            store: std::sync::Arc::new(object_store::memory::InMemory::new()),
+            prefix: "legacy/".into(),
+        },
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        config.hosted_store = hosted_store;
+        let storage = pnpr_storage::Storage::new(
+            &config.hosted_store,
+            config.storage.clone(),
+            config.cache_storage.clone(),
+        )
+        .unwrap()
+        .for_hosted("images");
+        let app = router_with_auth(config, AuthState::in_memory());
+        let auth = basic(&token(&app).await);
+        let repository = repository_with_colliding_lock_keys();
+        let subject = digest_of(b"subject");
+        let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
+            "manifests": [], "subject": { "digest": subject, "size": 7 }, "artifactType": "application/example.sbom" });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/v2/{repository}/manifests/sbom"))
+                    .header(header::AUTHORIZATION, &auth)
+                    .body(Body::from(manifest.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let key =
+            pnpr_package_name::CanonicalPackageName::parse(&repository, Ecosystem::Oci).unwrap();
+        let mut document: Value =
+            serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+                .unwrap();
+        strip_referrer_metadata(&mut document, 1);
+        storage
+            .update_hosted_document_with_retry(&key, 1, |_| {
+                Ok(Some(serde_json::to_vec(&document).unwrap()))
+            })
+            .await
+            .unwrap();
+        let response = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            get(&app, &format!("/v2/{repository}/referrers/{subject}")),
+        )
+        .await
+        .expect("migration must not acquire the same stripe twice");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+        assert_eq!(payload["manifests"][0]["artifactType"], "application/example.sbom");
+        let document = pnpr_oci::ImageDocument::parse(
+            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            document.manifests()[0]
+                .referrer
+                .as_ref()
+                .unwrap()
+                .subject
+                .as_ref()
+                .unwrap()
+                .to_string(),
+            subject,
+        );
+    }
+}
+
+#[tokio::test]
+async fn referrer_pages_bound_migration_and_keep_filter_and_registry() {
+    for hosted_store in [
+        pnpr::HostedStoreConfig::Fs,
+        pnpr::HostedStoreConfig::ObjectStore {
+            store: std::sync::Arc::new(object_store::memory::InMemory::new()),
+            prefix: "pages/".into(),
+        },
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+        config.hosted_store = hosted_store;
+        let storage = pnpr_storage::Storage::new(
+            &config.hosted_store,
+            config.storage.clone(),
+            config.cache_storage.clone(),
+        )
+        .unwrap()
+        .for_hosted("images");
+        let app = router_with_auth(config, AuthState::in_memory());
+        let auth = basic(&token(&app).await);
+        let subject = digest_of(b"subject");
+        let mut expected = Vec::new();
+        for index in 0..35 {
+            let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
+                "manifests": [], "subject": { "digest": subject, "size": 7 },
+                "artifactType": "application/example+json", "annotations": { "index": index.to_string() } }).to_string();
+            expected.push(digest_of(manifest.as_bytes()));
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::put(format!("/v2/acme/paged/manifests/referrer-{index}"))
+                        .header(header::AUTHORIZATION, &auth)
+                        .body(Body::from(manifest))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::CREATED);
+        }
+        let key =
+            pnpr_package_name::CanonicalPackageName::parse("acme/paged", Ecosystem::Oci).unwrap();
+        let mut document: Value =
+            serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+                .unwrap();
+        strip_referrer_metadata(&mut document, 35);
+        storage
+            .update_hosted_document_with_retry(&key, 1, |_| {
+                Ok(Some(serde_json::to_vec(&document).unwrap()))
+            })
+            .await
+            .unwrap();
+        let path = format!("/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=absent");
+        let response = get(&app, &path).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers().contains_key(header::LINK));
+        let payload: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(payload["manifests"], json!([]));
+        let document = pnpr_oci::ImageDocument::parse(
+            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            document.manifests().iter().filter(|entry| entry.referrer.is_some()).count(),
+            32,
+        );
+        let first = get(&app, &path);
+        let second = get(&app, &path);
+        let responses: [_; 2] = tokio::join!(first, second).into();
+        for response in responses {
+            assert_eq!(response.status(), StatusCode::OK);
+            assert!(!response.headers().contains_key(header::LINK));
+        }
+        let document = pnpr_oci::ImageDocument::parse(
+            &storage.read_hosted_document(&key).await.unwrap().unwrap(),
+        )
+        .unwrap();
+        assert!(document.manifests().iter().all(|entry| entry.referrer.is_some()));
+        let mut path = format!(
+            "/oci/~images/v2/acme/paged/referrers/{subject}?artifactType=application%2Fexample%2Bjson",
+        );
+        let mut received = Vec::new();
+        let mut pages = 0;
+        loop {
+            let response = get(&app, &path).await;
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()["oci-filters-applied"], "artifactType");
+            let next = response.headers().get(header::LINK).map(|link| {
+                let link = link.to_str().unwrap();
+                assert!(link.contains("artifactType=application%2Fexample%2Bjson"));
+                assert!(link.starts_with("</oci/~images/v2/"));
+                link.strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
+            });
+            let payload: Value =
+                serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+            received.extend(
+                payload["manifests"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|entry| entry["digest"].as_str().unwrap().to_string()),
+            );
+            pages += 1;
+            assert!(pages <= 2);
+            let Some(next) = next else { break };
+            path = next;
+        }
+        expected.sort();
+        assert_eq!(received, expected);
+        assert_eq!(pages, 2);
+    }
+}
+
+#[tokio::test]
+async fn large_referrer_annotations_stay_out_of_repository_documents() {
+    let tmp = TempDir::new().unwrap();
+    let config = oci_config(tmp.path().to_path_buf(), "$all");
+    let storage = pnpr_storage::Storage::new(
+        &config.hosted_store,
+        config.storage.clone(),
+        config.cache_storage.clone(),
+    )
+    .unwrap()
+    .for_hosted("images");
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    let subject = digest_of(b"subject");
+    for index in 0..3 {
+        let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
+            "manifests": [], "subject": { "digest": subject, "size": 7 },
+            "annotations": { "large": "a".repeat(2 * 1024 * 1024), "index": index.to_string() } });
+        let response = app
+            .clone()
+            .oneshot(
+                Request::put(format!("/v2/acme/large/manifests/referrer-{index}"))
+                    .header(header::AUTHORIZATION, &auth)
+                    .body(Body::from(manifest.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
+    let key = pnpr_package_name::CanonicalPackageName::parse("acme/large", Ecosystem::Oci).unwrap();
+    let document = storage.read_hosted_document(&key).await.unwrap().unwrap();
+    assert!(document.len() < 2048, "annotations must not inflate ordinary repository reads");
+    let mut path = format!("/v2/acme/large/referrers/{subject}");
+    let mut count = 0;
+    loop {
+        let response = get(&app, &path).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let next = response.headers().get(header::LINK).map(|link| {
+            link.to_str().unwrap().strip_prefix('<').unwrap().split_once('>').unwrap().0.to_string()
+        });
+        let bytes = body_bytes(response.into_body()).await;
+        assert!(bytes.len() <= 4 * 1024 * 1024);
+        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(payload["manifests"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            payload["manifests"][0]["annotations"]["large"].as_str().unwrap().len(),
+            2 * 1024 * 1024,
+        );
+        count += 1;
+        assert!(count <= 3);
+        let Some(next) = next else { break };
+        path = next;
+    }
+    assert_eq!(count, 3);
+}
+
+fn strip_referrer_metadata(document: &mut Value, expected_count: usize) {
+    let entries = document["manifests"].as_array_mut().unwrap();
+    assert_eq!(entries.len(), expected_count, "the pushed manifests are stored");
+    for entry in entries {
+        assert!(
+            entry.as_object_mut().unwrap().remove("referrer").is_some(),
+            "the stored entry must carry referrer metadata before stripping it",
+        );
+    }
+}
+
+fn repository_with_colliding_lock_keys() -> String {
+    let locks = striped_locks::StripedLocks::new();
+    (0..4096)
+        .map(|index| format!("acme/lock-collision-{index}"))
+        .find(|name| {
+            locks.stripe_index(name) == locks.stripe_index(&format!("oci-referrers:{name}"))
+        })
+        .expect("a repository whose lock keys collide")
+}
+
+#[tokio::test]
+async fn referrer_migration_does_not_block_writers_or_restore_deleted_manifests() {
+    let tmp = TempDir::new().unwrap();
+    let objects = std::sync::Arc::new(pausing_store::PausingStore::default());
+    let mut config = oci_config(tmp.path().to_path_buf(), "$all");
+    config.hosted_store = pnpr::HostedStoreConfig::ObjectStore {
+        store: std::sync::Arc::<pausing_store::PausingStore>::clone(&objects),
+        prefix: "migration/".into(),
+    };
+    let hosted = config.hosted.get_mut("images").unwrap();
+    hosted.rules = std::mem::take(&mut hosted.rules)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]));
+    let storage = pnpr_storage::Storage::new(
+        &config.hosted_store,
+        config.storage.clone(),
+        config.cache_storage.clone(),
+    )
+    .unwrap()
+    .for_hosted("images");
+    let app = router_with_auth(config, AuthState::in_memory());
+    let auth = basic(&token(&app).await);
+    let subject = digest_of(b"subject");
+    let manifest = json!({ "schemaVersion": 2, "mediaType": pnpr_oci::media_type::OCI_IMAGE_INDEX,
+        "manifests": [], "subject": { "digest": subject, "size": 7 } })
+    .to_string();
+    let digest = pnpr_oci::Digest::of(manifest.as_bytes());
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/v2/acme/migration/manifests/sbom")
+                .header(header::AUTHORIZATION, &auth)
+                .body(Body::from(manifest))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let key =
+        pnpr_package_name::CanonicalPackageName::parse("acme/migration", Ecosystem::Oci).unwrap();
+    let mut document: Value =
+        serde_json::from_slice(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+            .unwrap();
+    strip_referrer_metadata(&mut document, 1);
+    storage
+        .update_hosted_document_with_retry(&key, 1, |_| {
+            Ok(Some(serde_json::to_vec(&document).unwrap()))
+        })
+        .await
+        .unwrap();
+    objects.pause(digest.blob_filename());
+    let reader = app.clone();
+    let path = format!("/v2/acme/migration/referrers/{subject}");
+    let read = tokio::spawn(async move { get(&reader, &path).await });
+    tokio::time::timeout(std::time::Duration::from_secs(5), objects.started.notified())
+        .await
+        .unwrap();
+    let update = async {
+        let published = push_image(&app, &auth, "acme/migration", "fresh").await;
+        let deleted = app
+            .clone()
+            .oneshot(
+                Request::delete(format!("/v2/acme/migration/manifests/{digest}"))
+                    .header(header::AUTHORIZATION, &auth)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(deleted.status(), StatusCode::ACCEPTED);
+        published
+    };
+    let published = tokio::time::timeout(std::time::Duration::from_secs(5), update).await;
+    objects.resume.notify_one();
+    let published = published.expect("manifest reads must not hold the package writer lock");
+    let response =
+        tokio::time::timeout(std::time::Duration::from_secs(5), read).await.unwrap().unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let document =
+        pnpr_oci::ImageDocument::parse(&storage.read_hosted_document(&key).await.unwrap().unwrap())
+            .unwrap();
+    assert!(document.manifest(&digest).is_none());
+    assert_eq!(document.resolve("fresh").unwrap().digest.to_string(), published);
 }
