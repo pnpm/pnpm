@@ -131,6 +131,7 @@ struct MockProvider {
     nonce: Mutex<Option<String>>,
     challenge: Mutex<Option<String>>,
     key_requests: Mutex<usize>,
+    token_requests: Mutex<usize>,
     auth_method: Mutex<String>,
     delay_discovery: std::sync::atomic::AtomicBool,
     discovery_started: tokio::sync::Notify,
@@ -145,6 +146,7 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
         nonce: Mutex::new(None),
         challenge: Mutex::new(None),
         key_requests: Mutex::new(0),
+        token_requests: Mutex::new(0),
         auth_method: Mutex::new("client_secret_basic".to_string()),
         delay_discovery: std::sync::atomic::AtomicBool::new(false),
         discovery_started: tokio::sync::Notify::new(),
@@ -165,6 +167,10 @@ async fn mock_provider() -> (Arc<MockProvider>, tokio::task::JoinHandle<()>) {
             Json(jwks(&state.key))
         }))
         .route("/token", post(async |State(state): State<Arc<MockProvider>>, Form(form): Form<HashMap<String, String>>| {
+            *state.token_requests.lock().unwrap() += 1;
+            if form.get("code").is_some_and(|code| code == "invalid") {
+                return Json(json!({"error": "invalid_grant"}));
+            }
             assert_eq!(form.get("grant_type").unwrap(), "authorization_code");
                 if *state.auth_method.lock().unwrap() == "client_secret_post" {
                     assert_eq!(form.get("client_secret").unwrap(), "secret");
@@ -371,5 +377,48 @@ async fn valid_workloads_do_not_wait_for_a_forced_network_refresh() {
         .unwrap();
     provider.release_discovery.notify_one();
     refresh.await.unwrap().unwrap();
+    task.abort();
+}
+
+#[tokio::test]
+async fn failed_callbacks_are_rejected_on_repeated_and_concurrent_attempts() {
+    let (provider, task) = mock_provider().await;
+    let mut config = config(&provider.issuer);
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    let state = OidcState::new(&[config], "https://registry.example").unwrap();
+    let start = state.start("example").await.unwrap();
+    let first = state.finish("example", &start.state, &start.browser_secret, "invalid");
+    let concurrent = state.finish("example", &start.state, &start.browser_secret, "invalid");
+    let (first, concurrent) = tokio::join!(first, concurrent);
+    assert!(first.is_err());
+    assert!(concurrent.is_err());
+    assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
+    assert_eq!(*provider.token_requests.lock().unwrap(), 1);
+    assert!(state.sessions.lock().unwrap().is_empty());
+    task.abort();
+}
+
+#[tokio::test]
+async fn callback_capacity_recovers_without_blocking_unattempted_logins() {
+    let (provider, task) = mock_provider().await;
+    let mut config = config(&provider.issuer);
+    config.login =
+        Some(OidcLogin { client_secret: None, users: vec![config.workloads.remove(0).identity] });
+    let state = OidcState::new(&[config], "https://registry.example").unwrap();
+    let start = state.start("example").await.unwrap();
+    for index in 0..super::MAX_ENTRIES + 32 {
+        state.record_attempt(&index.to_string()).unwrap();
+    }
+    assert_eq!(state.attempts.lock().unwrap().len(), super::MAX_ENTRIES);
+    let permits = state.exchanges.try_acquire_many(16).unwrap();
+    assert!(state.finish("example", &start.state, &start.browser_secret, "invalid").await.is_err());
+    assert_eq!(*provider.token_requests.lock().unwrap(), 0);
+    drop(permits);
+    let query: HashMap<_, _> = Url::parse(&start.url).unwrap().query_pairs().into_owned().collect();
+    *provider.nonce.lock().unwrap() = Some(query["nonce"].clone());
+    *provider.challenge.lock().unwrap() = Some(query["code_challenge"].clone());
+    state.finish("example", &start.state, &start.browser_secret, "code").await.unwrap();
+    assert_eq!(*provider.token_requests.lock().unwrap(), 1);
     task.abort();
 }

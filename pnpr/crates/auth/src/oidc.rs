@@ -20,11 +20,11 @@ use pnpr_error::{RegistryError, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     sync::Mutex,
     time::{Duration, Instant},
 };
-use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::{Mutex as AsyncMutex, Semaphore};
 use url::Url;
 
 const MAX_ENTRIES: usize = 1024;
@@ -48,6 +48,8 @@ pub struct OidcState {
     public_url: String,
     state_key: SigningKey,
     consumed: Mutex<HashMap<String, i64>>,
+    attempts: Mutex<VecDeque<String>>,
+    exchanges: Semaphore,
     sessions: Mutex<HashMap<String, Session>>,
 }
 
@@ -135,6 +137,8 @@ impl OidcState {
             public_url: public_url.trim_end_matches('/').to_string(),
             state_key,
             consumed: Mutex::new(HashMap::new()),
+            attempts: Mutex::new(VecDeque::new()),
+            exchanges: Semaphore::new(16),
             sessions: Mutex::new(HashMap::new()),
         })
     }
@@ -191,6 +195,8 @@ impl OidcState {
         {
             return Err(rejected());
         }
+        let _exchange = self.exchanges.try_acquire().map_err(|_| unavailable())?;
+        self.record_attempt(&login.state_hash)?;
         let nonce = Nonce::new(login.nonce);
         let provider = self.providers.get(provider_name).ok_or_else(rejected)?;
         let metadata = self.metadata(provider, false).await?;
@@ -235,6 +241,18 @@ impl OidcState {
         let session = self.issue_session(&binding.username, claims.expiration().timestamp())?;
         consumed.insert(login.state_hash, login.expires);
         Ok(session)
+    }
+
+    fn record_attempt(&self, state_hash: &str) -> Result<()> {
+        let mut attempts = self.attempts.lock().expect("OIDC attempts mutex poisoned");
+        if attempts.iter().any(|state| state == state_hash) {
+            return Err(rejected());
+        }
+        if attempts.len() >= MAX_ENTRIES {
+            attempts.pop_front();
+        }
+        attempts.push_back(state_hash.to_string());
+        Ok(())
     }
 
     fn seal_login(&self, login: &PendingLogin) -> Result<String> {

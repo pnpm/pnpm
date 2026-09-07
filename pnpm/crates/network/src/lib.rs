@@ -992,7 +992,6 @@ fn configure_dns(builder: reqwest::ClientBuilder) -> reqwest::ClientBuilder {
     builder.dns_resolver(native_dns_resolver())
 }
 
-/// Returns the shared, concurrency-limited system resolver used by network clients.
 #[must_use]
 pub fn native_dns_resolver() -> Arc<dyn Resolve> {
     static RESOLVER: LazyLock<Arc<CappedDnsResolver<NativeDnsResolver>>> = LazyLock::new(|| {

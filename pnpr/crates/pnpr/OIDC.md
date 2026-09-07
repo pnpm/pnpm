@@ -156,5 +156,8 @@ failure can trigger a refresh at most once every 30 seconds per provider.
 An unavailable provider cannot turn an invalid credential into anonymous
 access. Login state lives in a signed HttpOnly browser cookie for five minutes.
 Anonymous login starts reserve no server-side entries. Successful login replay
-records and browser sessions are each capped at 1,024 per process. pnpr omits OIDC callback query strings
-from its request logs. Configure reverse proxies to omit those queries too.
+records and browser sessions are each capped at 1,024 per process. A separate
+1,024-entry callback-attempt history rejects recent failed and concurrent replays
+before token exchange, evicting the oldest attempt when full. At most 16 browser
+callbacks can perform network operations concurrently. pnpr omits OIDC callback
+query strings from its request logs. Configure reverse proxies to omit those queries too.
