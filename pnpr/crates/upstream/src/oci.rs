@@ -61,16 +61,11 @@ impl Upstream {
                 .client
                 .acquire_for_url_without_redirects_with_priority(url.as_str(), UNPRIORITIZED)
                 .await;
-            let mut request = guard
+            let request = guard
                 .request(method.clone(), url.clone())
                 .timeout(self.timeout.saturating_sub(started.elapsed()))
                 .header(header::ACCEPT, accept);
-            if url.origin() == base.origin() && is_url_secure_for_credentials(url.as_str()) {
-                request = request.headers(self.request_headers(url.as_str()));
-                if let Some(token) = &bearer {
-                    request = request.bearer_auth(token);
-                }
-            }
+            let request = self.with_oci_credentials(request, &url, &base, bearer.as_deref());
             let response = self.run(request, url.as_str()).await?;
             if response.status() == StatusCode::UNAUTHORIZED
                 && !negotiated
@@ -89,16 +84,7 @@ impl Upstream {
                 continue;
             }
             if response.status().is_redirection() {
-                let target = response
-                    .headers()
-                    .get(header::LOCATION)
-                    .and_then(|value| value.to_str().ok())
-                    .and_then(|value| url.join(value).ok())
-                    .ok_or_else(|| self.oci_error("invalid OCI redirect"))?;
-                if !oci_download_allowed(&base, &target) {
-                    return Err(self.oci_error("OCI redirect is outside the download allowlist"));
-                }
-                url = target;
+                url = self.oci_redirect_target(&response, &url, &base)?;
                 continue;
             }
             if response.status() == StatusCode::NOT_FOUND {
@@ -112,6 +98,45 @@ impl Upstream {
             ));
         }
         Err(self.oci_error("too many OCI redirects"))
+    }
+
+    /// Attach the registry's credentials, but only to the registry itself
+    /// over a transport that will not leak them.
+    fn with_oci_credentials(
+        &self,
+        request: reqwest::RequestBuilder,
+        url: &Url,
+        base: &Url,
+        bearer: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        if url.origin() != base.origin() || !is_url_secure_for_credentials(url.as_str()) {
+            return request;
+        }
+        let request = request.headers(self.request_headers(url.as_str()));
+        match bearer {
+            Some(token) => request.bearer_auth(token),
+            None => request,
+        }
+    }
+
+    /// Where a redirect points, once it is known to stay inside the download
+    /// allowlist.
+    fn oci_redirect_target(
+        &self,
+        response: &reqwest::Response,
+        url: &Url,
+        base: &Url,
+    ) -> Result<Url> {
+        let target = response
+            .headers()
+            .get(header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| url.join(value).ok())
+            .ok_or_else(|| self.oci_error("invalid OCI redirect"))?;
+        if !oci_download_allowed(base, &target) {
+            return Err(self.oci_error("OCI redirect is outside the download allowlist"));
+        }
+        Ok(target)
     }
 
     async fn oci_token(

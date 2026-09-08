@@ -223,7 +223,20 @@ impl ImageDocument {
             self.name.clone_from(&addition.name);
             changed = true;
         }
-        for entry in addition.manifests {
+        changed |= self.merge_manifests(addition.manifests, lost_blobs);
+        changed |= self.merge_tags(addition.tags, lost_blobs);
+        changed
+    }
+
+    /// Take every manifest this document does not already hold and whose blob
+    /// the transaction did not lose.
+    fn merge_manifests(
+        &mut self,
+        manifests: Vec<ManifestEntry>,
+        lost_blobs: &HashSet<String>,
+    ) -> bool {
+        let mut changed = false;
+        for entry in manifests {
             if lost_blobs.contains(&entry.digest.blob_filename())
                 || self.manifest(&entry.digest).is_some()
             {
@@ -232,30 +245,37 @@ impl ImageDocument {
             self.insert_manifest(entry);
             changed = true;
         }
-        for entry in addition.tags {
+        changed
+    }
+
+    /// Take every tag mapping that supersedes the one held, skipping any whose
+    /// manifest this document does not have.
+    fn merge_tags(&mut self, tags: Vec<TagEntry>, lost_blobs: &HashSet<String>) -> bool {
+        let mut changed = false;
+        for entry in tags {
             if lost_blobs.contains(&entry.digest.blob_filename())
                 || self.manifest(&entry.digest).is_none()
+                || !self.tag_supersedes(&entry)
             {
-                continue;
-            }
-            // A newer write always wins, even where it names the digest the
-            // tag already holds: dropping it would leave the older timestamp
-            // in place, and a stale journaled write replayed later would then
-            // compare as newer and move the tag backward. On a tie only a
-            // different digest is a change, so re-applying the mapping
-            // already held costs no document write.
-            let supersedes =
-                self.tag(&entry.tag).is_none_or(|held| match held.updated.cmp(&entry.updated) {
-                    Ordering::Less => true,
-                    Ordering::Equal => held.digest != entry.digest,
-                    Ordering::Greater => false,
-                });
-            if !supersedes {
                 continue;
             }
             self.set_tag(entry);
             changed = true;
         }
         changed
+    }
+
+    /// A newer write always wins, even where it names the digest the tag
+    /// already holds: dropping it would leave the older timestamp in place,
+    /// and a stale journaled write replayed later would then compare as newer
+    /// and move the tag backward. On a tie only a different digest is a
+    /// change, so re-applying the mapping already held costs no document
+    /// write.
+    fn tag_supersedes(&self, entry: &TagEntry) -> bool {
+        self.tag(&entry.tag).is_none_or(|held| match held.updated.cmp(&entry.updated) {
+            Ordering::Less => true,
+            Ordering::Equal => held.digest != entry.digest,
+            Ordering::Greater => false,
+        })
     }
 }

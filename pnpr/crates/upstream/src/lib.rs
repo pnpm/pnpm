@@ -724,35 +724,43 @@ fn rewrite_upstream_revision_tarball_urls(
         return;
     };
     revisions.retain_mut(|revision| {
-        let Some(revision) = revision.as_object_mut() else {
-            return false;
-        };
-        let Some(number) = revision.get("revision").and_then(Value::as_u64) else {
-            return false;
-        };
-        if number > MAX_TARBALL_REVISION || !revision.get("manifest").is_some_and(Value::is_object)
-        {
-            return false;
-        }
-        let Some(integrity) = revision
-            .get("integrity")
-            .and_then(Value::as_str)
-            .and_then(|integrity| integrity.parse::<Integrity>().ok())
-        else {
-            return false;
-        };
-        let Some(tarball) = revision.get("tarball").and_then(Value::as_str) else {
-            return false;
-        };
-        if !is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry) {
-            return false;
-        }
-        let Some(tarball) = integrity_addressed_registry_tarball_url(&integrity, public_url) else {
-            return false;
-        };
-        revision.insert("tarball".to_string(), Value::String(tarball));
-        true
+        revision
+            .as_object_mut()
+            .is_some_and(|revision| rewrite_revision_tarball(revision, source_registry, public_url))
     });
+}
+
+/// Point one revision's tarball at pnpr, dropping the revision when anything
+/// about it fails to check out against the source registry.
+fn rewrite_revision_tarball(
+    revision: &mut serde_json::Map<String, Value>,
+    source_registry: &str,
+    public_url: &str,
+) -> bool {
+    let Some(number) = revision.get("revision").and_then(Value::as_u64) else {
+        return false;
+    };
+    if number > MAX_TARBALL_REVISION || !revision.get("manifest").is_some_and(Value::is_object) {
+        return false;
+    }
+    let Some(integrity) = revision
+        .get("integrity")
+        .and_then(Value::as_str)
+        .and_then(|integrity| integrity.parse::<Integrity>().ok())
+    else {
+        return false;
+    };
+    let addressed = revision.get("tarball").and_then(Value::as_str).is_some_and(|tarball| {
+        is_integrity_addressed_registry_tarball_url(tarball, &integrity, source_registry)
+    });
+    if !addressed {
+        return false;
+    }
+    let Some(tarball) = integrity_addressed_registry_tarball_url(&integrity, public_url) else {
+        return false;
+    };
+    revision.insert("tarball".to_string(), Value::String(tarball));
+    true
 }
 
 /// The tarball filename a `dist.tarball` URL points at: the final path
@@ -874,39 +882,51 @@ const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
 /// document's `dist.tarball` URLs already point at this server.
 pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
     let mut out = serde_json::Map::new();
-    if let Some(obj) = packument.as_object() {
-        for &field in ABBREVIATED_TOP_FIELDS {
-            if let Some(value) = obj.get(field) {
-                out.insert(field.to_string(), value.clone());
-            }
+    let Some(obj) = packument.as_object() else {
+        return Value::Object(out);
+    };
+    copy_fields(&mut out, obj, ABBREVIATED_TOP_FIELDS);
+    // Coarsen `time`, then synthesize `modified` from the coarsened map —
+    // npm packuments nest `modified` under `time` and pacquet's resolver
+    // reads it at the top level.
+    if let Some(time) = obj.get("time").and_then(Value::as_object) {
+        let time = coarsen_time_map(time, now);
+        if let Some(modified) = time.get("modified") {
+            out.insert("modified".to_string(), modified.clone());
         }
-        // Coarsen `time`, then synthesize `modified` from the
-        // coarsened map — npm packuments nest `modified` under `time`
-        // and pacquet's resolver reads it at the top level.
-        if let Some(time) = obj.get("time").and_then(Value::as_object) {
-            let time = coarsen_time_map(time, now);
-            if let Some(modified) = time.get("modified") {
-                out.insert("modified".to_string(), modified.clone());
-            }
-            out.insert("time".to_string(), Value::Object(time));
-        }
-        if let Some(versions) = obj.get("versions").and_then(Value::as_object) {
-            let mut abbreviated_versions = serde_json::Map::with_capacity(versions.len());
-            for (version_id, version_value) in versions {
-                let Some(version_obj) = version_value.as_object() else { continue };
-                let mut trimmed = serde_json::Map::new();
-                for &field in ABBREVIATED_VERSION_FIELDS {
-                    if let Some(value) = version_obj.get(field) {
-                        trimmed.insert(field.to_string(), value.clone());
-                    }
-                }
-                trim_dist_fields(&mut trimmed);
-                abbreviated_versions.insert(version_id.clone(), Value::Object(trimmed));
-            }
-            out.insert("versions".to_string(), Value::Object(abbreviated_versions));
-        }
+        out.insert("time".to_string(), Value::Object(time));
+    }
+    if let Some(versions) = obj.get("versions").and_then(Value::as_object) {
+        out.insert("versions".to_string(), abbreviate_versions(versions));
     }
     Value::Object(out)
+}
+
+/// The `versions` map with each manifest cut down to the fields a resolver
+/// reads.
+fn abbreviate_versions(versions: &serde_json::Map<String, Value>) -> Value {
+    let mut abbreviated = serde_json::Map::with_capacity(versions.len());
+    for (version_id, version_value) in versions {
+        let Some(version_obj) = version_value.as_object() else { continue };
+        let mut trimmed = serde_json::Map::new();
+        copy_fields(&mut trimmed, version_obj, ABBREVIATED_VERSION_FIELDS);
+        trim_dist_fields(&mut trimmed);
+        abbreviated.insert(version_id.clone(), Value::Object(trimmed));
+    }
+    Value::Object(abbreviated)
+}
+
+/// Copy whichever of `fields` the source carries.
+fn copy_fields(
+    out: &mut serde_json::Map<String, Value>,
+    source: &serde_json::Map<String, Value>,
+    fields: &[&str],
+) {
+    for &field in fields {
+        if let Some(value) = source.get(field) {
+            out.insert(field.to_string(), value.clone());
+        }
+    }
 }
 
 /// Trim `dist` subfields the resolver and installer never read:

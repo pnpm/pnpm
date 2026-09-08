@@ -317,23 +317,23 @@ impl OidcState {
             if provider.config.issuer != issuer || provider.config.workloads.is_empty() {
                 continue;
             }
-            let metadata = self.metadata(provider, false).await?;
-            if verify_workload(&provider.config, &metadata, raw).is_err() {
-                let refreshed = self.metadata(provider, true).await?;
-                if verify_workload(&provider.config, &refreshed, raw).is_err() {
-                    continue;
-                }
+            if !self.verify_workload_token(provider, raw).await? {
+                continue;
             }
-            for workload in &provider.config.workloads {
-                if binding_matches(&workload.identity, &payload) {
-                    if matched.is_some() {
-                        return Err(rejected());
-                    }
-                    matched = Some(workload.clone());
-                }
-            }
+            match_workload_binding(provider, &payload, &mut matched)?;
         }
         matched.map(Some).ok_or_else(rejected)
+    }
+
+    /// Whether the token verifies against the provider's keys, refetching its
+    /// metadata once in case the signing keys have rotated.
+    async fn verify_workload_token(&self, provider: &Provider, raw: &str) -> Result<bool> {
+        let metadata = self.metadata(provider, false).await?;
+        if verify_workload(&provider.config, &metadata, raw).is_ok() {
+            return Ok(true);
+        }
+        let refreshed = self.metadata(provider, true).await?;
+        Ok(verify_workload(&provider.config, &refreshed, raw).is_ok())
     }
 
     fn issue_session(&self, username: &str, expiration: i64) -> Result<LoginSession> {
@@ -540,6 +540,26 @@ fn unique_binding<'binding>(
         return Err(rejected());
     }
     Ok(binding)
+}
+
+/// Record the one workload binding this token satisfies. Two matching
+/// bindings make the identity ambiguous, which is rejected rather than
+/// resolved by declaration order.
+fn match_workload_binding(
+    provider: &Provider,
+    payload: &Value,
+    matched: &mut Option<OidcWorkload>,
+) -> Result<()> {
+    for workload in &provider.config.workloads {
+        if !binding_matches(&workload.identity, payload) {
+            continue;
+        }
+        if matched.is_some() {
+            return Err(rejected());
+        }
+        *matched = Some(workload.clone());
+    }
+    Ok(())
 }
 
 fn binding_matches(binding: &OidcBinding, payload: &Value) -> bool {

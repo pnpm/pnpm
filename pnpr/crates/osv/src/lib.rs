@@ -186,27 +186,8 @@ impl SemverRange {
     fn affects(&self, version: &Version) -> bool {
         let mut affected = false;
         for event in &self.events {
-            match event {
-                SemverEvent::Introduced(introduced) => {
-                    if version >= introduced {
-                        affected = true;
-                    }
-                }
-                SemverEvent::Fixed(fixed) => {
-                    if version >= fixed {
-                        affected = false;
-                    }
-                }
-                SemverEvent::LastAffected(last_affected) => {
-                    if version > last_affected {
-                        affected = false;
-                    }
-                }
-                SemverEvent::Limit(limit) => {
-                    if version >= limit {
-                        affected = false;
-                    }
-                }
+            if let Some(opens) = event.verdict_at(version) {
+                affected = opens;
             }
         }
         affected
@@ -228,6 +209,17 @@ impl SemverEvent {
             | SemverEvent::Fixed(version)
             | SemverEvent::LastAffected(version)
             | SemverEvent::Limit(version) => version,
+        }
+    }
+
+    /// Whether this event decides `version`'s membership, and how. An event
+    /// the version has not reached yet decides nothing.
+    fn verdict_at(&self, version: &Version) -> Option<bool> {
+        match self {
+            SemverEvent::Introduced(introduced) => (version >= introduced).then_some(true),
+            SemverEvent::Fixed(fixed) => (version >= fixed).then_some(false),
+            SemverEvent::LastAffected(last_affected) => (version > last_affected).then_some(false),
+            SemverEvent::Limit(limit) => (version >= limit).then_some(false),
         }
     }
 
@@ -459,10 +451,7 @@ fn ingest_record_bytes(
         }
         // Reject deliberately bloated entries so a crafted record can't
         // expand into a huge persistent set in the index.
-        if affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
-            || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
-            || affected.ranges.iter().any(|range| range.events.len() > MAX_EVENTS_PER_RANGE)
-        {
+        if exceeds_affected_limits(&affected) {
             return Err(invalid_config(format!(
                 "OSV record {} has an affected entry exceeding the version/range/event limits",
                 truncate_advisory_id(&record.id),
@@ -476,6 +465,14 @@ fn ingest_record_bytes(
         packages.entry(name).or_default().push(advisory);
     }
     Ok(())
+}
+
+/// Whether one `affected` entry declares more versions, ranges or events than
+/// the index will hold for it.
+fn exceeds_affected_limits(affected: &OsvAffected) -> bool {
+    affected.versions.len() > MAX_VERSIONS_PER_AFFECTED
+        || affected.ranges.len() > MAX_RANGES_PER_AFFECTED
+        || affected.ranges.iter().any(|range| range.events.len() > MAX_EVENTS_PER_RANGE)
 }
 
 /// Fold an npm package name to its case-insensitive key. npm forbids

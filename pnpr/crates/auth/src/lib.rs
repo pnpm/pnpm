@@ -80,48 +80,34 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
     if username.is_empty() {
         return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
     }
-
-    let mut chars = 0;
-    let mut starts_with_whitespace = false;
-    let mut ends_with_whitespace = false;
-    let mut contains_colon = false;
-    let mut contains_control = false;
-    for ch in username.chars() {
-        chars += 1;
-        if chars > MAX_USERNAME_CHARS {
-            return Err(RegistryError::BadRequest {
-                reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-            });
-        }
-        if chars == 1 {
-            starts_with_whitespace = ch.is_whitespace();
-        }
-        ends_with_whitespace = ch.is_whitespace();
-        contains_colon |= ch == ':';
-        contains_control |= ch.is_control();
-    }
-
-    if starts_with_whitespace || ends_with_whitespace {
+    if username.chars().count() > MAX_USERNAME_CHARS {
         return Err(RegistryError::BadRequest {
-            reason: "username must not start or end with whitespace".to_string(),
+            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
         });
+    }
+    let reason = rejected_username_reason(username);
+    match reason {
+        Some(reason) => Err(RegistryError::BadRequest { reason: reason.to_string() }),
+        None => Ok(()),
+    }
+}
+
+/// Why a username of an acceptable length is still not one pnpr will store.
+fn rejected_username_reason(username: &str) -> Option<&'static str> {
+    let trimmed = username.trim_matches(char::is_whitespace);
+    if trimmed.len() != username.len() {
+        return Some("username must not start or end with whitespace");
     }
     if username.starts_with('#') {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not start with '#'".to_string(),
-        });
+        return Some("username must not start with '#'");
     }
-    if contains_colon {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not contain ':'".to_string(),
-        });
+    if username.contains(':') {
+        return Some("username must not contain ':'");
     }
-    if contains_control {
-        return Err(RegistryError::BadRequest {
-            reason: "username must not contain control characters".to_string(),
-        });
+    if username.chars().any(char::is_control) {
+        return Some("username must not contain control characters");
     }
-    Ok(())
+    None
 }
 
 pub(crate) fn token_timestamp_from_sql(timestamp: i64) -> u64 {
@@ -676,30 +662,36 @@ fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, Str
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        let Some((user, hash)) = line.split_once(':') else {
-            return Err(format!("line {}: missing ':' separator", line_no + 1));
-        };
-        let user = user.trim();
-        let hash = hash.trim();
-        if user.is_empty() {
-            return Err(format!("line {}: empty username", line_no + 1));
-        }
-        if let Err(err) = validate_username(user) {
-            let reason = match err {
-                RegistryError::BadRequest { reason } => reason,
-                err => err.to_string(),
-            };
-            return Err(format!("line {}: invalid username {user:?}: {reason}", line_no + 1));
-        }
-        if !is_supported_hash(hash) {
-            return Err(format!(
-                "line {}: unsupported hash format for user {user:?} (only bcrypt is accepted)",
-                line_no + 1,
-            ));
-        }
+        let (user, hash) =
+            parse_htpasswd_line(line).map_err(|err| format!("line {}: {err}", line_no + 1))?;
         out.insert(user.to_string(), hash.to_string());
     }
     Ok(out)
+}
+
+/// The user and bcrypt hash one htpasswd line declares.
+fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), String> {
+    let Some((user, hash)) = line.split_once(':') else {
+        return Err("missing ':' separator".to_string());
+    };
+    let user = user.trim();
+    let hash = hash.trim();
+    if user.is_empty() {
+        return Err("empty username".to_string());
+    }
+    if let Err(err) = validate_username(user) {
+        let reason = match err {
+            RegistryError::BadRequest { reason } => reason,
+            err => err.to_string(),
+        };
+        return Err(format!("invalid username {user:?}: {reason}"));
+    }
+    if !is_supported_hash(hash) {
+        return Err(
+            format!("unsupported hash format for user {user:?} (only bcrypt is accepted)",),
+        );
+    }
+    Ok((user, hash))
 }
 
 /// True for any bcrypt variant. We don't accept `{SHA}`, `$apr1$`,
