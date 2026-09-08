@@ -1174,11 +1174,8 @@ fn replace_shim<Sys: FsWrite>(path: &Path, bytes: &[u8]) -> Result<(), LinkBinsE
 /// EROFS, `AppArmor` deny, ...) surfaces as [`LinkBinsError::RemoveStaleBin`]
 /// so a real failure isn't hidden behind a silent skip.
 fn remove_stale_bin(path: &Path) -> Result<(), LinkBinsError> {
-    match std::fs::remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(LinkBinsError::RemoveStaleBin { path: path.to_path_buf(), error }),
-    }
+    remove_if_exists(path)
+        .map_err(|error| LinkBinsError::RemoveStaleBin { path: path.to_path_buf(), error })
 }
 
 /// Append `<ext>` to `path` as a *new* extension segment (`foo` becomes
@@ -1212,7 +1209,7 @@ pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
 }
 
 fn remove_if_exists(path: &Path) -> io::Result<()> {
-    match std::fs::remove_file(path) {
+    match pnpm_fs::remove_file_with_retry(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(error) => Err(error),

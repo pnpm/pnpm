@@ -262,7 +262,7 @@ impl FsWrite for Host {
                 };
             let written = tmp.write_all(bytes);
             drop(tmp);
-            let result = written.and_then(|()| std::fs::rename(&tmp_path, path));
+            let result = written.and_then(|()| pnpm_fs::rename_with_retry(&tmp_path, path));
             if result.is_err() {
                 let _ = std::fs::remove_file(&tmp_path);
             }

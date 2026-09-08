@@ -21,7 +21,22 @@ pub(crate) const ERROR_LOCK_VIOLATION: i32 = 33;
 /// there usually mean a permanent permissions or mount-point problem, so
 /// retrying would only delay the failure.
 pub fn rename_with_retry(src: &Path, dst: &Path) -> io::Result<()> {
-    retry_transient_file_locks(|| fs::rename(src, dst))
+    retry_transient_file_locks(|| {
+        let result = fs::rename(src, dst);
+        #[cfg(all(windows, feature = "test"))]
+        crate::test_support::notify_attempt(dst, &result);
+        result
+    })
+}
+
+/// Remove a file with the retry policy of [`rename_with_retry`].
+pub fn remove_file_with_retry(path: &Path) -> io::Result<()> {
+    retry_transient_file_locks(|| {
+        let result = fs::remove_file(path);
+        #[cfg(all(windows, feature = "test"))]
+        crate::test_support::notify_attempt(path, &result);
+        result
+    })
 }
 
 /// Remove a directory tree with the retry policy of [`rename_with_retry`].
