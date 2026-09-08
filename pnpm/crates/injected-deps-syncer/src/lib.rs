@@ -7,12 +7,12 @@
 //! in place. `syncInjectedDepsAfterScripts` names the scripts that
 //! should trigger it.
 
-mod dir_patcher;
-
 pub use dir_patcher::{
     Change, DirDiff, DirPatcher, FileId, InodeMap, PatchError, Value, apply_patch, diff_dir,
     extend_files_map,
 };
+
+mod dir_patcher;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -56,7 +56,6 @@ pub enum SyncInjectedDepsError {
         error: FindWorkspaceProjectsError,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Patch(PatchError),
 
@@ -68,7 +67,6 @@ pub enum SyncInjectedDepsError {
         error: std::io::Error,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     LinkBins(LinkBinsError),
 }

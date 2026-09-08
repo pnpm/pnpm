@@ -1,21 +1,13 @@
-mod api;
 pub mod config_types;
-mod defaults;
-mod env_overlay;
 pub mod esm_node_path_loader;
-mod global_bin_check;
 pub mod known_settings;
 pub mod matcher;
 pub mod naming_cases;
-mod npmrc_auth;
-mod override_version_references;
 pub mod property_path;
 pub mod protected_settings;
 pub mod proxy_keys;
 pub mod refused_keys;
-mod store_path;
 pub mod version_policy;
-mod workspace_yaml;
 
 pub use crate::{
     api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe},
@@ -23,6 +15,40 @@ pub use crate::{
     npmrc_auth::{is_json_auth_scope, validate_json_auth_registry},
 };
 
+pub use crate::defaults::{
+    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
+    available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
+    default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
+    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
+    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
+    resolve_configured_state_dir, standalone_install_command,
+};
+pub use workspace_yaml::{
+    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
+    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
+    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
+    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
+    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
+    workspace_root_or,
+};
+
+mod api;
+mod defaults;
+mod env_overlay;
+mod global_bin_check;
+mod npmrc_auth;
+mod override_version_references;
+mod store_path;
+mod workspace_yaml;
+
+use crate::defaults::{
+    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
+    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
+    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
+    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
+    default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
+};
 use crate::{matcher::create_matcher, npmrc_auth::NpmrcAuth};
 use indexmap::IndexMap;
 use pipe_trait::Pipe;
@@ -41,31 +67,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::Arc,
-};
-
-pub use crate::defaults::{
-    BUILTIN_REGISTRIES_BY_PREFIX, DEFAULT_JSR_REGISTRY, GLOBAL_LAYOUT_VERSION, PNPM_VERSION,
-    available_parallelism, default_cache_dir, default_config_dir, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_pnpm_home_dir, default_registry, default_state_dir,
-    default_unsafe_perm, default_virtual_store_dir_max_length, default_workspace_concurrency,
-    install_command_for, is_unsafe_perm_posix, resolve_child_concurrency,
-    resolve_configured_state_dir, standalone_install_command,
-};
-use crate::defaults::{
-    default_child_concurrency, default_enable_global_virtual_store, default_fetch_min_speed_ki_bps,
-    default_fetch_retries, default_fetch_retry_factor, default_fetch_retry_maxtimeout,
-    default_fetch_retry_mintimeout, default_fetch_timeout, default_fetch_warn_timeout_ms,
-    default_hoist_pattern, default_modules_cache_max_age, default_modules_dir,
-    default_public_hoist_pattern, default_store_dir, default_user_agent, default_virtual_store_dir,
-};
-pub use workspace_yaml::{
-    AllowBuild, AuditSettings, CargoSettings, GLOBAL_CONFIG_YAML_FILENAME, LoadWorkspaceYamlError,
-    PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
-    RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
-    WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
-    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
-    registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
-    workspace_root_or,
 };
 
 impl Config {

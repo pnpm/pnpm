@@ -1,5 +1,6 @@
-mod host;
 pub(crate) mod manifest;
+
+mod host;
 mod registry;
 mod resolver;
 

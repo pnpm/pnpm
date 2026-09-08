@@ -10,15 +10,6 @@
 //! - `projects`    — glob-expand `packages:` into [`Project`]s.
 //!   Public entry point: [`find_workspace_projects`].
 
-mod api;
-mod importer_id;
-mod inventory;
-mod manifest;
-mod project_manifest;
-mod projects;
-mod projects_graph_view;
-mod root_finder;
-
 pub use api::{EnvVarOs, Host};
 pub use importer_id::importer_id_from_root_dir;
 pub use inventory::{FindWorkspaceInventoryError, WorkspaceInventory, find_workspace_inventory};
@@ -40,3 +31,12 @@ pub use root_finder::{
     BadWorkspaceManifestNameError, FindWorkspaceDirError, find_workspace_dir,
     find_workspace_dir_from_env,
 };
+
+mod api;
+mod importer_id;
+mod inventory;
+mod manifest;
+mod project_manifest;
+mod projects;
+mod projects_graph_view;
+mod root_finder;

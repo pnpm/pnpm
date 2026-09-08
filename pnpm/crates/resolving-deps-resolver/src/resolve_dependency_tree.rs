@@ -1,3 +1,11 @@
+pub use reuse::real_package_name_of;
+pub use tree_ctx::TreeCtx;
+pub use workspace_ctx::WorkspaceTreeCtx;
+
+pub(crate) use catalogs::resolve_catalog_specifiers;
+pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
+pub(crate) use workspace_ctx::SyncCursor;
+
 use derive_more::{Display, Error};
 use futures_util::future;
 use miette::Diagnostic;
@@ -33,14 +41,6 @@ mod workspace_ctx;
 
 #[cfg(test)]
 mod test_support;
-
-pub use reuse::real_package_name_of;
-pub use tree_ctx::TreeCtx;
-pub use workspace_ctx::WorkspaceTreeCtx;
-
-pub(crate) use catalogs::resolve_catalog_specifiers;
-pub(crate) use reuse::{record_changed_direct_deps, unwrap_package_name};
-pub(crate) use workspace_ctx::SyncCursor;
 
 use reuse::{ReuseSource, record_direct_dep_versions};
 use walk::{
@@ -375,7 +375,6 @@ pub enum ResolveDependencyTreeError {
     /// would erase the locked entries and make the lockfile differ
     /// depending on which machine ran the install
     /// (<https://github.com/pnpm/pnpm/issues/12853>).
-    #[display("{_0}")]
     #[diagnostic(help(
         "This optional dependency is not skipped, because the lockfile contains a resolution for it. Skipping it would remove the locked entries, making the lockfile differ depending on which machine ran the install. If the version was intentionally removed from the registry, update the dependent package or remove the entries from the lockfile."
     ))]
@@ -401,7 +400,6 @@ pub enum ResolveDependencyTreeError {
     /// satisfies the same `name@version` and the user did not break the
     /// tie with an exact-version entry. Propagated verbatim from
     /// [`pnpm_patching::get_patch_info`].
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     PatchKeyConflict(#[error(source)] PatchKeyConflictError),
 
@@ -437,7 +435,6 @@ pub enum ResolveDependencyTreeError {
     /// two codes, reserving `ERR_PNPM_BAD_READ_PACKAGE_HOOK_RESULT` for a
     /// hook that returns a non-manifest; pacquet does not distinguish the
     /// two yet.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     PnpmfileHook(#[error(not(source))] pnpm_hooks::HookError),
 }

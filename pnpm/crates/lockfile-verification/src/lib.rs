@@ -22,12 +22,6 @@
 //!
 //! [`ResolutionVerifier`]: pnpm_resolving_resolver_base::ResolutionVerifier
 
-mod cache;
-mod errors;
-mod hash_lockfile;
-mod record_lockfile_verified;
-mod verify_lockfile_resolutions;
-
 pub use cache::{
     CACHE_FILE_NAME, COMPACT_TRIGGER_BYTES, CacheLockfile, CacheLookupResult, CachePrecomputed,
     CacheRecord, LockfileStat, MAX_CACHE_ENTRIES, record_verification,
@@ -42,3 +36,9 @@ pub use verify_lockfile_resolutions::{
     lockfile_verification_is_cached_by_content, verify_lockfile_dependency_names,
     verify_lockfile_resolutions,
 };
+
+mod cache;
+mod errors;
+mod hash_lockfile;
+mod record_lockfile_verified;
+mod verify_lockfile_resolutions;

@@ -25,9 +25,10 @@
 //! not concrete. The check is static because [`PackagePattern`]'s coverage
 //! relation is decidable for this deliberately small glob language.
 
+pub use pnpr_package_name::Ecosystem;
+
 use indexmap::IndexMap;
 use pnpr_package_name::CanonicalPackageName;
-pub use pnpr_package_name::Ecosystem;
 use std::fmt;
 
 /// A package-name pattern: one member of a concrete registry's declared

@@ -1,3 +1,27 @@
+pub(crate) use fix::{
+    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
+    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
+    ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
+};
+pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
+pub(crate) use render::{
+    blue, bold, color_severity, green, red, render_json_report, render_text_report,
+};
+pub(crate) use report::{
+    AuditAdvisory, AuditError, AuditReport, AuditVulnerabilityCounts, RawBulkAdvisory,
+    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, normalize_registry,
+    redact_url_userinfo, sanitize_response_body,
+};
+pub(crate) use request::{
+    AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
+    append_snapshot_edges, classify_graph, empty_snapshots, env_roots, importer_roots,
+    lockfile_to_audit_request, root_included,
+};
+pub(crate) use version_ranges::{
+    caret_range_for_patched, infer_patched_versions, patched_range_for_style,
+    satisfies_including_prerelease, satisfies_safe,
+};
+
 use crate::{
     State,
     cli_args::{install::resolve_bool_override, sanitize::sanitize_inline},
@@ -38,30 +62,6 @@ mod render;
 mod report;
 mod request;
 mod version_ranges;
-
-pub(crate) use fix::{
-    AuditFixObserver, PackumentPublishInfo, VulnerabilityGuard, fetch_publish_times,
-    filter_advisories_for_fix, fix_override, fix_with_update, format_fix_with_update_output,
-    ignore_vulnerabilities, interactive_select, prune_ignored_ghsas,
-};
-pub(crate) use paths::{AuditPathIndex, PathInfo, build_audit_path_index, package_version};
-pub(crate) use render::{
-    blue, bold, color_severity, green, red, render_json_report, render_text_report,
-};
-pub(crate) use report::{
-    AuditAdvisory, AuditError, AuditReport, AuditVulnerabilityCounts, RawBulkAdvisory,
-    bulk_response_to_audit_report, empty_audit_report, normalize_ghsa_id, normalize_registry,
-    redact_url_userinfo, sanitize_response_body,
-};
-pub(crate) use request::{
-    AuditGraph, AuditIndexRequest, DepClass, DepKind, Edge, GraphImporter, Include,
-    append_snapshot_edges, classify_graph, empty_snapshots, env_roots, importer_roots,
-    lockfile_to_audit_request, root_included,
-};
-pub(crate) use version_ranges::{
-    caret_range_for_patched, infer_patched_versions, patched_range_for_style,
-    satisfies_including_prerelease, satisfies_safe,
-};
 
 mod signatures;
 

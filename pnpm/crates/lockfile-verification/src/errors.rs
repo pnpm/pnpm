@@ -62,7 +62,6 @@ pub enum VerifyError {
     /// already explains the auth situation — rather than a tampering-style
     /// mismatch or a lockfile-policy batch. The message is credential-redacted
     /// at the verifier before it reaches here.
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
     RegistryMetaFetchFailed {
         #[error(not(source))]

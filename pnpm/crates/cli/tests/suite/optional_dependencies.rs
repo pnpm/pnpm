@@ -2,8 +2,9 @@
 //! (`installing/deps-installer/test/install/optionalDependencies.ts`) —
 //! see `plans/TEST_PORTING.md` § "Proper Support Of `optionalDependencies`".
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

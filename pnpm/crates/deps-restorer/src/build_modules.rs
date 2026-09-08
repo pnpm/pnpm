@@ -1,9 +1,3 @@
-use crate::{
-    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
-    build_graph::build_graph,
-    import_indexed_dir, store_index_key_for_resolution,
-    version_policy::{VersionPolicyError, expand_package_version_specs},
-};
 pub(crate) mod allow_build_policy;
 pub(crate) mod build_one_snapshot;
 pub(crate) mod slots;
@@ -17,6 +11,13 @@ pub use slots::parse_name_version_from_key;
 pub(crate) use slots::{
     bin_dirs_in_all_parent_dirs, discard_failed_global_virtual_store_slot,
     materialize_side_effects, pkg_root_for_key, pkg_roots_for_key, slot_carries_overlay,
+};
+
+use crate::{
+    ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER, SkippedSnapshots,
+    build_graph::build_graph,
+    import_indexed_dir, store_index_key_for_resolution,
+    version_policy::{VersionPolicyError, expand_package_version_specs},
 };
 
 use derive_more::{Display, Error};

@@ -1,14 +1,3 @@
-mod bundled_node_gyp;
-mod extend_path;
-mod job_control;
-mod lifecycle;
-mod make_env;
-mod process_tracker;
-mod run_script;
-mod script_exit;
-mod shell;
-mod shell_emulator;
-
 pub use bundled_node_gyp::bundled_node_gyp_bin;
 pub use extend_path::{ScriptsPrependNodePath, extend_path};
 pub use job_control::{JobGuard, arm_process_tree_cleanup};
@@ -24,6 +13,17 @@ pub use run_script::{RunScript, RunScriptError, ScriptOutput, run_script};
 pub use script_exit::ScriptExit;
 pub use shell::{ScriptShellError, SelectedShell, select_shell};
 pub use shell_emulator::{EmulatedOutput, ShellEmulatorError, execute_emulated};
+
+mod bundled_node_gyp;
+mod extend_path;
+mod job_control;
+mod lifecycle;
+mod make_env;
+mod process_tracker;
+mod run_script;
+mod script_exit;
+mod shell;
+mod shell_emulator;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

@@ -536,7 +536,6 @@ pub(crate) enum FreshnessCheckError {
 
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` /
     /// current settings.
-    #[display("{_0}")]
     Stale(#[error(not(source))] StalenessReason),
 }
 

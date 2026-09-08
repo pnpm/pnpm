@@ -1,14 +1,3 @@
-mod archive_request;
-mod archive_retry;
-mod download;
-mod error;
-mod extract;
-mod extraction_task;
-mod ingestion;
-mod local_tarball;
-mod prefetch;
-mod zip_archive;
-
 pub use download::*;
 pub use error::*;
 pub(crate) use extract::{
@@ -19,8 +8,20 @@ pub(crate) use extract::{
     oversized_manifest_error, stream_extract_gzipped_channel, tar_entry_payload,
 };
 pub use local_tarball::*;
+pub use pnpm_network::RetryOpts;
 pub use prefetch::*;
 pub use zip_archive::*;
+
+mod archive_request;
+mod archive_retry;
+mod download;
+mod error;
+mod extract;
+mod extraction_task;
+mod ingestion;
+mod local_tarball;
+mod prefetch;
+mod zip_archive;
 
 use std::{
     borrow::Cow,
@@ -33,7 +34,6 @@ use std::{
 
 use dashmap::{DashMap, DashSet};
 use pipe_trait::Pipe;
-pub use pnpm_network::RetryOpts;
 use pnpm_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{StoreDir, StoreIndexWriter, store_index_key};

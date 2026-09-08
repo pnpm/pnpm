@@ -15,12 +15,13 @@
 //! than half-published, which is what makes the split safe, and why
 //! collecting unreferenced blobs is a job of its own.
 
-mod deletion;
-mod proxy;
-mod publication;
 pub(super) mod tokens;
 
 pub(super) use publication::{OciPublication, authorize_publication};
+
+mod deletion;
+mod proxy;
+mod publication;
 
 use super::{
     Action, AppState, AuthedCaller, RegistrySource, TargetRegistry, authorize,

@@ -194,7 +194,6 @@ pub enum PackAppError {
     #[diagnostic(code(ERR_PNPM_PACK_APP_INVALID_CONFIG))]
     UnknownConfigKey { key: String, allowed: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PACK_APP_INVALID_CONFIG))]
     InvalidConfig {
         #[error(not(source))]

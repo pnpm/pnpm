@@ -12,13 +12,6 @@
 //! there is no source to feed the hook. See the `create` module for the
 //! gap note.
 
-mod create;
-mod replace;
-mod transform;
-
-#[cfg(test)]
-mod tests;
-
 pub use create::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
     read_readme_file,
@@ -28,3 +21,10 @@ pub use replace::{
     replace_workspace_protocol_peer_dependency,
 };
 pub use transform::TransformError;
+
+mod create;
+mod replace;
+mod transform;
+
+#[cfg(test)]
+mod tests;

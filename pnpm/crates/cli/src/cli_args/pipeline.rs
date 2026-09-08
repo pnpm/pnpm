@@ -8,6 +8,9 @@
 //! form. The command name is `pipeline` because `pnpm ci` is already the
 //! clean-install command.
 
+pub use agent::{WatchInvocation, run_watch};
+pub use report::RunUpload;
+
 use super::{
     install::InstallArgs,
     recursive::{ExecutionStatus, Status, discover_workspace_projects},
@@ -53,11 +56,8 @@ mod capture;
 mod cargo_cache;
 mod paths;
 mod report;
-
-pub use agent::{WatchInvocation, run_watch};
 use cache::{CacheDisposition, TaskCache};
 use report::RunReport;
-pub use report::RunUpload;
 
 /// The base ref the affected selection falls back to when neither
 /// `--base` nor the `pipelineBase` setting names one.

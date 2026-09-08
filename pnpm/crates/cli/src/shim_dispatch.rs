@@ -21,6 +21,16 @@
 //! or replacement bin cannot inherit an earlier approval.
 //! Without a terminal the dispatcher falls back to the global target.
 
+pub(crate) mod native_shim;
+pub(crate) mod runtime_env;
+
+pub(crate) use native_shim::{
+    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
+    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
+    refresh_native_shims, remove_native_shim,
+};
+pub(crate) use runtime_env::materialize_runtime;
+
 use crate::{
     cli_args::package_manager::wanted_package_manager,
     engine_pm::{
@@ -47,16 +57,7 @@ use std::{
 };
 
 mod identity;
-pub(crate) mod native_shim;
-pub(crate) mod runtime_env;
 mod trust;
-
-pub(crate) use native_shim::{
-    ShimTarget, install_native_shim, is_legacy_context_aware_shim, migrate_legacy_shims,
-    native_shim_is_installed, native_shim_paths, native_shim_target, native_shims,
-    refresh_native_shims, remove_native_shim,
-};
-pub(crate) use runtime_env::materialize_runtime;
 
 use identity::{local_bin_identity, provider_of_target};
 use native_shim::{dispatch_legacy_shim, try_native_dispatch};
@@ -274,10 +275,13 @@ pub(crate) fn global_shims_setting() -> GlobalShims {
 
 #[derive(Debug, Display)]
 pub(crate) enum LoadGlobalShimsSettingError {
-    #[display("{_0}")]
     Workspace(LoadWorkspaceYamlError),
     #[display("malformed {env_name} value {value:?}: {source}")]
-    Environment { env_name: &'static str, value: String, source: serde_json::Error },
+    Environment {
+        env_name: &'static str,
+        value: String,
+        source: serde_json::Error,
+    },
 }
 
 fn load_trusted_shim_settings() -> Result<TrustedShimSettings, LoadGlobalShimsSettingError> {

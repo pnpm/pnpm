@@ -434,7 +434,6 @@ fn full_resolution_required<'a>(
 pub enum InstallWithFreshLockfileError {
     /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
     /// same code and message from `requireHooks`.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
     MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// The concurrent pre-resolve verification of the existing lockfile
@@ -629,7 +628,6 @@ pub enum InstallWithFreshLockfileError {
 
     /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
     /// A throwing `afterAllResolved` aborts the install.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     AfterAllResolvedHook(#[error(not(source))] pnpm_hooks::HookError),
 
@@ -641,21 +639,18 @@ pub enum InstallWithFreshLockfileError {
 
     /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
     /// resolvers. A throwing custom-resolver hook aborts the install.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverHook(#[error(not(source))] pnpm_hooks::HookError),
 
     /// The pnpmfile threw while loading its custom `fetchers` export.
     /// Same fatality rule as [`Self::CustomResolverHook`] and the
     /// frozen-lockfile path's custom-fetcher load.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 
     /// A custom resolver's `shouldRefreshResolution` hook threw while
     /// checking whether to force re-resolution. A throwing hook aborts
     /// the install.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pnpm_hooks::HookError),
 }

@@ -108,7 +108,6 @@ pub enum SaveMetaError {
         #[error(source)]
         error: io::Error,
     },
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Encode(#[error(source)] EncodeMetaError),
     #[display("Failed to rename mirror temp {temp:?} → {target:?}: {error}")]

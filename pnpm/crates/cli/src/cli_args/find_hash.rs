@@ -19,7 +19,6 @@ pub enum FindHashError {
     #[diagnostic(code(ERR_PNPM_INVALID_FILE_HASH))]
     InvalidFileHash,
 
-    #[display("{source}")]
     #[diagnostic(transparent)]
     StoreIndex {
         #[error(source)]

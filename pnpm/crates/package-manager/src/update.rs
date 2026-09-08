@@ -159,7 +159,6 @@ pub struct Update<'a> {
 pub enum UpdateError {
     /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
     /// same code and message from `requireHooks`.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
     MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     /// `--latest` was combined with a versioned selector (`foo@2`).

@@ -235,19 +235,15 @@ pub enum BatchPublishError {
         registry: String,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Registry(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Package(PublishPackedPkgError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Otp(WithOtpError<PublishHttpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Failed(FailedToPublishError),
 }

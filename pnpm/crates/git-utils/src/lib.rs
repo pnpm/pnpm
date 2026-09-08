@@ -4,9 +4,9 @@
 //!
 //! Counterpart of pnpm's `@pnpm/network.git-utils`.
 
-mod capabilities;
-
 pub use capabilities::{CommandOutput, Host, RunCommand};
+
+mod capabilities;
 
 use std::{fs, io, io::Read, path::Path};
 

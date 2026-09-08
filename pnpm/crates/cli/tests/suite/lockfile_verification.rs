@@ -11,8 +11,9 @@
 //! tripped, and the error envelope carries the upstream code so
 //! `pnpm errors` documentation routes to the right entry.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use command_extra::CommandExtra;
 use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};

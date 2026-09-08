@@ -130,7 +130,6 @@ fn render_cycles(cycles: &[Vec<PathBuf>]) -> String {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
-#[display("{message}")]
 #[diagnostic(code(ERR_PNPM_DISALLOW_WORKSPACE_CYCLES))]
 pub struct CyclicWorkspaceDependenciesError {
     #[error(not(source))]

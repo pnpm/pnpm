@@ -1,6 +1,6 @@
-mod oci;
-
 pub use oci::oci_download_allowed;
+
+mod oci;
 
 use chrono::{DateTime, Timelike, Utc};
 use pnpm_lockfile::{

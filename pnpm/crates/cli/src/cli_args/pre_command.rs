@@ -570,7 +570,6 @@ pub(crate) enum PreCommandError {
     #[diagnostic(code(ERR_PNPM_BAD_PM_VERSION), help("{hint}"))]
     BadPmVersion { wanted: String, note: &'static str, hint: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_BAD_RUNTIME_VERSION), help("{RUNTIME_ON_FAIL_HINT}"))]
     BadRuntimeVersion { message: String },
 }

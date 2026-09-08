@@ -21,15 +21,6 @@
 //! `R: Reporter` seam on pacquet's `pnpm:global` channel rather than a
 //! capability, matching pnpm's `globalInfo` / `globalWarn`.
 
-mod capabilities;
-mod format_auth_url_message;
-mod generate_qr_code;
-mod global_log;
-mod poll_for_web_auth_token;
-mod prompt_browser_open;
-mod web_auth_timeout_error;
-mod with_otp_handling;
-
 pub use capabilities::{
     Clock, EnterKeyListener, Host, OpenUrl, OpenUrlAndWait, PromptError, PromptOtp, Sleep,
     StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchError,
@@ -47,3 +38,12 @@ pub use with_otp_handling::{
     OtpSession, SyntheticOtpError, WithOtpError, otp_challenge_from_unauthorized_body,
     with_otp_handling,
 };
+
+mod capabilities;
+mod format_auth_url_message;
+mod generate_qr_code;
+mod global_log;
+mod poll_for_web_auth_token;
+mod prompt_browser_open;
+mod web_auth_timeout_error;
+mod with_otp_handling;

@@ -7,8 +7,9 @@
 
 #![cfg(unix)] // pnpm CLI: 'program not found' on Windows runners.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

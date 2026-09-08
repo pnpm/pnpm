@@ -14,11 +14,6 @@
 //! [`pnpm_network_web_auth`], whose [`pnpm_network_web_auth::Host`] this
 //! crate reuses to drive the publish request's OTP handling.
 
-use std::{
-    sync::LazyLock,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
-
 /// The subprocess capability (used to run the configured token helper and
 /// the git working-tree checks) and the production provider every
 /// capability trait below is also implemented for.
@@ -27,6 +22,11 @@ use std::{
 /// the same seam — and re-exported here so this crate's callers keep
 /// importing them from `pnpm_publish` alongside the rest.
 pub use pnpm_git_utils::{CommandOutput, Host, RunCommand};
+
+use std::{
+    sync::LazyLock,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 /// Read an environment variable.
 ///

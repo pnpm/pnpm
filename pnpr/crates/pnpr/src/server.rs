@@ -1,3 +1,5 @@
+pub(crate) use self::striped_locks::StripedLocks;
+
 mod authentication;
 mod batch;
 mod cargo;
@@ -16,8 +18,6 @@ mod striped_locks;
 
 #[cfg(test)]
 mod tests;
-
-pub(crate) use self::striped_locks::StripedLocks;
 
 use self::{
     authentication::{Action, AuthedCaller, authenticate, authorize},

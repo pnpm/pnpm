@@ -44,7 +44,6 @@ pub struct GitRunError {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum GitResolveRefError {
     /// `git ls-remote` failed.
-    #[display("{_0}")]
     Runner(#[error(source)] GitRunError),
 
     /// `ERR_PNPM_GIT_AMBIGUOUS_REF`. Raised when a partial commit

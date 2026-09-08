@@ -18,6 +18,18 @@
 //! its own private namespace. The opt-in shared-artifact `PoC` is a separate
 //! stateful protocol surface.
 
+pub use pnpm_shared_artifact_protocol::{
+    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
+    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
+    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
+    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
+    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
+    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
+    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
+    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
+    windows_tag,
+};
+
 use std::{
     collections::{BTreeMap, HashSet},
     time::Duration,
@@ -31,24 +43,12 @@ use pnpm_config::{PackageExtension, RegistryDeclaration, ResolutionMode, TrustPo
 use pnpm_graph_hasher::hash_object_nullable_with_prefix;
 use pnpm_lockfile::{Lockfile, TarballRevision};
 use pnpm_lockfile_verification::{RenderedViolation, VerifyError};
-use reqwest::Client;
-
-pub use pnpm_shared_artifact_protocol::{
-    ARTIFACT_KIND, ArtifactBlobRequest, ArtifactBlobUpload, ArtifactCandidate, ArtifactFile,
-    ArtifactManifest, ArtifactPayload, ArtifactSubject, BuilderProfile, COMPATIBILITY_TAG_SCHEMA,
-    CompatibilityConstraints, DEPENDENCY_SIDE_EFFECTS_ARTIFACT_KIND,
-    DEPENDENCY_SIDE_EFFECTS_INPUT_KEY_PREFIX, INPUT_KEY_PREFIX, LinuxGlibcPlatform, MacOsPlatform,
-    OwnerScope, PackageIdentity, PublishArtifactRequest, ResolveArtifactsRequest,
-    SIGNATURE_ALGORITHM, SignedArtifactEnvelope, WORKSPACE_TASK_ARTIFACT_KIND,
-    WORKSPACE_TASK_INPUT_KEY_PREFIX, WindowsPlatform, blob_id, linux_glibc_supported_tags,
-    linux_glibc_tag, macos_supported_tags, macos_tag, platform_fingerprint, windows_supported_tags,
-    windows_tag,
-};
 use pnpm_shared_artifact_protocol::{
     MAX_CANDIDATES, MAX_FILE_SIZE, MAX_RESOLVE_RESPONSE_SIZE, MAX_VARIANTS_PER_CANDIDATE,
     ResolveArtifactsResponse, compatibility_rank_prevalidated, validate_supported_tags,
     verify_blob,
 };
+use reqwest::Client;
 
 /// The `registries` a request declares, keyed by registry URL.
 pub type RegistryDeclarations = BTreeMap<String, RegistryDeclaration>;
@@ -381,10 +381,8 @@ pub enum PnprClientError {
     /// verification policy. Carries the reconstructed [`VerifyError`]
     /// so the CLI aborts with the same diagnostic code (and breakdown)
     /// the local verification gate would have produced.
-    #[display("{_0}")]
     Verification(VerifyError),
 
-    #[display("{_0}")]
     Io(std::io::Error),
 }
 

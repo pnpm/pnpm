@@ -84,7 +84,7 @@ fn interpreter_location(program_headers: &[u8], phentsize: usize) -> Option<(u64
 }
 
 fn decode_interpreter(bytes: &[u8]) -> Option<&str> {
-    let interpreter = core::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
+    let interpreter = std::str::from_utf8(bytes).ok()?.trim_end_matches('\0');
     (!interpreter.is_empty()).then_some(interpreter)
 }
 

@@ -11,16 +11,6 @@
 //! See the native monorepo versioning RFC:
 //! <https://github.com/pnpm/rfcs/pull/18>.
 
-mod apply;
-mod changelog;
-mod error;
-mod human_id;
-mod intents;
-mod ledger;
-mod pending;
-mod plan;
-mod settings;
-
 pub use apply::{AppliedRelease, apply_release_plan};
 pub use changelog::{compose_changelog_section, prepend_changelog_section, render_changelog};
 pub use error::VersioningError;
@@ -47,3 +37,13 @@ pub use settings::{
     ChangelogSettings, ChangelogStorage, EpicSettings, ReleaseBumpType, VersioningSettings,
     changelog_storage,
 };
+
+mod apply;
+mod changelog;
+mod error;
+mod human_id;
+mod intents;
+mod ledger;
+mod pending;
+mod plan;
+mod settings;

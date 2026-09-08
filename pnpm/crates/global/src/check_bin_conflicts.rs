@@ -35,7 +35,6 @@ pub struct GlobalBinConflictError {
 /// conflict, or the global packages directory could not be scanned.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CheckGlobalBinConflictsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Conflict(GlobalBinConflictError),
 

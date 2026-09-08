@@ -4,7 +4,6 @@ pub mod create_symlink_layout;
 pub mod create_virtual_dir_by_snapshot;
 pub mod create_virtual_store;
 pub mod current_lockfile;
-mod custom_fetcher;
 pub mod deps_graph;
 pub mod dir_clone_cache;
 pub mod hoist;
@@ -28,7 +27,6 @@ pub mod prune_stale_modules;
 pub mod remove_quarantine;
 pub mod retry_config;
 pub mod safe_join_modules_dir;
-mod shared_side_effects;
 pub mod store_init;
 pub mod symlink_direct_dependencies;
 pub mod symlink_package;
@@ -68,6 +66,9 @@ pub use symlink_package::*;
 pub use validate_lockfile_paths::*;
 pub use version_policy::*;
 pub use virtual_store_layout::*;
+
+mod custom_fetcher;
+mod shared_side_effects;
 
 pub const NEEDS_BUILD_MARKER: &str = ".pnpm-needs-build";
 

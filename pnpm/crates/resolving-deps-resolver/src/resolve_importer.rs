@@ -221,12 +221,10 @@ pub struct ResolveImporterResult {
 /// Error envelope for [`fn@resolve_importer`].
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveImporterError {
-    #[display("{_0}")]
     Resolve(#[error(source)] ResolveDependencyTreeError),
 
     /// Reading the manifest of a workspace-root `link:` / `file:`
     /// dependency, whose version stands in for the peer it may satisfy.
-    #[display("{_0}")]
     RootDepManifest(#[error(source)] PackageManifestError),
 }
 

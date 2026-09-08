@@ -1,3 +1,7 @@
+pub mod package_manager_spec;
+
+pub use truthiness::is_truthy;
+
 use std::{
     fmt, fs,
     io::{self, Write},
@@ -11,11 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
 use tempfile::NamedTempFile;
-
-pub mod package_manager_spec;
 mod truthiness;
-
-pub use truthiness::is_truthy;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]

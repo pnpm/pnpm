@@ -42,7 +42,6 @@ pub enum ViewError {
         spec: String,
     },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_JSON))]
     InvalidPackageJson {
         #[error(not(source))]

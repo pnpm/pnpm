@@ -16,6 +16,8 @@
 //! testable; everything else runs on real `std::fs` and is covered by
 //! `tempfile` fixtures.
 
+pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
+
 mod capabilities;
 mod manifest_entry;
 mod tarball;
@@ -50,8 +52,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
 
 /// The single supported manifest basename. pacquet only reads
 /// `package.json`; the name appears in the "name/version not defined"

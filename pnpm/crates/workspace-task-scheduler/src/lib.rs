@@ -7,6 +7,8 @@
 //! between dependency-independent tasks. Mirrors `taskGraph.ts` /
 //! `taskScheduler.ts` in pnpm's `@pnpm/workspace.task-scheduler`.
 
+pub use graph_sequencer::{GraphSequencerResult, PathNode, graph_sequencer};
+
 use derive_more::{Display, Error};
 use futures_util::{StreamExt, stream::FuturesUnordered};
 use indexmap::IndexMap;
@@ -21,7 +23,6 @@ use std::{
 };
 
 mod graph_sequencer;
-pub use graph_sequencer::{GraphSequencerResult, PathNode, graph_sequencer};
 
 /// The stable identifier of a task: the project directory and the task
 /// (script) name. The scheduler, the summary, and the dry-run output agree

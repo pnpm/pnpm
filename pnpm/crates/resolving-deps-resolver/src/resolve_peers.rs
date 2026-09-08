@@ -30,6 +30,10 @@
 //! `in_progress` set, where a re-entry on the same `NodeId` falls back
 //! to `name@version` as the peer-id.
 
+pub(crate) use context::SharedChain;
+pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
+pub(crate) use walker::{MissingNames, index_missing_names};
+
 mod cache;
 mod context;
 mod discovery;
@@ -43,10 +47,8 @@ use crate::{
     node_id::NodeId,
     resolved_tree::{DirectDep, ResolvedTree},
 };
-pub(crate) use context::SharedChain;
 use context::{ChainSuffixMemo, CurrentProviderSource, importer_relative_link_dep_path};
 use discovery::PeerDiscoveryCaches;
-pub(crate) use discovery::{PeerDiscoveryResult, PeerHoistDiscovery, apply_hoist_missing_scope};
 use pnpm_deps_path::DepPath;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use std::{
@@ -55,7 +57,6 @@ use std::{
     sync::Arc,
 };
 use walker::Walker;
-pub(crate) use walker::{MissingNames, index_missing_names};
 
 /// Options threaded into [`fn@resolve_peers`].
 #[derive(Debug, Clone)]

@@ -262,7 +262,6 @@ pub enum HoistedDepGraphError {
     /// The hoister refused the lockfile (broken snapshot,
     /// unsupported workspace, etc.). Surfaced verbatim so callers
     /// see the underlying error code.
-    #[display("{_0}")]
     Hoist(#[error(source)] HoistError),
     /// A `HoisterResult` node carried a reference string that
     /// doesn't parse as a `name@version[(peers)]` package key.
@@ -286,12 +285,10 @@ pub enum HoistedDepGraphError {
     /// `ERR_PNPM_UNSUPPORTED_PLATFORM` /
     /// `ERR_PNPM_INVALID_NODE_VERSION`), and the inner error
     /// already carries the package id for context.
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Installability(#[error(source)] Box<InstallabilityError>),
     /// A hoisted node's alias was rejected by `safe_join_modules_dir`
     /// before the join. Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`.
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     InvalidDependencyAlias(#[error(source)] InvalidDependencyAliasError),
 }

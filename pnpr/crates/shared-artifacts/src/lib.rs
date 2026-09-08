@@ -1,6 +1,6 @@
-mod compiler_cache;
-
 pub use compiler_cache::{CompilerCacheKey, MAX_COMPILER_CACHE_ENTRY_SIZE};
+
+mod compiler_cache;
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},

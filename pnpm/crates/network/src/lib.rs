@@ -1,3 +1,18 @@
+pub use auth::{
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
+    base64_encode, base64_encode_bytes, hide_auth_information, is_url_secure_for_credentials,
+    nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
+    redact_url_credentials, redact_url_for_display,
+};
+pub use limited_body::{LimitedBody, read_limited_body};
+pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
+pub use retry::{
+    RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
+};
+pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
+pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
+pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
+
 mod auth;
 mod limited_body;
 mod priority_semaphore;
@@ -8,22 +23,7 @@ mod tests;
 mod tls;
 mod token_helper;
 
-pub use auth::{
-    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
-    base64_encode, base64_encode_bytes, hide_auth_information, is_url_secure_for_credentials,
-    nerf_dart, normalize_auth_key, redact_and_sanitize, redact_and_sanitize_multiline,
-    redact_url_credentials, redact_url_for_display,
-};
-pub use limited_body::{LimitedBody, read_limited_body};
-pub use token_helper::{TokenHelperOutput, TokenHelperRunner};
-pub use url_encoding::{encode_package_name, encode_uri_component, percent_decode_str};
-
 mod url_encoding;
-pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use retry::{
-    RetryOpts, retry_async, send_with_retry, send_with_retry_at_priority, should_retry_status,
-};
-pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
 use proxy::{NoProxyMatcher, parse_proxy_url, strip_userinfo};

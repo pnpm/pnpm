@@ -1,6 +1,8 @@
 #![cfg(unix)] // running this on windows result in 'program not found'
-use crate::_utils;
+
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

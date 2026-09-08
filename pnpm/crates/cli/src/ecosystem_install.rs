@@ -1,6 +1,6 @@
-mod workspace_inventory;
-
 pub(crate) use workspace_inventory::{EcosystemManifest, EcosystemWorkspaceInventory};
+
+mod workspace_inventory;
 
 use crate::{cargo_deps, cli_args::install::InstallDependencyOptions, python};
 use pnpm_config::Config;

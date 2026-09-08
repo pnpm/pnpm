@@ -1,3 +1,16 @@
+pub(crate) use lockfile_freshness::{
+    CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
+    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
+};
+pub use lockfile_freshness::{
+    WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
+};
+pub use workspace_state::{
+    UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
+    check_deps_status_before_run_at, install_already_up_to_date,
+};
+pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
+
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
@@ -66,15 +79,8 @@ use lifecycle::{
     dev_preinstall_already_ran, load_workspace_projects, project_lifecycle_graph,
     run_dev_preinstall, run_projects_lifecycle_scripts,
 };
-pub(crate) use lockfile_freshness::{
-    CheckLockfileSettingsDriftOptions, FreshnessCheckError, FreshnessScope,
-    check_importer_satisfies, check_lockfile_settings_drift, parse_config_overrides,
-};
 use lockfile_freshness::{
     FastUpdateLockfileOptions, check_lockfile_freshness, try_fast_update_lockfile,
-};
-pub use lockfile_freshness::{
-    WantedLockfileSatisfactionCheck, wanted_lockfile_satisfies_workspace,
 };
 use materialize::{MaterializationInputs, MaterializationOutput, materialize};
 use modules_state::{
@@ -93,11 +99,6 @@ use workspace_state::{
     build_selected_project_manifests_list, configured_or_discovered_workspace_dir,
     lockfile_root_for, projects_running_own_scripts, selected_manifest_freshness_inputs,
 };
-pub use workspace_state::{
-    UpToDateFastPathCheck, UpToDateWorkspace, build_workspace_packages_map,
-    check_deps_status_before_run_at, install_already_up_to_date,
-};
-pub(crate) use workspace_state::{build_workspace_state, lockfile_root_dir};
 
 #[cfg(test)]
 mod tests;
@@ -564,7 +565,6 @@ where
 pub enum InstallError {
     /// A path named by the `pnpmfile` setting is not on disk. pnpm reports the
     /// same code and message from `requireHooks`.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_NOT_FOUND))]
     MissingPnpmfile(#[error(not(source))] pnpm_hooks::finder::MissingPnpmfileError),
     #[display(
@@ -639,13 +639,11 @@ pub enum InstallError {
     /// or running `shouldRefreshResolution`) while deciding whether the
     /// frozen-path optimization may run. A throwing hook aborts the
     /// install.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pnpm_hooks::HookError),
 
     /// The pnpmfile's `readPackage` hook threw while transforming a
     /// workspace project's own manifest.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     ReadPackageHook(#[error(not(source))] pnpm_hooks::HookError),
 

@@ -117,9 +117,7 @@ fn looks_like_alias(value: &str) -> bool {
 /// Error when parsing [`SnapshotDepRef`] from a string.
 #[derive(Debug, Display, Error)]
 pub enum ParseSnapshotDepRefError {
-    #[display("{_0}")]
     ParsePlain(#[error(source)] ParsePkgVerPeerError),
-    #[display("{_0}")]
     ParseAlias(#[error(source)] ParsePkgNameSuffixError<ParsePkgVerPeerError>),
 }
 

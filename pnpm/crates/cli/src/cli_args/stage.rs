@@ -428,11 +428,9 @@ enum StageHttpError {
         challenge: OtpChallenge,
     },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Registry(#[error(not(source))] StageRegistryError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Request(#[error(not(source))] Box<StageError>),
 }

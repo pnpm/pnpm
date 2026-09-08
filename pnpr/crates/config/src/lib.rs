@@ -1,8 +1,8 @@
 pub mod oidc;
 
-mod upstream;
-
 pub use self::upstream::{RedactedHeaders, UpstreamConfig};
+
+mod upstream;
 
 use self::upstream::{
     Interval, UpstreamAuthFile, UpstreamConfigFile, parse_interval, resolve_upstream_config,

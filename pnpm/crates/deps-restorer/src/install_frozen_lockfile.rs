@@ -1,3 +1,13 @@
+pub use build_phase::{
+    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
+};
+pub use hoisted::{
+    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
+    collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
+    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
+    workspace_packages_for_hoist,
+};
+
 use crate::{
     AllowBuildPolicy, BuildModules, BuildModulesError, CreateVirtualStore, CreateVirtualStoreError,
     CreateVirtualStoreOutput, HoistedDepGraphError, HoistedDependencies, LinkHoistedModulesError,
@@ -11,16 +21,6 @@ use crate::{
 
 mod build_phase;
 mod hoisted;
-
-pub use build_phase::{
-    BuildPhaseError, BuildPhaseInputs, resolve_snapshot_patches, run_build_phase,
-};
-pub use hoisted::{
-    HoistPlan, HoistedLinkerError, HoistedLinkerInputs, HoistedLinkerOutput,
-    collect_public_hoist_targets, compute_hoist_plan, find_own_runtime_node_major,
-    find_runtime_node_major, parse_major_from_version, run_hoisted_linker,
-    workspace_packages_for_hoist,
-};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -236,7 +236,6 @@ pub enum InstallFrozenLockfileError {
     /// The pnpmfile threw while loading its custom `fetchers` export.
     /// A throwing pnpmfile aborts the install, matching the
     /// custom-resolver load on the fresh-lockfile path.
-    #[display("{_0}")]
     #[diagnostic(code(ERR_PNPM_PNPMFILE_FAIL))]
     CustomFetcherHook(#[error(not(source))] pnpm_hooks::HookError),
 

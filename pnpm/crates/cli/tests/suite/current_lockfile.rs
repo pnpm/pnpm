@@ -3,8 +3,9 @@
 //! install actually materialized, as opposed to `pnpm-lock.yaml`'s
 //! record of what it resolved.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

@@ -1,14 +1,7 @@
-mod background_drop;
-mod dir_lock;
-mod ensure_file;
-mod is_subdir;
-mod lexical_normalize;
-mod realpath_missing;
-mod relative_path;
-mod remove_dirent;
-mod retry;
-mod symlink_dir;
-mod write_atomic;
+pub mod file_mode;
+
+#[cfg(all(windows, feature = "test"))]
+pub mod test_support;
 
 pub use background_drop::background_drop;
 pub use dir_lock::DirLock;
@@ -22,7 +15,14 @@ pub use retry::{remove_dir_all_with_retry, remove_file_with_retry, rename_with_r
 pub use symlink_dir::*;
 pub use write_atomic::{write_atomic, write_atomic_private};
 
-pub mod file_mode;
-
-#[cfg(all(windows, feature = "test"))]
-pub mod test_support;
+mod background_drop;
+mod dir_lock;
+mod ensure_file;
+mod is_subdir;
+mod lexical_normalize;
+mod realpath_missing;
+mod relative_path;
+mod remove_dirent;
+mod retry;
+mod symlink_dir;
+mod write_atomic;

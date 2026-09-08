@@ -14,12 +14,7 @@
 //! files changed since the given git ref (`git diff --name-only`),
 //! honoring `testPattern` / `changedFilesIgnorePattern`.
 
-mod filter;
-mod get_changed_projects;
 pub use get_changed_projects::{ChangedProjects, GetChangedProjectsOptions, get_changed_projects};
-mod glob;
-mod parse_project_selector;
-mod path_util;
 
 pub use filter::{
     FilterError, FilterProjectsOptions, FilterWorkspaceProjectsOptions, FilteredProjects,
@@ -29,3 +24,9 @@ pub use filter::{
 pub use parse_project_selector::{ProjectSelector, parse_project_selector};
 
 pub use pnpm_workspace_projects_graph::{BaseProject, ProjectGraph, ProjectGraphNode};
+
+mod filter;
+mod get_changed_projects;
+mod glob;
+mod parse_project_selector;
+mod path_util;

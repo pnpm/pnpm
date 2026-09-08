@@ -1,11 +1,15 @@
-mod backend;
 pub mod journal;
 pub mod publish;
-mod s3;
 pub mod streaming;
 pub mod upload;
 
 pub use object_store::GetRange;
+
+pub(crate) use self::backend::HostedBackend;
+pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
+
+mod backend;
+mod s3;
 
 use crate::s3::S3Store;
 use async_trait::async_trait;
@@ -33,9 +37,6 @@ use tokio::{
     fs,
     io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
 };
-
-pub(crate) use self::backend::HostedBackend;
-pub use self::backend::{BlobFinalize, HostedDocumentForUpdate, HostedDocumentVersion};
 
 const DOCUMENT_FILE: &str = "package.json";
 /// How deep the hosted walk looks for a package document.

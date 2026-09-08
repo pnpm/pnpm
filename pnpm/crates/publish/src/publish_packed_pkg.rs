@@ -508,7 +508,6 @@ fn manifest_string(manifest: &Value, key: &str) -> String {
 /// Failure surface of [`publish_packed_pkg`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum PublishPackedPkgError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     CreateOptions(CreatePublishOptionsError),
 
@@ -531,18 +530,15 @@ pub enum PublishPackedPkgError {
     #[diagnostic(code(ERR_PNPM_BAD_SEMVER))]
     BadSemver { version: String },
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(ProvenanceGenError),
 
     #[display("invalid registry URL: {_0}")]
     InvalidUrl(url::ParseError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Otp(WithOtpError<PublishHttpError>),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     FailedToPublish(FailedToPublishError),
 }

@@ -112,11 +112,9 @@ pub struct OidcTokenProvenance {
 /// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     IdToken(GetIdTokenError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(DetermineProvenanceError),
 }
@@ -260,11 +258,9 @@ where
 /// Failure surface of [`create_publish_options`].
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum CreatePublishOptionsError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     UnsupportedProtocol(PublishUnsupportedRegistryProtocolError),
 
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Oidc(FetchTokenAndProvenanceError),
 }

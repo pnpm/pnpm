@@ -5,9 +5,9 @@
 //! resume at the accepted offset. Completion materializes the bytes locally
 //! for digest verification before promotion to a hosted blob.
 
-mod remote;
-
 pub(crate) use remote::RemoteUploadStore;
+
+mod remote;
 
 use crate::{BlobFinalize, BlobSlot, Storage};
 use pnpr_error::{RegistryError, Result};

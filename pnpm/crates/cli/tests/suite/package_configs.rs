@@ -1,8 +1,9 @@
 //! `packageConfigs`: settings a workspace declares for one project
 //! rather than for all of them.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use indexmap::IndexMap;
 use pnpm_modules_yaml::{Host as ModulesHost, read_modules_manifest};

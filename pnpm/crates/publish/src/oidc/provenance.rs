@@ -152,7 +152,6 @@ impl ProvenanceError {
 /// [`Provenance`](Self::Provenance) arm is skippable.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum DetermineProvenanceError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Provenance(ProvenanceError),
 
@@ -165,7 +164,6 @@ pub enum DetermineProvenanceError {
     #[display("invalid visibility URL: {_0}")]
     InvalidUrl(url::ParseError),
 
-    #[display("{_0}")]
     Fetch(OidcFetchError),
 }
 

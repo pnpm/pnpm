@@ -78,11 +78,9 @@ pub(crate) enum SelfUpdateError {
     #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_DENIED))]
     MinimumReleaseAgeDenied,
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE))]
     EngineIdentityUnverifiable { message: String },
 
-    #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_PNPM_ENGINE_IDENTITY_MISMATCH))]
     EngineIdentityMismatch { message: String },
 

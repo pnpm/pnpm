@@ -52,7 +52,6 @@ pub const NO_MATCHING_PROJECTS_CODE: &str = "ERR_PNPM_NO_MATCHING_PROJECTS";
 /// message is already on stdout by the time this is returned; see
 /// [`ensure_projects_matched`].
 #[derive(Debug, Display, Error, Diagnostic)]
-#[display("{message}")]
 #[diagnostic(code(ERR_PNPM_NO_MATCHING_PROJECTS))]
 pub struct NoMatchingProjects {
     #[error(not(source))]

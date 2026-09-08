@@ -1,3 +1,5 @@
+pub(crate) mod add;
+
 use crate::{
     cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
     ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
@@ -26,8 +28,6 @@ use std::{
     str::FromStr,
     sync::{Arc, atomic::AtomicU8},
 };
-
-pub(crate) mod add;
 mod git;
 mod registry_auth;
 

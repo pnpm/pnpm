@@ -10,6 +10,8 @@
 //! suffices because the merge only ever *inserts* new entries/blocks or
 //! *updates* a single value, never reorders existing content.
 
+pub use pnpm_config::version_policy::ResolvedPackageVersions;
+
 use std::{
     fs,
     io::{self, Write as _},
@@ -22,8 +24,6 @@ use miette::Diagnostic;
 use pnpm_catalogs_types::Catalogs;
 use pnpm_config_parse_overrides::parse_pkg_and_parent_selector;
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
-
-pub use pnpm_config::version_policy::ResolvedPackageVersions;
 
 mod edit;
 mod flow;

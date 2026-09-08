@@ -11,8 +11,9 @@
 
 #![cfg(unix)] // hoisted bin shims + real-dir-vs-junction checks are unix-shaped here.
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

@@ -11,6 +11,9 @@
 //! wins a tie among the versions a range allows, and a version no longer
 //! published is ignored rather than fatal.
 
+pub use npm::collect_npm_lockfile_versions;
+pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
@@ -22,9 +25,6 @@ use pnpm_resolving_resolver_base::{PreferredVersions, VersionSelectorEntry, Vers
 
 mod npm;
 mod yarn;
-
-pub use npm::collect_npm_lockfile_versions;
-pub use yarn::{YarnSyntaxError, collect_yarn_lockfile_versions};
 
 /// Yarn's lockfile name, covering both yarn classic and yarn berry.
 pub const YARN_LOCKFILE_NAME: &str = "yarn.lock";

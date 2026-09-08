@@ -21,11 +21,9 @@ use super::reporter::ReporterType;
 
 #[derive(Debug, Display, Error, Diagnostic)]
 enum VerifyDepsError {
-    #[display("{issue}")]
     #[diagnostic(code(ERR_PNPM_VERIFY_DEPS_BEFORE_RUN), help(r#"Run "pnpm install""#))]
     OutOfSync { issue: String },
 
-    #[display("{issue}")]
     #[diagnostic(
         code(ERR_PNPM_VERIFY_DEPS_BEFORE_RUN),
         help(

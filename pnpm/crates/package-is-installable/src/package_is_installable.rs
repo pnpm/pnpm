@@ -46,13 +46,10 @@ pub enum SkipReason {
 /// collapsed into a misleading engine-mismatch error.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 pub enum InstallabilityError {
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Engine(UnsupportedEngineError),
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     Platform(UnsupportedPlatformError),
-    #[display("{_0}")]
     #[diagnostic(transparent)]
     InvalidNodeVersion(InvalidNodeVersionError),
 }

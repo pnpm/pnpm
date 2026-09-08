@@ -12,15 +12,15 @@
 
 pub mod media_type;
 
-mod digest;
-mod document;
-mod error_body;
-mod manifest;
-
 pub use digest::{Digest, DigestError};
 pub use document::{ImageDocument, ManifestEntry, ReferrerMetadata, TagEntry};
 pub use error_body::{ErrorBody, ErrorCode};
 pub use manifest::{Descriptor, Manifest, ManifestError};
+
+mod digest;
+mod document;
+mod error_body;
+mod manifest;
 
 /// The longest tag the distribution spec admits.
 pub const MAX_TAG_LEN: usize = 128;

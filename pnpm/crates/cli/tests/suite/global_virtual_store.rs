@@ -11,8 +11,9 @@
 //!
 #![cfg(unix)] // the GVS slot assertions read symlinks
 
-use crate::_utils;
 pub use _utils::*;
+
+use crate::_utils;
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

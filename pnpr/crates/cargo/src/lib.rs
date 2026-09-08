@@ -9,9 +9,10 @@
 //! document with its download URL template, and the crate-archive checks a
 //! publish runs before accepting bytes.
 
+pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
+
 use derive_more::{Display, Error};
 use pnpr_package_name::canonicalize_crate_name;
-pub use pnpr_package_name::{CrateNameError, MAX_CRATE_NAME_LEN};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -385,14 +386,23 @@ pub struct PublishMetadata {
 /// Publish metadata a registry must refuse.
 #[derive(Debug, Display, Error)]
 pub enum PublishMetadataError {
-    #[display("{_0}")]
     CrateName(CrateNameError),
     #[display("crate version {version:?} is not a semver version: {source}")]
-    Version { version: String, source: semver::Error },
+    Version {
+        version: String,
+        source: semver::Error,
+    },
     #[display("dependency {name:?} of the published crate: {source}")]
-    DependencyName { name: String, source: CrateNameError },
+    DependencyName {
+        name: String,
+        source: CrateNameError,
+    },
     #[display("dependency {name:?} has an invalid version requirement {req:?}: {source}")]
-    DependencyRequirement { name: String, req: String, source: semver::Error },
+    DependencyRequirement {
+        name: String,
+        req: String,
+        source: semver::Error,
+    },
 }
 
 impl PublishMetadata {

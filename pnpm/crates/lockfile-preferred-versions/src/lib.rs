@@ -5,6 +5,8 @@
 //! entry, and an entry that appears in both buckets has its weight bumped
 //! by the lockfile weight so it outranks single-source matches.
 
+pub use version_selector_type::get_version_selector_type;
+
 use std::collections::HashMap;
 
 use pnpm_lockfile::{PackageKey, SnapshotEntry};
@@ -16,8 +18,6 @@ use pnpm_resolving_resolver_base::{
 use rayon::prelude::*;
 
 mod version_selector_type;
-
-pub use version_selector_type::get_version_selector_type;
 
 /// Build a [`PreferredVersions`] map from the wanted lockfile's
 /// `snapshots:` block plus every importer manifest.

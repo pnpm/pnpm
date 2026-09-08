@@ -1,5 +1,7 @@
 //! `pnpm list` / `ls` / `ll` / `la` — list installed packages.
 
+pub(crate) mod render;
+
 use std::path::{Path, PathBuf};
 
 use clap::Args;
@@ -22,8 +24,6 @@ use crate::cli_args::{
     install::resolve_bool_override,
     recursive::{AutoExcludeRoot, discover_workspace_projects, select_recursive_projects},
 };
-
-pub(crate) mod render;
 
 use render::{ProjectHierarchy, RenderParseableOptions, RenderTreeOptions};
 

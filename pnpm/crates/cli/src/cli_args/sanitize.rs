@@ -1,6 +1,6 @@
-use pnpm_network::LimitedBody;
-
 pub use pnpm_text_sanitize::{sanitize, sanitize_inline};
+
+use pnpm_network::LimitedBody;
 
 /// Render a capped response body for an error message: lossy UTF-8,
 /// sanitized, with a truncation note when the cap was hit.
