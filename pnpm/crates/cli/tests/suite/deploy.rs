@@ -1358,8 +1358,6 @@ fn virtual_store_entries(deploy_dir: &Path) -> Vec<String> {
 
 /// `copy_project` copies the deployed project's packlist, a `.pnpmfile.mjs`
 /// among it, so the deploy directory ends up holding a pnpmfile of its own.
-/// The install that populates it must not run that copy — only the pnpmfile
-/// the source workspace resolves.
 #[test]
 fn shared_lockfile_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1387,8 +1385,8 @@ fn shared_lockfile_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
     drop((root, mock_instance));
 }
 
-/// The mirror of the check above: the pnpmfile the deploy install *does*
-/// run is the source workspace's, as on pnpm 11.
+/// Parity with pnpm 11, which hands the deploy install the hooks it
+/// loaded for the source workspace.
 #[test]
 fn shared_lockfile_deploy_runs_the_source_workspace_pnpmfile() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1410,9 +1408,8 @@ fn shared_lockfile_deploy_runs_the_source_workspace_pnpmfile() {
     drop((root, mock_instance));
 }
 
-/// Without a shared lockfile the deploy takes the legacy path, and the
-/// pnpmfile an install of the selected project would load is the project's
-/// own — still never the deployed copy.
+/// Without a shared lockfile the deploy takes the legacy path, where the
+/// pnpmfile an install of the selected project loads is the project's own.
 #[test]
 fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
