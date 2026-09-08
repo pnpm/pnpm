@@ -66,7 +66,17 @@ fn write_tmp_over(path: &Path, bytes: &[u8], inherit: InheritMode) -> io::Result
     }
     #[cfg(not(unix))]
     let _ = inherit;
-    tmp.persist(path).map_err(|err| err.error)?;
+    let mut pending = Some(tmp.into_temp_path());
+    crate::retry::retry_transient_file_locks(|| {
+        let temporary = pending.take().expect("temporary path retained after a failed persist");
+        match temporary.persist(path) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                pending = Some(error.path);
+                Err(error.error)
+            }
+        }
+    })?;
     Ok(())
 }
 

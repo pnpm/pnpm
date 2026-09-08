@@ -72,3 +72,44 @@ fn write_atomic_private_does_not_inherit_a_readable_mode() {
     let mode = std::fs::metadata(&path).expect("stat").permissions().mode() & 0o777;
     assert_eq!(mode, 0o600, "got {mode:o}");
 }
+
+#[test]
+fn concurrent_replacements_leave_complete_content() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("state.json");
+    let barrier = std::sync::Barrier::new(4);
+    std::thread::scope(|scope| {
+        for byte in b'a'..=b'd' {
+            let path = &path;
+            let barrier = &barrier;
+            scope.spawn(move || {
+                barrier.wait();
+                for _ in 0..20 {
+                    write_atomic(path, &[byte; 4096]).unwrap();
+                }
+            });
+        }
+    });
+    let contents = std::fs::read(path).unwrap();
+    assert_eq!(contents.len(), 4096);
+    assert!(contents.iter().all(|byte| *byte == contents[0]));
+}
+
+#[cfg(windows)]
+#[test]
+fn waits_for_a_locked_destination_before_replacing_it() {
+    use std::os::windows::fs::OpenOptionsExt as _;
+
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("state.json");
+    std::fs::write(&path, "old").unwrap();
+    let locked = std::fs::OpenOptions::new().read(true).share_mode(1).open(&path).unwrap();
+    std::thread::scope(|scope| {
+        scope.spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            drop(locked);
+        });
+        write_atomic(&path, b"new").unwrap();
+    });
+    assert_eq!(std::fs::read(&path).unwrap(), b"new");
+}
