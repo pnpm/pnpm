@@ -16,8 +16,9 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::Version;
 use pnpm_crypto_shasums_file::{
-    FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file_cached,
-    fetch_shasums_file_cached_with_auth_headers, fetch_verified_node_shasums_file_cached,
+    FetchShasumsFileError, FetchVerifiedNodeShasumsError, ShasumsFileItem,
+    fetch_shasums_file_cached, fetch_shasums_file_cached_with_auth_headers,
+    fetch_verified_node_shasums_file_cached,
     fetch_verified_node_shasums_file_cached_with_auth_headers,
 };
 use pnpm_lockfile::{
@@ -452,78 +453,104 @@ async fn read_node_assets_from_mirror(
     // The URL is pinned to one released version, which is what makes it
     // eligible for the SHASUMS disk cache.
     let integrities_url = format!("{node_mirror_base_url}v{version}/SHASUMS256.txt");
-    let items = if verify_signature {
-        if auth_headers.is_empty() {
-            fetch_verified_node_shasums_file_cached(http_client, &integrities_url, cache_dir)
-                .await
-                .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
-        } else {
-            fetch_verified_node_shasums_file_cached_with_auth_headers(
-                http_client,
-                &integrities_url,
-                cache_dir,
-                auth_headers,
-            )
-            .await
-            .map_err(NodeResolverError::FetchVerifiedNodeShasums)?
+    let items = fetch_node_shasums(ShasumsRequest {
+        http_client,
+        auth_headers,
+        integrities_url: &integrities_url,
+        cache_dir,
+        verify_signature,
+    })
+    .await?;
+    let mut assets = Vec::new();
+    for item in items {
+        let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
+        if musl_only && !parsed.is_musl {
+            continue;
         }
-    } else if auth_headers.is_empty() {
-        fetch_shasums_file_cached(http_client, &integrities_url, cache_dir)
-            .await
-            .map_err(NodeResolverError::FetchShasumsFile)?
-    } else {
-        fetch_shasums_file_cached_with_auth_headers(
+        assets.push(node_platform_asset(&item, parsed, version, node_mirror_base_url)?);
+    }
+    Ok(assets)
+}
+
+/// One request for a release's `SHASUMS256.txt`.
+struct ShasumsRequest<'a> {
+    http_client: &'a ThrottledClient,
+    auth_headers: &'a AuthHeaders,
+    integrities_url: &'a str,
+    cache_dir: Option<&'a Path>,
+    /// Whether the file's detached signature is checked against the release
+    /// keys before its digests are trusted.
+    verify_signature: bool,
+}
+
+/// Read a release's `SHASUMS256.txt`, through whichever of the four fetch
+/// paths the signature and credential settings select.
+async fn fetch_node_shasums(
+    request: ShasumsRequest<'_>,
+) -> Result<Vec<ShasumsFileItem>, NodeResolverError> {
+    let ShasumsRequest { http_client, auth_headers, integrities_url, cache_dir, verify_signature } =
+        request;
+    match (verify_signature, auth_headers.is_empty()) {
+        (true, true) => {
+            fetch_verified_node_shasums_file_cached(http_client, integrities_url, cache_dir)
+                .await
+                .map_err(NodeResolverError::FetchVerifiedNodeShasums)
+        }
+        (true, false) => fetch_verified_node_shasums_file_cached_with_auth_headers(
             http_client,
-            &integrities_url,
+            integrities_url,
             cache_dir,
             auth_headers,
         )
         .await
-        .map_err(NodeResolverError::FetchShasumsFile)?
-    };
-    let mut assets = Vec::new();
-    for item in items {
-        let Some(parsed) = parse_node_file_name(&item.file_name, version) else { continue };
-        let is_musl = parsed.is_musl;
-        if musl_only && !is_musl {
-            continue;
-        }
-        let mut platform = parsed.platform;
-        if platform == "win" {
-            platform = "win32".to_string();
-        }
-        let libc = is_musl.then(|| "musl".to_string());
-        let address = get_node_artifact_address(GetNodeArtifactAddressOptions {
-            version,
-            base_url: node_mirror_base_url,
-            platform: &platform,
-            arch: &parsed.arch,
-            libc: libc.as_deref(),
-        });
-        let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
-        let archive =
-            if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
-        let integrity: Integrity =
-            item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
-                integrity: item.integrity.clone(),
-                file_name: item.file_name.clone(),
-                error: Arc::new(error),
-            })?;
-        let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
-        let binary = BinaryResolution {
-            url,
-            integrity,
-            bin: bin_spec_for_platform(&platform),
-            archive,
-            prefix,
-        };
-        let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
-        assets.push(PlatformAssetResolution {
-            resolution: LockfileResolution::Binary(binary),
-            targets: vec![target],
-        });
+        .map_err(NodeResolverError::FetchVerifiedNodeShasums),
+        (false, true) => fetch_shasums_file_cached(http_client, integrities_url, cache_dir)
+            .await
+            .map_err(NodeResolverError::FetchShasumsFile),
+        (false, false) => fetch_shasums_file_cached_with_auth_headers(
+            http_client,
+            integrities_url,
+            cache_dir,
+            auth_headers,
+        )
+        .await
+        .map_err(NodeResolverError::FetchShasumsFile),
     }
-    Ok(assets)
+}
+
+/// One platform's download, from the shasums entry that names it.
+fn node_platform_asset(
+    item: &ShasumsFileItem,
+    parsed: NodeFileName,
+    version: &str,
+    node_mirror_base_url: &str,
+) -> Result<PlatformAssetResolution, NodeResolverError> {
+    let platform = if parsed.platform == "win" { "win32".to_string() } else { parsed.platform };
+    let libc = parsed.is_musl.then(|| "musl".to_string());
+    let address = get_node_artifact_address(GetNodeArtifactAddressOptions {
+        version,
+        base_url: node_mirror_base_url,
+        platform: &platform,
+        arch: &parsed.arch,
+        libc: libc.as_deref(),
+    });
+    let url = format!("{}/{}{}", address.dirname, address.basename, address.extname);
+    let archive =
+        if address.extname == ".zip" { BinaryArchive::Zip } else { BinaryArchive::Tarball };
+    let integrity: Integrity =
+        item.integrity.parse().map_err(|error| NodeResolverError::ParseIntegrity {
+            integrity: item.integrity.clone(),
+            file_name: item.file_name.clone(),
+            error: Arc::new(error),
+        })?;
+    let prefix = matches!(archive, BinaryArchive::Zip).then(|| address.basename.clone());
+    let binary =
+        BinaryResolution { url, integrity, bin: bin_spec_for_platform(&platform), archive, prefix };
+    let target = PlatformAssetTarget { os: platform, cpu: parsed.arch, libc };
+    Ok(PlatformAssetResolution {
+        resolution: LockfileResolution::Binary(binary),
+        targets: vec![target],
+    })
 }
 
 struct NodeFileName {
