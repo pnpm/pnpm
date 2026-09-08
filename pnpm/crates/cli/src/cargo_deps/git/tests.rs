@@ -1,12 +1,10 @@
 use super::{
-    CheckoutPackage, GitPackage, GitSource, Manifest, VendorSourceOptions, import_package,
-    vendor_source, vendored_package,
+    GitPackage, GitSource, Manifest, VendorSourceOptions, vendor_source, vendored_package,
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
@@ -392,7 +390,8 @@ fn a_crate_is_found_past_a_manifest_that_shares_its_name_and_reads_no_version() 
 #[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn a_file_whose_name_is_not_utf8_is_refused() {
-    use std::{ffi::OsStr, os::unix::ffi::OsStrExt as _};
+    use super::{CheckoutPackage, import_package};
+    use std::{collections::BTreeSet, ffi::OsStr, os::unix::ffi::OsStrExt as _};
 
     let temp_dir = tempfile::tempdir().unwrap();
     let package_dir = temp_dir.path().join("crate");
