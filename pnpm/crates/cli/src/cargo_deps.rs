@@ -344,7 +344,10 @@ async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetada
 }
 
 async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>> {
-    let mut pending = manifests.iter().cloned().collect::<BTreeSet<_>>();
+    let mut pending = manifests
+        .iter()
+        .map(|manifest| canonical_cargo_path(manifest))
+        .collect::<Result<BTreeSet<_>>>()?;
     let mut roots = BTreeSet::new();
     while !pending.is_empty() {
         let concurrency = if roots.is_empty() { 1 } else { WORKSPACE_INSTALL_CONCURRENCY };
@@ -356,14 +359,21 @@ async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>>
             .try_collect::<Vec<_>>()
             .await?;
         for workspace in metadata {
-            pending.remove(&workspace.workspace_root.join("Cargo.toml"));
+            let root = canonical_cargo_path(&workspace.workspace_root)?;
+            pending.remove(&root.join("Cargo.toml"));
             for package in workspace.packages {
-                pending.remove(&package.manifest_path);
+                pending.remove(&canonical_cargo_path(&package.manifest_path)?);
             }
-            roots.insert(workspace.workspace_root);
+            roots.insert(root);
         }
     }
     Ok(roots.into_iter().collect())
+}
+
+fn canonical_cargo_path(path: &Path) -> Result<PathBuf> {
+    dunce::canonicalize(path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve Cargo workspace path {}", path.display()))
 }
 
 async fn read_or_resolve_lockfile(

@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct PendingDirectory {
+struct OpenDirectory {
     path: PathBuf,
     handle: std::fs::File,
 }
@@ -25,38 +25,55 @@ pub(super) fn walk_workspace(
                 source,
             }
         })?;
-    let root = PendingDirectory { path: workspace_root.to_path_buf(), handle: root_handle };
-    let Some(entries) = read_directory(&root, workspace_root, &mut before_read)? else {
-        return Ok(());
-    };
-    let mut pending = vec![(root, entries)];
-    while let Some((directory, entries)) = pending.last_mut() {
-        let Some(entry) = entries.next() else {
-            pending.pop();
-            continue;
-        };
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) if is_ignorable_discovery_error(&error) => continue,
+    let mut pending = vec![workspace_root.to_path_buf()];
+    while let Some(path) = pending.pop() {
+        if path != workspace_root {
+            before_open_directory(&path).map_err(|source| {
+                FindWorkspaceInventoryError::InspectCandidate { path: path.clone(), source }
+            })?;
+        }
+        let relative = path.strip_prefix(workspace_root).expect("inventory paths share the root");
+        let handle = match open_descendant(&root_handle, relative) {
+            Ok(handle) => handle,
+            Err(error) if path != workspace_root && is_changed_candidate_error(&error) => continue,
             Err(source) => {
-                return Err(FindWorkspaceInventoryError::ReadEntry {
-                    path: directory.path.clone(),
-                    source,
-                });
+                return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
             }
         };
-        if let Some(child) =
-            collect_entry(directory, &entry, ignored, &mut before_open_directory, &mut visit_file)?
-            && let Some(entries) = read_directory(&child, workspace_root, &mut before_read)?
-        {
-            pending.push((child, entries));
+        let directory = OpenDirectory { path, handle };
+        let Some(entries) = read_directory(&directory, workspace_root, &mut before_read)? else {
+            continue;
+        };
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) if is_ignorable_discovery_error(&error) => continue,
+                Err(source) => {
+                    return Err(FindWorkspaceInventoryError::ReadEntry {
+                        path: directory.path.clone(),
+                        source,
+                    });
+                }
+            };
+            collect_entry(&directory, &entry, ignored, &mut pending, &mut visit_file)?;
         }
     }
     Ok(())
 }
 
+// Reopen queued paths from the pinned root one component at a time. This bounds
+// open handles independently of tree width and depth without following symlinks.
+fn open_descendant(root: &std::fs::File, relative: &Path) -> io::Result<std::fs::File> {
+    let mut directory = None;
+    for component in relative.components() {
+        let parent = directory.as_ref().unwrap_or(root);
+        directory = Some(fs::open_dir_nofollow(parent, Path::new(component.as_os_str()))?);
+    }
+    directory.map_or_else(|| root.try_clone(), Ok)
+}
+
 fn read_directory(
-    directory: &PendingDirectory,
+    directory: &OpenDirectory,
     workspace_root: &Path,
     before_read: &mut impl FnMut(&Path) -> io::Result<()>,
 ) -> Result<Option<fs::ReadDir>, FindWorkspaceInventoryError> {
@@ -72,52 +89,27 @@ fn read_directory(
 }
 
 fn collect_entry(
-    directory: &PendingDirectory,
+    directory: &OpenDirectory,
     entry: &fs::DirEntry,
     ignored: &IgnoredDirectories<'_>,
-    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
+    pending: &mut Vec<PathBuf>,
     visit_file: &mut impl FnMut(PathBuf, &OsStr),
-) -> Result<Option<PendingDirectory>, FindWorkspaceInventoryError> {
+) -> Result<(), FindWorkspaceInventoryError> {
     let file_name = entry.file_name();
     let path = directory.path.join(&file_name);
     let file_type = match entry.file_type() {
         Ok(file_type) => file_type,
-        Err(error) if is_ignorable_discovery_error(&error) => return Ok(None),
+        Err(error) if is_ignorable_discovery_error(&error) => return Ok(()),
         Err(source) => {
             return Err(FindWorkspaceInventoryError::InspectCandidate { path, source });
         }
     };
-    if file_type.is_symlink() {
-        return Ok(None);
+    if file_type.is_dir() && !ignored.contains(&file_name, &path) {
+        pending.push(path);
+    } else if file_type.is_file() {
+        visit_file(path, &file_name);
     }
-    if file_type.is_dir() {
-        collect_directory(directory, &file_name, path, ignored, before_open_directory)
-    } else {
-        if file_type.is_file() {
-            visit_file(path, &file_name);
-        }
-        Ok(None)
-    }
-}
-
-fn collect_directory(
-    parent: &PendingDirectory,
-    file_name: &OsStr,
-    path: PathBuf,
-    ignored: &IgnoredDirectories<'_>,
-    before_open_directory: &mut impl FnMut(&Path) -> io::Result<()>,
-) -> Result<Option<PendingDirectory>, FindWorkspaceInventoryError> {
-    if ignored.contains(file_name, &path) {
-        return Ok(None);
-    }
-    before_open_directory(&path).map_err(|source| {
-        FindWorkspaceInventoryError::InspectCandidate { path: path.clone(), source }
-    })?;
-    match fs::open_dir_nofollow(&parent.handle, Path::new(file_name)) {
-        Ok(handle) => Ok(Some(PendingDirectory { path, handle })),
-        Err(error) if is_changed_candidate_error(&error) => Ok(None),
-        Err(source) => Err(FindWorkspaceInventoryError::InspectCandidate { path, source }),
-    }
+    Ok(())
 }
 
 fn is_changed_candidate_error(error: &io::Error) -> bool {

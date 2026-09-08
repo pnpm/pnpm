@@ -205,3 +205,66 @@ fn reads_children_without_accumulating_unvisited_sibling_handles() {
     assert_eq!(peak.get(), 1);
     assert_eq!(unread.get(), 0);
 }
+
+#[cfg(unix)]
+#[test]
+fn discovers_deep_trees_with_a_small_handle_limit() {
+    const ROOT_ENV: &str = "PNPM_TEST_DEEP_INVENTORY_ROOT";
+    if let Some(root) = std::env::var_os(ROOT_ENV) {
+        let inventory =
+            find_workspace_inventory(std::path::Path::new(&root), &["Cargo.toml"], &[], &[])
+                .unwrap();
+        assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 129);
+        return;
+    }
+    let workspace = tempfile::tempdir().unwrap();
+    let mut directory = workspace.path().to_path_buf();
+    for _ in 0..128 {
+        let sibling = directory.join("s");
+        fs::create_dir(&sibling).unwrap();
+        fs::write(sibling.join("Cargo.toml"), "[workspace]\n").unwrap();
+        directory.push("d");
+        fs::create_dir(&directory).unwrap();
+    }
+    fs::write(directory.join("Cargo.toml"), "[workspace]\n").unwrap();
+    let output = std::process::Command::new("sh")
+        .args(["-c", r#"ulimit -n 64; exec "$@""#, "sh"])
+        .arg(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "inventory::tests::discovers_deep_trees_with_a_small_handle_limit",
+            "--nocapture",
+        ])
+        .env(ROOT_ENV, workspace.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "{output:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let parent = workspace.path().join("parent");
+    let child = parent.join("child");
+    fs::create_dir_all(&child).unwrap();
+    fs::create_dir(outside.path().join("child")).unwrap();
+    fs::write(outside.path().join("child/Cargo.toml"), "[workspace]\n").unwrap();
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        |_| Ok(()),
+        |path| {
+            if path == child {
+                fs::rename(&parent, workspace.path().join("moved"))?;
+                symlink(outside.path(), &parent)?;
+            }
+            Ok(())
+        },
+    )
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+}
