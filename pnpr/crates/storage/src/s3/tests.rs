@@ -452,21 +452,31 @@ async fn maintenance_inventory_includes_nested_and_unmanifested_repositories() {
 #[tokio::test]
 async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
     let (store, _staging) = store_with_prefix("");
-    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
 
     let first = store
-        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .replace_record_if_current(
+            ".staged",
+            "stage.json",
+            br#"{"id":"stage"}"#,
+            br#"{"id":"stage","a":1}"#,
+        )
         .await
         .unwrap();
     assert_eq!(first, DocumentWrite::Written);
 
     let second = store
-        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","b":2}"#)
+        .replace_record_if_current(
+            ".staged",
+            "stage.json",
+            br#"{"id":"stage"}"#,
+            br#"{"id":"stage","b":2}"#,
+        )
         .await
         .unwrap();
     assert_eq!(second, DocumentWrite::Conflict);
     assert_eq!(
-        store.read_staged("stage.json").await.unwrap().as_deref(),
+        store.read_record(".staged", "stage.json").await.unwrap().as_deref(),
         Some(&br#"{"id":"stage","a":1}"#[..]),
     );
 }
@@ -476,25 +486,46 @@ async fn a_staged_record_is_replaced_only_while_it_is_unchanged() {
 #[tokio::test]
 async fn a_removed_staged_record_is_not_replaced() {
     let (store, _staging) = store_with_prefix("");
-    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
-    assert!(store.remove_staged("stage.json").await.unwrap());
+    store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap();
+    assert!(store.remove_record(".staged", "stage.json").await.unwrap());
 
     let replaced = store
-        .replace_staged_if_current("stage.json", br#"{"id":"stage"}"#, br#"{"id":"stage","a":1}"#)
+        .replace_record_if_current(
+            ".staged",
+            "stage.json",
+            br#"{"id":"stage"}"#,
+            br#"{"id":"stage","a":1}"#,
+        )
         .await
         .unwrap();
     assert_eq!(replaced, DocumentWrite::Conflict);
-    assert!(store.read_staged("stage.json").await.unwrap().is_none());
+    assert!(store.read_record(".staged", "stage.json").await.unwrap().is_none());
 }
 
-/// Stage ids are minted fresh, so an occupied key belongs to another record.
+/// A record that must not be rewritten is created, not put: the second
+/// writer is told the key is taken and the first record stands.
 #[tokio::test]
-async fn creating_a_staged_record_twice_fails() {
+async fn creating_a_record_twice_leaves_the_first_one() {
     let (store, _staging) = store_with_prefix("");
-    store.create_staged("stage.json", br#"{"id":"stage"}"#).await.unwrap();
-    assert!(store.create_staged("stage.json", br#"{"id":"other"}"#).await.is_err());
+    assert!(store.create_record(".staged", "stage.json", br#"{"id":"stage"}"#).await.unwrap());
+    assert!(!store.create_record(".staged", "stage.json", br#"{"id":"other"}"#).await.unwrap());
     assert_eq!(
-        store.read_staged("stage.json").await.unwrap().as_deref(),
+        store.read_record(".staged", "stage.json").await.unwrap().as_deref(),
         Some(&br#"{"id":"stage"}"#[..]),
     );
+}
+
+/// Keys come back relative to their namespace, nested ones included: a run
+/// record is addressed `<workspace>/<run id>`.
+#[tokio::test]
+async fn record_keys_are_listed_relative_to_their_namespace() {
+    let (store, _staging) = store_with_prefix("bucket-prefix/");
+    store.create_record(".pipeline-runs/v0", "demo/100.json", b"{}").await.unwrap();
+    store.create_record(".pipeline-runs/v0", "other/200.json", b"{}").await.unwrap();
+    store.create_record(".staged", "stage.json", b"{}").await.unwrap();
+
+    let mut keys = store.list_record_keys(".pipeline-runs/v0").await.unwrap();
+    keys.sort();
+    assert_eq!(keys, ["demo/100.json", "other/200.json"]);
+    assert_eq!(store.list_record_keys(".staged").await.unwrap(), ["stage.json"]);
 }

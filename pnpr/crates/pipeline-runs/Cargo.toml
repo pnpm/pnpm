@@ -18,7 +18,9 @@ serde_json   = { workspace = true }
 tokio        = { workspace = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+object_store = { workspace = true }
+pnpr-config  = { workspace = true }
+tempfile     = { workspace = true }
 
 [lints]
 workspace = true

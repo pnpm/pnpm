@@ -3070,30 +3070,22 @@ async fn serve_list_pipeline_runs(
     {
         return private_no_cache(error.into_response());
     }
-    let result = tokio::task::spawn_blocking(move || {
-        let store =
-            state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
-        let mut runs = Vec::new();
-        for (name, policy) in &state.inner.config.pipeline.workspaces {
-            if !policy.access.allows(&identity)
-                || workspace.as_ref().is_some_and(|requested| requested != name)
-            {
-                continue;
-            }
-            match store.list(Some(name), limit) {
-                Ok(entries) => runs.extend(entries),
-                Err(error) => return Err(error),
-            }
-            runs.sort_by(|left, right| right.run_id.cmp(&left.run_id));
-            runs.truncate(limit);
-        }
-        Ok::<_, RegistryError>(runs)
-    })
-    .await;
-    private_no_cache(match result {
-        Ok(Ok(runs)) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
-        Ok(Err(error)) => error.into_response(),
-        Err(error) => RegistryError::Io(std::io::Error::other(error)).into_response(),
+    let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
+    let visible: Vec<&str> = state
+        .inner
+        .config
+        .pipeline
+        .workspaces
+        .iter()
+        .filter(|(name, policy)| {
+            policy.access.allows(&identity)
+                && workspace.as_ref().is_none_or(|requested| requested == *name)
+        })
+        .map(|(name, _)| name.as_str())
+        .collect();
+    private_no_cache(match store.list(&visible, limit).await {
+        Ok(runs) => axum::Json(serde_json::json!({ "runs": runs })).into_response(),
+        Err(error) => error.into_response(),
     })
 }
 
@@ -3108,7 +3100,7 @@ async fn serve_get_pipeline_run(
         return private_no_cache(error.into_response());
     }
     let store = state.inner.pipeline_runs.as_ref().expect("pipeline routes require a run store");
-    private_no_cache(match store.get(&workspace, &run_id) {
+    private_no_cache(match store.get(&workspace, &run_id).await {
         Ok(Some(run)) => axum::Json(run).into_response(),
         Ok(None) => not_found(),
         Err(err) => err.into_response(),

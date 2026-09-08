@@ -123,30 +123,43 @@ pub(crate) trait HostedBackend: Debug + Send + Sync {
     /// through `std::fs` and needs a real path.
     fn local_scratch_root(&self) -> &Path;
 
-    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>>;
+    // --- Records ---------------------------------------------------------
+    //
+    // The store also holds what the registry itself keeps beside the packages:
+    // staged publishes waiting for approval, pipeline run records. Each such
+    // kind owns a reserved namespace of the hosted store — a dot-prefixed
+    // segment, which no package name can occupy — and addresses its records by
+    // a key within it. `Storage` names the namespaces; a backend only maps a
+    // namespace and key onto a path or an object key.
 
-    /// Write a staged object that does not exist yet. A staged object is
-    /// named by a freshly generated stage id, so an occupied key means
-    /// another record already owns it and must not be overwritten.
-    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()>;
+    async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>>;
 
-    /// Replace a staged object only while it still holds `expected`.
+    /// Write a record where nothing is stored yet, reporting `false` when the
+    /// key is taken. Records that must not be rewritten — an approved-once
+    /// staged publish, an append-only run record — are created this way, so a
+    /// second writer is told rather than overwriting the first.
+    async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool>;
+
+    /// Replace a record only while it still holds `expected`.
     ///
-    /// This is what makes an approval exclusive: the approving replica
-    /// rewrites the record it read, and a replica whose copy is no longer
-    /// what the store holds — because another approval claimed it, or a
-    /// rejection removed it — gets [`DocumentWrite::Conflict`] instead of
-    /// acting on a record that has moved on.
-    async fn replace_staged_if_current(
+    /// This is what makes a staged approval exclusive: the approving replica
+    /// rewrites the record it read, and a replica whose copy is no longer what
+    /// the store holds — because another approval claimed it, or a rejection
+    /// removed it — gets [`DocumentWrite::Conflict`] instead of acting on a
+    /// record that has moved on.
+    async fn replace_record_if_current(
         &self,
-        object: &str,
+        namespace: &str,
+        key: &str,
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite>;
 
-    async fn remove_staged(&self, object: &str) -> Result<bool>;
+    async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool>;
 
-    async fn list_staged_ids(&self) -> Result<Vec<String>>;
+    /// Every key stored in `namespace`, in unspecified order, relative to the
+    /// namespace and `/`-separated whatever the backend stores them on.
+    async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>>;
 }
 
 #[derive(Debug)]

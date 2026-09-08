@@ -65,9 +65,8 @@ pub(super) fn router_with_auth_and_osv(
     let resolver_enabled = config.resolver.enabled;
     let artifacts_enabled = config.artifacts.enabled;
     let pipeline_enabled = config.pipeline.enabled;
-    let pipeline_runs = pipeline_enabled
-        .then(|| pnpr_pipeline_runs::PipelineRunStore::new(&config.storage))
-        .transpose()?;
+    let pipeline_runs =
+        pipeline_enabled.then(|| pnpr_pipeline_runs::PipelineRunStore::new(storage.clone()));
     let artifacts = artifacts_enabled
         .then(|| {
             pnpr_shared_artifacts::SharedArtifactStore::new(

@@ -16,8 +16,7 @@
 use crate::{
     BlobFinalize, DocumentWrite, HOSTED_REVISION_REF_INDEX_FILE, HOSTED_REVISION_REFS_DIR,
     HostedBackend, HostedDocumentForUpdate, HostedDocumentVersion, HostedRevisionRefIndex,
-    HostedRevisionRefWrite, STAGED_DIR, staged_id_of_meta_object,
-    wait_after_document_write_conflict,
+    HostedRevisionRefWrite, wait_after_document_write_conflict,
 };
 use async_trait::async_trait;
 use axum::body::Body;
@@ -514,40 +513,49 @@ impl S3Store {
         ))
     }
 
-    // Staged-publish records (see `storage::Storage`'s staged section for
-    // the layout contract shared with the fs backend).
+    // Records (see `storage::Storage` for the namespaces and the layout
+    // contract shared with the fs backend).
 
-    pub async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
-        match self.store.get(&self.staged_key(object)).await {
+    pub async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
+        match self.store.get(&self.record_key(namespace, key)).await {
             Ok(result) => Ok(Some(result.bytes().await?.to_vec())),
             Err(object_store::Error::NotFound { .. }) => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
 
-    pub async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        self.store
+    pub async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
+        match self
+            .store
             .put_opts(
-                &self.staged_key(object),
+                &self.record_key(namespace, key),
                 PutPayload::from(bytes.to_vec()),
                 PutOptions { mode: PutMode::Create, ..PutOptions::default() },
             )
-            .await?;
-        Ok(())
+            .await
+        {
+            Ok(_) => Ok(true),
+            Err(
+                object_store::Error::AlreadyExists { .. }
+                | object_store::Error::Precondition { .. },
+            ) => Ok(false),
+            Err(err) => Err(err.into()),
+        }
     }
 
-    /// Rewrite a staged object under `If-Match` on the version the caller
-    /// read, so only one replica can claim a record whose copy is current.
-    /// The bytes are compared as well: a rewrite the caller computed from
-    /// something other than what the bucket holds is a conflict even where
-    /// the version still matches.
-    pub async fn replace_staged_if_current(
+    /// Rewrite a record under `If-Match` on the version the caller read, so
+    /// only one replica can claim a record whose copy is current. The bytes
+    /// are compared as well: a rewrite the caller computed from something
+    /// other than what the bucket holds is a conflict even where the version
+    /// still matches.
+    pub async fn replace_record_if_current(
         &self,
-        object: &str,
+        namespace: &str,
+        key: &str,
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        let key = self.staged_key(object);
+        let key = self.record_key(namespace, key);
         let result = match self.store.get(&key).await {
             Ok(result) => result,
             // Gone: an approval that finished, or a rejection. A store that
@@ -581,32 +589,34 @@ impl S3Store {
         }
     }
 
-    pub async fn remove_staged(&self, object: &str) -> Result<bool> {
-        match self.store.delete(&self.staged_key(object)).await {
+    pub async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        match self.store.delete(&self.record_key(namespace, key)).await {
             Ok(()) => Ok(true),
             Err(object_store::Error::NotFound { .. }) => Ok(false),
             Err(err) => Err(err.into()),
         }
     }
 
-    pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        let scope = ObjectPath::from(format!("{}{STAGED_DIR}", self.prefix));
-        let mut listing = self.store.list(Some(&scope));
-        let mut ids = Vec::new();
+    pub async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
+        let scope = format!("{}{namespace}/", self.prefix);
+        let mut listing = self.store.list(Some(&ObjectPath::from(scope.as_str())));
+        let mut keys = Vec::new();
         while let Some(meta) = listing.next().await {
             let meta = meta?;
-            let Some(object) = meta.location.as_ref().rsplit('/').next() else {
+            // `ObjectPath` normalizes what it is built from, so compare
+            // against the same normalization rather than the raw prefix.
+            let Some(key) =
+                meta.location.as_ref().strip_prefix(ObjectPath::from(scope.as_str()).as_ref())
+            else {
                 continue;
             };
-            if let Some(id) = staged_id_of_meta_object(object) {
-                ids.push(id.to_string());
-            }
+            keys.push(key.trim_start_matches('/').to_string());
         }
-        Ok(ids)
+        Ok(keys)
     }
 
-    fn staged_key(&self, object: &str) -> ObjectPath {
-        ObjectPath::from(format!("{}{STAGED_DIR}/{object}", self.prefix))
+    fn record_key(&self, namespace: &str, key: &str) -> ObjectPath {
+        ObjectPath::from(format!("{}{namespace}/{key}", self.prefix))
     }
 }
 
@@ -795,28 +805,29 @@ impl HostedBackend for S3Store {
         &self.cache_root
     }
 
-    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
-        S3Store::read_staged(self, object).await
+    async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
+        S3Store::read_record(self, namespace, key).await
     }
 
-    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        S3Store::create_staged(self, object, bytes).await
+    async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
+        S3Store::create_record(self, namespace, key, bytes).await
     }
 
-    async fn replace_staged_if_current(
+    async fn replace_record_if_current(
         &self,
-        object: &str,
+        namespace: &str,
+        key: &str,
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        S3Store::replace_staged_if_current(self, object, expected, bytes).await
+        S3Store::replace_record_if_current(self, namespace, key, expected, bytes).await
     }
 
-    async fn remove_staged(&self, object: &str) -> Result<bool> {
-        S3Store::remove_staged(self, object).await
+    async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        S3Store::remove_record(self, namespace, key).await
     }
 
-    async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        S3Store::list_staged_ids(self).await
+    async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
+        S3Store::list_record_keys(self, namespace).await
     }
 }

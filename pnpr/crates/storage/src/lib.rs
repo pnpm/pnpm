@@ -595,29 +595,30 @@ impl HostedBackend for Store {
         &self.root
     }
 
-    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
-        Store::read_staged(self, object).await
+    async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
+        Store::read_record(self, namespace, key).await
     }
 
-    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        Store::create_staged(self, object, bytes).await
+    async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
+        Store::create_record(self, namespace, key, bytes).await
     }
 
-    async fn replace_staged_if_current(
+    async fn replace_record_if_current(
         &self,
-        object: &str,
+        namespace: &str,
+        key: &str,
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        Store::replace_staged_if_current(self, object, expected, bytes).await
+        Store::replace_record_if_current(self, namespace, key, expected, bytes).await
     }
 
-    async fn remove_staged(&self, object: &str) -> Result<bool> {
-        Store::remove_staged(self, object).await
+    async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        Store::remove_record(self, namespace, key).await
     }
 
-    async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        Store::list_staged_ids(self).await
+    async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
+        Store::list_record_keys(self, namespace).await
     }
 }
 
@@ -986,11 +987,17 @@ impl Storage {
     // metadata remembers which registry the stage was addressed through.
 
     pub async fn read_staged_meta(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_staged(&staged_meta_object(stage_id)?).await
+        self.hosted.read_record(STAGED_DIR, &staged_meta_object(stage_id)?).await
     }
 
     pub async fn create_staged_meta(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        self.hosted.create_staged(&staged_meta_object(stage_id)?, bytes).await
+        let key = staged_meta_object(stage_id)?;
+        if self.hosted.create_record(STAGED_DIR, &key, bytes).await? {
+            return Ok(());
+        }
+        // Stage ids are minted from the CSPRNG, so a taken key is not a
+        // publisher's doing.
+        Err(RegistryError::Internal { reason: format!("staged record {stage_id} already exists") })
     }
 
     /// Rewrite a staged record's metadata only while it still holds
@@ -1003,15 +1010,23 @@ impl Storage {
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        self.hosted.replace_staged_if_current(&staged_meta_object(stage_id)?, expected, bytes).await
+        self.hosted
+            .replace_record_if_current(STAGED_DIR, &staged_meta_object(stage_id)?, expected, bytes)
+            .await
     }
 
     pub async fn read_staged_body(&self, stage_id: &str) -> Result<Option<Vec<u8>>> {
-        self.hosted.read_staged(&staged_body_object(stage_id)?).await
+        self.hosted.read_record(STAGED_DIR, &staged_body_object(stage_id)?).await
     }
 
     pub async fn create_staged_body(&self, stage_id: &str, bytes: &[u8]) -> Result<()> {
-        self.hosted.create_staged(&staged_body_object(stage_id)?, bytes).await
+        let key = staged_body_object(stage_id)?;
+        if self.hosted.create_record(STAGED_DIR, &key, bytes).await? {
+            return Ok(());
+        }
+        Err(RegistryError::Internal {
+            reason: format!("staged record {stage_id} already has a body"),
+        })
     }
 
     /// Remove a staged record — the metadata first, so a concurrent list
@@ -1021,8 +1036,10 @@ impl Storage {
     /// reader, and an error here would misreport that while leaving nothing
     /// for a retry to find (bodies are only discovered through metadata).
     pub async fn remove_staged(&self, stage_id: &str) -> Result<bool> {
-        let removed = self.hosted.remove_staged(&staged_meta_object(stage_id)?).await?;
-        if let Err(err) = self.hosted.remove_staged(&staged_body_object(stage_id)?).await {
+        let removed = self.hosted.remove_record(STAGED_DIR, &staged_meta_object(stage_id)?).await?;
+        if let Err(err) =
+            self.hosted.remove_record(STAGED_DIR, &staged_body_object(stage_id)?).await
+        {
             tracing::warn!(error = %err, stage_id, "staged body cleanup failed after removing its metadata");
         }
         Ok(removed)
@@ -1031,7 +1048,48 @@ impl Storage {
     /// Every staged record's id, in unspecified order (the listing endpoint
     /// sorts by staging time).
     pub async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        self.hosted.list_staged_ids().await
+        let keys = self.hosted.list_record_keys(STAGED_DIR).await?;
+        Ok(keys
+            .iter()
+            .filter_map(|key| staged_id_of_meta_object(key))
+            .map(str::to_string)
+            .collect())
+    }
+
+    // --- Pipeline runs (`/-/pnpr/v0/pipeline`) ----------------------------
+    //
+    // A run record is the account `pnpm pipeline` gave of one run: testimony
+    // about something that happened once, not derived data a replica can
+    // rebuild, so it lives in the hosted store every replica shares rather
+    // than on the replica that happened to receive it. Records are
+    // append-only, keyed `<workspace>/<run id>`.
+
+    pub async fn read_pipeline_run(
+        &self,
+        workspace: &str,
+        run_id: &str,
+    ) -> Result<Option<Vec<u8>>> {
+        self.hosted.read_record(PIPELINE_RUNS_DIR, &pipeline_run_key(workspace, run_id)?).await
+    }
+
+    /// Record a run, reporting `false` when that workspace already has one
+    /// under this id — a run record is written once and never rewritten.
+    pub async fn create_pipeline_run(
+        &self,
+        workspace: &str,
+        run_id: &str,
+        bytes: &[u8],
+    ) -> Result<bool> {
+        let key = pipeline_run_key(workspace, run_id)?;
+        self.hosted.create_record(PIPELINE_RUNS_DIR, &key, bytes).await
+    }
+
+    /// One workspace's recorded run keys, in unspecified order. Scoped to the
+    /// workspace so a listing costs what that workspace holds rather than what
+    /// the deployment holds.
+    pub async fn list_pipeline_runs(&self, workspace: &str) -> Result<Vec<String>> {
+        let namespace = format!("{PIPELINE_RUNS_DIR}/{}", validated_record_name(workspace)?);
+        self.hosted.list_record_keys(&namespace).await
     }
 }
 
@@ -1047,6 +1105,29 @@ fn validate_revision_digest(digest: &str) -> Result<()> {
 /// The leading dot keeps it out of the package namespace: a package name
 /// can never start with `.`.
 pub(crate) const STAGED_DIR: &str = ".staged";
+
+/// Reserved namespace holding pipeline run records, versioned so a later
+/// record shape can live beside this one.
+pub(crate) const PIPELINE_RUNS_DIR: &str = ".pipeline-runs/v0";
+
+/// A run's key within its namespace. The identifiers are the client's, so
+/// they are checked here as well as by the endpoint that accepts them.
+fn pipeline_run_key(workspace: &str, run_id: &str) -> Result<String> {
+    Ok(format!("{}/{}", validated_record_name(workspace)?, validated_record_name(run_id)?))
+}
+
+/// Reject any identifier that could smuggle a path segment before it reaches
+/// a filesystem path or object key.
+fn validated_record_name(name: &str) -> Result<&str> {
+    let valid = !name.is_empty()
+        && !name.starts_with('.')
+        && name.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '.' | '_' | '-'));
+    if valid {
+        Ok(name)
+    } else {
+        Err(RegistryError::BadRequest { reason: format!("invalid record name {name:?}") })
+    }
+}
 const STAGED_META_SUFFIX: &str = ".json";
 const STAGED_BODY_SUFFIX: &str = ".body.json";
 
@@ -1076,11 +1157,11 @@ fn validated_stage_id(stage_id: &str) -> Result<&str> {
 struct Store {
     root: PathBuf,
     revision_ref_write_lock: Arc<tokio::sync::Mutex<()>>,
-    /// Serializes the read-compare-write of a staged record against every
-    /// other write to it, removals included. One process owns this store, so
-    /// an in-process lock is the whole of the compare-and-set the
-    /// object-store backend gets from an `ETag`.
-    staged_write_lock: Arc<tokio::sync::Mutex<()>>,
+    /// Serializes the read-compare-write of a record against every other
+    /// write to it, removals included. One process owns this store, so an
+    /// in-process lock is the whole of the compare-and-set the object-store
+    /// backend gets from an `ETag`.
+    record_write_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Store {
@@ -1088,7 +1169,7 @@ impl Store {
         Self {
             root,
             revision_ref_write_lock: Arc::new(tokio::sync::Mutex::new(())),
-            staged_write_lock: Arc::new(tokio::sync::Mutex::new(())),
+            record_write_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
 
@@ -1099,7 +1180,7 @@ impl Store {
         Store {
             root: self.root.join(prefix),
             revision_ref_write_lock: Arc::clone(&self.revision_ref_write_lock),
-            staged_write_lock: Arc::clone(&self.staged_write_lock),
+            record_write_lock: Arc::clone(&self.record_write_lock),
         }
     }
 
@@ -1413,58 +1494,79 @@ impl Store {
         self.revision_refs_dir(digest).join(HOSTED_REVISION_REF_INDEX_FILE)
     }
 
-    async fn read_staged(&self, object: &str) -> Result<Option<Vec<u8>>> {
-        match fs::read(self.root.join(STAGED_DIR).join(object)).await {
+    /// A record's path. The key's `/` separators become path components, so a
+    /// key never rides into a path as one string on a platform that would read
+    /// it differently.
+    fn record_path(&self, namespace: &str, key: &str) -> PathBuf {
+        let mut path = self.root.join(namespace);
+        path.extend(key.split('/'));
+        path
+    }
+
+    async fn read_record(&self, namespace: &str, key: &str) -> Result<Option<Vec<u8>>> {
+        match fs::read(self.record_path(namespace, key)).await {
             Ok(bytes) => Ok(Some(bytes)),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
             Err(err) => Err(err.into()),
         }
     }
 
-    async fn create_staged(&self, object: &str, bytes: &[u8]) -> Result<()> {
-        write_atomic_new(&self.root.join(STAGED_DIR).join(object), bytes).await
+    async fn create_record(&self, namespace: &str, key: &str, bytes: &[u8]) -> Result<bool> {
+        match write_atomic_new(&self.record_path(namespace, key), bytes).await {
+            Ok(()) => Ok(true),
+            Err(RegistryError::Io(err)) if err.kind() == ErrorKind::AlreadyExists => Ok(false),
+            Err(err) => Err(err),
+        }
     }
 
-    async fn replace_staged_if_current(
+    async fn replace_record_if_current(
         &self,
-        object: &str,
+        namespace: &str,
+        key: &str,
         expected: &[u8],
         bytes: &[u8],
     ) -> Result<DocumentWrite> {
-        let _guard = self.staged_write_lock.lock().await;
-        if self.read_staged(object).await?.as_deref() != Some(expected) {
+        let _guard = self.record_write_lock.lock().await;
+        if self.read_record(namespace, key).await?.as_deref() != Some(expected) {
             return Ok(DocumentWrite::Conflict);
         }
-        write_atomic(&self.root.join(STAGED_DIR).join(object), bytes).await?;
+        write_atomic(&self.record_path(namespace, key), bytes).await?;
         Ok(DocumentWrite::Written)
     }
 
-    /// Under the staged-write lock, so a removal cannot land between a
+    /// Under the record-write lock, so a removal cannot land between a
     /// conditional replace's comparison and its write and see the record it
     /// deleted written back.
-    async fn remove_staged(&self, object: &str) -> Result<bool> {
-        let _guard = self.staged_write_lock.lock().await;
-        match fs::remove_file(self.root.join(STAGED_DIR).join(object)).await {
+    async fn remove_record(&self, namespace: &str, key: &str) -> Result<bool> {
+        let _guard = self.record_write_lock.lock().await;
+        match fs::remove_file(self.record_path(namespace, key)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
             Err(err) => Err(err.into()),
         }
     }
 
-    async fn list_staged_ids(&self) -> Result<Vec<String>> {
-        let mut entries = match fs::read_dir(self.root.join(STAGED_DIR)).await {
-            Ok(entries) => entries,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(err) => return Err(err.into()),
-        };
-        let mut ids = Vec::new();
-        while let Some(entry) = entries.next_entry().await? {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if let Some(id) = staged_id_of_meta_object(&name) {
-                ids.push(id.to_string());
+    async fn list_record_keys(&self, namespace: &str) -> Result<Vec<String>> {
+        let root = self.root.join(namespace);
+        let mut keys = Vec::new();
+        let mut pending = vec![(root, String::new())];
+        while let Some((dir, prefix)) = pending.pop() {
+            let mut entries = match fs::read_dir(&dir).await {
+                Ok(entries) => entries,
+                Err(err) if err.kind() == ErrorKind::NotFound => continue,
+                Err(err) => return Err(err.into()),
+            };
+            while let Some(entry) = entries.next_entry().await? {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let key = if prefix.is_empty() { name } else { format!("{prefix}/{name}") };
+                if entry.file_type().await?.is_dir() {
+                    pending.push((entry.path(), key));
+                } else {
+                    keys.push(key);
+                }
             }
         }
-        Ok(ids)
+        Ok(keys)
     }
 }
 

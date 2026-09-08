@@ -340,8 +340,10 @@ What stays local to each replica:
 - blob upload sessions of the image registry when hosted packages are on
   local disk, which is why `docker push` needs sticky sessions there; with
   `s3:` an upload continues on any replica
-- pipeline run records
 - accounts and tokens, unless a `backend:` database is configured
+
+Pipeline run records are shared: a run submitted through one replica is listed
+and served by every other, and a run id stays append-only across all of them.
 
 ## License
 
