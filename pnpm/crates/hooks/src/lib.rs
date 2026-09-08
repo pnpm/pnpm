@@ -357,12 +357,10 @@ impl PnpmfileHooks for NoopHooks {
 /// part of the recorded snapshots, so a checksum could only fail the
 /// frozen-lockfile gate.
 ///
-/// That is the whole of the contract: against a lockfile that *does*
-/// record a checksum, [`current_pnpmfile_checksum`] answers from
-/// [`PnpmfileHooks::source_path`] without consulting the hooks, so this
-/// wrapper does not suppress the comparison. `source_path` keeps
-/// answering on purpose — it is what names the pnpmfile in the
-/// `pnpm:hook` log events a hook's `context.log` produces.
+/// The suppression is bounded to that case:
+/// [`current_pnpmfile_checksum`] answers a lockfile that does record one
+/// from [`PnpmfileHooks::source_path`], which this wrapper keeps
+/// delegating.
 #[derive(derive_more::From)]
 pub struct ChecksumFreeHooks(Arc<dyn PnpmfileHooks>);
 
