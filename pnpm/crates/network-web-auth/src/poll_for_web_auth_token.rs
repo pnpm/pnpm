@@ -133,21 +133,23 @@ where
         let Ok(response) = Sys::fetch(&done_url, &fetch_options).await else {
             continue;
         };
-        if !response.ok {
-            continue;
-        }
-
-        if response.status == 202 {
+        if response.status == 202 && response.ok {
             // Registry is still waiting for authentication.
             wait_for_retry_after::<Sys>(&response, start_time, timeout_ms).await?;
             continue;
         }
-
-        match response.token() {
-            Ok(Some(token)) if !token.is_empty() => return Ok(token),
-            _ => continue,
+        if let Some(token) = issued_token(&response) {
+            return Ok(token);
         }
     }
+}
+
+/// The token a successful poll carries, if the registry has issued one.
+fn issued_token(response: &WebAuthFetchResponse) -> Option<String> {
+    if !response.ok {
+        return None;
+    }
+    response.token().ok().flatten().filter(|token| !token.is_empty())
 }
 
 /// Honor a 202 response's `Retry-After` header by sleeping the
