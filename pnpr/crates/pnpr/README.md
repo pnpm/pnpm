@@ -145,6 +145,18 @@ uses only the upstream credentials from its configuration, never a browser
 caller's authorization header. Discovery refuses redirects and sends configured
 upstream headers only over HTTPS or loopback HTTP. Search totals count only
 visible, deduplicated results and are exact across every participating source.
+Hosted npm packages and Cargo crates can be browsed without a search term:
+
+```text
+GET /-/v1/search?browse=true&size=20&from=0
+GET /cargo/api/v1/crates?browse=true&per_page=20&page=1
+```
+
+Use the ecosystem prefix and named registry mount appropriate for your server.
+Browse results follow registry routing and access rules, exclude upstreams and
+staged publications, and use the same response format and pagination limits as
+search. An empty search without `browse=true` still returns no results.
+
 To bound work from a single browser request, pnpr rejects upstream searches
 that would scan more than 2,000 upstream results or eight upstream pages.
 Offsets that would require a larger upstream scan are also rejected. Refine the

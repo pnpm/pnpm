@@ -436,6 +436,15 @@ async fn search_lists_hosted_crates_by_newest_version_and_description() {
     assert_eq!(body["crates"].as_array().unwrap().len(), 1);
     assert_eq!(body["crates"][0]["name"], "inflector");
 
+    for (page, name) in [(1, "demo"), (2, "inflector")] {
+        let body = search(app.clone(), &format!("browse=true&per_page=1&page={page}")).await;
+        assert_eq!(body["meta"]["total"], 2);
+        assert_eq!(body["crates"].as_array().unwrap().len(), 1);
+        assert_eq!(body["crates"][0]["name"], name);
+    }
+    let body = search(app.clone(), "browse=true&per_page=1&page=3").await;
+    assert_eq!(body, json!({ "crates": [], "meta": { "total": 2 } }));
+
     // A query that names nothing is not a request to dump the registry.
     let body = search(app.clone(), "q=nothing-matches-this").await;
     assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
@@ -526,44 +535,43 @@ async fn search_reports_the_newest_unyanked_release() {
 
 #[tokio::test]
 async fn search_hides_a_private_registry_from_an_anonymous_caller() {
-    let tmp = TempDir::new().unwrap();
-    let auth = AuthState::in_memory();
-    let token = auth.tokens.issue("alice").await.unwrap();
-    let app = router_with_auth(
-        cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
-        auth,
-    );
-    let response = app
-        .clone()
-        .oneshot(publish_request(
-            Some(&token),
-            publish_body(&metadata("demo", "0.1.0"), &crate_archive("demo", "0.1.0")),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    for url in ["/cargo/api/v1/crates?q=demo", "/cargo/api/v1/crates?browse=true"] {
+        let tmp = TempDir::new().unwrap();
+        let auth = AuthState::in_memory();
+        let token = auth.tokens.issue("alice").await.unwrap();
+        let app = router_with_auth(
+            cargo_config(tmp.path().to_path_buf(), "http://upstream.invalid/", "$authenticated"),
+            auth,
+        );
+        let response = app
+            .clone()
+            .oneshot(publish_request(
+                Some(&token),
+                publish_body(&metadata("demo", "0.1.0"), &crate_archive("demo", "0.1.0")),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
 
-    let response = app
-        .clone()
-        .oneshot(Request::get("/cargo/api/v1/crates?q=demo").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
+        let response =
+            app.clone().oneshot(Request::get(url).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(body, json!({ "crates": [], "meta": { "total": 0 } }));
 
-    let response = app
-        .oneshot(
-            Request::get("/cargo/api/v1/crates?q=demo")
-                .header(header::AUTHORIZATION, &token)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(body["crates"][0]["name"], "demo");
+        let response = app
+            .oneshot(
+                Request::get(url)
+                    .header(header::AUTHORIZATION, &token)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(body["crates"][0]["name"], "demo");
+    }
 }
 
 #[tokio::test]

@@ -4255,47 +4255,49 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
 /// by name/version/description through `/-/v1/search`.
 #[tokio::test]
 async fn search_does_not_enumerate_a_private_flat_root_registry() {
-    let tmp = TempDir::new().unwrap();
-    // The flat root (`org: ""`) stores directly under `storage`.
-    seed_hosted(tmp.path(), "@corp/secret-tool");
+    for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
+        let tmp = TempDir::new().unwrap();
+        // The flat root (`org: ""`) stores directly under `storage`.
+        seed_hosted(tmp.path(), "@corp/secret-tool");
 
-    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    // Replace the default public flat-root registry (`local`) with a private one;
-    // any surviving `$all` flat-root entry would defeat the gate under test.
-    config.hosted.clear();
-    config.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
-    config.registries = Registries::new(
-        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
-        Some("corp".to_string()),
-    );
-    let auth = AuthState::in_memory();
-    let member = auth.tokens.issue("alice").await.unwrap();
-    let outsider = auth.tokens.issue("mallory").await.unwrap();
-    let app = router_with_auth(config, auth);
+        let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+        // Replace the default public flat-root registry (`local`) with a private one;
+        // any surviving `$all` flat-root entry would defeat the gate under test.
+        config.hosted.clear();
+        config.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
+        config.registries = Registries::new(
+            vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+            Some("corp".to_string()),
+        );
+        let auth = AuthState::in_memory();
+        let member = auth.tokens.issue("alice").await.unwrap();
+        let outsider = auth.tokens.issue("mallory").await.unwrap();
+        let app = router_with_auth(config, auth);
 
-    let search_with = |authorization: Option<String>| {
-        let mut request = Request::get("/-/v1/search?text=secret");
-        if let Some(value) = authorization {
-            request = request.header(header::AUTHORIZATION, value);
+        let search_with = |authorization: Option<String>| {
+            let mut request = Request::get(url);
+            if let Some(value) = authorization {
+                request = request.header(header::AUTHORIZATION, value);
+            }
+            request.body(Body::empty()).unwrap()
+        };
+
+        // Neither the anonymous caller nor an authenticated non-member can
+        // enumerate the private registry's packages.
+        for authorization in [None, Some(format!("Bearer {outsider}"))] {
+            let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = body_json(response.into_body()).await;
+            assert_eq!(body["total"], json!(0), "private package leaked through search");
+            assert_eq!(body["objects"], json!([]));
         }
-        request.body(Body::empty()).unwrap()
-    };
 
-    // Neither the anonymous caller nor an authenticated non-member can
-    // enumerate the private registry's packages.
-    for authorization in [None, Some(format!("Bearer {outsider}"))] {
-        let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
+        // A member still finds it.
+        let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = body_json(response.into_body()).await;
-        assert_eq!(body["total"], json!(0), "private package leaked through search");
-        assert_eq!(body["objects"], json!([]));
+        assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
     }
-
-    // A member still finds it.
-    let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = body_json(response.into_body()).await;
-    assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
 }
 
 #[tokio::test]
@@ -5308,4 +5310,78 @@ fn pipeline_viewer_renders_publisher_data_as_text() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
+}
+
+#[tokio::test]
+async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "alpha");
+    seed_hosted(tmp.path(), "beta");
+    seed_hosted(tmp.path(), "gamma");
+    seed_hosted(tmp.path(), "routed-to-upstream");
+    seed_hosted(tmp.path(), "hidden");
+    let mut upstream = mockito::Server::new_async().await;
+    let search = upstream
+        .mock("GET", "/-/v1/search")
+        .match_query(mockito::Matcher::Any)
+        .expect(0)
+        .create_async()
+        .await;
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().search = true;
+    let mut hosted = hosted_with_access("", "$all");
+    hosted.rules = PackageRules::new(
+        vec![access_rule("hidden", "alice")],
+        Some(AccessList::from_tokens(["$all"])),
+    );
+    config.hosted.insert("local".to_string(), hosted);
+    config.registries = Registries::new(
+        [
+            (
+                "local".to_string(),
+                Registry::Hosted {
+                    patterns: ["alpha", "beta", "gamma", "hidden"]
+                        .into_iter()
+                        .map(|name| PackagePattern::parse(name, Ecosystem::Npm).unwrap())
+                        .collect(),
+                },
+            ),
+            ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+            (
+                "main".to_string(),
+                Registry::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        Some("main".to_string()),
+    );
+    let app = router(config);
+    for base in ["", "/~main"] {
+        for (from, name) in [(0, "alpha"), (1, "beta"), (2, "gamma")] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("{base}/-/v1/search?browse=true&size=1&from={from}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
+            let body = body_json(response.into_body()).await;
+            assert_eq!(body["total"], 3);
+            assert_eq!(body["objects"].as_array().unwrap().len(), 1);
+            assert_eq!(body["objects"][0]["package"]["name"], name);
+        }
+    }
+    let response = app
+        .oneshot(Request::get("/-/v1/search?browse=true&from=3").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["total"], 3);
+    assert_eq!(body["objects"], json!([]));
+    search.assert_async().await;
 }
