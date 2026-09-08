@@ -7,20 +7,60 @@ Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
 ## Registry directory
 
 `GET /-/pnpr/v0/registries` lists the named registries visible to the caller.
-It returns `registries`, the visible `defaultRegistry` (or `null`), and the
+It returns `registries`, the visible `defaultRegistries` keyed by ecosystem, and the
 mounted `ecosystems` with their `available` and `prefixed` flags.
 
 Each entry contains its `name`, `kind` (`hosted`, `upstream`, or `router`),
-and supported `ecosystems`. Concrete registries report namespace `patterns`;
+and `ecosystem`. The identity is `(ecosystem, name)`. Concrete registries report namespace `patterns`;
 routers report ordered `sources`. These fields are `null` when their details
 cannot be disclosed under the caller's access rules. Upstream addresses,
 credentials, storage paths, and package access rules are never returned.
 Responses are private and must not be cached.
 
-An explicit `/~name` chooses a registry; the path without a name uses the
-configured default. Within an ecosystem, a router selects the first source
+An explicit `/<ecosystem>/~name` chooses a registry; the path without a name uses
+that ecosystem's configured default. A single-ecosystem server omits the ecosystem prefix. Within an ecosystem, a router selects the first source
 whose namespace claims the package. A missing package or failed upstream is
 final, without fallback to another source. Package access rules still apply.
+
+## Ecosystem-scoped registries
+
+Group registries by ecosystem to reuse a name across protocols:
+
+```yaml
+registries:
+  npm:
+    internal:
+      type: hosted
+      packages:
+        '@example/*': {}
+    public:
+      type: upstream
+      url: https://registry.npmjs.org/
+      public: true
+    main:
+      type: router
+      sources: [internal, public]
+  cargo:
+    internal:
+      type: hosted
+    main:
+      type: router
+      sources: [internal]
+defaultRegistry:
+  npm: main
+  cargo: main
+```
+
+Here `/npm/~internal` and `/cargo/~internal` are independent registries. Router
+sources resolve within their ecosystem group, and each ecosystem has its own
+default. Source references cannot cross ecosystem groups. Access rules, teams,
+upstream credentials, and caches belong to the individual registry.
+
+A grouped hosted registry defaults to the storage namespace `<ecosystem>~<name>`.
+Set `org` explicitly to use an existing namespace when moving a flat registry
+into a group, including `org: ''` for the flat storage root. Two hosted registries
+cannot share a storage namespace. The existing flat configuration format and
+its shared `defaultRegistry: main` remain supported.
 
 ## OpenID Connect
 

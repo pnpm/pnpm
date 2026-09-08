@@ -585,8 +585,7 @@ fn a_router_serves_every_ecosystem_its_sources_speak() {
         Resolved::Concrete { registry: "python", kind: ConcreteKind::Hosted },
     );
     assert_eq!(set.resolve("main", Ecosystem::Pypi, "requests"), Resolved::Unclaimed);
-    // A concrete registry addressed with another ecosystem's protocol claims nothing.
-    assert_eq!(set.resolve("crates", Ecosystem::Npm, "demo"), Resolved::Unclaimed);
+    assert_eq!(set.resolve("crates", Ecosystem::Npm, "demo"), Resolved::UnknownRegistry);
     assert_eq!(set.sources("main", Ecosystem::Pypi), vec!["python"]);
 }
 

@@ -28,8 +28,15 @@ use std::sync::Arc;
 
 /// The registry a request addressed: the `~<name>` it named, else the
 /// configured default target. `None` when the path-less form has no default.
-pub(super) fn addressed_registry(state: &AppState, registry: Option<&str>) -> Option<String> {
-    registry.map(str::to_string).or_else(|| default_registry_target(state))
+pub(super) fn addressed_registry(
+    state: &AppState,
+    registry: Option<&str>,
+    ecosystem: Ecosystem,
+) -> Option<String> {
+    match registry {
+        Some(name) => state.inner.config.registries.addressed(name, ecosystem).map(str::to_string),
+        None => default_registry_target(state, ecosystem),
+    }
 }
 
 /// The two addresses a surface answers on: the default target, and one named
@@ -77,7 +84,7 @@ pub(super) fn caller_scoped(
     if registry.is_some() {
         return private_no_cache(response);
     }
-    match (default_registry_target(state), package) {
+    match (default_registry_target(state, ecosystem), package) {
         (Some(target), Some(package))
             if resolves_to_private_source(state, &target, ecosystem, package) =>
         {

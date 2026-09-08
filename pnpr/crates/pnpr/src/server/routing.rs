@@ -576,7 +576,7 @@ async fn get_revision_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<DigestPath>,
 ) -> Response {
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), Ecosystem::Npm) else {
         return not_found();
     };
     serve_revision_tarball(&state, &identity, &target, &path.digest).await

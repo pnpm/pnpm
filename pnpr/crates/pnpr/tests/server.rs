@@ -1,3 +1,6 @@
+#[path = "common/registry_groups.rs"]
+mod registry_groups;
+
 use axum::{
     body::{Body, Bytes, to_bytes},
     http::{HeaderValue, Request, StatusCode, header},
@@ -5417,16 +5420,16 @@ async fn registry_directory_filters_private_registries_and_routing_details() {
         }
         let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        assert!(response.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "private, no-store");
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let body: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(body["defaultRegistry"], "main");
+        assert_eq!(body["defaultRegistries"], json!({"npm": "main", "cargo": "main"}));
         assert_eq!(body["ecosystems"]["cargo"], json!({"available": true, "prefixed": true}));
         let entries = body["registries"].as_array().unwrap();
         let main = entries.iter().find(|registry| registry["name"] == "main").unwrap();
         assert_eq!(entries.iter().any(|registry| registry["name"] == "private"), authenticated);
         if authenticated {
-            assert_eq!(main["sources"], json!(["private", "crates", "npmjs"]));
+            assert_eq!(main["sources"], json!(["private", "npmjs"]));
         } else {
             assert!(main["sources"].is_null());
             assert!(!String::from_utf8_lossy(&bytes).contains("secret"));
@@ -5464,11 +5467,104 @@ async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
         .oneshot(Request::builder().uri("/-/pnpr/v0/registries").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    let body: Value =
-        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
-    assert!(body["defaultRegistry"].is_null());
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(!text.contains("secret-package"), "directory exposes a restricted package name");
+    assert!(!text.contains("alice"), "directory exposes an access rule");
+    assert_eq!(body["defaultRegistries"], json!({}));
     assert_eq!(body["registries"].as_array().unwrap().len(), 1);
     assert_eq!(body["registries"][0]["name"], "public");
     assert!(body["registries"][0]["patterns"].is_null());
     assert_eq!(body["ecosystems"]["npm"]["prefixed"], false);
+}
+
+#[tokio::test]
+async fn same_named_registries_keep_ecosystem_access_and_defaults_separate() {
+    let tmp = TempDir::new().unwrap();
+    let config = registry_groups::grouped_config(tmp.path(), "alice");
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+    for authenticated in [false, true] {
+        let mut request = Request::get("/-/pnpr/v0/registries");
+        if authenticated {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+        }
+        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let directory: Value =
+            serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        for ecosystem in Ecosystem::all() {
+            let visible = ecosystem != Ecosystem::Npm || authenticated;
+            assert_eq!(
+                directory["defaultRegistries"][ecosystem.as_str()],
+                if visible { json!("main") } else { Value::Null },
+            );
+            let entries: Vec<_> = directory["registries"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|entry| entry["ecosystem"] == ecosystem.as_str())
+                .collect();
+            assert_eq!(entries.len(), if visible { 2 } else { 0 }, "{ecosystem}");
+            if visible {
+                assert_eq!(entries[0]["name"], "internal");
+                assert_eq!(entries[1]["name"], "main");
+                assert_eq!(entries[1]["sources"], json!(["internal"]));
+            }
+        }
+    }
+    for path in [
+        "/cargo/~internal/index/config.json",
+        "/cargo/~main/index/config.json",
+        "/cargo/index/config.json",
+        "/pypi/~internal/simple/",
+        "/pypi/~main/simple/",
+        "/pypi/simple/",
+        "/oci/~internal/v2/",
+        "/oci/~main/v2/",
+        "/v2/",
+    ] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(
+            response.status(),
+            if path.ends_with("/v2/") { StatusCode::UNAUTHORIZED } else { StatusCode::OK },
+            "{path}",
+        );
+    }
+    for path in [
+        "/npm/~internal/demo",
+        "/npm/~cargo%2Finternal/demo",
+        "/cargo/~npm%2Finternal/index/config.json",
+    ] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+    }
+}
+
+#[tokio::test]
+async fn registry_directory_describes_oci_only_named_endpoints() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("config.yaml");
+    fs::write(&path, "storage: ./storage\nregistries:\n  oci:\n    internal: {type: hosted}\ndefaultRegistry:\n  oci: internal\n").unwrap();
+    let config = Config::from_yaml(&path, "127.0.0.1:4873".parse().unwrap(), None).unwrap();
+    let app = router(config);
+    let response = app
+        .clone()
+        .oneshot(Request::get("/-/pnpr/v0/registries").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let directory: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(
+        directory["ecosystems"]["oci"],
+        json!({"available": true, "prefixed": false, "namedPrefixed": false}),
+    );
+    for path in ["/~internal/v2/", "/v2/"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "{path}");
+    }
 }

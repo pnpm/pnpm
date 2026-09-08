@@ -26,7 +26,7 @@ impl Request {
         name: &str,
     ) -> Option<(CanonicalPackageName, RegistrySource)> {
         let key = CanonicalPackageName::parse(name, Ecosystem::Oci).ok()?;
-        let target = addressed_registry(&self.state, self.registry.as_deref())?;
+        let target = addressed_registry(&self.state, self.registry.as_deref(), Ecosystem::Oci)?;
         let source = resolve_ecosystem_source(&self.state, &target, Ecosystem::Oci, key.as_str());
         matches!(source, RegistrySource::Upstream(_)).then_some((key, source))
     }

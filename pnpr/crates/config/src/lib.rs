@@ -944,12 +944,12 @@ struct HostedFile {
     /// The package ecosystem this registry serves, which selects the protocol
     /// spoken at its `/~<name>/` endpoint. Omitted ⇒ `npm`.
     #[serde(default)]
-    ecosystem: Ecosystem,
+    ecosystem: Option<Ecosystem>,
     /// Storage namespace for this registry's packages, so two hosted registries can
-    /// hold the same `name@version` without colliding. Omitted ⇒ the flat
-    /// `storage` root (`""`).
+    /// hold the same `name@version` without colliding. A grouped registry defaults
+    /// to `ecosystem~name`; a flat entry defaults to the storage root (`""`).
     #[serde(default)]
-    org: String,
+    org: Option<String>,
     /// The registry-level default: who may read this registry's packages when
     /// no `packages:` entry refines it. Omitted ⇒ `$all`.
     #[serde(default)]
@@ -980,7 +980,7 @@ struct UpstreamFile {
     /// `cargo`, `url` is a sparse index root (`https://index.crates.io/`); for
     /// `pypi`, a Simple API root (`https://pypi.org/simple/`).
     #[serde(default)]
-    ecosystem: Ecosystem,
+    ecosystem: Option<Ecosystem>,
     url: String,
     /// An anonymous, world-readable origin (e.g. the public npm registry).
     /// Mutually exclusive with `auth`.
@@ -1028,6 +1028,23 @@ struct UpstreamFile {
 struct RouterFile {
     #[serde(default)]
     sources: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(
+    untagged,
+    expecting = "a registry with type hosted, upstream, or router, or an ecosystem group of registries"
+)]
+enum RegistryGroupFile {
+    Registry(RegistryFile),
+    Ecosystem(IndexMap<String, RegistryFile>),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum DefaultRegistryFile {
+    Shared(String),
+    Ecosystems(IndexMap<Ecosystem, String>),
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but
@@ -1082,11 +1099,11 @@ struct ConfigFile {
     /// exposed at `/~<name>/`. The only routing surface — there is no legacy
     /// `upstreams:`/`packages: proxy:` fallback.
     #[serde(default)]
-    registries: IndexMap<String, RegistryFile>,
+    registries: IndexMap<String, RegistryGroupFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
     /// registry and clients must address a `/~<name>/`.
     #[serde(default, rename = "defaultRegistry")]
-    default_registry: Option<String>,
+    default_registry: Option<DefaultRegistryFile>,
     /// The removed top-level ACL block, kept only to *reject* it loudly.
     /// Per-package rules live on each registry's `packages:` map now; a
     /// config still carrying the global block previously enforced access
@@ -1804,7 +1821,7 @@ impl Config {
             }
         }
         for name in self.registries.names() {
-            validate_registry_name(name)?;
+            validate_registry_key(name)?;
             // A concrete registry needs its serving config — a hosted graph
             // entry without its `hosted` table row (or an upstream without
             // its serving entry) would answer every request not-found at
@@ -1836,7 +1853,7 @@ impl Config {
             }
         }
         for (index, (name, hosted)) in self.hosted.iter().enumerate() {
-            validate_registry_name(name)?;
+            validate_registry_key(name)?;
             validate_org_namespace(name, &hosted.org)?;
             // The mirror of the upstream collision above: a hosted serving row
             // under a name the graph declares as a different kind would leave
@@ -1945,6 +1962,72 @@ fn registry_err(err: &RegistryConfigError) -> RegistryError {
     RegistryError::InvalidConfig { reason: err.to_string() }
 }
 
+fn set_group_ecosystem(
+    name: &str,
+    declared: &mut Option<Ecosystem>,
+    ecosystem: Ecosystem,
+) -> Result<(), RegistryError> {
+    if declared.is_some_and(|declared| declared != ecosystem) {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "registry {name:?} declares an ecosystem different from its {ecosystem} group",
+            ),
+        });
+    }
+    *declared = Some(ecosystem);
+    Ok(())
+}
+
+fn flatten_registry_groups(
+    groups: IndexMap<String, RegistryGroupFile>,
+) -> Result<IndexMap<String, RegistryFile>, RegistryError> {
+    let mut entries = IndexMap::new();
+    for (name, group) in groups {
+        match group {
+            RegistryGroupFile::Registry(registry) => {
+                validate_registry_name(&name)?;
+                entries.insert(name, registry);
+            }
+            RegistryGroupFile::Ecosystem(registries) => {
+                let ecosystem = Ecosystem::all()
+                    .find(|ecosystem| ecosystem.as_str() == name)
+                    .ok_or_else(|| RegistryError::InvalidConfig {
+                        reason: format!("unknown registry ecosystem {name:?}"),
+                    })?;
+                for (name, mut registry) in registries {
+                    validate_registry_name(&name)?;
+                    match &mut registry {
+                        RegistryFile::Hosted(hosted) => {
+                            set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
+                            hosted.org.get_or_insert_with(|| format!("{ecosystem}~{name}"));
+                        }
+                        RegistryFile::Upstream(upstream) => {
+                            set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
+                        }
+                        RegistryFile::Router(router) => {
+                            for source in &mut router.sources {
+                                validate_registry_name(source)?;
+                                *source = format!("{ecosystem}/{source}");
+                            }
+                        }
+                    }
+                    entries.insert(format!("{ecosystem}/{name}"), registry);
+                }
+            }
+        }
+    }
+    Ok(entries)
+}
+
+fn validate_registry_key(key: &str) -> Result<(), RegistryError> {
+    if let Some((prefix, name)) = key.split_once('/')
+        && Ecosystem::all().any(|ecosystem| ecosystem.as_str() == prefix)
+    {
+        return validate_registry_name(name);
+    }
+    validate_registry_name(key)
+}
+
 /// Build the validated [`Registries`] graph (and the hosted table) from the
 /// resolved upstreams and the `registries:` block. Every upstream is an upstream
 /// registry; `registries:` adds hosted, further upstream, and router registries.
@@ -1958,10 +2041,25 @@ fn registry_err(err: &RegistryConfigError) -> RegistryError {
 /// on (or carry) upstream secrets it never uses.
 fn build_registries(
     upstreams: &mut IndexMap<String, UpstreamConfig>,
-    registry_files: IndexMap<String, RegistryFile>,
-    default_registry: Option<String>,
+    registry_files: IndexMap<String, RegistryGroupFile>,
+    default_registry: Option<DefaultRegistryFile>,
     resolve_upstreams: bool,
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
+    let registry_files = flatten_registry_groups(registry_files)?;
+    let (default_registry, defaults) = match default_registry {
+        Some(DefaultRegistryFile::Shared(name)) => (Some(name), IndexMap::new()),
+        Some(DefaultRegistryFile::Ecosystems(defaults)) => {
+            let defaults = defaults
+                .into_iter()
+                .map(|(ecosystem, name)| {
+                    validate_registry_name(&name)?;
+                    Ok((ecosystem, format!("{ecosystem}/{name}")))
+                })
+                .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
+            (None, defaults)
+        }
+        None => (None, IndexMap::new()),
+    };
     let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
     let mut graph: IndexMap<String, Registry> = IndexMap::new();
     let mut ecosystems: IndexMap<String, Ecosystem> = IndexMap::new();
@@ -1972,7 +2070,7 @@ fn build_registries(
         graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
     }
     for (name, file) in registry_files {
-        validate_registry_name(&name)?;
+        validate_registry_key(&name)?;
         if graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -1982,21 +2080,30 @@ fn build_registries(
         }
         match file {
             RegistryFile::Hosted(registry) => {
-                validate_org_namespace(&name, &registry.org)?;
-                if let Some((other, _)) = hosted
-                    .iter()
-                    .find(|(_, existing): &(_, &HostedConfig)| existing.org == registry.org)
+                let org = registry.org.unwrap_or_default();
+                validate_org_namespace(&name, &org)?;
+                if let Some((other, _)) =
+                    hosted.iter().find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
                 {
-                    return Err(org_collision_error(&name, &registry.org, other));
+                    return Err(org_collision_error(&name, &org, other));
                 }
                 let teams = build_teams(&name, &registry.teams)?;
                 let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
-                let packages =
-                    ecosystem_package_keys(&name, registry.ecosystem, registry.packages)?;
-                let rules = build_rules(&name, registry.ecosystem, &packages, access, &teams)?;
+                let packages = ecosystem_package_keys(
+                    &name,
+                    registry.ecosystem.unwrap_or_default(),
+                    registry.packages,
+                )?;
+                let rules = build_rules(
+                    &name,
+                    registry.ecosystem.unwrap_or_default(),
+                    &packages,
+                    access,
+                    &teams,
+                )?;
                 let patterns = rules.patterns();
-                hosted.insert(name.clone(), HostedConfig { org: registry.org, rules, teams });
-                ecosystems.insert(name.clone(), registry.ecosystem);
+                hosted.insert(name.clone(), HostedConfig { org, rules, teams });
+                ecosystems.insert(name.clone(), registry.ecosystem.unwrap_or_default());
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
@@ -2008,10 +2115,19 @@ fn build_registries(
                 // write can land on — fails startup on every tier too.
                 let teams = build_teams(&name, &upstream.teams)?;
                 let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
-                let packages =
-                    ecosystem_package_keys(&name, upstream.ecosystem, upstream.packages.clone())?;
-                let rules = build_rules(&name, upstream.ecosystem, &packages, access, &teams)?;
-                ecosystems.insert(name.clone(), upstream.ecosystem);
+                let packages = ecosystem_package_keys(
+                    &name,
+                    upstream.ecosystem.unwrap_or_default(),
+                    upstream.packages.clone(),
+                )?;
+                let rules = build_rules(
+                    &name,
+                    upstream.ecosystem.unwrap_or_default(),
+                    &packages,
+                    access,
+                    &teams,
+                )?;
+                ecosystems.insert(name.clone(), upstream.ecosystem.unwrap_or_default());
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
                         reason: format!(
@@ -2040,6 +2156,15 @@ fn build_registries(
         .fold(Registries::new(graph, default_registry), |registries, (name, ecosystem)| {
             registries.with_ecosystem(name, *ecosystem)
         });
+    let defaults = defaults
+        .into_iter()
+        .map(|(ecosystem, target)| {
+            let local = Registries::local_name(&target);
+            let key = registries.addressed(local, ecosystem).unwrap_or(&target).to_string();
+            (ecosystem, key)
+        })
+        .collect();
+    let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
     Ok((hosted, registries))
 }

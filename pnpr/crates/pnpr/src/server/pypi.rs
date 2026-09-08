@@ -115,7 +115,7 @@ async fn get_project_list(
     TargetRegistry(registry): TargetRegistry,
     headers: HeaderMap,
 ) -> Response {
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let mut names = BTreeSet::new();
@@ -171,7 +171,7 @@ async fn get_project_page(
             .body(Body::empty())
             .expect("static-shape response always builds");
     }
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let document = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {
@@ -255,7 +255,7 @@ async fn get_file(
     if !is_safe_path_segment(filename) {
         return not_found();
     }
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, project) {

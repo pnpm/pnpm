@@ -309,16 +309,64 @@ pub struct Registries {
     /// The registry the path-less base URL (`https://<pnpr>/`) aliases. `None`
     /// disables the path-less base entirely — clients must address a registry.
     default_registry: Option<String>,
+    defaults: IndexMap<Ecosystem, String>,
     /// The ecosystem of every concrete registry that is not npm. A concrete
-    /// registry absent here is an npm registry; a router's ecosystem is the one
-    /// its sources share.
+    /// registry absent here is an npm registry. A flat router can span ecosystems;
+    /// a grouped router only includes sources in its own ecosystem.
     ecosystems: IndexMap<String, Ecosystem>,
 }
 
 impl Registries {
     #[must_use]
     pub fn new(registries: IndexMap<String, Registry>, default_registry: Option<String>) -> Self {
-        Self { entries: registries, default_registry, ecosystems: IndexMap::new() }
+        let ecosystems = registries
+            .iter()
+            .filter(|(_, registry)| registry.is_concrete())
+            .filter_map(|(key, _)| {
+                let (prefix, _) = key.split_once('/')?;
+                Ecosystem::all()
+                    .find(|ecosystem| ecosystem.as_str() == prefix)
+                    .map(|ecosystem| (key.clone(), ecosystem))
+            })
+            .collect();
+        Self { entries: registries, default_registry, defaults: IndexMap::new(), ecosystems }
+    }
+
+    /// Set ecosystem-specific defaults. Each target is an internal registry key.
+    #[must_use]
+    pub fn with_defaults(mut self, defaults: IndexMap<Ecosystem, String>) -> Self {
+        self.defaults = defaults;
+        self
+    }
+
+    /// Resolve an ecosystem-local name to its serving-table key. Qualified keys
+    /// are also accepted internally; HTTP callers must pass a single segment.
+    #[must_use]
+    pub fn addressed(&self, name: &str, ecosystem: Ecosystem) -> Option<&str> {
+        let qualified = format!("{ecosystem}/{name}");
+        self.entries
+            .get_key_value(&qualified)
+            .or_else(|| {
+                self.entries.get_key_value(name).filter(|(key, kind)| match key.split_once('/') {
+                    Some((prefix, _)) => prefix == ecosystem.as_str(),
+                    None => !kind.is_concrete() || self.concrete_ecosystem(key) == ecosystem,
+                })
+            })
+            .map(|(key, _)| key.as_str())
+    }
+
+    /// The name used in an ecosystem's `~name` URL, without its internal prefix.
+    #[must_use]
+    pub fn local_name(key: &str) -> &str {
+        key.split_once('/').map_or(key, |(_, name)| name)
+    }
+
+    /// The default serving-table key for one ecosystem.
+    #[must_use]
+    pub fn default_for(&self, ecosystem: Ecosystem) -> Option<&str> {
+        self.defaults.get(&ecosystem).map(String::as_str).or_else(|| {
+            self.default_registry.as_deref().and_then(|name| self.addressed(name, ecosystem))
+        })
     }
 
     /// Declare the ecosystem a concrete registry serves. Every registry is npm
@@ -375,7 +423,7 @@ impl Registries {
     /// serves that ecosystem, a router's matching sources, nothing otherwise.
     #[must_use]
     pub fn sources(&self, registry: &str, ecosystem: Ecosystem) -> Vec<&str> {
-        match self.entries.get_key_value(registry) {
+        match self.addressed(registry, ecosystem).and_then(|key| self.entries.get_key_value(key)) {
             Some((id, Registry::Hosted { .. } | Registry::Upstream { .. })) => {
                 if self.concrete_ecosystem(id) == ecosystem { vec![id] } else { Vec::new() }
             }
@@ -406,7 +454,7 @@ impl Registries {
         self.default_registry.as_deref()
     }
 
-    /// The declared registry names, in declaration order.
+    /// The internal serving-table keys, in declaration order. Grouped keys are `ecosystem/name`.
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.entries.keys().map(String::as_str)
     }
@@ -425,6 +473,12 @@ impl Registries {
     pub fn ensure_upstream(&mut self, name: &str) {
         if !self.entries.contains_key(name) {
             self.entries.insert(name.to_string(), Registry::Upstream { patterns: Vec::new() });
+            if let Some((prefix, _)) = name.split_once('/')
+                && let Some(ecosystem) =
+                    Ecosystem::all().find(|ecosystem| ecosystem.as_str() == prefix)
+            {
+                self.ecosystems.insert(name.to_string(), ecosystem);
+            }
         }
     }
 
@@ -445,7 +499,9 @@ impl Registries {
         ecosystem: Ecosystem,
         package: &str,
     ) -> Resolved<'a> {
-        let Some((registry_id, kind)) = self.entries.get_key_value(registry) else {
+        let Some((registry_id, kind)) =
+            self.addressed(registry, ecosystem).and_then(|key| self.entries.get_key_value(key))
+        else {
             return Resolved::UnknownRegistry;
         };
         let claim = |id: &'a str, kind: &Registry| -> Option<Resolved<'a>> {
@@ -478,7 +534,7 @@ impl Registries {
     /// is [`Resolved::UnknownRegistry`].
     #[must_use]
     pub fn resolve_default<'a>(&'a self, ecosystem: Ecosystem, package: &str) -> Resolved<'a> {
-        match self.default_registry.as_deref() {
+        match self.default_for(ecosystem) {
             Some(target) => self.resolve(target, ecosystem, package),
             None => Resolved::UnknownRegistry,
         }
@@ -493,6 +549,13 @@ impl Registries {
         {
             return Err(RegistryConfigError::UndefinedDefaultRegistry { target: target.clone() });
         }
+        for (ecosystem, target) in &self.defaults {
+            if self.addressed(target, *ecosystem).is_none() {
+                return Err(RegistryConfigError::UndefinedDefaultRegistry {
+                    target: target.clone(),
+                });
+            }
+        }
         for (name, ecosystem) in &self.ecosystems {
             match self.entries.get(name) {
                 Some(kind) if kind.is_concrete() => {}
@@ -505,6 +568,28 @@ impl Registries {
             }
         }
         for (name, kind) in &self.entries {
+            if let Some((prefix, local)) = name.split_once('/') {
+                let ecosystem = Ecosystem::all().find(|ecosystem| ecosystem.as_str() == prefix);
+                let valid = ecosystem.is_some_and(|ecosystem| {
+                    let duplicate = self.entries.get(local).is_some_and(|other| {
+                        !other.is_concrete() || self.concrete_ecosystem(local) == ecosystem
+                    });
+                    let matches = match kind {
+                        Registry::Hosted { .. } | Registry::Upstream { .. } => {
+                            self.concrete_ecosystem(name) == ecosystem
+                        }
+                        Registry::Router { sources } => sources
+                            .iter()
+                            .all(|source| self.concrete_ecosystem(source) == ecosystem),
+                    };
+                    !duplicate && matches
+                });
+                if !valid {
+                    return Err(RegistryConfigError::InvalidRegistryIdentity {
+                        registry: name.clone(),
+                    });
+                }
+            }
             match kind {
                 Registry::Hosted { patterns } | Registry::Upstream { patterns } => {
                     validate_namespace(name, patterns)?;
@@ -637,6 +722,8 @@ fn validate_namespace(
 /// `InvalidConfig` so a bad registry set fails server startup and config reload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegistryConfigError {
+    /// A qualified identity conflicts with another entry or its ecosystem.
+    InvalidRegistryIdentity { registry: String },
     /// An unsupported wildcard in a registry pattern. Carries the ecosystem
     /// so the message can name the shapes that ecosystem admits, rather than
     /// sending an operator to one it always refuses.
@@ -694,6 +781,10 @@ fn invalid_pattern(pattern: &str, ecosystem: Ecosystem) -> RegistryConfigError {
 impl fmt::Display for RegistryConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            RegistryConfigError::InvalidRegistryIdentity { registry } => write!(
+                f,
+                "registry identity {registry:?} duplicates a registry or conflicts with its ecosystem or sources",
+            ),
             RegistryConfigError::InvalidPattern { pattern, ecosystem } => write!(
                 f,
                 "unsupported {ecosystem} registry pattern {pattern:?}: use an exact name, {}, or \

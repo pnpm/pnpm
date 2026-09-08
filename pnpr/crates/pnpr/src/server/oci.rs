@@ -103,7 +103,7 @@ async fn get_version_check(
     OriginalUri(uri): OriginalUri,
     headers: HeaderMap,
 ) -> Response {
-    if addressed_registry(&state, registry.as_deref()).is_none() {
+    if addressed_registry(&state, registry.as_deref(), Ecosystem::Oci).is_none() {
         return error(ErrorCode::NameUnknown, "no registry is addressed here");
     }
     // A client fixes its authentication scheme from this one response and
@@ -518,7 +518,9 @@ impl Request {
         if self.method != Method::GET {
             return method_not_allowed();
         }
-        let Some(target) = addressed_registry(&self.state, self.registry.as_deref()) else {
+        let Some(target) =
+            addressed_registry(&self.state, self.registry.as_deref(), Ecosystem::Oci)
+        else {
             return error(ErrorCode::NameUnknown, "no registry is addressed here");
         };
         match self.page_size() {
@@ -1024,7 +1026,7 @@ impl Request {
     fn hosted_source(&self, name: &str) -> Result<(CanonicalPackageName, String), Refusal> {
         let key = CanonicalPackageName::parse(name, ECOSYSTEM)
             .map_err(|_| Refusal::new(ErrorCode::NameInvalid, "not a valid repository name"))?;
-        let target = addressed_registry(&self.state, self.registry.as_deref())
+        let target = addressed_registry(&self.state, self.registry.as_deref(), Ecosystem::Oci)
             .ok_or_else(|| Refusal::new(ErrorCode::NameUnknown, "no registry is addressed here"))?;
         match resolve_ecosystem_source(&self.state, &target, ECOSYSTEM, key.as_str()) {
             RegistrySource::Hosted(source) => Ok((key, source)),

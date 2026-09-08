@@ -757,3 +757,27 @@ fn descriptor_digest_id_depends_on_secret() {
     };
     assert_ne!(descriptor.digest_id(b"secret-a"), qualified.digest_id(b"secret-a"));
 }
+
+#[test]
+fn self_upstream_endpoint_uses_ecosystem_scoped_credentials() {
+    let mut config = base_config();
+    config.upstreams.insert(
+        "npm/internal".to_string(),
+        upstream_with_access("https://npm.corp.example/", "alice"),
+    );
+    config.upstreams.insert(
+        "cargo/internal".to_string(),
+        upstream_with_access("https://cargo.corp.example/", "bob"),
+    );
+    let context = RouteContext::from_config(&config);
+    let url = format!("{}/npm/~internal/demo", config.public_url);
+    assert_eq!(
+        context.classify(&user("alice"), &url, Some("demo")),
+        RouteClass::Proxied {
+            alias: "npm/internal".to_string(),
+            credential_digest: corp_credential()
+        },
+    );
+    assert_eq!(context.classify(&user("bob"), &url, Some("demo")), RouteClass::Public);
+    assert_eq!(context.classify(&anon(), &url, Some("demo")), RouteClass::Public);
+}

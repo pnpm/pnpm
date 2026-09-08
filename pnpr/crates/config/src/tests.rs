@@ -14,6 +14,7 @@ use pnpr_policy::Identity;
 use pnpr_registry::Ecosystem;
 use reqwest::header::AUTHORIZATION;
 use std::{
+    fmt::Write as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
     time::Duration,
@@ -2784,5 +2785,55 @@ fn oci_limits_are_positive_and_preserve_defaults() {
             Config::from_yaml_str(yaml, Path::new("/config"), listen(), None).is_err(),
             "{yaml}",
         );
+    }
+}
+
+#[test]
+fn ecosystem_groups_scope_names_sources_defaults_and_hosted_storage() {
+    let mut yaml = String::from("registries:\n");
+    for ecosystem in Ecosystem::all() {
+        write!(yaml,
+            "  {ecosystem}:\n    internal:\n      type: hosted\n    main:\n      type: router\n      sources: [internal]\n",
+        ).unwrap();
+    }
+    yaml.push_str("defaultRegistry:\n  npm: main\n  cargo: main\n  pypi: main\n  oci: main\n");
+    let mut config = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap();
+    config.ensure_valid_registry_graph().unwrap();
+    for ecosystem in Ecosystem::all() {
+        let key = format!("{ecosystem}/internal");
+        let router = format!("{ecosystem}/main");
+        assert_eq!(config.registries.default_for(ecosystem), Some(router.as_str()));
+        assert_eq!(config.registries.sources("main", ecosystem), [key.as_str()]);
+        assert_eq!(config.hosted[&key].org, format!("{ecosystem}~internal"));
+        for resolution in [
+            config.registries.resolve("internal", ecosystem, "demo"),
+            config.registries.resolve("main", ecosystem, "demo"),
+            config.registries.resolve_default(ecosystem, "demo"),
+        ] {
+            assert_eq!(
+                resolution,
+                pnpr_registry::Resolved::Concrete {
+                    registry: key.as_str(),
+                    kind: pnpr_registry::ConcreteKind::Hosted,
+                },
+            );
+        }
+    }
+    assert_eq!(config.registries.addressed("cargo/internal", Ecosystem::Npm), None);
+}
+
+#[test]
+fn ecosystem_groups_reject_ambiguous_or_cross_ecosystem_configuration() {
+    for yaml in [
+        "registries:\n  npm:\n    internal: {type: hosted, ecosystem: cargo}\n",
+        "registries:\n  internal: {type: hosted}\n  npm:\n    internal: {type: hosted}\n",
+        "registries:\n  npm:\n    main: {type: router, sources: [internal]}\n  cargo:\n    internal: {type: hosted}\n",
+        "registries:\n  npm:\n    main: {type: router, sources: ['cargo/internal']}\n  cargo:\n    internal: {type: hosted}\n",
+        "registries:\n  cargo:\n    internal: {type: hosted}\ndefaultRegistry:\n  npm: internal\n",
+        "registries:\n  cargo:\n    internal: {type: hosted, ecosystem: npm}\n",
+        "registries:\n  npm:\n    internal: {type: hosted}\n    internal: {type: hosted}\n",
+    ] {
+        let result = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None);
+        assert!(result.is_err(), "must reject ambiguous or cross-ecosystem config: {yaml}");
     }
 }
