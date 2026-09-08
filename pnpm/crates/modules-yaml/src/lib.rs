@@ -483,7 +483,15 @@ where
         })?;
     let Some(mut manifest) = parsed else { return Ok(None) };
 
-    // Normalize legacy shamefully_hoist to public_hoist_pattern.
+    normalize_modules_layout::<Sys>(&mut manifest, modules_dir);
+    Ok(Some(manifest))
+}
+
+/// Fill in what a stored layout leaves to its reader: the legacy
+/// `shamefully_hoist` flag becomes a public-hoist pattern, the virtual store
+/// directory is resolved against the modules directory, and the prune stamp
+/// and length cap take their defaults.
+fn normalize_modules_layout<Sys: Clock>(manifest: &mut ModulesLayout, modules_dir: &Path) {
     if let Some(shamefully_hoist) = manifest.shamefully_hoist
         && manifest.public_hoist_pattern.is_none()
     {
@@ -505,7 +513,6 @@ where
     if manifest.virtual_store_dir_max_length == 0 {
         manifest.virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
     }
-    Ok(Some(manifest))
 }
 
 /// Write `manifest` to `<modules_dir>/.modules.yaml`, creating `modules_dir`

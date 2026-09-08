@@ -8,22 +8,26 @@
 /// can collide. Pnpm accepts the rare collision for lockfile
 /// stability; see [pnpm/pnpm#11272](https://github.com/pnpm/pnpm/issues/11272).
 #[must_use]
+/// A character a directory name cannot carry on every platform, which the
+/// suffix replaces with a single `+`.
+fn needs_replacing(ch: char) -> bool {
+    ch.is_control() || matches!(ch, '"' | '*' | '+' | '/' | ':' | '<' | '>' | '?' | '\\' | '|')
+}
+
 pub fn link_path_to_peer_version(rel_path: &str) -> String {
     let trimmed = rel_path.trim_start_matches('.');
 
     let mut out = String::with_capacity(rel_path.len());
     let mut last_was_plus = true;
     for ch in trimmed.chars() {
-        let replace = ch.is_control()
-            || matches!(ch, '"' | '*' | '+' | '/' | ':' | '<' | '>' | '?' | '\\' | '|');
-        if replace {
-            if !last_was_plus {
-                out.push('+');
-                last_was_plus = true;
-            }
-        } else {
+        if !needs_replacing(ch) {
             out.push(ch);
             last_was_plus = false;
+            continue;
+        }
+        if !last_was_plus {
+            out.push('+');
+            last_was_plus = true;
         }
     }
 
