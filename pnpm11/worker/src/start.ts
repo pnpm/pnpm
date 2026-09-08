@@ -337,7 +337,7 @@ function addFilesFromDir (
     cafsCache.set(storeDir, createCafs(storeDir))
   }
   const cafs = cafsCache.get(storeDir)!
-  let { filesIndex, manifest } = cafs.addFilesFromDir(dir, {
+  let { filesIndex, hasSymlinks, manifest } = cafs.addFilesFromDir(dir, {
     files,
     includeNodeModules,
     readManifest: true,
@@ -365,6 +365,23 @@ function addFilesFromDir (
           manifest: bundledManifest,
           requiresBuild: pkgRequiresBuild(manifest, filesMap),
         },
+      }
+    }
+    if (hasSymlinks) {
+      if (existingFilesIndex.sideEffects?.delete(sideEffectsCacheKey)) {
+        if (existingFilesIndex.sideEffects.size === 0) {
+          existingFilesIndex.sideEffects = undefined
+        }
+        indexWrites = [{ key: filesIndexFile, buffer: packToShared(existingFilesIndex) }]
+      }
+      return {
+        status: 'success',
+        value: {
+          filesMap,
+          manifest: bundledManifest,
+          requiresBuild: existingFilesIndex.requiresBuild ?? pkgRequiresBuild(manifest, filesMap),
+        },
+        indexWrites,
       }
     }
     if (!existingFilesIndex.sideEffects) {

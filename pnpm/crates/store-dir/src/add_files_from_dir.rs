@@ -20,10 +20,12 @@ use std::{
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
 /// path *relative to `pkg_root`*, with forward-slash separators, so the
 /// resulting `FilesIndex` round-trips through pnpm without
-/// renormalisation.
+/// renormalisation. `has_symlinks` records metadata that the file map
+/// cannot represent.
 #[derive(Debug)]
 pub struct AddedFiles {
     pub files: HashMap<String, CafsFileInfo>,
+    pub has_symlinks: bool,
 }
 
 /// Error type of [`add_files_from_dir()`].
@@ -78,16 +80,18 @@ pub fn add_files_from_dir(
     })?;
     let mut ctx = WalkCtx {
         files: HashMap::new(),
+        has_symlinks: false,
         canonical_root: canonical_root.clone(),
         visited: HashSet::from([canonical_root.clone()]),
         store_dir,
     };
     walk(&mut ctx, pkg_root, "", &canonical_root)?;
-    Ok(AddedFiles { files: ctx.files })
+    Ok(AddedFiles { files: ctx.files, has_symlinks: ctx.has_symlinks })
 }
 
 struct WalkCtx<'a> {
     files: HashMap<String, CafsFileInfo>,
+    has_symlinks: bool,
     canonical_root: PathBuf,
     visited: HashSet<PathBuf>,
     store_dir: &'a StoreDir,
@@ -128,6 +132,10 @@ fn walk(
         let mut symlink_target_meta: Option<fs::Metadata> = None;
 
         if file_type.is_symlink() {
+            if relative_dir.is_empty() && name == "node_modules" {
+                continue;
+            }
+            ctx.has_symlinks = true;
             let Ok(real) = dunce::canonicalize(&absolute) else { continue };
             if !real.starts_with(&ctx.canonical_root) {
                 continue;
