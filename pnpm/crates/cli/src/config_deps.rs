@@ -499,6 +499,11 @@ pub async fn prepare_config<Reporter: self::Reporter>(
 /// `updateConfig`, so packing can retain the original hook set when the hook
 /// changes a hook-selection setting such as `ignorePnpmfile`.
 ///
+/// A hook is handed the resolved configuration, by way of
+/// [`WorkspaceSettings::from_resolved`] plus the non-settings views in
+/// [`resolved_config_views`], so it reads what the install runs with rather
+/// than one file's contribution to it.
+///
 /// Config round-trips through [`WorkspaceSettings`], so any settings key a
 /// hook changes is applied back the same way `pnpm-workspace.yaml` is. Only
 /// the keys a hook actually changed are applied, so values resolved from
@@ -518,15 +523,16 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         return Ok(hooks);
     }
 
-    let (base_dir, settings) = match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
-        Some((path, settings)) => {
-            (path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf), settings)
-        }
-        None => (root_dir.to_path_buf(), WorkspaceSettings::default()),
+    let base_dir = match WorkspaceSettings::find_and_load(root_dir).into_diagnostic()? {
+        Some((path, _)) => path.parent().map_or_else(|| root_dir.to_path_buf(), Path::to_path_buf),
+        None => root_dir.to_path_buf(),
     };
-    let mut input = serde_json::to_value(&settings)
+    // Every setting at its effective value, so a hook reads the same
+    // configuration the install runs with rather than one file's
+    // contribution to it (pnpm/pnpm#14676).
+    let mut input = serde_json::to_value(WorkspaceSettings::from_resolved(config))
         .into_diagnostic()
-        .wrap_err("serialize workspace settings for updateConfig hooks")?;
+        .wrap_err("serialize the resolved settings for updateConfig hooks")?;
     // Seed the hook input with the catalogs read from the workspace
     // manifest (`catalog:` + `catalogs:`), which `WorkspaceSettings`
     // doesn't carry, so a hook can read and extend them.
@@ -535,7 +541,7 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
         .into_diagnostic()
         .wrap_err("reading catalogs for updateConfig hooks")?;
     let catalogs = serde_json::to_value(&yaml_catalogs).into_diagnostic()?;
-    seed_hook_input(&mut input, config, catalogs)?;
+    seed_hook_input(&mut input, config, root_dir, catalogs)?;
 
     let prefix = root_dir.to_string_lossy().into_owned();
     let mut current = input.clone();
@@ -585,21 +591,15 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
 /// Seed the hook input with the values pnpm resolves outside
 /// [`WorkspaceSettings`], so a hook can read and extend them. They are
 /// read back out of the delta rather than through `apply_to`.
-fn seed_hook_input(input: &mut Value, config: &Config, catalogs: Value) -> Result<()> {
+fn seed_hook_input(
+    input: &mut Value,
+    config: &Config,
+    root_dir: &Path,
+    catalogs: Value,
+) -> Result<()> {
     let Some(object) = input.as_object_mut() else {
         return Ok(());
     };
-    // The serialized settings carry `scriptShell` as written in the
-    // manifest; hooks see the workspace-root-resolved value pnpm gives
-    // them, or no key at all when nothing set one.
-    if let Some(script_shell) = &config.script_shell {
-        object.insert("scriptShell".to_string(), Value::String(script_shell.clone()));
-    } else {
-        object.remove("scriptShell");
-    }
-    if let Some(store_dir) = config.explicit_settings.get("storeDir") {
-        object.insert("storeDir".to_string(), store_dir.clone());
-    }
     object.insert("catalogs".to_string(), catalogs);
     // PnpmBuild's `updateConfig` appends its bin dir to `extraBinPaths`
     // and sets `npm_config_nodedir` in `extraEnv`, so both have to arrive
@@ -610,6 +610,7 @@ fn seed_hook_input(input: &mut Value, config: &Config, catalogs: Value) -> Resul
     );
     object
         .insert("extraEnv".to_string(), serde_json::to_value(&config.extra_env).into_diagnostic()?);
+    object.append(&mut resolved_config_views(config, root_dir).into_diagnostic()?);
     Ok(())
 }
 
@@ -650,6 +651,29 @@ fn apply_hook_delta(
         .transpose()
         .into_diagnostic()
         .wrap_err("the updateConfig hook produced an invalid extraEnv value")?;
+    // Registry routing is read under the `registriesByScope` /
+    // `registriesByPrefix` names, so a hook changes it under those names
+    // too. `WorkspaceSettings` reaches the same lookups through its
+    // file-shaped `registries` key, which `from_value(delta)` below still
+    // honors; these are applied first so an entry the hook wrote through
+    // `registries` wins.
+    for key in ["registriesByScope", "registriesByPrefix"] {
+        let Some(value) = delta.get(key).cloned() else { continue };
+        let routes: BTreeMap<String, String> = serde_json::from_value(value)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("the updateConfig hook produced an invalid {key} value"))?;
+        if key == "registriesByScope" {
+            config.registries_by_scope = routes;
+        } else {
+            config.registries_by_prefix = routes;
+        }
+    }
+    // The default registry is one scope of the routing map and also the
+    // standalone `registry` setting, so keep the two answering the same URL.
+    if let Some(default) = config.registries_by_scope.get("default").cloned() {
+        config.registry = default;
+    }
+
     let delta_settings: WorkspaceSettings = serde_json::from_value(delta)
         .into_diagnostic()
         .wrap_err("deserialize the updateConfig hook result")?;
@@ -703,6 +727,81 @@ fn apply_explicit_setting_changes(config: &mut Config, changes: [(&str, Option<V
             None => {}
         }
     }
+}
+
+/// The resolved state an `updateConfig` hook reads that is not a settings
+/// key, under the names pnpm 11 exposes it as.
+///
+/// These are derived from the settings rather than written by a user, so
+/// [`WorkspaceSettings`] has no field for them and the write-back below
+/// ignores them — except registry routing, which
+/// [`run_update_config_hooks`] applies.
+///
+/// `configByUri` carries only the default-scope `_authToken` of each
+/// registry, which is all [`Config::auth_tokens_by_uri`] keeps in raw form;
+/// the per-scope credentials and certificate settings pnpm 11 also indexes
+/// there are absent.
+fn resolved_config_views(
+    config: &Config,
+    root_dir: &Path,
+) -> serde_json::Result<serde_json::Map<String, Value>> {
+    let mut views = serde_json::Map::new();
+    let mut set = |key: &str, value: Value| {
+        views.insert(key.to_string(), value);
+    };
+
+    // The scope map reports the built-in `@jsr` route it resolves through;
+    // the prefix map reports only the prefixes the project declares, which
+    // is what a pnpr server may be asked about.
+    let registries_by_scope = config.resolved_registry_lookups().registries_by_scope;
+    set("registriesByScope", serde_json::to_value(&registries_by_scope)?);
+    set("registriesByPrefix", serde_json::to_value(&config.registries_by_prefix)?);
+
+    // The raw auth keys, plus the registry rows resolved across every
+    // source, so `authConfig.registry` and `authConfig['@scope:registry']`
+    // answer the URL the install fetches from rather than whichever
+    // `.npmrc` line happened to name one. `pnpm config list` merges them
+    // the same way.
+    let mut auth_config: serde_json::Map<String, Value> =
+        config.raw_auth_config.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect();
+    for (scope, url) in &registries_by_scope {
+        let key =
+            if scope == "default" { "registry".to_string() } else { format!("{scope}:registry") };
+        auth_config.insert(key, Value::String(url.clone()));
+    }
+    set("authConfig", Value::Object(auth_config));
+    set(
+        "configByUri",
+        Value::Object(
+            config
+                .auth_tokens_by_uri
+                .iter()
+                .map(|(uri, token)| {
+                    let creds = serde_json::json!({ "authToken": token });
+                    let scope = pnpm_config::registries::DEFAULT_REGISTRY_SCOPE;
+                    (uri.clone(), serde_json::json!({ scope: creds }))
+                })
+                .collect(),
+        ),
+    );
+
+    set("dir", Value::String(root_dir.to_string_lossy().into_owned()));
+    set("workspaceDir", serde_json::to_value(&config.workspace_dir)?);
+    set("configDir", serde_json::to_value(&config.config_dir)?);
+    set("globalPkgDir", serde_json::to_value(&config.global_pkg_dir)?);
+    set("failIfNoMatch", Value::Bool(config.fail_if_no_match));
+    set("useGitBranchLockfile", Value::Bool(config.use_git_branch_lockfile));
+    set("workspacePackagePatterns", serde_json::to_value(&config.workspace_package_patterns)?);
+    set("sideEffectsCacheRead", Value::Bool(config.side_effects_cache_read()));
+    set("sideEffectsCacheWrite", Value::Bool(config.side_effects_cache_write()));
+    // The settings key of the same name reports only a pinned value; a hook
+    // reading it wants the directory the lockfile is actually written to.
+    set(
+        "lockfileDir",
+        Value::String(config.lockfile_dir_for(root_dir).to_string_lossy().into_owned()),
+    );
+
+    Ok(views)
 }
 
 /// The keys whose value the hooks changed between the serialized input

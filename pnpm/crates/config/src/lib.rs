@@ -2655,6 +2655,15 @@ impl Config {
     /// are declared too, unless the user pointed them elsewhere.
     #[must_use]
     pub fn resolved_registry_declarations(&self) -> BTreeMap<String, RegistryDeclaration> {
+        registries::to_resolved_declarations(&self.resolved_registry_lookups())
+    }
+
+    /// The scope and prefix routes the CLI resolves a package's registry
+    /// through, including the built-in ones pnpm answers without being
+    /// told: the `@jsr` scope and the [`BUILTIN_REGISTRIES_BY_PREFIX`]
+    /// prefixes, unless the user pointed them elsewhere.
+    #[must_use]
+    pub fn resolved_registry_lookups(&self) -> RegistryLookups {
         let mut lookups = self.registry_lookups(Some(self.registry.clone()));
         lookups
             .registries_by_scope
@@ -2666,7 +2675,7 @@ impl Config {
                 .entry((*prefix).to_string())
                 .or_insert_with(|| (*registry).to_string());
         }
-        registries::to_resolved_declarations(&lookups)
+        lookups
     }
 
     fn registry_lookups(&self, default_registry: Option<String>) -> RegistryLookups {

@@ -1470,6 +1470,71 @@ impl DroppedKeys {
     }
 }
 
+/// The settings [`WorkspaceSettings`] and [`Config`] name identically and
+/// hold at the same type, so a value moves between them by plain assignment.
+///
+/// Expands to a call of `$mac!` with the field list.
+/// [`WorkspaceSettings::apply_to`] and [`WorkspaceSettings::from_resolved`]
+/// are inverses over it, and naming a setting here is what keeps them so:
+/// teaching one direction about a setting teaches the other.
+macro_rules! identically_named_settings {
+    ($mac:ident) => {
+        $mac! {
+            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
+            optional, package_lock, pending, recursive_install, reverse,
+            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
+            skip_manifest_obfuscation, sort, use_beta_cli,
+            hoist, shamefully_hoist,
+            node_linker, node_experimental_package_map, node_package_map_type,
+            symlink, package_import_method, modules_cache_max_age,
+            virtual_store_dir_max_length,
+            peers_suffix_max_length,
+            lockfile, prefer_frozen_lockfile,
+            deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
+            offline, prefer_offline,
+            lockfile_include_tarball_url,
+            auto_install_peers, auto_install_peers_from_highest_match,
+            exclude_links_from_lockfile,
+            optimistic_repeat_install,
+            init_package_manager,
+            init_type,
+            hoist_workspace_packages,
+            extend_node_path,
+            hoisting_limits, external_dependencies,
+            dedupe_peer_dependents, dedupe_peers,
+            dedupe_direct_deps, dedupe_injected_deps,
+            strict_peer_dependencies, ignore_compatibility_db,
+            resolve_peers_from_workspace_root, verify_store_integrity,
+            strict_store_pkg_content_check, frozen_store,
+            include_workspace_root,
+            ignore_workspace_cycles, disallow_workspace_cycles,
+            verify_deps_before_run,
+            block_exotic_subdeps,
+            link_workspace_packages,
+            save_workspace_protocol,
+            inject_workspace_packages,
+            prefer_workspace_packages,
+            side_effects_cache_readonly,
+            fetch_retries, fetch_retry_factor,
+            fetch_retry_mintimeout, fetch_retry_maxtimeout,
+            network_concurrency, fetch_timeout,
+            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
+            enable_global_virtual_store,
+            virtual_store_only, enable_modules_dir,
+            git_shallow_hosts,
+            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
+            sync_injected_deps_after_scripts,
+            resolution_mode, catalog_mode, catalog_prune,
+            minimum_release_age_exclude_prune, save_peer, save_exact,
+            registry_supports_time_field,
+            allowed_deprecated_versions, update_config, peer_dependency_rules,
+            enable_pre_post_scripts, dlx_cache_max_age,
+            allow_unused_patches, tasks, pipelines,
+        }
+    };
+}
+
 impl WorkspaceSettings {
     /// Read the global config.yaml at `<config_dir>/config.yaml`, if
     /// present.
@@ -2089,59 +2154,7 @@ impl WorkspaceSettings {
             )*};
         }
 
-        apply! {
-            bail, ci, update_notifier, color, embed_readme, ignore_workspace_root_check,
-            optional, package_lock, pending, recursive_install, reverse,
-            stream, aggregate_output, use_stderr, ignore_workspace, shell_emulator,
-            skip_manifest_obfuscation, sort, use_beta_cli,
-            hoist, shamefully_hoist,
-            node_linker, node_experimental_package_map, node_package_map_type,
-            symlink, package_import_method, modules_cache_max_age,
-            virtual_store_dir_max_length,
-            peers_suffix_max_length,
-            lockfile, prefer_frozen_lockfile,
-            deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
-            merge_git_branch_lockfiles, merge_git_branch_lockfiles_branch_pattern,
-            offline, prefer_offline,
-            lockfile_include_tarball_url,
-            auto_install_peers, auto_install_peers_from_highest_match,
-            exclude_links_from_lockfile,
-            optimistic_repeat_install,
-            init_package_manager,
-            init_type,
-            hoist_workspace_packages,
-            extend_node_path,
-            hoisting_limits, external_dependencies,
-            dedupe_peer_dependents, dedupe_peers,
-            dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies, ignore_compatibility_db,
-            resolve_peers_from_workspace_root, verify_store_integrity,
-            strict_store_pkg_content_check, frozen_store,
-            include_workspace_root,
-            ignore_workspace_cycles, disallow_workspace_cycles,
-            verify_deps_before_run,
-            block_exotic_subdeps,
-            link_workspace_packages,
-            save_workspace_protocol,
-            inject_workspace_packages,
-            prefer_workspace_packages,
-            side_effects_cache_readonly,
-            fetch_retries, fetch_retry_factor,
-            fetch_retry_mintimeout, fetch_retry_maxtimeout,
-            network_concurrency, fetch_timeout,
-            fetch_warn_timeout_ms, fetch_min_speed_ki_bps, user_agent,
-            enable_global_virtual_store,
-            virtual_store_only, enable_modules_dir,
-            git_shallow_hosts,
-            test_pattern, changed_files_ignore_pattern, legacy_dir_filtering,
-            sync_injected_deps_after_scripts,
-            resolution_mode, catalog_mode, catalog_prune,
-            minimum_release_age_exclude_prune, save_peer, save_exact,
-            registry_supports_time_field,
-            allowed_deprecated_versions, update_config, peer_dependency_rules,
-            enable_pre_post_scripts, dlx_cache_max_age,
-            allow_unused_patches, tasks, pipelines,
-        }
+        identically_named_settings!(apply);
 
         overlay_some(&mut config.pipeline_base, self.pipeline_base.take());
 
@@ -2442,6 +2455,235 @@ impl WorkspaceSettings {
             config.audit_config.ignore_ghsas = ignore;
         }
         overlay_some(&mut config.audit_ignore_prune, audit.ignore_prune);
+    }
+
+    /// Every setting at the value `config` resolved it to, for a consumer
+    /// that must read the effective configuration rather than one file's
+    /// contribution to it.
+    ///
+    /// The inverse of [`Self::apply_to`]: applying the result to a default
+    /// [`Config`] reproduces `config`'s settings. Defaults are therefore
+    /// present as values, not as `None` — `None` here means "pnpm has no
+    /// such setting to report", which is true of exactly two groups:
+    ///
+    /// - Keys that name a shape only a file has, whose resolved form
+    ///   [`Config`] keeps under a different name. `registries` becomes the
+    ///   `registriesByScope` / `registriesByPrefix` lookups, `catalog`
+    ///   becomes the `default` entry of [`Self::catalogs`], and the build
+    ///   allow-lists become one `allowBuilds` record.
+    /// - Deprecated spellings, which report under the canonical one:
+    ///   `maxsockets`, `noproxy`, `updateConfig`, `auditLevel`,
+    ///   `auditConfig`, `cleanupUnusedCatalogs`, `namedRegistries`, and
+    ///   `virtualStoreType`.
+    ///
+    /// `_auth` stays `None` because a project file may not carry it, and
+    /// [`Self::key_issues`] is diagnostics about one file rather than a
+    /// setting.
+    ///
+    /// Two groups report as the user set them rather than as they resolved,
+    /// and so read as `None` when nothing set them: the path settings
+    /// [`Self::apply_to`] anchors against a base directory, and the settings
+    /// pnpm reads for whether they were set at all. See the comments at their
+    /// assignments for why each must.
+    #[must_use]
+    pub fn from_resolved(config: &Config) -> Self {
+        macro_rules! read {
+            ($($field:ident),* $(,)?) => {
+                Self { $($field: Some(config.$field.clone()),)* ..Self::default() }
+            };
+        }
+        let identity = identically_named_settings!(read);
+
+        fn path(path: &Path) -> String {
+            path.to_string_lossy().into_owned()
+        }
+        fn opt_path(value: Option<&Path>) -> Option<String> {
+            value.map(path)
+        }
+        /// The value a source set for `key`, as written, or `None` when
+        /// nothing set it.
+        fn as_set<Setting: serde::de::DeserializeOwned>(
+            config: &Config,
+            key: &str,
+        ) -> Option<Setting> {
+            config
+                .explicit_settings
+                .get(key)
+                .cloned()
+                .and_then(|value| serde_json::from_value(value).ok())
+        }
+
+        Self {
+            hoist_pattern: Some(config.hoist_pattern.clone()),
+            public_hoist_pattern: Some(config.public_hoist_pattern.clone()),
+            state_dir: Some(path(&config.state_dir)),
+            lockfile_dir: opt_path(config.lockfile_dir.as_deref()),
+            npmrc_auth_file: opt_path(config.npmrc_auth_file.as_deref()),
+            global_pnpmfile: opt_path(config.global_pnpmfile.as_deref()),
+            pnpmfile: config
+                .pnpmfile
+                .as_ref()
+                .map(|paths| PnpmfileSetting::Multiple(paths.iter().map(|p| path(p)).collect())),
+
+            // The path settings `apply_to` anchors against the file's
+            // directory report as the user wrote them, relative form
+            // included, matching pnpm. Anchoring happens when a value is
+            // applied, so reporting the anchored path would re-anchor a
+            // relative setting against wherever the hook's answer is
+            // applied from.
+            store_dir: as_set(config, "storeDir"),
+            cache_dir: as_set(config, "cacheDir"),
+            modules_dir: as_set(config, "modulesDir"),
+            virtual_store_dir: as_set(config, "virtualStoreDir"),
+            global_virtual_store_dir: as_set(config, "globalVirtualStoreDir"),
+            global_dir: as_set(config, "globalDir"),
+            global_bin_dir: as_set(config, "globalBinDir"),
+
+            // A setting pnpm reads for *whether* it was set, not only for
+            // its value, reports as the user set it. Reporting the resolved
+            // value instead would leave a hook assigning that same value
+            // with no change for the caller to notice, and the setting
+            // would go on counting as unset.
+            prefer_frozen_lockfile: as_set(config, "preferFrozenLockfile"),
+            lockfile: as_set(config, "lockfile"),
+            shamefully_hoist: as_set(config, "shamefullyHoist"),
+            merge_git_branch_lockfiles: as_set(config, "mergeGitBranchLockfiles"),
+            optimistic_repeat_install: as_set(config, "optimisticRepeatInstall"),
+            minimum_release_age: as_set(config, "minimumReleaseAge"),
+            prefer_symlinked_executables: as_set(config, "preferSymlinkedExecutables"),
+
+            global_shims: Some(crate::GlobalShimsSetting::Entries(
+                config
+                    .global_shims
+                    .entries()
+                    .map(|(name, policy)| {
+                        // `Off` has no named spelling; it is written as the
+                        // `false` shorthand.
+                        let value = match policy {
+                            crate::ShimPolicy::Off => crate::ShimPolicyValue::Toggle(false),
+                            crate::ShimPolicy::Auto => {
+                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Auto)
+                            }
+                            crate::ShimPolicy::Prompt => {
+                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Prompt)
+                            }
+                            crate::ShimPolicy::Always => {
+                                crate::ShimPolicyValue::Named(crate::NamedShimPolicy::Always)
+                            }
+                        };
+                        (name.to_string(), value)
+                    })
+                    .collect(),
+            )),
+
+            frozen_lockfile: config.frozen_lockfile,
+            git_branch_lockfile: Some(config.use_git_branch_lockfile),
+            registry: Some(config.registry.clone()),
+            scope: config.scope.clone(),
+            pnpr_server: config.pnpr_server.clone(),
+            cargo: Some(config.cargo.clone()),
+            python: Some(config.python.clone()),
+            remote_side_effects_cache: config.remote_side_effects_cache.clone(),
+            reporter_hide_prefix: config.reporter_hide_prefix,
+            max_sockets: config.max_sockets,
+            patched_dependencies: config.patched_dependencies.clone(),
+            patches_dir: config.patches_dir.clone(),
+            config_dependencies: config.config_dependencies.clone(),
+            packages: config.workspace_package_patterns.clone(),
+            dangerously_allow_all_builds: Some(config.dangerously_allow_all_builds),
+            strict_dep_builds: Some(config.strict_dep_builds),
+            ignore_scripts: Some(config.ignore_scripts),
+            ignore_pnpmfile: Some(config.ignore_pnpmfile),
+            git_checks: Some(config.git_checks),
+            engine_strict: Some(config.engine_strict),
+            node_version: config.node_version.clone(),
+            runtime_on_fail: config.runtime_on_fail,
+            node_download_mirrors: Some(config.node_download_mirrors.clone()),
+            scripts_prepend_node_path: Some(config.scripts_prepend_node_path),
+            script_shell: Some(config.script_shell.clone()),
+            node_options: Some(config.node_options.clone()),
+            unsafe_perm: Some(config.unsafe_perm),
+            supported_architectures: config.supported_architectures.clone(),
+            ignored_optional_dependencies: config.ignored_optional_dependencies.clone(),
+            overrides: config.overrides.clone(),
+            package_extensions: config.package_extensions.clone(),
+            // The flattened lookup, which is the by-name form of the setting
+            // whichever of the two forms the file wrote it in.
+            package_configs: config.package_configs.clone().map(PackageConfigsSetting::ByName),
+            minimum_release_age_exclude: config.minimum_release_age_exclude.clone(),
+            minimum_release_age_ignore_missing_time: Some(
+                config.minimum_release_age_ignore_missing_time,
+            ),
+            minimum_release_age_strict: config.minimum_release_age_strict,
+            trust_lockfile: Some(config.trust_lockfile),
+            trust_policy: Some(config.trust_policy),
+            trust_policy_exclude: config.trust_policy_exclude.clone(),
+            trust_policy_exclude_prune: Some(config.trust_policy_exclude_prune),
+            trust_policy_ignore_after: config.trust_policy_ignore_after,
+            init_author_name: config.init_author_name.clone(),
+            init_author_email: config.init_author_email.clone(),
+            init_author_url: config.init_author_url.clone(),
+            init_license: config.init_license.clone(),
+            init_version: config.init_version.clone(),
+            pm_on_fail: config.pm_on_fail,
+            versioning: Some(config.versioning.clone()),
+            save_catalog_name: config.save_catalog_name.clone(),
+            save_prefix: config.save_prefix.clone(),
+            pipeline_base: config.pipeline_base.clone(),
+
+            // `child_concurrency` / `workspace_concurrency` are resolved to
+            // a positive count on `Config`, which the settings hold as the
+            // signed type the file's negative "all but N cores" forms need.
+            child_concurrency: Some(i32::try_from(config.child_concurrency).unwrap_or(i32::MAX)),
+            workspace_concurrency: Some(
+                i32::try_from(config.workspace_concurrency).unwrap_or(i32::MAX),
+            ),
+
+            side_effects_cache: Some(SideEffectsCacheSetting::Settings(Box::new(
+                SideEffectsCacheSettings {
+                    read: config.side_effects_cache_read_setting,
+                    write: config.side_effects_cache_write_setting,
+                    remote: config.remote_side_effects_cache.clone(),
+                },
+            ))),
+
+            catalogs: config.catalogs.as_ref().map(|catalogs| {
+                catalogs
+                    .iter()
+                    .map(|(name, entries)| {
+                        (
+                            name.clone(),
+                            entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                        )
+                    })
+                    .collect()
+            }),
+            allow_builds: Some(
+                config
+                    .allow_builds
+                    .iter()
+                    .map(|(name, allowed)| (name.clone(), AllowBuild::Decided(*allowed)))
+                    .collect(),
+            ),
+
+            https_proxy: config.proxy.https_proxy.clone(),
+            http_proxy: config.proxy.http_proxy.clone(),
+            no_proxy: config.proxy.no_proxy.as_ref().map(|no_proxy| match no_proxy {
+                pnpm_network::NoProxySetting::Bypass => serde_json::Value::Bool(true),
+                pnpm_network::NoProxySetting::List(hosts) => {
+                    serde_json::Value::String(hosts.join(","))
+                }
+            }),
+
+            // `audit` and `update` are the canonical spellings, so the
+            // deprecated `auditLevel`, `auditConfig`, and `updateConfig`
+            // stay unset rather than restating them.
+            audit: config.resolved_audit_settings(),
+            update: config.resolved_update_settings(),
+            update_config: None,
+
+            ..identity
+        }
     }
 
     /// Overlay this file's proxy keys onto the merged view and re-resolve.

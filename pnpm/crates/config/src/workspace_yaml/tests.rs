@@ -1,16 +1,19 @@
 use super::{
-    AllowBuild, LoadWorkspaceYamlError, SideEffectsCacheSetting, WORKSPACE_MANIFEST_FILENAME,
-    WorkspaceSettings,
+    AllowBuild, LoadWorkspaceYamlError, RemoteSideEffectsCacheSettings, SideEffectsCacheSetting,
+    UpdateConfig, WORKSPACE_MANIFEST_FILENAME, WorkspaceSettings,
+    package_configs::ProjectConfig,
     registries::{RegistryDeclaration, RegistryEntry},
 };
 use crate::{
     AuditLevel, CatalogMode, ColorMode, Config, GlobalShims, GlobalShimsSetting, HoistingLimits,
-    LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode, ScriptsPrependNodePath,
-    ShimPolicy, TrustPolicy,
+    LinkWorkspacePackages, NodeLinker, NodePackageMapType, PmOnFail, ResolutionMode, RuntimeOnFail,
+    ScriptsPrependNodePath, ShimPolicy, TrustPolicy,
     api::{EnvVar, GetHomeDir},
 };
+use indexmap::IndexMap;
 use pipe_trait::Pipe;
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
+use pnpm_package_is_installable::SupportedArchitectures;
 use pnpm_store_dir::StoreDir;
 use pnpm_workspace_state::{ConfigDependency, ConfigDependencyDetail};
 use pretty_assertions::assert_eq;
@@ -3669,4 +3672,196 @@ fn a_tilde_without_a_separator_is_left_alone() {
     settings.expand_global_dir_home_prefixes::<FakeHome>();
     assert_eq!(settings.global_dir.as_deref(), Some("~backup/global"));
     assert_eq!(settings.global_bin_dir.as_deref(), Some("bin/~/nested"));
+}
+
+/// The settings [`WorkspaceSettings::from_resolved`] deliberately leaves
+/// unset, each because pnpm reports the same thing under another name. See
+/// that method's documentation for why each one is here.
+const UNREPORTED_SETTINGS: &[&str] = &[
+    // Shapes only a file has; the resolved form reports elsewhere.
+    "registries",
+    "namedRegistries",
+    "catalog",
+    "onlyBuiltDependencies",
+    "neverBuiltDependencies",
+    "ignoredBuiltDependencies",
+    // Deprecated spellings of a canonical key.
+    "maxsockets",
+    "noproxy",
+    // npm's spelling, which resolves into `httpsProxy` / `httpProxy`.
+    "proxy",
+    "updateConfig",
+    "auditLevel",
+    "auditConfig",
+    "cleanupUnusedCatalogs",
+    "virtualStoreType",
+    // Never read from a project file.
+    "_auth",
+];
+
+/// Every setting must report its resolved value, so that a hook reading the
+/// configuration sees what the install runs with. A key absent from the
+/// projection reads as `null`, which is indistinguishable from "explicitly
+/// unset" — so adding a setting to [`WorkspaceSettings`] without teaching
+/// [`WorkspaceSettings::from_resolved`] about it fails here.
+///
+/// Settings that are genuinely `Option` on [`Config`] are exempt: a `None`
+/// there is pnpm's own "unset", not a gap in the projection. The fixture
+/// below therefore sets every such value, so anything still `null` is
+/// unmapped.
+#[test]
+fn from_resolved_reports_every_setting() {
+    let config = Config {
+        scope: Some("@acme".to_string()),
+        pnpr_server: Some("https://pnpr.example".to_string()),
+        frozen_lockfile: Some(true),
+        reporter_hide_prefix: Some(true),
+        prefer_symlinked_executables: Some(true),
+        max_sockets: Some(4),
+        node_version: Some("24.0.0".to_string()),
+        script_shell: Some("/bin/bash".to_string()),
+        node_options: Some("--max-old-space-size=8192".to_string()),
+        patches_dir: Some("patches".to_string()),
+        save_prefix: Some("~".to_string()),
+        save_catalog_name: Some("default".to_string()),
+        pipeline_base: Some("origin/main".to_string()),
+        init_author_name: Some("Example".to_string()),
+        init_author_email: Some("example@example.com".to_string()),
+        init_author_url: Some("https://example.com".to_string()),
+        init_license: Some("MIT".to_string()),
+        init_version: Some("1.0.0".to_string()),
+        minimum_release_age_strict: Some(true),
+        minimum_release_age_exclude: Some(vec!["is-positive".to_string()]),
+        trust_policy_exclude: Some(vec!["is-negative".to_string()]),
+        trust_policy_ignore_after: Some(1),
+        lockfile_dir: Some(PathBuf::from("/tmp/project")),
+        npmrc_auth_file: Some(PathBuf::from("/tmp/auth.ini")),
+        global_pnpmfile: Some(PathBuf::from("/tmp/global/pnpmfile.cjs")),
+        pnpmfile: Some(vec![PathBuf::from("/tmp/project/.pnpmfile.cjs")]),
+        workspace_package_patterns: Some(vec!["packages/*".to_string()]),
+        patched_dependencies: Some(IndexMap::from([(
+            "is-positive".to_string(),
+            "patches/is-positive.patch".to_string(),
+        )])),
+        overrides: Some(IndexMap::from([("is-positive".to_string(), "1.0.0".to_string())])),
+        package_configs: Some(IndexMap::from([(
+            "@acme/app".to_string(),
+            ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
+        )])),
+        ignored_optional_dependencies: Some(vec!["fsevents".to_string()]),
+        supported_architectures: Some(SupportedArchitectures::default()),
+        config_dependencies: Some(BTreeMap::new()),
+        package_extensions: Some(IndexMap::default()),
+        catalogs: Some(BTreeMap::default()),
+        remote_side_effects_cache: Some(RemoteSideEffectsCacheSettings::default()),
+        runtime_on_fail: Some(RuntimeOnFail::Warn),
+        pm_on_fail: Some(PmOnFail::Warn),
+        side_effects_cache_read_setting: Some(true),
+        side_effects_cache_write_setting: Some(true),
+        audit_level: Some(AuditLevel::Low),
+        proxy: pnpm_network::ProxyConfig {
+            https_proxy: Some("https://proxy.example".to_string()),
+            http_proxy: Some("http://proxy.example".to_string()),
+            no_proxy: Some(pnpm_network::NoProxySetting::List(vec!["example.com".to_string()])),
+        },
+        update_config: UpdateConfig { changeset: Some(true), ..UpdateConfig::default() },
+        // The settings that report as written, rather than as resolved.
+        explicit_settings: [
+            "storeDir",
+            "cacheDir",
+            "modulesDir",
+            "virtualStoreDir",
+            "globalVirtualStoreDir",
+            "globalDir",
+            "globalBinDir",
+        ]
+        .into_iter()
+        .map(|key| (key.to_string(), serde_json::Value::String(format!("../{key}"))))
+        .chain(
+            [
+                "preferFrozenLockfile",
+                "lockfile",
+                "shamefullyHoist",
+                "mergeGitBranchLockfiles",
+                "optimisticRepeatInstall",
+                "preferSymlinkedExecutables",
+            ]
+            .into_iter()
+            .map(|key| (key.to_string(), serde_json::Value::Bool(true))),
+        )
+        .chain(std::iter::once((
+            "minimumReleaseAge".to_string(),
+            serde_json::Value::Number(60.into()),
+        )))
+        .collect(),
+        ..Config::default()
+    };
+
+    let projected = WorkspaceSettings::from_resolved(&config);
+    let Ok(serde_json::Value::Object(map)) = serde_json::to_value(&projected) else {
+        panic!("the projected settings serialize to a JSON object");
+    };
+
+    let unreported: Vec<&str> =
+        map.iter().filter(|(_, value)| value.is_null()).map(|(key, _)| key.as_str()).collect();
+    let mut expected = UNREPORTED_SETTINGS.to_vec();
+    expected.sort_unstable();
+    let mut found = unreported;
+    found.sort_unstable();
+    dbg!(&found);
+    assert_eq!(
+        found, expected,
+        "a setting reporting `null` is one `from_resolved` does not map; add the mapping, or add \
+         the key to UNREPORTED_SETTINGS with the reason it reports elsewhere",
+    );
+}
+
+/// `from_resolved` is the inverse of `apply_to`: what a resolved config
+/// reports, applied to a fresh config, resolves to the same values.
+///
+/// The settings that report as the user set them are outside this property
+/// by design, since an unset one reports nothing to apply; see
+/// [`from_resolved_leaves_explicitness_sensitive_settings_unset`].
+#[test]
+fn from_resolved_round_trips_through_apply_to() {
+    let original = Config {
+        node_linker: NodeLinker::Hoisted,
+        registry: "https://reg.example/".to_string(),
+        save_exact: true,
+        fetch_retries: 9,
+        user_agent: "pnpm/test".to_string(),
+        ..Config::default()
+    };
+
+    let mut applied = Config::default();
+    WorkspaceSettings::from_resolved(&original).apply_to(&mut applied, Path::new("/tmp/project"));
+
+    assert_eq!(applied.node_linker, original.node_linker);
+    assert_eq!(applied.registry, original.registry);
+    assert_eq!(applied.save_exact, original.save_exact);
+    assert_eq!(applied.fetch_retries, original.fetch_retries);
+    assert_eq!(applied.user_agent, original.user_agent);
+}
+
+/// A setting pnpm reads for whether it was set reports as unset until a
+/// source sets it, even though [`Config`] resolved it to a value. A caller
+/// diffing the projection against a hook's answer can then tell "the hook
+/// set this" from "the hook left it alone", which is what decides whether
+/// the setting counts as configured at all.
+#[test]
+fn from_resolved_leaves_explicitness_sensitive_settings_unset() {
+    let unset = Config { prefer_frozen_lockfile: true, lockfile: true, ..Config::default() };
+    let projected = WorkspaceSettings::from_resolved(&unset);
+    assert_eq!(projected.prefer_frozen_lockfile, None);
+    assert_eq!(projected.lockfile, None);
+
+    let configured = Config {
+        prefer_frozen_lockfile: true,
+        explicit_settings: serde_json::Map::from_iter([(
+            "preferFrozenLockfile".to_string(),
+            serde_json::Value::Bool(false),
+        )]),
+        ..Config::default()
+    };
+    assert_eq!(WorkspaceSettings::from_resolved(&configured).prefer_frozen_lockfile, Some(false));
 }
