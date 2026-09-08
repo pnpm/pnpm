@@ -151,7 +151,7 @@ pub fn find_workspace_projects_no_check(
     // overlapping patterns don't multiply it. Set union commutes and
     // the first error *in pattern-list order* wins, keeping the result
     // and the reported failure a function of the pattern list alone.
-    let mut manifest_paths = merge_pattern_manifests(MergePatterns {
+    let mut manifest_paths = merge_pattern_manifests(&MergePatterns {
         include_patterns: &include_patterns,
         workspace_root,
         dot_pruning_ignore_template: &dot_pruning_ignore_template,
@@ -267,7 +267,7 @@ struct MergePatterns<'a> {
 /// pattern-list order* wins, keeping the result and the reported failure a
 /// function of the pattern list alone.
 fn merge_pattern_manifests(
-    merge: MergePatterns<'_>,
+    merge: &MergePatterns<'_>,
 ) -> Result<BTreeSet<PathBuf>, FindWorkspaceProjectsError> {
     let merged: std::sync::Mutex<BTreeSet<PathBuf>> = std::sync::Mutex::default();
     let pattern_errors: Vec<Option<FindWorkspaceProjectsError>> = merge

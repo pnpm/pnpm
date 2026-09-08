@@ -14,6 +14,7 @@ fn needs_replacing(ch: char) -> bool {
     ch.is_control() || matches!(ch, '"' | '*' | '+' | '/' | ':' | '<' | '>' | '?' | '\\' | '|')
 }
 
+#[must_use]
 pub fn link_path_to_peer_version(rel_path: &str) -> String {
     let trimmed = rel_path.trim_start_matches('.');
 
