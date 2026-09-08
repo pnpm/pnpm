@@ -126,16 +126,8 @@ fn parse_staged_list_query(query: &str) -> StagedListQuery {
         };
         let decoded = percent_decode(value);
         match key {
-            "page" => {
-                if let Ok(page) = decoded.parse() {
-                    parsed.page = page;
-                }
-            }
-            "perPage" => {
-                if let Ok(per_page) = decoded.parse() {
-                    parsed.per_page = per_page;
-                }
-            }
+            "page" => parsed.page = decoded.parse().unwrap_or(parsed.page),
+            "perPage" => parsed.per_page = decoded.parse().unwrap_or(parsed.per_page),
             "package" if !decoded.is_empty() => parsed.package = Some(decoded),
             _ => {}
         }

@@ -120,152 +120,13 @@ pub(super) fn router_with_auth_and_osv(
             osv_index,
         }),
     };
-    // `/-/ping` is a health check and is always served. The two
-    // configurable surfaces are mounted only when their feature is enabled,
-    // so resolver, registry, and artifacts can be deployed independently.
-    // The config guarantees at least one is enabled.
-    let mut router = Router::new()
-        .route("/-/ping", get(serve_ping))
-        .route("/-/oidc/{provider}/login", get(super::oidc::login))
-        .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
-    let account = account_routes();
-    router = router.merge(account.clone());
-    // The install-accelerator and shared-artifact surfaces live under the
-    // reserved `/-/pnpr` namespace. The handshake advertises each protocol
-    // independently, so either surface can be mounted on its own.
-    //
-    // When both protocol surfaces are disabled, only `/-/pnpr` gets a 404
-    // stub: it is the capability-probe path and overlaps the registry catch-all
-    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
-    // would be proxied upstream, giving a confusing 502 where a client
-    // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
-    // carry no capability probe, so they are left unmounted rather than
-    // stubbed.
-    if resolver_enabled || artifacts_enabled || registry_enabled || pipeline_enabled {
-        router = router.route("/-/pnpr", get(serve_pnpr_handshake));
-    } else {
-        router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
-    }
-    if resolver_enabled {
-        router = router
-            .route(
-                "/-/pnpr/v0/resolve",
-                post(serve_resolve).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-            )
-            .route(
-                "/-/pnpr/v0/verify-lockfile",
-                post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_resolver_caller,
-                )),
-            );
-    }
-    if artifacts_enabled {
-        router = router
-            .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
-            .route(
-                "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
-                get(compiler_cache::read)
-                    .head(compiler_cache::head)
-                    .put(compiler_cache::write)
-                    .fallback(compiler_cache::directory)
-                    .route_layer(DefaultBodyLimit::max(
-                        pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
-                    ))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        compiler_cache::authorize_request,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts",
-                put(serve_publish_artifact)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts/resolve",
-                post(serve_resolve_artifacts)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/artifacts/blob",
-                post(serve_artifact_blob)
-                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_artifact_caller,
-                    )),
-            );
-    }
-    if pipeline_enabled {
-        router = router
-            .route(
-                "/-/pnpr/v0/pipeline/runs",
-                put(serve_publish_pipeline_run)
-                    .get(serve_list_pipeline_runs)
-                    .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
-                    .route_layer(middleware::from_fn_with_state(
-                        state.clone(),
-                        require_pipeline_caller,
-                    )),
-            )
-            .route(
-                "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
-                get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
-                    state.clone(),
-                    require_pipeline_caller,
-                )),
-            )
-            // The viewer page is static HTML with no data of its own; the
-            // reads it issues are what authenticate.
-            .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui));
-    }
-    // The npm-registry surface: every packument/tarball read, publish,
-    // unpublish, dist-tag, and search. When the surface is off (no registries
-    // declared, or `--disable-registry`), none of these routes are mounted.
-    // Resolver- and artifacts-only tiers expose no registry surface at all.
-    if registry_enabled {
-        let npm = npm_registry_routes();
-        router = router
-            // One publish transaction for packages of any ecosystem. It
-            // answers here rather than inside the npm surface.
-            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
-            .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
-        if state.inner.config.registries.is_only_ecosystem(Ecosystem::Npm) {
-            router = router.merge(npm);
-        } else {
-            router = router.nest("/npm", account.merge(npm));
-        }
-        if state.inner.config.registries.has_ecosystem(Ecosystem::Cargo) {
-            router = router.merge(cargo::routes(
-                !state.inner.config.registries.is_only_ecosystem(Ecosystem::Cargo),
-            ));
-        }
-        if state.inner.config.registries.has_ecosystem(Ecosystem::Pypi) {
-            router = router.merge(pypi::routes(
-                !state.inner.config.registries.is_only_ecosystem(Ecosystem::Pypi),
-            ));
-        }
-        // The image surface keeps `/v2/` at the host root whatever else is
-        // served, because a client derives it from the image reference's host
-        // and cannot be pointed at a prefix.
-        if state.inner.config.registries.has_ecosystem(Ecosystem::Oci) {
-            router = router.merge(oci::routes(
-                !state.inner.config.registries.is_only_ecosystem(Ecosystem::Oci),
-            ));
-        }
-    }
+    let surfaces = EnabledSurfaces {
+        resolver: resolver_enabled,
+        registry: registry_enabled,
+        artifacts: artifacts_enabled,
+        pipeline: pipeline_enabled,
+    };
+    let router = surface_routes(&state, surfaces);
     let mut router = router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // Authenticate once, ahead of every handler: resolve the caller,
@@ -335,6 +196,165 @@ pub(super) fn router_with_auth_and_osv(
                 .on_failure(()),
         );
     Ok(router.with_state(state))
+}
+
+/// Which of the configurable surfaces this server mounts.
+#[derive(Clone, Copy)]
+struct EnabledSurfaces {
+    resolver: bool,
+    registry: bool,
+    artifacts: bool,
+    pipeline: bool,
+}
+
+/// Mount the routes of every enabled surface.
+fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppState> {
+    // `/-/ping` is a health check and is always served. The two
+    // configurable surfaces are mounted only when their feature is enabled,
+    // so resolver, registry, and artifacts can be deployed independently.
+    // The config guarantees at least one is enabled.
+    let mut router: Router<AppState> = Router::new()
+        .route("/-/ping", get(serve_ping))
+        .route("/-/oidc/{provider}/login", get(super::oidc::login))
+        .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
+    let account = account_routes();
+    router = router.merge(account.clone());
+    // The install-accelerator and shared-artifact surfaces live under the
+    // reserved `/-/pnpr` namespace. The handshake advertises each protocol
+    // independently, so either surface can be mounted on its own.
+    //
+    // When both protocol surfaces are disabled, only `/-/pnpr` gets a 404
+    // stub: it is the capability-probe path and overlaps the registry catch-all
+    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
+    // would be proxied upstream, giving a confusing 502 where a client
+    // expects the "no pnpr protocols here" 404. The `/-/pnpr/v0/*` endpoints
+    // carry no capability probe, so they are left unmounted rather than
+    // stubbed.
+    if surfaces.resolver || surfaces.artifacts || surfaces.registry || surfaces.pipeline {
+        router = router.route("/-/pnpr", get(serve_pnpr_handshake));
+    } else {
+        router = router.route("/-/pnpr", any(pnpr_protocols_disabled));
+    }
+    if surfaces.resolver {
+        router = router
+            .route(
+                "/-/pnpr/v0/resolve",
+                post(serve_resolve).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            )
+            .route(
+                "/-/pnpr/v0/verify-lockfile",
+                post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            );
+    }
+    if surfaces.artifacts {
+        router = router
+            .route("/-/pnpr/v0/compiler-cache/{cache}/", any(compiler_cache::directory))
+            .route(
+                "/-/pnpr/v0/compiler-cache/{cache}/{*key}",
+                get(compiler_cache::read)
+                    .head(compiler_cache::head)
+                    .put(compiler_cache::write)
+                    .fallback(compiler_cache::directory)
+                    .route_layer(DefaultBodyLimit::max(
+                        pnpr_shared_artifacts::MAX_COMPILER_CACHE_ENTRY_SIZE,
+                    ))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        compiler_cache::authorize_request,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/artifacts",
+                put(serve_publish_artifact)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_PUBLISH_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/artifacts/resolve",
+                post(serve_resolve_artifacts)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_RESOLVE_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/artifacts/blob",
+                post(serve_artifact_blob)
+                    .route_layer(DefaultBodyLimit::max(MAX_ARTIFACT_BLOB_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_artifact_caller,
+                    )),
+            );
+    }
+    if surfaces.pipeline {
+        router = router
+            .route(
+                "/-/pnpr/v0/pipeline/runs",
+                put(serve_publish_pipeline_run)
+                    .get(serve_list_pipeline_runs)
+                    .route_layer(DefaultBodyLimit::max(MAX_PIPELINE_RUN_BODY_BYTES))
+                    .route_layer(middleware::from_fn_with_state(
+                        state.clone(),
+                        require_pipeline_caller,
+                    )),
+            )
+            .route(
+                "/-/pnpr/v0/pipeline/runs/{workspace}/{run_id}",
+                get(serve_get_pipeline_run).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_pipeline_caller,
+                )),
+            )
+            // The viewer page is static HTML with no data of its own; the
+            // reads it issues are what authenticate.
+            .route("/-/pnpr/v0/pipeline", get(serve_pipeline_ui));
+    }
+    if surfaces.registry {
+        router = registry_routes(state, router);
+    }
+
+    router
+}
+
+/// Mount the npm-compatible registry surface and every other ecosystem the
+/// configuration declares.
+fn registry_routes(state: &AppState, router: Router<AppState>) -> Router<AppState> {
+    let registries = &state.inner.config.registries;
+    let npm = npm_registry_routes();
+    // One publish transaction for packages of any ecosystem. It answers here
+    // rather than inside the npm surface.
+    let mut router = router
+        .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+        .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
+    if registries.is_only_ecosystem(Ecosystem::Npm) {
+        router = router.merge(npm);
+    } else {
+        router = router.nest("/npm", account_routes().merge(npm));
+    }
+    if registries.has_ecosystem(Ecosystem::Cargo) {
+        router = router.merge(cargo::routes(!registries.is_only_ecosystem(Ecosystem::Cargo)));
+    }
+    if registries.has_ecosystem(Ecosystem::Pypi) {
+        router = router.merge(pypi::routes(!registries.is_only_ecosystem(Ecosystem::Pypi)));
+    }
+    // The image surface keeps `/v2/` at the host root whatever else is served,
+    // because a client derives it from the image reference's host and cannot be
+    // pointed at a prefix.
+    if registries.has_ecosystem(Ecosystem::Oci) {
+        router = router.merge(oci::routes(!registries.is_only_ecosystem(Ecosystem::Oci)));
+    }
+    router
 }
 
 /// The account endpoints — adduser/login, whoami, profile, token
