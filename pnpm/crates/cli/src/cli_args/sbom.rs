@@ -1665,7 +1665,7 @@ fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
     }
     let spdx_relationships = spdx_relationships(result, root_spdx_id, &spdx_id_map);
 
-    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
     let doc_namespace = format!(
         "https://spdx.org/spdxdocs/{}-{}-{}",
         sanitize_spdx_id(&result.root_name),
