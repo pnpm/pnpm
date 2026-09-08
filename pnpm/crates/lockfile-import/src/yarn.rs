@@ -120,32 +120,61 @@ fn collect_classic_versions(
         if indent == 0 {
             entry_names.clear();
             property_indent = None;
-            let key = content
-                .strip_suffix(':')
-                .ok_or(YarnSyntaxError::EntryKeyExpected { line: number })?;
-            if key != METADATA_KEY {
-                entry_names.extend(descriptor_package_names(key));
-            }
+            start_classic_entry(content, number, &mut entry_names)?;
             continue;
         }
 
-        if entry_names.is_empty() {
-            return Err(YarnSyntaxError::OrphanedProperty { line: number });
-        }
-        let property = ClassicProperty::parse(content)
-            .ok_or(YarnSyntaxError::PropertyExpected { line: number })?;
-        // A `dependencies` block nests one level deeper and lists names,
-        // one of which may itself be `version`.
-        if indent != *property_indent.get_or_insert(indent) {
+        let Some(version) =
+            entry_version(content, number, indent, &entry_names, &mut property_indent)?
+        else {
             continue;
-        }
-        if let ClassicProperty::Valued { key: "version", value } = property {
-            for name in &entry_names {
-                add_version(versions, name, value);
-            }
+        };
+        for name in &entry_names {
+            add_version(versions, name, version);
         }
     }
 
+    Ok(())
+}
+
+/// The version one property line of a classic entry declares, if it is that
+/// line.
+///
+/// A `dependencies` block nests one level deeper and lists names, one of which
+/// may itself be `version`, so only lines at the entry's own property indent
+/// are read.
+fn entry_version<'a>(
+    content: &'a str,
+    line: usize,
+    indent: usize,
+    entry_names: &[&str],
+    property_indent: &mut Option<usize>,
+) -> Result<Option<&'a str>, YarnSyntaxError> {
+    if entry_names.is_empty() {
+        return Err(YarnSyntaxError::OrphanedProperty { line });
+    }
+    let property =
+        ClassicProperty::parse(content).ok_or(YarnSyntaxError::PropertyExpected { line })?;
+    if indent != *property_indent.get_or_insert(indent) {
+        return Ok(None);
+    }
+    match property {
+        ClassicProperty::Valued { key: "version", value } => Ok(Some(value)),
+        _ => Ok(None),
+    }
+}
+
+/// Read the descriptors one top-level entry key declares. The metadata block
+/// is not an entry and names no package.
+fn start_classic_entry<'a>(
+    content: &'a str,
+    line: usize,
+    entry_names: &mut Vec<&'a str>,
+) -> Result<(), YarnSyntaxError> {
+    let key = content.strip_suffix(':').ok_or(YarnSyntaxError::EntryKeyExpected { line })?;
+    if key != METADATA_KEY {
+        entry_names.extend(descriptor_package_names(key));
+    }
     Ok(())
 }
 

@@ -225,6 +225,20 @@ pub fn warm_deps_state_cache<'a, Key>(
 /// on it: the built set comes from the allow-build policy rather than the
 /// graph, so the two can disagree.
 #[must_use]
+/// Reverse the graph: every node, and the nodes that depend on it.
+fn index_parents_by_child<Key>(graph: &HashMap<Key, DepsGraphNode<Key>>) -> HashMap<&Key, Vec<&Key>>
+where
+    Key: Eq + std::hash::Hash,
+{
+    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
+    for (parent, node) in graph {
+        for child in node.children.values() {
+            parents_by_child.entry(child).or_default().push(parent);
+        }
+    }
+    parents_by_child
+}
+
 pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     built_dep_paths: &HashSet<Key>,
@@ -236,12 +250,7 @@ where
         return HashSet::new();
     }
 
-    let mut parents_by_child: HashMap<&Key, Vec<&Key>> = HashMap::new();
-    for (parent, node) in graph {
-        for child in node.children.values() {
-            parents_by_child.entry(child).or_default().push(parent);
-        }
-    }
+    let parents_by_child = index_parents_by_child(graph);
 
     let mut build_required: HashSet<&Key> = built_dep_paths.iter().collect();
     let mut pending: Vec<&Key> = built_dep_paths.iter().collect();
