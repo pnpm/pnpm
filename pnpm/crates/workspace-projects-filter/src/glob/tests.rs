@@ -46,8 +46,30 @@ fn multiple_stars_in_one_segment_backtrack() {
 }
 
 #[test]
+fn question_mark_matches_one_character() {
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-?"));
+    assert!(!is_match("/packages/pkg-ab", "/packages/pkg-?"));
+    assert!(!is_match("/packages/pkg-", "/packages/pkg-?"));
+}
+
+#[test]
+fn character_class_matches_one_character() {
+    assert!(is_match("/packages/pkg-a", "/packages/pkg-[ab]"));
+    assert!(is_match("/packages/pkg-b", "/packages/pkg-[ab]"));
+    assert!(!is_match("/packages/pkg-c", "/packages/pkg-[ab]"));
+}
+
+#[test]
 fn backslash_separators_are_normalized_in_both_candidate_and_pattern() {
     assert!(is_match(r"C:\packages\project-0", "C:/packages/*"));
     assert!(is_match("C:/packages/project-0", r"C:\packages\*"));
     assert!(is_match(r"C:\packages\project-0\", r"C:\packages\*"));
+}
+
+#[test]
+fn windows_drive_paths_support_micromatch_wildcards() {
+    assert!(is_match(r"C:\packages\pkg-a", r"C:\packages\pkg-?"));
+    assert!(is_match(r"C:\packages\pkg-b", r"C:\packages\pkg-[ab]"));
+    assert!(!is_match(r"C:\packages\pkg-c", r"C:\packages\pkg-[ab]"));
+    assert!(!is_match(r"D:\packages\pkg-a", r"C:\packages\pkg-?"));
 }

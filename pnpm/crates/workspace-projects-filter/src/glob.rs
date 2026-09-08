@@ -1,25 +1,47 @@
-//! Minimal path glob matcher for directory selectors, covering the
+//! Path glob matcher for directory selectors, covering the
 //! `micromatch.isMatch(dir, pattern, { format })` call upstream uses for
 //! `useGlobDirFiltering` selections.
 //!
-//! Only the two wildcards directory filters rely on are supported: `*`
-//! matches any run of characters within a single path segment, and `**`
-//! matches any number of whole segments (including zero). Both the
-//! pattern and the candidate are normalized the same way before
-//! matching: backslashes become `/` and a trailing `/` is stripped.
-//! This mirrors upstream's pattern `replace(/\\/g, '/')` together with
-//! micromatch's separator handling, which treats `\` in the candidate
-//! as a path separator too — so a Windows `ProjectRootDir` rendered with
-//! backslashes by `PathBuf::to_string_lossy()` still matches.
+//! `wax` provides the glob syntax used by micromatch for directory
+//! selectors, including `*`, `**`, `?`, and character classes. Windows
+//! drive-prefixed paths are not valid wax expressions, so their drive is
+//! matched separately and the normalized path tail is passed to `wax`.
+
+use wax::{Glob, Program};
 
 /// Whether `candidate` matches the directory glob `pattern`.
 pub fn is_match(candidate: &str, pattern: &str) -> bool {
     let pattern = normalize(pattern);
     let candidate = normalize(candidate);
 
+    if let Some((pattern_drive, pattern_tail)) = split_windows_drive(&pattern) {
+        let Some((candidate_drive, candidate_tail)) = split_windows_drive(&candidate) else {
+            return false;
+        };
+        if !pattern_drive.eq_ignore_ascii_case(candidate_drive) {
+            return false;
+        }
+        if let Ok(glob) = Glob::new(pattern_tail) {
+            return glob.is_match(candidate_tail);
+        }
+    }
+
+    if let Ok(glob) = Glob::new(&pattern) {
+        return glob.is_match(candidate.as_str());
+    }
+
+    // Wax intentionally rejects Windows drive prefixes. Keep matching those
+    // paths so directory filters remain portable across platforms.
     let pattern_segments: Vec<&str> = pattern.split('/').collect();
     let candidate_segments: Vec<&str> = candidate.split('/').collect();
     match_segments(&pattern_segments, &candidate_segments)
+}
+
+/// Split a normalized Windows drive path into its drive and slash-prefixed
+/// path. Wax intentionally does not accept drive prefixes in glob expressions.
+fn split_windows_drive(path: &str) -> Option<(&str, &str)> {
+    let bytes = path.as_bytes();
+    (bytes.len() >= 3 && bytes[1] == b':' && bytes[2] == b'/').then(|| (&path[..2], &path[2..]))
 }
 
 /// Normalize a glob pattern or candidate path: backslashes to `/`, then
@@ -45,10 +67,9 @@ fn match_segments(pattern: &[&str], candidate: &[&str]) -> bool {
     }
 }
 
-/// Match a single pattern segment against a single candidate segment,
-/// treating `*` as any (possibly empty) run of characters. Uses the
-/// classic iterative wildcard match with backtracking so multiple `*`
-/// in one segment (`a*b*c`) match correctly.
+/// Match a single pattern segment against a single candidate segment for
+/// patterns that wax cannot parse, such as Windows drive-prefixed paths.
+/// This preserves the original `*`/`**` behavior for that compatibility path.
 fn segment_match(pattern: &str, text: &str) -> bool {
     let pattern: Vec<char> = pattern.chars().collect();
     let text: Vec<char> = text.chars().collect();
