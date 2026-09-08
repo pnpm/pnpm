@@ -51,8 +51,7 @@ test('global remove ignores reserved manifest bin names', async () => {
 })
 
 test('global remove checks every target before deleting any group', async () => {
-  const globalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'global-remove-target-preflight-'))
-  assertTemporaryRoot(globalDir)
+  const globalDir = createTemporaryRoot('global-remove-target-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')
   fs.mkdirSync(globalBinDir, { recursive: true })
   const readable = createGlobalGroup(globalDir, 'readable-hash', 'readable', {
@@ -105,8 +104,7 @@ test('global remove checks every target before deleting any group', async () => 
 })
 
 test('global remove checks surviving ownership before deleting a target', async () => {
-  const globalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'global-remove-survivor-preflight-'))
-  assertTemporaryRoot(globalDir)
+  const globalDir = createTemporaryRoot('global-remove-survivor-preflight-')
   const globalBinDir = path.join(globalDir, 'bin')
   fs.mkdirSync(globalBinDir, { recursive: true })
   const target = createGlobalGroup(globalDir, 'target-hash', 'target', {
@@ -239,8 +237,13 @@ function snapshotFilesystem (root: string): FilesystemEntry[] {
   }
 }
 
-function assertTemporaryRoot (root: string): void {
-  expect(fs.realpathSync(path.dirname(root))).toBe(fs.realpathSync(os.tmpdir()))
+// The resolved path matters: an install directory is only deleted when
+// `isSubdir` places it under the global dir, and macOS reports a temporary
+// directory under a prefix that is itself a symlink.
+function createTemporaryRoot (prefix: string): string {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)))
+  expect(path.dirname(root)).toBe(fs.realpathSync(os.tmpdir()))
+  return root
 }
 
 function assertPathInside (root: string, candidate: string): void {

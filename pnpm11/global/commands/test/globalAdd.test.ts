@@ -4,7 +4,6 @@ import path from 'node:path'
 import util from 'node:util'
 
 import { beforeEach, expect, jest, test } from '@jest/globals'
-import { redactAndSanitize } from '@pnpm/error'
 import type { GlobalPackageInfo } from '@pnpm/global.packages'
 import type { DependencyManifest } from '@pnpm/types'
 
@@ -33,20 +32,9 @@ const readInstalledPackages = jest.fn<() => Promise<[]>>().mockResolvedValue([])
 const summaryDebug = jest.fn()
 const activateGlobalInstall = jest.fn<(opts: unknown) => Promise<Set<string>>>().mockResolvedValue(new Set(['pnpm']))
 const cleanupReplacedGlobalInstalls = jest.fn<(opts: unknown) => Promise<void>>().mockResolvedValue(undefined)
-const cleanupFailedGlobalInstall = jest.fn(async (installDir: string, originalError: unknown): Promise<never> => {
-  try {
-    await fs.promises.rm(installDir, { recursive: true, force: true })
-  } catch (cleanupError) {
-    throw new AggregateError(
-      [originalError, cleanupError],
-      'Failed to clean up after global install failed before activation. ' +
-        `Original error: ${formatErrorForMessage(originalError)}. ` +
-        `Cleanup error: ${formatErrorForMessage(cleanupError)}.`,
-      { cause: originalError } // eslint-disable-line preserve-caught-error -- Matches the production contract: the failure before activation is primary.
-    )
-  }
-  throw originalError
-})
+// The real cleanup runs here: these tests cover how the command wires it up,
+// while its diagnostics are asserted in globalActivation.test.ts.
+const { cleanupFailedGlobalInstall } = jest.requireActual<typeof import('../src/globalActivation.js')>('../src/globalActivation.js')
 
 jest.unstable_mockModule('@pnpm/core-loggers', () => ({ summaryLogger: { debug: summaryDebug } }))
 jest.unstable_mockModule('@pnpm/global.packages', () => ({
@@ -385,21 +373,6 @@ test('global add preserves ownership state and both errors when fresh install cl
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
-
-function formatErrorForMessage (err: unknown): string {
-  if (util.types.isNativeError(err)) return sanitizeSingleLineErrorMessage(err.message)
-  try {
-    return sanitizeSingleLineErrorMessage(String(err))
-  } catch {
-    return 'Unknown error'
-  }
-}
-
-function sanitizeSingleLineErrorMessage (message: string): string {
-  return redactAndSanitize(message)
-    .replaceAll('\u2028', '')
-    .replaceAll('\u2029', '')
-}
 
 test('global add does not clean up or persist policy when activation fails', async () => {
   const activationError = new Error('activation failed')
