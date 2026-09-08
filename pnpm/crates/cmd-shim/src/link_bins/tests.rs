@@ -60,7 +60,10 @@ fn removing_bin_entries_preserves_their_targets() {
 }
 
 #[test]
-#[cfg_attr(windows, ignore = "Windows retries directory deletion errors as possible file locks")]
+#[cfg_attr(
+    windows,
+    ignore = "Windows spends the retry budget on the permanent error: pnpm/pnpm#14682"
+)]
 fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     let tmp = tempdir().unwrap();
     let pkg_dir = tmp.path().join("node_modules/node");
@@ -1525,7 +1528,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     let options =
         LinkBinsOptions { prefer_symlinked_executables: true, ..LinkBinsOptions::default() };
     link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir, Arc::new(manifest_value))],
+        &[PackageBinSource::new(pkg_dir.clone(), Arc::new(manifest_value))],
         &bins_dir,
         &options,
     )
@@ -1552,7 +1555,7 @@ fn prefer_symlinked_executables_links_bins_as_relative_symlinks() {
     {
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(
-            metadata(&bin).unwrap().permissions().mode() & 0o777,
+            metadata(pkg_dir.join("cli.js")).unwrap().permissions().mode() & 0o777,
             0o755,
             "the target file gets the executable bits, like pnpm's ensureExecutable",
         );

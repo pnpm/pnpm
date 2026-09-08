@@ -1057,10 +1057,6 @@ where
 }
 
 #[cfg(windows)]
-#[expect(
-    clippy::extra_unused_type_parameters,
-    reason = "The Windows no-op shares the generic signature of the Unix implementation."
-)]
 fn link_symlinked_executable<Sys>(
     _target_path: &Path,
     _shim_path: &Path,

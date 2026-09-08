@@ -59,8 +59,7 @@ fn cleanup_recovers_after_transient_lock() {
     assert_eq!(fs::read_to_string(target).unwrap(), "program content");
 }
 
-/// An ordinary shim is replaced by renaming a sibling temp file over it,
-/// so the lock lands on the rename rather than on a removal.
+/// Here the lock lands on the replacement rename, not on a removal.
 #[test]
 fn shim_replacement_recovers_after_transient_lock() {
     let root = tempdir().unwrap();
@@ -88,8 +87,7 @@ fn shim_replacement_recovers_after_transient_lock() {
     assert_eq!(fs::read_to_string(target).unwrap(), content);
 }
 
-/// A Node.js binary entry is still removed before the new link is laid down,
-/// which is the remaining delete-before-replace path.
+/// A Node.js entry is the one bin still deleted before it is replaced.
 #[test]
 fn node_binary_replacement_recovers_after_transient_lock() {
     let root = tempdir().unwrap();
