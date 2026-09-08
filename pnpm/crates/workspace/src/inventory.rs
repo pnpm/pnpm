@@ -1,3 +1,4 @@
+mod open_directory;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{

@@ -6135,6 +6135,7 @@ dependencies = [
  "serde-saphyr",
  "tempfile",
  "wax",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

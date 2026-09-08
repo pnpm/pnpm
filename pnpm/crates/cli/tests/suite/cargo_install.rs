@@ -243,3 +243,67 @@ fn a_workspace_with_a_cargo_patch_is_not_resolved_from_the_registry() {
     // One word: a diagnostic wraps at a width the path length decides.
     assert!(stderr.contains("[patch]"), "{stderr}");
 }
+
+#[cfg(unix)]
+#[test]
+fn reuses_workspace_metadata_with_aliased_paths_and_nested_workspaces() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let repository = TempDir::new().unwrap();
+    let root = repository.path().join("workspace");
+    fs::create_dir(&root).unwrap();
+    fs::write(root.join("pnpm-workspace.yaml"), "packages: []\ncargo:\n  enabled: true\n").unwrap();
+    fs::write(
+        root.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"a\", \"b\", \"c\"]\nresolver = \"2\"\n",
+    )
+    .unwrap();
+    for (name, workspace) in [("a", ""), ("b", ""), ("c", ""), ("a/nested", "[workspace]\n")] {
+        let project = root.join(name);
+        fs::create_dir_all(project.join("src")).unwrap();
+        fs::write(project.join("src/lib.rs"), "").unwrap();
+        let package = name.replace('/', "-");
+        fs::write(project.join("Cargo.toml"), format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n{workspace}")).unwrap();
+    }
+    for project in [&root, &root.join("a/nested")] {
+        Command::new("cargo")
+            .args(["generate-lockfile", "--offline"])
+            .current_dir(project)
+            .assert()
+            .success();
+    }
+    let original_path = std::env::var_os("PATH").unwrap();
+    let cargo = std::env::split_paths(&original_path)
+        .map(|directory| directory.join("cargo"))
+        .find(|path| path.is_file())
+        .expect("cargo on PATH");
+    let bin = repository.path().join("bin");
+    fs::create_dir(&bin).unwrap();
+    let wrapper = bin.join("cargo");
+    fs::write(
+        &wrapper,
+        "#!/bin/sh\nprintf '%s\\n' \"$1\" >> \"$CARGO_CALL_LOG\"\nexec \"$REAL_CARGO\" \"$@\"\n",
+    )
+    .unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o755)).unwrap();
+    let path =
+        std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(&original_path)))
+            .unwrap();
+    let log = repository.path().join("cargo-calls");
+    for alias in [root.clone(), root.join("../workspace"), std::path::PathBuf::from(".")] {
+        fs::write(&log, "").unwrap();
+        Command::cargo_bin("pnpm")
+            .unwrap()
+            .current_dir(&root)
+            .args(["install", "--frozen-lockfile"])
+            .env("PATH", &path)
+            .env("REAL_CARGO", &cargo)
+            .env("CARGO_CALL_LOG", &log)
+            .env("NPM_CONFIG_WORKSPACE_DIR", &alias)
+            .env("PNPM_CONFIG_CACHE_DIR", repository.path().join("cache"))
+            .env("PNPM_CONFIG_STORE_DIR", repository.path().join("store"))
+            .assert()
+            .success();
+        assert_eq!(fs::read_to_string(&log).unwrap(), "metadata\nmetadata\n", "{alias:?}");
+    }
+}
