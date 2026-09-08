@@ -10,6 +10,7 @@ const FOO2_PATH = pathResolve('/zkochan/src/foo@2')
 const BAR3_PATH = pathResolve('/zkochan/src/bar@3')
 const BAR4_PATH = pathResolve('/zkochan/src/bar@4')
 const BAR5_PATH = pathResolve('/zkochan/src/bar@5')
+const QAR_PATH = pathResolve('/zkochan/src/qar')
 
 test('create package graph', () => {
   const result = createProjectsGraph([
@@ -891,4 +892,77 @@ test('create package graph respects workspace alias syntax', async () => {
       },
     },
   })
+})
+
+test('an override pointing a dependency at a workspace project adds the edge', () => {
+  const projects = [
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          foo: '^1.0.0',
+          qar: '1.0.0',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+    {
+      rootDir: QAR_PATH,
+      manifest: {
+        name: 'qar',
+        version: '1.0.0',
+      },
+    },
+  ]
+  const opts = {
+    linkWorkspacePackages: false,
+    overrides: {
+      overrides: { foo: 'workspace:*', qar: '-' },
+      lockfileDir: pathResolve('/zkochan/src'),
+    },
+  }
+  const result = createProjectsGraph(projects, opts)
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])
+  // The manifests in the graph are the declared ones.
+  expect(result.graph[BAR1_PATH].package.manifest.dependencies).toStrictEqual({ foo: '^1.0.0', qar: '1.0.0' })
+
+  const unrewritten = createProjectsGraph(projects, { linkWorkspacePackages: false })
+  expect(unrewritten.graph[BAR1_PATH].dependencies).toStrictEqual([])
+})
+
+test('a file: override anchored at the lockfile directory adds the edge', () => {
+  const projects = [
+    {
+      rootDir: BAR1_PATH,
+      manifest: {
+        name: 'bar',
+        version: '1.0.0',
+        dependencies: {
+          foo: '^9.0.0',
+        },
+      },
+    },
+    {
+      rootDir: FOO1_PATH,
+      manifest: {
+        name: 'foo',
+        version: '1.0.0',
+      },
+    },
+  ]
+  const result = createProjectsGraph(projects, {
+    linkWorkspacePackages: false,
+    overrides: { overrides: { foo: 'file:./foo' }, lockfileDir: pathResolve('/zkochan/src') },
+  })
+  expect(result.unmatched).toStrictEqual([])
+  expect(result.graph[BAR1_PATH].dependencies).toStrictEqual([FOO1_PATH])
 })

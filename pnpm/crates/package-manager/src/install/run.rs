@@ -1735,7 +1735,7 @@ fn report_install_scope_cycles<Reporter: self::Reporter>(
             .map(|projects| (projects, None)),
     };
     let Some((projects, selected_dirs)) = scope else { return Ok(()) };
-    let cycles = crate::install_scope_cycles(config, projects, selected_dirs);
+    let cycles = crate::install_scope_cycles(config, workspace_dir, projects, selected_dirs);
     crate::report_workspace_cycles::<Reporter>(config, workspace_dir, cycles.as_deref())
         .map_err(InstallError::CyclicWorkspaceDependencies)
 }

@@ -10,7 +10,16 @@
   ],
   "references": [
     {
+      "path": "../../catalogs/types"
+    },
+    {
+      "path": "../../config/parse-overrides"
+    },
+    {
       "path": "../../core/types"
+    },
+    {
+      "path": "../../hooks/read-package-hook"
     },
     {
       "path": "../../resolving/npm-resolver"

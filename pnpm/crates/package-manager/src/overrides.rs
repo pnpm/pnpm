@@ -15,9 +15,12 @@
 //! on the in-memory `Value` only.
 
 use node_semver::{Range, Version};
-use pnpm_config_parse_overrides::{PackageSelector, VersionOverride};
+use pnpm_catalogs_types::Catalogs;
+use pnpm_config::Config;
+use pnpm_config_parse_overrides::{PackageSelector, ParseOverridesError, VersionOverride};
 use pnpm_package_manifest::{DependencyGroup, PackageManifest};
 use pnpm_resolving_resolver_base::is_valid_peer_range;
+use pnpm_workspace_projects_graph::{DependencyRewriter, GraphProject};
 use serde_json::Value;
 use std::{
     collections::{HashMap, HashSet},
@@ -636,5 +639,65 @@ fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
     }
     if let Some(deps) = value.get_mut("dependencies").and_then(Value::as_object_mut) {
         deps.insert(name, Value::String(spec));
+    }
+}
+
+/// The `pnpm.overrides` hook the workspace projects graph applies, so an
+/// override that points a dependency at a workspace sibling becomes an
+/// edge the graph orders by. `Ok(None)` when no overrides are configured.
+/// `lockfile_dir` anchors relative `link:` / `file:` override targets.
+pub fn overrides_dependency_rewriter(
+    config: &Config,
+    lockfile_dir: &Path,
+) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
+    let Some(map) = config.overrides.as_ref().filter(|map| !map.is_empty()) else {
+        return Ok(None);
+    };
+    let empty_catalogs = Catalogs::new();
+    let catalogs = config.catalogs.as_ref().unwrap_or(&empty_catalogs);
+    let parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
+    Ok(Some(VersionsOverrider::new(&parsed, lockfile_dir)))
+}
+
+impl DependencyRewriter for VersionsOverrider {
+    /// Runs the merged dependency list through [`Self::apply_to_value`]
+    /// as the `dependencies` of a manifest carrying the project's name
+    /// and version, so parent-scoped keys match the project exactly as
+    /// they match its manifest during resolution.
+    fn rewrite_dependencies(
+        &self,
+        project: &dyn GraphProject,
+        dependencies: &mut Vec<(String, String)>,
+    ) {
+        if self.is_empty() || dependencies.is_empty() {
+            return;
+        }
+        let mut manifest = serde_json::Map::new();
+        if let Some(name) = project.manifest_name() {
+            manifest.insert("name".to_string(), Value::String(name.to_string()));
+        }
+        if let Some(version) = project.manifest_version() {
+            manifest.insert("version".to_string(), Value::String(version.to_string()));
+        }
+        manifest.insert(
+            "dependencies".to_string(),
+            dependencies
+                .iter()
+                .map(|(name, spec)| (name.clone(), Value::String(spec.clone())))
+                .collect::<serde_json::Map<_, _>>()
+                .into(),
+        );
+        let mut manifest = Value::Object(manifest);
+        self.apply_to_value(&mut manifest, Some(project.root_dir()));
+        let rewritten = manifest.get("dependencies").and_then(Value::as_object);
+        dependencies.retain_mut(|(name, spec)| {
+            match rewritten.and_then(|map| map.get(name.as_str())).and_then(Value::as_str) {
+                Some(rewritten_spec) => {
+                    *spec = rewritten_spec.to_string();
+                    true
+                }
+                None => false,
+            }
+        });
     }
 }

@@ -11,7 +11,7 @@ use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pnpm_config::{Config, LinkWorkspacePackages};
-use pnpm_package_manager::{GraphSequencerResult, graph_sequencer};
+use pnpm_package_manager::{GraphSequencerResult, graph_sequencer, overrides_dependency_rewriter};
 use pnpm_workspace::{
     FindWorkspaceProjectsOpts, GraphPkg, Project, find_workspace_projects,
     importer_id_from_root_dir, read_workspace_manifest, workspace_package_patterns,
@@ -21,7 +21,8 @@ use pnpm_workspace_projects_filter::{
     parse_project_selector,
 };
 use pnpm_workspace_projects_graph::{
-    BaseProject, CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    BaseProject, CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph,
+    create_projects_graph,
 };
 use rayon::prelude::*;
 use serde::Serialize;
@@ -278,10 +279,17 @@ pub fn select_recursive_projects<'a>(
     // The filter graphs are built with the configured `link-workspace-packages`
     // policy. Under the default `link-workspace-packages: false` a bare-semver
     // range naming a sibling is not a workspace edge, so it drives neither
-    // selection nor order; only a `workspace:` range or an enabled policy links
-    // it.
+    // selection nor order; only a `workspace:` range, an enabled policy, or an
+    // override pointing the dependency at the sibling links it.
+    let workspace_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
+    let dependency_rewriter = overrides_dependency_rewriter(config, workspace_dir)
+        .into_diagnostic()
+        .wrap_err("parsing the overrides")?;
     let graph_options = CreateProjectsGraphOptions {
         link_workspace_packages: Some(config.link_workspace_packages != LinkWorkspacePackages::Off),
+        dependency_rewriter: dependency_rewriter
+            .as_ref()
+            .map(|rewriter| rewriter as &dyn DependencyRewriter),
         ..CreateProjectsGraphOptions::default()
     };
     let all = build_graph(projects, graph_options);
@@ -447,10 +455,10 @@ pub fn selected_importer_ids(
 }
 
 /// Build the workspace [`ProjectGraph`] from `projects` under `options`.
-fn build_graph(
-    projects: &[Project],
-    options: CreateProjectsGraphOptions,
-) -> ProjectGraph<GraphPkg<'_>> {
+fn build_graph<'a>(
+    projects: &'a [Project],
+    options: CreateProjectsGraphOptions<'_>,
+) -> ProjectGraph<GraphPkg<'a>> {
     create_projects_graph(projects.iter().map(|project| GraphPkg { project }).collect(), &options)
         .graph
 }

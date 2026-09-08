@@ -14,9 +14,11 @@ pub use base_project::{BaseProject, GraphProject};
 pub use create_projects_graph::{
     CreateProjectsGraphOptions, CreateProjectsGraphResult, Unmatched, create_projects_graph,
 };
+pub use dependency_rewriter::DependencyRewriter;
 pub use graph::{ProjectGraph, ProjectGraphNode};
 pub use pnpm_fs::lexical_normalize;
 
 mod base_project;
 mod create_projects_graph;
+mod dependency_rewriter;
 mod graph;

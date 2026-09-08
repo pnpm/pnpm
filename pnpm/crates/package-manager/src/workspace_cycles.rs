@@ -12,7 +12,7 @@ use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pnpm_workspace::{GraphPkg, Project};
 use pnpm_workspace_projects_graph::{
-    CreateProjectsGraphOptions, ProjectGraph, create_projects_graph,
+    CreateProjectsGraphOptions, DependencyRewriter, ProjectGraph, create_projects_graph,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -58,26 +58,36 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
 
 /// The cycles among the projects an install covers: `selected_dirs`
 /// narrows `projects` to a `--filter`ed or `-r` selection, `None` covers
-/// the whole workspace.
+/// the whole workspace. `workspace_dir` anchors the `pnpm.overrides`
+/// the graph edges follow.
 ///
 /// A selected project keeps the dependency list it has in the full
 /// graph; [`workspace_cycles`] then drops the edges that leave the
 /// selection, which is how pnpm sequences its selected graph.
+///
+/// Overrides that fail to parse leave the graph unrewritten: the install
+/// reports that failure itself once it reads them.
 #[must_use]
 pub fn install_scope_cycles(
     config: &Config,
+    workspace_dir: &Path,
     projects: &[Project],
     selected_dirs: Option<&HashSet<PathBuf>>,
 ) -> Option<Vec<Vec<PathBuf>>> {
     if projects.len() < 2 {
         return None;
     }
+    let dependency_rewriter =
+        crate::overrides_dependency_rewriter(config, workspace_dir).ok().flatten();
     let mut graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
         &CreateProjectsGraphOptions {
             link_workspace_packages: Some(
                 config.link_workspace_packages != LinkWorkspacePackages::Off,
             ),
+            dependency_rewriter: dependency_rewriter
+                .as_ref()
+                .map(|rewriter| rewriter as &dyn DependencyRewriter),
             ..CreateProjectsGraphOptions::default()
         },
     )

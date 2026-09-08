@@ -2273,6 +2273,68 @@ mod project_scripts_in_a_workspace {
 
         drop((root, anchor));
     }
+
+    /// A `prepare` that appends `name` to `order.txt` at the workspace
+    /// root (`INIT_CWD`), after `delay_ms`.
+    fn append_order_after(name: &str, delay_ms: u32) -> String {
+        format!(
+            r#"node -e "setTimeout(() => require('fs').appendFileSync(process.env.INIT_CWD + '/order.txt', '{name}\n'), {delay_ms})""#,
+        )
+    }
+
+    /// An override that points a dependency at a workspace sibling makes
+    /// the sibling a dependency of the project, whatever range the
+    /// manifest declares and with `linkWorkspacePackages` off, so the
+    /// sibling's own lifecycle scripts run before the dependent's.
+    #[test]
+    fn override_to_a_workspace_sibling_orders_the_project_scripts() {
+        let CommandTempCwd { root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+
+        let yaml_path = workspace.join("pnpm-workspace.yaml");
+        let yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+        fs::write(
+            &yaml_path,
+            format!(
+                "{}\npackages:\n  - 'packages/*'\noverrides:\n  lib: 'workspace:*'\n",
+                yaml.trim_end()
+            ),
+        )
+        .expect("write pnpm-workspace.yaml");
+        fs::write(workspace.join("package.json"), r#"{ "name": "root" }"#)
+            .expect("write the root package.json");
+        for (dir, manifest) in [
+            (
+                "lib",
+                serde_json::json!({
+                    "name": "lib",
+                    "version": "1.0.0",
+                    "scripts": { "prepare": append_order_after("lib", 500) },
+                }),
+            ),
+            (
+                "app",
+                serde_json::json!({
+                    "name": "app",
+                    "version": "1.0.0",
+                    "dependencies": { "lib": "^1.0.0" },
+                    "scripts": { "prepare": append_order_after("app", 0) },
+                }),
+            ),
+        ] {
+            let dir = workspace.join("packages").join(dir);
+            fs::create_dir_all(&dir).expect("create the member dir");
+            fs::write(dir.join("package.json"), manifest.to_string())
+                .expect("write the member package.json");
+        }
+
+        pacquet(&workspace, ["install"]).assert().success();
+
+        let order = fs::read_to_string(workspace.join("order.txt")).expect("read order.txt");
+        assert_eq!(order.lines().collect::<Vec<_>>(), ["lib", "app"]);
+
+        drop((root, npmrc_info));
+    }
 }
 
 /// `scriptShell` selects the shell every lifecycle script is spawned
