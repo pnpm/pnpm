@@ -700,7 +700,7 @@ fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Valu
 /// path layer and the `index.db` both implementations share. Callers
 /// pass the `to_string_lossy` rendering, which coerces non-UTF-8 bytes
 /// to U+FFFD per component.
-fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
+pub(crate) fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
     let Some(mut parts) = archive_entry_segments(raw) else {
         return Err(TarballError::ReadTarballEntries(std::io::Error::new(
             std::io::ErrorKind::InvalidData,

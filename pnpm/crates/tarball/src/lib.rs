@@ -3,9 +3,10 @@ pub use error::*;
 pub(crate) use extract::{
     GZIP_MAGIC, STREAM_ENTRY_BUFFER_MAX, STREAM_EXTRACT_COMPRESSED_THRESHOLD,
     STREAM_EXTRACT_DURING_DOWNLOAD_THRESHOLD, allocate_tarball_buffer, apply_append_manifest,
-    apply_placeholder_manifest, body_chunk_channel, decompress_gzip, extract_gzipped_tarball,
-    is_eager_decode_limit_exceeded, non_gzip_body_error, normalize_bundled_manifest,
-    oversized_manifest_error, stream_extract_gzipped_channel, tar_entry_payload,
+    apply_placeholder_manifest, body_chunk_channel, clean_archive_entry_path, decompress_gzip,
+    extract_gzipped_tarball, is_eager_decode_limit_exceeded, non_gzip_body_error,
+    normalize_bundled_manifest, oversized_manifest_error, stream_extract_gzipped_channel,
+    tar_entry_payload,
 };
 pub use local_tarball::*;
 pub use pnpm_network::RetryOpts;

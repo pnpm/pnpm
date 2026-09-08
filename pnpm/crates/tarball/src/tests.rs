@@ -5965,6 +5965,51 @@ fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
     drop(tempdir);
 }
 
+/// A flat archive keys its `package.json` at the package root, so the
+/// resolve-time metadata read has to recognize it as the manifest.
+/// Extraction and resolution disagreeing here is what named a `file:`
+/// dependency after the consumer's alias at version `0.0.0` while the
+/// `package.json` beside it said otherwise.
+#[tokio::test]
+async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("flat.tgz");
+
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, body) in [
+        ("package.json", &br#"{"name":"real-name","version":"9.9.9"}"#[..]),
+        ("index.js", &b"module.exports = 1\n"[..]),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder.append_data(&mut header, path, body).expect("append entry");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+    std::fs::write(&tarball_path, gzip_bytes(&tar_bytes)).unwrap();
+
+    let metadata = read_local_tarball_metadata(&tarball_path)
+        .await
+        .expect("read the local tarball's metadata");
+
+    assert!(metadata.has_manifest_entry);
+    let manifest = metadata.manifest.expect("bundled manifest");
+    assert_eq!(manifest.get("name").and_then(serde_json::Value::as_str), Some("real-name"));
+    assert_eq!(manifest.get("version").and_then(serde_json::Value::as_str), Some("9.9.9"));
+
+    // The extraction the resolve-time read has to agree with.
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+    let (_, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+    assert_eq!(
+        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        Some("real-name"),
+    );
+    drop(tempdir);
+}
+
 /// A lone `.` names the archive root rather than a file inside it, so no
 /// key can address it. It stays rejected, unlike the root-level entries
 /// above that have a name to be keyed by.

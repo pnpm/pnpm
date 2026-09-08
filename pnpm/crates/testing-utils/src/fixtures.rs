@@ -22,15 +22,28 @@ pub fn tarball_with_manifest(manifest: &serde_json::Value) -> Vec<u8> {
 }
 
 fn tarball_entry(path: &str, contents: &[u8]) -> Vec<u8> {
+    tarball_entries(&[(path, contents)])
+}
+
+/// Returns a gzipped tarball carrying `entries` in order, each as a
+/// regular file at the path given.
+///
+/// Entry paths are written verbatim, so a caller can build an archive
+/// that omits the top-level directory a published tarball wraps its
+/// payload in, or that carries an entry beside it at the archive root.
+#[must_use]
+pub fn tarball_entries(entries: &[(&str, &[u8])]) -> Vec<u8> {
     use std::io::Write;
 
     let mut builder = tar::Builder::new(Vec::new());
-    let mut header = tar::Header::new_gnu();
-    header.set_path(path).expect("set tar entry path");
-    header.set_size(contents.len() as u64);
-    header.set_mode(0o644);
-    header.set_cksum();
-    builder.append(&header, contents).expect("append entry to tar");
+    for (path, contents) in entries {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(path).expect("set tar entry path");
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, *contents).expect("append entry to tar");
+    }
     let tar_bytes = builder.into_inner().expect("finish tar");
 
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());

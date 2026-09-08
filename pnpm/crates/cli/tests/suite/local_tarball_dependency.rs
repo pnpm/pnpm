@@ -12,7 +12,7 @@ use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pnpm_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
-    fixtures::{tarball_with_manifest, tarball_without_manifest},
+    fixtures::{tarball_entries, tarball_with_manifest, tarball_without_manifest},
 };
 use std::{fs, path::Path, process::Command};
 
@@ -128,32 +128,6 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     drop((root, mock_instance));
 }
 
-/// Returns a gzipped tarball whose payload lives under `package/` while
-/// a zero-length `._package` sits beside it at the archive root. macOS
-/// `bsdtar` emits that `AppleDouble` entry when the source cannot store
-/// xattrs natively, so packing with `tar` rather than `npm pack`
-/// produces this shape.
-fn tarball_with_a_root_level_entry(manifest: &serde_json::Value) -> Vec<u8> {
-    use std::io::Write;
-
-    let mut builder = tar::Builder::new(Vec::new());
-    for (path, contents) in
-        [("._package", b"".as_slice()), ("package/package.json", manifest.to_string().as_bytes())]
-    {
-        let mut header = tar::Header::new_gnu();
-        header.set_path(path).expect("set tar entry path");
-        header.set_size(contents.len() as u64);
-        header.set_mode(0o644);
-        header.set_cksum();
-        builder.append(&header, contents).expect("append entry to tar");
-    }
-    let tar_bytes = builder.into_inner().expect("finish tar");
-
-    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(&tar_bytes).expect("gzip tar");
-    encoder.finish().expect("finish gzip")
-}
-
 /// An entry at the archive root has no top-level directory to strip, and
 /// rejecting it used to fail the whole install with
 /// `ERR_PNPM_TARBALL_IO_ERROR` after exhausting the network retries.
@@ -167,11 +141,13 @@ fn local_tarball_with_a_root_level_entry_installs() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
+    // macOS `bsdtar` emits the zero-length `AppleDouble` `._package` when
+    // the source cannot store xattrs natively, so packing with `tar`
+    // rather than `npm pack` produces this shape.
+    let manifest = serde_json::json!({ "name": "pkg-root-entry", "version": "1.0.0" }).to_string();
     fs::write(
         workspace.join("pkg-root-entry-1.0.0.tgz"),
-        tarball_with_a_root_level_entry(
-            &serde_json::json!({ "name": "pkg-root-entry", "version": "1.0.0" }),
-        ),
+        tarball_entries(&[("._package", b""), ("package/package.json", manifest.as_bytes())]),
     )
     .expect("write tarball");
     fs::write(
@@ -198,6 +174,67 @@ fn local_tarball_with_a_root_level_entry_installs() {
         installed.join("._package").exists(),
         "the root-level entry must be extracted under its own name, as pnpm 11 does",
     );
+
+    drop((root, mock_instance));
+}
+
+/// An archive with no wrapping directory at all keys its `package.json`
+/// at the package root, so the resolve-time read finds the name and
+/// version there and the dependency is recorded under them rather than
+/// under the alias the consumer happened to give it. pnpm 11 records
+/// `real-name@file:...` at `9.9.9` for this archive, and a lockfile the
+/// two CLIs disagree about fails a `--frozen-lockfile` install.
+#[test]
+fn flat_local_tarball_is_recorded_under_its_bundled_name() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("flat-1.0.0.tgz"),
+        tarball_entries(&[
+            ("package.json", br#"{"name":"real-name","version":"9.9.9"}"#),
+            ("index.js", b"module.exports = 1\n"),
+            ("lib/helper.js", b"module.exports = 2\n"),
+        ]),
+    )
+    .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "myalias": "file:./flat-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let lockfile =
+        fs::read_to_string(workspace.join("pnpm-lock.yaml")).expect("read pnpm-lock.yaml");
+    assert!(
+        lockfile.contains("real-name@file:flat-1.0.0.tgz:"),
+        "the bundled name must key the tarball, not the alias `myalias`:\n{lockfile}",
+    );
+    assert!(
+        lockfile.contains("version: 9.9.9"),
+        "the version read from the manifest at the archive root must be recorded:\n{lockfile}",
+    );
+
+    let installed =
+        workspace.join("node_modules/.pnpm/real-name@file+flat-1.0.0.tgz/node_modules/real-name");
+    assert!(
+        installed.join("index.js").exists(),
+        "the package must be materialized under its bundled name",
+    );
+    // A nested entry still loses its first component, so `lib/helper.js`
+    // lands at the package root and `lib/` is gone. pnpm 11 flattens the
+    // same way, its `parseString` trimming through the first separator
+    // whatever that separator separates.
+    assert!(installed.join("helper.js").exists(), "a nested entry is flattened, as on pnpm 11");
+    assert!(!installed.join("lib").exists());
 
     drop((root, mock_instance));
 }
