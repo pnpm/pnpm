@@ -3,7 +3,10 @@ use pnpm_lockfile::LockfileResolution;
 
 use pnpr_route::RouteContext;
 
-use super::{json_error, protocol::ResolveRequest};
+use super::{
+    json_error,
+    protocol::{ProjectDeps, ResolveRequest},
+};
 
 /// Reject a request that would have pnpr fetch from an origin that is not on
 /// the route allowlist (see [`RouteContext::allows_registry`]) — the
@@ -32,11 +35,31 @@ pub(super) fn reject_off_allowlist_fetches(
         return Some(forbidden_off_allowlist(off));
     }
 
-    // Direct-URL dependency specs and input-lockfile tarball URLs reach the
-    // network only when they carry an http(s)/git URL.
-    let mut url_specs: Vec<&str> = Vec::new();
     let projects = request.projects_normalized();
-    for project in &projects {
+    let url_specs = fetchable_specs(request, &projects);
+    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Override leaves can themselves be direct-URL specs.
+    if let Some(off) = request
+        .overrides
+        .as_ref()
+        .and_then(|overrides| first_off_allowlist_override(overrides, context))
+    {
+        return Some(forbidden_off_allowlist(&off));
+    }
+
+    None
+}
+
+/// Every spec of the request that could name a fetch target: direct-URL
+/// dependency specs, catalog and package-extension entries, and input-lockfile
+/// tarball URLs. They reach the network only when they carry an http(s)/git
+/// URL, which the caller decides.
+fn fetchable_specs<'a>(request: &'a ResolveRequest, projects: &'a [ProjectDeps]) -> Vec<&'a str> {
+    let mut url_specs: Vec<&str> = Vec::new();
+    for project in projects {
         for map in
             [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
         {
@@ -57,20 +80,7 @@ pub(super) fn reject_off_allowlist_fetches(
             }
         }
     }
-    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
-        return Some(forbidden_off_allowlist(off));
-    }
-
-    // Override leaves can themselves be direct-URL specs.
-    if let Some(off) = request
-        .overrides
-        .as_ref()
-        .and_then(|overrides| first_off_allowlist_override(overrides, context))
-    {
-        return Some(forbidden_off_allowlist(&off));
-    }
-
-    None
+    url_specs
 }
 
 /// Whether `spec` would trigger a server-side fetch to an origin that is not on
@@ -182,28 +192,7 @@ pub(super) fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Respons
     }
     specs.extend(request.registries.keys().map(String::as_str));
     let projects = request.projects_normalized();
-    for project in &projects {
-        for map in
-            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
-        {
-            specs.extend(map.values().map(String::as_str));
-        }
-    }
-    if let Some(catalogs) = request.catalogs.as_ref() {
-        specs.extend(catalogs.values().flat_map(|catalog| catalog.values()).map(String::as_str));
-    }
-    extend_package_extension_specs(request, &mut specs);
-    // A supplied lockfile can carry `resolution.tarball` URLs that reach the
-    // verify/frozen paths and would otherwise be routed or echoed back.
-    if let Some(packages) =
-        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
-    {
-        for package in packages.values() {
-            if let LockfileResolution::Tarball(resolution) = &package.resolution {
-                specs.push(resolution.tarball.as_str());
-            }
-        }
-    }
+    specs.extend(fetchable_specs(request, &projects));
     let inline = specs.iter().any(|spec| pnpr_route::url_has_inline_credentials(spec))
         || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
     inline.then(|| {

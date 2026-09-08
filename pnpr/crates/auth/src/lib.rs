@@ -687,9 +687,7 @@ fn parse_htpasswd_line(line: &str) -> std::result::Result<(&str, &str), String> 
         return Err(format!("invalid username {user:?}: {reason}"));
     }
     if !is_supported_hash(hash) {
-        return Err(
-            format!("unsupported hash format for user {user:?} (only bcrypt is accepted)",),
-        );
+        return Err(format!("unsupported hash format for user {user:?} (only bcrypt is accepted)"));
     }
     Ok((user, hash))
 }

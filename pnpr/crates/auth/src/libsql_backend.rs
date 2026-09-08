@@ -241,24 +241,16 @@ impl LibsqlAuth {
         let mut can_retry_after_reconcile = true;
         loop {
             let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
-            if let MaxUsers::Limited(max) = self.max_users {
-                let claimed = claim_user_counter_slot(&tx, max).await?;
-                if !claimed {
-                    tx.rollback().await?;
-                    // The counter can overcount after an interrupted write;
-                    // reconcile it once before believing the cap is full.
-                    if can_retry_after_reconcile {
-                        can_retry_after_reconcile = false;
-                        if reconcile_user_counter_overcount(&self.conn).await? {
-                            continue;
-                        }
-                    }
-                    if let Some(stored) = self.stored_hash(username).await? {
-                        return verify_returning_user(username, password, stored).await;
-                    }
-                    return Err(RegistryError::TooManyUsers { max });
+            // The counter can overcount after an interrupted write; reconcile it
+            // once before believing the cap is full.
+            let Some(tx) = self.claim_cap_slot(tx).await? else {
+                if std::mem::take(&mut can_retry_after_reconcile)
+                    && reconcile_user_counter_overcount(&self.conn).await?
+                {
+                    continue;
                 }
-            }
+                return self.reject_over_cap(username, password).await;
+            };
             let inserted = tx
                 .execute(
                     "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
@@ -279,6 +271,36 @@ impl LibsqlAuth {
         }
     }
 
+    /// Claim a counter slot in `tx`. The transaction comes back when a slot
+    /// was taken; a full cap rolls it back and returns `None`. An uncapped
+    /// store always has a slot.
+    async fn claim_cap_slot(&self, tx: libsql::Transaction) -> Result<Option<libsql::Transaction>> {
+        let MaxUsers::Limited(max) = self.max_users else {
+            return Ok(Some(tx));
+        };
+        if claim_user_counter_slot(&tx, max).await? {
+            return Ok(Some(tx));
+        }
+        tx.rollback().await?;
+        Ok(None)
+    }
+
+    /// The cap really is full: a caller who already has an account still logs
+    /// in, anyone else is refused.
+    async fn reject_over_cap(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
+        if let Some(stored) = self.stored_hash(username).await? {
+            return verify_returning_user(username, password, stored).await;
+        }
+        let MaxUsers::Limited(max) = self.max_users else {
+            return Err(RegistryError::RegistrationDisabled);
+        };
+        Err(RegistryError::TooManyUsers { max })
+    }
+
     /// A concurrent writer took the name first: treat the registration as a
     /// login against whatever they stored.
     async fn login_after_lost_insert(
@@ -295,7 +317,7 @@ impl LibsqlAuth {
 
 /// Take one slot of the capped user counter, reporting whether the cap left
 /// one to take.
-async fn claim_user_counter_slot(tx: &libsql::Transaction, max: usize) -> Result<bool> {
+async fn claim_user_counter_slot(tx: &libsql::Transaction, max: u64) -> Result<bool> {
     let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
         reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
     })?;

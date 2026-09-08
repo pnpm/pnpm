@@ -1,6 +1,11 @@
 use clap::{Parser, builder::BoolishValueParser};
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
-use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
+use std::{
+    io::IsTerminal,
+    net::SocketAddr,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -100,9 +105,49 @@ impl Args {
     }
 }
 
+/// Fold the command-line overrides into the resolved config.
+fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSource) {
+    if let Some(storage) = args.storage.take() {
+        relocate_bundled_auth_state(config, &storage, source);
+        // Keep the cache co-located under the overridden storage dir so a
+        // `--storage`-only run stays self-contained, unless the caller
+        // pins the cache explicitly below.
+        config.cache_storage = default_cache_dir(&storage);
+        config.storage = storage;
+    }
+    if let Some(cache) = args.cache.take() {
+        config.cache_storage = cache;
+    }
+    if let Some(ttl_secs) = args.packument_ttl_secs {
+        config.packument_ttl = Duration::from_secs(ttl_secs);
+    }
+    if args.osv {
+        config.osv.enabled = true;
+    }
+    if let Some(osv_db) = args.osv_db.take() {
+        config.osv.path = Some(osv_db);
+    }
+}
+
+/// The bundled config anchors auth state (htpasswd, tokens.db) next to the
+/// config, which for the bundled default is the current directory. When a
+/// caller serves from an explicit `--storage` dir (tests, benchmarks), keep
+/// that state inside it so runs never write auth files into the working tree.
+fn relocate_bundled_auth_state(config: &mut Config, storage: &Path, source: &ConfigSource) {
+    if !matches!(source, ConfigSource::Bundled) {
+        return;
+    }
+    if config.auth.htpasswd.file.is_some() {
+        config.auth.htpasswd.file = Some(storage.join("htpasswd"));
+    }
+    if config.auth.tokens.file.is_some() {
+        config.auth.tokens.file = Some(storage.join("tokens.db"));
+    }
+}
+
 #[tokio::main]
 async fn main() -> miette::Result<()> {
-    let args = Args::parse();
+    let mut args = Args::parse();
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
     // skips its parse-time work too (e.g. strict upstream token resolution),
@@ -116,37 +161,7 @@ async fn main() -> miette::Result<()> {
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
-    if let Some(storage) = args.storage {
-        // The bundled config anchors auth state (htpasswd, tokens.db) next to the
-        // config, which for the bundled default is the current directory. When a
-        // caller serves from an explicit --storage dir (tests, benchmarks), keep
-        // that state inside it so runs never write auth files into the working tree.
-        if matches!(source, ConfigSource::Bundled) {
-            if config.auth.htpasswd.file.is_some() {
-                config.auth.htpasswd.file = Some(storage.join("htpasswd"));
-            }
-            if config.auth.tokens.file.is_some() {
-                config.auth.tokens.file = Some(storage.join("tokens.db"));
-            }
-        }
-        // Keep the cache co-located under the overridden storage dir so a
-        // `--storage`-only run stays self-contained, unless the caller
-        // pins the cache explicitly below.
-        config.cache_storage = default_cache_dir(&storage);
-        config.storage = storage;
-    }
-    if let Some(cache) = args.cache {
-        config.cache_storage = cache;
-    }
-    if let Some(ttl_secs) = args.packument_ttl_secs {
-        config.packument_ttl = Duration::from_secs(ttl_secs);
-    }
-    if args.osv {
-        config.osv.enabled = true;
-    }
-    if let Some(osv_db) = args.osv_db {
-        config.osv.path = Some(osv_db);
-    }
+    apply_cli_overrides(&mut config, &mut args, &source);
     // Surface overrides were folded in during parse; the parse already
     // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
