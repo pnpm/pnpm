@@ -517,37 +517,63 @@ fn remove_block_list_key(manifest: &mut Manifest, block: &str, key: &str) {
     }
 }
 
+/// A top-level exclude list of package/version specs.
+#[derive(Clone, Copy)]
+struct ExcludeList {
+    /// The `pnpm-workspace.yaml` key holding the list.
+    key: &'static str,
+    /// The decoded copy [`Manifest`] keeps, read for no-op detection and
+    /// kept in step with every text edit.
+    decoded: fn(&mut Manifest) -> &mut Option<Vec<String>>,
+}
+
+const MINIMUM_RELEASE_AGE_EXCLUDE: ExcludeList = ExcludeList {
+    key: "minimumReleaseAgeExclude",
+    decoded: |manifest| &mut manifest.minimum_release_age_exclude,
+};
+
+const TRUST_POLICY_EXCLUDE: ExcludeList = ExcludeList {
+    key: "trustPolicyExclude",
+    decoded: |manifest| &mut manifest.trust_policy_exclude,
+};
+
 /// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
 /// complete desired list), creating or replacing it, and removing it when
 /// `items` is empty. The caller is responsible for merging with the existing
 /// entries (via `pnpm_config::version_policy::merge_package_version_specs`)
 /// before calling. Returns whether anything changed.
 pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
-    const BLOCK: &str = "minimumReleaseAgeExclude";
-    let current = manifest.minimum_release_age_exclude.as_deref().unwrap_or_default();
+    set_exclude_list(manifest, MINIMUM_RELEASE_AGE_EXCLUDE, items)
+}
+
+/// Set `list`'s top-level block to `items` (the complete desired list),
+/// creating or replacing it, and removing it when `items` is empty. Returns
+/// whether anything changed.
+fn set_exclude_list(manifest: &mut Manifest, list: ExcludeList, items: &[String]) -> bool {
+    let ExcludeList { key: block, decoded } = list;
 
     if items.is_empty() {
-        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        let has_block = manifest.top_level_keys.iter().any(|key| key == block);
         if !has_block {
             return false;
         }
-        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
-        manifest.minimum_release_age_exclude = None;
-        manifest.top_level_keys.retain(|key| key != BLOCK);
+        manifest.set_text(remove_top_level_block(manifest.text(), block));
+        *decoded(manifest) = None;
+        manifest.top_level_keys.retain(|key| key != block);
         return true;
     }
 
-    if current == items {
+    if decoded(manifest).as_deref().unwrap_or_default() == items {
         return false;
     }
 
     let text = manifest.text();
-    match locate_sequence(text, &[BLOCK]) {
+    match locate_sequence(text, &[block]) {
         Inline::Flow(collection) => {
             let rendered: Vec<String> =
                 items.iter().map(|item| render::render_value(item)).collect();
             manifest.set_text(flow::set_items(text, &collection, &rendered));
-            manifest.minimum_release_age_exclude = Some(items.to_vec());
+            *decoded(manifest) = Some(items.to_vec());
             return true;
         }
         // Rendering the whole block afresh would drop the comments an
@@ -557,8 +583,8 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
         Inline::Block => {}
     }
 
-    let rendered = render_top_level_sequence(BLOCK, items);
-    if let Some(span) = top_level_span(text, BLOCK) {
+    let rendered = render_top_level_sequence(block, items);
+    if let Some(span) = top_level_span(text, block) {
         // Preserve a trailing blank line before the next block, since the
         // span includes it but the freshly rendered block does not.
         let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
@@ -567,32 +593,53 @@ pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &
         out.replace_range(span.key_line_start..span.block_end, &replacement);
         manifest.set_text(out);
     } else {
-        let new_text = insert_top_level_block(manifest, BLOCK, &rendered);
+        let new_text = insert_top_level_block(manifest, block, &rendered);
         manifest.set_text(new_text);
         manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+            render::target_order(&manifest.top_level_keys, &[block.to_string()]);
     }
-    manifest.minimum_release_age_exclude = Some(items.to_vec());
+    *decoded(manifest) = Some(items.to_vec());
     true
 }
 
-/// The `minimumReleaseAgeExcludePrune` pass: prune
-/// `minimumReleaseAgeExclude:` entries against the versions the freshly
-/// resolved lockfile records. The per-entry decision lives in
-/// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`];
-/// the text edit is [`set_minimum_release_age_excludes`]'s block replace,
-/// so a pruned-to-empty list drops the block and an unchanged list is a
-/// no-op. Returns whether anything changed.
+/// The `minimumReleaseAgeExcludePrune` pass over `minimumReleaseAgeExclude:`.
+/// Returns whether anything changed.
 pub(crate) fn prune_minimum_release_age_excludes(
     manifest: &mut Manifest,
     resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
 ) -> bool {
-    let Some(current) = manifest.minimum_release_age_exclude.as_deref() else {
+    prune_exclude_list(manifest, MINIMUM_RELEASE_AGE_EXCLUDE, resolved)
+}
+
+/// The `trustPolicyExcludePrune` pass over `trustPolicyExclude:`. Returns
+/// whether anything changed.
+pub(crate) fn prune_trust_policy_excludes(
+    manifest: &mut Manifest,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    prune_exclude_list(manifest, TRUST_POLICY_EXCLUDE, resolved)
+}
+
+/// Prune `list`'s entries against the versions the freshly resolved lockfile
+/// records. The per-entry decision lives in
+/// [`pnpm_config::version_policy::drop_unresolved_package_version_specs`]; the
+/// text edit is [`set_exclude_list`]'s block replace, so a pruned-to-empty
+/// list drops the block and an unchanged list is a no-op. A list that is
+/// absent or already empty is left verbatim — it has nothing to prune, and
+/// dropping the block would diverge from pnpm. Returns whether anything
+/// changed.
+fn prune_exclude_list(
+    manifest: &mut Manifest,
+    list: ExcludeList,
+    resolved: &pnpm_config::version_policy::ResolvedPackageVersions,
+) -> bool {
+    let current = (list.decoded)(manifest).as_deref().unwrap_or_default();
+    if current.is_empty() {
         return false;
-    };
+    }
     let pruned =
         pnpm_config::version_policy::drop_unresolved_package_version_specs(current, resolved);
-    set_minimum_release_age_excludes(manifest, &pruned)
+    set_exclude_list(manifest, list, &pruned)
 }
 
 /// Render a top-level block whose value is a block sequence (`key:` then

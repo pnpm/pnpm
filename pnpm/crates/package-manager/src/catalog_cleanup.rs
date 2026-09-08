@@ -5,10 +5,10 @@
 //! same single read-modify-write upstream's `updateWorkspaceManifest`
 //! performs.
 //!
-//! A second, post-install write runs the
-//! `minimumReleaseAgeExcludePrune` pass: it needs the lockfile
+//! A second, post-install write runs the `minimumReleaseAgeExcludePrune`
+//! and `trustPolicyExcludePrune` passes: they need the lockfile
 //! the install just wrote (the catalog write happens before the install
-//! so the resolver reads the new entries back), so it cannot ride along.
+//! so the resolver reads the new entries back), so they cannot ride along.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -118,17 +118,17 @@ fn derive_workspace_dir(
     Ok(workspace_dir)
 }
 
-/// Post-install pass under `minimumReleaseAgeExcludePrune`: prune
-/// `minimumReleaseAgeExclude` entries whose versions the lockfile written
-/// by the just-finished install no longer records.
+/// Post-install pass under `minimumReleaseAgeExcludePrune` /
+/// `trustPolicyExcludePrune`: prune exclude entries whose versions the
+/// lockfile written by the just-finished install no longer records.
 ///
 /// The pass may only drop an entry it can prove nothing resolves, so it
-/// needs a lockfile covering every project `minimumReleaseAgeExclude`
-/// governs — only a shared one does. Under dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false` with no `lockfileDir`
-/// pinning them back together) every entry a sibling project needs would
-/// look unresolved, so the pass no-ops. It also no-ops when the setting
-/// is off, when lockfile persistence is disabled (`lockfile: false` — the
+/// needs a lockfile covering every project the exclude lists govern —
+/// only a shared one does. Under dedicated per-project lockfiles
+/// (`sharedWorkspaceLockfile: false` with no `lockfileDir` pinning them
+/// back together) every entry a sibling project needs would look
+/// unresolved, so the pass no-ops. It also no-ops when the settings are
+/// off, when lockfile persistence is disabled (`lockfile: false` — the
 /// on-disk lockfile would be stale), and when no lockfile exists,
 /// mirroring the `all_projects` guard of the catalog cleanup.
 pub(crate) fn post_install_prune(
@@ -156,6 +156,7 @@ pub(crate) fn post_install_prune(
         &workspace_dir,
         &UpdateWorkspaceManifestOptions {
             prune_minimum_release_age_excludes: config.minimum_release_age_exclude_prune,
+            prune_trust_policy_excludes: config.trust_policy_exclude_prune,
             prune_allow_builds: true,
             resolved_package_versions: Some(&resolved),
             ..Default::default()

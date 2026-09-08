@@ -86,6 +86,7 @@ const CONFIG_ONLY_SETTING_KEYS: &[&str] = &[
     "reverse",
     "sideEffectsCacheRead",
     "sideEffectsCacheWrite",
+    "trustPolicyExcludePrune",
     "tryLoadDefaultPnpmfile",
     "useGitBranchLockfile",
     "useLockfile",

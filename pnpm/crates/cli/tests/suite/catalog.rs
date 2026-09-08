@@ -535,6 +535,46 @@ fn prunes_the_minimum_release_age_excludes() {
     drop((root, anchor));
 }
 
+/// The `trustPolicyExcludePrune` counterpart of
+/// [`prunes_the_minimum_release_age_excludes`], over `trustPolicyExclude`.
+#[test]
+fn prunes_the_trust_policy_excludes() {
+    let (root, workspace, anchor) = setup();
+    write_manifest(&workspace, "{}");
+    append_workspace_yaml(
+        &workspace,
+        &format!(
+            "trustPolicyExcludePrune: true\n\
+             trustPolicyExclude:\n  \
+             - '{FOO}@1.0.0 || 2.0.0'\n  \
+             - '@pnpm.e2e/bar@100.0.0'\n  \
+             - '@pnpm.e2e/*'\n",
+        ),
+    );
+
+    run_ok(&workspace, &["add", &format!("{FOO}@2.0.0")]);
+
+    let workspace_yaml = read(&workspace, "pnpm-workspace.yaml");
+    assert!(
+        workspace_yaml.contains(&format!("{FOO}@2.0.0")),
+        "the narrowed exclude must keep the resolved version:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("1.0.0"),
+        "the version no longer resolved must be pruned:\n{workspace_yaml}",
+    );
+    assert!(
+        !workspace_yaml.contains("@pnpm.e2e/bar"),
+        "the exclude for an absent package must be dropped:\n{workspace_yaml}",
+    );
+    assert!(
+        workspace_yaml.contains("@pnpm.e2e/*"),
+        "a glob exclude must survive:\n{workspace_yaml}",
+    );
+
+    drop((root, anchor));
+}
+
 /// Regression test for [pnpm#13715](https://github.com/pnpm/pnpm/issues/13715).
 #[test]
 fn add_moves_a_catalog_locked_on_another_version() {
