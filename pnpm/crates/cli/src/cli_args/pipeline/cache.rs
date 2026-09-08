@@ -8,11 +8,13 @@
 
 use super::{
     capture::CapturedScript,
-    paths::{check_ancestors, validate_relative_path},
+    paths::{check_ancestors, check_input_directories, validate_relative_path},
 };
 use miette::IntoDiagnostic;
 use pnpm_config::TaskSettings;
-use pnpm_crypto_hash::{create_hex_hash, create_hex_hash_from_file, create_short_hash};
+use pnpm_crypto_hash::{
+    create_hex_hash, create_hex_hash_bytes, create_hex_hash_from_file, create_short_hash,
+};
 use pnpm_workspace_task_scheduler::TaskNode;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -452,23 +454,11 @@ impl TaskCache {
             if rel_path == "node_modules" || rel_path.starts_with("node_modules/") {
                 continue;
             }
-            check_ancestors(project, Path::new(rel_path)).into_diagnostic()?;
-            let absolute = project.join(rel_path);
-            let hash = match create_hex_hash_from_file(&absolute) {
-                Ok(hash) => hash,
-                Err(error)
-                    if error.kind() == io::ErrorKind::NotFound
-                        && fs::symlink_metadata(&absolute)
-                            .is_err_and(|error| error.kind() == io::ErrorKind::NotFound) =>
-                {
-                    continue;
-                }
-                Err(error) => {
-                    return Err(miette::miette!(
-                        "hashing cache input {rel_path:?} in {project_display}: {error}",
-                    ));
-                }
-            };
+            check_input_directories(project, Path::new(rel_path)).into_diagnostic()?;
+            let hash = hash_input(&project.join(rel_path)).map_err(|error| {
+                miette::miette!("hashing cache input {rel_path:?} in {project_display}: {error}")
+            })?;
+            let Some(hash) = hash else { continue };
             files.push(HashedFile { rel_path: rel_path.to_string(), hash });
         }
         files.sort_by(|left, right| left.rel_path.cmp(&right.rel_path));
@@ -478,6 +468,37 @@ impl TaskCache {
             .expect("project-files lock is not poisoned")
             .insert(project.to_path_buf(), Some(Arc::clone(&files)));
         Ok(Some(files))
+    }
+}
+
+/// A tracked input's contribution to the key, or `None` when the file is
+/// gone by the time it is hashed.
+///
+/// A symlink contributes its target path the way git records it, rather
+/// than the content it points at: following the link would hash a file
+/// the project does not own, and a link that dangles has nothing to
+/// hash at all. The `symlink:` tag keeps a link apart from a regular
+/// file that happens to hold the same bytes.
+fn hash_input(path: &Path) -> io::Result<Option<String>> {
+    let metadata = match fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    if metadata.file_type().is_symlink() {
+        return match fs::read_link(path) {
+            Ok(target) => {
+                let target = create_hex_hash_bytes(target.as_os_str().as_encoded_bytes());
+                Ok(Some(format!("symlink:{target}")))
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error),
+        };
+    }
+    match create_hex_hash_from_file(path) {
+        Ok(hash) => Ok(Some(hash)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
     }
 }
 

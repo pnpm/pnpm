@@ -312,8 +312,14 @@ pub fn run_pipeline(
     // Keys are computed for every task before anything runs, walking the
     // sequenced order so a task's dependency keys exist when its own is
     // built. This is also what a distributed tier would need: the whole
-    // plan, priced, without executing.
-    let task_keys = compute_task_keys(&task_graph, &sequenced_tasks, &graph, &cache, config)?;
+    // plan, priced, without executing. `--no-cache` skips the pricing
+    // altogether: nothing reads a key, and hashing every tracked file of
+    // every project is the bulk of what the flag exists to avoid.
+    let task_keys = if invocation.no_cache {
+        HashMap::new()
+    } else {
+        compute_task_keys(&task_graph, &sequenced_tasks, &graph, &cache, config)?
+    };
 
     capture::install_forward(emit);
     let concurrency = usize::try_from(config.workspace_concurrency).unwrap_or(usize::MAX).max(1);
@@ -337,7 +343,7 @@ pub fn run_pipeline(
             config,
             invocation,
             cache: &cache,
-            task_key: task_keys[&key].as_deref(),
+            task_key: task_keys.get(&key).and_then(Option::as_deref),
             init_cwd: &init_cwd,
             base_extra_env: &base_extra_env,
             emit,

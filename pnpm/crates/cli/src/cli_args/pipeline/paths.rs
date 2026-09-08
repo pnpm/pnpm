@@ -40,3 +40,10 @@ fn reject_symlink(path: &Path) -> io::Result<()> {
     }
     Ok(())
 }
+
+/// [`check_ancestors`] without the leaf, so hashing an input cannot read
+/// a file outside `root`. Only the leaf may be a symlink: it is hashed
+/// as its link target, never followed.
+pub(super) fn check_input_directories(root: &Path, relative: &Path) -> io::Result<()> {
+    check_ancestors(root, relative.parent().unwrap_or_else(|| Path::new("")))
+}

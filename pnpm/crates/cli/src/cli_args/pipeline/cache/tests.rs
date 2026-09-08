@@ -1,6 +1,6 @@
 use super::{RecordedFile, TaskCache, collect_output_files};
 #[cfg(unix)]
-use pnpm_crypto_hash::create_hex_hash_from_file;
+use pnpm_crypto_hash::{create_hex_hash_bytes, create_hex_hash_from_file};
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::fs;
 
@@ -235,12 +235,13 @@ fn hashing_inputs_keeps_literal_backslashes_distinct_from_separators() {
 
 #[cfg(unix)]
 #[test]
-fn hashing_inputs_rejects_dangling_symlinks() {
+fn hashing_inputs_covers_a_dangling_symlink_by_its_target() {
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
     std::os::unix::fs::symlink("missing", project.join("linked-input")).unwrap();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
-    assert!(error.contains("linked-input"), "{error}");
+    let files = cache.hashed_project_files(&project).unwrap().unwrap();
+    let file = files.iter().find(|file| file.rel_path == "linked-input").expect("linked input");
+    assert_eq!(file.hash, format!("symlink:{}", create_hex_hash_bytes(b"missing")));
 }
 
 #[cfg(unix)]
@@ -260,14 +261,29 @@ fn hashing_inputs_rejects_dangling_parent_symlinks() {
 
 #[cfg(unix)]
 #[test]
-fn hashing_inputs_rejects_valid_leaf_symlinks() {
+fn hashing_inputs_covers_a_leaf_symlink_without_following_it() {
     let (root, _repo, cache) = setup_input_cache();
     let project = root.path().join("inputs-src");
     let outside = root.path().join("outside-input");
     fs::write(&outside, "external source").unwrap();
     std::os::unix::fs::symlink(&outside, project.join("linked-input")).unwrap();
-    let error = cache.hashed_project_files(&project).unwrap_err().to_string();
-    assert!(error.contains("symlink") && error.contains("linked-input"), "{error}");
+    let files = cache.hashed_project_files(&project).unwrap().unwrap();
+    let file = files.iter().find(|file| file.rel_path == "linked-input").expect("linked input");
+    assert_eq!(
+        file.hash,
+        format!("symlink:{}", create_hex_hash_bytes(outside.as_os_str().as_encoded_bytes())),
+    );
+    assert_ne!(file.hash, create_hex_hash_from_file(&outside).unwrap());
+}
+
+#[cfg(unix)]
+#[test]
+fn hashing_inputs_rejects_symlinked_project_roots() {
+    let (root, _repo, cache) = setup_input_cache();
+    let link = root.path().join("linked-project");
+    std::os::unix::fs::symlink(root.path().join("inputs-src"), &link).unwrap();
+    let error = cache.hashed_project_files(&link).unwrap_err().to_string();
+    assert!(error.contains("symlink") && error.contains("linked-project"), "{error}");
     assert!(cache.project_files.lock().unwrap().is_empty(), "unsafe inputs must not be cached");
 }
 
