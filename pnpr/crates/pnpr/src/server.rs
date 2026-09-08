@@ -593,6 +593,30 @@ async fn serve_version_manifest(
 /// through the registry graph. Resolves the package to its one concrete origin,
 /// loads that origin's packument, and extracts the requested version with its
 /// `dist.tarball` rewritten onto the same origin's base.
+/// The stored packument of whichever source a registry routes this package to.
+///
+/// An upstream registry's per-package rules gate the read, and the hosted gate
+/// answers a denial itself — a not-found mask or an explicit-rule 401/403.
+/// Both are the same checks `serve_registry_packument` applies.
+async fn read_source_packument(
+    state: &AppState,
+    identity: &Identity,
+    resolved_source: &RegistrySource,
+    name: &CanonicalPackageName,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    match resolved_source {
+        RegistrySource::Upstream(source) => {
+            authorize(state, identity, resolved_source, name.as_str(), Action::Access)?;
+            load_upstream_packument_for(state, identity, source, name).await
+        }
+        RegistrySource::Hosted(source) => {
+            let org = hosted_read_namespace(state, identity, source, name.as_str())?;
+            state.inner.storage.for_hosted(&org).read_hosted_document(name).await
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
+    }
+}
+
 async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
@@ -606,35 +630,10 @@ async fn serve_registry_version_manifest(
         Err(err) => return err.into_response(),
     };
     let resolved_source = resolve_registry_source(state, registry, name.as_str());
-    let bytes = match &resolved_source {
-        RegistrySource::Upstream(source) => {
-            // The upstream registry's per-package rules gate the read — see
-            // `serve_registry_packument`.
-            if let Err(err) =
-                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
-            {
-                return err.into_response();
-            }
-            match load_upstream_packument_for(state, identity, source, &name).await {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return not_found(),
-                Err(err) => return err.into_response(),
-            }
-        }
-        RegistrySource::Hosted(source) => {
-            // The hosted gate answers a denial itself — a not-found mask or
-            // an explicit-rule 401/403 — see `serve_registry_packument`.
-            let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
-                Ok(org) => org,
-                Err(err) => return err.into_response(),
-            };
-            match state.inner.storage.for_hosted(&org).read_hosted_document(&name).await {
-                Ok(Some(bytes)) => bytes,
-                Ok(None) => return not_found(),
-                Err(err) => return err.into_response(),
-            }
-        }
-        RegistrySource::Unclaimed | RegistrySource::NotFound => return not_found(),
+    let bytes = match read_source_packument(state, identity, &resolved_source, &name).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return err.into_response(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -1004,6 +1003,48 @@ async fn serve_packument_via_upstream(
     }
 }
 
+/// The cache path segment a tarball request names, and the version its
+/// filename declares when it is canonical.
+///
+/// A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
+/// normalized as usual. A non-canonical basename preserved verbatim from the
+/// upstream's `dist.tarball` (see `pnpr_upstream::rewrite_tarball_urls`) is
+/// accepted opaquely so long as it is safe as a cache path segment — the
+/// packument match is what authorizes it, binding it to a declared version and
+/// integrity. Rejecting it here would make such a version un-fetchable through
+/// the very URL this server advertised.
+fn tarball_cache_name(
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Result<(String, Option<String>), RegistryError> {
+    match name.parse_tarball_name(filename) {
+        Ok((canonical, version)) => Ok((canonical, Some(version))),
+        Err(_) if pnpr_package_name::is_safe_path_segment(filename) => {
+            Ok((filename.to_string(), None))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Fetch-through: verify and stream from the temp file, then remove it, so a
+/// `cache: false` upstream's tarball is never persisted.
+async fn stream_verified_without_caching(
+    response: pnpm_network::ThrottledResponse,
+    write: pnpr_storage::BlobWrite,
+    integrity: &ssri::Integrity,
+    name: &CanonicalPackageName,
+    filename: &str,
+) -> Response {
+    let downloaded =
+        streaming::download_verified_to_temp(response, write, integrity, MAX_TARBALL_BYTES).await;
+    match downloaded {
+        Ok((file, len, tmp_path)) => {
+            tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+        }
+        Err(err) => tarball_stream_error(err, name, filename).into_response(),
+    }
+}
+
 /// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
 /// `dist.integrity` is read from the upstream's own packument (served from the
 /// private cache when fresh), and the bytes are verified against it. Both the
@@ -1021,21 +1062,9 @@ async fn serve_tarball_via_upstream(
         Ok(n) => n,
         Err(err) => return err.into_response(),
     };
-    // A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
-    // normalized as usual. A non-canonical basename preserved verbatim from
-    // the upstream's `dist.tarball` (see `rewrite_tarball_urls`) is accepted
-    // opaquely so long as it is safe as a cache path segment — the packument
-    // match below is what authorizes it, binding it to a declared version
-    // and integrity. Rejecting it here would make such a version
-    // un-fetchable through the very URL this server advertised.
-    let (filename, parsed_version) = match name.parse_tarball_name(filename) {
-        Ok((canonical, version)) => (canonical, Some(version)),
-        Err(err) => {
-            if !pnpr_package_name::is_safe_path_segment(filename) {
-                return err.into_response();
-            }
-            (filename.to_string(), None)
-        }
+    let (filename, parsed_version) = match tarball_cache_name(&name, filename) {
+        Ok(named) => named,
+        Err(err) => return err.into_response(),
     };
     let namespace = upstream_cache_namespace(state, upstream);
     let upstream = match authorized_upstream(state, identity, upstream) {
@@ -1045,9 +1074,7 @@ async fn serve_tarball_via_upstream(
     // Pre-check OSV on the filename-derived version (when the name is
     // canonical) to fail fast; the authoritative check against the
     // packument-resolved version runs below either way.
-    if let Some(version) = &parsed_version
-        && let Err(err) = ensure_osv_allowed(state, &name, version)
-    {
+    if let Err(err) = screen_parsed_version(state, &name, parsed_version.as_deref()) {
         return err.into_response();
     }
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
@@ -1075,26 +1102,13 @@ async fn serve_tarball_via_upstream(
     {
         return response;
     }
-    let packument = match timed(
-        "tarball:packument_load",
-        name.as_str(),
-        load_upstream_packument(state, &namespace, upstream, &name, ttl),
-    )
-    .await
-    {
-        Ok(Some(bytes)) => bytes,
+    let dist = bind_tarball_to_packument(state, upstream, &namespace, &name, &filename, ttl).await;
+    let TarballDist { version, integrity } = match dist {
+        Ok(Some(dist)) => dist,
         Ok(None) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let TarballDist { version, integrity } =
-        match expected_tarball_dist(&packument, &name, &filename) {
-            Ok(Some(dist)) => dist,
-            Ok(None) => return not_found(),
-            Err(err) => return err.into_response(),
-        };
-    if parsed_version.as_deref() != Some(version.as_str())
-        && let Err(err) = ensure_osv_allowed(state, &name, &version)
-    {
+    if let Err(err) = recheck_osv(state, &name, &version, parsed_version.as_deref()) {
         return err.into_response();
     }
     if upstream.caches()
@@ -1104,47 +1118,110 @@ async fn serve_tarball_via_upstream(
         return response;
     }
 
-    let response = match timed(
-        "tarball:upstream_fetch",
-        name.as_str(),
-        upstream.fetch_tarball_response(&name, &filename),
+    fetch_upstream_tarball(
+        state,
+        upstream,
+        UpstreamTarball {
+            namespace: &namespace,
+            name: &name,
+            filename: &filename,
+            integrity: &integrity,
+        },
     )
     .await
-    {
+}
+
+/// Bind a tarball request to the version and integrity the upstream's own
+/// packument declares for it. `None` means the packument names no such
+/// tarball.
+async fn bind_tarball_to_packument(
+    state: &AppState,
+    upstream: &Upstream,
+    namespace: &str,
+    name: &CanonicalPackageName,
+    filename: &str,
+    ttl: Duration,
+) -> Result<Option<TarballDist>, RegistryError> {
+    let packument = timed(
+        "tarball:packument_load",
+        name.as_str(),
+        load_upstream_packument(state, namespace, upstream, name, ttl),
+    )
+    .await?;
+    let Some(packument) = packument else {
+        return Ok(None);
+    };
+    expected_tarball_dist(&packument, name, filename)
+}
+
+/// Screen the version a canonical filename declares, so an advisory-blocked
+/// version fails before the packument is loaded.
+fn screen_parsed_version(
+    state: &AppState,
+    name: &CanonicalPackageName,
+    parsed_version: Option<&str>,
+) -> Result<(), RegistryError> {
+    let Some(version) = parsed_version else {
+        return Ok(());
+    };
+    ensure_osv_allowed(state, name, version)
+}
+
+/// Screen the packument-resolved version when the filename declared a
+/// different one; the filename's own version was already screened.
+fn recheck_osv(
+    state: &AppState,
+    name: &CanonicalPackageName,
+    version: &str,
+    parsed_version: Option<&str>,
+) -> Result<(), RegistryError> {
+    if parsed_version == Some(version) {
+        return Ok(());
+    }
+    ensure_osv_allowed(state, name, version)
+}
+
+/// The tarball an upstream fetch is about to stream.
+struct UpstreamTarball<'a> {
+    namespace: &'a str,
+    name: &'a CanonicalPackageName,
+    filename: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Fetch the tarball from the upstream and stream it to the client, teeing it
+/// into the namespaced cache when the upstream is cacheable.
+async fn fetch_upstream_tarball(
+    state: &AppState,
+    upstream: &Upstream,
+    tarball: UpstreamTarball<'_>,
+) -> Response {
+    let UpstreamTarball { namespace, name, filename, integrity } = tarball;
+    let fetched = timed(
+        "tarball:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_tarball_response(name, filename),
+    )
+    .await;
+    let response = match fetched {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return err.into_response(),
     };
-    let write = match state.inner.storage.open_upstream_blob_tmp(&namespace, &name, &filename).await
-    {
+    let write = match state.inner.storage.open_upstream_blob_tmp(namespace, name, filename).await {
         Ok(write) => write,
         Err(err) => return err.into_response(),
     };
     if !upstream.caches() {
-        // Fetch-through: verify and stream from the temp file, then remove it,
-        // so a `cache: false` upstream's tarball is never persisted.
-        return match streaming::download_verified_to_temp(
-            response,
-            write,
-            &integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
-        {
-            Ok((file, len, tmp_path)) => {
-                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-            }
-            Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
-        };
+        return stream_verified_without_caching(response, write, integrity, name, filename).await;
     }
-    // Stream the download to the client while teeing it into the namespaced
-    // cache; the entry is promoted only on an SRI match (see
+    // The entry is promoted only on an SRI match (see
     // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
     // is attacker-controlled and unverifiable before streaming, so the body is
     // chunked and the client reads to EOF (then re-verifies the integrity).
-    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+    match streaming::stream_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
-        Err(err) => tarball_stream_error(err, &name, &filename).into_response(),
+        Err(err) => tarball_stream_error(err, name, filename).into_response(),
     }
 }
 
@@ -1247,8 +1324,7 @@ async fn serve_hosted_revision_tarball(
         return not_found();
     }
 
-    let mut private_refs = Vec::new();
-    let mut policy_error = None;
+    let mut scan = RevisionScan::default();
     for source in sources {
         let Some(hosted) = state.inner.config.hosted.get(&source) else {
             continue;
@@ -1258,68 +1334,158 @@ async fn serve_hosted_revision_tarball(
             Ok(refs) => refs,
             Err(err) => return private_no_cache(err.into_response()),
         };
-        for original in refs {
-            let package = match CanonicalPackageName::parse(
-                &original.package,
-                pnpr_package_name::Ecosystem::Npm,
-            ) {
-                Ok(package) => package,
-                Err(err) => return private_no_cache(err.into_response()),
-            };
-            let filename = package.tarball_name_for_version(&original.version);
-            if let Err(err) = package.canonicalize_tarball_name(&filename) {
-                return private_no_cache(err.into_response());
-            }
-            if !matches!(
-                resolve_registry_source(state, registry, package.as_str()),
-                RegistrySource::Hosted(resolved) if resolved == source,
-            ) || !matches!(
-                hosted_gate(state, identity, &source, package.as_str()),
-                HostedGate::Allowed(_),
-            ) {
-                continue;
-            }
-            match hosted_original_is_current(&storage, &package, &original.version, digest).await {
-                Ok(true) => {}
-                Ok(false) => continue,
-                Err(err) => return private_no_cache(err.into_response()),
-            }
-            if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
-                policy_error.get_or_insert(err);
-                continue;
-            }
-            if matches!(
-                hosted_gate(state, &Identity::Anonymous, &source, package.as_str()),
-                HostedGate::Allowed(_),
-            ) {
-                let response = open_hosted_revision_tarball(
-                    &storage,
-                    &package,
-                    &original.version,
-                    digest,
-                    integrity,
-                )
-                .await;
-                if response.status() != StatusCode::NOT_FOUND {
-                    return response;
-                }
-                continue;
-            }
-            private_refs.push((storage.clone(), package, original.version));
+        let served = serve_revision_refs(
+            state,
+            identity,
+            RevisionSource { registry, source: &source, storage: &storage, digest, integrity },
+            refs,
+            &mut scan,
+        )
+        .await;
+        if let Some(response) = served {
+            return response;
         }
     }
 
-    for (storage, package, version) in private_refs {
+    serve_private_revision_refs(scan, digest, integrity).await
+}
+
+/// Try the references the anonymous caller could not read, only after every
+/// public one has been tried.
+async fn serve_private_revision_refs(
+    scan: RevisionScan,
+    digest: &str,
+    integrity: &Integrity,
+) -> Response {
+    for (storage, package, version) in scan.private_refs {
         let response =
             open_hosted_revision_tarball(&storage, &package, &version, digest, integrity).await;
         if response.status() != StatusCode::NOT_FOUND {
             return response;
         }
     }
-    if let Some(err) = policy_error {
-        return private_no_cache(err.into_response());
+    match scan.policy_error {
+        Some(err) => private_no_cache(err.into_response()),
+        None => private_no_cache(not_found()),
     }
-    private_no_cache(not_found())
+}
+
+/// What the scan of a revision digest's references has found so far.
+#[derive(Default)]
+struct RevisionScan {
+    /// References the anonymous caller cannot read, tried only after every
+    /// public one, so a public hit answers without disclosing a private
+    /// registry's contents through timing.
+    private_refs: Vec<(Storage, CanonicalPackageName, String)>,
+    /// A refusal to hold back until no reference can serve the digest.
+    policy_error: Option<RegistryError>,
+}
+
+/// One hosted source of a revision digest's references.
+struct RevisionSource<'a> {
+    registry: &'a str,
+    source: &'a str,
+    storage: &'a Storage,
+    digest: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Try every reference one source holds.
+async fn serve_revision_refs(
+    state: &AppState,
+    identity: &Identity,
+    source: RevisionSource<'_>,
+    refs: Vec<HostedOriginalRef>,
+    scan: &mut RevisionScan,
+) -> Option<Response> {
+    for original in refs {
+        let reference = RevisionRef {
+            registry: source.registry,
+            source: source.source,
+            storage: source.storage,
+            original,
+            digest: source.digest,
+            integrity: source.integrity,
+        };
+        if let Some(response) = serve_revision_ref(state, identity, reference, scan).await {
+            return Some(response);
+        }
+    }
+    None
+}
+
+/// One reference of a revision digest, in the hosted source that holds it.
+struct RevisionRef<'a> {
+    /// The registry the request addressed, which decides where a name routes.
+    registry: &'a str,
+    source: &'a str,
+    storage: &'a Storage,
+    original: HostedOriginalRef,
+    digest: &'a str,
+    integrity: &'a Integrity,
+}
+
+/// Try one reference. `Some` is the response to send; `None` means the scan
+/// continues.
+async fn serve_revision_ref(
+    state: &AppState,
+    identity: &Identity,
+    reference: RevisionRef<'_>,
+    scan: &mut RevisionScan,
+) -> Option<Response> {
+    let RevisionRef { registry, source, storage, original, digest, integrity } = reference;
+    let package =
+        match CanonicalPackageName::parse(&original.package, pnpr_package_name::Ecosystem::Npm) {
+            Ok(package) => package,
+            Err(err) => return Some(private_no_cache(err.into_response())),
+        };
+    let filename = package.tarball_name_for_version(&original.version);
+    if let Err(err) = package.canonicalize_tarball_name(&filename) {
+        return Some(private_no_cache(err.into_response()));
+    }
+    if !readable_here(state, identity, Routed { registry, source }, &package) {
+        return None;
+    }
+    match hosted_original_is_current(storage, &package, &original.version, digest).await {
+        Ok(true) => {}
+        Ok(false) => return None,
+        Err(err) => return Some(private_no_cache(err.into_response())),
+    }
+    if let Err(err) = ensure_osv_allowed(state, &package, &original.version) {
+        scan.policy_error.get_or_insert(err);
+        return None;
+    }
+    if !readable_here(state, &Identity::Anonymous, Routed { registry, source }, &package) {
+        scan.private_refs.push((storage.clone(), package, original.version));
+        return None;
+    }
+    let response =
+        open_hosted_revision_tarball(storage, &package, &original.version, digest, integrity).await;
+    (response.status() != StatusCode::NOT_FOUND).then_some(response)
+}
+
+/// The registry a request addressed and the hosted source being considered.
+#[derive(Clone, Copy)]
+struct Routed<'a> {
+    registry: &'a str,
+    source: &'a str,
+}
+
+/// Whether the addressed registry routes this package to `source` and the
+/// caller may read it there.
+fn readable_here(
+    state: &AppState,
+    identity: &Identity,
+    routed: Routed<'_>,
+    package: &CanonicalPackageName,
+) -> bool {
+    matches!(
+        resolve_registry_source(state, routed.registry, package.as_str()),
+        RegistrySource::Hosted(resolved) if resolved == routed.source,
+    ) && matches!(
+        hosted_gate(state, identity, routed.source, package.as_str()),
+        HostedGate::Allowed(_),
+    )
 }
 
 fn hosted_revision_sources(state: &AppState, registry: &str) -> Vec<String> {

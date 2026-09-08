@@ -1673,8 +1673,7 @@ async fn create_tmp_file_with(
         .into())
 }
 
-/// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
-//// What one entry of the `.package-index` tree contributes to the index walk.
+/// What one entry of the `.package-index` tree contributes to the index walk.
 enum IndexEntry {
     /// A `.present` marker whose package document is still on disk.
     Package,
@@ -1769,8 +1768,10 @@ pub(crate) async fn read_dir_if_present(dir: &Path) -> Result<Option<fs::ReadDir
     }
 }
 
-// Keeping it in `base`'s directory keeps the eventual rename atomic on
-/// POSIX. Shared with the S3 backend's staging path.
+/// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
+///
+/// Keeping it in `base`'s directory keeps the eventual rename atomic on POSIX.
+/// Shared with the S3 backend's staging path.
 pub fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();

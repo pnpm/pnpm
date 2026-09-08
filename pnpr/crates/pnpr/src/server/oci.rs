@@ -403,8 +403,10 @@ impl Request {
                 ReferrerStep::Read { unindexed } => {
                     let manifest =
                         self.read_referrer_manifest(storage, key, entry, &mut page).await?;
-                    if !page.push_referrer(entry, manifest, filter, unindexed)? {
-                        break;
+                    match page.push_referrer(entry, manifest, filter, unindexed) {
+                        Ok(true) => {}
+                        Ok(false) => break,
+                        Err(response) => return Err(*response),
                     }
                 }
             }
@@ -756,7 +758,7 @@ impl Request {
     /// `If-Range` still matches.
     fn requested_download_range(&self, etag: &str) -> Option<pnpr_storage::GetRange> {
         if self.method != Method::GET
-            || !self.headers.get(header::IF_RANGE).is_none_or(|value| value == etag)
+            || self.headers.get(header::IF_RANGE).is_some_and(|value| value != etag)
             || self.headers.get_all(header::RANGE).iter().count() != 1
         {
             return None;
@@ -1172,7 +1174,7 @@ impl<'a> ReferrerPage<'a> {
         manifest: Manifest,
         filter: &ReferrerFilter,
         unindexed: bool,
-    ) -> Result<bool, Response> {
+    ) -> Result<bool, Box<Response>> {
         if unindexed {
             let mut addition = entry.clone();
             addition.referrer = Some(manifest.referrer_metadata());
@@ -1184,7 +1186,7 @@ impl<'a> ReferrerPage<'a> {
         let descriptor_bytes = match serde_json::to_vec(&ReferrerDescriptor::new(entry, &manifest))
         {
             Ok(bytes) => bytes.len() + 1,
-            Err(err) => return Err(registry_error(err.into())),
+            Err(err) => return Err(Box::new(registry_error(err.into()))),
         };
         if !self.referrers.is_empty()
             && self.response_bytes + descriptor_bytes > self.max_manifest_bytes

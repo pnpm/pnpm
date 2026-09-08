@@ -217,8 +217,7 @@ fn surface_routes(state: &AppState, surfaces: EnabledSurfaces) -> Router<AppStat
         .route("/-/ping", get(serve_ping))
         .route("/-/oidc/{provider}/login", get(super::oidc::login))
         .route("/-/oidc/{provider}/callback", get(super::oidc::callback));
-    let account = account_routes();
-    router = router.merge(account.clone());
+    router = router.merge(account_routes());
     // The install-accelerator and shared-artifact surfaces live under the
     // reserved `/-/pnpr` namespace. The handshake advertises each protocol
     // independently, so either surface can be mounted on its own.

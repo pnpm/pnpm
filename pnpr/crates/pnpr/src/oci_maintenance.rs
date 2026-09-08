@@ -53,7 +53,7 @@ async fn collect(
     manifest_limit: usize,
 ) -> Result<(usize, u64)> {
     let temporary = tempfile::NamedTempFile::new()?;
-    let inventory = Connection::open(temporary.path())?;
+    let mut inventory = Inventory::open(temporary.path())?;
     inventory.execute_batch(
         "PRAGMA journal_mode=OFF;
          CREATE TABLE repositories (name TEXT PRIMARY KEY);
@@ -63,14 +63,15 @@ async fn collect(
          );
          BEGIN;",
     )?;
-    inventory_hosted_blobs(storage, &inventory, min_age, excluded).await?;
+    inventory_hosted_blobs(storage, &mut inventory, min_age, excluded).await?;
     inventory.execute_batch("COMMIT;")?;
     inventory.execute_batch("BEGIN;")?;
-    mark_reachable_blobs(storage, &inventory, manifest_limit).await?;
+    mark_reachable_blobs(storage, &mut inventory, manifest_limit).await?;
     inventory.execute_batch("COMMIT;")?;
-    let (mut removed, mut bytes) = remove_unreferenced_blobs(storage, &inventory, dry_run).await?;
+    let (mut removed, mut bytes) =
+        remove_unreferenced_blobs(storage, &mut inventory, dry_run).await?;
     if !dry_run {
-        let (deleted, deleted_bytes) = finish_pending_deletions(storage, &inventory).await?;
+        let (deleted, deleted_bytes) = finish_pending_deletions(storage, &mut inventory).await?;
         removed += deleted;
         bytes += deleted_bytes;
     }
@@ -80,7 +81,7 @@ async fn collect(
 /// Record every hosted blob, with whether it is old enough to collect.
 async fn inventory_hosted_blobs(
     storage: &Storage,
-    inventory: &Connection,
+    inventory: &mut Inventory,
     min_age: Duration,
     excluded: &HashSet<&str>,
 ) -> Result<()> {
@@ -132,7 +133,7 @@ fn inventoried_blob_path<'a>(
 /// Flag every blob some manifest still reaches.
 async fn mark_reachable_blobs(
     storage: &Storage,
-    inventory: &Connection,
+    inventory: &mut Inventory,
     manifest_limit: usize,
 ) -> Result<()> {
     let mut previous = String::new();
@@ -152,7 +153,7 @@ async fn mark_reachable_blobs(
 /// Remove every old blob nothing reaches, reporting how many and how large.
 async fn remove_unreferenced_blobs(
     storage: &Storage,
-    inventory: &Connection,
+    inventory: &mut Inventory,
     dry_run: bool,
 ) -> Result<(usize, u64)> {
     let mut removed = 0;
@@ -162,7 +163,7 @@ async fn remove_unreferenced_blobs(
         let candidate = inventory.query_row(
             "SELECT rowid, repository, filename, size FROM blobs WHERE rowid > ? AND old = 1 AND keep = 0 ORDER BY rowid LIMIT 1",
             [cursor], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, i64>(3)?)),
-        ).optional()?;
+        )?;
         let Some((row, repository, filename, size)) = candidate else { break };
         cursor = row;
         let size = u64::try_from(size).expect("inventory only records nonnegative blob sizes");
@@ -186,7 +187,7 @@ async fn remove_unreferenced_blobs(
 /// the store, and the document still names it.
 async fn finish_pending_deletions(
     storage: &Storage,
-    inventory: &Connection,
+    inventory: &mut Inventory,
 ) -> Result<(usize, u64)> {
     let mut removed = 0;
     let mut bytes = 0;
@@ -216,15 +217,49 @@ async fn finish_pending_deletions(
 }
 
 /// The next repository of the inventory, in name order.
-fn next_repository(inventory: &Connection, previous: &str) -> Result<Option<String>> {
-    let repository = inventory
-        .query_row(
-            "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
-            [previous],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?;
-    Ok(repository)
+fn next_repository(inventory: &mut Inventory, previous: &str) -> Result<Option<String>> {
+    inventory.query_row(
+        "SELECT name FROM repositories WHERE name > ? ORDER BY name LIMIT 1",
+        [previous],
+        |row| row.get::<_, String>(0),
+    )
+}
+
+/// The temporary sqlite database one collection pass records its inventory in.
+///
+/// Every method takes `&mut self`: a query mutates the connection's prepared
+/// statement cache, and an exclusive borrow is also what keeps the futures
+/// holding it across an await `Send`.
+struct Inventory {
+    connection: Connection,
+}
+
+#[expect(
+    clippy::needless_pass_by_ref_mut,
+    reason = "the exclusive borrow is what keeps a future holding the inventory across an await Send: `rusqlite::Connection` is Send but not Sync"
+)]
+impl Inventory {
+    fn open(path: &std::path::Path) -> Result<Self> {
+        Ok(Self { connection: Connection::open(path)? })
+    }
+
+    fn execute_batch(&mut self, sql: &str) -> Result<()> {
+        self.connection.execute_batch(sql)?;
+        Ok(())
+    }
+
+    fn execute(&mut self, sql: &str, params: impl rusqlite::Params) -> Result<usize> {
+        Ok(self.connection.execute(sql, params)?)
+    }
+
+    fn query_row<T>(
+        &mut self,
+        sql: &str,
+        params: impl rusqlite::Params,
+        row: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    ) -> Result<Option<T>> {
+        Ok(self.connection.query_row(sql, params, row).optional()?)
+    }
 }
 
 fn filename_digest(filename: &str) -> Option<Digest> {

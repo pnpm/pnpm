@@ -71,7 +71,7 @@ impl Request {
             return manifest_response(bytes, self.method == Method::HEAD).map(Some);
         }
         if self.method == Method::HEAD
-            && let Some(answered) = head_proxy_manifest(&upstream, key, reference).await?
+            && let Some(answered) = head_proxy_manifest(upstream, key, reference).await?
         {
             return Ok(answered);
         }

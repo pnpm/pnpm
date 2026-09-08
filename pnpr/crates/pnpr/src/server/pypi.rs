@@ -121,7 +121,8 @@ async fn visible_project_names(
         let Some(hosted) = state.inner.config.hosted.get(&source) else { continue };
         let listed = state.inner.storage.for_hosted(&hosted.org).hosted_package_names().await?;
         for name in listed {
-            if visible_here(state, identity, target, VisibleName { source: &source, name: &name }) {
+            if visible_here(state, identity, target, &VisibleName { source: &source, name: &name })
+            {
                 names.insert(name);
             }
         }
@@ -141,7 +142,7 @@ fn visible_here(
     state: &AppState,
     identity: &Identity,
     target: &str,
-    listed: VisibleName<'_>,
+    listed: &VisibleName<'_>,
 ) -> bool {
     let routed_here = matches!(
         resolve_ecosystem_source(state, target, ECOSYSTEM, listed.name),

@@ -549,7 +549,7 @@ fn validate_crate_archive_with_limit(
     let entries = tar.entries().map_err(CrateArchiveError::Read)?;
     for entry in entries {
         let mut entry = entry.map_err(CrateArchiveError::Read)?;
-        let Some(inner) = crate_entry_path(&mut entry, &expected)? else {
+        let Some(inner) = crate_entry_path(&entry, &expected)? else {
             continue;
         };
         if inner == "Cargo.toml" && entry.header().entry_type().is_file() {
@@ -571,7 +571,7 @@ fn validate_crate_archive_with_limit(
 /// the root directory itself. Anything that could escape the root, and any
 /// entry that is neither a file nor a directory, is rejected.
 fn crate_entry_path<Reader: io::Read>(
-    entry: &mut tar::Entry<'_, Reader>,
+    entry: &tar::Entry<'_, Reader>,
     expected: &str,
 ) -> Result<Option<String>, CrateArchiveError> {
     let path = entry.path().map_err(CrateArchiveError::Read)?;

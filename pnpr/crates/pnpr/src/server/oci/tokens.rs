@@ -147,7 +147,7 @@ fn granted_scopes(
     state: &AppState,
     identity: &Identity,
     target: &str,
-    query: GrantQuery<'_>,
+    query: &GrantQuery<'_>,
 ) -> Result<BTreeMap<String, Vec<String>>, RegistryError> {
     let mut scopes = BTreeMap::new();
     let pairs = url::form_urlencoded::parse(query.uri.query().unwrap_or_default().as_bytes());
@@ -165,7 +165,7 @@ fn granted_scopes(
                 state,
                 identity,
                 target,
-                GrantOne { scope, readonly: query.readonly, scopes: &mut scopes },
+                &mut GrantOne { scope, readonly: query.readonly, scopes: &mut scopes },
             )?;
         }
     }
@@ -183,7 +183,7 @@ fn grant_one_scope(
     state: &AppState,
     identity: &Identity,
     target: &str,
-    grant: GrantOne<'_>,
+    grant: &mut GrantOne<'_>,
 ) -> Result<(), RegistryError> {
     let invalid = || RegistryError::BadRequest { reason: "invalid OCI token scope".to_string() };
     let Some((resource, remainder)) = grant.scope.split_once(':') else {
@@ -210,7 +210,7 @@ fn grant_one_scope(
         state,
         identity,
         &source,
-        GrantActions { name: name.as_str(), actions, readonly: grant.readonly, allowed },
+        &mut GrantActions { name: name.as_str(), actions, readonly: grant.readonly, allowed },
     );
     Ok(())
 }
@@ -227,14 +227,14 @@ fn extend_granted_actions(
     state: &AppState,
     identity: &Identity,
     source: &crate::server::RegistrySource,
-    grant: GrantActions<'_>,
+    grant: &mut GrantActions<'_>,
 ) {
     for action in grant.actions.split(',') {
         if grant.allowed.iter().any(|held| held == action) {
             continue;
         }
         let granted = GrantAction { name: grant.name, action, readonly: grant.readonly };
-        if grant_action(state, identity, source, granted) {
+        if grant_action(state, identity, source, &granted) {
             grant.allowed.push(action.to_string());
         }
     }
@@ -253,7 +253,7 @@ fn grant_action(
     state: &AppState,
     identity: &Identity,
     source: &crate::server::RegistrySource,
-    grant: GrantAction<'_>,
+    grant: &GrantAction<'_>,
 ) -> bool {
     let operation = match grant.action {
         "pull" => Action::Access,
@@ -293,7 +293,7 @@ async fn issue_token(
         None => None,
     };
     let readonly = record.is_some_and(|record| record.readonly);
-    let scopes = granted_scopes(state, identity, &target, GrantQuery { uri, readonly })?;
+    let scopes = granted_scopes(state, identity, &target, &GrantQuery { uri, readonly })?;
     let audience = pnpr_search::percent_decode(
         uri.path().strip_suffix("/v2/token").ok_or(RegistryError::NotFound)?,
     );
