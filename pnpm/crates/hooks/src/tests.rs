@@ -69,12 +69,10 @@ async fn checksum_free_hooks_contribute_no_checksum() {
     assert_eq!(wrapped().calculate_pnpmfile_checksum().await, None);
 }
 
-/// The wrapper keeps answering `source_path`, which names the pnpmfile in
-/// `pnpm:hook` log events. That leaves the checksum short-circuit in
-/// [`current_pnpmfile_checksum`] able to hash the file, so the
-/// suppression only covers a lockfile that records no checksum — the case
-/// `pnpm deploy` generates. Pinned so a caller that gates a lockfile
-/// carrying one is not surprised by it.
+/// Pins the bound on [`ChecksumFreeHooks`]: it suppresses the checksum
+/// only for a lockfile that records none, because the wrapper keeps
+/// answering `source_path` and [`current_pnpmfile_checksum`] hashes that
+/// file whenever there is a recorded value to compare against.
 #[tokio::test]
 async fn a_recorded_checksum_is_still_answered_from_the_pnpmfile() {
     let dir = tempfile::tempdir().expect("create a temp dir");
@@ -85,7 +83,6 @@ async fn a_recorded_checksum_is_still_answered_from_the_pnpmfile() {
     assert_eq!(current_pnpmfile_checksum(Some(&hooks), None).await, None);
 
     let against_recorded = current_pnpmfile_checksum(Some(&hooks), Some("sha256-recorded")).await;
-    dbg!(&against_recorded);
     assert_eq!(
         against_recorded,
         pnpm_crypto_hash::create_hash_from_file(&pnpmfile).ok(),

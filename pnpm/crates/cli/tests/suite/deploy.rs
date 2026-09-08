@@ -1441,8 +1441,8 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
     drop((root, mock_instance));
 }
 
-/// Written by the pnpmfile [`write_recording_pnpmfile`] installs, next to
-/// that pnpmfile, so a test can tell which copy of it an install loaded.
+/// Written next to whichever copy of [`write_recording_pnpmfile`]'s
+/// pnpmfile an install loads, so a test can tell the copies apart.
 const PNPMFILE_SENTINEL: &str = "pnpmfile-ran.txt";
 
 /// Ship the project's `.pnpmfile.mjs` in its packlist, so a default deploy
