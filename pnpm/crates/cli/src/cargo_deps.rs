@@ -250,6 +250,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         git_shallow_hosts: &config.git_shallow_hosts,
         package_import_method: config.package_import_method,
         logged_methods,
+        concurrency: config.network_concurrency.clamp(1, 16),
         offline: config.offline,
     })
     .await?;

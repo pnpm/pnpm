@@ -64,6 +64,23 @@ impl GitRepoFixture {
         fs::write(&path, contents).unwrap_or_else(|err| panic!("write {}: {err}", path.display()));
     }
 
+    /// Create a symlink at `relative_path` pointing at `target`, which
+    /// is interpreted relative to the link's own directory the way git
+    /// records one. Not committed until [`Self::commit`] runs.
+    ///
+    /// Unix only: Windows needs a privilege ordinary test runs do not
+    /// have, so a test that checks symlink handling gates on the target
+    /// family rather than probing for one.
+    #[cfg(unix)]
+    pub fn write_symlink(&self, relative_path: &str, target: &str) {
+        let path = self.work.join(relative_path);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create fixture parent directory");
+        }
+        std::os::unix::fs::symlink(target, &path)
+            .unwrap_or_else(|err| panic!("link {}: {err}", path.display()));
+    }
+
     /// Stage every change, commit it, mirror to the bare repo, and
     /// return the new commit's SHA.
     #[must_use]

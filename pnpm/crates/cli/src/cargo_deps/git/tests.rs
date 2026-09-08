@@ -3,10 +3,10 @@ use super::{
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
+use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
     fs,
-    path::Path,
-    process::Command,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
 
@@ -18,30 +18,15 @@ fn source_id(source: &str) -> cargo_lock::SourceId {
     source.parse().expect("parse Cargo source")
 }
 
-fn git(args: &[&str], cwd: &Path) -> String {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .unwrap_or_else(|error| panic!("run git {args:?}: {error}"));
-    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
-    String::from_utf8(output.stdout).expect("decode git output")
-}
-
-/// Commit `files` into a fresh repository and answer its commit hash.
-fn commit_repository(dir: &Path, files: &[(&str, &str)]) -> String {
-    fs::create_dir_all(dir).unwrap();
-    git(&["init", "-q", "-b", "main"], dir);
-    git(&["config", "user.email", "test@example.invalid"], dir);
-    git(&["config", "user.name", "Test"], dir);
+/// Commit `files` into a fresh repository, answering the URL and commit
+/// a Cargo git source names it by.
+fn commit_repository(root: &Path, files: &[(&str, &str)]) -> (String, String) {
+    let repository = GitRepoFixture::init(root, "repo");
     for (path, contents) in files {
-        let path = dir.join(path);
-        fs::create_dir_all(path.parent().unwrap()).unwrap();
-        fs::write(path, contents).unwrap();
+        repository.write_file(path, contents);
     }
-    git(&["add", "-A"], dir);
-    git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], dir);
-    git(&["rev-parse", "HEAD"], dir).trim().to_string()
+    let commit = repository.commit("init");
+    (repository.file_url(), commit)
 }
 
 #[test]
@@ -192,27 +177,23 @@ fn a_source_without_a_locked_commit_is_refused() {
 }
 
 fn vendor_from(
-    repository: &Path,
+    repository: &str,
     commit: &str,
     store_dir: &StoreDir,
     packages: &[(&str, &str)],
-) -> Vec<(String, std::path::PathBuf)> {
+) -> Vec<(String, PathBuf)> {
     vendor_from_offline(repository, commit, store_dir, packages, false)
 }
 
 fn vendor_from_offline(
-    repository: &Path,
+    repository: &str,
     commit: &str,
     store_dir: &StoreDir,
     packages: &[(&str, &str)],
     offline: bool,
-) -> Vec<(String, std::path::PathBuf)> {
+) -> Vec<(String, PathBuf)> {
     let source = Arc::new(
-        GitSource::from_source_id(&source_id(&format!(
-            "git+file://{}#{commit}",
-            repository.display(),
-        )))
-        .unwrap(),
+        GitSource::from_source_id(&source_id(&format!("git+{repository}#{commit}"))).unwrap(),
     );
     let packages = packages
         .iter()
@@ -237,9 +218,8 @@ fn vendor_from_offline(
 #[test]
 fn a_workspace_member_is_vendored_without_the_repository_around_it() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let repository = temp_dir.path().join("repo");
-    let commit = commit_repository(
-        &repository,
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
         &[
             (
                 "Cargo.toml",
@@ -256,9 +236,11 @@ fn a_workspace_member_is_vendored_without_the_repository_around_it() {
 
     let (link_name, slot) = linked.first().expect("the member is vendored");
     assert_eq!(link_name, "member-0.3.0");
+    // Trimmed: a checkout on Windows ends the line the way git configures
+    // it to, not the way the fixture wrote it.
     assert_eq!(
-        fs::read_to_string(slot.join("src/lib.rs")).unwrap(),
-        "pub fn answer() -> u8 { 42 }\n",
+        fs::read_to_string(slot.join("src/lib.rs")).unwrap().trim_end(),
+        "pub fn answer() -> u8 { 42 }",
     );
     let manifest: toml::Table =
         toml::from_str(&fs::read_to_string(slot.join("Cargo.toml")).unwrap()).unwrap();
@@ -274,9 +256,8 @@ fn a_workspace_member_is_vendored_without_the_repository_around_it() {
 #[test]
 fn a_root_package_leaves_the_members_nested_in_it_to_their_own_slots() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let repository = temp_dir.path().join("repo");
-    let commit = commit_repository(
-        &repository,
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
         &[
             (
                 "Cargo.toml",
@@ -302,9 +283,8 @@ fn a_root_package_leaves_the_members_nested_in_it_to_their_own_slots() {
 #[test]
 fn a_vendored_package_is_taken_from_the_store_without_a_second_checkout() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let repository = temp_dir.path().join("repo");
-    let commit = commit_repository(
-        &repository,
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
         &[
             ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n"),
             ("src/lib.rs", "pub fn demo() {}\n"),
@@ -322,21 +302,68 @@ fn a_vendored_package_is_taken_from_the_store_without_a_second_checkout() {
 }
 
 #[test]
+fn a_member_that_names_its_workspace_by_path_inherits_from_it() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
+        &[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"crates/member\"]\n\n[workspace.package]\nversion = \"0.3.0\"\n",
+            ),
+            (
+                "crates/member/Cargo.toml",
+                "[package]\nname = \"member\"\nworkspace = \"../..\"\nversion.workspace = true\n",
+            ),
+            ("crates/member/src/lib.rs", "pub fn member() {}\n"),
+        ],
+    );
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    store_dir.init().unwrap();
+
+    let linked = vendor_from(&repository, &commit, &store_dir, &[("member", "0.3.0")]);
+
+    let (_, slot) = linked.first().expect("the member is vendored");
+    let manifest: toml::Table =
+        toml::from_str(&fs::read_to_string(slot.join("Cargo.toml")).unwrap()).unwrap();
+    assert_eq!(manifest["package"]["version"].as_str(), Some("0.3.0"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_file_is_vendored_as_its_contents_unless_it_leaves_the_checkout() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let outside = temp_dir.path().join("outside");
+    fs::write(&outside, "not repository content\n").unwrap();
+    let repository = GitRepoFixture::init(temp_dir.path(), "repo");
+    repository.write_file("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n");
+    repository.write_file("LICENSE-MIT", "the license\n");
+    repository.write_symlink("LICENSE", "LICENSE-MIT");
+    repository.write_symlink("src/lib.rs", "../LICENSE-MIT");
+    repository.write_symlink("escaped", "../outside");
+    let commit = repository.commit("init");
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    store_dir.init().unwrap();
+
+    let linked = vendor_from(&repository.file_url(), &commit, &store_dir, &[("demo", "1.0.0")]);
+
+    let (_, slot) = linked.first().expect("the crate is vendored");
+    assert_eq!(fs::read_to_string(slot.join("LICENSE")).unwrap(), "the license\n");
+    assert_eq!(fs::read_to_string(slot.join("src/lib.rs")).unwrap(), "the license\n");
+    assert!(!slot.join("escaped").exists());
+}
+
+#[test]
 fn a_crate_the_checkout_does_not_hold_is_reported() {
     let temp_dir = tempfile::tempdir().unwrap();
-    let repository = temp_dir.path().join("repo");
-    let commit = commit_repository(
-        &repository,
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
         &[("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n")],
     );
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
     store_dir.init().unwrap();
     let source = Arc::new(
-        GitSource::from_source_id(&source_id(&format!(
-            "git+file://{}#{commit}",
-            repository.display(),
-        )))
-        .unwrap(),
+        GitSource::from_source_id(&source_id(&format!("git+{repository}#{commit}"))).unwrap(),
     );
 
     let error = vendor_source::<SilentReporter>(&VendorSourceOptions {

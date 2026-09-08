@@ -3,6 +3,7 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_testing_utils::git_repo::GitRepoFixture;
 use sha2::{Digest, Sha256};
 use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
@@ -119,39 +120,32 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
 }
 
-fn git(args: &[&str], cwd: &Path) -> String {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .unwrap_or_else(|error| panic!("run git {args:?}: {error}"));
-    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
-    String::from_utf8(output.stdout).expect("decode git output")
-}
-
 fn append_manifest_section(manifest: &Path, section: &str) {
     let mut contents = fs::read_to_string(manifest).expect("read Cargo manifest");
     contents.push_str(section);
     fs::write(manifest, contents).expect("write Cargo manifest");
 }
 
-/// A repository whose single commit holds one crate, answering the URL and
-/// revision a Cargo patch names it by.
-fn crate_repository(dir: &Path, name: &str, version: &str) -> (String, String) {
-    fs::create_dir_all(dir.join("src")).unwrap();
-    fs::write(
-        dir.join("Cargo.toml"),
-        format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\nedition = \"2024\"\n"),
-    )
-    .unwrap();
-    fs::write(dir.join("src/lib.rs"), "pub fn patched() -> u8 { 7 }\n").unwrap();
-    git(&["init", "-q", "-b", "main"], dir);
-    git(&["config", "user.email", "test@example.invalid"], dir);
-    git(&["config", "user.name", "Test"], dir);
-    git(&["add", "-A"], dir);
-    git(&["-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"], dir);
-    let url = url::Url::from_file_path(dir).expect("a file URL for the repository");
-    (url.to_string(), git(&["rev-parse", "HEAD"], dir).trim().to_string())
+/// A repository holding a Cargo workspace of two crates, `patched` and
+/// the `sibling` it depends on by path. Both take their version from the
+/// workspace, which the vendored copies must carry on their own.
+fn patched_repository(root: &Path) -> GitRepoFixture {
+    let repository = GitRepoFixture::init(root, "patched");
+    repository.write_file(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"patched\", \"sibling\"]\n\n[workspace.package]\nversion = \"1.0.0\"\nedition = \"2024\"\n",
+    );
+    repository.write_file(
+        "patched/Cargo.toml",
+        "[package]\nname = \"patched\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nsibling = { path = \"../sibling\", version = \"1.0.0\" }\n",
+    );
+    repository.write_file("patched/src/lib.rs", "pub fn patched() -> u8 { sibling::seven() }\n");
+    repository.write_file(
+        "sibling/Cargo.toml",
+        "[package]\nname = \"sibling\"\nversion.workspace = true\nedition.workspace = true\n",
+    );
+    repository.write_file("sibling/src/lib.rs", "pub fn seven() -> u8 { 7 }\n");
+    repository
 }
 
 #[test]
@@ -177,8 +171,10 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
     );
     // Outside the workspace: a manifest under it would be discovered as a
     // Cargo workspace of its own.
-    let repository = TempDir::new().expect("create a repository directory");
-    let (repository_url, commit) = crate_repository(repository.path(), "patched", "1.0.0");
+    let outside = TempDir::new().expect("create a repository directory");
+    let repository = patched_repository(outside.path());
+    let repository_url = repository.file_url();
+    let commit = repository.commit("init");
     append_manifest_section(
         &root.path().join("Cargo.toml"),
         &format!(
@@ -194,6 +190,9 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
             "source = \"sparse+{registry}/\"\nchecksum = \"{checksum}\"\n\n",
             "[[package]]\nname = \"patched\"\nversion = \"1.0.0\"\n",
             "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
+            "dependencies = [\n \"sibling\",\n]\n\n",
+            "[[package]]\nname = \"sibling\"\nversion = \"1.0.0\"\n",
+            "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
         ),
         registry = registry.url(),
         checksum = checksum,
@@ -207,6 +206,7 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
     assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
     assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
     assert!(root.path().join(".pnpm/crates/git/patched-1.0.0/src/lib.rs").is_file());
+    assert!(root.path().join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs").is_file());
     let config = fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap();
     assert!(
         config.contains(&format!(r#"[source."git+{repository_url}?rev={commit}"]"#)),

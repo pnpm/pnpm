@@ -9,6 +9,7 @@
 
 use super::add_cargo_checksum;
 use cargo_lock::package::GitReference;
+use futures_util::{StreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pnpm_config::PackageImportMethod;
 use pnpm_deps_restorer::{ImportIndexedDirOpts, import_indexed_dir};
@@ -64,6 +65,7 @@ pub(crate) struct VendorOptions {
     pub(crate) git_shallow_hosts: &'static [String],
     pub(crate) package_import_method: PackageImportMethod,
     pub(crate) logged_methods: Arc<AtomicU8>,
+    pub(crate) concurrency: usize,
     pub(crate) offline: bool,
 }
 
@@ -139,34 +141,43 @@ pub(crate) async fn vendor<Reporter: self::Reporter + 'static>(
         git_shallow_hosts,
         package_import_method,
         logged_methods,
+        concurrency,
         offline,
     } = options;
     let mut sources: BTreeMap<Arc<GitSource>, Vec<GitPackage>> = BTreeMap::new();
     for package in packages {
         sources.entry(Arc::clone(&package.source)).or_default().push(package);
     }
-    let mut vendored = Vec::new();
-    for (source, packages) in sources {
-        let logged_methods = Arc::clone(&logged_methods);
-        // Cloning a repository and copying the files out of it is blocking
-        // work. Each repository is checked out once, for every package it
-        // provides.
-        let linked = tokio::task::spawn_blocking(move || {
-            vendor_source::<Reporter>(&VendorSourceOptions {
-                source: &source,
-                packages: &packages,
-                store_dir,
-                git_shallow_hosts,
-                package_import_method,
-                logged_methods: &logged_methods,
-                offline,
-            })
+    let mut vendored = stream::iter(sources)
+        .map(|(source, packages)| {
+            let logged_methods = Arc::clone(&logged_methods);
+            // Cloning a repository and copying the files out of it is
+            // blocking work. Each repository is checked out once, for
+            // every package it provides.
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    vendor_source::<Reporter>(&VendorSourceOptions {
+                        source: &source,
+                        packages: &packages,
+                        store_dir,
+                        git_shallow_hosts,
+                        package_import_method,
+                        logged_methods: &logged_methods,
+                        offline,
+                    })
+                })
+                .await
+                .into_diagnostic()
+                .wrap_err("join git package vendoring task")?
+            }
         })
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
         .await
-        .into_diagnostic()
-        .wrap_err("join git package vendoring task")??;
-        vendored.extend(linked);
-    }
+        .into_iter()
+        .collect::<Result<Vec<_>>>()?
+        .concat();
+    vendored.sort();
     Ok(vendored)
 }
 
@@ -232,6 +243,9 @@ fn vendor_source<Reporter: self::Reporter>(
     .wrap_err_with(|| format!("check out {repository} at {}", source.commit))?;
     let checked_out = Checkout::read(checkout.path())?;
     let package_dirs = checked_out.package_dirs();
+    let checkout_root = dunce::canonicalize(checkout.path())
+        .into_diagnostic()
+        .wrap_err_with(|| format!("resolve the checkout of {repository}"))?;
 
     for (package, slot) in missing {
         let found = checked_out.find(&package.name, &package.version)?.ok_or_else(|| {
@@ -242,7 +256,7 @@ fn vendor_source<Reporter: self::Reporter>(
                 package.version,
             )
         })?;
-        let cas_paths = import_package(store_dir, &found, &package_dirs)?;
+        let cas_paths = import_package(store_dir, &checkout_root, &found, &package_dirs)?;
         import_indexed_dir::<Reporter>(
             logged_methods,
             package_import_method,
@@ -275,26 +289,31 @@ struct Manifest {
 }
 
 /// The manifests a git checkout holds, keyed by the directory each one
-/// describes.
+/// describes, and the directories each crate name is declared in.
 struct Checkout {
     manifests: BTreeMap<PathBuf, Manifest>,
+    directories_by_crate: BTreeMap<String, Vec<PathBuf>>,
 }
 
 impl Checkout {
     fn read(root: &Path) -> Result<Self> {
         let mut manifests = BTreeMap::new();
         collect_manifests(root, &mut manifests)?;
-        Ok(Self { manifests })
+        let mut directories_by_crate: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
+        for (dir, manifest) in &manifests {
+            if let Some(name) = package_name(&manifest.document) {
+                directories_by_crate.entry(name.to_string()).or_default().push(dir.clone());
+            }
+        }
+        Ok(Self { manifests, directories_by_crate })
     }
 
     /// The directory holding `name` at `version`, if the checkout has one.
     /// A package's name is never inherited, so only the manifests already
     /// naming this crate are resolved against their workspace.
     fn find(&self, name: &str, version: &str) -> Result<Option<CheckoutPackage>> {
-        for (dir, manifest) in &self.manifests {
-            if package_name(&manifest.document) != Some(name) {
-                continue;
-            }
+        for dir in self.directories_by_crate.get(name).map(Vec::as_slice).unwrap_or_default() {
+            let manifest = &self.manifests[dir];
             let workspace = workspace_manifest(dir, &manifest.document, &self.manifests);
             let package = vendored_package(manifest, workspace)
                 .wrap_err_with(|| format!("read {}", dir.join("Cargo.toml").display()))?;
@@ -308,11 +327,7 @@ impl Checkout {
 
     /// Every directory in the checkout that `cargo` reads a package from.
     fn package_dirs(&self) -> BTreeSet<&Path> {
-        self.manifests
-            .iter()
-            .filter(|(_, manifest)| package_name(&manifest.document).is_some())
-            .map(|(dir, _)| dir.as_path())
-            .collect()
+        self.directories_by_crate.values().flatten().map(PathBuf::as_path).collect()
     }
 }
 
@@ -379,7 +394,10 @@ fn workspace_manifest<'a>(
         return Some(document);
     }
     if let Some(path) = document.get("package").and_then(|package| package.get("workspace")) {
-        return Some(&manifests.get(&dir.join(path.as_str()?))?.document);
+        // `Path::join` keeps `..` verbatim, and the checkout was walked
+        // into paths that carry none.
+        let root = pnpm_fs::lexical_normalize(&dir.join(path.as_str()?));
+        return Some(&manifests.get(&root)?.document);
     }
     dir.ancestors().skip(1).find_map(|ancestor| {
         let document = &manifests.get(ancestor)?.document;
@@ -532,6 +550,9 @@ fn inherits_from_workspace(value: &toml::Value) -> bool {
 
 struct ImportContext<'a> {
     store_dir: &'a StoreDir,
+    /// Canonical root of the checkout. A link resolving outside it points
+    /// at something the repository does not contain.
+    root: &'a Path,
     /// Packages nested inside the one being imported. They are vendored
     /// into directories of their own, the way `cargo` keeps a workspace
     /// member out of its root package's file list.
@@ -543,11 +564,13 @@ struct ImportContext<'a> {
 /// vendored manifest in place of the committed one.
 fn import_package(
     store_dir: &StoreDir,
+    root: &Path,
     package: &CheckoutPackage,
     package_dirs: &BTreeSet<&Path>,
 ) -> Result<HashMap<String, PathBuf>> {
     let context = ImportContext {
         store_dir,
+        root,
         nested: package_dirs
             .iter()
             .copied()
@@ -570,51 +593,95 @@ fn import_directory(
     for entry in read_directory(dir)? {
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        // Symlinks are not followed: a target outside the checkout would
-        // put a file the repository does not contain into the store.
-        let file_type = entry_file_type(&entry)?;
         let path = entry.path();
-        if file_type.is_dir() {
-            if EXCLUDED_DIRECTORIES.contains(&name.as_ref())
-                || context.nested.contains(path.as_path())
-            {
-                continue;
+        match entry_kind(context.root, &entry)? {
+            Some(EntryKind::Directory) => {
+                if EXCLUDED_DIRECTORIES.contains(&name.as_ref())
+                    || context.nested.contains(path.as_path())
+                {
+                    continue;
+                }
+                import_directory(context, &path, &format!("{prefix}{name}/"), cas_paths)?;
             }
-            import_directory(context, &path, &format!("{prefix}{name}/"), cas_paths)?;
-        } else if file_type.is_file() {
-            let relative = format!("{prefix}{name}");
-            let contents = if relative == "Cargo.toml" {
-                context.manifest.as_bytes().to_vec()
-            } else {
-                fs::read(&path)
-                    .into_diagnostic()
-                    .wrap_err_with(|| format!("read {}", path.display()))?
-            };
-            let (cas_path, _) = context
-                .store_dir
-                .write_cas_file(&contents, is_executable(&entry)?)
-                .into_diagnostic()
+            Some(EntryKind::File { executable }) => {
+                let relative = format!("{prefix}{name}");
+                let cas_path = if relative == "Cargo.toml" {
+                    context
+                        .store_dir
+                        .write_cas_file(context.manifest.as_bytes(), executable)
+                        .into_diagnostic()
+                        .map(|(cas_path, _)| cas_path)
+                } else {
+                    // Streamed rather than read whole: a repository is free
+                    // to carry a file larger than the install's memory.
+                    let mut file = fs::File::open(&path)
+                        .into_diagnostic()
+                        .wrap_err_with(|| format!("read {}", path.display()))?;
+                    context
+                        .store_dir
+                        .write_cas_file_from_reader(&mut file, executable, None)
+                        .into_diagnostic()
+                        .map(|(cas_path, _, _)| cas_path)
+                }
                 .wrap_err_with(|| format!("store {}", path.display()))?;
-            cas_paths.insert(relative, cas_path);
+                cas_paths.insert(relative, cas_path);
+            }
+            None => {}
         }
     }
     Ok(())
 }
 
+enum EntryKind {
+    Directory,
+    File { executable: bool },
+}
+
+/// What a directory entry contributes to the vendored package.
+///
+/// A symlinked file is vendored as what it points at, which is how
+/// `cargo` reads one out of a checkout. `None` for an entry the package
+/// cannot carry: a link that leaves the checkout or dangles, a symlinked
+/// directory, which could equally lead back into its own parent, and
+/// anything that is neither a file nor a directory.
+fn entry_kind(root: &Path, entry: &fs::DirEntry) -> Result<Option<EntryKind>> {
+    let path = entry.path();
+    if entry_file_type(entry)?.is_symlink() {
+        let Ok(target) = dunce::canonicalize(&path) else {
+            return Ok(None);
+        };
+        if !target.starts_with(root) || !target.is_file() {
+            return Ok(None);
+        }
+    }
+    let metadata = match fs::metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("inspect {}", path.display()));
+        }
+    };
+    Ok(if metadata.is_dir() {
+        Some(EntryKind::Directory)
+    } else if metadata.is_file() {
+        Some(EntryKind::File { executable: is_executable(&metadata) })
+    } else {
+        None
+    })
+}
+
 #[cfg(unix)]
-fn is_executable(entry: &fs::DirEntry) -> Result<bool> {
+fn is_executable(metadata: &fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt as _;
 
-    let metadata = entry
-        .metadata()
-        .into_diagnostic()
-        .wrap_err_with(|| format!("inspect {}", entry.path().display()))?;
-    Ok(pnpm_fs::file_mode::is_executable(metadata.permissions().mode()))
+    pnpm_fs::file_mode::is_executable(metadata.permissions().mode())
 }
 
 #[cfg(not(unix))]
-fn is_executable(_entry: &fs::DirEntry) -> Result<bool> {
-    Ok(false)
+fn is_executable(_metadata: &fs::Metadata) -> bool {
+    false
 }
 
 #[cfg(test)]
