@@ -308,6 +308,11 @@ pub trait CustomResolver: Send + Sync {
 /// exports any. Only a lockfile that records no checksum needs the
 /// pnpmfile evaluated, to tell "no pnpmfile" from "a pnpmfile that
 /// exports none".
+///
+/// A `hooks` that answers `None` from
+/// [`PnpmfileHooks::calculate_pnpmfile_checksum`] to stay out of the
+/// comparison, such as [`ChecksumFreeHooks`], therefore only stays out
+/// of it while `recorded` is `None`.
 pub async fn current_pnpmfile_checksum(
     hooks: Option<&Arc<dyn PnpmfileHooks>>,
     recorded: Option<&str>,
@@ -351,6 +356,13 @@ impl PnpmfileHooks for NoopHooks {
 /// generates for the deploy directory: the hooks' effects are already
 /// part of the recorded snapshots, so a checksum could only fail the
 /// frozen-lockfile gate.
+///
+/// That is the whole of the contract: against a lockfile that *does*
+/// record a checksum, [`current_pnpmfile_checksum`] answers from
+/// [`PnpmfileHooks::source_path`] without consulting the hooks, so this
+/// wrapper does not suppress the comparison. `source_path` keeps
+/// answering on purpose — it is what names the pnpmfile in the
+/// `pnpm:hook` log events a hook's `context.log` produces.
 #[derive(derive_more::From)]
 pub struct ChecksumFreeHooks(Arc<dyn PnpmfileHooks>);
 
@@ -421,3 +433,6 @@ impl PnpmfileHooks for ChecksumFreeHooks {
         self.0.run_finder(finder_name, ctx).await
     }
 }
+
+#[cfg(test)]
+mod tests;
