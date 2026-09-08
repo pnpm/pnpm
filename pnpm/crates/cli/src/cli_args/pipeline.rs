@@ -12,6 +12,7 @@ pub use agent::{WatchInvocation, run_watch};
 pub use report::RunUpload;
 
 use super::{
+    catalogs::configured_catalogs,
     install::InstallArgs,
     recursive::{ExecutionStatus, Status, discover_workspace_projects},
     reporter::{ReporterType, reporter_emit},
@@ -516,7 +517,8 @@ fn build_full_graph<'a>(
     config: &Config,
     workspace_root: &Path,
 ) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
-    let dependency_rewriter = overrides_dependency_rewriter(config, workspace_root)
+    let catalogs = configured_catalogs(config)?;
+    let dependency_rewriter = overrides_dependency_rewriter(config, &catalogs, workspace_root)
         .into_diagnostic()
         .wrap_err("parsing the overrides")?;
     let graph_options = CreateProjectsGraphOptions {

@@ -645,16 +645,17 @@ fn insert_regular_dependency(value: &mut Value, name: String, spec: String) {
 /// The `pnpm.overrides` hook the workspace projects graph applies, so an
 /// override that points a dependency at a workspace sibling becomes an
 /// edge the graph orders by. `Ok(None)` when no overrides are configured.
-/// `lockfile_dir` anchors relative `link:` / `file:` override targets.
+/// `catalogs` dereferences `catalog:` override values, the same set the
+/// install resolves against; `lockfile_dir` anchors relative `link:` /
+/// `file:` override targets.
 pub fn overrides_dependency_rewriter(
     config: &Config,
+    catalogs: &Catalogs,
     lockfile_dir: &Path,
 ) -> Result<Option<VersionsOverrider>, ParseOverridesError> {
     let Some(map) = config.overrides.as_ref().filter(|map| !map.is_empty()) else {
         return Ok(None);
     };
-    let empty_catalogs = Catalogs::new();
-    let catalogs = config.catalogs.as_ref().unwrap_or(&empty_catalogs);
     let parsed = pnpm_config_parse_overrides::parse_overrides_iter(map.iter(), catalogs)?;
     Ok(Some(VersionsOverrider::new(&parsed, lockfile_dir)))
 }

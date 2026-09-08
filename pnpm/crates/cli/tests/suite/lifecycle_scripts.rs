@@ -2297,7 +2297,7 @@ mod project_scripts_in_a_workspace {
             &yaml_path,
             format!(
                 "{}\npackages:\n  - 'packages/*'\noverrides:\n  lib: 'workspace:*'\n",
-                yaml.trim_end()
+                yaml.trim_end(),
             ),
         )
         .expect("write pnpm-workspace.yaml");

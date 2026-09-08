@@ -7,6 +7,7 @@
 //! "Already up to date" says nothing about cycles — pnpm returns before
 //! its own check in that case.
 
+use pnpm_catalogs_types::Catalogs;
 use pnpm_config::{Config, LinkWorkspacePackages};
 use pnpm_deps_restorer::{PathNode, graph_sequencer};
 use pnpm_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
@@ -59,7 +60,8 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
 /// The cycles among the projects an install covers: `selected_dirs`
 /// narrows `projects` to a `--filter`ed or `-r` selection, `None` covers
 /// the whole workspace. `workspace_dir` anchors the `pnpm.overrides`
-/// the graph edges follow.
+/// the graph edges follow and `catalogs` dereferences their `catalog:`
+/// values.
 ///
 /// A selected project keeps the dependency list it has in the full
 /// graph; [`workspace_cycles`] then drops the edges that leave the
@@ -71,6 +73,7 @@ pub fn workspace_cycles<Pkg>(graph: &ProjectGraph<Pkg>) -> Option<Vec<Vec<PathBu
 pub fn install_scope_cycles(
     config: &Config,
     workspace_dir: &Path,
+    catalogs: &Catalogs,
     projects: &[Project],
     selected_dirs: Option<&HashSet<PathBuf>>,
 ) -> Option<Vec<Vec<PathBuf>>> {
@@ -78,7 +81,7 @@ pub fn install_scope_cycles(
         return None;
     }
     let dependency_rewriter =
-        crate::overrides_dependency_rewriter(config, workspace_dir).ok().flatten();
+        crate::overrides_dependency_rewriter(config, catalogs, workspace_dir).ok().flatten();
     let mut graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
         &CreateProjectsGraphOptions {

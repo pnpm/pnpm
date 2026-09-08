@@ -7,6 +7,7 @@
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
 
+use super::catalogs::configured_catalogs;
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -282,7 +283,8 @@ pub fn select_recursive_projects<'a>(
     // selection nor order; only a `workspace:` range, an enabled policy, or an
     // override pointing the dependency at the sibling links it.
     let workspace_dir = config.workspace_dir.as_deref().unwrap_or(prefix);
-    let dependency_rewriter = overrides_dependency_rewriter(config, workspace_dir)
+    let catalogs = configured_catalogs(config)?;
+    let dependency_rewriter = overrides_dependency_rewriter(config, &catalogs, workspace_dir)
         .into_diagnostic()
         .wrap_err("parsing the overrides")?;
     let graph_options = CreateProjectsGraphOptions {
