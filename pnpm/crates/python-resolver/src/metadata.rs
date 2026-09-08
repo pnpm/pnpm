@@ -29,20 +29,9 @@ impl WheelMetadata {
             if line.is_empty() {
                 break;
             }
-            if line.starts_with([' ', '\t']) {
-                if let Some((_, value)) = field.as_mut() {
-                    value.push(' ');
-                    value.push_str(line.trim());
-                }
-                continue;
+            if let Some(started) = metadata.read_field_line(line, &mut field)? {
+                field = Some(started);
             }
-            if let Some((name, value)) = field.take() {
-                metadata.take_field(&name, value);
-            }
-            let Some((name, value)) = line.split_once(':') else {
-                bail!("Python wheel metadata has a line that is not a field: {line:?}");
-            };
-            field = Some((name.trim().to_ascii_lowercase(), value.trim().to_string()));
         }
         if let Some((name, value)) = field {
             metadata.take_field(&name, value);
@@ -51,6 +40,30 @@ impl WheelMetadata {
             bail!("Python wheel metadata names no distribution");
         }
         Ok(metadata)
+    }
+
+    /// Read one metadata line. A continuation line (RFC 822 folding) extends
+    /// the field being read; anything else closes it and starts the next,
+    /// which is what the caller is handed back.
+    fn read_field_line(
+        &mut self,
+        line: &str,
+        field: &mut Option<(String, String)>,
+    ) -> Result<Option<(String, String)>> {
+        if line.starts_with([' ', '\t']) {
+            if let Some((_, value)) = field.as_mut() {
+                value.push(' ');
+                value.push_str(line.trim());
+            }
+            return Ok(None);
+        }
+        if let Some((name, value)) = field.take() {
+            self.take_field(&name, value);
+        }
+        let Some((name, value)) = line.split_once(':') else {
+            bail!("Python wheel metadata has a line that is not a field: {line:?}");
+        };
+        Ok(Some((name.trim().to_ascii_lowercase(), value.trim().to_string())))
     }
 
     fn take_field(&mut self, name: &str, value: String) {

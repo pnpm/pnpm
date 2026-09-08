@@ -159,35 +159,9 @@ fn from_local(
     let bare = wd.bare_specifier.as_str();
     let spec = normalize_specifier(bare);
 
-    let protocol: &'static str = if bare.starts_with("file:") {
-        "file:"
-    } else if bare.starts_with("link:")
-        || (matches!(kind, LocalSpecKind::Directory) && !wd.injected)
-    {
-        "link:"
-    } else {
-        "file:"
-    };
-
-    let (fetch_spec, normalized_bare_specifier) = if let Some(rest) = strip_tilde_prefix(&spec) {
-        let home = home::home_dir().unwrap_or_default();
-        let fetched = resolve_path(&home, rest);
-        let normalized = format!("{protocol}{spec}");
-        (fetched, normalized)
-    } else {
-        let fetched = resolve_path(project_dir, &spec);
-        if is_absolute_specifier(&spec) {
-            (fetched, format!("{protocol}{spec}"))
-        } else {
-            let relative =
-                forward_slashes(pathdiff::diff_paths(&fetched, project_dir).map_or_else(
-                    || fetched.display().to_string(),
-                    |path| path.display().to_string(),
-                ));
-            let fetch_spec = fetched;
-            (fetch_spec, format!("{protocol}{relative}"))
-        }
-    };
+    let protocol = local_protocol(bare, kind, wd.injected);
+    let (fetch_spec, normalized_bare_specifier) =
+        fetched_and_normalized(&spec, project_dir, protocol);
 
     // Once the protocol is chosen, "copy-shaped" (`protocol == "file:"`)
     // drives the dependencyPath / id calculations below.
@@ -199,19 +173,15 @@ fn from_local(
         forward_slashes(fetch_spec.display().to_string())
     };
 
-    let id_value = if !copy_shaped
+    let id_base = if !copy_shaped
         && (matches!(kind, LocalSpecKind::Directory) || project_dir == lockfile_dir)
     {
-        format!(
-            "{protocol}{}",
-            normalize_relative_or_absolute(project_dir, &fetch_spec, &spec, opts),
-        )
+        project_dir
     } else {
-        format!(
-            "{protocol}{}",
-            normalize_relative_or_absolute(lockfile_dir, &fetch_spec, &spec, opts),
-        )
+        lockfile_dir
     };
+    let id_value =
+        format!("{protocol}{}", normalize_relative_or_absolute(id_base, &fetch_spec, &spec, opts));
 
     LocalPackageSpec {
         dependency_path,
@@ -220,6 +190,38 @@ fn from_local(
         kind,
         normalized_bare_specifier,
     }
+}
+
+/// The protocol a local specifier resolves under. A `link:` directory is
+/// referenced in place; everything else is copied, which is what `file:`
+/// means here.
+fn local_protocol(bare: &str, kind: LocalSpecKind, injected: bool) -> &'static str {
+    if bare.starts_with("file:") {
+        return "file:";
+    }
+    if bare.starts_with("link:") || (matches!(kind, LocalSpecKind::Directory) && !injected) {
+        return "link:";
+    }
+    "file:"
+}
+
+/// The path a local specifier fetches from, and the specifier the manifest
+/// records for it. A `~` specifier resolves against the home directory and is
+/// recorded verbatim; a relative one is recorded relative to the project.
+fn fetched_and_normalized(spec: &str, project_dir: &Path, protocol: &str) -> (PathBuf, String) {
+    if let Some(rest) = strip_tilde_prefix(spec) {
+        let home = home::home_dir().unwrap_or_default();
+        return (resolve_path(&home, rest), format!("{protocol}{spec}"));
+    }
+    let fetched = resolve_path(project_dir, spec);
+    if is_absolute_specifier(spec) {
+        return (fetched, format!("{protocol}{spec}"));
+    }
+    let relative = forward_slashes(
+        pathdiff::diff_paths(&fetched, project_dir)
+            .map_or_else(|| fetched.display().to_string(), |path| path.display().to_string()),
+    );
+    (fetched, format!("{protocol}{relative}"))
 }
 
 /// Normalize a bare specifier through this replacement chain:

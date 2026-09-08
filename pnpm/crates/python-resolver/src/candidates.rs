@@ -69,28 +69,10 @@ pub fn candidates_from_page(
         .map_err(|err| err.wrap_err("Python index must support the Simple JSON API"))?;
     let mut candidates = BTreeMap::<Version, (usize, Candidate)>::new();
     for file in page.files {
-        if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
-            continue;
-        }
-        let Some((wheel_name, version, rank)) = wheel_identity(&file.filename, &target.tags)?
+        let Some((version, rank, candidate)) = installable_candidate(file, page_url, name, target)?
         else {
             continue;
         };
-        if wheel_name != *name {
-            bail!("Python index for {name} contains a wheel for {wheel_name}");
-        }
-        if let Some(requirement) = &file.requires_python {
-            let specifiers: VersionSpecifiers = requirement.parse().into_diagnostic()?;
-            if !specifiers.contains(target.environment.python_full_version()) {
-                continue;
-            }
-        }
-        let url = page_url.join(&file.url).into_diagnostic()?;
-        validate_url(&url)?;
-        let core_metadata = file.metadata_digests();
-        let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
-        wheel.integrity()?;
-        let candidate = Candidate { wheel, core_metadata };
         if candidates.get(&version).is_none_or(|(previous, existing)| {
             (rank, &candidate.wheel.name) < (*previous, &existing.wheel.name)
         }) {
@@ -98,6 +80,39 @@ pub fn candidates_from_page(
         }
     }
     Ok(candidates.into_iter().map(|(version, (_, candidate))| (version, candidate)).collect())
+}
+
+/// The candidate one index file offers, with the version and tag rank it
+/// competes under. `None` for a file this target cannot install: a yanked
+/// release, a non-wheel, or a wheel whose `Requires-Python` excludes the
+/// target interpreter.
+fn installable_candidate(
+    file: IndexFile,
+    page_url: &Url,
+    name: &PackageName,
+    target: &Target,
+) -> Result<Option<(Version, usize, Candidate)>> {
+    if !matches!(file.yanked, serde_json::Value::Null | serde_json::Value::Bool(false)) {
+        return Ok(None);
+    }
+    let Some((wheel_name, version, rank)) = wheel_identity(&file.filename, &target.tags)? else {
+        return Ok(None);
+    };
+    if wheel_name != *name {
+        bail!("Python index for {name} contains a wheel for {wheel_name}");
+    }
+    if let Some(requirement) = &file.requires_python {
+        let specifiers: VersionSpecifiers = requirement.parse().into_diagnostic()?;
+        if !specifiers.contains(target.environment.python_full_version()) {
+            return Ok(None);
+        }
+    }
+    let url = page_url.join(&file.url).into_diagnostic()?;
+    validate_url(&url)?;
+    let core_metadata = file.metadata_digests();
+    let wheel = LockedWheel { name: file.filename, url: url.to_string(), hashes: file.hashes };
+    wheel.integrity()?;
+    Ok(Some((version, rank, Candidate { wheel, core_metadata })))
 }
 
 /// The distribution, version, and tag rank a wheel filename names, or
