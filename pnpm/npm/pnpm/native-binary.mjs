@@ -30,7 +30,7 @@ const PLATFORMS = {
       glibc: '@pnpm/exe.linux-arm64/pnpm',
       musl: '@pnpm/exe.linux-arm64-musl/pnpm',
     },
-    // Only a glibc build is released for these three.
+    // Only a glibc build is released for these architectures.
     riscv64: {
       glibc: '@pnpm/exe.linux-riscv64/pnpm',
     },
