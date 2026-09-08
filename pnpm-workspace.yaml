@@ -1,3 +1,4 @@
+# Glob patterns for package directories to include as workspace members.
 packages:
   - .meta-updater
   - pnpm11/__typecheck__
