@@ -1,4 +1,5 @@
 mod boolean_negations;
+mod boolean_values;
 mod cargo_deps;
 mod cargo_manifest;
 mod checkbox_prompt;
@@ -117,6 +118,10 @@ fn run_cli() -> miette::Result<()> {
     // `--reporter=silent`) over argv before parsing; mirror that so they
     // work with every command. See `shorthands`.
     let argv = shorthands::expand_universal_shorthands(&command, argv);
+    // nopt lets every boolean option carry an explicit value; collapse
+    // `--prod=false` into the flag or its negation before clap, which
+    // knows only the bare flag. See `boolean_values`.
+    let argv = boolean_values::resolve_boolean_values(argv);
     // npm's spellings of two of pnpm's options (`--prefix`, `--store`) are
     // hidden clap aliases; pnpm additionally lets the canonical spelling win
     // when a command line uses both. See `renamed_options`.

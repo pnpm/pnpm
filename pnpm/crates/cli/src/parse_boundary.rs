@@ -170,7 +170,7 @@ pub(crate) fn subcommand_option_names(argv: &[OsString]) -> HashSet<&'static str
 /// yet. Both halves of the union — a global lives on the top-level
 /// command, a command's own options on its subcommand — and both are
 /// derived from the static [`grammar`], so the table is built once.
-fn union_arity() -> &'static ArgTable {
+pub(crate) fn union_arity() -> &'static ArgTable {
     static ARITY: std::sync::OnceLock<ArgTable> = std::sync::OnceLock::new();
     ARITY.get_or_init(|| {
         let command = grammar();
@@ -224,7 +224,7 @@ fn next_token(argv: &[OsString], index: usize) -> Option<&str> {
 /// (`pnpm dlx --package cowsay --silent cowsay` would forward pnpm's own
 /// `--silent`). The union across subcommands is what the pre-clap passes
 /// have to work with, since the command is not yet known.
-fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize> {
+pub(crate) fn option_width(arg: &str, next: Option<&str>, arity: &ArgTable) -> Option<usize> {
     let rest = arg.strip_prefix('-').filter(|rest| !rest.is_empty())?;
     if let Some(long) = rest.strip_prefix('-') {
         // `--config.<key>=<value>` is always self-contained.
