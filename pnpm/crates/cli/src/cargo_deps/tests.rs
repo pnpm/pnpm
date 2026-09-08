@@ -1,8 +1,7 @@
 use super::{
-    ArchiveStoreProjection, Config, LockedCrate, MANAGED_CONFIG, MaterializeOptions,
-    add_cargo_checksum, download_auth_headers, fetch_sparse_index_file, managed_config,
-    materialize, parse_lockfile, resolve_via_pnpr, sparse_index_path, update_managed_config,
-    workspace_root,
+    ArchiveStoreProjection, Config, LockedCrate, MaterializeOptions, add_cargo_checksum,
+    download_auth_headers, fetch_sparse_index_file, managed_config, materialize, parse_lockfile,
+    resolve_via_pnpr, sparse_index_path, update_managed_config, workspace_root,
 };
 use cargo_util_schemas::index::RegistryConfig;
 use pnpm_cargo_resolver::CRATES_IO_SPARSE_INDEX;
@@ -22,8 +21,8 @@ use std::{
 
 #[cfg(unix)]
 use super::{
-    ensure_workspace_directory, link_workspace, link_workspace_in, write_cargo_config,
-    write_cargo_config_in,
+    CRATES_SOURCE_DIRECTORY, ensure_workspace_directory, link_workspace, link_workspace_in,
+    write_cargo_config, write_cargo_config_in,
 };
 
 #[cfg(unix)]
@@ -49,7 +48,7 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
     assert_eq!(
-        parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap(),
+        parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().crates,
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
@@ -100,7 +99,7 @@ checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
     assert_eq!(
-        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap(),
+        parse_lockfile(lockfile, "https://registry.example.test/index/").unwrap().crates,
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
@@ -120,7 +119,7 @@ source = "sparse+https://index.crates.io/"
 checksum = "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
 "#;
 
-    assert_eq!(parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().len(), 1);
+    assert_eq!(parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().crates.len(), 1);
 }
 
 #[test]
@@ -141,7 +140,7 @@ source = "registry+https://registry.example/index"
 "#;
 
     assert_eq!(
-        parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap(),
+        parse_lockfile(lockfile, CRATES_IO_SPARSE_INDEX).unwrap().crates,
         vec![LockedCrate {
             name: "serde".to_string(),
             version: "1.0.228".to_string(),
@@ -172,22 +171,25 @@ fn crate_store_slots_are_grouped_by_name_version_and_content() {
 #[test]
 fn appends_the_managed_config_without_changing_user_settings() {
     let existing = "[alias]\ncodecov = \"llvm-cov\"\n";
-    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX).unwrap();
+    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
 
-    assert_eq!(updated, format!("{existing}\n{MANAGED_CONFIG}\n"));
+    assert_eq!(updated, format!("{existing}\n{}\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])));
 }
 
 #[test]
 fn replaces_only_the_existing_managed_config() {
     let existing = "before\n# >>> pnpm-managed cargo sources >>>\nstale\n# <<< pnpm-managed cargo sources <<<\nafter\n";
-    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX).unwrap();
+    let updated = update_managed_config(existing, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
 
-    assert_eq!(updated, format!("before\n{MANAGED_CONFIG}\nafter\n"));
+    assert_eq!(
+        updated,
+        format!("before\n{}\nafter\n", managed_config(CRATES_IO_SPARSE_INDEX, &[])),
+    );
 }
 
 #[test]
 fn configures_the_selected_sparse_registry_as_the_vendored_source() {
-    let config = managed_config("https://registry.example.test/index/");
+    let config = managed_config("https://registry.example.test/index/", &[]);
 
     assert!(config.contains("[source.crates-io]\nreplace-with = \"pnpm-registry\""));
     assert!(config.contains("[source.pnpm-registry]"));
@@ -197,7 +199,7 @@ fn configures_the_selected_sparse_registry_as_the_vendored_source() {
 
 #[test]
 fn escapes_a_registry_url_that_is_not_a_bare_toml_string() {
-    let config = managed_config("https://registry.example.test/o'brien/index");
+    let config = managed_config("https://registry.example.test/o'brien/index", &[]);
 
     let parsed: toml::Table = toml::from_str(&config).expect("managed config is valid TOML");
     assert_eq!(
@@ -208,10 +210,13 @@ fn escapes_a_registry_url_that_is_not_a_bare_toml_string() {
 
 #[test]
 fn rejects_an_incomplete_managed_config() {
-    let error =
-        update_managed_config("# >>> pnpm-managed cargo sources >>>\n", CRATES_IO_SPARSE_INDEX)
-            .unwrap_err()
-            .to_string();
+    let error = update_managed_config(
+        "# >>> pnpm-managed cargo sources >>>\n",
+        CRATES_IO_SPARSE_INDEX,
+        &[],
+    )
+    .unwrap_err()
+    .to_string();
 
     assert!(error.contains("incomplete"), "{error}");
 }
@@ -230,7 +235,7 @@ fn creates_the_cargo_checksum_manifest_from_cas_files() {
     add_cargo_checksum(
         &store_dir,
         &mut cas_paths,
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
     )
     .unwrap();
 
@@ -481,7 +486,8 @@ fn rejects_a_symlinked_cargo_source_parent() {
     fs::write(outside.path().join("keep"), "unchanged").unwrap();
     symlink(outside.path(), workspace.path().join(".pnpm")).unwrap();
 
-    let error = link_workspace(workspace.path(), &[]).unwrap_err().to_string();
+    let error =
+        link_workspace(workspace.path(), &CRATES_SOURCE_DIRECTORY, &[]).unwrap_err().to_string();
 
     assert!(error.contains("must be a real directory"), "{error}");
     assert_eq!(fs::read_to_string(outside.path().join("keep")).unwrap(), "unchanged");
@@ -497,7 +503,7 @@ fn rejects_a_symlinked_cargo_config_parent() {
     symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
 
     let error =
-        write_cargo_config(workspace.path(), CRATES_IO_SPARSE_INDEX).unwrap_err().to_string();
+        write_cargo_config(workspace.path(), CRATES_IO_SPARSE_INDEX, &[]).unwrap_err().to_string();
 
     assert!(error.contains("must be a real directory"), "{error}");
     assert_eq!(fs::read_to_string(external_config).unwrap(), "unchanged\n");
@@ -514,10 +520,14 @@ fn config_write_stays_in_the_directory_pinned_before_a_parent_swap() {
     fs::write(outside.path().join("config.toml"), "unchanged\n").unwrap();
     symlink(outside.path(), workspace.path().join(".cargo")).unwrap();
 
-    write_cargo_config_in(&cargo_dir, CRATES_IO_SPARSE_INDEX).unwrap();
+    write_cargo_config_in(&cargo_dir, CRATES_IO_SPARSE_INDEX, &[]).unwrap();
 
     assert_eq!(fs::read_to_string(outside.path().join("config.toml")).unwrap(), "unchanged\n");
-    assert!(fs::read_to_string(pinned_path.join("config.toml")).unwrap().contains(MANAGED_CONFIG));
+    assert!(
+        fs::read_to_string(pinned_path.join("config.toml"))
+            .unwrap()
+            .contains(&managed_config(CRATES_IO_SPARSE_INDEX, &[])),
+    );
 }
 
 #[cfg(unix)]
@@ -527,7 +537,7 @@ fn crate_link_stays_in_the_directory_pinned_before_a_parent_swap() {
     let outside = tempfile::tempdir().unwrap();
     let slot = tempfile::tempdir().unwrap();
     let source_dir =
-        ensure_workspace_directory(workspace.path(), &[".pnpm", "crates", "crates-io"]).unwrap();
+        ensure_workspace_directory(workspace.path(), &CRATES_SOURCE_DIRECTORY).unwrap();
     let source_path = workspace.path().join(".pnpm/crates/crates-io");
     let pinned_path = workspace.path().join(".pnpm/crates/crates-io-pinned");
     fs::rename(&source_path, &pinned_path).unwrap();
@@ -554,8 +564,12 @@ fn crate_link_does_not_overwrite_a_nonempty_stale_backup() {
     fs::create_dir(&stale_backup).unwrap();
     fs::write(stale_backup.join("keep"), "unchanged").unwrap();
 
-    link_workspace(workspace.path(), &[("example-1.0.0".to_string(), slot.path().to_path_buf())])
-        .unwrap();
+    link_workspace(
+        workspace.path(),
+        &CRATES_SOURCE_DIRECTORY,
+        &[("example-1.0.0".to_string(), slot.path().to_path_buf())],
+    )
+    .unwrap();
 
     assert_eq!(fs::read_to_string(stale_backup.join("keep")).unwrap(), "unchanged");
     assert_eq!(
