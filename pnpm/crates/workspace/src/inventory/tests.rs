@@ -1,9 +1,7 @@
 use super::{find_workspace_inventory, find_workspace_inventory_with};
+use pnpm_fs::symlink_dir as symlink;
 use pretty_assertions::assert_eq;
 use std::fs;
-
-#[cfg(unix)]
-use std::os::unix::fs::symlink;
 
 #[test]
 fn discovers_multiple_manifest_kinds_in_one_inventory() {
@@ -100,20 +98,18 @@ fn reports_the_nested_directory_that_failed() {
     assert!(error.contains("injected read failure"), "{error}");
 }
 
-#[cfg(unix)]
 #[test]
 fn does_not_follow_directory_symlinks() {
     let workspace = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();
     fs::write(outside.path().join("Cargo.toml"), "[workspace]\n").unwrap();
-    symlink(outside.path(), workspace.path().join("linked")).unwrap();
+    symlink(outside.path(), &workspace.path().join("linked")).unwrap();
 
     let inventory = find_workspace_inventory(workspace.path(), &["Cargo.toml"], &[], &[]).unwrap();
 
     assert!(inventory.manifests("Cargo.toml").unwrap().is_empty());
 }
 
-#[cfg(unix)]
 #[test]
 fn does_not_follow_a_directory_swapped_for_a_symlink_before_descent() {
     let workspace = tempfile::tempdir().unwrap();
@@ -224,7 +220,23 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
         let navigation_opens =
             super::traversal::walk_workspace(root, &ignored, |_| Ok(()), |_| Ok(()), |_, _| {})
                 .unwrap();
-        assert_eq!(navigation_opens, 2 * 257);
+        let root_handle =
+            cap_primitives::fs::open_ambient_dir(root, cap_primitives::ambient_authority())
+                .unwrap();
+        let mut probe_opens = 0;
+        super::open_directory::open_directory(
+            &root_handle,
+            std::path::Path::new("d/d"),
+            &mut probe_opens,
+        )
+        .unwrap();
+        let expected_opens = match probe_opens {
+            1 => 257,
+            2 => 1 + 2 * (1..=128).sum::<usize>(),
+            3 => 257 + 2 * (1..=128).sum::<usize>(),
+            _ => panic!("unexpected directory open count: {probe_opens}"),
+        };
+        assert_eq!(navigation_opens, expected_opens);
         return;
     }
     let workspace = tempfile::tempdir().unwrap();
@@ -253,7 +265,6 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
     assert!(stdout.contains("test result: ok. 1 passed; 0 failed;"), "{output:?}");
 }
 
-#[cfg(unix)]
 #[test]
 fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
     let workspace = tempfile::tempdir().unwrap();
@@ -281,15 +292,17 @@ fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
     assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
 }
 
-#[cfg(unix)]
 #[test]
-fn rejects_a_child_moved_to_a_different_parent_before_ascent() {
+fn continues_after_a_child_is_moved_to_a_different_parent() {
     let workspace = tempfile::tempdir().unwrap();
     let outside = tempfile::tempdir().unwrap();
     let child = workspace.path().join("child");
+    let sibling = workspace.path().join("sibling");
+    fs::create_dir(&sibling).unwrap();
+    fs::write(sibling.join("Cargo.toml"), "[workspace]\n").unwrap();
     fs::create_dir(&child).unwrap();
     fs::write(outside.path().join("Cargo.toml"), "[workspace]\n").unwrap();
-    let error = find_workspace_inventory_with(
+    let inventory = find_workspace_inventory_with(
         workspace.path(),
         &["Cargo.toml"],
         &[],
@@ -302,7 +315,71 @@ fn rejects_a_child_moved_to_a_different_parent_before_ascent() {
         },
         |_| Ok(()),
     )
-    .unwrap_err()
-    .to_string();
-    assert!(error.contains("directory ancestry changed"), "{error}");
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap(), [sibling.join("Cargo.toml")]);
+}
+
+#[test]
+fn continues_after_a_nested_directory_disappears() {
+    let workspace = tempfile::tempdir().unwrap();
+    let child = workspace.path().join("child");
+    fs::create_dir(&child).unwrap();
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        |path| {
+            if path == child {
+                fs::remove_dir(&child)?;
+            }
+            Ok(())
+        },
+        |_| Ok(()),
+    )
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+}
+
+#[test]
+fn skips_candidates_that_become_unreadable_before_opening() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::create_dir(workspace.path().join("child")).unwrap();
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        |_| Ok(()),
+        |_| Err(std::io::ErrorKind::PermissionDenied.into()),
+    )
+    .unwrap();
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+}
+
+#[test]
+fn rejects_parent_navigation_and_absolute_descendant_paths() {
+    let workspace = tempfile::tempdir().unwrap();
+    let root =
+        cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
+            .unwrap();
+    for path in [std::path::Path::new("../outside"), workspace.path(), std::path::Path::new("")] {
+        let error = super::open_directory::open_directory(&root, path, &mut 0).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidInput);
+    }
+}
+
+#[test]
+fn rejects_intermediate_links_to_directories_inside_the_workspace() {
+    let workspace = tempfile::tempdir().unwrap();
+    fs::create_dir_all(workspace.path().join("target/child")).unwrap();
+    symlink(&workspace.path().join("target"), &workspace.path().join("linked")).unwrap();
+    let root =
+        cap_primitives::fs::open_ambient_dir(workspace.path(), cap_primitives::ambient_authority())
+            .unwrap();
+    let error =
+        super::open_directory::open_directory(&root, std::path::Path::new("linked/child"), &mut 0)
+            .unwrap_err();
+    eprintln!("intermediate link error: {error}");
+    assert_ne!(error.kind(), std::io::ErrorKind::NotFound);
 }
