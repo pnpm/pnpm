@@ -67,7 +67,6 @@ pub fn parse_query(query_string: &str) -> Option<String> {
     fallback.or_else(|| browse_requested(query_string).then(String::new))
 }
 
-/// Whether the caller requests hosted packages without contacting upstreams.
 #[must_use]
 pub fn browse_requested(query_string: &str) -> bool {
     query_string.split('&').any(|pair| pair == "browse=true")

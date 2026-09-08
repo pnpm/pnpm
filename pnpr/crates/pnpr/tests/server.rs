@@ -4257,12 +4257,10 @@ async fn private_hosted_registry_denies_writes_from_non_members() {
 async fn search_does_not_enumerate_a_private_flat_root_registry() {
     for url in ["/-/v1/search?text=secret", "/-/v1/search?browse=true"] {
         let tmp = TempDir::new().unwrap();
-        // The flat root (`org: ""`) stores directly under `storage`.
         seed_hosted(tmp.path(), "@corp/secret-tool");
 
         let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-        // Replace the default public flat-root registry (`local`) with a private one;
-        // any surviving `$all` flat-root entry would defeat the gate under test.
+        // A surviving public flat-root registry would defeat this access check.
         config.hosted.clear();
         config.hosted.insert("corp".to_string(), hosted_with_access("", "alice"));
         config.registries = Registries::new(

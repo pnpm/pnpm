@@ -127,8 +127,10 @@ async fn registration_cap_is_strict_under_concurrency() {
     }
     let mut created = 0;
     for handle in handles {
-        if matches!(handle.await.unwrap(), Ok((UpsertOutcome::Created, _))) {
-            created += 1;
+        match handle.await.unwrap() {
+            Ok((UpsertOutcome::Created, _)) => created += 1,
+            Err(RegistryError::TooManyUsers { max: 1 }) => {}
+            other => panic!("unexpected concurrent registration result: {other:?}"),
         }
     }
     assert_eq!(created, 1, "exactly one registration may win the cap of 1");

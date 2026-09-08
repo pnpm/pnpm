@@ -57,6 +57,7 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    registration_lock: tokio::sync::Mutex<()>,
     /// Deadline for each request-path auth read.
     timeout: Duration,
 }
@@ -115,6 +116,7 @@ impl LibsqlAuth {
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
+            registration_lock: tokio::sync::Mutex::new(()),
             timeout: DEFAULT_AUTH_TIMEOUT,
         })
     }
@@ -195,6 +197,7 @@ impl UserBackend for LibsqlAuth {
             };
         }
 
+        let _registration_guard = self.registration_lock.lock().await;
         let mut can_retry_after_reconcile = true;
         loop {
             let tx = self.conn.transaction().await?;
