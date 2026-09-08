@@ -1649,6 +1649,10 @@
   dir: pnpm/npm/napi
   intents:
     - slow-fetch-warnings
+"@pnpm/napi@12.4.0":
+  dir: pnpm/npm/napi
+  intents:
+    - atomic-napi-config-cache
 "@pnpm/network.auth-header@1101.1.4":
   dir: pnpm11/network/auth-header
   intents:
@@ -3760,6 +3764,63 @@ pacquet@12.3.4:
   intents:
     - hashed-wanted-keys
     - unsafe-perm-flag
+pacquet@12.4.0:
+  dir: pnpm/npm/pnpm
+  intents:
+    - add-android-builds
+    - add-freebsd-ppc64-s390x-builds
+    - add-linux-riscv64-build
+    - add-workspace-flag
+    - allow-build-negation-support
+    - audit-summary-net-of-ignored
+    - boolean-flags-take-a-value
+    - cargo-custom-registry
+    - cargo-lock-install
+    - cargo-resolution-through-pnpr
+    - change-check-command
+    - curly-shells-resolve
+    - deploy-ignores-the-deployed-pnpmfile
+    - deploy-project-index
+    - engine-install-pins-isolated-linker
+    - engine-no-native-binary-host
+    - env-lockfile-write-matches-main-document
+    - extraction-permit-lifetime
+    - fetch-timeout-measures-inactivity
+    - fix-workspace-path-normalization
+    - frozen-local-overrides
+    - gvs-concurrent-import-not-found
+    - ignore-unreadable-ca-certificates
+    - import-lockfile-directory
+    - install-package-offline-flags
+    - install-symlinked-file-dependencies
+    - jsr-scope-routing-in-verification
+    - local-prefix-resolution
+    - npmrc-registry-beats-auth-file
+    - outdated-recursive-dependents-column-wraps
+    - package-configs-apply-per-project
+    - pacquet-pack-json-output
+    - partial-upper-bound-ranges
+    - patch-commit-deleted-file-paths
+    - patched-install-scripts-need-approval
+    - path-aware-registry-cache-key
+    - pipeline-cargo-state
+    - pipeline-command-poc
+    - pipeline-input-hashing
+    - pn-completion-alias
+    - protocol-prefixed-add-selectors
+    - python-ecosystem-integration
+    - python-resolution-through-pnpr
+    - quiet-patches-crlf
+    - record-the-pin-in-one-place
+    - record-the-pin-when-switching-is-off
+    - retry-locked-bin-files
+    - shell-emulator-literal-arguments
+    - trust-policy-exclude-prune
+    - verify-deps-separate-lockfiles
+    - version-message-short-flag
+    - warm-restore-bin-links
+    - windows-native-path-separators
+    - yarn-releases-github-token
 pnpm@11.13.0:
   dir: pnpm11/pnpm
   intents:
