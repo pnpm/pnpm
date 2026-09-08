@@ -499,23 +499,53 @@ pub(crate) async fn handle_resolve(
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
 /// `done` frame. A private proxied tarball is announced through its
 /// upstream's `/~<name>/` registry endpoint rather than its upstream URL.
+/// The request-level refusals a resolve is held to before any fetch.
+fn reject_unusable_resolve(request: &ResolveRequest, context: &RouteContext) -> Option<Response> {
+    reject_invalid_registries(request)
+        .or_else(|| reject_invalid_patch_hashes(request))
+        .or_else(|| reject_inline_url_auth(request))
+        .or_else(|| reject_off_allowlist_fetches(request, context))
+}
+
+/// Verify the *input* lockfile under the client's policy before any package is
+/// streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
+///
+/// The client skips its own `verifyLockfileResolutions` whenever a pnpr server
+/// is configured, so this is the only place the committed/reused entries get
+/// checked. A true first install sends no lockfile — nothing to verify.
+/// `trustLockfile` is the client's opt-out (mirrors the local path's
+/// `--trust-lockfile`). Freshly-resolved entries are held to the same policy by
+/// the resolver's pick-time gate (the policy is wired into `config`).
+async fn verify_request_lockfile(
+    runtime: &Resolver,
+    config: &'static PacquetConfig,
+    request: &ResolveRequest,
+    request_auth: &Arc<AuthHeaders>,
+    tarball_router: &TarballRouter,
+) -> Result<Option<ObservedDistStats>, Response> {
+    if request.trust_lockfile {
+        return Ok(None);
+    }
+    let Some(input_lockfile) = request.lockfile.as_ref() else {
+        return Ok(None);
+    };
+    let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
+    match verify_input_lockfile(runtime, config, request_auth, &input_lockfile).await {
+        Ok(stats) => Ok(stats),
+        Err(VerifyFailure::Internal(response)) => Err(response),
+        Err(VerifyFailure::Violations(violations)) => {
+            Err(ndjson_single_frame(&violations_frame(&violations)))
+        }
+    }
+}
+
 async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8]) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
 
-    if let Some(response) = reject_invalid_registries(&request) {
-        return response;
-    }
-    if let Some(response) = reject_invalid_patch_hashes(&request) {
-        return response;
-    }
-    if let Some(response) = reject_inline_url_auth(&request) {
-        return response;
-    }
-
-    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
+    if let Some(response) = reject_unusable_resolve(&request, &runtime.route_context) {
         return response;
     }
 
@@ -548,19 +578,13 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     // opt-out (mirrors the local path's `--trust-lockfile`). Freshly-
     // resolved entries are held to the same policy by the resolver's
     // pick-time gate (the policy is wired into `config`).
-    let mut verified_dist_stats = None;
-    if !request.trust_lockfile
-        && let Some(input_lockfile) = request.lockfile.as_ref()
-    {
-        let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
-        match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
-            Ok(stats) => verified_dist_stats = stats,
-            Err(VerifyFailure::Internal(response)) => return response,
-            Err(VerifyFailure::Violations(violations)) => {
-                return ndjson_single_frame(&violations_frame(&violations));
-            }
-        }
-    }
+    let verified_dist_stats =
+        match verify_request_lockfile(runtime, config, &request, &request_auth, &tarball_router)
+            .await
+        {
+            Ok(stats) => stats,
+            Err(response) => return response,
+        };
 
     // Short-circuit paths that produce the whole lockfile without an
     // incremental tree walk. A verified frozen lockfile still announces
@@ -569,38 +593,19 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
     // largest downloads first. On a verdict-cache hit no metadata was
     // fetched, so there's nothing to add and the response is the bare
     // `done` frame.
-    if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
-        let lockfile = tarball_router.verification_lockfile(&lockfile);
-        let lockfile = tarball_router.route_lockfile(config, &lockfile);
-        if let Some(osv_index) = runtime.osv_index.as_ref() {
-            let violations = osv_violations_for_lockfile(osv_index, &lockfile);
-            if !violations.is_empty() {
-                return ndjson_single_frame(&violations_frame(&violations));
-            }
-        }
-        let mut frames = verified_dist_stats
-            .map(|sizes| frozen_package_frames(config, &tarball_router, &lockfile, &sizes))
-            .unwrap_or_default();
-        frames.push(done_frame(&lockfile));
-        return ndjson_frames(&frames);
+    if let Some(response) =
+        frozen_lockfile_response(runtime, config, &request, &tarball_router, verified_dist_stats)
+    {
+        return response;
     }
     // The base key is auth-excluded and shared by every candidate for the
     // same resolution inputs. Candidate footprints decide which callers
     // may reuse a stored lockfile.
     let resolution_cache_key = resolution_cache_key(config, &request);
-    if let Some(key) = resolution_cache_key.as_ref()
-        && let Some(lockfile) = cached_resolution(
-            &runtime.resolution_cache,
-            runtime.resolution_cache_ttl,
-            key,
-            &runtime.route_context,
-            &identity,
-        )
+    if let Some(response) =
+        cached_resolution_response(runtime, &identity, resolution_cache_key.as_ref())
     {
-        // The OSV index is immutable for this resolver instance and a lockfile
-        // is only stored after passing the OSV check, so a cache hit is already
-        // OSV-clean — no per-package re-scan needed on this warm path.
-        return ndjson_single_frame(&done_frame(&lockfile));
+        return response;
     }
 
     // Streaming resolve. Run it in a detached task that pushes one
@@ -613,52 +618,167 @@ async fn handle_npm_resolve(runtime: &Resolver, identity: Identity, body: &[u8])
         package_version_guard: package_version_guard.clone(),
         tarball_router: tarball_router.clone(),
     });
-    let client = Arc::clone(&runtime.client);
-    let cache = Arc::clone(&runtime.resolution_cache);
-    let cache_ttl = runtime.resolution_cache_ttl;
-    let final_osv_index = runtime.osv_index.clone();
-    let footprint_for_store = Arc::clone(&footprint);
-    let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
-    tokio::spawn(async move {
-        match Box::pin(resolve::resolve(config, &client, &request, &request_auth, Some(observer)))
-            .await
-        {
-            Ok(lockfile) => {
-                let lockfile = tarball_router.route_lockfile(config, &lockfile);
-                if let Some(osv_index) = final_osv_index.as_ref() {
-                    let violations = osv_violations_for_lockfile(osv_index, &lockfile);
-                    if !violations.is_empty() {
-                        let _ = tx.send(violations_frame(&violations));
-                        return;
-                    }
-                }
-                if let Some(key) = resolution_cache_key {
-                    let footprint = footprint_for_store.lock().expect("footprint poisoned").clone();
-                    let descriptor = footprint.digest(&cache_secret);
-                    let cached = store_resolution(
-                        &cache,
-                        cache_ttl,
-                        key,
-                        footprint.clone(),
-                        &cache_secret,
-                        &lockfile,
-                    );
-                    if !footprint.is_public() {
-                        tracing::debug!(
-                            cached,
-                            descriptor = descriptor.as_deref().unwrap_or("none"),
-                            "private resolution cache candidate evaluated",
-                        );
-                    }
-                }
-                let _ = tx.send(done_frame(&lockfile));
-            }
-            Err(err) => {
-                let _ = tx.send(error_frame(&err.to_string()));
-            }
-        }
-    });
+    tokio::spawn(stream_resolution(StreamedResolve {
+        config,
+        client: Arc::clone(&runtime.client),
+        request,
+        request_auth,
+        observer,
+        tarball_router,
+        osv_index: runtime.osv_index.clone(),
+        cache: Arc::clone(&runtime.resolution_cache),
+        cache_ttl: runtime.resolution_cache_ttl,
+        cache_key: resolution_cache_key,
+        cache_secret: Arc::clone(&runtime.resolution_cache_secret),
+        footprint,
+        tx,
+    }));
     ndjson_stream_response(rx)
+}
+
+/// Everything the detached resolve task carries away from the request.
+struct StreamedResolve {
+    config: &'static PacquetConfig,
+    client: Arc<ThrottledClient>,
+    request: ResolveRequest,
+    request_auth: Arc<AuthHeaders>,
+    observer: Arc<dyn pnpm_package_manager::ResolutionObserver>,
+    tarball_router: TarballRouter,
+    osv_index: Option<Arc<OsvIndex>>,
+    cache: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
+    cache_ttl: Duration,
+    cache_key: Option<String>,
+    cache_secret: Arc<[u8]>,
+    footprint: Arc<Mutex<Footprint>>,
+    tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+}
+
+/// Resolve, then send the terminal `done` / `error` frame. The `package`
+/// frames reach the channel from the observer as each tarball resolves.
+async fn stream_resolution(task: StreamedResolve) {
+    let StreamedResolve { config, tarball_router, tx, .. } = &task;
+    let resolved = Box::pin(resolve::resolve(
+        task.config,
+        &task.client,
+        &task.request,
+        &task.request_auth,
+        Some(Arc::clone(&task.observer)),
+    ))
+    .await;
+    let lockfile = match resolved {
+        Ok(lockfile) => tarball_router.route_lockfile(config, &lockfile),
+        Err(err) => {
+            let _ = tx.send(error_frame(&err.to_string()));
+            return;
+        }
+    };
+    if let Some(violations) = task.osv_violations(&lockfile) {
+        let _ = tx.send(violations);
+        return;
+    }
+    if let Some(key) = task.cache_key.clone() {
+        store_resolution_candidate(StoreCandidate {
+            cache: &task.cache,
+            cache_ttl: task.cache_ttl,
+            key,
+            footprint: &task.footprint,
+            cache_secret: &task.cache_secret,
+            lockfile: &lockfile,
+        });
+    }
+    let _ = tx.send(done_frame(&lockfile));
+}
+
+impl StreamedResolve {
+    /// The violations frame a resolved lockfile earns, if the OSV index
+    /// refuses any of its packages.
+    fn osv_violations(&self, lockfile: &Lockfile) -> Option<Vec<u8>> {
+        let osv_index = self.osv_index.as_ref()?;
+        let violations = osv_violations_for_lockfile(osv_index, lockfile);
+        (!violations.is_empty()).then(|| violations_frame(&violations))
+    }
+}
+
+/// A verified frozen lockfile is the whole answer: no incremental tree walk
+/// runs. Its tarballs are still announced as `package` frames when the
+/// verification fan-out just fetched their metadata — the sizes let the client
+/// start the largest downloads first. On a verdict-cache hit no metadata was
+/// fetched, so there is nothing to add and the response is the bare `done`
+/// frame.
+fn frozen_lockfile_response(
+    runtime: &Resolver,
+    config: &'static PacquetConfig,
+    request: &ResolveRequest,
+    tarball_router: &TarballRouter,
+    verified_dist_stats: Option<ObservedDistStats>,
+) -> Option<Response> {
+    let lockfile = resolve::fresh_frozen_input_lockfile(config, request)?;
+    let lockfile = tarball_router.verification_lockfile(&lockfile);
+    let lockfile = tarball_router.route_lockfile(config, &lockfile);
+    if let Some(osv_index) = runtime.osv_index.as_ref() {
+        let violations = osv_violations_for_lockfile(osv_index, &lockfile);
+        if !violations.is_empty() {
+            return Some(ndjson_single_frame(&violations_frame(&violations)));
+        }
+    }
+    let mut frames = verified_dist_stats
+        .map(|sizes| frozen_package_frames(config, tarball_router, &lockfile, &sizes))
+        .unwrap_or_default();
+    frames.push(done_frame(&lockfile));
+    Some(ndjson_frames(&frames))
+}
+
+/// A stored lockfile this caller may reuse.
+///
+/// The OSV index is immutable for this resolver instance and a lockfile is only
+/// stored after passing the OSV check, so a cache hit is already OSV-clean — no
+/// per-package re-scan is needed on this warm path.
+fn cached_resolution_response(
+    runtime: &Resolver,
+    identity: &Identity,
+    key: Option<&String>,
+) -> Option<Response> {
+    let lockfile = cached_resolution(
+        &runtime.resolution_cache,
+        runtime.resolution_cache_ttl,
+        key?,
+        &runtime.route_context,
+        identity,
+    )?;
+    Some(ndjson_single_frame(&done_frame(&lockfile)))
+}
+
+/// What a finished resolution offers the resolution cache.
+struct StoreCandidate<'a> {
+    cache: &'a Mutex<HashMap<String, Vec<CachedResolution>>>,
+    cache_ttl: Duration,
+    key: String,
+    footprint: &'a Mutex<Footprint>,
+    cache_secret: &'a [u8],
+    lockfile: &'a Lockfile,
+}
+
+/// Offer a finished resolution to the cache, logging what a private one was
+/// judged on.
+fn store_resolution_candidate(candidate: StoreCandidate<'_>) {
+    let footprint = candidate.footprint.lock().expect("footprint poisoned").clone();
+    let descriptor = footprint.digest(candidate.cache_secret);
+    let cached = store_resolution(
+        candidate.cache,
+        candidate.cache_ttl,
+        candidate.key,
+        footprint.clone(),
+        candidate.cache_secret,
+        candidate.lockfile,
+    );
+    if footprint.is_public() {
+        return;
+    }
+    tracing::debug!(
+        cached,
+        descriptor = descriptor.as_deref().unwrap_or("none"),
+        "private resolution cache candidate evaluated",
+    );
 }
 
 /// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
