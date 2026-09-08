@@ -35,6 +35,10 @@ pub(crate) const GIT_SOURCE_NAME: &str = "pnpm-git";
 const DEPENDENCY_KINDS: [&str; 3] = ["dependencies", "dev-dependencies", "build-dependencies"];
 /// Directories `cargo` never reads a package's sources from.
 const EXCLUDED_DIRECTORIES: [&str; 2] = [".git", "target"];
+/// The transports a git dependency is fetched over. `git` runs whatever a
+/// scheme outside this set names — `ext::` hands the URL to a shell — and
+/// a lockfile is not a place to take a command from.
+const SUPPORTED_SCHEMES: [&str; 5] = ["file", "git", "http", "https", "ssh"];
 
 /// A git repository at one revision, as `Cargo.lock` spells it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,6 +84,13 @@ impl GitSource {
             Some(GitReference::Rev(rev)) => Some(("rev", rev.clone())),
             Some(GitReference::DefaultBranch) | None => None,
         };
+        if !SUPPORTED_SCHEMES.contains(&source.url().scheme()) {
+            let repository = redact_and_sanitize(&url);
+            let scheme = source.url().scheme();
+            return Err(miette::miette!(
+                "Cargo source {repository} asks for the {scheme} transport, which pnpm does not fetch a git dependency over",
+            ));
+        }
         let Some(commit) = source.precise() else {
             let source = redact_and_sanitize(&source.to_string());
             return Err(miette::miette!("Cargo source {source} pins no commit"));
@@ -312,17 +323,30 @@ impl Checkout {
     /// A package's name is never inherited, so only the manifests already
     /// naming this crate are resolved against their workspace.
     fn find(&self, name: &str, version: &str) -> Result<Option<CheckoutPackage>> {
+        // A repository may hold another crate of the same name that it
+        // cannot describe on its own — a fixture, or a member of a
+        // workspace the checkout does not reach. Only the one the
+        // lockfile asks for has to be readable, so a candidate that is
+        // not it takes its error out of the way.
+        let mut unreadable = None;
         for dir in self.directories_by_crate.get(name).map(Vec::as_slice).unwrap_or_default() {
             let manifest = &self.manifests[dir];
             let workspace = workspace_manifest(dir, &manifest.document, &self.manifests);
-            let package = vendored_package(manifest, workspace)
-                .wrap_err_with(|| format!("read {}", dir.join("Cargo.toml").display()))?;
+            let package = match vendored_package(manifest, workspace)
+                .wrap_err_with(|| format!("read {}", dir.join("Cargo.toml").display()))
+            {
+                Ok(package) => package,
+                Err(error) => {
+                    unreadable.get_or_insert(error);
+                    continue;
+                }
+            };
             if package.version != version {
                 continue;
             }
             return Ok(Some(CheckoutPackage { dir: dir.clone(), manifest: package.manifest }));
         }
-        Ok(None)
+        unreadable.map_or(Ok(None), Err)
     }
 
     /// Every directory in the checkout that `cargo` reads a package from.

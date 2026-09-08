@@ -170,6 +170,17 @@ fn a_default_branch_source_names_no_reference() {
 }
 
 #[test]
+fn a_source_that_names_a_transport_pnpm_does_not_fetch_over_is_refused() {
+    let error = GitSource::from_source_id(&source_id(
+        "git+ext::sh#1ae976a0023b4dec80b1a5411ccee8343f91320e",
+    ))
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("does not fetch a git dependency over"), "{error}");
+}
+
+#[test]
 fn a_source_without_a_locked_commit_is_refused() {
     let error = GitSource::from_source_id(&source_id("git+https://example.test/repo?branch=next"))
         .unwrap_err()
@@ -355,7 +366,30 @@ fn a_symlinked_file_is_vendored_as_its_contents_unless_it_leaves_the_checkout() 
     assert!(!slot.join("escaped").exists());
 }
 
-#[cfg(unix)]
+#[test]
+fn a_crate_is_found_past_a_manifest_that_shares_its_name_and_reads_no_version() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let (repository, commit) = commit_repository(
+        temp_dir.path(),
+        &[
+            // Sorts before `wanted`, so the scan reaches it first.
+            ("fixture/Cargo.toml", "[package]\nname = \"demo\"\nversion.workspace = true\n"),
+            ("wanted/Cargo.toml", "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n"),
+            ("wanted/src/lib.rs", "pub fn demo() {}\n"),
+        ],
+    );
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    store_dir.init().unwrap();
+
+    let linked = vendor_from(&repository, &commit, &store_dir, &[("demo", "1.0.0")]);
+
+    let (_, slot) = linked.first().expect("the crate is vendored");
+    assert!(slot.join("src/lib.rs").is_file());
+}
+
+// APFS answers `EILSEQ` for a name that is not UTF-8, so macOS cannot
+// hold the file this branch is about.
+#[cfg(all(unix, not(target_os = "macos")))]
 #[test]
 fn a_file_whose_name_is_not_utf8_is_refused() {
     use std::{ffi::OsStr, os::unix::ffi::OsStrExt as _};
