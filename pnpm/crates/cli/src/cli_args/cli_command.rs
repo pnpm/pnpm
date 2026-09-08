@@ -88,7 +88,7 @@ use pipe_trait::Pipe;
 use pnpm_default_reporter::SummaryScope;
 use std::path::PathBuf;
 
-/// Package manager for Node.js written in rust.
+/// Package manager for Node.js written in Rust.
 #[derive(Debug, Parser)]
 #[clap(name = "pnpm")]
 #[clap(bin_name = "pnpm")]
