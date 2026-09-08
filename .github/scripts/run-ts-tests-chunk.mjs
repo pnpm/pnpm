@@ -443,9 +443,9 @@ function normalizePath (file) {
 }
 
 function parseArgs (args) {
-  let chunk
-  let chunks
-  let script
+  let chunk = Number(process.env.TEST_CHUNK)
+  let chunks = Number(process.env.TEST_CHUNK_TOTAL)
+  let script = process.env.TEST_SCRIPT
   let summary = 'pnpm-exec-summary.json'
   let dryRun = false
 

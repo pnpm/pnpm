@@ -66,6 +66,7 @@ jobs:
     - name: Install pnpm and Node
       uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
       with:
+        install: false
         runtime: node@${{ inputs.node }}
     - name: Verify Node version
       shell: bash
@@ -179,15 +180,10 @@ jobs:
         TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       run: |
         benchmark="$BENCHMARK"
-        command=(pn run "$TEST_SCRIPT")
+        command=(pn pipeline "$TEST_SCRIPT" --include-workspace-root --full --no-cache)
         if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
           benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
-          command=(
-            node .github/scripts/run-ts-tests-chunk.mjs
-            --script "$TEST_SCRIPT"
-            --chunk "$TEST_CHUNK"
-            --chunks "$TEST_CHUNK_TOTAL"
-          )
+          command=(pn pipeline ts-test-chunk --include-workspace-root --full --no-cache)
         fi
         node .github/scripts/measure-command.mjs \
           --name "$benchmark" \

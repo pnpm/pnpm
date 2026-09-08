@@ -153,9 +153,6 @@ jobs:
         with:
           tool: just
 
-      - name: Install dependencies
-        run: just install
-
       - name: Install cargo-nextest
         uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
         with:
@@ -177,7 +174,7 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pacquet-tests-all.json \
-            -- just test-pacquet
+            -- pnpm pipeline rust-test --include-workspace-root --full --no-cache
 
       - name: Test N-API boundary
         if: runner.os == 'Linux'
@@ -198,7 +195,7 @@ jobs:
           node .github/scripts/measure-command.mjs \
             --name tests.all \
             --output .bench/pnpr-tests-all.json \
-            -- just test-pnpr
+            -- pnpm pipeline pnpr-test --include-workspace-root --full --no-cache
 
       - name: Stage Bencher test durations
         env:
@@ -263,8 +260,13 @@ jobs:
         with:
           clippy: true
 
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Clippy
-        run: cargo clippy --locked --workspace --all-targets -- -D warnings
+        run: pnpm pipeline rust-clippy --include-workspace-root --full --no-cache
 
   doc:
     name: Rust CI / Doc
@@ -281,10 +283,15 @@ jobs:
         with:
           docs: true
 
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Doc
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: cargo doc --no-deps --workspace --document-private-items
+        run: pnpm pipeline rust-doc --include-workspace-root --full --no-cache
 
   npm-wrapper:
     name: Rust CI / npm Wrapper / ${{ matrix.os_label }}
@@ -379,6 +386,12 @@ jobs:
               - 'Cargo.lock'
               - 'deny.toml'
 
+      - name: Install pnpm
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Install cargo-deny
         if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
         uses: taiki-e/install-action@fa23953489c080190314742a9b907f8e97c6767c # v2.87.10
@@ -386,7 +399,7 @@ jobs:
           tool: cargo-deny
 
       - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
-        run: cargo deny check
+        run: pnpm pipeline rust-deny --include-workspace-root --full --no-cache
 
   format:
     name: Rust CI / Format
@@ -404,14 +417,18 @@ jobs:
           fmt: true
           restore-cache: false
 
-      - run: cargo fmt --all -- --check
-
       - name: Install Taplo CLI
         uses: $/.github/actions/binstall
         with:
           packages: taplo-cli@0.8.1
 
-      - run: taplo format --check
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
+      - name: Check Rust and TOML formatting
+        run: pnpm pipeline rust-format --include-workspace-root --full --no-cache
 
   dylint:
     name: Rust CI / Dylint
@@ -492,6 +509,11 @@ jobs:
           # a library built by a newer one.
           packages: cargo-dylint@6.0.4 dylint-link@6.0.4
 
+      - name: Install pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+
       - name: Run dylint
         # `-D warnings` must come in via `RUSTFLAGS`, not as a trailing
         # `-- -D warnings` after `cargo dylint`'s `--`: `cargo dylint`
@@ -500,7 +522,7 @@ jobs:
         # how KSXGitHub/parallel-disk-usage invokes the same lint.
         env:
           RUSTFLAGS: '-D warnings'
-        run: cargo dylint --all -- --all-targets --workspace
+        run: pnpm pipeline rust-dylint --include-workspace-root --full --no-cache
 
   # Single aggregate gate — the only Rust CI context branch protection
   # needs to require. Listing the individual jobs as required checks does

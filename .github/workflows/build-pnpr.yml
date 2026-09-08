@@ -51,11 +51,16 @@ jobs:
       with:
         save-cache: ${{ github.ref_name == 'main' }}
         shared-key: registry-prepare
+    - name: Install pnpm
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+      with:
+        install: false
     - name: Build the pnpr server and registry fixture preparer
       if: steps.pnpr-bins.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare
+        pnpm pipeline build-pnpr --include-workspace-root --full --no-cache
         mkdir -p .pnpr-bin
         ext=""
         [ -f target/release/pnpr.exe ] && ext=".exe"
