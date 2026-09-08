@@ -1,16 +1,19 @@
 use super::{
-    CheckoutPackage, GitPackage, GitSource, Manifest, VendorSourceOptions, import_package,
-    vendor_source, vendored_package,
+    GitPackage, GitSource, Manifest, VendorSourceOptions, vendor_source, vendored_package,
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
-    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
+
+#[cfg(all(unix, not(target_os = "macos")))]
+use super::{CheckoutPackage, import_package};
+#[cfg(all(unix, not(target_os = "macos")))]
+use std::collections::BTreeSet;
 
 fn manifest(text: &str) -> Manifest {
     Manifest { text: text.to_string(), document: toml::from_str(text).expect("parse manifest") }

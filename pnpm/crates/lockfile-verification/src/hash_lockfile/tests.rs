@@ -30,8 +30,38 @@ importers:
         version: 4.17.21
 ";
 
+const NESTED_LOCKFILE_YAML: &str = "lockfileVersion: '9.0'
+ignoredOptionalDependencies:
+  - zebra
+  - alpha
+metadata:
+  z: null
+  a:
+    - z: 'café'
+      a: { z: true, a: 42 }
+    - [ { z: false, a: -7 }, 3.5, '雪' ]
+";
+
 fn parse(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse fixture lockfile")
+}
+
+#[test]
+fn hash_matches_verification_cache_digests() {
+    for (yaml, expected) in [
+        (LOCKFILE_YAML, "c8991e89c9a1098fa78aeb75d8bc7f4c6e5d2781258875e4f9436e03913351ea"),
+        (NESTED_LOCKFILE_YAML, "48e073ddc4599b78202df75cd29b986928e7823a2535c6e9d4f001f44e546361"),
+    ] {
+        assert_eq!(hash_lockfile(&parse(yaml)), expected);
+    }
+}
+
+#[test]
+fn array_order_affects_hash() {
+    let original = parse(NESTED_LOCKFILE_YAML);
+    let reordered =
+        parse(&NESTED_LOCKFILE_YAML.replace("  - zebra\n  - alpha", "  - alpha\n  - zebra"));
+    assert_ne!(hash_lockfile(&original), hash_lockfile(&reordered));
 }
 
 #[test]
