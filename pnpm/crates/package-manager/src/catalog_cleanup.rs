@@ -123,12 +123,12 @@ fn derive_workspace_dir(
 /// lockfile written by the just-finished install no longer records.
 ///
 /// The pass may only drop an entry it can prove nothing resolves, so it
-/// needs a lockfile covering every project `minimumReleaseAgeExclude`
-/// governs — only a shared one does. Under dedicated per-project
-/// lockfiles (`sharedWorkspaceLockfile: false` with no `lockfileDir`
-/// pinning them back together) every entry a sibling project needs would
-/// look unresolved, so the pass no-ops. It also no-ops when the setting
-/// is off, when lockfile persistence is disabled (`lockfile: false` — the
+/// needs a lockfile covering every project the exclude lists govern —
+/// only a shared one does. Under dedicated per-project lockfiles
+/// (`sharedWorkspaceLockfile: false` with no `lockfileDir` pinning them
+/// back together) every entry a sibling project needs would look
+/// unresolved, so the pass no-ops. It also no-ops when the settings are
+/// off, when lockfile persistence is disabled (`lockfile: false` — the
 /// on-disk lockfile would be stale), and when no lockfile exists,
 /// mirroring the `all_projects` guard of the catalog cleanup.
 pub(crate) fn post_install_prune(
