@@ -481,7 +481,7 @@ async fn asks_cargo_for_the_workspace_root_of_a_member() {
         discover_workspace_roots(&[member.join("Cargo.toml"), cargo_root.join("Cargo.toml")])
             .await
             .unwrap(),
-        [cargo_root],
+        [dunce::canonicalize(cargo_root).unwrap()],
     );
 }
 
@@ -513,7 +513,10 @@ async fn discovers_independent_workspaces_nested_under_workspace_members() {
         ])
         .await
         .unwrap(),
-        [root.to_path_buf(), root.join("member/nested")],
+        [
+            dunce::canonicalize(root).unwrap(),
+            dunce::canonicalize(root.join("member/nested")).unwrap()
+        ],
     );
 }
 

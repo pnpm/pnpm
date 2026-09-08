@@ -215,6 +215,16 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
             find_workspace_inventory(std::path::Path::new(&root), &["Cargo.toml"], &[], &[])
                 .unwrap();
         assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 129);
+        let root = std::path::Path::new(&root);
+        let ignored = super::IgnoredDirectories {
+            root,
+            basenames: std::collections::BTreeSet::default(),
+            paths: std::collections::BTreeSet::default(),
+        };
+        let navigation_opens =
+            super::traversal::walk_workspace(root, &ignored, |_| Ok(()), |_| Ok(()), |_, _| {})
+                .unwrap();
+        assert_eq!(navigation_opens, 2 * 257);
         return;
     }
     let workspace = tempfile::tempdir().unwrap();
@@ -230,15 +240,17 @@ fn discovers_deep_trees_with_a_small_handle_limit() {
     let output = std::process::Command::new("sh")
         .args(["-c", r#"ulimit -n 64; exec "$@""#, "sh"])
         .arg(std::env::current_exe().unwrap())
-        .args([
-            "--exact",
-            "inventory::tests::discovers_deep_trees_with_a_small_handle_limit",
-            "--nocapture",
-        ])
+        .args(["--exact", "--nocapture"])
+        .arg(format!(
+            "{}::discovers_deep_trees_with_a_small_handle_limit",
+            module_path!().split_once("::").unwrap().1,
+        ))
         .env(ROOT_ENV, workspace.path())
         .output()
         .unwrap();
     assert!(output.status.success(), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("test result: ok. 1 passed; 0 failed;"), "{output:?}");
 }
 
 #[cfg(unix)]
@@ -267,4 +279,30 @@ fn does_not_follow_an_ancestor_swapped_before_a_queued_child_is_opened() {
     )
     .unwrap();
     assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_a_child_moved_to_a_different_parent_before_ascent() {
+    let workspace = tempfile::tempdir().unwrap();
+    let outside = tempfile::tempdir().unwrap();
+    let child = workspace.path().join("child");
+    fs::create_dir(&child).unwrap();
+    fs::write(outside.path().join("Cargo.toml"), "[workspace]\n").unwrap();
+    let error = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        |path| {
+            if path == child {
+                fs::rename(&child, outside.path().join("moved"))?;
+            }
+            Ok(())
+        },
+        |_| Ok(()),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("directory ancestry changed"), "{error}");
 }
