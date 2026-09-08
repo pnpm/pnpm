@@ -12,6 +12,12 @@
 //! `pnpm setup` or an install: a shim shadows whatever the user's `PATH`
 //! resolved before it, so it is added only when asked for.
 
+pub(crate) use policy::record_package_manager_shims;
+
+mod policy;
+
+use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
+
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
@@ -455,11 +461,6 @@ fn virtual_shim_state_path(bin_dir: &Path, package: &str) -> PathBuf {
     let file_name = format!("{VIRTUAL_SHIM_STATE_PREFIX}{}.json", create_short_hash(package));
     bin_dir.join(file_name)
 }
-
-mod policy;
-
-pub(crate) use policy::record_package_manager_shims;
-use policy::{global_config_dir, set_policy, shims_disabled_globally, would_dispatch};
 
 #[cfg(test)]
 mod tests;

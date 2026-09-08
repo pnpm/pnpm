@@ -4,6 +4,8 @@
 //! scripted-response type aliases, and the helper constructors the three
 //! scenario modules — non-interactive, web-login, and classic-login — build on.
 
+pub(crate) use crate::login_fake;
+
 use std::{
     io,
     path::{Path, PathBuf},
@@ -36,6 +38,7 @@ pub(crate) type ReadScript = Box<dyn FnMut(&Path) -> io::Result<String>>;
 /// so they execute on a blocking-pool thread where thread-local state would be
 /// invisible. Each test's expansion has its own `static`, so tests stay
 /// isolated. `config.yaml` I/O runs on the test thread and stays `thread_local!`.
+#[macro_export]
 macro_rules! login_fake {
     ($fake:ident $(, $helper:ident)* $(,)?) => {
         static PROMPT_INPUT: Mutex<Option<PromptScript>> = Mutex::new(None);
@@ -114,8 +117,6 @@ macro_rules! login_fake {
         ));
     };
 }
-
-pub(crate) use login_fake;
 
 /// A throwaway HTTP client. Requests that reach it target the test's `mockito`
 /// server (or, for the pre-network guards, are never sent at all).

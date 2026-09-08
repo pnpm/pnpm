@@ -1,3 +1,6 @@
+pub mod package_configs;
+pub mod registries;
+
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, InitType, LinkWorkspacePackages,
     NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode, RuntimeOnFail,
@@ -2611,9 +2614,6 @@ pub fn workspace_root_or(start: &Path) -> PathBuf {
         .and_then(|path| path.parent().map(Path::to_path_buf))
         .unwrap_or_else(|| start.to_path_buf())
 }
-
-pub mod package_configs;
-pub mod registries;
 
 #[cfg(test)]
 mod tests;

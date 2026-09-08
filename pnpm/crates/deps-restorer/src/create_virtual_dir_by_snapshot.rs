@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub mod tests;
+
 use crate::{
     DirCloneCache, ImportIndexedDirError, ImportIndexedDirOpts, NEEDS_BUILD_MARKER,
     SkippedSnapshots, SymlinkPackageError, VirtualStoreLayout, create_symlink_layout,
@@ -375,6 +378,3 @@ fn remove_obsolete_child(
     }
     Ok(())
 }
-
-#[cfg(test)]
-pub mod tests;
