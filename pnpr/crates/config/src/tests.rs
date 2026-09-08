@@ -2837,3 +2837,27 @@ fn ecosystem_groups_reject_ambiguous_or_cross_ecosystem_configuration() {
         assert!(result.is_err(), "must reject ambiguous or cross-ecosystem config: {yaml}");
     }
 }
+
+#[test]
+fn ecosystem_default_requires_a_router_source_for_that_ecosystem() {
+    for (sources, valid) in [("npm", false), ("npm, crates", true)] {
+        let yaml = format!(
+            "registries:\n  npm: {{type: hosted, org: npm}}\n  crates: {{type: hosted, ecosystem: cargo, org: crates}}\n  main: {{type: router, sources: [{sources}]}}\ndefaultRegistry:\n  cargo: main\n",
+        );
+        let result = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None);
+        if valid {
+            let config = result.unwrap();
+            assert_eq!(
+                config.registries.resolve_default(Ecosystem::Cargo, "demo"),
+                pnpr_registry::Resolved::Concrete {
+                    registry: "crates",
+                    kind: pnpr_registry::ConcreteKind::Hosted,
+                },
+            );
+        } else {
+            let error = result.expect_err("a Cargo default must have a Cargo source");
+            assert!(error.to_string().contains("cargo"), "{error}");
+            assert!(error.to_string().contains("main"), "{error}");
+        }
+    }
+}

@@ -555,6 +555,12 @@ impl Registries {
                     target: target.clone(),
                 });
             }
+            if self.sources(target, *ecosystem).is_empty() {
+                return Err(RegistryConfigError::DefaultRegistryWithoutEcosystem {
+                    target: target.clone(),
+                    ecosystem: *ecosystem,
+                });
+            }
         }
         for (name, ecosystem) in &self.ecosystems {
             match self.entries.get(name) {
@@ -739,6 +745,8 @@ pub enum RegistryConfigError {
     NamespacePatternNotANamespace { pattern: String },
     /// `defaultRegistry` names a registry that does not exist.
     UndefinedDefaultRegistry { target: String },
+    /// An ecosystem-specific default has no concrete source serving its protocol.
+    DefaultRegistryWithoutEcosystem { target: String, ecosystem: Ecosystem },
     /// A router has no sources at all, so it can never serve any package.
     EmptyRouter { router: String },
     /// A router lists itself as a source.
@@ -809,6 +817,10 @@ impl fmt::Display for RegistryConfigError {
             RegistryConfigError::UndefinedDefaultRegistry { target } => {
                 write!(f, "defaultRegistry {target:?} is not a defined registry")
             }
+            RegistryConfigError::DefaultRegistryWithoutEcosystem { target, ecosystem } => write!(
+                f,
+                "defaultRegistry for {ecosystem} targets {target:?}, which has no source serving {ecosystem}",
+            ),
             RegistryConfigError::EmptyRouter { router } => write!(
                 f,
                 "router {router:?} has no sources, so it can never serve any package; add \
