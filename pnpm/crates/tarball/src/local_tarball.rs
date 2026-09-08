@@ -312,11 +312,11 @@ fn read_bundled_manifest_streaming(
 /// `package.json` shipped in a subdirectory.
 ///
 /// Answered by [`clean_archive_entry_path`] rather than by a rule of its
-/// own, so this resolve-time read and the extraction that follows it
-/// cannot disagree about which entry is the manifest. They did once, and
-/// a `file:` archive whose manifest sits at the archive root installed
-/// under the consumer's alias at version `0.0.0` while its extracted
-/// `package.json` said otherwise.
+/// own, because this resolve-time read and the extraction that follows it
+/// must name the same entry. A `file:` archive whose manifest they
+/// disagree about is recorded under the alias its consumer gave it at
+/// version `0.0.0`, while the `package.json` extracted beside it names
+/// something else.
 fn is_root_manifest_entry_path(path: &Path) -> bool {
     clean_archive_entry_path(&path.to_string_lossy()).is_ok_and(|cleaned| cleaned == "package.json")
 }

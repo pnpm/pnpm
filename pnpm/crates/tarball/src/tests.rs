@@ -5925,8 +5925,9 @@ fn tar_with_root_level_entries() -> Vec<u8> {
 
 /// An entry at the archive root has no top-level directory on it to
 /// strip, so it is keyed by its own name — what pnpm does, and what
-/// keeps the shared `index.db` describing one file layout. Rejecting it
-/// failed the whole install for an archive npm and pnpm both accept.
+/// keeps the shared `index.db` describing one file layout. Rejecting
+/// such an entry fails the whole archive, which npm and pnpm both
+/// install.
 #[test]
 fn extract_keys_a_root_level_entry_by_its_own_name() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -5966,10 +5967,10 @@ fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
 }
 
 /// A flat archive keys its `package.json` at the package root, so the
-/// resolve-time metadata read has to recognize it as the manifest.
-/// Extraction and resolution disagreeing here is what named a `file:`
-/// dependency after the consumer's alias at version `0.0.0` while the
-/// `package.json` beside it said otherwise.
+/// resolve-time metadata read has to recognize it as the manifest. When
+/// it and extraction disagree, a `file:` dependency is named after the
+/// consumer's alias at version `0.0.0` while the `package.json` beside
+/// it names something else.
 #[tokio::test]
 async fn read_local_tarball_metadata_reads_a_manifest_at_the_archive_root() {
     let local_dir = tempdir().unwrap();

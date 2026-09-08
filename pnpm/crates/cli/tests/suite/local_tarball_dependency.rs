@@ -128,11 +128,11 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     drop((root, mock_instance));
 }
 
-/// An entry at the archive root has no top-level directory to strip, and
-/// rejecting it used to fail the whole install with
-/// `ERR_PNPM_TARBALL_IO_ERROR` after exhausting the network retries.
-/// pnpm 11 installs the same archive, so pnpm 12 does too, keying the
-/// entry by its own name.
+/// An entry at the archive root has no top-level directory to strip, so
+/// it is keyed by its own name. pnpm 11 installs such an archive, and
+/// rejecting it here instead fails the whole install with
+/// `ERR_PNPM_TARBALL_IO_ERROR`, only after exhausting the network
+/// retries.
 ///
 /// Covers <https://github.com/pnpm/pnpm/issues/14701>.
 #[test]
