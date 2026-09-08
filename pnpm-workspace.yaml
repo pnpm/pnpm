@@ -1,4 +1,7 @@
-# Glob patterns for package directories to include as workspace members.
+# Workspace package directories. Supports explicit paths, glob patterns, and
+# negated patterns (`!`). Matching directories need a project manifest
+# (`package.json`, `package.json5`, or `package.yaml`). The workspace root is
+# always included.
 packages:
   - .meta-updater
   - pnpm11/__typecheck__
