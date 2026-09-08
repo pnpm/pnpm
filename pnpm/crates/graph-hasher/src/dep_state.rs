@@ -239,6 +239,7 @@ where
     parents_by_child
 }
 
+#[must_use]
 pub fn build_required_dep_paths<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     built_dep_paths: &HashSet<Key>,

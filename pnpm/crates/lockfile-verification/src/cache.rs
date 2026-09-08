@@ -370,39 +370,46 @@ fn maybe_compact_cache(cache_dir: &Path) {
     }
     let Ok(contents) = fs::read_to_string(&cache_file_path) else { return };
 
-    let lines: Vec<&str> = contents.lines().filter(|line| !line.is_empty()).collect();
+    let kept = newest_records(&contents);
+    let start = kept.len().saturating_sub(MAX_CACHE_ENTRIES);
+    let mut new_contents = String::with_capacity(size as usize);
+    for line in &kept[start..] {
+        new_contents.push_str(line);
+        new_contents.push('\n');
+    }
+    replace_cache_file(&cache_file_path, &new_contents);
+}
+
+/// The cache's records with every superseded and unreadable one dropped, in
+/// their original order. The newest record for a lockfile wins, so the file is
+/// read back to front and the survivors reversed.
+fn newest_records(contents: &str) -> Vec<&str> {
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut reversed: Vec<String> = Vec::new();
-    for line in lines.iter().rev() {
-        let parsed: CacheRecord = match serde_json::from_str(line) {
-            Ok(value) => value,
-            Err(_) => continue,
+    let mut newest: Vec<&str> = Vec::new();
+    for line in contents.lines().filter(|line| !line.is_empty()).rev() {
+        let Ok(parsed) = serde_json::from_str::<CacheRecord>(line) else {
+            continue;
         };
         if parsed.lockfile.hash.is_empty() || parsed.lockfile.path.is_empty() {
             continue;
         }
-        let tuple_key = format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash);
-        if !seen.insert(tuple_key) {
+        if !seen.insert(format!("{}\x00{}", parsed.lockfile.path, parsed.lockfile.hash)) {
             continue;
         }
-        reversed.push((*line).to_string());
+        newest.push(line);
     }
-    reversed.reverse();
-    let start = reversed.len().saturating_sub(MAX_CACHE_ENTRIES);
-    let kept = &reversed[start..];
+    newest.reverse();
+    newest
+}
 
-    // Write to a sibling tempfile + rename so a concurrent install
-    // can't observe a half-written file.
-    let temp_path = compact_temp_path(&cache_file_path);
-    let mut new_contents = String::with_capacity(size as usize);
-    for line in kept {
-        new_contents.push_str(line);
-        new_contents.push('\n');
-    }
-    if fs::write(&temp_path, new_contents.as_bytes()).is_err() {
+/// Write to a sibling tempfile and rename, so a concurrent install cannot
+/// observe a half-written file.
+fn replace_cache_file(cache_file_path: &Path, contents: &str) {
+    let temp_path = compact_temp_path(cache_file_path);
+    if fs::write(&temp_path, contents.as_bytes()).is_err() {
         return;
     }
-    if fs::rename(&temp_path, &cache_file_path).is_err() {
+    if fs::rename(&temp_path, cache_file_path).is_err() {
         let _ = fs::remove_file(&temp_path);
     }
 }
