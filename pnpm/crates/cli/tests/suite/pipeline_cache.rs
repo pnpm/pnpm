@@ -5,7 +5,7 @@ use std::{fs, process::Command};
 #[test]
 fn configured_environment_changes_invalidate_task_outputs() {
     let project = tempfile::tempdir().unwrap();
-    assert!(Command::new("git").arg("init").arg(project.path()).output().unwrap().status.success());
+    pnpm_testing_utils::git_repo::init_isolated_repo(project.path());
     fs::create_dir(project.path().join("src")).unwrap();
     fs::write(project.path().join("src/input"), "source").unwrap();
     fs::write(project.path().join(".gitignore"), "out/\nnode_modules/\nhook-count\n").unwrap();
@@ -310,7 +310,7 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
 fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     use std::os::unix::fs::symlink;
 
-    assert!(Command::new("git").arg("init").arg(project).output().unwrap().status.success());
+    pnpm_testing_utils::git_repo::init_isolated_repo(project);
     fs::write(project.join("AGENTS.md"), "shared text").unwrap();
     fs::write(project.join("NOTES.md"), "shared text").unwrap();
     symlink("AGENTS.md", project.join("CLAUDE.md")).unwrap();
@@ -329,6 +329,18 @@ fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
     )
     .unwrap();
     Command::new("git").current_dir(project).args(["add", "-A"]).assert().success();
+    let tracked = Command::new("git")
+        .current_dir(project)
+        .args(["ls-files", "--cached"])
+        .output()
+        .unwrap()
+        .stdout;
+    let tracked = String::from_utf8(tracked).unwrap();
+    assert!(
+        tracked.lines().any(|path| path == "CLAUDE.md"),
+        "the link the task reads must be a tracked input, or nothing below tests what it \
+         claims to; git reported:\n{tracked}",
+    );
 }
 
 #[cfg(unix)]

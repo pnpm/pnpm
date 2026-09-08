@@ -45,10 +45,7 @@ impl GitRepoFixture {
         git(&work, &["init", "-q", "-b", "main"]);
         git(&work, &["config", "user.email", "test@example.invalid"]);
         git(&work, &["config", "user.name", "Test"]);
-        // Neutralise a user-global `gpgsign = true`, which would
-        // otherwise demand a real signing key for every commit and tag.
-        git(&work, &["config", "commit.gpgsign", "false"]);
-        git(&work, &["config", "tag.gpgsign", "false"]);
+        detach_from_global_config(&work);
         git(&work, &["remote", "add", "origin", &bare.to_string_lossy()]);
 
         Self { work, bare }
@@ -129,6 +126,38 @@ impl GitRepoFixture {
     pub fn git_url_at(&self, committish: &str) -> String {
         format!("git+{}#{committish}", self.file_url())
     }
+}
+
+/// `git init` a repository at `path` that the contributor's own global
+/// git configuration cannot reach, for a test that needs a repo without
+/// the work tree and bare clone [`GitRepoFixture`] pairs up.
+pub fn init_isolated_repo(path: &Path) {
+    fs::create_dir_all(path).expect("create git repo directory");
+    git(path, &["init", "-q"]);
+    git(path, &["config", "user.email", "test@example.invalid"]);
+    git(path, &["config", "user.name", "Test"]);
+    detach_from_global_config(path);
+}
+
+/// Override, in `repo`'s local configuration, the user-global settings
+/// that would otherwise decide what the repo does.
+///
+/// `git ls-files --exclude-standard` consults the user-global excludes
+/// file, and pnpm builds a task's cache inputs from that listing. A
+/// contributor who ignores one of a fixture's file names globally would
+/// otherwise watch the file drop out of the hashed inputs, and the test
+/// asserting that editing it invalidates the task would fail on their
+/// machine alone. Local configuration also covers the `git` that pnpm
+/// itself spawns inside the repo, not just the fixture's own calls.
+fn detach_from_global_config(repo: &Path) {
+    // A path that does not exist, which git reads as an empty ignore
+    // list. `/dev/null` would not work on Windows.
+    let absent_excludes = repo.join(".git/info/absent-global-excludes");
+    git(repo, &["config", "core.excludesFile", &absent_excludes.to_string_lossy()]);
+    // Neutralise a user-global `gpgsign = true`, which would
+    // otherwise demand a real signing key for every commit and tag.
+    git(repo, &["config", "commit.gpgsign", "false"]);
+    git(repo, &["config", "tag.gpgsign", "false"]);
 }
 
 /// Run `git` with `args` in `cwd` and return its stdout.
