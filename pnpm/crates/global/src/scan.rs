@@ -148,7 +148,8 @@ where
     for (alias, _) in &info.dependencies {
         let dep_dir = modules_dir.join(alias);
         let manifest_path = dep_dir.join("package.json");
-        let bytes = Sys::read_file(&manifest_path).map_err(PackageManifestError::Io)?;
+        let bytes = Sys::read_file(&manifest_path)
+            .map_err(|source| PackageManifestError::Read { path: manifest_path.clone(), source })?;
         let manifest = parse_manifest_bytes(&bytes)
             .map_err(|source| PackageManifestError::Parse { path: manifest_path, source })?;
         for command in get_bins_from_package_manifest::<Sys>(&manifest, &dep_dir) {

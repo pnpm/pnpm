@@ -169,9 +169,12 @@ fn installed_bin_names_preserves_permission_denied_manifest_reads() {
     let error = get_installed_bin_names_with_fs::<PermissionDeniedManifestRead>(&info)
         .expect_err("permission denied must fail ownership enumeration");
 
-    assert!(
-        matches!(error, PackageManifestError::Io(error) if error.kind() == io::ErrorKind::PermissionDenied),
-    );
+    assert!(matches!(
+        &error,
+        PackageManifestError::Read { path, source }
+            if path == &info.install_dir.join("node_modules/unreadable/package.json")
+                && source.kind() == io::ErrorKind::PermissionDenied
+    ));
 }
 
 #[cfg(unix)]

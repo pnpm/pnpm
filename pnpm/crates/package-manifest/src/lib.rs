@@ -35,6 +35,15 @@ pub enum PackageManifestError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
     Io(std::io::Error), // TODO: remove derive(From), split this variant
 
+    #[from(ignore)] // TODO: remove this after derive(From) has been removed
+    #[display("Failed to read {}: {source}", path.display())]
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANIFEST_IO_ERROR))]
+    Read {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
     #[display("package.json file already exists")]
     #[diagnostic(
         code(ERR_PNPM_PACKAGE_JSON_EXISTS),
