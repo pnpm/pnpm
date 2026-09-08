@@ -85,21 +85,9 @@ impl OciPublication {
         self.manifest.referrer_metadata().subject
     }
 
-    pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
-        let storage = state.inner.storage.for_hosted(&self.org);
-        let snapshot = storage
-            .read_hosted_document(&self.key)
-            .await?
-            .map(|bytes| ImageDocument::parse(&bytes))
-            .transpose()
-            .map_err(RegistryError::from)?
-            .unwrap_or_default();
-        if snapshot.deleting_blob.is_some() {
-            return Err(RegistryError::DocumentWriteConflict {
-                package: self.key.as_str().to_string(),
-            }
-            .into());
-        }
+    /// Every blob the manifest references must already be in this repository,
+    /// at the size the manifest declares.
+    async fn check_referenced_blobs(&self, storage: &pnpr_storage::Storage) -> Result<(), Refusal> {
         let mut looked_up = HashSet::new();
         for descriptor in self.manifest.references() {
             if !looked_up.insert(descriptor.digest.clone()) {
@@ -113,7 +101,9 @@ impl OciPublication {
                     ),
                 ));
             }
-            match storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await? {
+            let stored =
+                storage.open_hosted_blob(&self.key, &descriptor.digest.blob_filename()).await?;
+            match stored {
                 Some((_, Some(size))) if size != descriptor.size => {
                     return Err(Refusal::new(
                         ErrorCode::ManifestInvalid,
@@ -132,6 +122,25 @@ impl OciPublication {
                 }
             }
         }
+        Ok(())
+    }
+
+    pub(in crate::server) async fn stage(self, state: &AppState) -> Result<StagedPublish, Refusal> {
+        let storage = state.inner.storage.for_hosted(&self.org);
+        let snapshot = storage
+            .read_hosted_document(&self.key)
+            .await?
+            .map(|bytes| ImageDocument::parse(&bytes))
+            .transpose()
+            .map_err(RegistryError::from)?
+            .unwrap_or_default();
+        if snapshot.deleting_blob.is_some() {
+            return Err(RegistryError::DocumentWriteConflict {
+                package: self.key.as_str().to_string(),
+            }
+            .into());
+        }
+        self.check_referenced_blobs(&storage).await?;
         let mut addition = ImageDocument::new(self.key.as_str());
         addition.generation = snapshot.generation;
         addition.insert_manifest(ManifestEntry {
@@ -153,19 +162,7 @@ impl OciPublication {
             Vec::new()
         };
         let refuse = |stored: &ImageDocument| {
-            if stored.generation != snapshot.generation || stored.deleting_blob.is_some() {
-                return Err(RegistryError::DocumentWriteConflict {
-                    package: self.key.as_str().to_string(),
-                });
-            }
-            for child in &children {
-                if stored.manifest(child).is_none() {
-                    return Err(RegistryError::BadRequest {
-                        reason: format!("{child} is not a manifest in this repository"),
-                    });
-                }
-            }
-            Ok(())
+            refuse_moved_document(stored, snapshot.generation, self.key.as_str(), &children)
         };
         stage_hosted_artifact(
             state,
@@ -179,4 +176,25 @@ impl OciPublication {
         .await
         .map_err(Into::into)
     }
+}
+
+/// A staged manifest only lands on the document it was built against, with
+/// every child manifest it names still present.
+fn refuse_moved_document(
+    stored: &ImageDocument,
+    generation: u64,
+    package: &str,
+    children: &[Digest],
+) -> Result<(), RegistryError> {
+    if stored.generation != generation || stored.deleting_blob.is_some() {
+        return Err(RegistryError::DocumentWriteConflict { package: package.to_string() });
+    }
+    for child in children {
+        if stored.manifest(child).is_none() {
+            return Err(RegistryError::BadRequest {
+                reason: format!("{child} is not a manifest in this repository"),
+            });
+        }
+    }
+    Ok(())
 }

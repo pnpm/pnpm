@@ -132,6 +132,142 @@ pub(super) async fn issue(
     }
 }
 
+/// The scope request a token issue carries.
+struct GrantQuery<'a> {
+    uri: &'a axum::http::Uri,
+    /// Whether the parent token is read-only, which caps every scope at pull.
+    readonly: bool,
+}
+
+/// The repository scopes this caller is granted out of the ones the query asks
+/// for. A scope naming a repository the caller cannot even read is dropped,
+/// not refused: the registry protocol answers an unauthorized pull with an
+/// empty grant.
+fn granted_scopes(
+    state: &AppState,
+    identity: &Identity,
+    target: &str,
+    query: GrantQuery<'_>,
+) -> Result<BTreeMap<String, Vec<String>>, RegistryError> {
+    let mut scopes = BTreeMap::new();
+    let pairs = url::form_urlencoded::parse(query.uri.query().unwrap_or_default().as_bytes());
+    for (key, value) in pairs {
+        if key == "service" && value != "pnpr" {
+            return Err(RegistryError::BadRequest {
+                reason: "invalid OCI token service".to_string(),
+            });
+        }
+        if key != "scope" {
+            continue;
+        }
+        for scope in value.split_whitespace() {
+            grant_one_scope(
+                state,
+                identity,
+                target,
+                GrantOne { scope, readonly: query.readonly, scopes: &mut scopes },
+            )?;
+        }
+    }
+    Ok(scopes)
+}
+
+/// One `repository:<name>:<actions>` scope of the query.
+struct GrantOne<'a> {
+    scope: &'a str,
+    readonly: bool,
+    scopes: &'a mut BTreeMap<String, Vec<String>>,
+}
+
+fn grant_one_scope(
+    state: &AppState,
+    identity: &Identity,
+    target: &str,
+    grant: GrantOne<'_>,
+) -> Result<(), RegistryError> {
+    let invalid = || RegistryError::BadRequest { reason: "invalid OCI token scope".to_string() };
+    let Some((resource, remainder)) = grant.scope.split_once(':') else {
+        return Err(invalid());
+    };
+    let Some((name, actions)) = remainder.rsplit_once(':') else {
+        return Err(invalid());
+    };
+    if resource != "repository" && resource != "repository(plugin)" {
+        return Ok(());
+    }
+    let Ok(name) =
+        pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Oci)
+    else {
+        return Ok(());
+    };
+    if grant.scopes.len() >= 32 && !grant.scopes.contains_key(name.as_str()) {
+        return Err(RegistryError::BadRequest { reason: "too many OCI token scopes".to_string() });
+    }
+    let source =
+        resolve_ecosystem_source(state, target, pnpr_registry::Ecosystem::Oci, name.as_str());
+    let allowed: &mut Vec<String> = grant.scopes.entry(name.as_str().to_string()).or_default();
+    extend_granted_actions(
+        state,
+        identity,
+        &source,
+        GrantActions { name: name.as_str(), actions, readonly: grant.readonly, allowed },
+    );
+    Ok(())
+}
+
+/// The actions of one scope, and what the caller has been granted so far.
+struct GrantActions<'a> {
+    name: &'a str,
+    actions: &'a str,
+    readonly: bool,
+    allowed: &'a mut Vec<String>,
+}
+
+fn extend_granted_actions(
+    state: &AppState,
+    identity: &Identity,
+    source: &crate::server::RegistrySource,
+    grant: GrantActions<'_>,
+) {
+    for action in grant.actions.split(',') {
+        if grant.allowed.iter().any(|held| held == action) {
+            continue;
+        }
+        let granted = GrantAction { name: grant.name, action, readonly: grant.readonly };
+        if grant_action(state, identity, source, granted) {
+            grant.allowed.push(action.to_string());
+        }
+    }
+}
+
+/// One action of one scope.
+struct GrantAction<'a> {
+    name: &'a str,
+    action: &'a str,
+    readonly: bool,
+}
+
+/// Whether the caller may perform `action` on the repository. Reading it is
+/// required for every action, so an unreadable repository grants nothing.
+fn grant_action(
+    state: &AppState,
+    identity: &Identity,
+    source: &crate::server::RegistrySource,
+    grant: GrantAction<'_>,
+) -> bool {
+    let operation = match grant.action {
+        "pull" => Action::Access,
+        "push" => Action::Publish,
+        "delete" => Action::Unpublish,
+        _ => return false,
+    };
+    if grant.action != "pull" && grant.readonly {
+        return false;
+    }
+    authorize(state, identity, source, grant.name, Action::Access).is_ok()
+        && authorize(state, identity, source, grant.name, operation).is_ok()
+}
+
 async fn issue_token(
     state: &AppState,
     identity: &Identity,
@@ -156,66 +292,8 @@ async fn issue_token(
         Some(parent) => state.inner.auth.tokens.find_by_key(parent).await?,
         None => None,
     };
-    let mut scopes = BTreeMap::new();
-    for (key, value) in url::form_urlencoded::parse(uri.query().unwrap_or_default().as_bytes()) {
-        if key == "service" && value != "pnpr" {
-            return Err(RegistryError::BadRequest {
-                reason: "invalid OCI token service".to_string(),
-            });
-        }
-        if key != "scope" {
-            continue;
-        }
-        for scope in value.split_whitespace() {
-            let Some((resource, remainder)) = scope.split_once(':') else {
-                return Err(RegistryError::BadRequest {
-                    reason: "invalid OCI token scope".to_string(),
-                });
-            };
-            let Some((name, actions)) = remainder.rsplit_once(':') else {
-                return Err(RegistryError::BadRequest {
-                    reason: "invalid OCI token scope".to_string(),
-                });
-            };
-            if resource != "repository" && resource != "repository(plugin)" {
-                continue;
-            }
-            let Ok(name) =
-                pnpr_package_name::CanonicalPackageName::parse(name, pnpr_registry::Ecosystem::Oci)
-            else {
-                continue;
-            };
-            if scopes.len() >= 32 && !scopes.contains_key(name.as_str()) {
-                return Err(RegistryError::BadRequest {
-                    reason: "too many OCI token scopes".to_string(),
-                });
-            }
-            let source = resolve_ecosystem_source(
-                state,
-                &target,
-                pnpr_registry::Ecosystem::Oci,
-                name.as_str(),
-            );
-            let allowed: &mut Vec<String> = scopes.entry(name.as_str().to_string()).or_default();
-            for action in actions.split(',') {
-                let operation = match action {
-                    "pull" => Action::Access,
-                    "push" => Action::Publish,
-                    "delete" => Action::Unpublish,
-                    _ => continue,
-                };
-                if action != "pull" && record.as_ref().is_some_and(|record| record.readonly) {
-                    continue;
-                }
-                if authorize(state, identity, &source, name.as_str(), Action::Access).is_ok()
-                    && authorize(state, identity, &source, name.as_str(), operation).is_ok()
-                    && !allowed.iter().any(|held| held == action)
-                {
-                    allowed.push(action.to_string());
-                }
-            }
-        }
-    }
+    let readonly = record.is_some_and(|record| record.readonly);
+    let scopes = granted_scopes(state, identity, &target, GrantQuery { uri, readonly })?;
     let audience = pnpr_search::percent_decode(
         uri.path().strip_suffix("/v2/token").ok_or(RegistryError::NotFound)?,
     );
