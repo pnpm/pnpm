@@ -1356,6 +1356,128 @@ fn virtual_store_entries(deploy_dir: &Path) -> Vec<String> {
         .collect()
 }
 
+/// `copy_project` copies the deployed project's packlist, a `.pnpmfile.mjs`
+/// among it, so the deploy directory ends up holding a pnpmfile of its own.
+#[test]
+fn shared_lockfile_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    let project_dir = workspace.join("packages/app");
+    write_recording_pnpmfile(&project_dir);
+    pack_pnpmfile_with_project(&project_dir);
+
+    pacquet.with_arg("install").assert().success();
+
+    pacquet_cmd(&workspace).with_args(["--filter", "app", "deploy", "deploy"]).assert().success();
+
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join(".pnpmfile.mjs").exists(),
+        "the deployed packlist should have carried the project's pnpmfile over",
+    );
+    assert!(
+        !deploy_dir.join(PNPMFILE_SENTINEL).exists(),
+        "the deploy install must not load the pnpmfile it just copied",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Parity with pnpm 11, which hands the deploy install the hooks it
+/// loaded for the source workspace.
+#[test]
+fn shared_lockfile_deploy_runs_the_source_workspace_pnpmfile() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    write_recording_pnpmfile(&workspace);
+
+    pacquet.with_arg("install").assert().success();
+    fs::remove_file(workspace.join(PNPMFILE_SENTINEL)).expect("the install ran the pnpmfile");
+
+    pacquet_cmd(&workspace).with_args(["--filter", "app", "deploy", "deploy"]).assert().success();
+
+    assert!(
+        workspace.join(PNPMFILE_SENTINEL).exists(),
+        "the deploy install should run the source workspace's pnpmfile",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Without a shared lockfile the deploy takes the legacy path, where the
+/// pnpmfile an install of the selected project loads is the project's own.
+#[test]
+fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, true);
+    append_workspace_yaml_key(&workspace, "sharedWorkspaceLockfile", false);
+    let project_dir = workspace.join("packages/app");
+    write_recording_pnpmfile(&project_dir);
+    pack_pnpmfile_with_project(&project_dir);
+
+    pacquet.with_arg("install").assert().success();
+    fs::remove_file(project_dir.join(PNPMFILE_SENTINEL)).expect("the install ran the pnpmfile");
+
+    pacquet_cmd(&workspace).with_args(["--filter", "app", "deploy", "deploy"]).assert().success();
+
+    assert!(
+        project_dir.join(PNPMFILE_SENTINEL).exists(),
+        "the legacy deploy install should run the selected project's pnpmfile",
+    );
+    let deploy_dir = workspace.join("deploy");
+    assert!(
+        deploy_dir.join(".pnpmfile.mjs").exists(),
+        "the deployed packlist should have carried the project's pnpmfile over",
+    );
+    assert!(
+        !deploy_dir.join(PNPMFILE_SENTINEL).exists(),
+        "the legacy deploy install must not load the pnpmfile it just copied",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Written next to whichever copy of [`write_recording_pnpmfile`]'s
+/// pnpmfile an install loads, so a test can tell the copies apart.
+const PNPMFILE_SENTINEL: &str = "pnpmfile-ran.txt";
+
+/// Ship the project's `.pnpmfile.mjs` in its packlist, so a default deploy
+/// copies it into the deploy directory.
+fn pack_pnpmfile_with_project(project_dir: &Path) {
+    let manifest_path = project_dir.join("package.json");
+    let mut manifest: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+    manifest["files"]
+        .as_array_mut()
+        .expect("a project packlist")
+        .push(serde_json::Value::from(".pnpmfile.mjs"));
+    fs::write(&manifest_path, manifest.to_string()).unwrap();
+}
+
+fn write_recording_pnpmfile(dir: &Path) {
+    fs::write(
+        dir.join(".pnpmfile.mjs"),
+        format!(
+            "import {{ writeFileSync }} from 'node:fs'
+
+export const hooks = {{
+  readPackage (pkg) {{
+    writeFileSync(new URL('./{PNPMFILE_SENTINEL}', import.meta.url), 'ran')
+    return pkg
+  }},
+}}
+",
+        ),
+    )
+    .unwrap();
+}
+
 fn write_workspace(workspace: &Path, inject_workspace_packages: bool) {
     let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
     workspace_yaml.push_str("packages:\n  - 'packages/*'\n");
