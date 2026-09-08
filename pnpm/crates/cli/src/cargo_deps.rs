@@ -95,6 +95,12 @@ struct CargoChecksum<'a> {
 #[derive(Deserialize)]
 struct CargoWorkspaceMetadata {
     workspace_root: PathBuf,
+    packages: Vec<CargoWorkspacePackage>,
+}
+
+#[derive(Deserialize)]
+struct CargoWorkspacePackage {
+    manifest_path: PathBuf,
 }
 
 struct ManagedDirectory {
@@ -325,19 +331,36 @@ async fn download_crates<Reporter: self::Reporter + 'static>(
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
+    workspace_metadata(manifest_path).await.map(|metadata| metadata.workspace_root)
+}
+
+async fn workspace_metadata(manifest_path: &Path) -> Result<CargoWorkspaceMetadata> {
     let metadata = read_cargo_metadata_for_manifest(manifest_path).await?;
     serde_json::from_str::<CargoWorkspaceMetadata>(&metadata)
         .into_diagnostic()
         .wrap_err("read Cargo workspace root from metadata")
-        .map(|metadata| metadata.workspace_root)
 }
 
 async fn discover_workspace_roots(manifests: &[PathBuf]) -> Result<Vec<PathBuf>> {
-    let roots = stream::iter(manifests.iter().cloned())
-        .map(|manifest| async move { workspace_root(&manifest).await })
-        .buffer_unordered(8)
-        .try_collect::<BTreeSet<_>>()
-        .await?;
+    let mut pending = manifests.iter().cloned().collect::<BTreeSet<_>>();
+    let mut roots = BTreeSet::new();
+    while !pending.is_empty() {
+        let concurrency = if roots.is_empty() { 1 } else { WORKSPACE_INSTALL_CONCURRENCY };
+        let batch =
+            std::iter::from_fn(|| pending.pop_first()).take(concurrency).collect::<Vec<_>>();
+        let metadata = stream::iter(batch)
+            .map(|manifest| async move { workspace_metadata(&manifest).await })
+            .buffer_unordered(concurrency)
+            .try_collect::<Vec<_>>()
+            .await?;
+        for workspace in metadata {
+            pending.remove(&workspace.workspace_root.join("Cargo.toml"));
+            for package in workspace.packages {
+                pending.remove(&package.manifest_path);
+            }
+            roots.insert(workspace.workspace_root);
+        }
+    }
     Ok(roots.into_iter().collect())
 }
 
