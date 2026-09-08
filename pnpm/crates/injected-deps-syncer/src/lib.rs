@@ -177,6 +177,34 @@ struct SyncBinLinks<'a> {
     hoisted_bin_dir: Option<&'a Path>,
 }
 
+/// Where one injected target's dropped bins have to be cleared from.
+struct RemoveStaleBins<'a> {
+    target_dir: &'a Path,
+    parent_modules_dir: &'a Path,
+    hoisted_bin_dir: Option<&'a Path>,
+    stale_bin_names: &'a [&'a String],
+}
+
+/// Clear the shims of bins the package no longer declares.
+///
+/// The installer writes an injected package's own bins inside the copy, while
+/// the syncer writes them beside it. A dropped bin has to be cleared from
+/// both, or the one the syncer never wrote survives.
+fn remove_stale_bins(remove: RemoveStaleBins<'_>) -> Result<(), SyncInjectedDepsError> {
+    let bin_dirs = [
+        remove.parent_modules_dir.join(".bin"),
+        remove.target_dir.join("node_modules").join(".bin"),
+    ];
+    for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(remove.hoisted_bin_dir) {
+        for name in remove.stale_bin_names {
+            remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
+                SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
+            })?;
+        }
+    }
+    Ok(())
+}
+
 fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> {
     let SyncBinLinks {
         pkg_root_dir,
@@ -209,19 +237,12 @@ fn sync_bin_links(opts: &SyncBinLinks<'_>) -> Result<(), SyncInjectedDepsError> 
         let Some(parent_modules_dir) = target_dir.parent() else {
             continue;
         };
-        // The installer writes an injected package's own bins inside the
-        // copy, while this function writes them beside it. A dropped bin has
-        // to be cleared from both, or the one this function never wrote
-        // survives.
-        let bin_dirs =
-            [parent_modules_dir.join(".bin"), target_dir.join("node_modules").join(".bin")];
-        for bin_dir in bin_dirs.iter().map(PathBuf::as_path).chain(hoisted_bin_dir) {
-            for name in &stale_bin_names {
-                remove_bin(&bin_dir.join(name.as_str())).map_err(|error| {
-                    SyncInjectedDepsError::RemoveBin { path: bin_dir.join(name.as_str()), error }
-                })?;
-            }
-        }
+        remove_stale_bins(RemoveStaleBins {
+            target_dir,
+            parent_modules_dir,
+            hoisted_bin_dir,
+            stale_bin_names: &stale_bin_names,
+        })?;
 
         if !has_bins {
             continue;

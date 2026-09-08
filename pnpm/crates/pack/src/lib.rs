@@ -250,6 +250,65 @@ pub enum PackError {
 /// `R` threads the reporter through the lifecycle-script emits; `Sys`
 /// is the filesystem seam for the tarball write phase
 /// ([`capabilities::Host`] in production).
+/// The tarball name and version the publish manifest settles on.
+///
+/// Semver build metadata (the `+<build>` segment) is stripped so the tarball
+/// name, the packed manifest and any registry metadata all agree on the
+/// version. See [pnpm/pnpm#11518](https://github.com/pnpm/pnpm/issues/11518).
+///
+/// The name is read back off the publish manifest so a `publishConfig.name`
+/// rename reaches the filename too. That rename never went through
+/// [`packed_identity`], so it is validated here: it lands in the tarball
+/// filename, where a separator would smuggle path components into the join and
+/// write outside `dest_dir`.
+fn published_identity(
+    publish_manifest: &mut Value,
+    name: &str,
+) -> Result<(String, String), PackError> {
+    let published_version =
+        strip_build_metadata(publish_manifest.get("version").and_then(Value::as_str).unwrap_or(""))
+            .to_string();
+    if let Some(object) = publish_manifest.as_object_mut() {
+        object.insert("version".to_string(), Value::String(published_version.clone()));
+    }
+    let published_name = publish_manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .unwrap_or(name);
+    if !is_valid_old_npm_package_name(published_name) {
+        return Err(PackError::InvalidPackageName { name: published_name.to_string() });
+    }
+    Ok((normalize_tarball_name(published_name), published_version))
+}
+
+/// The name and version the tarball is packed under.
+///
+/// Both are interpolated into the default tarball filename
+/// (`<name>-<version>.tgz`) and the manifest is attacker-controlled, so a
+/// path separator in the version would let it smuggle path components into the
+/// join and write the tarball outside `dest_dir`. A real semver version never
+/// contains one.
+fn packed_identity(manifest: &Value) -> Result<(&str, &str), PackError> {
+    let name = manifest
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or(PackError::PackageNameNotFound)?;
+    if !is_valid_old_npm_package_name(name) {
+        return Err(PackError::InvalidPackageName { name: name.to_string() });
+    }
+    let version = manifest
+        .get("version")
+        .and_then(Value::as_str)
+        .filter(|version| !version.is_empty())
+        .ok_or(PackError::PackageVersionNotFound)?;
+    if version.contains('/') || version.contains('\\') {
+        return Err(PackError::InvalidPackageVersion { version: version.to_string() });
+    }
+    Ok((name, version))
+}
+
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: self::Reporter,
@@ -274,27 +333,7 @@ where
     let manifest = read_manifest(&dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &manifest)?;
 
-    let name = manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .ok_or(PackError::PackageNameNotFound)?;
-    if !is_valid_old_npm_package_name(name) {
-        return Err(PackError::InvalidPackageName { name: name.to_string() });
-    }
-    let version = manifest
-        .get("version")
-        .and_then(Value::as_str)
-        .filter(|version| !version.is_empty())
-        .ok_or(PackError::PackageVersionNotFound)?;
-    // The version is interpolated into the default tarball filename
-    // (`<name>-<version>.tgz`), and the manifest is attacker-controlled.
-    // A separator would let `version` smuggle path components into the
-    // join and write the tarball outside `dest_dir`. A real semver
-    // version never contains one, so reject it.
-    if version.contains('/') || version.contains('\\') {
-        return Err(PackError::InvalidPackageVersion { version: version.to_string() });
-    }
+    let (name, version) = packed_identity(&manifest)?;
 
     let modules_dir = opts.dir.join("node_modules");
     let mut publish_manifest = create_exportable_manifest(
@@ -322,31 +361,7 @@ where
     )
     .await?;
 
-    // Strip semver build metadata (the `+<build>` segment) so the
-    // tarball name, the packed manifest, and any registry metadata all
-    // agree on the version. See pnpm/pnpm#11518.
-    let published_version =
-        strip_build_metadata(publish_manifest.get("version").and_then(Value::as_str).unwrap_or(""))
-            .to_string();
-    if let Some(object) = publish_manifest.as_object_mut() {
-        object.insert("version".to_string(), Value::String(published_version.clone()));
-    }
-
-    // Read back off the publish manifest so a `publishConfig.name` rename
-    // reaches the filename too — the tarball name, the packed manifest, and
-    // the registry metadata all name one artifact. The rename never went
-    // through the check on `name` above, so it is validated here: it lands in
-    // the tarball filename, where a separator would smuggle path components
-    // into the join and write outside `dest_dir`.
-    let published_name = publish_manifest
-        .get("name")
-        .and_then(Value::as_str)
-        .filter(|name| !name.is_empty())
-        .unwrap_or(name);
-    if !is_valid_old_npm_package_name(published_name) {
-        return Err(PackError::InvalidPackageName { name: published_name.to_string() });
-    }
-    let normalized_name = normalize_tarball_name(published_name);
+    let (normalized_name, published_version) = published_identity(&mut publish_manifest, name)?;
     let (tarball_name, pack_destination) =
         resolve_output(opts, &normalized_name, &published_version)?;
 

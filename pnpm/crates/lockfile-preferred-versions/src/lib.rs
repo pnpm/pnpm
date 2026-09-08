@@ -107,36 +107,41 @@ fn add_preferred_versions_from_lockfile(
     for (name, versions) in unique_name_versions {
         let bucket = preferred.entry(name.clone()).or_default();
         for version in versions {
-            match bucket.get(&version) {
-                None => {
-                    bucket.insert(
-                        version,
-                        VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
-                            selector_type: VersionSelectorType::Version,
-                            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
-                        }),
-                    );
-                }
-                Some(existing) => {
-                    let existing_selector_type = match existing {
-                        VersionSelectorEntry::Plain(ty) => *ty,
-                        VersionSelectorEntry::Weighted(w) => w.selector_type,
-                    };
-                    // The lookup was for an exact version — the
-                    // existing entry came from a direct-dep selector
-                    // typed as `Version` (anything else means our state
-                    // is corrupted, so this asserts).
-                    assert!(
-                        matches!(existing_selector_type, VersionSelectorType::Version),
-                        "Encountered unexpected version selector '{existing_selector_type:?}' for dependency '{name}@{version}'",
-                    );
-                    let bumped =
-                        add_weight_to_version_selector(existing, EXISTING_VERSION_SELECTOR_WEIGHT);
-                    bucket.insert(version, VersionSelectorEntry::Weighted(bumped));
-                }
-            }
+            let entry = weighted_lockfile_version(bucket.get(&version), &name, &version);
+            bucket.insert(version, entry);
         }
     }
+}
+
+/// The entry one lockfile-seeded version gets: a fresh weighted selector, or
+/// the existing one with this seed's weight added.
+///
+/// The lookup was for an exact version, so an existing entry came from a
+/// direct-dep selector typed as `Version`; anything else means the state is
+/// corrupted, which the assertion catches.
+fn weighted_lockfile_version(
+    existing: Option<&VersionSelectorEntry>,
+    name: &str,
+    version: &str,
+) -> VersionSelectorEntry {
+    let Some(existing) = existing else {
+        return VersionSelectorEntry::Weighted(VersionSelectorWithWeight {
+            selector_type: VersionSelectorType::Version,
+            weight: EXISTING_VERSION_SELECTOR_WEIGHT,
+        });
+    };
+    let existing_selector_type = match existing {
+        VersionSelectorEntry::Plain(selector_type) => *selector_type,
+        VersionSelectorEntry::Weighted(weighted) => weighted.selector_type,
+    };
+    assert!(
+        matches!(existing_selector_type, VersionSelectorType::Version),
+        "Encountered unexpected version selector '{existing_selector_type:?}' for dependency '{name}@{version}'",
+    );
+    VersionSelectorEntry::Weighted(add_weight_to_version_selector(
+        existing,
+        EXISTING_VERSION_SELECTOR_WEIGHT,
+    ))
 }
 
 /// Bump a selector's weight by `weight`, lifting a `Plain` selector
