@@ -158,7 +158,6 @@ fn no_proxy_matcher_reverse_dot_match() {
 
 #[test]
 fn no_proxy_matcher_leading_dot_matches_subdomains() {
-    // A leading dot (e.g. `.npmjs.org`) must still match, not just the bare domain.
     let matcher = NoProxyMatcher::from(Some(&list(&[".npmjs.org"])));
     eprintln!("matcher={matcher:?}");
     for (host, expected) in [
