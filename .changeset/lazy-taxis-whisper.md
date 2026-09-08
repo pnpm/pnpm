@@ -2,4 +2,4 @@
 "pacquet": patch
 ---
 
-update "about"
+The `pnpm --help` description no longer labels the package manager as experimental.
