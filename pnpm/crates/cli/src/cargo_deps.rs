@@ -1,4 +1,7 @@
-use crate::ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext};
+use crate::{
+    cargo_deps::git::{GIT_SOURCE_DIRECTORY, GIT_SOURCE_NAME, GitPackage, GitSource},
+    ecosystem_install::{EcosystemManifest, EcosystemWorkspaceInventory, InstallContext},
+};
 use cargo_util_schemas::index::RegistryConfig;
 use futures_util::{StreamExt, TryStreamExt, stream};
 use miette::{IntoDiagnostic, Result, WrapErr};
@@ -25,6 +28,7 @@ use std::{
 };
 
 pub(crate) mod add;
+mod git;
 mod registry_auth;
 
 #[cfg(unix)]
@@ -38,7 +42,9 @@ const CRATES_IO_DOWNLOAD_BASE: &str = "https://static.crates.io/crates";
 const MAX_REGISTRY_CONFIG_BYTES: usize = 64 * 1024;
 const MANAGED_START: &str = "# >>> pnpm-managed cargo sources >>>";
 const MANAGED_END: &str = "# <<< pnpm-managed cargo sources <<<";
-const MANAGED_CONFIG: &str = "# >>> pnpm-managed cargo sources >>>\n[source.crates-io]\nreplace-with = \"pnpm-crates-io\"\n\n[source.pnpm-crates-io]\ndirectory = \".pnpm/crates/crates-io\"\n# <<< pnpm-managed cargo sources <<<";
+/// Directory the registry crates are linked into, relative to the Cargo
+/// workspace root.
+const CRATES_SOURCE_DIRECTORY: [&str; 3] = [".pnpm", "crates", "crates-io"];
 #[cfg(unix)]
 static MANAGED_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -55,10 +61,35 @@ struct LockedCrate {
     checksum: String,
 }
 
+/// What a `Cargo.lock` asks the install to provide, grouped by the kind of
+/// source each package comes from. Workspace members carry no source and
+/// are already on disk, so they appear in neither list.
+#[derive(Debug, Default, PartialEq, Eq)]
+struct LockedPackages {
+    crates: Vec<LockedCrate>,
+    git: Vec<GitPackage>,
+}
+
+impl LockedPackages {
+    /// The git sources the locked packages come from, deduplicated so the
+    /// managed Cargo configuration declares each one once.
+    fn git_sources(&self) -> Vec<GitSource> {
+        self.git
+            .iter()
+            .map(|package| GitSource::clone(&package.source))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+}
+
 #[derive(Serialize)]
 struct CargoChecksum<'a> {
     files: BTreeMap<String, String>,
-    package: &'a str,
+    /// The registry checksum of the `.crate` archive the files came from.
+    /// Null for a package vendored from a git checkout, which has none —
+    /// the same value `cargo vendor` writes for one.
+    package: Option<&'a str>,
 }
 
 #[derive(Deserialize)]
@@ -124,15 +155,27 @@ pub(crate) async fn prepare<Reporter: self::Reporter + 'static>(
 pub(crate) struct Prepared {
     root: PathBuf,
     lock: String,
-    slots: Option<Vec<(String, PathBuf)>>,
+    slots: Option<WorkspaceSlots>,
     index_url: String,
+}
+
+/// The store slots a workspace links, one list per Cargo source the
+/// managed configuration declares.
+#[derive(Debug, Default)]
+struct WorkspaceSlots {
+    crates: Vec<(String, PathBuf)>,
+    git: Vec<(String, PathBuf)>,
+    git_sources: Vec<GitSource>,
 }
 
 impl PreparedInstall for Prepared {
     fn publish(&mut self) -> Result<()> {
         if let Some(slots) = &self.slots {
-            link_workspace(&self.root, slots)?;
-            write_cargo_config(&self.root, &self.index_url)?;
+            link_workspace(&self.root, &CRATES_SOURCE_DIRECTORY, &slots.crates)?;
+            if !slots.git.is_empty() {
+                link_workspace(&self.root, &GIT_SOURCE_DIRECTORY, &slots.git)?;
+            }
+            write_cargo_config(&self.root, &self.index_url, &slots.git_sources)?;
         }
         let path = self.root.join("Cargo.lock");
         let existing = match fs::read_to_string(&path) {
@@ -185,19 +228,61 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     }
     let packages = parse_lockfile(&cargo_lock, &config.cargo.index_url)
         .wrap_err_with(|| format!("parse {}", cargo_lock_path.display()))?;
+    let git_sources = packages.git_sources();
+    let logged_methods = Arc::new(AtomicU8::new(0));
+    let store_dir = &config.store_dir;
+    if !packages.crates.is_empty() || !packages.git.is_empty() {
+        store_dir.init().into_diagnostic().wrap_err_with(|| {
+            format!("initialize cargo package store at {}", store_dir.display())
+        })?;
+    }
+    let crates = download_crates::<Reporter>(DownloadOptions {
+        config,
+        packages: packages.crates,
+        http_client,
+        logged_methods: Arc::clone(&logged_methods),
+        requester: format!("cargo workspace at {}", root_dir.display()),
+    })
+    .await?;
+    let git = git::vendor::<Reporter>(git::VendorOptions {
+        packages: packages.git,
+        store_dir,
+        git_shallow_hosts: &config.git_shallow_hosts,
+        package_import_method: config.package_import_method,
+        logged_methods,
+        concurrency: config.network_concurrency.clamp(1, 16),
+        offline: config.offline,
+    })
+    .await?;
+
+    Ok(Prepared {
+        root: root_dir.to_path_buf(),
+        lock: cargo_lock,
+        slots: Some(WorkspaceSlots { crates, git, git_sources }),
+        index_url: config.cargo.index_url.clone(),
+    })
+}
+
+struct DownloadOptions {
+    config: &'static Config,
+    packages: Vec<LockedCrate>,
+    http_client: Arc<ThrottledClient>,
+    logged_methods: Arc<AtomicU8>,
+    requester: String,
+}
+
+/// Download every registry crate the lockfile pins into its store slot.
+/// Returns before the registry's configuration is fetched when the lockfile
+/// pins none, so a workspace that takes nothing from the registry never
+/// asks it for anything.
+async fn download_crates<Reporter: self::Reporter + 'static>(
+    options: DownloadOptions,
+) -> Result<Vec<(String, PathBuf)>> {
+    let DownloadOptions { config, packages, http_client, logged_methods, requester } = options;
     if packages.is_empty() {
-        return Ok(Prepared {
-            root: root_dir.to_path_buf(),
-            lock: cargo_lock,
-            slots: Some(Vec::new()),
-            index_url: config.cargo.index_url.clone(),
-        });
+        return Ok(Vec::new());
     }
     let store_dir = &config.store_dir;
-    store_dir
-        .init()
-        .into_diagnostic()
-        .wrap_err_with(|| format!("initialize cargo package store at {}", store_dir.display()))?;
     let store_index = StoreIndex::shared_for(store_dir, config.frozen_store);
     let (store_index_writer, writer_task) =
         StoreIndexWriter::spawn_for(store_dir, config.frozen_store);
@@ -206,9 +291,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
     let registry_config = fetch_registry_config(config, &http_client, &cargo_auth_headers).await?;
     let auth_headers = download_auth_headers(config, &registry_config);
     let verified_files_cache = SharedVerifiedFilesCache::default();
-    let logged_methods = Arc::new(AtomicU8::new(0));
     let retry_opts = config.retry_opts();
-    let requester = format!("cargo workspace at {}", root_dir.display());
     let concurrency = config.network_concurrency.clamp(1, 16);
 
     let slots = stream::iter(packages)
@@ -238,14 +321,7 @@ async fn prepare_workspace<Reporter: self::Reporter + 'static>(
         .collect::<Result<Vec<_>>>();
     drop(store_index_writer);
     StoreIndexWriter::drain(writer_task, "; some Cargo rows may not be persisted").await;
-    let slots = slots?;
-
-    Ok(Prepared {
-        root: root_dir.to_path_buf(),
-        lock: cargo_lock,
-        slots: Some(slots),
-        index_url: config.cargo.index_url.clone(),
-    })
+    slots
 }
 
 pub(crate) async fn workspace_root(manifest_path: &Path) -> Result<PathBuf> {
@@ -289,6 +365,7 @@ async fn read_or_resolve_lockfile(
             "Cargo.lock is absent, but --frozen-lockfile forbids generating it"
         ));
     }
+    reject_redirected_workspace(root_dir)?;
 
     let metadata = read_cargo_metadata(root_dir).await?;
     if let Some(lockfile) = resolve_via_pnpr(config, &metadata).await? {
@@ -299,6 +376,32 @@ async fn read_or_resolve_lockfile(
     let lockfile = pnpm_cargo_resolver::resolve_lockfile(&metadata, &index_files, &source)
         .wrap_err("resolve Cargo dependencies")?;
     Ok(lockfile)
+}
+
+/// Refuse to resolve a workspace whose root manifest redirects a dependency
+/// to another source.
+///
+/// `[patch]` and `[replace]` change which package a requirement resolves to,
+/// and `cargo metadata` does not report either, so a lockfile resolved from
+/// it would name the replaced package. An existing `Cargo.lock` is read
+/// rather than resolved, which is how a workspace with a patch installs.
+fn reject_redirected_workspace(root_dir: &Path) -> Result<()> {
+    let manifest_path = root_dir.join("Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("read {}", manifest_path.display()))?;
+    let document: toml::Table = toml::from_str(&manifest)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("parse {}", manifest_path.display()))?;
+    for table in ["patch", "replace"] {
+        if document.contains_key(table) {
+            let manifest_path = manifest_path.display();
+            return Err(miette::miette!(
+                "{manifest_path} declares [{table}], which pnpm cannot resolve. Commit the Cargo.lock that `cargo generate-lockfile` writes for it.",
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Resolve through the configured pnpr server, which walks the sparse
@@ -686,7 +789,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let checksum = package.checksum;
     let slot_for_import = slot.clone();
     tokio::task::spawn_blocking(move || {
-        add_cargo_checksum(store_dir, &mut cas_paths, &checksum)?;
+        add_cargo_checksum(store_dir, &mut cas_paths, Some(&checksum))?;
         import_indexed_dir::<Reporter>(
             &logged_methods,
             package_import_method,
@@ -710,7 +813,7 @@ async fn materialize<Reporter: self::Reporter + 'static>(
 fn add_cargo_checksum(
     store_dir: &StoreDir,
     cas_paths: &mut HashMap<String, PathBuf>,
-    package_checksum: &str,
+    package_checksum: Option<&str>,
 ) -> Result<()> {
     cas_paths.remove(".cargo-checksum.json");
     let files = cas_paths
@@ -733,8 +836,8 @@ fn add_cargo_checksum(
     Ok(())
 }
 
-fn link_workspace(root_dir: &Path, slots: &[(String, PathBuf)]) -> Result<()> {
-    let source_dir = ensure_workspace_directory(root_dir, &[".pnpm", "crates", "crates-io"])?;
+fn link_workspace(root_dir: &Path, directory: &[&str], slots: &[(String, PathBuf)]) -> Result<()> {
+    let source_dir = ensure_workspace_directory(root_dir, directory)?;
     link_workspace_in(&source_dir, slots)
 }
 
@@ -750,12 +853,16 @@ fn link_workspace_in(source_dir: &ManagedDirectory, slots: &[(String, PathBuf)])
     Ok(())
 }
 
-fn write_cargo_config(root_dir: &Path, index_url: &str) -> Result<()> {
+fn write_cargo_config(root_dir: &Path, index_url: &str, git_sources: &[GitSource]) -> Result<()> {
     let cargo_dir = ensure_workspace_directory(root_dir, &[".cargo"])?;
-    write_cargo_config_in(&cargo_dir, index_url)
+    write_cargo_config_in(&cargo_dir, index_url, git_sources)
 }
 
-fn write_cargo_config_in(cargo_dir: &ManagedDirectory, index_url: &str) -> Result<()> {
+fn write_cargo_config_in(
+    cargo_dir: &ManagedDirectory,
+    index_url: &str,
+    git_sources: &[GitSource],
+) -> Result<()> {
     let config_path = cargo_dir.path.join("config.toml");
     let (existing, mode) = match read_workspace_file(cargo_dir, "config.toml") {
         Ok(existing) => existing,
@@ -766,7 +873,7 @@ fn write_cargo_config_in(cargo_dir: &ManagedDirectory, index_url: &str) -> Resul
                 .wrap_err_with(|| format!("read {}", config_path.display()));
         }
     };
-    let updated = update_managed_config(&existing, index_url)?;
+    let updated = update_managed_config(&existing, index_url, git_sources)?;
     if updated != existing {
         write_workspace_file(cargo_dir, "config.toml", updated.as_bytes(), mode)
             .into_diagnostic()
@@ -1184,8 +1291,12 @@ fn force_workspace_symlink(
     pnpm_fs::force_symlink_dir(target, &directory.path.join(name))
 }
 
-fn update_managed_config(existing: &str, index_url: &str) -> Result<String> {
-    let managed_config = managed_config(index_url);
+fn update_managed_config(
+    existing: &str,
+    index_url: &str,
+    git_sources: &[GitSource],
+) -> Result<String> {
+    let managed_config = managed_config(index_url, git_sources);
     match (existing.find(MANAGED_START), existing.find(MANAGED_END)) {
         (None, None) => {
             let separator = if existing.is_empty() || existing.ends_with("\n\n") {
@@ -1207,46 +1318,82 @@ fn update_managed_config(existing: &str, index_url: &str) -> Result<String> {
     }
 }
 
-fn managed_config(index_url: &str) -> String {
-    if is_crates_io(index_url) {
-        return MANAGED_CONFIG.to_string();
+fn managed_config(index_url: &str, git_sources: &[GitSource]) -> String {
+    let crates = CRATES_SOURCE_DIRECTORY.join("/");
+    let mut body = if is_crates_io(index_url) {
+        format!(
+            "[source.crates-io]\nreplace-with = \"pnpm-crates-io\"\n\n[source.pnpm-crates-io]\ndirectory = \"{crates}\"\n",
+        )
+    } else {
+        let source = toml::Value::from(pnpm_cargo_resolver::sparse_source(index_url));
+        format!(
+            "[source.crates-io]\nreplace-with = \"pnpm-registry\"\n\n[source.pnpm-registry]\nregistry = {source}\nreplace-with = \"pnpm-registry-directory\"\n\n[source.pnpm-registry-directory]\ndirectory = \"{crates}\"\n",
+        )
+    };
+    if !git_sources.is_empty() {
+        let git = GIT_SOURCE_DIRECTORY.join("/");
+        let blocks = git_sources.iter().fold(String::new(), |mut blocks, source| {
+            blocks.push('\n');
+            blocks.push_str(&source.config_block());
+            blocks
+        });
+        body = format!("{body}\n[source.{GIT_SOURCE_NAME}]\ndirectory = \"{git}\"\n{blocks}");
     }
-    let source = toml::Value::from(pnpm_cargo_resolver::sparse_source(index_url));
-    format!(
-        "{MANAGED_START}\n[source.crates-io]\nreplace-with = \"pnpm-registry\"\n\n[source.pnpm-registry]\nregistry = {source}\nreplace-with = \"pnpm-registry-directory\"\n\n[source.pnpm-registry-directory]\ndirectory = \".pnpm/crates/crates-io\"\n{MANAGED_END}",
-    )
+    format!("{MANAGED_START}\n{body}{MANAGED_END}")
 }
 
-fn parse_lockfile(input: &str, index_url: &str) -> Result<Vec<LockedCrate>> {
+fn parse_lockfile(input: &str, index_url: &str) -> Result<LockedPackages> {
     let lockfile =
         cargo_lock::Lockfile::from_str(input).into_diagnostic().wrap_err("parse Cargo.lock")?;
-    let mut packages = Vec::new();
+    let mut packages = LockedPackages::default();
+    // One repository serves every package a checkout of it provides, so the
+    // packages of a source share the description of it.
+    let mut git_sources: BTreeMap<String, Arc<GitSource>> = BTreeMap::new();
     for package in lockfile.packages {
-        if let Some(package) = locked_crate_from_package(package, index_url)? {
-            packages.push(package);
+        let Some(source) = package.source.as_ref() else {
+            continue;
+        };
+        if source.is_git() {
+            let name = package.name.to_string();
+            let version = package.version.to_string();
+            validate_package_identity(&name, &version)?;
+            let source = match git_sources.entry(source.to_string()) {
+                std::collections::btree_map::Entry::Occupied(known) => Arc::clone(known.get()),
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    Arc::clone(slot.insert(Arc::new(GitSource::from_source_id(source)?)))
+                }
+            };
+            packages.git.push(GitPackage { name, version, source });
+            continue;
         }
+        let crate_source = source.clone();
+        packages.crates.push(locked_crate_from_package(package, &crate_source, index_url)?);
     }
 
-    let mut names = BTreeSet::new();
-    for package in &packages {
-        let link_name = package.link_name();
-        if !names.insert(link_name.clone()) {
+    reject_duplicate_links("registry", packages.crates.iter().map(LockedCrate::link_name))?;
+    reject_duplicate_links("git", packages.git.iter().map(GitPackage::link_name))?;
+    Ok(packages)
+}
+
+/// Two packages that link into one Cargo directory source under the same
+/// name are the same package to `cargo`, whichever of them it reads.
+fn reject_duplicate_links(kind: &str, link_names: impl Iterator<Item = String>) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    for link_name in link_names {
+        if !seen.insert(link_name.clone()) {
             return Err(miette::miette!(
-                "Cargo.lock contains duplicate crates.io package {}",
-                link_name,
+                "Cargo.lock contains duplicate {kind} package {link_name}",
             ));
         }
     }
-    Ok(packages)
+    Ok(())
 }
 
 fn locked_crate_from_package(
     package: cargo_lock::Package,
+    source: &cargo_lock::SourceId,
     index_url: &str,
-) -> Result<Option<LockedCrate>> {
-    let Some(source) = package.source.as_ref() else {
-        return Ok(None);
-    };
+) -> Result<LockedCrate> {
     // crates.io is spelled two ways in a lockfile — the canonical git
     // identifier and the sparse index — and `cargo` writes either.
     let expected_source = pnpm_cargo_resolver::registry_source(index_url);
@@ -1266,16 +1413,22 @@ fn locked_crate_from_package(
         .checksum
         .ok_or_else(|| miette::miette!("registry package {name} {version} has no checksum"))?
         .to_string();
-    validate_package_field("crate name", &name, |byte| {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
-    })?;
-    validate_package_field("crate version", &version, |byte| {
-        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
-    })?;
+    validate_package_identity(&name, &version)?;
     if checksum.len() != 64 || !checksum.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(miette::miette!("invalid checksum for crate {name} {version}"));
     }
-    Ok(Some(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() }))
+    Ok(LockedCrate { name, version, checksum: checksum.to_ascii_lowercase() })
+}
+
+/// Both names reach the filesystem as the `<name>-<version>` directory a
+/// Cargo source is linked under.
+fn validate_package_identity(name: &str, version: &str) -> Result<()> {
+    validate_package_field("crate name", name, |byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_')
+    })?;
+    validate_package_field("crate version", version, |byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+')
+    })
 }
 
 fn validate_package_field(label: &str, value: &str, allowed: impl Fn(u8) -> bool) -> Result<()> {

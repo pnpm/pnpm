@@ -31,6 +31,7 @@ pnpm-pnpr-client                       = { workspace = true }
 pnpm-env-installer                     = { workspace = true }
 pnpm-executor                          = { workspace = true }
 pnpm-fs                                = { workspace = true }
+pnpm-git-fetcher                       = { workspace = true }
 pnpm-global                            = { workspace = true }
 pnpm-graph-hasher                      = { workspace = true }
 pnpm-hooks                             = { workspace = true }

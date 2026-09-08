@@ -3,8 +3,9 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
+use pnpm_testing_utils::git_repo::GitRepoFixture;
 use sha2::{Digest, Sha256};
-use std::process::Command;
+use std::{fs, path::Path, process::Command};
 use tempfile::TempDir;
 
 /// A `.crate` archive holding the one source file a dependent needs, laid
@@ -117,4 +118,128 @@ fn offline_install_without_registry_crates_never_reads_the_registry_config() {
     let config = std::fs::read_to_string(root.path().join(".cargo/config.toml"))
         .expect("read managed Cargo configuration");
     assert!(config.contains(r#"registry = "sparse+https://registry.example.test/index/""#));
+}
+
+fn append_manifest_section(manifest: &Path, section: &str) {
+    let mut contents = fs::read_to_string(manifest).expect("read Cargo manifest");
+    contents.push_str(section);
+    fs::write(manifest, contents).expect("write Cargo manifest");
+}
+
+/// A repository holding a Cargo workspace of two crates, `patched` and
+/// the `sibling` it depends on by path. Both take their version from the
+/// workspace, which the vendored copies must carry on their own.
+fn patched_repository(root: &Path) -> GitRepoFixture {
+    let repository = GitRepoFixture::init(root, "patched");
+    repository.write_file(
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"patched\", \"sibling\"]\n\n[workspace.package]\nversion = \"1.0.0\"\nedition = \"2024\"\n",
+    );
+    repository.write_file(
+        "patched/Cargo.toml",
+        "[package]\nname = \"patched\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nsibling = { path = \"../sibling\", version = \"1.0.0\" }\n",
+    );
+    repository.write_file("patched/src/lib.rs", "pub fn patched() -> u8 { sibling::seven() }\n");
+    repository.write_file(
+        "sibling/Cargo.toml",
+        "[package]\nname = \"sibling\"\nversion.workspace = true\nedition.workspace = true\n",
+    );
+    repository.write_file("sibling/src/lib.rs", "pub fn seven() -> u8 { 7 }\n");
+    repository
+}
+
+#[test]
+fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
+    let mut registry = mockito::Server::new();
+    let archive = crate_archive("demo", "1.0.0");
+    let checksum = format!("{:x}", Sha256::digest(&archive));
+    let _config_mock = registry
+        .mock("GET", "/config.json")
+        .with_body(
+            serde_json::json!({
+                "dl": format!("{}/dl/{{crate}}/{{version}}", registry.url()),
+                "api": registry.url(),
+            })
+            .to_string(),
+        )
+        .create();
+    let _download_mock = registry.mock("GET", "/dl/demo/1.0.0").with_body(&archive).create();
+    let root = cargo_workspace(
+        &registry.url(),
+        "demo = \"1\"\npatched = \"1\"\n",
+        "pub use demo::answer;\npub use patched::patched;\n",
+    );
+    // Outside the workspace: a manifest under it would be discovered as a
+    // Cargo workspace of its own.
+    let outside = TempDir::new().expect("create a repository directory");
+    let repository = patched_repository(outside.path());
+    let repository_url = repository.file_url();
+    let commit = repository.commit("init");
+    append_manifest_section(
+        &root.path().join("Cargo.toml"),
+        &format!(
+            "\n[patch.crates-io]\npatched = {{ git = \"{repository_url}\", rev = \"{commit}\" }}\n",
+        ),
+    );
+    let lockfile = format!(
+        concat!(
+            "version = 4\n\n",
+            "[[package]]\nname = \"app\"\nversion = \"0.1.0\"\n",
+            "dependencies = [\n \"demo\",\n \"patched\",\n]\n\n",
+            "[[package]]\nname = \"demo\"\nversion = \"1.0.0\"\n",
+            "source = \"sparse+{registry}/\"\nchecksum = \"{checksum}\"\n\n",
+            "[[package]]\nname = \"patched\"\nversion = \"1.0.0\"\n",
+            "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
+            "dependencies = [\n \"sibling\",\n]\n\n",
+            "[[package]]\nname = \"sibling\"\nversion = \"1.0.0\"\n",
+            "source = \"git+{repository_url}?rev={commit}#{commit}\"\n",
+        ),
+        registry = registry.url(),
+        checksum = checksum,
+        repository_url = repository_url,
+        commit = commit,
+    );
+    std::fs::write(root.path().join("Cargo.lock"), &lockfile).unwrap();
+
+    install_in(&root, &["install", "--frozen-lockfile"]);
+
+    assert_eq!(fs::read_to_string(root.path().join("Cargo.lock")).unwrap(), lockfile);
+    assert!(root.path().join(".pnpm/crates/crates-io/demo-1.0.0/src/lib.rs").is_file());
+    assert!(root.path().join(".pnpm/crates/git/patched-1.0.0/src/lib.rs").is_file());
+    assert!(root.path().join(".pnpm/crates/git/sibling-1.0.0/src/lib.rs").is_file());
+    let config = fs::read_to_string(root.path().join(".cargo/config.toml")).unwrap();
+    assert!(
+        config.contains(&format!(r#"[source."git+{repository_url}?rev={commit}"]"#)),
+        "{config}",
+    );
+    assert!(config.contains(r#"replace-with = "pnpm-git""#), "{config}");
+    // Offline, so the revision has to come from what the install vendored.
+    Command::new("cargo")
+        .with_current_dir(root.path())
+        .with_args(["check", "--offline"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn a_workspace_with_a_cargo_patch_is_not_resolved_from_the_registry() {
+    let root = cargo_workspace("https://registry.example.test/index/", "demo = \"1\"\n", "");
+    append_manifest_section(
+        &root.path().join("Cargo.toml"),
+        "\n[patch.crates-io]\ndemo = { git = \"https://example.test/demo\" }\n",
+    );
+
+    let output = Command::cargo_bin("pnpm")
+        .expect("find the pnpm binary")
+        .with_current_dir(root.path())
+        .with_env("PNPM_CONFIG_CACHE_DIR", root.path().join("cache"))
+        .with_env("PNPM_CONFIG_STORE_DIR", root.path().join("store"))
+        .with_args(["install", "--offline"])
+        .output()
+        .expect("run pnpm install");
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(!output.status.success(), "{stderr}");
+    // One word: a diagnostic wraps at a width the path length decides.
+    assert!(stderr.contains("[patch]"), "{stderr}");
 }
