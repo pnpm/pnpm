@@ -485,30 +485,37 @@ impl PackageManifest {
         dependency_group: DependencyGroup,
     ) -> Result<(), PackageManifestError> {
         let dependency_type: &str = dependency_group.into();
-        if let Some(field) = self.value.get_mut(dependency_type) {
-            if let Some(dependencies) = field.as_object_mut() {
-                dependencies.insert(name.to_string(), Value::String(version.to_string()));
-            } else {
-                return Err(PackageManifestError::InvalidAttribute(
-                    "dependencies attribute should be an object".to_string(),
-                ));
-            }
-        } else {
+        let Some(field) = self.value.get_mut(dependency_type) else {
             let mut dependencies = Map::<String, Value>::new();
             dependencies.insert(name.to_string(), Value::String(version.to_string()));
             self.value[dependency_type] = Value::Object(dependencies);
-        }
+            self.drop_from_other_install_groups(name, dependency_group);
+            return Ok(());
+        };
+        let Some(dependencies) = field.as_object_mut() else {
+            return Err(PackageManifestError::InvalidAttribute(
+                "dependencies attribute should be an object".to_string(),
+            ));
+        };
+        dependencies.insert(name.to_string(), Value::String(version.to_string()));
+        self.drop_from_other_install_groups(name, dependency_group);
+        Ok(())
+    }
+
+    /// A dependency belongs to one install group at a time, so adding it to
+    /// one removes it from the other two.
+    fn drop_from_other_install_groups(&mut self, name: &str, added_to: DependencyGroup) {
         const INSTALL_GROUPS: [DependencyGroup; 3] =
             [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
-        if INSTALL_GROUPS.contains(&dependency_group) {
-            let removed = [name.to_string()];
-            for group in INSTALL_GROUPS {
-                if group != dependency_group {
-                    self.remove_from_object(group.into(), &removed);
-                }
+        if !INSTALL_GROUPS.contains(&added_to) {
+            return;
+        }
+        let removed = [name.to_string()];
+        for group in INSTALL_GROUPS {
+            if group != added_to {
+                self.remove_from_object(group.into(), &removed);
             }
         }
-        Ok(())
     }
 
     /// Names eligible for `pnpm remove` to target.
@@ -665,6 +672,41 @@ pub fn engines_runtime_dependencies(
     dependencies
 }
 
+/// The runtimes an `engines.runtime` entry names, in the order pnpm knows them.
+fn managed_runtimes(runtime_entry: &Value) -> Vec<&'static str> {
+    let names =
+        |runtime: &Value, wanted: &str| runtime.get("name").and_then(Value::as_str) == Some(wanted);
+    RUNTIME_NAMES
+        .into_iter()
+        .filter(|runtime_name| match runtime_entry {
+            Value::Array(runtimes) => runtimes.iter().any(|runtime| names(runtime, runtime_name)),
+            Value::Object(_) => names(runtime_entry, runtime_name),
+            _ => false,
+        })
+        .collect()
+}
+
+/// Stamp the policy onto every runtime the entry declares. Reports `false`
+/// when the entry is neither a runtime nor a list of them.
+fn set_runtime_on_fail(runtime_entry: &mut Value, on_fail_override: &str) -> bool {
+    match runtime_entry {
+        Value::Array(runtimes) => {
+            for runtime in runtimes {
+                if let Some(runtime) = runtime.as_object_mut() {
+                    runtime
+                        .insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+                }
+            }
+            true
+        }
+        Value::Object(runtime) => {
+            runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
+            true
+        }
+        _ => false,
+    }
+}
+
 /// Apply the configured runtime failure policy to both engine fields.
 ///
 /// A non-download policy removes `runtime:` dependency entries only for names
@@ -679,49 +721,32 @@ pub fn apply_runtime_on_fail_override(manifest: &mut Value, on_fail_override: &s
         else {
             continue;
         };
-        let managed_runtime_names: Vec<_> = RUNTIME_NAMES
-            .into_iter()
-            .filter(|runtime_name| match &*runtime_entry {
-                Value::Array(runtimes) => runtimes.iter().any(|runtime| {
-                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
-                }),
-                Value::Object(runtime) => {
-                    runtime.get("name").and_then(Value::as_str) == Some(*runtime_name)
-                }
-                _ => false,
-            })
-            .collect();
-        match runtime_entry {
-            Value::Array(runtimes) => {
-                for runtime in runtimes {
-                    if let Some(runtime) = runtime.as_object_mut() {
-                        runtime.insert(
-                            "onFail".to_string(),
-                            Value::String(on_fail_override.to_string()),
-                        );
-                    }
-                }
-            }
-            Value::Object(runtime) => {
-                runtime.insert("onFail".to_string(), Value::String(on_fail_override.to_string()));
-            }
-            _ => continue,
+        let managed_runtime_names = managed_runtimes(runtime_entry);
+        if !set_runtime_on_fail(runtime_entry, on_fail_override) {
+            continue;
         }
         if on_fail_override == "download" {
             convert_engines_runtime_to_dependencies(manifest, engines_field, deps_field);
             continue;
         }
-        let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
-            continue;
-        };
-        for runtime_name in managed_runtime_names {
-            if deps
-                .get(runtime_name)
-                .and_then(Value::as_str)
-                .is_some_and(|specifier| specifier.starts_with("runtime:"))
-            {
-                deps.remove(runtime_name);
-            }
+        drop_runtime_dependencies(manifest, deps_field, &managed_runtime_names);
+    }
+}
+
+/// Drop the `runtime:` dependency entries pnpm itself wrote for the runtimes
+/// the engines field manages. A hand-written entry under the same name is
+/// left alone.
+fn drop_runtime_dependencies(manifest: &mut Value, deps_field: &str, managed: &[&str]) {
+    let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) else {
+        return;
+    };
+    for runtime_name in managed {
+        let written_by_pnpm = deps
+            .get(*runtime_name)
+            .and_then(Value::as_str)
+            .is_some_and(|specifier| specifier.starts_with("runtime:"));
+        if written_by_pnpm {
+            deps.remove(*runtime_name);
         }
     }
 }

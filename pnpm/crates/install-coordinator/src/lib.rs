@@ -102,29 +102,37 @@ impl<'a> InstallPlan<'a> {
 
 fn publish(mut prepared: Prepared) -> Result<()> {
     for index in 0..prepared.len() {
-        if let Err(error) = prepared[index].publish() {
-            let mut rollback_errors = Vec::new();
-            for projection in prepared[..=index].iter_mut().rev() {
-                if let Err(error) = projection.rollback() {
-                    rollback_errors.push(error.to_string());
-                }
-            }
-            if !rollback_errors.is_empty() {
-                for projection in prepared {
-                    projection.retain();
-                }
-                return Err(error.wrap_err(format!(
-                    "install publication rollback failed; retained resources for recovery: {}",
-                    rollback_errors.join("; "),
-                )));
-            }
+        let Err(error) = prepared[index].publish() else {
+            continue;
+        };
+        let rollback_errors = roll_back_through(&mut prepared, index);
+        if rollback_errors.is_empty() {
             return Err(error);
         }
+        for projection in prepared {
+            projection.retain();
+        }
+        return Err(error.wrap_err(format!(
+            "install publication rollback failed; retained resources for recovery: {}",
+            rollback_errors.join("; "),
+        )));
     }
     for projection in prepared {
         projection.retain();
     }
     Ok(())
+}
+
+/// Undo every projection up to and including the one that failed, newest
+/// first, and report what could not be undone.
+fn roll_back_through(prepared: &mut Prepared, index: usize) -> Vec<String> {
+    let mut rollback_errors = Vec::new();
+    for projection in prepared[..=index].iter_mut().rev() {
+        if let Err(error) = projection.rollback() {
+            rollback_errors.push(error.to_string());
+        }
+    }
+    rollback_errors
 }
 
 #[cfg(test)]
