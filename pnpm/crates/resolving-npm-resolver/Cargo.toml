@@ -22,22 +22,23 @@ pnpm-resolving-resolver-base           = { workspace = true }
 pnpm-workspace-range-resolver          = { workspace = true }
 pnpm-workspace-spec                    = { workspace = true }
 
-chrono      = { workspace = true }
-dashmap     = { workspace = true }
-derive_more = { workspace = true }
-httpdate    = { workspace = true }
-indexmap    = { workspace = true }
-libc        = { workspace = true }
-miette      = { workspace = true }
-node-semver = { workspace = true }
-pipe-trait  = { workspace = true }
-reqwest     = { workspace = true }
-serde       = { workspace = true }
-serde_json  = { workspace = true }
-sha2        = { workspace = true }
-ssri        = { workspace = true }
-tokio       = { workspace = true }
-tracing     = { workspace = true }
+chrono           = { workspace = true }
+dashmap          = { workspace = true }
+derive_more      = { workspace = true }
+httpdate         = { workspace = true }
+indexmap         = { workspace = true }
+libc             = { workspace = true }
+miette           = { workspace = true }
+node-semver      = { workspace = true }
+percent-encoding = { workspace = true }
+pipe-trait       = { workspace = true }
+reqwest          = { workspace = true }
+serde            = { workspace = true }
+serde_json       = { workspace = true }
+sha2             = { workspace = true }
+ssri             = { workspace = true }
+tokio            = { workspace = true }
+tracing          = { workspace = true }
 
 [dev-dependencies]
 pnpm-resolving-default-resolver = { workspace = true }

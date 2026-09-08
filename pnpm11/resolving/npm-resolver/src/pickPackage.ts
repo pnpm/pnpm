@@ -8,13 +8,13 @@ import gfs from '@pnpm/fs.graceful-fs'
 import { globalWarn, logger } from '@pnpm/logger'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
 import type { TrustPolicy } from '@pnpm/types'
-import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
 import { clearMeta, retainsFullMeta } from './clearMeta.js'
+import { encodeRegistry } from './encodeRegistry.js'
 import {
   type FetchMetadataNotModifiedResult,
   type FetchMetadataResult,
@@ -802,7 +802,7 @@ function canonicalizeRegistry (registry: string): string {
  * metadata. `metaDir` selects between abbreviated and full caches.
  */
 export function getPkgMirrorPath (cacheDir: string, metaDir: string, registry: string, pkgName: string): string {
-  return path.join(cacheDir, metaDir, getRegistryName(registry), `${encodePkgName(pkgName)}.jsonl`)
+  return path.join(cacheDir, metaDir, encodeRegistry(registry), `${encodePkgName(pkgName)}.jsonl`)
 }
 
 /**

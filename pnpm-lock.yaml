@@ -425,9 +425,6 @@ catalogs:
     empathic:
       specifier: ^2.0.1
       version: 2.0.1
-    encode-registry:
-      specifier: ^3.0.1
-      version: 3.0.1
     esbuild:
       specifier: ^0.28.2
       version: 0.28.2
@@ -1926,9 +1923,6 @@ importers:
       '@pnpm/store.index':
         specifier: workspace:*
         version: link:../../store/index
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
@@ -8968,9 +8962,6 @@ importers:
       '@zkochan/retry':
         specifier: 'catalog:'
         version: 0.2.0
-      encode-registry:
-        specifier: 'catalog:'
-        version: 3.0.1
       lru-cache:
         specifier: 'catalog:'
         version: 11.5.2

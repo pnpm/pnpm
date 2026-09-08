@@ -47,7 +47,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toMatchObject({
-      [`localhost:${REGISTRY_MOCK_PORT}`]: {
+      [`http://localhost:${REGISTRY_MOCK_PORT}/`]: {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -57,7 +57,7 @@ describe('cache view', () => {
           '2.0.2',
         ],
       },
-      'registry.npmjs.org': {
+      'https://registry.npmjs.org/': {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',
@@ -80,7 +80,7 @@ describe('cache view', () => {
     }, ['view', 'is-negative'])
 
     expect(JSON.parse(result!)).toMatchObject({
-      'registry.npmjs.org': {
+      'https://registry.npmjs.org/': {
         cachedVersions: ['2.1.0'],
         nonCachedVersions: [
           '1.0.0',

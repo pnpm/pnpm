@@ -4,7 +4,8 @@ use miette::IntoDiagnostic;
 use pnpm_config::{Config, ResolutionMode};
 use pnpm_fs::lexical_normalize;
 use pnpm_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_registry_name, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, decode_registry_name,
+    get_registry_name, load_meta,
 };
 use pnpm_store_dir::StoreIndex;
 use serde_json::json;
@@ -251,7 +252,7 @@ impl CacheCommand {
                     );
 
                     meta_files_by_path.insert(
-                        registry_name.replace('+', ":"),
+                        decode_registry_name(&registry_name),
                         json!({
                             "cachedVersions": cached_versions,
                             "nonCachedVersions": non_cached_versions,

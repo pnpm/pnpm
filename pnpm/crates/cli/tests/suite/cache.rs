@@ -180,7 +180,7 @@ fn should_view_package_cache() {
     let stdout = String::from_utf8(output).unwrap();
     let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
 
-    let key = registry_name.replace('+', ":");
+    let key = pnpm_resolving_npm_resolver::mirror::decode_registry_name(&registry_name);
     assert!(json.get(&key).is_some());
     let info = json.get(&key).unwrap();
     assert!(info.get("cachedVersions").is_some());

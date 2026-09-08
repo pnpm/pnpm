@@ -36,7 +36,6 @@
     "@pnpm/resolving.npm-resolver": "workspace:*",
     "@pnpm/store.cafs": "workspace:*",
     "@pnpm/store.index": "workspace:*",
-    "encode-registry": "catalog:",
     "tinyglobby": "catalog:"
   },
   "peerDependencies": {

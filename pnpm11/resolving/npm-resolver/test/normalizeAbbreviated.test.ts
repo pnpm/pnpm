@@ -72,7 +72,7 @@ test('a full document served for an abbreviated request is normalized before cac
   const res = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^1.0.0' }, {})
   expect(res!.id).toBe('foo@1.0.0')
 
-  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/foo.jsonl`)
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/foo.jsonl`)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const saved = await retryLoadJsonFile<any>(cachePath)
   const savedVersion = saved.versions['1.0.0']
@@ -125,7 +125,7 @@ test('a document served with the abbreviated content type is cached verbatim (re
   const res = await resolveFromNpm({ alias: 'foo', bareSpecifier: '^1.0.0' }, {})
   expect(res!.id).toBe('foo@1.0.0')
 
-  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/registry.npmjs.org/foo.jsonl`)
+  const cachePath = path.join(cacheDir, `${ABBREVIATED_META_DIR}/https%3A+registry.npmjs.org/foo.jsonl`)
   // The registry body is stored untouched: no field stripping and no
   // re-serialization on the honored-header happy path.
   const saved = await retryLoadJsonFile<{ _cacheUntouchedMarker?: string }>(cachePath)
