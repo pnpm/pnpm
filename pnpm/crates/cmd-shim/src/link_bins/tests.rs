@@ -63,11 +63,11 @@ fn removing_bin_entries_preserves_their_targets() {
 #[cfg_attr(windows, ignore = "Windows retries directory deletion errors as possible file locks")]
 fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     let tmp = tempdir().unwrap();
-    let pkg_dir = tmp.path().join("node_modules/foo");
+    let pkg_dir = tmp.path().join("node_modules/node");
     create_dir_all(&pkg_dir).unwrap();
-    write_file(pkg_dir.join("cli.js"), "#!/usr/bin/env node\n").unwrap();
+    write_file(pkg_dir.join("node.exe"), "node binary").unwrap();
     let bins_dir = tmp.path().join("node_modules/.bin");
-    let shim = bins_dir.join("foo");
+    let shim = bins_dir.join(if cfg!(windows) { "node.exe" } else { "node" });
     create_dir_all(&shim).unwrap();
     let preserved = shim.join("keep");
     write_file(&preserved, "untouched").unwrap();
@@ -77,7 +77,7 @@ fn bin_cleanup_and_replacement_preserve_deletion_errors() {
     assert_eq!(error.raw_os_error(), expected);
 
     let error = link_bins_of_packages::<Host>(
-        &[PackageBinSource::new(pkg_dir, Arc::new(json!({"name": "foo", "bin": "cli.js"})))],
+        &[PackageBinSource::new(pkg_dir, Arc::new(json!({"name": "node", "bin": "node.exe"})))],
         &bins_dir,
         &LinkBinsOptions::default(),
     )

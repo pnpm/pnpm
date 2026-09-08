@@ -1,4 +1,5 @@
-//! Coordination for tests that exercise real Windows file removal.
+//! Coordination for tests that exercise the real Windows retries in
+//! [`crate::retry`].
 
 use std::{
     collections::{HashMap, hash_map::Entry},
@@ -12,13 +13,14 @@ type Observer = Arc<Mutex<Box<dyn FnMut(&io::Result<()>) + Send>>>;
 static OBSERVERS: LazyLock<Mutex<HashMap<PathBuf, Observer>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Observe completed removal attempts for exactly `path` while `operation` runs.
+/// Observe completed retry attempts against exactly `path` while `operation`
+/// runs: a removal of `path`, or a rename onto it.
 ///
 /// The observer runs synchronously after the real filesystem call, including
-/// attempts on worker threads. It must not recursively remove the same path
+/// attempts on worker threads. It must not itself touch the same path
 /// or wait for another observer to run.
 /// Registration is removed when the operation returns or unwinds.
-pub fn with_file_removal_observer<Output>(
+pub fn with_retry_observer<Output>(
     path: &Path,
     observer: impl FnMut(&io::Result<()>) + Send + 'static,
     operation: impl FnOnce() -> Output,
@@ -30,7 +32,7 @@ pub fn with_file_removal_observer<Output>(
             Entry::Vacant(entry) => {
                 entry.insert(Arc::new(Mutex::new(Box::new(observer))));
             }
-            Entry::Occupied(_) => panic!("a removal observer is already registered for {path:?}"),
+            Entry::Occupied(_) => panic!("a retry observer is already registered for {path:?}"),
         }
     }
     let _registration = Registration(path);
@@ -49,7 +51,7 @@ impl Drop for Registration {
 #[cfg(test)]
 mod tests;
 
-pub(crate) fn notify_file_removal(path: &Path, result: &io::Result<()>) {
+pub(crate) fn notify_attempt(path: &Path, result: &io::Result<()>) {
     let observer =
         OBSERVERS.lock().unwrap_or_else(PoisonError::into_inner).get(path).map(Arc::clone);
     if let Some(observer) = observer {
