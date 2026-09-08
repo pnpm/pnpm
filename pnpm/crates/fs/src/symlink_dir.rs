@@ -369,7 +369,7 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 /// to the dest), remove the destination and retry. A transient Windows
 /// file lock on either side is treated the same way: the destination
 /// is cleared once, then the rename itself is retried.
-fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
+pub fn rename_overwrite(src: &Path, dst: &Path) -> io::Result<()> {
     match fs::rename(src, dst) {
         Ok(()) => Ok(()),
         Err(error) => {
