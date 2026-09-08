@@ -48,16 +48,25 @@ fn pacquet(workspace: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) 
         .with_args(args)
 }
 
-fn run_sbom_json(workspace: &Path, format: &str, extra_args: &[&str]) -> serde_json::Value {
-    let mut args = vec!["sbom", "--sbom-format", format, "--lockfile-only"];
-    args.extend_from_slice(extra_args);
-    let output = pacquet(workspace, args).output().expect("run pacquet");
+fn parse_sbom_output(output: std::process::Output) -> serde_json::Value {
     assert!(
         output.status.success(),
         "pacquet sbom failed: {}",
         String::from_utf8_lossy(&output.stderr),
     );
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
+}
+
+fn run_sbom_json(workspace: &Path, format: &str, extra_args: &[&str]) -> serde_json::Value {
+    let mut args = vec!["sbom", "--sbom-format", format, "--lockfile-only"];
+    args.extend_from_slice(extra_args);
+    parse_sbom_output(pacquet(workspace, args).output().expect("run pacquet"))
+}
+
+fn run_sbom_json_from_store(workspace: &Path, format: &str) -> serde_json::Value {
+    parse_sbom_output(
+        pacquet(workspace, ["sbom", "--sbom-format", format]).output().expect("run pacquet"),
+    )
 }
 
 #[test]
@@ -93,6 +102,64 @@ fn sbom_spdx_basic() {
     let root = &packages[0];
     assert_eq!(root["name"], "simple-sbom-test");
     assert_eq!(root["versionInfo"], "1.0.0");
+}
+
+#[test]
+fn sbom_omits_blank_authors() {
+    let tmp = copy_fixture("simple-sbom");
+    let root_manifest_path = tmp.path().join("package.json");
+    let mut root_manifest: serde_json::Value = serde_json::from_str(
+        &fs::read_to_string(&root_manifest_path).expect("read root package manifest"),
+    )
+    .expect("parse root package manifest");
+    root_manifest["author"] = serde_json::json!("");
+    fs::write(root_manifest_path, root_manifest.to_string()).expect("write root package manifest");
+
+    let package_dir =
+        tmp.path().join("node_modules/.pnpm/is-positive@3.1.0/node_modules/is-positive");
+    fs::create_dir_all(&package_dir).expect("create package dir");
+    fs::write(
+        package_dir.join("package.json"),
+        serde_json::json!({
+            "name": "is-positive",
+            "version": "3.1.0",
+            "description": "blank author fixture",
+            "author": { "name": "" },
+        })
+        .to_string(),
+    )
+    .expect("write package manifest");
+
+    let cyclonedx = run_sbom_json_from_store(tmp.path(), "cyclonedx");
+    assert!(
+        cyclonedx["metadata"]["component"].get("authors").is_none(),
+        "empty root author must not be emitted",
+    );
+    let component = cyclonedx["components"]
+        .as_array()
+        .expect("components array")
+        .iter()
+        .find(|component| component["name"] == "is-positive")
+        .expect("find is-positive component");
+    assert_eq!(component["description"], "blank author fixture");
+    assert!(component.get("authors").is_none(), "blank author must not be emitted");
+
+    let spdx = run_sbom_json_from_store(tmp.path(), "spdx");
+    let packages = spdx["packages"].as_array().expect("packages array");
+    let root_package = packages
+        .iter()
+        .find(|package| package["name"] == "simple-sbom-test")
+        .expect("find root package");
+    assert!(root_package.get("supplier").is_none(), "empty root supplier must not be emitted",);
+    let dependency_package = packages
+        .iter()
+        .find(|package| package["name"] == "is-positive")
+        .expect("find is-positive package");
+    assert_eq!(dependency_package["description"], "blank author fixture");
+    assert!(
+        dependency_package.get("supplier").is_none(),
+        "blank dependency supplier must not be emitted",
+    );
 }
 
 #[test]

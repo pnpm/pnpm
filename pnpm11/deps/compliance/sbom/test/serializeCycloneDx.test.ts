@@ -301,6 +301,16 @@ describe('serializeCycloneDx', () => {
     expect(parsed.components[1].authors).toBeUndefined()
   })
 
+  it('should omit authors whose names are empty or contain only whitespace', () => {
+    const result = makeSbomResult()
+    result.rootComponent.author = ''
+    result.components[0].author = ' \t\n'
+    const parsed = JSON.parse(serializeCycloneDx(result))
+
+    expect(parsed.metadata.component.authors).toBeUndefined()
+    expect(parsed.components[0].authors).toBeUndefined()
+  })
+
   it('should include vcs externalReference when repository is present', () => {
     const result = makeSbomResult()
     const parsed = JSON.parse(serializeCycloneDx(result))

@@ -1535,7 +1535,8 @@ fn cyclonedx_root_component(
     if let Some(description) = &result.root_description {
         root_component["description"] = serde_json::Value::String(description.clone());
     }
-    if let Some(author) = &result.root_author {
+    if let Some(author) = result.root_author.as_deref().filter(|author| !author.trim().is_empty())
+    {
         root_component["authors"] = serde_json::json!([{ "name": author }]);
     }
     if let Some(license) = &result.root_license {
@@ -1575,7 +1576,7 @@ fn cyclonedx_component(component: &SbomComponent) -> serde_json::Value {
     if let Some(description) = &component.description {
         comp["description"] = serde_json::Value::String(description.clone());
     }
-    if let Some(author) = &component.author {
+    if let Some(author) = component.author.as_deref().filter(|author| !author.trim().is_empty()) {
         comp["authors"] = serde_json::json!([{ "name": author }]);
     }
     if let Some(license) = &component.license {
@@ -1751,7 +1752,7 @@ fn spdx_component_package(component: &SbomComponent, spdx_id: &str) -> serde_jso
     if let Some(homepage) = &component.homepage {
         pkg["homepage"] = serde_json::Value::String(homepage.clone());
     }
-    if let Some(author) = &component.author {
+    if let Some(author) = component.author.as_deref().filter(|author| !author.trim().is_empty()) {
         pkg["supplier"] = serde_json::Value::String(format!("Person: {author}"));
     }
     if let Some(integrity) = &component.integrity
@@ -1789,7 +1790,8 @@ fn spdx_root_package(
     if let Some(description) = &result.root_description {
         root_package["description"] = serde_json::Value::String(description.clone());
     }
-    if let Some(author) = &result.root_author {
+    if let Some(author) = result.root_author.as_deref().filter(|author| !author.trim().is_empty())
+    {
         root_package["supplier"] = serde_json::Value::String(format!("Person: {author}"));
     }
     if let Some(repository) = &result.root_repository {

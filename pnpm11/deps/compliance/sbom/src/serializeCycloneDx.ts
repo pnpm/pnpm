@@ -55,7 +55,7 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
     }
 
     // CycloneDX supplier is the registry/distributor, not the package author
-    if (comp.author) {
+    if (comp.author?.trim()) {
       cdxComp.authors = [{ name: comp.author }]
     }
 
@@ -140,7 +140,7 @@ export function serializeCycloneDx (result: SbomResult, opts?: CycloneDxOptions)
   if (rootGroup) {
     rootCdxComponent.group = rootGroup
   }
-  if (rootComponent.author) {
+  if (rootComponent.author?.trim()) {
     rootCdxComponent.authors = [{ name: rootComponent.author }]
   }
   if (rootComponent.license) {
