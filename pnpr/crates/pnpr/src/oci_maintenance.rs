@@ -252,12 +252,12 @@ impl Inventory {
         Ok(self.connection.execute(sql, params)?)
     }
 
-    fn query_row<T>(
+    fn query_row<Row>(
         &mut self,
         sql: &str,
         params: impl rusqlite::Params,
-        row: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
-    ) -> Result<Option<T>> {
+        row: impl FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<Row>,
+    ) -> Result<Option<Row>> {
         Ok(self.connection.query_row(sql, params, row).optional()?)
     }
 }

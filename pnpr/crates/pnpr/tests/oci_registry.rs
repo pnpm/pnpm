@@ -1024,10 +1024,8 @@ async fn protocol_surface_on_object_store() {
     check_protocol_surface(router_with_auth(config, AuthState::in_memory())).await;
 }
 
-async fn check_protocol_surface(app: Router) {
-    let auth = basic(&token(&app).await);
-    let digest = push_blob(&app, &auth, "acme/source", b"0123456789").await;
-    let blob_path = format!("/v2/acme/source/blobs/{digest}");
+/// A range the blob can satisfy is served as `206` with the bytes it names.
+async fn check_satisfiable_ranges(app: &Router, blob_path: &str) {
     for (range, expected, content_range) in [
         ("bytes=2-5", "2345", "bytes 2-5/10"),
         ("bytes=7-", "789", "bytes 7-9/10"),
@@ -1038,7 +1036,7 @@ async fn check_protocol_surface(app: Router) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
             )
             .await
             .unwrap();
@@ -1048,28 +1046,40 @@ async fn check_protocol_surface(app: Router) {
         assert_eq!(response.headers()[header::ACCEPT_RANGES], "bytes");
         assert_eq!(body_bytes(response.into_body()).await, expected.as_bytes());
     }
+}
+
+/// A range outside the blob is refused with `416`.
+async fn check_unsatisfiable_ranges(app: &Router, blob_path: &str) {
     for range in ["bytes=10-", "bytes=-0", "bytes=99-100"] {
         let response = app
             .clone()
             .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::RANGE_NOT_SATISFIABLE, "{range}");
         assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes */10");
     }
+}
+
+/// A range this server does not implement serves the whole blob.
+async fn check_ignored_ranges(app: &Router, blob_path: &str) {
     for range in ["items=1-2", "bytes=1-2,4-5", "bytes=9-1", "bytes=+1-2"] {
         let response = app
             .clone()
             .oneshot(
-                Request::get(&blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
+                Request::get(blob_path).header(header::RANGE, range).body(Body::empty()).unwrap(),
             )
             .await
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "{range}");
         assert_eq!(body_bytes(response.into_body()).await, b"0123456789");
     }
+}
+
+/// A range is honoured only while the caller's validator still matches.
+async fn check_if_range(app: &Router, blob_path: &str, digest: &str) {
     for (validator, status) in [
         (format!(r#""{digest}""#), StatusCode::PARTIAL_CONTENT),
         (r#""other""#.into(), StatusCode::OK),
@@ -1077,7 +1087,7 @@ async fn check_protocol_surface(app: Router) {
         let response = app
             .clone()
             .oneshot(
-                Request::get(&blob_path)
+                Request::get(blob_path)
                     .header(header::RANGE, "bytes=7-")
                     .header(header::IF_RANGE, validator)
                     .body(Body::empty())
@@ -1087,6 +1097,16 @@ async fn check_protocol_surface(app: Router) {
             .unwrap();
         assert_eq!(response.status(), status);
     }
+}
+
+async fn check_protocol_surface(app: Router) {
+    let auth = basic(&token(&app).await);
+    let digest = push_blob(&app, &auth, "acme/source", b"0123456789").await;
+    let blob_path = format!("/v2/acme/source/blobs/{digest}");
+    check_satisfiable_ranges(&app, &blob_path).await;
+    check_unsatisfiable_ranges(&app, &blob_path).await;
+    check_ignored_ranges(&app, &blob_path).await;
+    check_if_range(&app, &blob_path, &digest).await;
     let response = app
         .clone()
         .oneshot(
