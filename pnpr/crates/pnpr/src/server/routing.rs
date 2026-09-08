@@ -240,7 +240,8 @@ pub(super) fn router_with_auth_and_osv(
         router = router
             // One publish transaction for packages of any ecosystem. It
             // answers here rather than inside the npm surface.
-            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish));
+            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+            .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
         if state.inner.config.registries.is_only_ecosystem(Ecosystem::Npm) {
             router = router.merge(npm);
         } else {
@@ -575,7 +576,7 @@ async fn get_revision_tarball(
     TargetRegistry(registry): TargetRegistry,
     Path(path): Path<DigestPath>,
 ) -> Response {
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), Ecosystem::Npm) else {
         return not_found();
     };
     serve_revision_tarball(&state, &identity, &target, &path.digest).await

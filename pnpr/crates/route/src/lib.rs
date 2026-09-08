@@ -300,6 +300,10 @@ impl RouteContext {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let hosted_origin = nerf_prefix(&config.public_url);
+        let mut registries = config.registries.clone();
+        for name in config.upstreams.keys() {
+            registries.ensure_upstream(name);
+        }
         // The registries pnpm itself routes to without configuration are
         // built-in public routes, so they are both allowlisted and classified
         // public without any operator config (and ahead of any upstream
@@ -333,7 +337,7 @@ impl RouteContext {
             public_routes,
             aliases,
             upstream_origins,
-            registries: config.registries.clone(),
+            registries,
             hosted_rules,
             upstream_rules,
         }
@@ -415,6 +419,9 @@ impl RouteContext {
                     rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
                 && !registry.is_empty()
             {
+                let Some(registry) = self.registries.addressed(registry, Ecosystem::Npm) else {
+                    return RouteClass::Public;
+                };
                 if let Some(alias) = self
                     .aliases
                     .iter()

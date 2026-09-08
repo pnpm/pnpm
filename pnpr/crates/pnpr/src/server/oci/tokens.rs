@@ -17,6 +17,7 @@ use p256::ecdsa::{
     signature::{Signer as _, Verifier as _},
 };
 use pnpr_error::RegistryError;
+use pnpr_registry::Ecosystem;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeMap, fmt::Write as _};
@@ -140,7 +141,8 @@ async fn issue_token(
     if !state.inner.config.oci.bearer_auth {
         return Ok(error(ErrorCode::Unsupported, "OCI Bearer authentication is disabled"));
     }
-    let target = addressed_registry(state, registry).ok_or(RegistryError::NotFound)?;
+    let target =
+        addressed_registry(state, registry, Ecosystem::Oci).ok_or(RegistryError::NotFound)?;
     let raw = headers
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())

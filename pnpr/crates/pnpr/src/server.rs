@@ -9,6 +9,7 @@ mod oidc;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod registry_directory;
 mod routing;
 mod staged;
 mod striped_locks;
@@ -471,7 +472,7 @@ impl<RouterState: Send + Sync> FromRequestParts<RouterState> for TargetRegistry 
         let Some((_, registry)) = params.iter().find(|(name, _)| *name == "registry") else {
             return Ok(Self(None));
         };
-        if registry.is_empty() {
+        if !pnpr_package_name::is_safe_path_segment(registry) {
             return Err(RegistryError::NotFound.into_response());
         }
         Ok(Self(Some(registry.to_string())))
@@ -562,7 +563,9 @@ async fn serve_packument(
     registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
-    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
+        return not_found();
+    };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
     let response =
         serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
@@ -576,7 +579,9 @@ async fn serve_version_manifest(
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
-    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
+        return not_found();
+    };
     let base = registry_endpoint(state, Ecosystem::Npm, registry);
     let response =
         serve_registry_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
@@ -944,7 +949,7 @@ async fn load_packument_for_read(
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     let target = match registry {
         Some(registry) => registry.to_string(),
-        None => match default_registry_target(state) {
+        None => match default_registry_target(state, Ecosystem::Npm) {
             Some(target) => target,
             None => return Ok(None),
         },
@@ -1574,8 +1579,8 @@ impl UpstreamSearchBudget {
 /// bare host has no registry and every request is a not-found, so clients must
 /// address a `/~<name>/`. There is no legacy hosted-then-proxy path: a
 /// path-less request resolves through the registry graph or it does not resolve.
-fn default_registry_target(state: &AppState) -> Option<String> {
-    state.inner.config.registries.default_registry().map(str::to_string)
+fn default_registry_target(state: &AppState, ecosystem: Ecosystem) -> Option<String> {
+    state.inner.config.registries.default_for(ecosystem).map(str::to_string)
 }
 
 /// Resolve an npm request; see [`resolve_ecosystem_source`].
@@ -1862,7 +1867,9 @@ async fn serve_tarball(
     raw_name: &str,
     filename: &str,
 ) -> Response {
-    let Some(target) = addressed_registry(state, registry) else { return not_found() };
+    let Some(target) = addressed_registry(state, registry, Ecosystem::Npm) else {
+        return not_found();
+    };
     let response = serve_registry_tarball(state, identity, &target, raw_name, filename).await;
     caller_scoped(state, Ecosystem::Npm, registry, Some(raw_name), response)
 }
@@ -2341,7 +2348,8 @@ async fn serve_search(
     let Some(params) = pnpr_search::parse_params(query_string, 20) else {
         return result(Vec::new(), 0);
     };
-    let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
+    let Some(registry) =
+        registry.map(str::to_string).or_else(|| default_registry_target(state, Ecosystem::Npm))
     else {
         return result(Vec::new(), 0);
     };
@@ -2549,7 +2557,8 @@ async fn serve_org_packages(
     {
         return not_found();
     }
-    let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
+    let Some(registry) =
+        registry.map(str::to_string).or_else(|| default_registry_target(state, Ecosystem::Npm))
     else {
         return not_found();
     };
@@ -2664,7 +2673,7 @@ fn team_registry<'a>(
     }
     let target = match registry {
         Some(registry) => registry.to_string(),
-        None => match default_registry_target(state) {
+        None => match default_registry_target(state, Ecosystem::Npm) {
             Some(target) => target,
             None => return Err(RegistryError::NotFound),
         },

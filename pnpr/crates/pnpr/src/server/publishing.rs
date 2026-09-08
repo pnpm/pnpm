@@ -67,8 +67,13 @@ pub(super) fn resolve_publish_target_for(
     package: &str,
 ) -> PublishTarget {
     let (target, context) = match registry {
-        Some(registry) => (registry.to_string(), format!("through registry {registry:?}")),
-        None => match default_registry_target(state) {
+        Some(registry) => {
+            let Some(target) = state.inner.config.registries.addressed(registry, ecosystem) else {
+                return PublishTarget::NotFound;
+            };
+            (target.to_string(), format!("through registry {registry:?}"))
+        }
+        None => match default_registry_target(state, ecosystem) {
             Some(target) => (target, "to the path-less base".to_string()),
             None => return PublishTarget::NotFound,
         },

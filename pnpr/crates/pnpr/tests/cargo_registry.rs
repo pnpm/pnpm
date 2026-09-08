@@ -6,6 +6,9 @@
 #[path = "common/ecosystem.rs"]
 mod common;
 
+#[path = "common/registry_groups.rs"]
+mod registry_groups;
+
 use axum::{
     body::Body,
     http::{Request, StatusCode, header},
@@ -988,4 +991,47 @@ async fn a_crashed_publish_keeps_what_was_published_while_it_was_down() {
         .map(|line| serde_json::from_str::<Value>(line).unwrap()["vers"].clone())
         .collect();
     assert_eq!(versions, vec!["0.2.0", "0.1.0"]);
+}
+
+#[tokio::test]
+async fn grouped_cargo_publish_stays_out_of_same_named_npm_registry() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(registry_groups::grouped_config(tmp.path(), "$all"), auth);
+    let archive = crate_archive("demo", "0.1.0");
+    let request = Request::put("/cargo/~internal/api/v1/crates/new")
+        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+        .body(Body::from(publish_body(&metadata("demo", "0.1.0"), &archive)))
+        .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    for base in ["/cargo/~internal", "/cargo/~main", "/cargo"] {
+        let response = app
+            .clone()
+            .oneshot(Request::get(format!("{base}/index/de/mo/demo")).body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{base}");
+        let entry: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+        assert_eq!(entry["vers"], "0.1.0");
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(format!("{base}/api/v1/crates/demo/0.1.0/download"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{base}");
+        assert_eq!(body_bytes(response.into_body()).await, archive);
+    }
+    for path in
+        ["/npm/~internal/demo", "/npm/~main/demo", "/npm/demo", "/pypi/~internal/simple/demo/"]
+    {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND, "{path}");
+    }
 }

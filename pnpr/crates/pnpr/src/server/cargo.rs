@@ -105,7 +105,7 @@ async fn get_search(
     else {
         return respond(Vec::new(), 0);
     };
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let size = pnpr_search::parse_usize_param(&query_string, "per_page")
@@ -181,7 +181,7 @@ async fn get_index_config(
     State(state): State<AppState>,
     TargetRegistry(registry): TargetRegistry,
 ) -> Response {
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let config = IndexConfig::for_registry(
@@ -219,7 +219,7 @@ async fn get_index_file(
     if path != segments.join("/") {
         return not_found();
     }
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let index = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
@@ -279,7 +279,7 @@ async fn get_download(
     if !is_safe_path_segment(version) {
         return not_found();
     }
-    let Some(target) = addressed_registry(&state, registry.as_deref()) else {
+    let Some(target) = addressed_registry(&state, registry.as_deref(), ECOSYSTEM) else {
         return not_found();
     };
     let response = match resolve_ecosystem_source(&state, &target, ECOSYSTEM, key.as_str()) {
