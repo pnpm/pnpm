@@ -197,6 +197,16 @@ fn vendor_from(
     store_dir: &StoreDir,
     packages: &[(&str, &str)],
 ) -> Vec<(String, std::path::PathBuf)> {
+    vendor_from_offline(repository, commit, store_dir, packages, false)
+}
+
+fn vendor_from_offline(
+    repository: &Path,
+    commit: &str,
+    store_dir: &StoreDir,
+    packages: &[(&str, &str)],
+    offline: bool,
+) -> Vec<(String, std::path::PathBuf)> {
     let source = Arc::new(
         GitSource::from_source_id(&source_id(&format!(
             "git+file://{}#{commit}",
@@ -219,7 +229,7 @@ fn vendor_from(
         git_shallow_hosts: &[],
         package_import_method: pnpm_config::PackageImportMethod::default(),
         logged_methods: &AtomicU8::new(0),
-        offline: false,
+        offline,
     })
     .unwrap()
 }
@@ -303,9 +313,12 @@ fn a_vendored_package_is_taken_from_the_store_without_a_second_checkout() {
     let store_dir = StoreDir::from(temp_dir.path().join("store"));
     store_dir.init().unwrap();
     let linked = vendor_from(&repository, &commit, &store_dir, &[("demo", "1.0.0")]);
-    fs::remove_dir_all(&repository).unwrap();
 
-    assert_eq!(vendor_from(&repository, &commit, &store_dir, &[("demo", "1.0.0")]), linked);
+    // Offline, so a second checkout of the repository would be an error.
+    let relinked =
+        vendor_from_offline(&repository, &commit, &store_dir, &[("demo", "1.0.0")], true);
+
+    assert_eq!(relinked, linked);
 }
 
 #[test]

@@ -213,8 +213,7 @@ fn install_vendors_a_git_patched_crate_beside_the_registry_crates() {
         "{config}",
     );
     assert!(config.contains(r#"replace-with = "pnpm-git""#), "{config}");
-    // The vendored revision builds without reaching the repository again.
-    fs::remove_dir_all(repository.path()).unwrap();
+    // Offline, so the revision has to come from what the install vendored.
     Command::new("cargo")
         .with_current_dir(root.path())
         .with_args(["check", "--offline"])
