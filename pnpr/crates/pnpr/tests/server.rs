@@ -4282,8 +4282,6 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             request.body(Body::empty()).unwrap()
         };
 
-        // Neither the anonymous caller nor an authenticated non-member can
-        // enumerate the private registry's packages.
         for authorization in [None, Some(format!("Bearer {outsider}"))] {
             let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
@@ -4292,7 +4290,6 @@ async fn search_does_not_enumerate_a_private_flat_root_registry() {
             assert_eq!(body["objects"], json!([]));
         }
 
-        // A member still finds it.
         let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         let body = body_json(response.into_body()).await;
