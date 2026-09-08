@@ -591,12 +591,18 @@ fn import_directory(
     cas_paths: &mut HashMap<String, PathBuf>,
 ) -> Result<()> {
     for entry in read_directory(dir)? {
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
+        // A lossy name would key one file's contents under another's, and
+        // the checksum manifest that keeps the vendored package honest
+        // cannot spell a name that is not UTF-8 either.
+        let name = entry.file_name().into_string().map_err(|name| {
+            let path = dir.join(name);
+            let path = path.display();
+            miette::miette!("cannot vendor {path}: its name is not valid UTF-8")
+        })?;
         let path = entry.path();
         match entry_kind(context.root, &entry)? {
             Some(EntryKind::Directory) => {
-                if EXCLUDED_DIRECTORIES.contains(&name.as_ref())
+                if EXCLUDED_DIRECTORIES.contains(&name.as_str())
                     || context.nested.contains(path.as_path())
                 {
                     continue;

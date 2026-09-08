@@ -239,5 +239,7 @@ fn a_workspace_with_a_cargo_patch_is_not_resolved_from_the_registry() {
         .expect("run pnpm install");
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("declares [patch]"), "{stderr}");
+    assert!(!output.status.success(), "{stderr}");
+    // One word: a diagnostic wraps at a width the path length decides.
+    assert!(stderr.contains("[patch]"), "{stderr}");
 }

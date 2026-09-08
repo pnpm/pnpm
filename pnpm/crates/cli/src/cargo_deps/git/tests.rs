@@ -1,10 +1,12 @@
 use super::{
-    GitPackage, GitSource, Manifest, VendorSourceOptions, vendor_source, vendored_package,
+    CheckoutPackage, GitPackage, GitSource, Manifest, VendorSourceOptions, import_package,
+    vendor_source, vendored_package,
 };
 use pnpm_reporter::SilentReporter;
 use pnpm_store_dir::StoreDir;
 use pnpm_testing_utils::git_repo::GitRepoFixture;
 use std::{
+    collections::BTreeSet,
     fs,
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
@@ -351,6 +353,33 @@ fn a_symlinked_file_is_vendored_as_its_contents_unless_it_leaves_the_checkout() 
     assert_eq!(fs::read_to_string(slot.join("LICENSE")).unwrap(), "the license\n");
     assert_eq!(fs::read_to_string(slot.join("src/lib.rs")).unwrap(), "the license\n");
     assert!(!slot.join("escaped").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_file_whose_name_is_not_utf8_is_refused() {
+    use std::{ffi::OsStr, os::unix::ffi::OsStrExt as _};
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let package_dir = temp_dir.path().join("crate");
+    fs::create_dir_all(&package_dir).unwrap();
+    fs::write(package_dir.join(OsStr::from_bytes(b"lib\xff.rs")), "").unwrap();
+    let store_dir = StoreDir::from(temp_dir.path().join("store"));
+    store_dir.init().unwrap();
+
+    let error = import_package(
+        &store_dir,
+        temp_dir.path(),
+        &CheckoutPackage {
+            dir: package_dir,
+            manifest: "[package]\nname = \"demo\"\nversion = \"1.0.0\"\n".to_string(),
+        },
+        &BTreeSet::new(),
+    )
+    .unwrap_err()
+    .to_string();
+
+    assert!(error.contains("not valid UTF-8"), "{error}");
 }
 
 #[test]
