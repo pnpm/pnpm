@@ -685,6 +685,16 @@ fn capture_bundled_manifest(entry_data: &[u8]) -> (bool, Option<serde_json::Valu
 /// Rejected rather than normalized so a tampered tarball is visible
 /// instead of silently landing outside the store.
 ///
+/// An entry that is only one segment long keeps that segment. Such an
+/// entry sits at the archive root beside `package/`, so there is no
+/// top-level directory on it to drop, and pnpm keys it by its own name
+/// (`parseString` in `parseTarball.ts` advances past the first
+/// separator, which a single segment has none of). Dropping the segment
+/// instead would leave nothing to key the file by, and rejecting the
+/// entry would fail an archive that every other installer accepts. A
+/// lone `.` is the exception: it names the archive root rather than
+/// anything inside it, so there is no file for a key to address.
+///
 /// Joined by hand rather than with `PathBuf`, whose native separator
 /// would desynchronize these keys from pnpm's always-forward-slashed
 /// path layer and the `index.db` both implementations share. Callers
@@ -699,13 +709,15 @@ fn clean_archive_entry_path(raw: &str) -> Result<String, TarballError> {
             ),
         )));
     };
-    parts.remove(0);
-    if parts.is_empty() {
+    if parts.len() > 1 {
+        parts.remove(0);
+    }
+    if let [only] = parts.as_slice()
+        && only == "."
+    {
         return Err(TarballError::ReadTarballEntries(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            format!(
-                "tar entry path has no payload after dropping the top-level component: {raw:?}",
-            ),
+            format!("tar entry path names the archive root itself, not a file in it: {raw:?}"),
         )));
     }
     Ok(parts.join("/"))

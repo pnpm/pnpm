@@ -5901,6 +5901,91 @@ fn extract_strips_only_one_component_from_a_dot_prefixed_entry_path() {
     drop(tempdir);
 }
 
+/// Build a tar whose payload directory sits beside two root-level
+/// entries: macOS `bsdtar` emits the zero-length `AppleDouble` `._package`
+/// when the source cannot store xattrs natively, and `tar czf README
+/// package` puts an ordinary file up there too.
+fn tar_with_root_level_entries() -> Vec<u8> {
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, body) in [
+        ("._package", &b""[..]),
+        ("README", &b"a file that sits at the archive root\n"[..]),
+        ("package/package.json", &br#"{"name":"pkg-root-entry","version":"1.0.0"}"#[..]),
+        ("package/index.js", &b"module.exports = 'hello'\n"[..]),
+    ] {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder.append_data(&mut header, path, body).expect("append entry");
+    }
+    builder.into_inner().expect("finish tar")
+}
+
+/// An entry at the archive root has no top-level directory on it to
+/// strip, so it is keyed by its own name — what pnpm does, and what
+/// keeps the shared `index.db` describing one file layout. Rejecting it
+/// failed the whole install for an archive npm and pnpm both accept.
+#[test]
+fn extract_keys_a_root_level_entry_by_its_own_name() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_root_level_entries();
+    let (cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("extract the tarball");
+
+    let mut keys = cas_paths.keys().collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
+    assert_eq!(
+        pkg_files_idx.manifest.as_ref().and_then(|manifest| manifest["name"].as_str()),
+        Some("pkg-root-entry"),
+        "the manifest under `package/` is still the one captured",
+    );
+
+    drop(tempdir);
+}
+
+/// The streaming extractor keys a root-level entry the same way, since
+/// [`should_stream_extract`] routes between the two per download and the
+/// shared `index.db` must not be able to tell them apart.
+#[test]
+fn streaming_extract_keys_a_root_level_entry_by_its_own_name() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_root_level_entries();
+    let (cas_paths, _) = stream_extract_gzipped_tarball(&gzip_bytes(&tar_bytes), store_path, None)
+        .expect("extract the tarball");
+
+    let mut keys = cas_paths.keys().collect::<Vec<_>>();
+    keys.sort();
+    assert_eq!(keys, vec!["._package", "README", "index.js", "package.json"]);
+
+    drop(tempdir);
+}
+
+/// A lone `.` names the archive root rather than a file inside it, so no
+/// key can address it. It stays rejected, unlike the root-level entries
+/// above that have a name to be keyed by.
+#[test]
+fn extract_rejects_an_entry_naming_the_archive_root() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let tar_bytes = tar_with_raw_entry_name(b"./.");
+    let err = extract_tarball_entries(&tar_bytes, store_path, None)
+        .expect_err("an entry naming the archive root must be rejected");
+
+    match err {
+        TarballError::ReadTarballEntries(io_err) => {
+            assert_eq!(io_err.kind(), std::io::ErrorKind::InvalidData);
+        }
+        other => panic!("expected a rejected tar entry, got {other:?}"),
+    }
+
+    drop(tempdir);
+}
+
 /// A backslash is an ordinary filename character on Unix but a
 /// separator on Windows, and these keys travel between the two through
 /// the shared `index.db`. pnpm folds `\` to `/` before validating

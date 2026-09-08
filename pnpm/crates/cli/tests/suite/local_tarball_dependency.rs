@@ -128,6 +128,80 @@ fn local_tarball_without_a_bundled_manifest_installs_under_its_alias() {
     drop((root, mock_instance));
 }
 
+/// Returns a gzipped tarball whose payload lives under `package/` while
+/// a zero-length `._package` sits beside it at the archive root. macOS
+/// `bsdtar` emits that `AppleDouble` entry when the source cannot store
+/// xattrs natively, so packing with `tar` rather than `npm pack`
+/// produces this shape.
+fn tarball_with_a_root_level_entry(manifest: &serde_json::Value) -> Vec<u8> {
+    use std::io::Write;
+
+    let mut builder = tar::Builder::new(Vec::new());
+    for (path, contents) in
+        [("._package", b"".as_slice()), ("package/package.json", manifest.to_string().as_bytes())]
+    {
+        let mut header = tar::Header::new_gnu();
+        header.set_path(path).expect("set tar entry path");
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append(&header, contents).expect("append entry to tar");
+    }
+    let tar_bytes = builder.into_inner().expect("finish tar");
+
+    let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    encoder.write_all(&tar_bytes).expect("gzip tar");
+    encoder.finish().expect("finish gzip")
+}
+
+/// An entry at the archive root has no top-level directory to strip, and
+/// rejecting it used to fail the whole install with
+/// `ERR_PNPM_TARBALL_IO_ERROR` after exhausting the network retries.
+/// pnpm 11 installs the same archive, so pnpm 12 does too, keying the
+/// entry by its own name.
+///
+/// Covers <https://github.com/pnpm/pnpm/issues/14701>.
+#[test]
+fn local_tarball_with_a_root_level_entry_installs() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("pkg-root-entry-1.0.0.tgz"),
+        tarball_with_a_root_level_entry(
+            &serde_json::json!({ "name": "pkg-root-entry", "version": "1.0.0" }),
+        ),
+    )
+    .expect("write tarball");
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({
+            "name": "root",
+            "version": "1.0.0",
+            "dependencies": { "pkg-root-entry": "file:./pkg-root-entry-1.0.0.tgz" },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("install").assert().success();
+
+    let installed = workspace.join(
+        "node_modules/.pnpm/pkg-root-entry@file+pkg-root-entry-1.0.0.tgz/node_modules/pkg-root-entry",
+    );
+    assert!(
+        installed.join("package.json").exists(),
+        "the manifest under `package/` must still be extracted to the package root",
+    );
+    assert!(
+        installed.join("._package").exists(),
+        "the root-level entry must be extracted under its own name, as pnpm 11 does",
+    );
+
+    drop((root, mock_instance));
+}
+
 /// A local tarball's own dependencies are readable only from the
 /// manifest bundled in the archive, so they exercise the resolve-time
 /// read from a second angle: the dep path alone would not reveal them.
