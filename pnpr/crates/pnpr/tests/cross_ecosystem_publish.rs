@@ -2,18 +2,22 @@
 //! carrying packages of more than one ecosystem. Static-mode (no upstream) to
 //! keep the tests hermetic.
 
+#[path = "common/npm.rs"]
+#[expect(dead_code, reason = "this suite needs part of the shared npm fixtures")]
+mod npm;
+
 use axum::{
     body::{Body, to_bytes},
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
+use npm::sri_sha512;
 use pnpr::{
     AccessList, AuthState, Config, Ecosystem, HostedConfig, MaxUsers, PackagePattern, PackageRules,
     Registries, Registry, Teams, router_with_auth,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use ssri::{Algorithm, IntegrityOpts};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
@@ -76,12 +80,6 @@ async fn body_json(body: Body) -> Value {
 
 fn sha256_hex(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
-}
-
-fn sri_sha512(bytes: &[u8]) -> String {
-    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-    opts.input(bytes);
-    opts.result().to_string()
 }
 
 fn publish_request(path: &str, body: &Value, token: Option<&str>) -> Request<Body> {
