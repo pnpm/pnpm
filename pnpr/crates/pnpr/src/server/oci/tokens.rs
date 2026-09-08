@@ -98,23 +98,24 @@ impl Claims {
         else {
             return false;
         };
-        let action = if upload {
-            "push"
-        } else {
-            match *method {
-                Method::GET | Method::HEAD => "pull",
-                Method::DELETE => "delete",
-                _ => "push",
-            }
-        };
-        if !self.allows(name.as_str(), action) {
-            return false;
-        }
-        true
+        self.allows(name.as_str(), endpoint_action(method, upload))
     }
 
     pub(super) fn allows(&self, name: &str, action: &str) -> bool {
         self.scopes.get(name).is_some_and(|actions| actions.iter().any(|held| held == action))
+    }
+}
+
+/// The scope action a request needs. An upload session is push throughout,
+/// including its cancellation.
+fn endpoint_action(method: &Method, upload: bool) -> &'static str {
+    if upload {
+        return "push";
+    }
+    match *method {
+        Method::GET | Method::HEAD => "pull",
+        Method::DELETE => "delete",
+        _ => "push",
     }
 }
 

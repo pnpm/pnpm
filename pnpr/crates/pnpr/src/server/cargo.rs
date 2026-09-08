@@ -87,6 +87,26 @@ const DEFAULT_SEARCH_PAGE: usize = 10;
 /// Hosted sources only. An upstream contributes nothing, the way an npm
 /// upstream does until its `search` is turned on, and searching one needs
 /// its `config.json` `api` base rather than the index base pnpr proxies.
+/// Add one hosted source's names to the page.
+///
+/// A hosted namespace shared with another ecosystem holds names that are not
+/// crate names. Dropping them before the position is claimed keeps them out of
+/// the page and out of the total, and costs no read.
+async fn add_crates_to_page(
+    page: &mut SearchPage<SearchCrate>,
+    storage: &pnpr_storage::Storage,
+    names: Vec<String>,
+) {
+    for name in names {
+        let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
+            continue;
+        };
+        if page.push_name(&name) {
+            page.objects.push(search_crate(storage, &key).await);
+        }
+    }
+}
+
 async fn get_search(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -126,18 +146,7 @@ async fn get_search(
             Ok(None) => continue,
             Err(err) => return error_response(err),
         };
-        for name in names {
-            // A hosted namespace shared with another ecosystem holds names
-            // that are not crate names. Dropping them before the position
-            // is claimed keeps them out of the page and out of the total,
-            // and costs no read.
-            let Ok(key) = CanonicalPackageName::parse(&name, ECOSYSTEM) else {
-                continue;
-            };
-            if page.push_name(&name) {
-                page.objects.push(search_crate(&storage, &key).await);
-            }
-        }
+        add_crates_to_page(&mut page, &storage, names).await;
     }
     let total = page.total();
     // Results are filtered per caller (registry access plus per-package
