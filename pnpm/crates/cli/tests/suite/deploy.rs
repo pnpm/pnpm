@@ -1430,8 +1430,13 @@ fn legacy_deploy_ignores_the_pnpmfile_copied_into_the_deploy_dir() {
         project_dir.join(PNPMFILE_SENTINEL).exists(),
         "the legacy deploy install should run the selected project's pnpmfile",
     );
+    let deploy_dir = workspace.join("deploy");
     assert!(
-        !workspace.join("deploy").join(PNPMFILE_SENTINEL).exists(),
+        deploy_dir.join(".pnpmfile.mjs").exists(),
+        "the deployed packlist should have carried the project's pnpmfile over",
+    );
+    assert!(
+        !deploy_dir.join(PNPMFILE_SENTINEL).exists(),
         "the legacy deploy install must not load the pnpmfile it just copied",
     );
 
