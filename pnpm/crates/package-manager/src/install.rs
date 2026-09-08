@@ -710,16 +710,34 @@ pub enum InstallError {
     #[display("Failed to remove the git branch lockfiles: {_0}")]
     CleanGitBranchLockfiles(#[error(source)] std::io::Error),
 
-    /// `path` is the entry the removal was working on: the file or
-    /// directory the user has to act on.
-    // Not `{path:?}`: entries arrive canonicalized, so Debug would print
-    // the verbatim prefix and escape every separator.
+    /// An entry could not be removed while the install was clearing the
+    /// modules directory. `path` is that entry: the file or directory
+    /// the user has to act on.
+    // This variant and `ReadModulesDir` render their path through
+    // `dunce::simplified` and `Display` rather than `{path:?}`: the
+    // purge walks a canonicalized modules directory, so `Debug` would
+    // print the verbatim prefix and escape every separator.
     #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
     #[display(
         "Failed to remove {} from the modules directory: {error}",
         dunce::simplified(path).display()
     )]
     RemoveModulesDir {
+        path: PathBuf,
+        #[error(source)]
+        error: std::io::Error,
+    },
+
+    /// The modules directory at `path` could not be listed, so the
+    /// install cannot tell what is left in it. Shares the code of
+    /// [`InstallError::RemoveModulesDir`] because both mean the same
+    /// thing to a user: the modules directory could not be cleared.
+    #[diagnostic(code(ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR))]
+    #[display(
+        "Failed to read the modules directory at {}: {error}",
+        dunce::simplified(path).display()
+    )]
+    ReadModulesDir {
         path: PathBuf,
         #[error(source)]
         error: std::io::Error,

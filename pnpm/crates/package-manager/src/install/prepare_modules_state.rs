@@ -165,7 +165,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                                     continue;
                                 }
                                 Err(err) => {
-                                    return Err(InstallError::RemoveModulesDir {
+                                    return Err(InstallError::ReadModulesDir {
                                         path: target,
                                         error: err,
                                     });
@@ -197,26 +197,27 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                                 continue;
                             }
 
+                            let entry_path = entry.path();
                             if entry.file_type().is_ok_and(|t| t.is_dir()) {
                                 #[cfg(windows)]
-                                let is_removed = pnpm_fs::remove_symlink_dir(&entry.path()).is_ok();
+                                let is_removed = pnpm_fs::remove_symlink_dir(&entry_path).is_ok();
                                 #[cfg(not(windows))]
                                 let is_removed = false;
 
                                 if !is_removed
-                                    && let Err(err) = std::fs::remove_dir_all(entry.path())
+                                    && let Err(err) = std::fs::remove_dir_all(&entry_path)
                                     && err.kind() != std::io::ErrorKind::NotFound
                                 {
                                     return Err(InstallError::RemoveModulesDir {
-                                        path: entry.path(),
+                                        path: entry_path,
                                         error: err,
                                     });
                                 }
-                            } else if let Err(err) = std::fs::remove_file(entry.path())
+                            } else if let Err(err) = std::fs::remove_file(&entry_path)
                                 && err.kind() != std::io::ErrorKind::NotFound
                             {
                                 return Err(InstallError::RemoveModulesDir {
-                                    path: entry.path(),
+                                    path: entry_path,
                                     error: err,
                                 });
                             }
@@ -224,7 +225,7 @@ pub(super) async fn prepare_modules_state<'install, Reporter: self::Reporter + '
                     }
                     Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
                     Err(err) => {
-                        return Err(InstallError::RemoveModulesDir { path: target, error: err });
+                        return Err(InstallError::ReadModulesDir { path: target, error: err });
                     }
                 }
             }

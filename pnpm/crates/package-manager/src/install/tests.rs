@@ -10935,6 +10935,21 @@ fn recorded_verified_file_integrity_report(verified: VerifiedFileIntegrity) -> V
     dbg!(messages)
 }
 
+fn assert_purge_diagnostic(error: &InstallError, path: &std::path::Path) {
+    let rendered = error.to_string();
+    assert!(rendered.contains(&path.display().to_string()), "got: {rendered}");
+    assert!(rendered.contains("denied"), "source error must survive: {rendered}");
+    assert_eq!(
+        miette::Diagnostic::code(error).map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR"),
+    );
+
+    let source = std::error::Error::source(error).expect("the io error stays in the source chain");
+    let io_error =
+        source.downcast_ref::<std::io::Error>().expect("the source is the original io::Error");
+    assert_eq!(io_error.kind(), std::io::ErrorKind::PermissionDenied);
+}
+
 #[test]
 fn remove_modules_dir_names_the_entry_and_carries_the_diagnostic_code() {
     let path = std::path::PathBuf::from("project").join("node_modules").join("left-pad");
@@ -10943,32 +10958,41 @@ fn remove_modules_dir_names_the_entry_and_carries_the_diagnostic_code() {
         error: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
     };
 
-    let rendered = error.to_string();
-    assert!(rendered.contains(&path.display().to_string()), "got: {rendered}");
-    assert!(rendered.contains("denied"), "source error must survive: {rendered}");
-    assert_eq!(
-        miette::Diagnostic::code(&error).map(|code| code.to_string()).as_deref(),
-        Some("ERR_PNPM_PACKAGE_MANAGER_REMOVE_MODULES_DIR"),
-    );
-
-    let source = std::error::Error::source(&error).expect("the io error stays in the source chain");
-    let io_error =
-        source.downcast_ref::<std::io::Error>().expect("the source is the original io::Error");
-    assert_eq!(io_error.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_purge_diagnostic(&error, &path);
 }
 
-/// Entries reach this variant from a canonicalized modules directory, so
+#[test]
+fn read_modules_dir_names_the_directory_and_carries_the_diagnostic_code() {
+    let path = std::path::PathBuf::from("project").join("node_modules");
+    let error = InstallError::ReadModulesDir {
+        path: path.clone(),
+        error: std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
+    };
+
+    assert_purge_diagnostic(&error, &path);
+}
+
+/// Paths reach both variants from a canonicalized modules directory, so
 /// on Windows they carry a `\\?\` prefix that must not reach the user.
 #[test]
 #[cfg_attr(not(windows), ignore = "verbatim prefixes only exist on Windows")]
-fn remove_modules_dir_renders_a_copy_pasteable_windows_path() {
-    let error = InstallError::RemoveModulesDir {
-        path: std::path::PathBuf::from(r"\\?\C:\project\node_modules\is-odd"),
-        error: std::io::Error::from_raw_os_error(5),
-    };
+fn the_purge_diagnostics_render_copy_pasteable_windows_paths() {
+    let io_error = || std::io::Error::from_raw_os_error(5);
+    let errors = [
+        InstallError::RemoveModulesDir {
+            path: std::path::PathBuf::from(r"\\?\C:\project\node_modules\is-odd"),
+            error: io_error(),
+        },
+        InstallError::ReadModulesDir {
+            path: std::path::PathBuf::from(r"\\?\C:\project\node_modules"),
+            error: io_error(),
+        },
+    ];
 
-    let rendered = error.to_string();
-    assert!(rendered.contains(r"C:\project\node_modules\is-odd"), "got: {rendered}");
-    assert!(!rendered.contains(r"\\?\"), "verbatim prefix must not reach the user: {rendered}");
-    assert!(!rendered.contains(r"\\"), "separators must not be escaped: {rendered}");
+    for error in errors {
+        let rendered = error.to_string();
+        assert!(rendered.contains(r"C:\project\node_modules"), "got: {rendered}");
+        assert!(!rendered.contains(r"\\?\"), "verbatim prefix must not reach the user: {rendered}");
+        assert!(!rendered.contains(r"\\"), "separators must not be escaped: {rendered}");
+    }
 }
