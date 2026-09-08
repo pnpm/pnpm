@@ -40,6 +40,9 @@ const PLATFORMS = {
     s390x: {
       glibc: '@pnpm/exe.linux-s390x/pnpm',
     },
+    loong64: {
+      glibc: '@pnpm/exe.linux-loong64/pnpm',
+    },
   },
   freebsd: {
     x64: '@pnpm/exe.freebsd-x64/pnpm',

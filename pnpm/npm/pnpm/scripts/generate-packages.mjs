@@ -190,6 +190,7 @@ const TARGETS = [
   { platform: "linux", arch: "riscv64", libc: "glibc", codeTarget: "linux-riscv64", packageTarget: "linux-riscv64" },
   { platform: "linux", arch: "ppc64", libc: "glibc", codeTarget: "linux-ppc64", packageTarget: "linux-ppc64" },
   { platform: "linux", arch: "s390x", libc: "glibc", codeTarget: "linux-s390x", packageTarget: "linux-s390x" },
+  { platform: "linux", arch: "loong64", libc: "glibc", codeTarget: "linux-loong64", packageTarget: "linux-loong64" },
   { platform: "linux", arch: "x64", libc: "musl", codeTarget: "linux-x64-musl", packageTarget: "linux-x64-musl" },
   { platform: "linux", arch: "arm64", libc: "musl", codeTarget: "linux-arm64-musl", packageTarget: "linux-arm64-musl" },
   { platform: "freebsd", arch: "x64", codeTarget: "freebsd-x64", packageTarget: "freebsd-x64" },
