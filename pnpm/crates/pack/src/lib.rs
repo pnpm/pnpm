@@ -282,14 +282,16 @@ fn published_identity(
     Ok((normalize_tarball_name(published_name), published_version))
 }
 
-/// The name and version the tarball is packed under.
+/// The name the tarball is packed under, once the manifest's name *and*
+/// version are known to be publishable.
 ///
 /// Both are interpolated into the default tarball filename
 /// (`<name>-<version>.tgz`) and the manifest is attacker-controlled, so a
 /// path separator in the version would let it smuggle path components into the
 /// join and write the tarball outside `dest_dir`. A real semver version never
-/// contains one.
-fn packed_identity(manifest: &Value) -> Result<(&str, &str), PackError> {
+/// contains one. The version itself is read back off the publish manifest by
+/// [`published_identity`], which a `publishConfig` rename can change.
+fn packed_identity(manifest: &Value) -> Result<&str, PackError> {
     let name = manifest
         .get("name")
         .and_then(Value::as_str)
@@ -306,7 +308,7 @@ fn packed_identity(manifest: &Value) -> Result<(&str, &str), PackError> {
     if version.contains('/') || version.contains('\\') {
         return Err(PackError::InvalidPackageVersion { version: version.to_string() });
     }
-    Ok((name, version))
+    Ok(name)
 }
 
 pub async fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
@@ -333,7 +335,7 @@ where
     let manifest = read_manifest(&dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &manifest)?;
 
-    let (name, version) = packed_identity(&manifest)?;
+    let name = packed_identity(&manifest)?;
 
     let modules_dir = opts.dir.join("node_modules");
     let mut publish_manifest = create_exportable_manifest(
