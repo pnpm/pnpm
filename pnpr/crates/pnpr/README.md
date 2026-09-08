@@ -4,6 +4,24 @@ A pnpm-compatible npm registry server, written in Rust.
 
 Lives in the [pnpm monorepo](https://github.com/pnpm/pnpm) under `registry/`.
 
+## Registry directory
+
+`GET /-/pnpr/v0/registries` lists the named registries visible to the caller.
+It returns `registries`, the visible `defaultRegistry` (or `null`), and the
+mounted `ecosystems` with their `available` and `prefixed` flags.
+
+Each entry contains its `name`, `kind` (`hosted`, `upstream`, or `router`),
+and supported `ecosystems`. Concrete registries report namespace `patterns`;
+routers report ordered `sources`. These fields are `null` when their details
+cannot be disclosed under the caller's access rules. Upstream addresses,
+credentials, storage paths, and package access rules are never returned.
+Responses are private and must not be cached.
+
+An explicit `/~name` chooses a registry; the path without a name uses the
+configured default. Within an ecosystem, a router selects the first source
+whose namespace claims the package. A missing package or failed upstream is
+final, without fallback to another source. Package access rules still apply.
+
 ## OpenID Connect
 
 [Configure OIDC sign-in and keyless CI publishing](./OIDC.md) with Okta,

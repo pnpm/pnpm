@@ -9,6 +9,7 @@ mod oidc;
 mod package_mutation;
 mod publishing;
 mod pypi;
+mod registry_directory;
 mod routing;
 mod staged;
 mod striped_locks;

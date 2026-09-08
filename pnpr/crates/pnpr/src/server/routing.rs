@@ -240,7 +240,8 @@ pub(super) fn router_with_auth_and_osv(
         router = router
             // One publish transaction for packages of any ecosystem. It
             // answers here rather than inside the npm surface.
-            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish));
+            .route("/-/pnpr/v0/publish", put(batch::serve_ecosystem_publish))
+            .route("/-/pnpr/v0/registries", get(super::registry_directory::serve));
         if state.inner.config.registries.is_only_ecosystem(Ecosystem::Npm) {
             router = router.merge(npm);
         } else {

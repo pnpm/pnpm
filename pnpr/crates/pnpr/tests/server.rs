@@ -5380,3 +5380,95 @@ async fn browse_paginates_hosted_packages_without_contacting_upstreams() {
     assert_eq!(body["objects"], json!([]));
     search.assert_async().await;
 }
+
+#[tokio::test]
+async fn registry_directory_filters_private_registries_and_routing_details() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://example.invalid/secret-upstream", tmp.path().to_path_buf());
+    config.hosted.insert("private".to_string(), hosted_with_access("private", "alice"));
+    config.hosted.insert("crates".to_string(), hosted_with_access("crates", "$all"));
+    config.registries = Registries::new(
+        [
+            (
+                "private".to_string(),
+                Registry::Hosted { patterns: vec![PackagePattern::Scope("secret".to_string())] },
+            ),
+            ("crates".to_string(), Registry::Hosted { patterns: vec![] }),
+            ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+            (
+                "main".to_string(),
+                Registry::Router {
+                    sources: vec!["private".to_string(), "crates".to_string(), "npmjs".to_string()],
+                },
+            ),
+        ]
+        .into_iter()
+        .collect(),
+        Some("main".to_string()),
+    )
+    .with_ecosystem("crates", Ecosystem::Cargo);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+    for authenticated in [false, true] {
+        let mut request = Request::builder().uri("/-/pnpr/v0/registries");
+        if authenticated {
+            request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+        }
+        let response = app.clone().oneshot(request.body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(response.headers()[header::CACHE_CONTROL].to_str().unwrap().contains("no-store"));
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["defaultRegistry"], "main");
+        assert_eq!(body["ecosystems"]["cargo"], json!({"available": true, "prefixed": true}));
+        let entries = body["registries"].as_array().unwrap();
+        let main = entries.iter().find(|registry| registry["name"] == "main").unwrap();
+        assert_eq!(entries.iter().any(|registry| registry["name"] == "private"), authenticated);
+        if authenticated {
+            assert_eq!(main["sources"], json!(["private", "crates", "npmjs"]));
+        } else {
+            assert!(main["sources"].is_null());
+            assert!(!String::from_utf8_lossy(&bytes).contains("secret"));
+        }
+        assert!(!String::from_utf8_lossy(&bytes).contains("example.invalid"));
+    }
+}
+
+#[tokio::test]
+async fn registry_directory_hides_upstream_access_and_package_rule_metadata() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://example.invalid", tmp.path().to_path_buf());
+    config.upstreams.get_mut("npmjs").unwrap().access = Some(AccessList::from_tokens(["alice"]));
+    let mut hosted = hosted_with_access("public", "$all");
+    hosted.rules = PackageRules::new(
+        vec![access_rule("secret-package", "alice")],
+        Some(AccessList::from_tokens(["$all"])),
+    );
+    config.hosted.insert("public".to_string(), hosted);
+    config.registries = Registries::new(
+        [
+            (
+                "public".to_string(),
+                Registry::Hosted {
+                    patterns: vec![PackagePattern::Exact("secret-package".to_string())],
+                },
+            ),
+            ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        ]
+        .into_iter()
+        .collect(),
+        Some("npmjs".to_string()),
+    );
+    let response = router(config)
+        .oneshot(Request::builder().uri("/-/pnpr/v0/registries").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let body: Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap()).unwrap();
+    assert!(body["defaultRegistry"].is_null());
+    assert_eq!(body["registries"].as_array().unwrap().len(), 1);
+    assert_eq!(body["registries"][0]["name"], "public");
+    assert!(body["registries"][0]["patterns"].is_null());
+    assert_eq!(body["ecosystems"]["npm"]["prefixed"], false);
+}
