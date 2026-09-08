@@ -42,24 +42,11 @@ pub fn parse_params(query_string: &str, default_size: usize) -> Option<SearchPar
     })
 }
 
-/// Parse the `text` query parameter out of a `/-/v1/search?...`
-/// query string. npm clients always send `text=...`; we accept
-/// `q=...` as a fallback because some older callers use that.
-/// Returns `None` for "no text provided", in which case the
-/// caller should return an empty result rather than dumping the
-/// entire storage.
-///
-/// Three things this avoids:
-/// * The first malformed pair (no `=`) doesn't abort the whole
-///   parse — `size=20&text=foo` shouldn't return None just because
-///   a third pair somewhere is missing an `=`.
-/// * An empty decoded value (`text=`) is treated as "no text",
-///   not as "match everything" — a downstream substring filter
-///   uses `contains(needle)` which is always true for an empty
-///   needle and would dump the entire storage to anonymous
-///   callers.
-/// * `q=` is a *fallback*: when both `text` and `q` are present
-///   `text` wins regardless of order.
+/// Decode `text`, falling back to `q` regardless of parameter order.
+/// Empty values and malformed pairs are ignored. With no nonempty value,
+/// returns `None` unless `browse=true` explicitly requests an empty filter.
+/// Browse callers must restrict discovery to hosted packages and enforce
+/// registry routing and access rules.
 #[must_use]
 pub fn parse_query(query_string: &str) -> Option<String> {
     let mut fallback: Option<String> = None;
@@ -77,7 +64,12 @@ pub fn parse_query(query_string: &str) -> Option<String> {
             _ => {}
         }
     }
-    fallback
+    fallback.or_else(|| browse_requested(query_string).then(String::new))
+}
+
+#[must_use]
+pub fn browse_requested(query_string: &str) -> bool {
+    query_string.split('&').any(|pair| pair == "browse=true")
 }
 
 /// The first parsable value of a numeric URL parameter, or `None` when the

@@ -75,3 +75,14 @@ fn parses_maintainer_search_params() {
         Some(SearchParams { text: SearchText::Maintainer("alice".to_string()), from: 0, size: 1 }),
     );
 }
+
+#[test]
+fn browsing_requires_an_explicit_flag() {
+    assert_eq!(parse_query("browse=true&size=1"), Some(String::new()));
+    assert_eq!(parse_query("text=&browse=true"), Some(String::new()));
+    assert_eq!(parse_query("browse=true&text=demo"), Some("demo".to_string()));
+    for query in ["browse=false", "browse=", "text=browse%3Dtrue&browse=false"] {
+        assert!(!super::browse_requested(query));
+    }
+    assert!(parse_query("browse=false").is_none());
+}

@@ -2345,6 +2345,7 @@ async fn serve_search(
     else {
         return result(Vec::new(), 0);
     };
+    let browse = pnpr_search::browse_requested(query_string);
     let mut page = SearchPage::new(params.from, params.size);
     let mut upstream_budget = UpstreamSearchBudget::default();
     for source in discovery_sources(state, &registry, Ecosystem::Npm) {
@@ -2374,7 +2375,8 @@ async fn serve_search(
                 let Some(config) = state.inner.config.upstreams.get(&source) else {
                     continue;
                 };
-                if !config.search
+                if browse
+                    || !config.search
                     || config.access.as_ref().is_some_and(|access| !access.allows(identity))
                     || !config.rules.all_access_admit(identity)
                 {

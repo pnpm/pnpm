@@ -24,7 +24,9 @@ use super::{
     verify_returning_user, with_auth_timeout,
 };
 use async_trait::async_trait;
-use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
+use libsql::{
+    Builder, Connection, Database, Error as LibsqlError, Row, TransactionBehavior, params,
+};
 use pnpr_config::{LibsqlSettings, MaxUsers};
 use pnpr_error::{RegistryError, Result};
 use std::{
@@ -57,6 +59,7 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    registration_lock: tokio::sync::Mutex<()>,
     /// Deadline for each request-path auth read.
     timeout: Duration,
 }
@@ -115,6 +118,7 @@ impl LibsqlAuth {
             secret: fresh_secret(),
             counter: AtomicU64::new(0),
             max_users,
+            registration_lock: tokio::sync::Mutex::new(()),
             timeout: DEFAULT_AUTH_TIMEOUT,
         })
     }
@@ -157,6 +161,18 @@ impl UserBackend for LibsqlAuth {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        let hash = tokio::sync::OnceCell::new();
+        retry_database_conflicts(|| self.add_or_login_attempt(username, password, &hash)).await
+    }
+}
+
+impl LibsqlAuth {
+    async fn add_or_login_attempt(
+        &self,
+        username: &str,
+        password: &str,
+        hash: &tokio::sync::OnceCell<String>,
+    ) -> Result<(UpsertOutcome, String)> {
         validate_username(username)?;
 
         if let Some(stored) = self.stored_hash(username).await? {
@@ -174,13 +190,14 @@ impl UserBackend for LibsqlAuth {
             _ => {}
         }
 
-        let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
+        let hash =
+            hash.get_or_try_init(|| hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST)).await?;
         if matches!(self.max_users, MaxUsers::Unlimited) {
             let inserted = self
                 .conn
                 .execute(
                     "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
+                    params![username, hash.as_str()],
                 )
                 .await;
             return match inserted {
@@ -195,9 +212,10 @@ impl UserBackend for LibsqlAuth {
             };
         }
 
+        let _registration_guard = self.registration_lock.lock().await;
         let mut can_retry_after_reconcile = true;
         loop {
-            let tx = self.conn.transaction().await?;
+            let tx = self.conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
             if let MaxUsers::Limited(max) = self.max_users {
                 let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
                     reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
@@ -226,7 +244,7 @@ impl UserBackend for LibsqlAuth {
             let inserted = tx
                 .execute(
                     "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
-                    params![username, hash],
+                    params![username, hash.as_str()],
                 )
                 .await;
             match inserted {
@@ -354,7 +372,7 @@ async fn ensure_user_counter(conn: &Connection) -> Result<()> {
 }
 
 async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
-    let tx = conn.transaction().await?;
+    let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate).await?;
     let mut counter_rows =
         tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
     let Some(counter_row) = counter_rows.next().await? else {
@@ -381,6 +399,48 @@ async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
     .await?;
     tx.commit().await?;
     Ok(true)
+}
+
+async fn retry_database_conflicts<Value, Operation, Pending>(
+    mut operation: Operation,
+) -> Result<Value>
+where
+    Operation: FnMut() -> Pending,
+    Pending: std::future::Future<Output = Result<Value>>,
+{
+    let mut retries = 0;
+    loop {
+        match operation().await {
+            Ok(value) => return Ok(value),
+            Err(RegistryError::Libsql(error)) if retries < 8 && is_transaction_conflict(&error) => {
+                tokio::time::sleep(Duration::from_millis(10 << retries.min(5))).await;
+                retries += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn is_transaction_conflict(error: &LibsqlError) -> bool {
+    match error {
+        LibsqlError::SqliteFailure(code, _) | LibsqlError::RemoteSqliteFailure(_, code, _) => {
+            matches!(code & 0xff, 5 | 6)
+        }
+        LibsqlError::Hrana(error) => {
+            // libsql does not expose Hrana's structured error type publicly.
+            let message = error.to_string();
+            let Some((_, code)) = message.rsplit_once(r#"code: ""#) else {
+                return false;
+            };
+            let Some((code, _)) = code.split_once('"') else {
+                return false;
+            };
+            matches!(code, "SQLITE_BUSY" | "SQLITE_LOCKED")
+                || code.starts_with("SQLITE_BUSY_")
+                || code.starts_with("SQLITE_LOCKED_")
+        }
+        _ => false,
+    }
 }
 
 fn is_unique_violation(err: &LibsqlError) -> bool {
