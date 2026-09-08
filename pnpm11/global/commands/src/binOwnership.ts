@@ -20,7 +20,7 @@ export async function getGlobalBinOwnership (
   const targetHashes = new Set(targetGroups.map(({ hash }) => hash))
   const survivingGroups = scanGlobalPackages(globalDir).filter((pkg) => !targetHashes.has(pkg.hash))
   const binNamesByGroup = await Promise.all(
-    [...targetGroups, ...survivingGroups].map(async (pkg) => getInstalledBinNames(pkg))
+    [...targetGroups, ...survivingGroups].map((pkg) => getInstalledBinNames(pkg))
   )
   const groups = targetGroups.map((info, index) => ({ info, binNames: binNamesByGroup[index] }))
   const protectedBins = new Set(binNamesByGroup.slice(targetGroups.length).flat())

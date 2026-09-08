@@ -133,8 +133,8 @@ async function cleanupReplacedGlobalInstall (
       binRemovalFailed = true
     }
   }
-  // A bin that could not be removed is only discoverable through the
-  // group's manifests, so keep the group until every one of them is gone.
+  // The group's install directory is what a later run reads its ownership
+  // from, so keep the group until every one of its bins is gone.
   if (binRemovalFailed) return errors
   if (group.hash !== opts.activeHash) {
     try {
