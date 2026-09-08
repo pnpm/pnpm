@@ -157,6 +157,22 @@ fn no_proxy_matcher_reverse_dot_match() {
 }
 
 #[test]
+fn no_proxy_matcher_leading_dot_matches_subdomains() {
+    // A leading dot (e.g. `.npmjs.org`) must still match, not just the bare domain.
+    let matcher = NoProxyMatcher::from(Some(&list(&[".npmjs.org"])));
+    eprintln!("matcher={matcher:?}");
+    for (host, expected) in [
+        ("npmjs.org", true),
+        ("registry.npmjs.org", true),
+        ("foo.bar.npmjs.org", true),
+        ("evilnpmjs.org", false),
+    ] {
+        let got = matcher.matches_host(host);
+        assert_eq!(got, expected, "host={host}: expected match={expected}, got={got}");
+    }
+}
+
+#[test]
 fn no_proxy_matcher_empty_entries_never_match() {
     // Trailing/leading commas in `.npmrc` already get filtered in the
     // config layer's `parse_no_proxy`, but a malformed `List(vec![""])`

@@ -149,7 +149,14 @@ impl NoProxyMatcher {
                 bypass: false,
                 entries: list
                     .iter()
-                    .map(|entry| entry.split('.').rev().map(str::to_string).collect())
+                    .map(|entry| {
+                        entry
+                            .split('.')
+                            .filter(|s| !s.is_empty())
+                            .rev()
+                            .map(str::to_string)
+                            .collect()
+                    })
                     .collect(),
             },
         }
@@ -159,7 +166,7 @@ impl NoProxyMatcher {
         if self.bypass {
             return true;
         }
-        let host_rev: Vec<&str> = host.split('.').rev().collect();
+        let host_rev: Vec<&str> = host.split('.').filter(|s| !s.is_empty()).rev().collect();
         self.entries.iter().any(|entry_rev| {
             !entry_rev.is_empty()
                 && entry_rev.len() <= host_rev.len()
