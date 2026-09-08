@@ -203,7 +203,7 @@ impl DeployArgs {
                 workspace_dir,
                 &selected,
                 &deploy_dir,
-                Arc::clone(&source_hooks),
+                source_hooks.as_ref().map(Arc::clone),
             ))
             .await?
             {
@@ -236,7 +236,7 @@ impl DeployArgs {
         workspace_dir: &Path,
         selected: &SelectedProject,
         deploy_dir: &Path,
-        source_hooks: Arc<dyn pnpm_hooks::PnpmfileHooks>,
+        source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<SharedDeployOutcome> {
         // The shared lockfile, and the importer ids naming the projects in
         // it, belong to the lockfile dir — which `lockfileDir` can move
@@ -299,7 +299,7 @@ impl DeployArgs {
         deploy_dir: &Path,
         mode: DeployInstallMode,
         frozen_lockfile: bool,
-        source_hooks: Arc<dyn pnpm_hooks::PnpmfileHooks>,
+        source_hooks: Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>,
     ) -> miette::Result<()> {
         let node_linker = self
             .install_args
@@ -311,6 +311,12 @@ impl DeployArgs {
         // bypasses the installability check so optional dependencies of
         // every platform are materialized (see `Config::force`).
         deploy_config.force = self.install_args.force;
+        // `source_hooks` is the whole of the pnpmfile this install runs.
+        // With none to run there is nothing left to discover either: the
+        // install must not fall back to looking next to the deployed
+        // manifest, where `copy_project` may have left the deployed
+        // project's own pnpmfile.
+        deploy_config.ignore_pnpmfile = source_hooks.is_none();
 
         let legacy = matches!(&mode, DeployInstallMode::Legacy);
         // The lockfile a shared deploy generates records no
@@ -318,11 +324,9 @@ impl DeployArgs {
         // claim one either. The legacy path resolves the deployed project
         // from scratch and writes its own lockfile, which records the
         // checksum as any other install does.
-        let pnpmfile_hook: Arc<dyn pnpm_hooks::PnpmfileHooks> = if legacy {
-            source_hooks
-        } else {
-            Arc::new(pnpm_hooks::ChecksumFreeHooks::from(source_hooks))
-        };
+        let pnpmfile_hook = source_hooks.map(|hooks| -> Arc<dyn pnpm_hooks::PnpmfileHooks> {
+            if legacy { hooks } else { Arc::new(pnpm_hooks::ChecksumFreeHooks::from(hooks)) }
+        });
         match mode {
             DeployInstallMode::Legacy => {}
             DeployInstallMode::Shared { workspace_config } => {
@@ -419,7 +423,7 @@ impl DeployArgs {
             deps_requiring_build_sink: None,
             catalogs_override: None,
             disable_optimistic_repeat_install: true,
-            pnpmfile_hook_override: Some(pnpmfile_hook),
+            pnpmfile_hook_override: pnpmfile_hook,
             workspace_projects_override,
         };
         if legacy {
@@ -432,28 +436,20 @@ impl DeployArgs {
 }
 
 /// The pnpmfile the deploy install runs, resolved the way an install of
-/// the selected project resolves its own.
-///
-/// Never discovered from the deploy directory. [`copy_project`] copies the
-/// project's files there, a `.pnpmfile.*` among them, and the pnpmfile
-/// that shapes a deployed dependency graph is the source workspace's,
-/// whose effects are already part of the snapshots the deploy writes.
-/// [`pnpm_hooks::NoopHooks`] stands in when there is nothing to run, so
-/// the install has an answer and does not go looking next to the
-/// deployed manifest for one.
+/// the selected project resolves its own: from the source workspace,
+/// whose hooks shape the dependency graph the deploy writes out.
 fn source_pnpmfile_hooks(
     config: &Config,
     project_dir: &Path,
-) -> miette::Result<Arc<dyn pnpm_hooks::PnpmfileHooks>> {
+) -> miette::Result<Option<Arc<dyn pnpm_hooks::PnpmfileHooks>>> {
     if config.ignore_pnpmfile {
-        return Ok(Arc::new(pnpm_hooks::NoopHooks));
+        return Ok(None);
     }
     pnpm_hooks::finder::load_pnpmfiles(
         config.lockfile_dir_for(project_dir),
         pnpm_package_manager::pnpmfile_selection(config),
     )
     .map_err(|error| miette::miette!(code = "ERR_PNPM_PNPMFILE_NOT_FOUND", "{error}"))
-    .map(|hooks| hooks.unwrap_or_else(|| Arc::new(pnpm_hooks::NoopHooks)))
 }
 
 fn create_deploy_install_config(
