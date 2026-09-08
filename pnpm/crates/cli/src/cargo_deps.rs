@@ -13,7 +13,8 @@ use pnpm_network::{AuthHeaders, RetryOpts, ThrottledClient};
 use pnpm_pnpr_client::{CargoResolveOptions, PnprClient};
 use pnpm_reporter::Reporter;
 use pnpm_store_dir::{
-    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex, StoreIndexWriter,
+    CafsFileInfo, SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndex,
+    StoreIndexWriter,
 };
 use pnpm_tarball::{ArchiveStoreProjection, IngestTarballToStore};
 use serde::{Deserialize, Serialize};
@@ -28,6 +29,7 @@ use std::{
 };
 
 pub(crate) mod add;
+mod checksum_cache;
 mod git;
 mod registry_auth;
 
@@ -305,7 +307,7 @@ async fn download_crates<Reporter: self::Reporter + 'static>(
             materialize::<Reporter>(MaterializeOptions {
                 package,
                 store_dir,
-                store_index: store_index.clone(),
+                store_index: store_index.as_ref().map(Arc::clone),
                 store_index_writer: Arc::clone(&store_index_writer),
                 http_client: Arc::clone(&http_client),
                 auth_headers: Arc::clone(&auth_headers),
@@ -785,11 +787,11 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let mut cas_paths = IngestTarballToStore {
         http_client: &http_client,
         store_dir,
-        store_index,
-        store_index_writer: Some(store_index_writer),
+        store_index: store_index.as_ref().map(Arc::clone),
+        store_index_writer: Some(Arc::clone(&store_index_writer)),
         verify_store_integrity,
         strict_store_pkg_content_check,
-        verified_files_cache,
+        verified_files_cache: Arc::clone(&verified_files_cache),
         package_integrity: Some(&integrity),
         package_unpacked_size: None,
         package_file_count: None,
@@ -812,7 +814,13 @@ async fn materialize<Reporter: self::Reporter + 'static>(
     let checksum = package.checksum;
     let slot_for_import = slot.clone();
     tokio::task::spawn_blocking(move || {
-        add_cargo_checksum(store_dir, &mut cas_paths, Some(&checksum))?;
+        checksum_cache::ChecksumCache {
+            store_dir,
+            index: store_index.as_ref(),
+            writer: &store_index_writer,
+            verified_files: &verified_files_cache,
+        }
+        .add(&mut cas_paths, &checksum)?;
         import_indexed_dir::<Reporter>(
             &logged_methods,
             package_import_method,
@@ -837,7 +845,7 @@ fn add_cargo_checksum(
     store_dir: &StoreDir,
     cas_paths: &mut HashMap<String, PathBuf>,
     package_checksum: Option<&str>,
-) -> Result<()> {
+) -> Result<CafsFileInfo> {
     cas_paths.remove(".cargo-checksum.json");
     let files = cas_paths
         .iter()
@@ -851,12 +859,17 @@ fn add_cargo_checksum(
     let checksum = serde_json::to_vec(&CargoChecksum { files, package: package_checksum })
         .into_diagnostic()
         .wrap_err("serialize .cargo-checksum.json")?;
-    let (cas_path, _) = store_dir
+    let (cas_path, hash) = store_dir
         .write_cas_file(&checksum, false)
         .into_diagnostic()
         .wrap_err("store .cargo-checksum.json")?;
     cas_paths.insert(".cargo-checksum.json".to_string(), cas_path);
-    Ok(())
+    Ok(CafsFileInfo {
+        digest: format!("{hash:x}"),
+        mode: 0o644,
+        size: checksum.len() as u64,
+        checked_at: None,
+    })
 }
 
 fn link_workspace(root_dir: &Path, directory: &[&str], slots: &[(String, PathBuf)]) -> Result<()> {

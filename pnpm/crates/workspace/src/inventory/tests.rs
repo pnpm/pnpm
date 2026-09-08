@@ -171,3 +171,37 @@ fn prunes_managed_paths_before_opening_without_excluding_matching_project_names(
         );
     }
 }
+
+#[test]
+fn reads_children_without_accumulating_unvisited_sibling_handles() {
+    let workspace = tempfile::tempdir().unwrap();
+    for index in 0..128 {
+        let project = workspace.path().join(format!("member-{index}"));
+        fs::create_dir(&project).unwrap();
+        fs::write(project.join("Cargo.toml"), "[workspace]\n").unwrap();
+    }
+    let unread = std::cell::Cell::new(0usize);
+    let peak = std::cell::Cell::new(0usize);
+    let inventory = find_workspace_inventory_with(
+        workspace.path(),
+        &["Cargo.toml"],
+        &[],
+        &[],
+        |directory| {
+            if directory != workspace.path() {
+                unread.set(unread.get() - 1);
+            }
+            Ok(())
+        },
+        |_| {
+            unread.set(unread.get() + 1);
+            peak.set(peak.get().max(unread.get()));
+            Ok(())
+        },
+    )
+    .unwrap();
+
+    assert_eq!(inventory.manifests("Cargo.toml").unwrap().len(), 128);
+    assert_eq!(peak.get(), 1);
+    assert_eq!(unread.get(), 0);
+}
