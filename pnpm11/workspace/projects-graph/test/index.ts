@@ -935,8 +935,8 @@ test('an override pointing a dependency at a workspace project adds the edge', (
   // The manifests in the graph are the declared ones.
   expect(result.graph[BAR1_PATH].package.manifest.dependencies).toStrictEqual({ foo: '^1.0.0', qar: '1.0.0' })
 
-  const unrewritten = createProjectsGraph(projects, { linkWorkspacePackages: false })
-  expect(unrewritten.graph[BAR1_PATH].dependencies).toStrictEqual([])
+  const withoutOverrides = createProjectsGraph(projects, { linkWorkspacePackages: false })
+  expect(withoutOverrides.graph[BAR1_PATH].dependencies).toStrictEqual([])
 })
 
 test('a file: override anchored at the lockfile directory adds the edge', () => {
