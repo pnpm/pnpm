@@ -1,5 +1,6 @@
-use super::unmatched_registry_options_warning;
-use pnpm_config::Config;
+use super::{unapplied_package_configs_warning, unmatched_registry_options_warning};
+use indexmap::IndexMap;
+use pnpm_config::{Config, ProjectConfig};
 use pnpm_lockfile::{RegistryOptions, RegistryServerType};
 use pretty_assertions::assert_eq;
 
@@ -125,4 +126,56 @@ mod workspace_key_issues {
         report_workspace_key_issues(&WorkspaceKeyIssues::default(), true)
             .expect("nothing to report");
     }
+}
+
+fn config_with_package_configs(shared_workspace_lockfile: bool) -> Config {
+    let mut config = Config::new();
+    config.shared_workspace_lockfile = shared_workspace_lockfile;
+    config.package_configs = Some(IndexMap::from([(
+        "a".to_string(),
+        ProjectConfig {
+            overrides: Some(IndexMap::from([("ms".to_string(), "2.0.0".to_string())])),
+            save_exact: Some(true),
+            ..ProjectConfig::default()
+        },
+    )]));
+    config
+}
+
+#[test]
+fn no_warning_when_each_project_has_its_own_lockfile() {
+    assert_eq!(unapplied_package_configs_warning(&config_with_package_configs(false)), None);
+}
+
+#[test]
+fn no_warning_without_any_package_configs() {
+    let mut config = Config::new();
+    config.shared_workspace_lockfile = true;
+    assert_eq!(unapplied_package_configs_warning(&config), None);
+}
+
+#[test]
+fn warns_about_every_setting_a_shared_lockfile_ignores() {
+    let received =
+        unapplied_package_configs_warning(&config_with_package_configs(true)).expect("a warning");
+    println!("{received}");
+    assert_eq!(
+        received,
+        r#"The following "packageConfigs" settings were ignored: "a.overrides", "a.saveExact". They apply only when each project has its own lockfile ("sharedWorkspaceLockfile: false")."#,
+    );
+}
+
+/// Project names reach the warning from `pnpm-workspace.yaml`, so a name
+/// carrying terminal control characters must not reach the terminal.
+#[test]
+fn sanitizes_the_project_name() {
+    let mut config = Config::new();
+    config.shared_workspace_lockfile = true;
+    config.package_configs = Some(IndexMap::from([(
+        "a\u{1b}[2Kb".to_string(),
+        ProjectConfig { save_exact: Some(true), ..ProjectConfig::default() },
+    )]));
+    let received = unapplied_package_configs_warning(&config).expect("a warning");
+    println!("{received}");
+    assert!(!received.contains('\u{1b}'), "{received}");
 }

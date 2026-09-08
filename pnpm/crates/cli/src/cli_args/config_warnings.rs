@@ -9,7 +9,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pnpm_config::{
-    Config, WorkspaceKeyIssues, known_settings::annotate_unknown_setting,
+    Config, ProjectConfig, WorkspaceKeyIssues, known_settings::annotate_unknown_setting,
     naming_cases::to_camel_case, refused_keys::where_refused_key_belongs,
 };
 use pnpm_default_reporter::colors::Colors;
@@ -78,6 +78,53 @@ fn unmatched_registry_options_warning(config: &Config) -> Option<String> {
     Some(format!(
         r#"The following "registries" entries do not match any configured registry and were ignored: {}. The configured registries are: {configured}."#,
         unmatched.join(", "),
+    ))
+}
+
+/// Warn about `packageConfigs` entries the run cannot apply.
+///
+/// A per-project setting reaches its project through the install that
+/// project owns. A workspace that shares one lockfile runs no such
+/// install — it resolves and writes every project together — so the
+/// entries are inert there, and silently keeping the workspace-wide
+/// value is the failure mode users cannot debug.
+pub(crate) fn warn_unapplied_package_configs(config: &Config) {
+    if let Some(message) = unapplied_package_configs_warning(config) {
+        emit_config_warning(&message);
+    }
+}
+
+/// The message [`warn_unapplied_package_configs`] emits, or [`None`] when
+/// every entry applies. Split out so the wording is testable without
+/// capturing stderr.
+fn unapplied_package_configs_warning(config: &Config) -> Option<String> {
+    if !config.shares_one_lockfile() {
+        return None;
+    }
+    let ignored = config
+        .package_configs
+        .iter()
+        .flatten()
+        .flat_map(|(project, settings)| {
+            let ProjectConfig { hoist, modules_dir, overrides, save_exact, save_prefix } = settings;
+            [
+                hoist.is_some().then_some("hoist"),
+                modules_dir.is_some().then_some("modulesDir"),
+                overrides.is_some().then_some("overrides"),
+                save_exact.is_some().then_some("saveExact"),
+                save_prefix.is_some().then_some("savePrefix"),
+            ]
+            .into_iter()
+            .flatten()
+            .map(move |setting| format!(r#""{}.{setting}""#, redact_and_sanitize(project)))
+        })
+        .collect::<Vec<_>>();
+    if ignored.is_empty() {
+        return None;
+    }
+    Some(format!(
+        r#"The following "packageConfigs" settings were ignored: {}. They apply only when each project has its own lockfile ("sharedWorkspaceLockfile: false")."#,
+        ignored.join(", "),
     ))
 }
 

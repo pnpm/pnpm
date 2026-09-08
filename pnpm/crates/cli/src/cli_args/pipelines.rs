@@ -16,7 +16,7 @@ use super::{
 use crate::{
     State,
     cli_args::{
-        config_warnings::warn_unmatched_registry_options,
+        config_warnings::{warn_unapplied_package_configs, warn_unmatched_registry_options},
         legacy_pnpm_field::warn_ignored_pnpm_manifest_fields,
         override_version_references::warn_deprecated_override_version_references,
         reporter::{ReporterType, reporter_emit},
@@ -33,7 +33,7 @@ use pnpm_workspace_task_scheduler::{
     ScheduleGraphAsyncOptions, TaskCompletion, schedule_graph_async,
 };
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     future::Future,
     path::{Path, PathBuf},
     sync::Arc,
@@ -70,12 +70,61 @@ pub(crate) enum InstallFamilyPlan {
     /// each installed independently against its own `pnpm-lock.yaml`,
     /// `node_modules`, and virtual store. Dependency-ready projects run under
     /// the workspace-concurrency limit.
-    PerProject(IndexMap<PathBuf, Vec<PathBuf>>),
+    PerProject(DedicatedProjects),
+}
+
+/// The projects of a `sharedWorkspaceLockfile: false` workspace that a
+/// recursive / filtered command installs one by one.
+pub(crate) struct DedicatedProjects {
+    /// Which project must finish before which, keyed by project dir.
+    dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    /// The name each project is addressed by in `packageConfigs`, taken
+    /// from the manifests the selection already parsed. Empty when the
+    /// setting is unset, which is the only thing the names feed.
+    names: HashMap<PathBuf, String>,
+}
+
+impl DedicatedProjects {
+    fn new(config: &Config, selection: InstallFamilySelection) -> Self {
+        let names = project_names(config, &selection.projects);
+        DedicatedProjects { dependencies: selection.project_dependencies, names }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.dependencies.is_empty()
+    }
+}
+
+/// The declared name of every project that declares one, keyed by its
+/// directory. Empty when `packageConfigs` is unset: addressing a project
+/// by name is the only thing the map feeds.
+pub(crate) fn project_names(
+    config: &Config,
+    projects: &[pnpm_workspace::Project],
+) -> HashMap<PathBuf, String> {
+    if config.package_configs.is_none() {
+        return HashMap::new();
+    }
+    projects
+        .iter()
+        .filter_map(|project| {
+            let name = project.manifest.value().get("name")?.as_str()?;
+            Some((project.root_dir.clone(), name.to_string()))
+        })
+        .collect()
+}
+
+/// The name `packageConfigs` addresses the project at `project_dir` by,
+/// for a caller with no parsed manifest in hand. `None` when the setting
+/// is unset: the name would have nothing to look up.
+fn dedicated_project_name(config: &Config, project_dir: &Path) -> Option<String> {
+    config.package_configs.as_ref()?;
+    pnpm_workspace::read_project_name(project_dir)
 }
 
 struct DedicatedProjectRuns<'a> {
     config: &'a Config,
-    project_dependencies: IndexMap<PathBuf, Vec<PathBuf>>,
+    projects: DedicatedProjects,
     require_lockfile: bool,
     http_client: Option<Arc<ThrottledClient>>,
 }
@@ -90,6 +139,7 @@ impl DedicatedProjectRuns<'_> {
         let config = self.config;
         let require_lockfile = self.require_lockfile;
         let http_client = self.http_client;
+        let names = &self.projects.names;
         let run = &run;
         let run_node = |project_dir: PathBuf| {
             let first_error = &first_error;
@@ -98,6 +148,7 @@ impl DedicatedProjectRuns<'_> {
                 let result = match init_dedicated_project_state(
                     config,
                     &project_dir,
+                    names.get(&project_dir).map(String::as_str),
                     require_lockfile,
                     http_client,
                 ) {
@@ -118,7 +169,7 @@ impl DedicatedProjectRuns<'_> {
         };
         let on_node_skipped: fn(&PathBuf) = |_| {};
         schedule_graph_async(
-            &self.project_dependencies,
+            &self.projects.dependencies,
             &ScheduleGraphAsyncOptions::new(
                 usize::try_from(self.config.workspace_concurrency).unwrap_or(usize::MAX).max(1),
                 self.config.bail,
@@ -168,7 +219,7 @@ fn select_install_family_plan<Reporter: self::Reporter>(
         workspace_prefix: Some(selection.workspace_root.to_string_lossy().into_owned()),
     }));
     if !cfg.shares_one_lockfile() {
-        return Ok(InstallFamilyPlan::PerProject(selection.project_dependencies));
+        return Ok(InstallFamilyPlan::PerProject(DedicatedProjects::new(cfg, selection)));
     }
     Ok(InstallFamilyPlan::Shared(Box::new(selection)))
 }
@@ -308,18 +359,20 @@ fn select_workspace_projects_with_cycles(
 
 /// Build the project-anchored `State` for one project of a
 /// `sharedWorkspaceLockfile: false` workspace: clone `cfg`, re-anchor its
-/// output paths under `project_dir` via [`Config::anchor_lockfile_paths`],
-/// and initialize the state. The clone is leaked because [`State::init`] needs
-/// a `&'static Config`; see [`run_dedicated_lockfile_workspace_install`] for
-/// why the bounded leak is acceptable.
+/// output paths and per-project settings under `project_dir` via
+/// [`Config::anchor_dedicated_project`], and initialize the state. The
+/// clone is leaked because [`State::init`] needs a `&'static Config`; see
+/// [`run_dedicated_lockfile_workspace_install`] for why the bounded leak
+/// is acceptable.
 fn init_dedicated_project_state(
     cfg: &Config,
     project_dir: &Path,
+    project_name: Option<&str>,
     require_lockfile: bool,
     http_client: Option<Arc<ThrottledClient>>,
 ) -> miette::Result<State> {
     let mut project_config = cfg.clone();
-    project_config.anchor_lockfile_paths(project_dir);
+    project_config.anchor_dedicated_project(project_dir, project_name);
     let project_config = Config::leak(project_config);
     let manifest_path = project_dir.join("package.json");
     match http_client {
@@ -408,7 +461,7 @@ impl InstallPipeline {
             certain_full_install,
         )?;
         let installs_node = match &plan {
-            InstallFamilyPlan::PerProject(project_dependencies) => !project_dependencies.is_empty(),
+            InstallFamilyPlan::PerProject(projects) => !projects.is_empty(),
             InstallFamilyPlan::Shared(selection) => !selection.selected_dirs.is_empty(),
             InstallFamilyPlan::Single => true,
         };
@@ -470,10 +523,10 @@ async fn run_node_install<Reporter: self::Reporter + 'static>(
     http_client: Arc<ThrottledClient>,
 ) -> miette::Result<()> {
     match plan {
-        InstallFamilyPlan::PerProject(project_dependencies) => {
+        InstallFamilyPlan::PerProject(projects) => {
             DedicatedProjectRuns {
                 config: cfg,
-                project_dependencies,
+                projects,
                 require_lockfile,
                 http_client: Some(Arc::clone(&http_client)),
             }
@@ -585,13 +638,13 @@ impl AddPipeline {
             )?
         };
         match plan {
-            InstallFamilyPlan::PerProject(project_dependencies) => {
+            InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: add the packages to each
                 // selected project independently.
                 let workspace_packages = args.workspace_link_targets(cfg)?;
                 DedicatedProjectRuns {
                     config: cfg,
-                    project_dependencies,
+                    projects,
                     require_lockfile: false,
                     http_client: None,
                 }
@@ -626,7 +679,8 @@ impl AddPipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    cfg.anchor_lockfile_paths(&manifest_dir);
+                    let name = dedicated_project_name(cfg, &manifest_dir);
+                    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -648,7 +702,8 @@ async fn run_add_with_ecosystems<Reporter: self::Reporter + 'static>(
     if !cfg.shares_one_lockfile() && cfg.workspace_dir.is_some() && has_node_packages {
         let manifest_dir =
             manifest_path.parent().expect("manifest path always has a parent dir").to_path_buf();
-        cfg.anchor_lockfile_paths(&manifest_dir);
+        let name = dedicated_project_name(cfg, &manifest_dir);
+        cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
     }
     let http_client = State::new_http_client(cfg).wrap_err("initialize the add network")?;
     let cfg: &'static Config = cfg;
@@ -722,9 +777,7 @@ impl UpdatePipeline {
         // An empty selection has nothing to update, and — like the shared
         // path — must not generate a changeset.
         match &plan {
-            InstallFamilyPlan::PerProject(project_dependencies)
-                if project_dependencies.is_empty() =>
-            {
+            InstallFamilyPlan::PerProject(projects) if projects.is_empty() => {
                 return Ok(());
             }
             InstallFamilyPlan::Shared(selection) if selection.selected_dirs.is_empty() => {
@@ -743,7 +796,8 @@ impl UpdatePipeline {
                 .parent()
                 .expect("manifest path always has a parent dir")
                 .to_path_buf();
-            cfg.anchor_lockfile_paths(&manifest_dir);
+            let name = dedicated_project_name(cfg, &manifest_dir);
+            cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
         }
         let generate_changeset = if args.changeset {
             true
@@ -756,10 +810,10 @@ impl UpdatePipeline {
             .then(|| UpdateChangesetContext::capture(cfg, &manifest_path))
             .transpose()?;
         match plan {
-            InstallFamilyPlan::PerProject(project_dependencies) => {
+            InstallFamilyPlan::PerProject(projects) => {
                 DedicatedProjectRuns {
                     config: cfg,
-                    project_dependencies,
+                    projects,
                     require_lockfile: false,
                     http_client: None,
                 }
@@ -808,12 +862,12 @@ impl RemovePipeline {
             false,
         )?;
         match plan {
-            InstallFamilyPlan::PerProject(project_dependencies) => {
+            InstallFamilyPlan::PerProject(projects) => {
                 // Dedicated per-project lockfiles: remove the packages from
                 // each selected project independently.
                 DedicatedProjectRuns {
                     config: cfg,
-                    project_dependencies,
+                    projects,
                     require_lockfile: false,
                     http_client: None,
                 }
@@ -838,7 +892,8 @@ impl RemovePipeline {
                         .parent()
                         .expect("manifest path always has a parent dir")
                         .to_path_buf();
-                    cfg.anchor_lockfile_paths(&manifest_dir);
+                    let name = dedicated_project_name(cfg, &manifest_dir);
+                    cfg.anchor_dedicated_project(&manifest_dir, name.as_deref());
                 }
                 let cfg: &'static Config = cfg;
                 let state =
@@ -881,6 +936,7 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
     http_client: Arc<ThrottledClient>,
 ) -> miette::Result<()> {
     let (projects, _patterns) = discover_workspace_projects(workspace_root, cfg)?;
+    let mut names = project_names(cfg, &projects);
     let normalized_root = pnpm_fs::lexical_normalize(workspace_root);
     let mut project_dirs: Vec<PathBuf> = Vec::with_capacity(projects.len() + 1);
     if workspace_root.join("package.json").is_file()
@@ -889,6 +945,11 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
             .any(|project| pnpm_fs::lexical_normalize(&project.root_dir) == normalized_root)
     {
         project_dirs.push(workspace_root.to_path_buf());
+        // The root is installed alongside the discovered projects but is
+        // not one of them, so its name is not in the map yet.
+        if let Some(name) = dedicated_project_name(cfg, workspace_root) {
+            names.insert(workspace_root.to_path_buf(), name);
+        }
     }
     project_dirs.extend(projects.into_iter().map(|project| project.root_dir));
     // One `Config::leak` per project: `State::init` needs a
@@ -901,6 +962,7 @@ async fn run_dedicated_lockfile_workspace_install<Reporter: self::Reporter + 'st
         let state = init_dedicated_project_state(
             cfg,
             &project_dir,
+            names.get(&project_dir).map(String::as_str),
             require_lockfile,
             Some(Arc::clone(&http_client)),
         )?;
@@ -925,6 +987,7 @@ pub(crate) fn derive_config_root(
     warn_ignored_pnpm_manifest_fields(root_manifest.as_ref());
     warn_deprecated_override_version_references(cfg, reporter_emit(reporter));
     warn_unmatched_registry_options(cfg);
+    warn_unapplied_package_configs(cfg);
     Ok(config_root)
 }
 

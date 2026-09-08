@@ -63,6 +63,7 @@ pub use workspace_yaml::{
     PackageExtension, PeerDependencyMeta, PeerDependencyRules, PnpmfileSetting, PythonSettings,
     RemoteSideEffectsCacheSettings, TaskSettings, UpdateConfig, UpdateSettings,
     WORKSPACE_MANIFEST_FILENAME, WorkspaceKeyIssues, WorkspaceSettings, decided_allow_builds,
+    package_configs::{self, PackageConfigsSetting, ProjectConfig, ProjectConfigMultiMatch},
     registries::{self, RegistryDeclaration, RegistryEntry, RegistryLookups},
     workspace_root_or,
 };
@@ -2199,6 +2200,13 @@ pub struct Config {
     /// [`WorkspaceSettings::package_extensions`]: crate::workspace_yaml::WorkspaceSettings::package_extensions
     pub package_extensions: Option<IndexMap<String, workspace_yaml::PackageExtension>>,
 
+    /// `packageConfigs` from `pnpm-workspace.yaml`, flattened to the
+    /// `project name → settings` lookup
+    /// [`Self::anchor_dedicated_project`] reads. Empty maps collapse
+    /// to `None`. See [`ProjectConfig`] for the settings an entry may
+    /// carry.
+    pub package_configs: Option<IndexMap<String, ProjectConfig>>,
+
     /// pnpm's packument cache directory. Used by the lockfile
     /// verification gate to memoize past results in
     /// `<cache_dir>/lockfile-verified.jsonl`, and by the npm verifier
@@ -3021,6 +3029,25 @@ impl Config {
                 None => self.modules_dir.join(".pnpm"),
             };
         }
+    }
+
+    /// [`Self::anchor_lockfile_paths`] plus the `packageConfigs` entry
+    /// declared for `project_name`, for the per-project installs of a
+    /// workspace whose projects keep their own lockfiles.
+    ///
+    /// A nameless project, and one the setting does not name, keep the
+    /// workspace-wide settings. Callers pass the name rather than the
+    /// config reading it, so a workspace-scale run spends no manifest
+    /// read here: the plans that install several projects already hold
+    /// every manifest they discovered.
+    pub fn anchor_dedicated_project(&mut self, project_dir: &Path, project_name: Option<&str>) {
+        self.anchor_lockfile_paths(project_dir);
+        let Some(project_config) =
+            project_name.and_then(|name| self.package_configs.as_ref()?.get(name)).cloned()
+        else {
+            return;
+        };
+        project_config.apply_to(self, project_dir);
     }
 
     /// [`Config::extra_env`] with the `nodeOptions` setting applied as

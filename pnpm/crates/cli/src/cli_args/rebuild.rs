@@ -19,7 +19,7 @@ use std::{
 
 use crate::{
     State,
-    cli_args::pipelines::{InstallFamilySelection, select_workspace_projects},
+    cli_args::pipelines::{InstallFamilySelection, project_names, select_workspace_projects},
 };
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
@@ -68,13 +68,17 @@ impl RebuildArgs {
             && let Some(workspace_selection) = workspace_selection
         {
             let base_config = cfg.clone();
+            let names = project_names(cfg, &workspace_selection.projects);
             let concurrency =
                 usize::try_from(cfg.workspace_concurrency).unwrap_or(usize::MAX).max(1);
             let first_error: Mutex<Option<miette::Report>> = Mutex::new(None);
             let run_node = |project_dir: PathBuf| {
                 let args = self.clone();
                 let mut project_config = base_config.clone();
-                project_config.anchor_lockfile_paths(&project_dir);
+                project_config.anchor_dedicated_project(
+                    &project_dir,
+                    names.get(&project_dir).map(String::as_str),
+                );
                 let first_error = &first_error;
                 async move {
                     let result = async {

@@ -85,6 +85,7 @@ mod outdated;
 mod override_version_references;
 mod pack;
 mod pack_recursive;
+mod package_configs;
 mod package_manager_check;
 mod patch;
 mod peers;
