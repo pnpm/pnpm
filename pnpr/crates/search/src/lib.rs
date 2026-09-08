@@ -112,26 +112,30 @@ pub async fn local_search_names(
     names.sort();
 
     for name in names {
-        if !keep(&name)
-            || matches!(query, SearchText::Package(_)) && !name.to_lowercase().contains(&needle)
-        {
+        if !keep(&name) {
             continue;
         }
-        if matches!(query, SearchText::Maintainer(_)) {
-            let Ok(parsed) = CanonicalPackageName::parse(&name, pnpr_package_name::Ecosystem::Npm)
-            else {
-                continue;
-            };
-            let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { continue };
-            let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { continue };
-            if !packument_has_maintainer(&packument, &needle) {
-                continue;
+        let selected = match query {
+            SearchText::Package(_) => name.to_lowercase().contains(&needle),
+            SearchText::Maintainer(_) => {
+                hosted_package_has_maintainer(storage, &name, &needle).await
             }
+        };
+        if selected {
+            matches.push(name);
         }
-        matches.push(name);
     }
 
     Ok(matches)
+}
+
+async fn hosted_package_has_maintainer(storage: &Storage, name: &str, needle: &str) -> bool {
+    let Ok(parsed) = CanonicalPackageName::parse(name, pnpr_package_name::Ecosystem::Npm) else {
+        return false;
+    };
+    let Ok(Some(bytes)) = storage.read_hosted_document(&parsed).await else { return false };
+    let Ok(packument) = serde_json::from_slice::<Value>(&bytes) else { return false };
+    packument_has_maintainer(&packument, needle)
 }
 
 pub async fn local_search_entry(storage: &Storage, name: &str) -> Value {
@@ -178,13 +182,7 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     let mut pkg = Map::new();
     pkg.insert("name".to_string(), Value::String(name.to_string()));
     pkg.insert("version".to_string(), Value::String(version_id.to_string()));
-    if let Some(version_obj) = version_obj {
-        for field in ["description", "keywords", "author", "homepage"] {
-            if let Some(value) = version_obj.get(field) {
-                pkg.insert(field.to_string(), value.clone());
-            }
-        }
-    }
+    insert_version_fields(&mut pkg, version_obj);
     if let Some(maintainers) = obj
         .get("maintainers")
         .or_else(|| version_obj.and_then(|version| version.get("maintainers")))
@@ -209,6 +207,18 @@ fn build_search_package(name: &str, packument: &Value) -> Option<Value> {
     links.insert("npm".to_string(), Value::String(format!("https://npmx.dev/package/{name}")));
     pkg.insert("links".to_string(), serde_json::to_value(links).ok()?);
     Some(Value::Object(pkg))
+}
+
+/// Copy the per-version fields npm's search results carry.
+fn insert_version_fields(pkg: &mut Map<String, Value>, version_obj: Option<&Map<String, Value>>) {
+    let Some(version_obj) = version_obj else {
+        return;
+    };
+    for field in ["description", "keywords", "author", "homepage"] {
+        if let Some(value) = version_obj.get(field) {
+            pkg.insert(field.to_string(), value.clone());
+        }
+    }
 }
 
 fn packument_has_maintainer(packument: &Value, needle: &str) -> bool {

@@ -1803,14 +1803,23 @@ impl Config {
     /// namespace bound on an upstream declares its registry entry (with
     /// patterns) before serving.
     pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
+        self.ensure_upstreams_in_graph()?;
+        self.ensure_concrete_registries_are_served()?;
+        self.ensure_hosted_rows_match_graph()?;
+        self.ensure_public_upstreams_send_no_headers()?;
+        self.registries.validate().map_err(|err| registry_err(&err))
+    }
+
+    /// Every serving upstream is reachable in the graph under its own name.
+    ///
+    /// The fold never overwrites, so a graph entry already declared under this
+    /// name must actually be the upstream — otherwise two different origins
+    /// would share one `/~<name>/` identity, with the dormant upstream's
+    /// credential still offered by the resolver. YAML loading rejects the same
+    /// collision while building the graph.
+    fn ensure_upstreams_in_graph(&mut self) -> Result<(), RegistryError> {
         for name in self.upstreams.keys() {
             self.registries.ensure_upstream(name);
-            // The fold never overwrites, so a graph entry already declared
-            // under this name must actually be the upstream — otherwise two
-            // different origins would share one `/~<name>/` identity, with
-            // the dormant upstream's credential still offered by the
-            // resolver. YAML loading rejects the same collision while
-            // building the graph.
             if !matches!(self.registries.get(name), Some(Registry::Upstream { .. })) {
                 return Err(RegistryError::InvalidConfig {
                     reason: format!(
@@ -1820,16 +1829,21 @@ impl Config {
                 });
             }
         }
+        Ok(())
+    }
+
+    /// Every concrete registry has the serving config it needs.
+    ///
+    /// A hosted graph entry without its `hosted` table row (or an upstream
+    /// without its serving entry) would answer every request not-found at
+    /// runtime. YAML loading builds both sides together; this catches a
+    /// programmatically-built mismatch at startup. Upstream backing is only
+    /// required when the registry surface is enabled: a resolver-only tier
+    /// deliberately skips upstream (credential) resolution and never serves
+    /// `/~<name>/` content.
+    fn ensure_concrete_registries_are_served(&self) -> Result<(), RegistryError> {
         for name in self.registries.names() {
             validate_registry_key(name)?;
-            // A concrete registry needs its serving config — a hosted graph
-            // entry without its `hosted` table row (or an upstream without
-            // its serving entry) would answer every request not-found at
-            // runtime. YAML loading builds both sides together; catch a
-            // programmatically-built mismatch at startup. Upstream backing
-            // is only required when the registry surface is enabled: a
-            // resolver-only tier deliberately skips upstream (credential)
-            // resolution and never serves `/~<name>/` content.
             match self.registries.get(name) {
                 Some(Registry::Hosted { .. }) if !self.hosted.contains_key(name) => {
                     return Err(RegistryError::InvalidConfig {
@@ -1852,13 +1866,20 @@ impl Config {
                 _ => {}
             }
         }
+        Ok(())
+    }
+
+    /// Each hosted serving row names a hosted registry and claims an org no
+    /// earlier row claimed.
+    ///
+    /// The mirror of the upstream collision in [`Self::ensure_upstreams_in_graph`]:
+    /// a hosted serving row under a name the graph declares as a different kind
+    /// would leave `/~<name>/` serving one origin while the row describes
+    /// another. (A row with no graph entry at all is merely dormant.)
+    fn ensure_hosted_rows_match_graph(&self) -> Result<(), RegistryError> {
         for (index, (name, hosted)) in self.hosted.iter().enumerate() {
             validate_registry_key(name)?;
             validate_org_namespace(name, &hosted.org)?;
-            // The mirror of the upstream collision above: a hosted serving row
-            // under a name the graph declares as a different kind would leave
-            // `/~<name>/` serving one origin while the row describes another.
-            // (A row with no graph entry at all is merely dormant.)
             if let Some(kind) = self.registries.get(name)
                 && !matches!(kind, Registry::Hosted { .. })
             {
@@ -1875,12 +1896,15 @@ impl Config {
                 return Err(org_collision_error(name, &hosted.org, other));
             }
         }
+        Ok(())
+    }
+
+    /// Mirror the YAML rule ([`resolve_upstream_registry`]): an upstream with no
+    /// `access:` gate is publicly reachable at `/~<name>/`, and a public origin
+    /// sends no request headers — any header can carry a credential, and an
+    /// ungated endpoint would let every caller spend it (a confused deputy).
+    fn ensure_public_upstreams_send_no_headers(&self) -> Result<(), RegistryError> {
         for (name, upstream) in &self.upstreams {
-            // Mirror the YAML rule (`resolve_upstream_registry`): an upstream
-            // with no `access:` gate is publicly reachable at `/~<name>/`, and
-            // a public origin sends no request headers — any header can carry
-            // a credential, and an ungated endpoint would let every caller
-            // spend it (a confused deputy).
             if upstream.access.is_none() && !upstream.headers.is_empty() {
                 return Err(RegistryError::InvalidConfig {
                     reason: format!(
@@ -1890,7 +1914,7 @@ impl Config {
                 });
             }
         }
-        self.registries.validate().map_err(|err| registry_err(&err))
+        Ok(())
     }
 }
 
@@ -1994,29 +2018,40 @@ fn flatten_registry_groups(
                     .ok_or_else(|| RegistryError::InvalidConfig {
                         reason: format!("unknown registry ecosystem {name:?}"),
                     })?;
-                for (name, mut registry) in registries {
-                    validate_registry_name(&name)?;
-                    match &mut registry {
-                        RegistryFile::Hosted(hosted) => {
-                            set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
-                            hosted.org.get_or_insert_with(|| format!("{ecosystem}~{name}"));
-                        }
-                        RegistryFile::Upstream(upstream) => {
-                            set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
-                        }
-                        RegistryFile::Router(router) => {
-                            for source in &mut router.sources {
-                                validate_registry_name(source)?;
-                                *source = format!("{ecosystem}/{source}");
-                            }
-                        }
-                    }
-                    entries.insert(format!("{ecosystem}/{name}"), registry);
-                }
+                flatten_ecosystem_group(ecosystem, registries, &mut entries)?;
             }
         }
     }
     Ok(entries)
+}
+
+/// Qualify every registry declared under an `<ecosystem>:` group with that
+/// ecosystem, in its own identity and in the sources a router names.
+fn flatten_ecosystem_group(
+    ecosystem: Ecosystem,
+    registries: IndexMap<String, RegistryFile>,
+    entries: &mut IndexMap<String, RegistryFile>,
+) -> Result<(), RegistryError> {
+    for (name, mut registry) in registries {
+        validate_registry_name(&name)?;
+        match &mut registry {
+            RegistryFile::Hosted(hosted) => {
+                set_group_ecosystem(&name, &mut hosted.ecosystem, ecosystem)?;
+                hosted.org.get_or_insert_with(|| format!("{ecosystem}~{name}"));
+            }
+            RegistryFile::Upstream(upstream) => {
+                set_group_ecosystem(&name, &mut upstream.ecosystem, ecosystem)?;
+            }
+            RegistryFile::Router(router) => {
+                for source in &mut router.sources {
+                    validate_registry_name(source)?;
+                    *source = format!("{ecosystem}/{source}");
+                }
+            }
+        }
+        entries.insert(format!("{ecosystem}/{name}"), registry);
+    }
+    Ok(())
 }
 
 fn validate_registry_key(key: &str) -> Result<(), RegistryError> {
@@ -2080,67 +2115,16 @@ fn build_registries(
         }
         match file {
             RegistryFile::Hosted(registry) => {
-                let org = registry.org.unwrap_or_default();
-                validate_org_namespace(&name, &org)?;
-                if let Some((other, _)) =
-                    hosted.iter().find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
-                {
-                    return Err(org_collision_error(&name, &org, other));
-                }
-                let teams = build_teams(&name, &registry.teams)?;
-                let access = registry_access_list(&name, registry.access.as_ref(), &teams)?;
-                let packages = ecosystem_package_keys(
-                    &name,
-                    registry.ecosystem.unwrap_or_default(),
-                    registry.packages,
-                )?;
-                let rules = build_rules(
-                    &name,
-                    registry.ecosystem.unwrap_or_default(),
-                    &packages,
-                    access,
-                    &teams,
-                )?;
-                let patterns = rules.patterns();
-                hosted.insert(name.clone(), HostedConfig { org, rules, teams });
-                ecosystems.insert(name.clone(), registry.ecosystem.unwrap_or_default());
+                let (config, ecosystem, patterns) = build_hosted_entry(&name, registry, &hosted)?;
+                hosted.insert(name.clone(), config);
+                ecosystems.insert(name.clone(), ecosystem);
                 graph.insert(name, Registry::Hosted { patterns });
             }
             RegistryFile::Upstream(upstream) => {
-                // The registry-level default the rules fall back to: the
-                // upstream's `access:` gate, or `$all` for a public origin.
-                // Built before the `resolve_upstreams` fork so the graph
-                // carries the namespace on every tier, and so a
-                // `publish`/`unpublish` value — a write rule on a registry no
-                // write can land on — fails startup on every tier too.
-                let teams = build_teams(&name, &upstream.teams)?;
-                let access = registry_access_list(&name, upstream.access.as_ref(), &teams)?;
-                let packages = ecosystem_package_keys(
-                    &name,
-                    upstream.ecosystem.unwrap_or_default(),
-                    upstream.packages.clone(),
-                )?;
-                let rules = build_rules(
-                    &name,
-                    upstream.ecosystem.unwrap_or_default(),
-                    &packages,
-                    access,
-                    &teams,
-                )?;
-                ecosystems.insert(name.clone(), upstream.ecosystem.unwrap_or_default());
-                if rules.refines_writes() {
-                    return Err(RegistryError::InvalidConfig {
-                        reason: format!(
-                            "upstream registry {name:?} declares `publish`/`unpublish` rules in \
-                             its `packages:` map; writes can never land on an upstream",
-                        ),
-                    });
-                }
-                let patterns = rules.patterns();
-                if resolve_upstreams {
-                    let mut resolved =
-                        resolve_upstream_registry::<SystemEnv>(&name, *upstream, &teams)?;
-                    resolved.rules = rules;
+                let (resolved, ecosystem, patterns) =
+                    build_upstream_entry(&name, *upstream, resolve_upstreams)?;
+                ecosystems.insert(name.clone(), ecosystem);
+                if let Some(resolved) = resolved {
                     upstreams.insert(name.clone(), resolved);
                 }
                 graph.insert(name, Registry::Upstream { patterns });
@@ -2167,6 +2151,63 @@ fn build_registries(
     let registries = registries.with_defaults(defaults);
     registries.validate().map_err(|err| registry_err(&err))?;
     Ok((hosted, registries))
+}
+
+/// The serving config, ecosystem and claimed patterns of one `hosted:` registry.
+fn build_hosted_entry(
+    name: &str,
+    registry: HostedFile,
+    hosted: &IndexMap<String, HostedConfig>,
+) -> Result<(HostedConfig, Ecosystem, Vec<PackagePattern>), RegistryError> {
+    let org = registry.org.unwrap_or_default();
+    validate_org_namespace(name, &org)?;
+    if let Some((other, _)) =
+        hosted.iter().find(|(_, existing): &(_, &HostedConfig)| existing.org == org)
+    {
+        return Err(org_collision_error(name, &org, other));
+    }
+    let ecosystem = registry.ecosystem.unwrap_or_default();
+    let teams = build_teams(name, &registry.teams)?;
+    let access = registry_access_list(name, registry.access.as_ref(), &teams)?;
+    let packages = ecosystem_package_keys(name, ecosystem, registry.packages)?;
+    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
+    let patterns = rules.patterns();
+    Ok((HostedConfig { org, rules, teams }, ecosystem, patterns))
+}
+
+/// The resolved serving config, ecosystem and claimed patterns of one
+/// `upstream:` registry. The rules are built before the `resolve_upstreams`
+/// fork so the graph carries the namespace on every tier, and so a
+/// `publish`/`unpublish` value — a write rule on a registry no write can land
+/// on — fails startup on every tier too. A resolver-only tier gets no serving
+/// config back.
+fn build_upstream_entry(
+    name: &str,
+    upstream: UpstreamFile,
+    resolve_upstreams: bool,
+) -> Result<(Option<UpstreamConfig>, Ecosystem, Vec<PackagePattern>), RegistryError> {
+    let ecosystem = upstream.ecosystem.unwrap_or_default();
+    // The registry-level default the rules fall back to: the upstream's
+    // `access:` gate, or `$all` for a public origin.
+    let teams = build_teams(name, &upstream.teams)?;
+    let access = registry_access_list(name, upstream.access.as_ref(), &teams)?;
+    let packages = ecosystem_package_keys(name, ecosystem, upstream.packages.clone())?;
+    let rules = build_rules(name, ecosystem, &packages, access, &teams)?;
+    if rules.refines_writes() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream registry {name:?} declares `publish`/`unpublish` rules in \
+                 its `packages:` map; writes can never land on an upstream",
+            ),
+        });
+    }
+    let patterns = rules.patterns();
+    if !resolve_upstreams {
+        return Ok((None, ecosystem, patterns));
+    }
+    let mut resolved = resolve_upstream_registry::<SystemEnv>(name, upstream, &teams)?;
+    resolved.rules = rules;
+    Ok((Some(resolved), ecosystem, patterns))
 }
 
 /// A registry's `packages:` keys in the spelling its ecosystem matches

@@ -574,41 +574,51 @@ fn redact_url_candidate(candidate: &str) -> Option<String> {
 
 fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
     let mut url = url::Url::parse(candidate).ok()?;
-    let mut changed = false;
-    if !url.username().is_empty() || url.password().is_some() {
-        if url.set_username("redacted").is_ok() {
-            changed = true;
-        }
-        if url.set_password(None).is_ok() {
-            changed = true;
-        }
-    }
-
-    if url.query().is_some() {
-        let pairs = url
-            .query_pairs()
-            .map(|(key, value)| {
-                if is_sensitive_query_key(&key) {
-                    changed = true;
-                    (key.into_owned(), "redacted".to_string())
-                } else {
-                    (key.into_owned(), value.into_owned())
-                }
-            })
-            .collect::<Vec<_>>();
-        if changed {
-            url.query_pairs_mut()
-                .clear()
-                .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
-        }
-    }
-
-    if url.fragment().is_some() {
-        url.set_fragment(None);
-        changed = true;
-    }
-
+    let mut changed = redact_url_userinfo(&mut url);
+    changed |= redact_url_query(&mut url);
+    changed |= redact_url_fragment(&mut url);
     changed.then(|| url.to_string())
+}
+
+fn redact_url_userinfo(url: &mut url::Url) -> bool {
+    if url.username().is_empty() && url.password().is_none() {
+        return false;
+    }
+    let username_redacted = url.set_username("redacted").is_ok();
+    let password_dropped = url.set_password(None).is_ok();
+    username_redacted || password_dropped
+}
+
+fn redact_url_query(url: &mut url::Url) -> bool {
+    if url.query().is_none() {
+        return false;
+    }
+    let mut changed = false;
+    let pairs = url
+        .query_pairs()
+        .map(|(key, value)| {
+            if is_sensitive_query_key(&key) {
+                changed = true;
+                (key.into_owned(), "redacted".to_string())
+            } else {
+                (key.into_owned(), value.into_owned())
+            }
+        })
+        .collect::<Vec<_>>();
+    if changed {
+        url.query_pairs_mut()
+            .clear()
+            .extend_pairs(pairs.iter().map(|(key, value)| (&**key, &**value)));
+    }
+    changed
+}
+
+fn redact_url_fragment(url: &mut url::Url) -> bool {
+    if url.fragment().is_none() {
+        return false;
+    }
+    url.set_fragment(None);
+    true
 }
 
 fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {

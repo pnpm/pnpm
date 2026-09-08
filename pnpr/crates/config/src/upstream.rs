@@ -348,39 +348,40 @@ pub(super) fn parse_interval(raw: &str) -> Option<Duration> {
         return Duration::try_from_secs_f64(seconds).ok();
     }
     let mut total_seconds = 0f64;
-    let bytes = raw.as_bytes();
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index].is_ascii_whitespace() {
-            index += 1;
-            continue;
-        }
-        let number_start = index;
-        while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'.') {
-            index += 1;
-        }
-        if index == number_start {
-            return None;
-        }
-        let number: f64 = raw[number_start..index].parse().ok()?;
-        let unit_start = index;
-        while index < bytes.len() && bytes[index].is_ascii_alphabetic() {
-            index += 1;
-        }
-        let seconds = match &raw[unit_start..index] {
-            "ms" => number / 1000.0,
-            "s" | "" => number,
-            "m" => number * 60.0,
-            "h" => number * 3600.0,
-            "d" => number * 86_400.0,
-            "w" => number * 604_800.0,
-            _ => return None,
-        };
+    let mut rest = raw;
+    while !rest.is_empty() {
+        let (seconds, tail) = parse_interval_term(rest)?;
         total_seconds += seconds;
+        rest = tail;
     }
     // Fallible conversion so an overflowing compound (`"999999999999w"`)
     // is rejected as unparsable rather than panicking.
     Duration::try_from_secs_f64(total_seconds).ok()
+}
+
+/// One `<number><unit>` term of a compound interval and whatever follows it.
+/// Leading whitespace is skipped and a missing unit means seconds, so `"90"`
+/// and `"1m 30s"` both parse.
+fn parse_interval_term(raw: &str) -> Option<(f64, &str)> {
+    let raw = raw.trim_start();
+    let number_end =
+        raw.bytes().position(|byte| !(byte.is_ascii_digit() || byte == b'.')).unwrap_or(raw.len());
+    if number_end == 0 {
+        return None;
+    }
+    let number: f64 = raw[..number_end].parse().ok()?;
+    let rest = &raw[number_end..];
+    let unit_end = rest.bytes().position(|byte| !byte.is_ascii_alphabetic()).unwrap_or(rest.len());
+    let seconds = match &rest[..unit_end] {
+        "ms" => number / 1000.0,
+        "s" | "" => number,
+        "m" => number * 60.0,
+        "h" => number * 3600.0,
+        "d" => number * 86_400.0,
+        "w" => number * 604_800.0,
+        _ => return None,
+    };
+    Some((seconds, &rest[unit_end..]))
 }
 
 /// Pick the credential for an upstream's `auth:` block: an explicit
