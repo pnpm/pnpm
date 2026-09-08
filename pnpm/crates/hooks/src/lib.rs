@@ -309,10 +309,10 @@ pub trait CustomResolver: Send + Sync {
 /// pnpmfile evaluated, to tell "no pnpmfile" from "a pnpmfile that
 /// exports none".
 ///
-/// A `hooks` that answers `None` from
+/// Hooks that answer `None` from
 /// [`PnpmfileHooks::calculate_pnpmfile_checksum`] to stay out of the
-/// comparison, such as [`ChecksumFreeHooks`], therefore only stays out
-/// of it while `recorded` is `None`.
+/// comparison, such as [`ChecksumFreeHooks`], therefore only stay out of
+/// it while `recorded` is `None`.
 pub async fn current_pnpmfile_checksum(
     hooks: Option<&Arc<dyn PnpmfileHooks>>,
     recorded: Option<&str>,
