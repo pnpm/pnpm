@@ -44,7 +44,7 @@ import type {
   StoreController,
 } from '@pnpm/store.controller-types'
 import { lexCompare } from '@pnpm/text.ordinal-comparator'
-import type { AllowBuild, AllowedDeprecatedVersions, DepPath, PackageManifest, PackageVersionPolicy, PkgIdWithPatchHash, RangeSpecStyle, ReadPackageHook, RegistryContext, SupportedArchitectures, TrustPolicy } from '@pnpm/types'
+import { type AllowBuild, type AllowedDeprecatedVersions, DEPENDENCIES_OR_PEER_FIELDS, type DepPath, type PackageManifest, type PackageVersionPolicy, type PkgIdWithPatchHash, type RangeSpecStyle, type ReadPackageHook, type RegistryContext, type SupportedArchitectures, type TrustPolicy } from '@pnpm/types'
 import normalizePath from 'normalize-path'
 import pDefer from 'p-defer'
 import { pathExists } from 'path-exists'
@@ -463,7 +463,6 @@ export async function resolveRootDependencies (
 
         const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
           ...options,
-          pickLowestVersion: false,
           parentPkgAliases,
           publishedBy,
           updateToLatest: false,
@@ -485,7 +484,6 @@ export async function resolveRootDependencies (
           const wantedDependencies = getNonDevWantedDependencies({ optionalDependencies })
           const resolveDependenciesResult = await resolveDependencies(ctx, preferredVersions, wantedDependencies, {
             ...options,
-            pickLowestVersion: false,
             parentPkgAliases,
             publishedBy,
             updateToLatest: false,
@@ -2092,10 +2090,7 @@ async function resolveDependency (
 
     let prepare!: boolean
     let hasBin!: boolean
-    let pkg: PackageManifest = getManifestFromResponse(pkgResponse, wantedDependency, currentPkg)
-    if (!pkg.dependencies) {
-      pkg.dependencies = {}
-    }
+    let pkg: PackageManifest = copyResolvedManifest(getManifestFromResponse(pkgResponse, wantedDependency, currentPkg))
     if (ctx.readPackageHook != null) {
       pkg = await ctx.readPackageHook(pkg)
     }
@@ -2375,6 +2370,31 @@ export function getManifestFromResponse (
     name: wantedDependency.alias ? wantedDependency.alias : wantedDependency.bareSpecifier.split('/').pop()!,
     version: '0.0.0',
   }
+}
+
+/**
+ * A resolved manifest is the object the resolver's metadata cache holds, so
+ * every dependency that resolves to the same package version gets the same
+ * object. Resolving a dependency writes to the manifest it is given: the
+ * read-package hook rewrites dependency fields, a deprecation notice is carried
+ * over from the lockfile, and an `engines.runtime` entry becomes a dependency.
+ * Copying the fields those writes reach keeps one dependency's resolution from
+ * deciding what the next one sees.
+ *
+ * `dependencies` is always present on the copy, since both the peer handling
+ * and `convertEnginesRuntimeToDependencies` write into it.
+ */
+function copyResolvedManifest (manifest: PackageManifest): PackageManifest {
+  const copy: PackageManifest = { ...manifest, dependencies: { ...manifest.dependencies } }
+  for (const depsField of DEPENDENCIES_OR_PEER_FIELDS) {
+    if (manifest[depsField] != null) {
+      copy[depsField] = { ...manifest[depsField] }
+    }
+  }
+  if (manifest.peerDependenciesMeta != null) {
+    copy.peerDependenciesMeta = { ...manifest.peerDependenciesMeta }
+  }
+  return copy
 }
 
 // The materialized peer set is used (not the manifest's raw peerDependencies)

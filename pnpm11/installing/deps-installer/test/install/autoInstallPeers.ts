@@ -828,25 +828,47 @@ test('a root dependency does not override the peers provided inside a self-conta
   expect(lockfile.importers['.'].dependencies?.['@pnpm.e2e/closure-peer-x']?.version).toBe('2.0.0')
 })
 
-test('preserve original declared peerDependencies range in lockfile when autoInstallPeers and minimumReleaseAge are enabled', async () => {
+test('a package entry keeps the declared peerDependencies ranges when the graph is re-resolved with minimumReleaseAge', async () => {
   await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/peer-c', version: '1.0.1', distTag: 'latest' })
   const project = prepareEmpty()
-  await install({
+  // pkg-with-events-and-peers declares `@pnpm.e2e/peer-c` as `*`, while
+  // abc-optional-peers declares the same peer as `^1.0.0`. Both peers are
+  // auto-installed, so each entry must still record the range its own manifest
+  // declares, not a version synthesized from the other declarer.
+  const manifest = (fooVersion: string): PackageManifest => ({
     name: 'root',
     version: '0.0.0',
-    private: true,
     dependencies: {
       '@pnpm.e2e/abc-optional-peers': '1.0.0',
-      '@pnpm.e2e/peer-of-itself': '1.0.0',
+      '@pnpm.e2e/foo': fooVersion,
+      '@pnpm.e2e/pkg-with-events-and-peers': '1.0.0',
     },
-  }, testDefaults({
-    autoInstallPeers: true,
-    minimumReleaseAge: 1440,
-  }))
-  const lockfile = project.readLockfile()
-  const pkgSnapshot = lockfile.snapshots['@pnpm.e2e/abc-optional-peers@1.0.0(@pnpm.e2e/peer-a@1.0.0)'] as unknown as Record<string, Record<string, string>>
-  if (pkgSnapshot?.peerDependencies?.['@pnpm.e2e/peer-a']) {
-    expect(pkgSnapshot.peerDependencies['@pnpm.e2e/peer-a']).not.toMatch(/^\d+\.\d+\.\d+$/)
-  }
-})
+  })
+  const opts = () => testDefaults({ autoInstallPeers: true, minimumReleaseAge: 1440 })
+  await install(manifest('100.0.0'), opts())
 
+  const declaredPeerRanges = () => {
+    const { packages } = project.readLockfile()
+    return {
+      abcOptionalPeers: packages['@pnpm.e2e/abc-optional-peers@1.0.0'].peerDependencies,
+      pkgWithEventsAndPeers: packages['@pnpm.e2e/pkg-with-events-and-peers@1.0.0'].peerDependencies,
+    }
+  }
+  const expectedPeerRanges = {
+    abcOptionalPeers: {
+      '@pnpm.e2e/peer-a': '^1.0.0',
+      '@pnpm.e2e/peer-b': '^1.0.0',
+      '@pnpm.e2e/peer-c': '^1.0.0',
+    },
+    pkgWithEventsAndPeers: {
+      '@pnpm.e2e/peer-c': '*',
+    },
+  }
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+
+  // Bumping an unrelated dependency re-resolves the graph against the lockfile
+  // written above.
+  await install(manifest('100.1.0'), opts())
+  expect(declaredPeerRanges()).toStrictEqual(expectedPeerRanges)
+})
