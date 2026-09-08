@@ -305,3 +305,98 @@ fn projects_rooted_in_submodules_bypass_task_caching() {
         }
     }
 }
+
+#[cfg(unix)]
+fn symlinked_input_project(project: &std::path::Path, task_settings: &str) {
+    use std::os::unix::fs::symlink;
+
+    assert!(Command::new("git").arg("init").arg(project).output().unwrap().status.success());
+    fs::write(project.join("AGENTS.md"), "shared text").unwrap();
+    fs::write(project.join("NOTES.md"), "shared text").unwrap();
+    symlink("AGENTS.md", project.join("CLAUDE.md")).unwrap();
+    symlink("MISSING.md", project.join("DANGLING.md")).unwrap();
+    fs::write(project.join(".gitignore"), "out/\nnode_modules/\nruns\n").unwrap();
+    fs::write(project.join("package.json"), serde_json::json!({
+        "name": "probe", "version": "1.0.0", "scripts": {
+            "build": r#"node -e "const fs=require('fs');fs.mkdirSync('out',{recursive:true});fs.writeFileSync('out/result',fs.readFileSync('CLAUDE.md','utf8'));fs.appendFileSync('runs','x')""#
+        }
+    }).to_string()).unwrap();
+    fs::write(
+        project.join("pnpm-workspace.yaml"),
+        format!(
+            "packages: []\nincludeWorkspaceRoot: true\npipelines:\n  default: [build]\ntasks:\n  build:\n    dependsOn: []\n{task_settings}",
+        ),
+    )
+    .unwrap();
+    Command::new("git").current_dir(project).args(["add", "-A"]).assert().success();
+}
+
+#[cfg(unix)]
+#[test]
+fn no_cache_runs_tasks_without_hashing_their_inputs() {
+    use std::os::unix::fs::symlink;
+
+    let project = tempfile::tempdir().unwrap();
+    symlinked_input_project(project.path(), "");
+    let outside = tempfile::tempdir().unwrap();
+    fs::create_dir(project.path().join("dir")).unwrap();
+    fs::write(project.path().join("dir/input"), "source").unwrap();
+    Command::new("git").current_dir(project.path()).args(["add", "-A"]).assert().success();
+    fs::remove_file(project.path().join("dir/input")).unwrap();
+    fs::remove_dir(project.path().join("dir")).unwrap();
+    symlink(outside.path(), project.path().join("dir")).unwrap();
+    let storage = tempfile::tempdir().unwrap();
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(project.path())
+            .env("XDG_CACHE_HOME", storage.path())
+            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        command
+    };
+    command().arg("install").assert().success();
+    command().args(["pipeline", "--full", "--no-cache"]).assert().success();
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "shared text");
+    assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "x");
+    // The symlinked directory a tracked input sits under is still refused,
+    // which is what makes the run above evidence that nothing was hashed.
+    command().args(["pipeline", "--full"]).assert().failure();
+    assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), "x");
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_inputs_are_hashed_as_link_targets() {
+    use std::os::unix::fs::symlink;
+
+    let project = tempfile::tempdir().unwrap();
+    symlinked_input_project(project.path(), "    outputs: ['out/**']\n");
+    let storage = tempfile::tempdir().unwrap();
+    let command = || {
+        let mut command = Command::cargo_bin("pnpm").unwrap().without_ambient_pnpm_config();
+        command
+            .current_dir(project.path())
+            .env("XDG_CACHE_HOME", storage.path())
+            .env("XDG_CONFIG_HOME", storage.path().join("config"));
+        command
+    };
+    command().arg("install").assert().success();
+    let run = |expected_runs: &str, expected_hit: bool| {
+        let result = command().args(["pipeline", "--full"]).assert().success();
+        let output = String::from_utf8_lossy(&result.get_output().stdout).into_owned();
+        assert_eq!(output.contains("restored from cache"), expected_hit, "{output}");
+        assert_eq!(fs::read_to_string(project.path().join("runs")).unwrap(), expected_runs);
+    };
+    run("x", false);
+    run("x", true);
+    // Both targets hold the same text, so only a key built from the link
+    // target itself — not from the content it resolves to — misses here.
+    fs::remove_file(project.path().join("CLAUDE.md")).unwrap();
+    symlink("NOTES.md", project.path().join("CLAUDE.md")).unwrap();
+    run("xx", false);
+    // The file a link points at is a tracked input in its own right, so
+    // editing it still invalidates the task that reads it through the link.
+    fs::write(project.path().join("NOTES.md"), "edited text").unwrap();
+    run("xxx", false);
+    assert_eq!(fs::read_to_string(project.path().join("out/result")).unwrap(), "edited text");
+}
