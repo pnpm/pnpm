@@ -1,5 +1,5 @@
 ---
-"@pnpm/cli.commands": patch
+"pacquet": patch
 ---
 
 update "about"
