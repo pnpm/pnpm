@@ -1,6 +1,7 @@
 use super::{
     Builder, Duration, LibsqlAuth, MaxUsers, RegistryError, Result, TokenBackend, UpsertOutcome,
-    UserBackend, ensure_user_counter, params, sha256_hex, with_auth_timeout,
+    UserBackend, ensure_user_counter, is_transaction_conflict, params, retry_database_conflicts,
+    sha256_hex, with_auth_timeout,
 };
 
 /// In-memory libsql database, exercising the same driver and SQL the
@@ -112,9 +113,6 @@ async fn max_users_caps_registration() {
     backend.add_or_login("alice", "x").await.unwrap();
 }
 
-/// The cap is strict, not best-effort: a concurrent burst of distinct
-/// new users against a cap of 1 admits exactly one. The count-and-insert
-/// runs in a single statement, so the guard can't be raced.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn registration_cap_is_strict_under_concurrency() {
     let backend = std::sync::Arc::new(local_backend(MaxUsers::Limited(1)).await);
@@ -138,6 +136,45 @@ async fn registration_cap_is_strict_under_concurrency() {
     let mut rows = backend.conn.query("SELECT COUNT(*) FROM users", ()).await.unwrap();
     let total: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
     assert_eq!(total, 1, "the cap must be strictly enforced, never exceeded");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn registration_cap_is_strict_across_backend_instances() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("auth.db");
+    let mut backends = Vec::new();
+    for _ in 0..6 {
+        let db = Builder::new_local(&path).build().await.unwrap();
+        backends.push(LibsqlAuth::from_database(db, MaxUsers::Limited(1)).await.unwrap());
+    }
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(backends.len()));
+    let mut handles = Vec::new();
+    for (index, backend) in backends.into_iter().enumerate() {
+        let barrier = std::sync::Arc::clone(&barrier);
+        handles.push(tokio::spawn(async move {
+            barrier.wait().await;
+            backend.add_or_login(&format!("user{index}"), "x").await
+        }));
+    }
+    let mut created = 0;
+    for handle in handles {
+        match handle.await.unwrap() {
+            Ok((UpsertOutcome::Created, _)) => created += 1,
+            Err(RegistryError::TooManyUsers { max: 1 }) => {}
+            other => panic!("unexpected concurrent registration result: {other:?}"),
+        }
+    }
+    assert_eq!(created, 1);
+    let db = Builder::new_local(&path).build().await.unwrap();
+    let backend = LibsqlAuth::from_database(db, MaxUsers::Limited(1)).await.unwrap();
+    assert_eq!(backend.user_count().await.unwrap(), 1);
+    let mut rows = backend
+        .conn
+        .query("SELECT value FROM auth_counters WHERE name = 'users'", ())
+        .await
+        .unwrap();
+    let count: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+    assert_eq!(count, 1);
 }
 
 #[tokio::test]
@@ -229,4 +266,104 @@ async fn reads_propagate_a_backend_error_instead_of_swallowing_it() {
     assert!(backend.lookup("anything").await.is_err());
     assert!(backend.find_by_key("anything").await.is_err());
     assert!(backend.list_for_user("alice").await.is_err());
+}
+
+#[tokio::test]
+async fn registration_waits_for_another_database_writer() {
+    let directory = tempfile::tempdir().unwrap();
+    let db = Builder::new_local(directory.path().join("auth.db")).build().await.unwrap();
+    let backend = LibsqlAuth::from_database(db, MaxUsers::Limited(1)).await.unwrap();
+    let other_db = Builder::new_local(directory.path().join("auth.db")).build().await.unwrap();
+    let other = other_db.connect().unwrap();
+    let writer =
+        other.transaction_with_behavior(libsql::TransactionBehavior::Immediate).await.unwrap();
+    let pending = begin_registration_transaction(&backend.conn);
+    tokio::pin!(pending);
+    assert!(tokio::time::timeout(Duration::from_millis(20), &mut pending).await.is_err());
+    writer.rollback().await.unwrap();
+    pending.await.unwrap().rollback().await.unwrap();
+}
+
+#[tokio::test]
+async fn registration_transaction_retries_only_remote_lock_conflicts() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    for (code, expected_attempts) in [("SQLITE_BUSY", 9), ("SQLITE_AUTH", 1)] {
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let app = axum::Router::new()
+            .route("/v3/pipeline", axum::routing::post(reject_remote_transaction))
+            .with_state((code, Arc::clone(&attempts)));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let db = Builder::new_remote(format!("http://{address}"), String::new())
+            .connector(tower::service_fn(move |_| tokio::net::TcpStream::connect(address)))
+            .build()
+            .await
+            .unwrap();
+        let conn = db.connect().unwrap();
+        let error =
+            begin_registration_transaction(&conn).await.err().expect("server rejects transaction");
+        server.abort();
+        assert_eq!(attempts.load(Ordering::SeqCst), expected_attempts, "{error:?}");
+        assert!(matches!(error, RegistryError::Libsql(_)));
+    }
+}
+
+#[test]
+fn transaction_conflicts_include_extended_sqlite_codes() {
+    for code in [5, 6, 261, 517, 262] {
+        assert!(is_transaction_conflict(&libsql::Error::SqliteFailure(code, String::new())));
+        assert!(is_transaction_conflict(&libsql::Error::RemoteSqliteFailure(
+            0,
+            code,
+            String::new()
+        )));
+    }
+    for code in [1, 19, 2067] {
+        assert!(!is_transaction_conflict(&libsql::Error::SqliteFailure(code, String::new())));
+    }
+    assert!(!is_transaction_conflict(&libsql::Error::ConnectionFailed("SQLITE_BUSY".to_string())));
+}
+
+async fn reject_remote_transaction(
+    axum::extract::State((code, attempts)): axum::extract::State<(
+        &'static str,
+        std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    )>,
+    body: String,
+) -> axum::Json<serde_json::Value> {
+    attempts.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let body: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let results: Vec<_> = body["requests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|request| {
+            if request["type"] == "get_autocommit" {
+                serde_json::json!({
+                    "type": "ok",
+                    "response": {"type": "get_autocommit", "is_autocommit": true},
+                })
+            } else {
+                serde_json::json!({
+                    "type": "error",
+                    "error": {"code": code, "message": "test transaction failure"},
+                })
+            }
+        })
+        .collect();
+    axum::Json(serde_json::json!({"baton": null, "base_url": null, "results": results}))
+}
+
+async fn begin_registration_transaction(conn: &libsql::Connection) -> Result<libsql::Transaction> {
+    retry_database_conflicts(|| async {
+        conn.transaction_with_behavior(libsql::TransactionBehavior::Immediate)
+            .await
+            .map_err(RegistryError::from)
+    })
+    .await
 }

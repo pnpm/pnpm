@@ -41,6 +41,7 @@ url           = { workspace = true }
 axum     = { workspace = true, features = ["form", "json"] }
 tempfile = { workspace = true }
 tokio    = { workspace = true }
+tower    = { workspace = true, features = ["util"] }
 
 [lints]
 workspace = true

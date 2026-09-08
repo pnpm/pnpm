@@ -2,4 +2,4 @@
 "@pnpm/pnpr": patch
 ---
 
-Fixed transaction errors and panics during concurrent libsql user registrations when a user limit is configured.
+Fixed failed registrations when multiple users sign up concurrently with a libsql backend and a configured user limit.
