@@ -246,6 +246,39 @@ pub(crate) fn select_workspace_projects(
 /// hand. Callers pass `true` only for a run that is certain to reach
 /// the cycle check — the "Already up to date" fast path returns before
 /// it, and a search it never reads would tax exactly that path.
+/// `runtimeOnFail` is a workspace-level override the projects carry into
+/// their own installs, so it is applied to each manifest as it is read.
+fn apply_runtime_on_fail(cfg: &Config, projects: &mut [pnpm_workspace::Project]) {
+    let Some(runtime_on_fail) = cfg.runtime_on_fail else {
+        return;
+    };
+    for project in projects {
+        pnpm_package_manifest::apply_runtime_on_fail_override(
+            project.manifest.value_mut(),
+            runtime_on_fail.as_str(),
+        );
+    }
+}
+
+/// The edges the sequencer orders the selection by. Without `--sort`
+/// there are none, and the projects run in directory order.
+fn project_dependencies(
+    selection: &crate::cli_args::recursive::RecursiveSelection<'_>,
+    recursive_sort: bool,
+) -> IndexMap<PathBuf, Vec<PathBuf>> {
+    if recursive_sort {
+        return filtered_projects_dependencies(
+            &selection.selected,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
+    }
+    let mut dirs = selection.selected.keys().cloned().collect::<Vec<_>>();
+    dirs.sort();
+    dirs.into_iter().map(|dir| (dir, Vec::new())).collect()
+}
+
 fn select_workspace_projects_with_cycles(
     cfg: &Config,
     prefix: &Path,
@@ -260,14 +293,7 @@ fn select_workspace_projects_with_cycles(
 
     let workspace_root = cfg.workspace_dir.as_deref().unwrap_or(prefix).to_path_buf();
     let (mut projects, workspace_patterns) = discover_workspace_projects(&workspace_root, cfg)?;
-    if let Some(runtime_on_fail) = cfg.runtime_on_fail {
-        for project in &mut projects {
-            pnpm_package_manifest::apply_runtime_on_fail_override(
-                project.manifest.value_mut(),
-                runtime_on_fail.as_str(),
-            );
-        }
-    }
+    apply_runtime_on_fail(cfg, &mut projects);
     let (project_dependencies, ordered_dirs, selected_dirs, workspace_cycles) = {
         let selection = select_recursive_projects(
             &projects,
@@ -292,18 +318,7 @@ fn select_workspace_projects_with_cycles(
             .then(|| {
                 pnpm_package_manager::workspace_cycles(&selection.selected).unwrap_or_default()
             });
-        let project_dependencies = if recursive_sort {
-            filtered_projects_dependencies(
-                &selection.selected,
-                selection.full_graph(),
-                selection.prod_all.as_ref(),
-                &selection.prod_only_selected,
-            )
-        } else {
-            let mut dirs = selection.selected.keys().cloned().collect::<Vec<_>>();
-            dirs.sort();
-            dirs.into_iter().map(|dir| (dir, Vec::new())).collect()
-        };
+        let project_dependencies = project_dependencies(&selection, recursive_sort);
         // Sequenced over borrowed paths: cloning a workspace-scale edge
         // map just to sort it cost more than the sort.
         let ordered_dirs = graph_sequencer(

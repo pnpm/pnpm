@@ -296,15 +296,7 @@ pub fn run_pipeline(
     )?;
 
     if invocation.dry_run {
-        if invocation.json {
-            let document = task_graph_to_json(&task_graph, workspace_root);
-            println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
-        } else {
-            println!(
-                "{}",
-                render_task_graph_dry_run(&task_graph, &sequenced_tasks, workspace_root),
-            );
-        }
+        print_dry_run(invocation, &task_graph, &sequenced_tasks, workspace_root)?;
         return Ok(PipelineOutcome::without_upload());
     }
 
@@ -351,20 +343,7 @@ pub fn run_pipeline(
             report: &report,
             summary_key: &summary_key,
         });
-        match outcome {
-            Ok(status) => {
-                let failed = status.status == Status::Failure;
-                statuses.lock().expect("status lock is not poisoned")[&summary_key] = status;
-                if failed { TaskCompletion::Failed } else { TaskCompletion::Passed }
-            }
-            Err(error) => {
-                let mut abort = abort.lock().expect("abort slot lock is not poisoned");
-                if abort.is_none() {
-                    *abort = Some(error);
-                }
-                TaskCompletion::Aborted
-            }
-        }
+        record_task_outcome(&statuses, &abort, &summary_key, outcome)
     };
     let on_task_skipped = |node: &TaskNode| {
         let key = TaskKey { project: node.project.clone(), task_name: node.task_name.clone() };
@@ -471,6 +450,46 @@ struct SelectAffectedOptions<'a> {
 /// correctness boundary — any doubt about attribution (the merge base
 /// cannot be resolved, or the diff touches the workspace root, whose
 /// files feed every project) falls through to the full graph.
+/// `--dry-run` prints the plan instead of running it.
+fn print_dry_run(
+    invocation: &PipelineInvocation,
+    task_graph: &TaskGraph,
+    sequenced_tasks: &[TaskKey],
+    workspace_root: &Path,
+) -> miette::Result<()> {
+    if invocation.json {
+        let document = task_graph_to_json(task_graph, workspace_root);
+        println!("{}", serde_json::to_string_pretty(&document).into_diagnostic()?);
+    } else {
+        println!("{}", render_task_graph_dry_run(task_graph, sequenced_tasks, workspace_root));
+    }
+    Ok(())
+}
+
+/// Record one task's status. A task that could not run at all aborts the
+/// whole pipeline; a task that ran and failed only fails itself, because
+/// the pipeline never bails.
+fn record_task_outcome(
+    statuses: &Mutex<IndexMap<String, ExecutionStatus>>,
+    abort: &Mutex<Option<miette::Report>>,
+    summary_key: &str,
+    outcome: miette::Result<ExecutionStatus>,
+) -> TaskCompletion {
+    let status = match outcome {
+        Ok(status) => status,
+        Err(error) => {
+            let mut abort = abort.lock().expect("abort slot lock is not poisoned");
+            if abort.is_none() {
+                *abort = Some(error);
+            }
+            return TaskCompletion::Aborted;
+        }
+    };
+    let failed = status.status == Status::Failure;
+    statuses.lock().expect("status lock is not poisoned")[summary_key] = status;
+    if failed { TaskCompletion::Failed } else { TaskCompletion::Passed }
+}
+
 fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Result<Selection> {
     let SelectAffectedOptions { graph, workspace_root, base, full, config, emit } = *options;
     let all_dirs: Vec<PathBuf> = graph
@@ -533,42 +552,14 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         return Ok(full_selection(Some(merge_base), changed_count));
     }
 
-    let mut dependents: HashMap<&Path, Vec<&Path>> = HashMap::new();
-    for (dir, node) in graph {
-        for dependency in &node.dependencies {
-            dependents.entry(dependency.as_path()).or_default().push(dir.as_path());
-        }
-    }
-    let mut affected: HashSet<PathBuf> = HashSet::new();
-    let mut stack: Vec<&Path> = changed.changed_projects.iter().map(PathBuf::as_path).collect();
-    while let Some(dir) = stack.pop() {
-        if !affected.insert(dir.to_path_buf()) {
-            continue;
-        }
-        stack.extend(dependents.get(dir).into_iter().flatten());
-    }
+    let mut affected = projects_with_dependents(graph, &changed.changed_projects);
     // A project whose only changes match `testPattern` is selected itself
     // without pulling in its dependents.
     affected.extend(changed.ignore_dependent_for_projects.iter().cloned());
     if !config.include_workspace_root {
         affected.remove(workspace_root);
     }
-
-    // The task graph additionally spans the affected set's transitive
-    // dependencies; see [`Selection::selected`] for why.
-    let mut selected = affected.clone();
-    let mut stack: Vec<PathBuf> = affected.iter().cloned().collect();
-    while let Some(dir) = stack.pop() {
-        for dependency in
-            graph.get(&dir).map(|node| node.dependencies.as_slice()).unwrap_or_default()
-        {
-            if (config.include_workspace_root || dependency.as_path() != workspace_root)
-                && selected.insert(dependency.clone())
-            {
-                stack.push(dependency.clone());
-            }
-        }
-    }
+    let selected = with_transitive_dependencies(graph, &affected, workspace_root, config);
 
     // In the workspace graph's deterministic order, which is the
     // dispatch tie-break order.
@@ -581,6 +572,53 @@ fn select_affected_projects(options: &SelectAffectedOptions<'_>) -> miette::Resu
         merge_base: Some(merge_base),
         changed_count,
     })
+}
+
+/// The changed projects and everything that depends on them, directly or
+/// not.
+fn projects_with_dependents(
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    changed_projects: &[PathBuf],
+) -> HashSet<PathBuf> {
+    let mut dependents: HashMap<&Path, Vec<&Path>> = HashMap::new();
+    for (dir, node) in graph {
+        for dependency in &node.dependencies {
+            dependents.entry(dependency.as_path()).or_default().push(dir.as_path());
+        }
+    }
+    let mut affected: HashSet<PathBuf> = HashSet::new();
+    let mut stack: Vec<&Path> = changed_projects.iter().map(PathBuf::as_path).collect();
+    while let Some(dir) = stack.pop() {
+        if !affected.insert(dir.to_path_buf()) {
+            continue;
+        }
+        stack.extend(dependents.get(dir).into_iter().flatten());
+    }
+    affected
+}
+
+/// The task graph additionally spans the affected set's transitive
+/// dependencies; see [`Selection::selected`] for why.
+fn with_transitive_dependencies(
+    graph: &ProjectGraph<GraphPkg<'_>>,
+    affected: &HashSet<PathBuf>,
+    workspace_root: &Path,
+    config: &Config,
+) -> HashSet<PathBuf> {
+    let mut selected = affected.clone();
+    let mut stack: Vec<PathBuf> = affected.iter().cloned().collect();
+    while let Some(dir) = stack.pop() {
+        let dependencies =
+            graph.get(&dir).map(|node| node.dependencies.as_slice()).unwrap_or_default();
+        for dependency in dependencies {
+            if (config.include_workspace_root || dependency.as_path() != workspace_root)
+                && selected.insert(dependency.clone())
+            {
+                stack.push(dependency.clone());
+            }
+        }
+    }
+    selected
 }
 
 /// `merge-base(HEAD, base)`, deepening a shallow clone until the merge
@@ -790,17 +828,11 @@ fn execute_task_with_cargo_cache(
     );
     let cargo_cacheable =
         !invocation.no_cache && settings.is_some_and(|settings| settings.cache != Some(false));
-    let snapshot = if cargo_cacheable && let Some(task_key) = task_key {
-        match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
-            Ok(snapshot) => Some(snapshot),
-            Err(error) => {
-                cargo_cache_warning(options, &error.to_string());
-                None
-            }
-        }
-    } else {
-        None
-    };
+    let snapshot = cargo_cacheable.then_some(task_key).flatten().and_then(|task_key| {
+        cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment)
+            .inspect_err(|error| cargo_cache_warning(options, &error.to_string()))
+            .ok()
+    });
     if let Some((entry, key, _)) = &snapshot {
         match cargo.restore(entry, key) {
             Ok(true) => emit(&LogEvent::Pnpm(PnpmLog {
@@ -808,6 +840,7 @@ fn execute_task_with_cargo_cache(
                 message: format!("{summary_key}: restored Cargo build state"),
                 prefix: root.to_string_lossy().into_owned(),
             })),
+            // A snapshot that is not there yet is the ordinary first run.
             Ok(false) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => cargo_cache_warning(options, &error.to_string()),
@@ -822,22 +855,84 @@ fn execute_task_with_cargo_cache(
         execute_task_scripts(&RunTaskOptions { base_extra_env: &extra_env, ..*options })?;
     if execution.status == Status::Passed
         && let Some(task_key) = task_key
-        && let Some((entry, key, local_packages)) = &snapshot
+        && let Some(snapshot) = &snapshot
     {
-        match cargo_cache::snapshot_entry(&config.cache_dir, root, task_key, &environment) {
-            Ok((_, after, _)) if after == *key => {
-                if let Err(error) = cargo.publish(entry, key, local_packages) {
-                    cargo_cache_warning(options, &error.to_string());
-                }
-            }
-            Ok(_) => cargo_cache_warning(
-                options,
-                "inputs changed during execution; snapshot was not saved",
-            ),
-            Err(error) => cargo_cache_warning(options, &error.to_string()),
-        }
+        publish_cargo_snapshot(options, &cargo, snapshot, task_key, &environment);
     }
     Ok(execution)
+}
+
+/// Save the build directory as this task key's snapshot — but only when
+/// the inputs still hash to the key the run started with, since a
+/// concurrent edit would otherwise be published under the wrong key.
+fn publish_cargo_snapshot(
+    options: &RunTaskOptions<'_, '_>,
+    cargo: &cargo_cache::CargoCache,
+    (entry, key, local_packages): &(PathBuf, String, Vec<String>),
+    task_key: &str,
+    environment: &std::collections::BTreeMap<String, String>,
+) {
+    let root = options.node.project.as_path();
+    match cargo_cache::snapshot_entry(&options.config.cache_dir, root, task_key, environment) {
+        Ok((_, after, _)) if after == *key => {
+            if let Err(error) = cargo.publish(entry, key, local_packages) {
+                cargo_cache_warning(options, &error.to_string());
+            }
+        }
+        Ok(_) => {
+            cargo_cache_warning(options, "inputs changed during execution; snapshot was not saved");
+        }
+        Err(error) => cargo_cache_warning(options, &error.to_string()),
+    }
+}
+
+/// The script body to run for one selected script name. `None` when the
+/// project declares none, when it is empty or the `only-allow` guard, or
+/// when running it would re-enter the script pnpm is already inside.
+fn runnable_script(
+    manifest: &pnpm_package_manifest::PackageManifest,
+    selected: &str,
+    root: &Path,
+) -> miette::Result<Option<String>> {
+    let Some(script) = manifest.script(selected, true).map_err(miette::Report::new)? else {
+        return Ok(None);
+    };
+    if script.is_empty() || script == "npx only-allow pnpm" {
+        return Ok(None);
+    }
+    if env::var_os("npm_lifecycle_event").is_some_and(|event| event == *selected)
+        && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
+    {
+        return Ok(None);
+    }
+    Ok(Some(script.to_owned()))
+}
+
+/// Take the output one script produced into the capture buffer. A task
+/// whose output outgrows the cap is not cached at all: a truncated log
+/// would replay as a complete one.
+fn drain_captured_output(
+    captured: &mut Option<Vec<capture::CapturedScript>>,
+    captured_bytes: &mut usize,
+    root_str: &str,
+    selected: &str,
+    enable_pre_post_scripts: bool,
+) {
+    let Some(stages) = capture::drain_task(root_str, selected, enable_pre_post_scripts) else {
+        *captured = None;
+        return;
+    };
+    *captured_bytes += stages
+        .iter()
+        .flat_map(|stage| &stage.lines)
+        .map(|line| line.line.len() + std::mem::size_of::<capture::CapturedLine>())
+        .sum::<usize>();
+    if *captured_bytes > capture::MAX_CAPTURE_BYTES {
+        *captured = None;
+    }
+    if let Some(captured) = captured.as_mut() {
+        captured.extend(stages);
+    }
 }
 
 fn cargo_cache_warning(options: &RunTaskOptions<'_, '_>, reason: &str) {
@@ -880,17 +975,9 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
     let mut captured = capture_output.then(Vec::new);
     let mut captured_bytes = 0usize;
     for selected in &node.scripts {
-        let Some(script) = manifest.script(selected, true).map_err(miette::Report::new)? else {
+        let Some(script) = runnable_script(manifest, selected, root)? else {
             continue;
         };
-        if script.is_empty() || script == "npx only-allow pnpm" {
-            continue;
-        }
-        if env::var_os("npm_lifecycle_event").is_some_and(|event| event == **selected)
-            && env::var_os("PNPM_SCRIPT_SRC_DIR").is_some_and(|src_dir| Path::new(&src_dir) == root)
-        {
-            continue;
-        }
         let ctx = RunContext {
             manifest,
             dir: root,
@@ -906,24 +993,15 @@ fn execute_task_scripts(options: &RunTaskOptions<'_, '_>) -> miette::Result<Task
             // propagate into running children.
             process_tracker: None,
         };
-        let exit = run_stages(&ctx, selected, script, &[]);
+        let exit = run_stages(&ctx, selected, &script, &[]);
         if capture_output {
-            match capture::drain_task(&root_str, selected, config.enable_pre_post_scripts) {
-                Some(stages) => {
-                    captured_bytes += stages
-                        .iter()
-                        .flat_map(|stage| &stage.lines)
-                        .map(|line| line.line.len() + std::mem::size_of::<capture::CapturedLine>())
-                        .sum::<usize>();
-                    if captured_bytes > capture::MAX_CAPTURE_BYTES {
-                        captured = None;
-                    }
-                    if let Some(captured) = &mut captured {
-                        captured.extend(stages);
-                    }
-                }
-                None => captured = None,
-            }
+            drain_captured_output(
+                &mut captured,
+                &mut captured_bytes,
+                &root_str,
+                selected,
+                config.enable_pre_post_scripts,
+            );
         }
         let exit = exit?;
         if !exit.success() {
