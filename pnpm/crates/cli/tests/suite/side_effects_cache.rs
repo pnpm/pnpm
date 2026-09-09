@@ -2,7 +2,10 @@
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pnpm_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
+use pnpm_testing_utils::{
+    bin::{AddMockedRegistry, CommandTempCwd},
+    command_env::CommandTestExt,
+};
 use std::{fs, path::Path, process::Command};
 
 /// Regression for <https://github.com/pnpm/pnpm/issues/12042#issuecomment-4682732058>:
@@ -141,6 +144,7 @@ fn a_build_with_nothing_to_restore_runs_on_every_install() {
         fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
         let output = Command::cargo_bin("pnpm")
             .expect("find the pnpm binary")
+            .without_ambient_pnpm_config()
             .with_current_dir(&workspace)
             .with_args(["install", "--frozen-lockfile"])
             .with_env("PNPM_E2E_OUTSIDE_LOG", log.to_string_lossy().as_ref())
@@ -167,6 +171,7 @@ fn a_build_with_nothing_to_restore_runs_on_every_install() {
 fn run_frozen_install(workspace: &Path) {
     Command::cargo_bin("pnpm")
         .expect("find the pnpm binary")
+        .without_ambient_pnpm_config()
         .with_current_dir(workspace)
         .with_args(["install", "--frozen-lockfile"])
         .assert()

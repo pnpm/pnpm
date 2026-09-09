@@ -290,7 +290,7 @@ fn overlay_for(
     // effect simply never happens. Dropping it rebuilds instead, which is
     // also what pnpm 11 does: `checkPkgFilesIntegrity` adds a row to
     // `sideEffectsMaps` only under `if (added) ... else if (deleted)`.
-    if added.iter().flatten().next().is_none() && deleted.iter().flatten().next().is_none() {
+    if added.as_ref().is_none_or(HashMap::is_empty) && deleted.as_ref().is_none_or(Vec::is_empty) {
         tracing::debug!(
             target: "pacquet::store_index",
             cache_key,
