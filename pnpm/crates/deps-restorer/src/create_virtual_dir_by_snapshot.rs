@@ -146,125 +146,43 @@ pub enum CreateVirtualDirError {
 impl CreateVirtualDirBySnapshot<'_> {
     /// Execute the subroutine.
     pub fn run<Reporter: self::Reporter>(self) -> Result<(), CreateVirtualDirError> {
-        let CreateVirtualDirBySnapshot {
-            layout,
-            cas_paths,
-            import_method,
-            logged_methods,
-            requester,
-            package_id: _package_id,
-            package_key,
-            snapshot,
-            source_is_mutable,
-            force_import,
-            include_optional_dependencies,
-            symlink,
-            skipped,
-            removed_aliases,
-            needs_build_marker_source,
-            dir_clone_cache,
-            #[cfg(test)]
-            link_concurrency_probe,
-        } = self;
-
         #[cfg(test)]
         let _link_concurrency_guard =
-            link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
+            self.link_concurrency_probe.map(tests::LinkConcurrencyProbe::enter);
 
-        let slot_dir = layout.slot_dir(package_key);
-        let virtual_node_modules_dir = slot_dir.join("node_modules");
-        // Two direct `mkdir`s instead of one `create_dir_all` on the
-        // deepest path: the recursive form probes bottom-up with a
-        // failing `mkdir` per missing ancestor before creating them
-        // top-down, which on the APFS-serialized metadata path costs a
-        // large install ~3 extra syscalls per slot. The virtual-store
-        // root exists (steady state) — only its absence falls back to
-        // the recursive form.
-        create_slot_dirs(&slot_dir, &virtual_node_modules_dir)?;
-
-        let save_path =
-            safe_join_modules_dir(&virtual_node_modules_dir, &package_key.name.to_string())
-                .map_err(CreateVirtualDirError::InvalidAlias)?;
-
-        let interrupted_build = save_path.join(NEEDS_BUILD_MARKER).is_file();
+        let slot = SlotPaths::create(self.layout, self.package_key)?;
+        let interrupted_build = slot.save_path.join(NEEDS_BUILD_MARKER).is_file();
         let marked_cas_paths = cas_paths_with_build_marker(
-            cas_paths,
-            &save_path,
-            needs_build_marker_source,
+            self.cas_paths,
+            &slot.save_path,
+            self.needs_build_marker_source,
             interrupted_build,
         );
-        let cas_paths = marked_cas_paths.as_ref().unwrap_or(cas_paths);
-        let import_opts =
-            slot_import_opts(layout, (interrupted_build, source_is_mutable, force_import));
+        let cas_paths = marked_cas_paths.as_ref().unwrap_or(self.cas_paths);
 
-        let import_package = || {
-            // A slot with an interrupted build re-imports with `force`,
-            // which the cache's fresh-destination clone cannot serve.
-            if !interrupted_build
-                && let Some(cache) = dir_clone_cache
-                && cache.try_import::<Reporter>(
-                    logged_methods,
-                    import_method,
-                    package_key,
-                    &save_path,
-                    cas_paths,
-                )
-            {
-                return Ok(());
-            }
-            import_indexed_dir::<Reporter>(
-                logged_methods,
-                import_method,
-                &save_path,
-                cas_paths,
-                import_opts,
-            )
-            .map_err(CreateVirtualDirError::ImportIndexedDir)
-        };
-        if symlink {
+        let import_package =
+            || self.import_slot::<Reporter>(&slot.save_path, cas_paths, interrupted_build);
+        if self.symlink {
             // `rayon::join` runs both closures in parallel on rayon's pool,
             // returning only once both finish. `import_indexed_dir` is itself
             // a rayon par_iter over CAS entries; `create_symlink_layout` is
             // a small serial loop over dep refs.
-            let (cas_result, symlink_result) = rayon::join(import_package, || {
-                create_symlink_layout(
-                    snapshot.dependencies.as_ref(),
-                    snapshot.optional_dependencies.as_ref(),
-                    include_optional_dependencies,
-                    &package_key.name,
-                    skipped,
-                    layout,
-                    &virtual_node_modules_dir,
-                )
-                .map_err(CreateVirtualDirError::SymlinkPackage)
-            });
+            let (cas_result, symlink_result) =
+                rayon::join(import_package, || self.link_children(&slot.node_modules));
             cas_result?;
             symlink_result?;
-            if !include_optional_dependencies {
-                remove_obsolete_children(
-                    &virtual_node_modules_dir,
-                    &package_key.name,
-                    snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias),
-                )?;
+            if !self.include_optional_dependencies {
+                self.remove_optional_children(&slot.node_modules)?;
             }
         } else {
             import_package()?;
-            remove_obsolete_children(
-                &virtual_node_modules_dir,
-                &package_key.name,
-                snapshot.dependencies.iter().flat_map(|dependencies| dependencies.keys()).chain(
-                    snapshot
-                        .optional_dependencies
-                        .iter()
-                        .flat_map(|dependencies| dependencies.keys()),
-                ),
-            )?;
+            self.remove_all_children(&slot.node_modules)?;
         }
 
         // Unlink children the package no longer depends on after the
         // package has materialized. The removed aliases are disjoint
         // from the package's own `node_modules/<self>` directory.
-        remove_obsolete_children(&virtual_node_modules_dir, &package_key.name, removed_aliases)?;
+        remove_obsolete_children(&slot.node_modules, &self.package_key.name, self.removed_aliases)?;
 
         // `pnpm:progress imported` fires one event per (resolved +
         // fetched) package once its CAFS import has finished. `to` is
@@ -281,13 +199,106 @@ impl CreateVirtualDirBySnapshot<'_> {
         Reporter::emit(&LogEvent::Progress(ProgressLog {
             level: LogLevel::Debug,
             message: ProgressMessage::Imported {
-                method: optimistic_wire_method(import_method),
-                requester: requester.to_owned(),
-                to: save_path.to_string_lossy().into_owned(),
+                method: optimistic_wire_method(self.import_method),
+                requester: self.requester.to_owned(),
+                to: slot.save_path.to_string_lossy().into_owned(),
             },
         }));
 
         Ok(())
+    }
+
+    fn import_slot<Reporter: self::Reporter>(
+        &self,
+        save_path: &Path,
+        cas_paths: &HashMap<String, PathBuf>,
+        interrupted_build: bool,
+    ) -> Result<(), CreateVirtualDirError> {
+        // A slot with an interrupted build re-imports with `force`,
+        // which the cache's fresh-destination clone cannot serve.
+        if !interrupted_build
+            && let Some(cache) = self.dir_clone_cache
+            && cache.try_import::<Reporter>(
+                self.logged_methods,
+                self.import_method,
+                self.package_key,
+                save_path,
+                cas_paths,
+            )
+        {
+            return Ok(());
+        }
+        import_indexed_dir::<Reporter>(
+            self.logged_methods,
+            self.import_method,
+            save_path,
+            cas_paths,
+            slot_import_opts(
+                self.layout,
+                (interrupted_build, self.source_is_mutable, self.force_import),
+            ),
+        )
+        .map_err(CreateVirtualDirError::ImportIndexedDir)
+    }
+
+    fn link_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        create_symlink_layout(
+            self.snapshot.dependencies.as_ref(),
+            self.snapshot.optional_dependencies.as_ref(),
+            self.include_optional_dependencies,
+            &self.package_key.name,
+            self.skipped,
+            self.layout,
+            node_modules,
+        )
+        .map_err(CreateVirtualDirError::SymlinkPackage)
+    }
+
+    fn remove_optional_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        remove_obsolete_children(
+            node_modules,
+            &self.package_key.name,
+            self.snapshot.optional_dependencies.iter().flatten().map(|(alias, _)| alias),
+        )
+    }
+
+    fn remove_all_children(&self, node_modules: &Path) -> Result<(), CreateVirtualDirError> {
+        remove_obsolete_children(
+            node_modules,
+            &self.package_key.name,
+            self.snapshot
+                .dependencies
+                .iter()
+                .flat_map(|dependencies| dependencies.keys())
+                .chain(self.snapshot.optional_dependencies.iter().flat_map(|deps| deps.keys())),
+        )
+    }
+}
+
+/// The slot's directories, created.
+struct SlotPaths {
+    node_modules: PathBuf,
+    save_path: PathBuf,
+}
+
+impl SlotPaths {
+    fn create(
+        layout: &VirtualStoreLayout,
+        package_key: &PackageKey,
+    ) -> Result<Self, CreateVirtualDirError> {
+        let slot_dir = layout.slot_dir(package_key);
+        let node_modules = slot_dir.join("node_modules");
+        // Two direct `mkdir`s instead of one `create_dir_all` on the
+        // deepest path: the recursive form probes bottom-up with a
+        // failing `mkdir` per missing ancestor before creating them
+        // top-down, which on the APFS-serialized metadata path costs a
+        // large install ~3 extra syscalls per slot. The virtual-store
+        // root exists (steady state) — only its absence falls back to
+        // the recursive form.
+        create_slot_dirs(&slot_dir, &node_modules)?;
+        let save_path = safe_join_modules_dir(&node_modules, &package_key.name.to_string())
+            .map_err(CreateVirtualDirError::InvalidAlias)?;
+        Ok(Self { node_modules, save_path })
     }
 }
 
