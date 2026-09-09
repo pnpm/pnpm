@@ -48,21 +48,21 @@ macro_rules! login_fake {
             static INI_WRITES: RefCell<Vec<(PathBuf, String)>> = const { RefCell::new(Vec::new()) };
         }
 
-        impl crate::login::PromptInput for $fake {
+        impl $crate::login::PromptInput for $fake {
             fn prompt_input(message: &str) -> Result<String, dialoguer::Error> {
                 let mut script = PROMPT_INPUT.lock().expect("input script mutex");
                 (script.as_mut().expect("an input script must be set"))(message)
             }
         }
 
-        impl crate::login::PromptPassword for $fake {
+        impl $crate::login::PromptPassword for $fake {
             fn prompt_password(message: &str) -> Result<String, dialoguer::Error> {
                 let mut script = PROMPT_PASSWORD.lock().expect("password script mutex");
                 (script.as_mut().expect("a password script must be set"))(message)
             }
         }
 
-        impl crate::logout::FsReadToString for $fake {
+        impl $crate::logout::FsReadToString for $fake {
             fn read_to_string(path: &Path) -> io::Result<String> {
                 INI_READ.with(|script| match script.borrow_mut().as_mut() {
                     Some(read) => read(path),
@@ -71,7 +71,7 @@ macro_rules! login_fake {
             }
         }
 
-        impl crate::logout::FsWrite for $fake {
+        impl $crate::logout::FsWrite for $fake {
             fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
                 let text = String::from_utf8(bytes.to_vec()).expect("config.yaml is UTF-8");
                 INI_WRITES.with(|writes| writes.borrow_mut().push((path.to_path_buf(), text)));
