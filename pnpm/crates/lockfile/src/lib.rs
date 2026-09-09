@@ -213,6 +213,50 @@ pub struct Lockfile {
     pub extra: LockfileExtra,
 }
 
+/// One lockfile's `packages:` and `snapshots:` maps, borrowed together.
+///
+/// The two are read as a pair everywhere they are read at all: a
+/// snapshot names the wiring, the matching `packages` entry carries the
+/// metadata for the same key. Passing them as one value is what keeps a
+/// caller from pairing one lockfile's snapshots with another's
+/// metadata, and it lets a phase that must be handed *the same* maps
+/// twice — `CasPrefetch` derives a cache key per snapshot that
+/// `CreateVirtualStore` then consumes — take one argument instead of
+/// two that must agree.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LockfileEntries<'a> {
+    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+}
+
+impl<'a> From<&'a Lockfile> for LockfileEntries<'a> {
+    fn from(lockfile: &'a Lockfile) -> Self {
+        LockfileEntries {
+            packages: lockfile.packages.as_ref(),
+            snapshots: lockfile.snapshots.as_ref(),
+        }
+    }
+}
+
+impl<'a> LockfileEntries<'a> {
+    /// The previous install's entries as the warm-reinstall skip reads
+    /// them: a snapshot whose wiring and integrity are unchanged and
+    /// whose virtual-store slot still exists is dropped from the
+    /// install graph.
+    ///
+    /// `--force` relinks every package, so under it the skip must see
+    /// nothing — pnpm's `lockfileToDepGraph(..., opts.force ? null :
+    /// currentLockfile)`. The current lockfile itself still reaches the
+    /// prune, which runs on the real one even under `--force`.
+    pub fn of_previous_install(lockfile: Option<&'a Lockfile>, force: bool) -> Self {
+        if force {
+            LockfileEntries::default()
+        } else {
+            lockfile.map(LockfileEntries::from).unwrap_or_default()
+        }
+    }
+}
+
 impl Lockfile {
     /// Base file name of the lockfile.
     pub const FILE_NAME: &str = "pnpm-lock.yaml";

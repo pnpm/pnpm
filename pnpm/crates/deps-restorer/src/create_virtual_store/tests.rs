@@ -4,8 +4,8 @@ use super::{
 };
 use crate::install_package_by_snapshot::host_platform_selector;
 use pnpm_lockfile::{
-    GitResolution, LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgVerPeer,
-    RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
+    GitResolution, LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgName,
+    PkgVerPeer, RegistryResolution, SnapshotDepRef, SnapshotEntry, TarballResolution,
 };
 use pnpm_reporter::{LogEvent, ProgressMessage, Reporter, SilentReporter};
 use std::{
@@ -173,10 +173,8 @@ async fn cold_batch_links_slots_in_parallel() {
     let output = CreateVirtualStore {
         http_client: &pnpm_network::ThrottledClient::default(),
         config,
-        packages: Some(&packages),
-        snapshots: Some(&snapshots),
-        current_snapshots: None,
-        current_packages: None,
+        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        current_entries: LockfileEntries::default(),
         layout: &layout,
         logged_methods: &logged_methods,
         requester: &requester,
@@ -308,10 +306,8 @@ async fn shared_store_context_materializes_a_warm_package() {
     let output = CreateVirtualStore {
         http_client: &pnpm_network::ThrottledClient::default(),
         config,
-        packages: Some(&packages),
-        snapshots: Some(&snapshots),
-        current_snapshots: None,
-        current_packages: None,
+        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        current_entries: LockfileEntries::default(),
         layout: &layout,
         logged_methods: &logged_methods,
         requester: &requester,
@@ -435,10 +431,8 @@ async fn gvs_link_pass_materializes_shared_slot_once() {
     CreateVirtualStore {
         http_client: &pnpm_network::ThrottledClient::default(),
         config,
-        packages: Some(&packages),
-        snapshots: Some(&snapshots),
-        current_snapshots: None,
-        current_packages: None,
+        entries: LockfileEntries { packages: Some(&packages), snapshots: Some(&snapshots) },
+        current_entries: LockfileEntries::default(),
         layout: &layout,
         logged_methods: &logged_methods,
         requester: &requester,

@@ -34,8 +34,9 @@ use pnpm_executor::{
     run_project_lifecycle_scripts,
 };
 use pnpm_lockfile::{
-    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, PnpmfileChecksumCheck,
-    SaveLockfileError, StalenessReason, VersionPart, satisfies_package_manifest,
+    LazyLockfile, LoadLockfileError, Lockfile, LockfileEntries, MaybeLazyLockfile,
+    PnpmfileChecksumCheck, SaveLockfileError, StalenessReason, VersionPart,
+    satisfies_package_manifest,
 };
 use pnpm_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,

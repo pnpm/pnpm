@@ -2037,10 +2037,13 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     } = CreateVirtualStore {
         http_client,
         config,
-        packages: materialization_lockfile.packages.as_ref(),
-        snapshots: materialization_lockfile.snapshots.as_ref(),
-        current_snapshots: current_lockfile.and_then(|lockfile| lockfile.snapshots.as_ref()),
-        current_packages: current_lockfile.and_then(|lockfile| lockfile.packages.as_ref()),
+        entries: materialization_lockfile.into(),
+        // TODO: the frozen path builds this with
+        // `LockfileEntries::of_previous_install`, which empties it under
+        // `--force` so the warm-reinstall skip cannot keep a package
+        // from being relinked. The fresh path never has, so `--force`
+        // over a stale lockfile still skips unchanged snapshots.
+        current_entries: current_lockfile.map(Into::into).unwrap_or_default(),
         layout,
         logged_methods,
         requester,
@@ -2103,15 +2106,17 @@ async fn run_on_disk_phases<Reporter: self::Reporter + 'static>(
     // `modules_dir.parent()` rather than `lockfile_dir`.
     let symlink_root: &Path = config.modules_dir.parent().unwrap_or(lockfile_dir);
 
-    let project_manifests_for_link: Vec<(std::path::PathBuf, &PackageManifest)> = importer_manifests
-        .iter()
-        .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
-        .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
-        .collect();
-    let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> = importer_manifests
-        .iter()
-        .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
-        .collect();
+    let project_manifests_for_link: Vec<(std::path::PathBuf, &PackageManifest)> =
+        importer_manifests
+            .iter()
+            .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))
+            .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+            .collect();
+    let package_map_project_manifests: Vec<(std::path::PathBuf, &PackageManifest)> =
+        importer_manifests
+            .iter()
+            .map(|(id, manifest)| (lockfile_dir.join(id), *manifest))
+            .collect();
     let root_component_importers: std::collections::HashSet<String> = importer_manifests
         .iter()
         .filter(|(id, _)| project_anchor_importer_ids.contains(id.as_str()))

@@ -12,8 +12,8 @@ use pnpm_config::{Config, NodeLinker, PackageImportMethod};
 use pnpm_deps_path::get_pkg_id_with_patch_hash;
 use pnpm_git_fetcher::{GitFetcherError, assert_package_build_allowed};
 use pnpm_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName, PkgNameVerPeer,
-    PlatformSelector, SnapshotEntry, select_platform_variant,
+    LockfileEntries, LockfileResolution, PackageKey, PackageMetadata, PkgIdWithPatchHash, PkgName,
+    PkgNameVerPeer, PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pnpm_network::ThrottledClient;
 use pnpm_package_manifest::{
@@ -122,16 +122,16 @@ impl CasPrefetch {
     /// but, like the rest of the store planning, only after the
     /// offline lockfile checks.
     ///
-    /// `snapshots` and `packages` must be the same maps later given to
+    /// `entries` must be the same value later given to
     /// [`CreateVirtualStore::run`]: the plan pass consumes one derived
     /// key per snapshot.
     pub async fn start(
         config: &'static Config,
-        snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
-        packages: Option<&HashMap<PackageKey, PackageMetadata>>,
+        entries: LockfileEntries<'_>,
         supported_architectures: Option<&pnpm_package_is_installable::SupportedArchitectures>,
         store_context: Option<&CreateVirtualStoreStoreContext<'_>>,
     ) -> Self {
+        let LockfileEntries { packages, snapshots } = entries;
         let store_dir: &'static _ = &config.store_dir;
         // Open the read-only SQLite index once for the whole run instead
         // of per snapshot. Every `InstallPackageBySnapshot` performs a
@@ -244,15 +244,15 @@ pub struct CreateVirtualStoreOutput {
 pub struct CreateVirtualStore<'a> {
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    /// Snapshots and per-version metadata recorded by the previous
-    /// install, parsed from `<virtual_store_dir>/lock.yaml`. `None`
-    /// on a first install (the file doesn't exist). When present,
-    /// per-snapshot lookups against this drive the warm-reinstall
-    /// skip decision — see [`CreateVirtualStore::run`].
-    pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// The wanted lockfile's entries — what this run materializes.
+    pub entries: LockfileEntries<'a>,
+    /// Entries recorded by the previous install, parsed from
+    /// `<virtual_store_dir>/lock.yaml`. Empty on a first install (the
+    /// file doesn't exist) and under `--force`. When present,
+    /// per-snapshot lookups against these drive the warm-reinstall skip
+    /// decision — see [`CreateVirtualStore::run`] and
+    /// [`LockfileEntries::of_previous_install`].
+    pub current_entries: LockfileEntries<'a>,
     /// Install-scoped precomputed slot-directory mapping (GVS-aware).
     /// Used by both the warm batch and the cold batch to decide where
     /// each snapshot's `node_modules/<pkg>` lands. See
@@ -396,10 +396,8 @@ impl CreateVirtualStore<'_> {
         let CreateVirtualStore {
             http_client,
             config,
-            packages,
-            snapshots,
-            current_snapshots,
-            current_packages,
+            entries,
+            current_entries,
             layout,
             logged_methods,
             requester,
@@ -420,6 +418,9 @@ impl CreateVirtualStore<'_> {
             #[cfg(test)]
             link_concurrency_probe,
         } = self;
+        let LockfileEntries { packages, snapshots } = entries;
+        let LockfileEntries { packages: current_packages, snapshots: current_snapshots } =
+            current_entries;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let runtime_platform_selector = runtime_platform_selector(supported_architectures);
@@ -447,8 +448,7 @@ impl CreateVirtualStore<'_> {
             None => {
                 CasPrefetch::start(
                     config,
-                    Some(snapshots),
-                    Some(packages),
+                    LockfileEntries { packages: Some(packages), snapshots: Some(snapshots) },
                     supported_architectures,
                     store_context.as_ref(),
                 )

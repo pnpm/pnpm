@@ -28,7 +28,7 @@ use pnpm_cmd_shim::{LinkBinsError, LinkBinsOptions};
 use pnpm_config::{Config, NodeLinker, matcher::create_matcher};
 use pnpm_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pnpm_lockfile::{
-    Lockfile, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
+    Lockfile, LockfileEntries, PackageKey, PackageMetadata, Prefix, ProjectSnapshot, SnapshotEntry,
 };
 use pnpm_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
@@ -72,17 +72,9 @@ where
     pub http_client: &'a ThrottledClient,
     pub config: &'static Config,
     pub pnpmfile_hook: Option<&'a Arc<dyn pnpm_hooks::PnpmfileHooks>>,
-    pub importers: &'a HashMap<String, ProjectSnapshot>,
-    pub packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
-    pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    /// The fully-deserialized wanted lockfile. Carried alongside
-    /// the destructured `importers` / `packages` / `snapshots`
-    /// references because the hoisted-linker walker
-    /// ([`crate::lockfile_to_hoisted_dep_graph`]) takes a
-    /// `&Lockfile` (it threads the lockfile into
-    /// [`pnpm_real_hoist::hoist`] which needs every importer's
-    /// direct deps plus the full `packages` / `snapshots` maps in
-    /// one borrow). Isolated installs ignore the field.
+    /// The fully-deserialized wanted lockfile. Its `importers`,
+    /// `packages` and `snapshots` are read straight off it, so a caller
+    /// cannot pair one lockfile's entries with another's maps.
     pub lockfile: &'a Lockfile,
     /// Resolution verifiers to re-apply to every lockfile entry. Run
     /// concurrently with the fetch phase ([`crate::CreateVirtualStore`])
@@ -105,14 +97,12 @@ where
     /// through to the hoisted walker for `prev_graph` (orphan
     /// diff). `None` on a first install.
     pub current_lockfile: Option<&'a Lockfile>,
-    /// Snapshots from the previous install's `lock.yaml`, if present.
-    /// Threaded through to [`crate::CreateVirtualStore`] to drive the
-    /// per-snapshot skip decision (a snapshot whose wiring and
-    /// integrity haven't changed and whose virtual-store slot still
-    /// exists on disk is dropped from the install graph). `None` on a
-    /// first install — the current-lockfile file doesn't exist yet.
-    pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
-    pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    /// Entries from the previous install's `lock.yaml`, threaded through
+    /// to [`crate::CreateVirtualStore`] to drive the per-snapshot skip
+    /// decision. See [`LockfileEntries::of_previous_install`], which is
+    /// how a caller builds this: it is empty on a first install and
+    /// under `--force`.
+    pub current_entries: LockfileEntries<'a>,
     pub dependency_groups: DependencyGroupList,
     pub project_manifests: &'a [(PathBuf, &'a pnpm_package_manifest::PackageManifest)],
     pub package_map_project_manifests:
@@ -357,16 +347,12 @@ where
             http_client,
             config,
             pnpmfile_hook,
-            importers,
-            packages,
-            snapshots,
             lockfile,
             resolution_verifiers,
             lockfile_verification_override,
             lockfile_path,
             current_lockfile,
-            current_snapshots,
-            current_packages,
+            current_entries,
             dependency_groups,
             project_manifests,
             package_map_project_manifests,
@@ -385,6 +371,9 @@ where
             prune_orphans,
             planned_canonical_fetches,
         } = self;
+        let entries = LockfileEntries::from(lockfile);
+        let LockfileEntries { packages, snapshots } = entries;
+        let importers = &lockfile.importers;
 
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         let link_options = crate::shim_link_options(config, node_linker);
@@ -539,8 +528,7 @@ where
         // pending host detection finishes its `node --version`.
         let cas_prefetch = crate::create_virtual_store::CasPrefetch::start(
             config,
-            snapshots,
-            packages,
+            entries,
             supported_architectures,
             None,
         )
@@ -634,10 +622,8 @@ where
             CreateVirtualStore {
                 http_client,
                 config,
-                packages,
-                snapshots,
-                current_snapshots,
-                current_packages,
+                entries,
+                current_entries,
                 layout: &layout,
                 logged_methods,
                 requester,
